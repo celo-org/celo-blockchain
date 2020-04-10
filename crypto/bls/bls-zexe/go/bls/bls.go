@@ -68,6 +68,17 @@ type Signature struct {
 	ptr *C.struct_Signature
 }
 
+type SignedBlockHeader struct {
+	/// The seal for this epoch
+	Data []byte
+	/// The extra data for this epoch (usually this will be left empty)
+	Extra []byte
+	/// The aggregate public key for this epoch
+	Pubkey *PublicKey
+	/// The aggregate signature for this epoch
+	Sig *Signature
+}
+
 func InitBLSCrypto() {
 	C.init()
 }
@@ -230,6 +241,61 @@ func (self *PublicKey) Serialize() ([]byte, error) {
 
 func (self *PublicKey) Destroy() {
 	C.destroy_public_key(self.ptr)
+}
+
+func toBuffer(data []byte) C.Buffer {
+	dataPtr, dataLen := sliceToPtr(data)
+	return C.Buffer{
+		ptr: dataPtr,
+		len: C.int(dataLen),
+	}
+}
+
+/// Performs batch BLS signature verification over a list of epochs
+func BatchVerifyEpochs(signedHeaders []*SignedBlockHeader, shouldUseCompositeHasher bool) error {
+	var verified C.bool
+	msg_len := len(signedHeaders)
+
+	// Allocate a contiguous slice of memory for the pointers
+	// NB: `make([]*C.MessageFFI, msg_len) results in `cgo argument has Go pointer to Go pointer`
+	size := int(unsafe.Sizeof(C.MessageFFI{}))
+	messages_ptr := C.malloc(C.size_t(size * msg_len))
+	defer C.free(messages_ptr)
+
+	// Get our data in the format the library expects
+	for i := 0; i < msg_len; i++ {
+		// convert the slices to pointers
+		data := toBuffer(signedHeaders[i].Data)
+		extra := toBuffer(signedHeaders[i].Extra)
+
+		// Get messages_ptr[i] (need to offset by i*size to take into account the size of C.MessageFFI)
+		msg := (*C.MessageFFI)(unsafe.Pointer(uintptr(messages_ptr) + uintptr(size*i)))
+		// ...and write to it
+		*msg = C.MessageFFI{
+			data:       data,
+			extra:      extra,
+			public_key: signedHeaders[i].Pubkey.ptr,
+			sig:        signedHeaders[i].Sig.ptr,
+		}
+	}
+
+	// make the batch verification call
+	success := C.batch_verify_signature(
+		(*C.MessageFFI)(messages_ptr),
+		C.int(msg_len),
+		C.bool(shouldUseCompositeHasher),
+		&verified,
+	)
+
+	if !success {
+		return GeneralError
+	}
+
+	if !verified {
+		return NotVerifiedError
+	}
+
+	return nil
 }
 
 func (self *PublicKey) VerifySignature(message []byte, extraData []byte, signature *Signature, shouldUseCompositeHasher bool) error {

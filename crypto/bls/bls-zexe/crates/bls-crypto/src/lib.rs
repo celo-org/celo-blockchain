@@ -50,7 +50,7 @@ fn convert_result_to_bool<T, E: Display, F: Fn() -> Result<T, E>>(f: F) -> bool 
 }
 
 #[no_mangle]
-/// Initializes the lazily evaluated hashers. Should
+/// Initializes the lazily evaluated hashers.
 pub extern "C" fn init() {
     &*COMPOSITE_HASH_TO_G1;
     &*DIRECT_HASH_TO_G1;

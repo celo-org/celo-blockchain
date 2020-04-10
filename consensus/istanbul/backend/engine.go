@@ -23,6 +23,8 @@ import (
 	"math/big"
 	"time"
 
+	//nolint:goimports
+	bls_ffi "github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -175,18 +177,110 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
-	go func() {
-		for i, header := range headers {
-			err := sb.verifyHeader(chain, header, headers[:i])
 
-			select {
-			case <-abort:
-				return
-			case results <- err:
+	// If we are in "lightest" mode, we do batch verification of all BLS signatures
+	// in the headers, so there is no need to iterate over the blocks
+	if chain.Config().FullHeaderChainAvailable {
+		go func() {
+			for i, header := range headers {
+				err := sb.verifyHeader(chain, header, headers[:i])
+
+				select {
+				case <-abort:
+					return
+				case results <- err:
+				}
 			}
-		}
-	}()
+		}()
+	} else {
+		go func() {
+			err := sb.batchVerifyHeaders(chain, headers)
+			// even though we get 1 return value from the batched verification
+			// method, we need to fill the whole channel of results with return values
+			for i := 0; i < len(headers); i++ {
+				select {
+				case <-abort:
+					return
+				case results <- err:
+				}
+			}
+		}()
+	}
 	return abort, results
+}
+
+// batchVerifyHeaders is called in ultralight mode and performs batch BLS signature
+// verification over all provided headers and their corresponding validator sets
+func (sb *Backend) batchVerifyHeaders(chain consensus.ChainReader, headers []*types.Header) error {
+	// TODO: Populating this array can easily be done in parallel since the order does not matter
+	var msgs []*bls_ffi.SignedBlockHeader
+	for i, header := range headers {
+		// skip the genesis block
+		if header.Number.Uint64() == 0 {
+			continue
+		}
+
+		extra, err := types.ExtractIstanbulExtra(header)
+		if err != nil {
+			return err
+		}
+
+		// Don't waste time checking blocks from the future (allow some minor clock skew)
+		if header.Time > uint64(now().Unix())+mobileAllowedClockSkew {
+			return consensus.ErrFutureBlock
+		}
+
+		// short-circuit if there was no signature found
+		if len(extra.AggregatedSeal.Signature) == 0 {
+			return errEmptyAggregatedSeal
+		}
+
+		// 1. Get the aggregate public key for this epoch
+
+		// 1.1. Get the snapshot
+		snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, headers[:i])
+		if err != nil {
+			return err
+		}
+
+		// 1.2 Get the subset of validator public keys that signed
+		// based on the sig's bitmap
+		asig := extra.AggregatedSeal
+		publicKeys, err := getAggregatedSealSigners(snap.ValSet, asig)
+		if err != nil {
+			return err
+		}
+
+		// 1.3. Aggregate them
+		apk, err := blscrypto.AggregatePublicKeys(publicKeys)
+		if err != nil {
+			return err
+		}
+		defer apk.Destroy() // housekeeping
+
+		// 2. Get the aggregate sig for this epoch
+		asigObj, err := bls_ffi.DeserializeSignature(extra.AggregatedSeal.Signature)
+		if err != nil {
+			return err
+		}
+		defer asigObj.Destroy() // housekeeping
+
+		// 3. Get the message which was signed for this epoch
+		proposalSeal := istanbulCore.PrepareCommittedSeal(header.Hash(), asig.Round)
+
+		// 4. Bundle them for the function call
+		msg := &bls_ffi.SignedBlockHeader{
+			Extra:  []byte{},
+			Data:   proposalSeal,
+			Pubkey: apk,
+			Sig:    asigObj,
+		}
+
+		msgs = append(msgs, msg)
+	}
+
+	// perform the batch verification with the direct hasher
+	return bls_ffi.BatchVerifyEpochs(msgs, false)
 }
 
 // verifySigner checks whether the signer is in parent's validator set
@@ -230,7 +324,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 		return err
 	}
 
-	// The length of Committed seals should be larger than 0
+	// the length of committed seals should be larger than 0
 	if len(extra.AggregatedSeal.Signature) == 0 {
 		return errEmptyAggregatedSeal
 	}
@@ -285,8 +379,24 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 		return errInvalidAggregatedSeal
 	}
 
-	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
+	publicKeys, err := getAggregatedSealSigners(validators, aggregatedSeal)
+	if err != nil {
+		return err
+	}
+
+	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
+	err = blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
+	if err != nil {
+		logger.Error("Unable to verify aggregated signature", "err", err)
+		return errInvalidSignature
+	}
+
+	return nil
+}
+
+// Find which public keys signed from the provided validator set
+func getAggregatedSealSigners(validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) ([]blscrypto.SerializedPublicKey, error) {
 	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
@@ -294,18 +404,13 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 			publicKeys = append(publicKeys, pubKey)
 		}
 	}
+
 	// The length of a valid seal should be greater than the minimum quorum size
 	if len(publicKeys) < validators.MinQuorumSize() {
-		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
-		return errInsufficientSeals
-	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
-	if err != nil {
-		logger.Error("Unable to verify aggregated signature", "err", err)
-		return errInvalidSignature
+		return nil, errInsufficientSeals
 	}
 
-	return nil
+	return publicKeys, nil
 }
 
 // VerifySeal checks whether the crypto seal on a header is valid according to
