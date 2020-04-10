@@ -178,7 +178,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 
-	// If we are in ultralight mode, we do batch verification of all BLS signatures
+	// If we are in "lightest" mode, we do batch verification of all BLS signatures
 	// in the headers, so there is no need to iterate over the blocks
 	if chain.Config().FullHeaderChainAvailable {
 		go func() {
@@ -246,7 +246,7 @@ func (sb *Backend) batchVerifyHeaders(chain consensus.ChainReader, headers []*ty
 		// 1.2 Get the subset of validator public keys that signed
 		// based on the sig's bitmap
 		asig := extra.AggregatedSeal
-		publicKeys, err := hasQuorum(snap.ValSet, asig)
+		publicKeys, err := getAggregatedSealSigners(snap.ValSet, asig)
 		if err != nil {
 			return err
 		}
@@ -380,7 +380,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 	}
 
 	// Find which public keys signed from the provided validator set
-	publicKeys, err := hasQuorum(validators, aggregatedSeal)
+	publicKeys, err := getAggregatedSealSigners(validators, aggregatedSeal)
 	if err != nil {
 		return err
 	}
@@ -396,7 +396,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 }
 
 // Find which public keys signed from the provided validator set
-func hasQuorum(validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) ([]blscrypto.SerializedPublicKey, error) {
+func getAggregatedSealSigners(validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) ([]blscrypto.SerializedPublicKey, error) {
 	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
 		if aggregatedSeal.Bitmap.Bit(i) == 1 {
