@@ -286,7 +286,7 @@ func (sb *Backend) IsProxiedValidator() bool {
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
-	if !sb.IsProxiedValidator() || sb.proxyNode.peer == nil {
+	if !sb.IsProxiedValidator() || sb.proxyNode == nil || sb.proxyNode.peer == nil {
 		err := errors.New("No Proxy found")
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
