@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -54,6 +55,8 @@ var (
 
 // KeyStoreType is the reflect type of a keystore backend.
 var KeyStoreType = reflect.TypeOf(&KeyStore{})
+
+var useLedger = 2
 
 // KeyStoreScheme is the protocol scheme prefixing account and wallet URLs.
 const KeyStoreScheme = "keystore"
@@ -291,7 +294,14 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 }
 
 func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
-	time.Sleep(1000 * time.Millisecond)
+	if useLedger == 2 {
+		log.Warn("Generating randomness for Ledger use")
+		useLedger = rand.Intn(2)
+	}
+	if useLedger == 1 {
+		log.Warn("Simulating signing with Ledger")
+		time.Sleep(2 * time.Second)
+	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -326,7 +336,14 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.Seri
 }
 
 func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-	time.Sleep(1000 * time.Millisecond)
+	if useLedger == 2 {
+		log.Warn("Generating randomness for Ledger use")
+		useLedger = rand.Intn(2)
+	}
+	if useLedger == 1 {
+		log.Warn("Simulating signing with Ledger")
+		time.Sleep(2 * time.Second)
+	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
