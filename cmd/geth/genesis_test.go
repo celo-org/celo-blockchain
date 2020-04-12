@@ -70,6 +70,19 @@ var customGenesisTests = []struct {
 		query:  "eth.getBlock(0).timestamp",
 		result: "0",
 	},
+	// Genesis file with custom "purpose" message
+	{
+		genesis: `{
+			"alloc"      : {},
+			"coinbase"   : "0x0000000000000000000000000000000000000000",
+			"extraData"  : "",
+			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
+			"timestamp"  : "0x00",
+			"purpose"    : "Placeholder message"
+		}`,
+		query:  "eth.getBlock(0).timestamp",
+		result: "0",
+	},
 }
 
 // Tests that initializing Geth with a custom genesis block and chain definitions
