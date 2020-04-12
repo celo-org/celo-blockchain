@@ -72,6 +72,10 @@ var errLedgerReplyInvalidHeader = errors.New("ledger: invalid reply header")
 // when a response does arrive, but it does not contain the expected data.
 var errLedgerInvalidVersionReply = errors.New("ledger: invalid version reply")
 
+// errLedgerBadStatusCode is the error message returned by any Ledger command
+// when a response arrives with a bad status code.
+var errLedgerBadStatusCode = errors.New("ledger: bad status code")
+
 // ledgerDriver implements the communication with a Ledger hardware wallet.
 type ledgerDriver struct {
 	device  io.ReadWriter  // USB device connection to communicate through
@@ -631,6 +635,12 @@ func (w *ledgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 			reply = append(reply, payload[:left]...)
 			break
 		}
+	}
+
+	statusCodeBytes := reply[len(reply)-2:]
+	statusCode := int(binary.BigEndian.Uint16(statusCodeBytes))
+	if statusCode != 0x9000 {
+		return nil, errLedgerBadStatusCode
 	}
 	return reply[:len(reply)-2], nil
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const TokensBlob = "AAAAZwRjVVNE7iH659QixVHlnsaPVraJnhSVN8EAAAASAAAETTBEAiB4Uyieo7mV/ccnAQHuAQ9LH1rwI15/a2KaKnH/ALbOnwIgec491raPRuRxrMkcVDYBdE36mpe/Bm7G1FDlBkL4AhE=" // #nosec
+const TokensBlob = "AAAAaARjVVNE7iH659QixVHlnsaPVraJnhSVN8EAAAASAAAETTBFAiEAizZZ1hwhNUkulAifI398lqJBJC6SEnV3FnWxwn3kNS4CIAF/G+4QlS1rpjNCbeOE5CvtVaSKMDpCQzFuylrrG3cF" // #nosec
 
 var ErrCouldNotFindToken = errors.New("could not find token")
 var ErrNotAnERC20Transfer = errors.New("not an ERC20 transfer")
