@@ -70,7 +70,7 @@ var customGenesisTests = []struct {
 		query:  "eth.getBlock(0).timestamp",
 		result: "0",
 	},
-	// Genesis file with custom "purpose" message
+	// Genesis file with custom message
 	{
 		genesis: `{
 			"alloc"      : {},
@@ -78,7 +78,7 @@ var customGenesisTests = []struct {
 			"extraData"  : "",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0x00",
-			"purpose"    : "Placeholder message"
+			"message"    : "Placeholder message"
 		}`,
 		query:  "eth.getBlock(0).timestamp",
 		result: "0",
