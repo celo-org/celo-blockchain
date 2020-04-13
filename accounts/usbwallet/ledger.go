@@ -61,6 +61,8 @@ const (
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
+
+  statusCodeOK = 0x9000
 )
 
 // errLedgerReplyInvalidHeader is the error message returned by a Ledger data exchange
@@ -639,7 +641,7 @@ func (w *ledgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 
 	statusCodeBytes := reply[len(reply)-2:]
 	statusCode := int(binary.BigEndian.Uint16(statusCodeBytes))
-	if statusCode != 0x9000 {
+	if statusCode != statusCodeOK {
 		return nil, errLedgerBadStatusCode
 	}
 	return reply[:len(reply)-2], nil
