@@ -130,26 +130,29 @@ func (r *Randomness) EncodeRLP(w io.Writer) error {
 }
 
 type EpochSnarkData struct {
+	Bitmap    *big.Int
 	Signature []byte
 }
 
 func (r *EpochSnarkData) Size() common.StorageSize {
-	return common.StorageSize(blscrypto.SIGNATUREBYTES)
+	return common.StorageSize(blscrypto.SIGNATUREBYTES + (r.Bitmap.BitLen() / 8))
 }
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 	var epochSnarkData struct {
+		Bitmap    *big.Int
 		Signature []byte
 	}
 	if err := s.Decode(&epochSnarkData); err != nil {
 		return err
 	}
+	r.Bitmap = epochSnarkData.Bitmap
 	r.Signature = epochSnarkData.Signature
 	return nil
 }
 
 func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{r.Signature})
+	return rlp.Encode(w, []interface{}{r.Bitmap, r.Signature})
 }
 
 // Body is a simple (mutable, non-safe) data container for storing and moving
