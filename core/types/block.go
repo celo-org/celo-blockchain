@@ -134,6 +134,8 @@ type EpochSnarkData struct {
 	Signature []byte
 }
 
+// Size returns the approximate memory used by all internal contents. It is used
+// to approximate and limit the memory consumption of various caches.
 func (r *EpochSnarkData) Size() common.StorageSize {
 	return common.StorageSize(blscrypto.SIGNATUREBYTES + (r.Bitmap.BitLen() / 8))
 }
