@@ -185,7 +185,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 
 	// vmConfig.EVMInterpreter will be used by EVM-C, it won't be checked here
 	// as we always want to have the built-in EVM as the failover option.
-	evm.interpreters = append(evm.interpreters, NewEVMInterpreter(evm, vmConfig))
+	evm.interpreters = append(evm.interpreters, NewEVMInterpreter(evm, &evm.vmConfig))
 	evm.interpreter = evm.interpreters[0]
 
 	return evm
@@ -528,6 +528,11 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
 func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
+	// Run only primary evm.Call() with tracer
+	if evm.GetDebug() {
+		evm.SetDebug(false)
+		defer func() { evm.SetDebug(true) }()
+	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
 		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
