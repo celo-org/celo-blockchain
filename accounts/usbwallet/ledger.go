@@ -158,7 +158,7 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 			return nil
 		}
 	}
-	copy(w.version[:], versionReply[1:])
+	copy(w.version[:], versionReply[:])
 
 	/*
 	  This is an example of how to enforce version numbers for features
