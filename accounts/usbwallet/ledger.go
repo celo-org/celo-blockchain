@@ -62,7 +62,7 @@ const (
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
 
-  statusCodeOK = 0x9000
+	statusCodeOK = 0x9000
 )
 
 // errLedgerReplyInvalidHeader is the error message returned by a Ledger data exchange
