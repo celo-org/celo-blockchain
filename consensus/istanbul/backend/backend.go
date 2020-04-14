@@ -273,10 +273,12 @@ type Backend struct {
 	vph *validatorPeerHandler
 }
 
+// IsProxy returns if instance has proxy flag
 func (sb *Backend) IsProxy() bool {
 	return sb.config.Proxy || sb.proxiedPeer != nil
 }
 
+// IsProxiedValidator returns if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
 	return sb.config.Proxied || sb.proxyNode != nil && sb.proxyNode.peer != nil
 }
@@ -284,7 +286,7 @@ func (sb *Backend) IsProxiedValidator() bool {
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
-	if !sb.IsProxiedValidator() {
+	if !sb.IsProxiedValidator() || sb.proxyNode == nil || sb.proxyNode.peer == nil {
 		err := errors.New("No Proxy found")
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
@@ -295,7 +297,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
-	if !sb.IsProxy() {
+	if !sb.IsProxy() || sb.proxiedPeer == nil {
 		err := errors.New("No Proxied Validator found")
 		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
 		return err
@@ -534,6 +536,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// update block's header
 	block = block.WithSeal(h)
 	block = block.WithEpochSnarkData(&types.EpochSnarkData{
+		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 
