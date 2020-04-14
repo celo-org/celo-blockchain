@@ -138,12 +138,13 @@
       const inputLength = log.stack.peek(3 + stackOffset).valueOf();
       const inputEnd = inputOffset + inputLength;
       const input = toHex(log.memory.slice(inputOffset, inputEnd));
+      const valueBigInt = bigInt(input.slice(2+64*2, 2+64*3), 16);
 
       this.topCall().transfers.push({
         type: 'cGLD transfer precompile',
         from: '0x'+input.slice(2+24, 2+64),
         to: '0x'+input.slice(2+64+24, 2+64*2),
-        value: '0x'+input.slice(2+64*2, 2+64*3),
+        value: '0x'+valueBigInt.toString(16),
       });
     }
   },
