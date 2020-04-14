@@ -186,13 +186,13 @@ func (request *newBlockData) sanityCheck() error {
 	if err := request.Block.SanityCheck(); err != nil {
 		return err
 	}
-	//TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
-	// larger, it will still fit within 100 bits
-	if tdlen := request.TD.BitLen(); tdlen > 100 {
-		return fmt.Errorf("too large block TD: bitlen %d", tdlen)
-	}
 	return nil
 }
 
+type blockBodyWithBlockHash struct {
+	BlockHash common.Hash
+	BlockBody *types.Body
+}
+
 // blockBodiesData is the network packet for block content distribution.
-type blockBodiesData []*types.Body
+type blockBodiesData []*blockBodyWithBlockHash

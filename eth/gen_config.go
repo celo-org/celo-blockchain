@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -28,6 +27,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightIngress            int                    `toml:",omitempty"`
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
+		GatewayFee              *big.Int               `toml:",omitempty"`
+		Etherbase               common.Address         `toml:",omitempty"`
+		BLSbase                 common.Address         `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      int                    `toml:",omitempty"`
 		UltraLightOnlyAnnounce  bool                   `toml:",omitempty"`
@@ -39,16 +41,16 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		TrieDirtyCache          int
 		TrieTimeout             time.Duration
 		Miner                   miner.Config
-		Ethash                  ethash.Config
 		TxPool                  core.TxPoolConfig
 		EnablePreimageRecording bool
+		Istanbul                istanbul.Config
 		DocRoot                 string `toml:"-"`
 		EWASMInterpreter        string
 		EVMInterpreter          string
-		Istanbul                istanbul.Config
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
+		OverrideIstanbul        *big.Int
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -61,6 +63,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightIngress = c.LightIngress
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
+	enc.GatewayFee = c.GatewayFee
+	enc.Etherbase = c.Etherbase
+	enc.BLSbase = c.BLSbase
 	enc.UltraLightServers = c.UltraLightServers
 	enc.UltraLightFraction = c.UltraLightFraction
 	enc.UltraLightOnlyAnnounce = c.UltraLightOnlyAnnounce
@@ -72,7 +77,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.TrieDirtyCache = c.TrieDirtyCache
 	enc.TrieTimeout = c.TrieTimeout
 	enc.Miner = c.Miner
-	enc.Ethash = c.Ethash
 	enc.TxPool = c.TxPool
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
 	enc.Istanbul = c.Istanbul
@@ -82,6 +86,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasCap = c.RPCGasCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
+	enc.OverrideIstanbul = c.OverrideIstanbul
 	return &enc, nil
 }
 
@@ -98,6 +103,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightIngress            *int                   `toml:",omitempty"`
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
+		GatewayFee              *big.Int               `toml:",omitempty"`
+		Etherbase               *common.Address        `toml:",omitempty"`
+		BLSbase                 *common.Address        `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      *int                   `toml:",omitempty"`
 		UltraLightOnlyAnnounce  *bool                  `toml:",omitempty"`
@@ -109,16 +117,16 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		TrieDirtyCache          *int
 		TrieTimeout             *time.Duration
 		Miner                   *miner.Config
-		Ethash                  *ethash.Config
 		TxPool                  *core.TxPoolConfig
 		EnablePreimageRecording *bool
+		Istanbul                *istanbul.Config
 		DocRoot                 *string `toml:"-"`
 		EWASMInterpreter        *string
 		EVMInterpreter          *string
-		Istanbul                *istanbul.Config
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
+		OverrideIstanbul        *big.Int
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -154,6 +162,15 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.LightPeers != nil {
 		c.LightPeers = *dec.LightPeers
 	}
+	if dec.GatewayFee != nil {
+		c.GatewayFee = dec.GatewayFee
+	}
+	if dec.Etherbase != nil {
+		c.Etherbase = *dec.Etherbase
+	}
+	if dec.BLSbase != nil {
+		c.BLSbase = *dec.BLSbase
+	}
 	if dec.UltraLightServers != nil {
 		c.UltraLightServers = dec.UltraLightServers
 	}
@@ -187,9 +204,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.Miner != nil {
 		c.Miner = *dec.Miner
 	}
-	if dec.Ethash != nil {
-		c.Ethash = *dec.Ethash
-	}
 	if dec.TxPool != nil {
 		c.TxPool = *dec.TxPool
 	}
@@ -216,6 +230,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
+	}
+	if dec.OverrideIstanbul != nil {
+		c.OverrideIstanbul = dec.OverrideIstanbul
 	}
 	return nil
 }

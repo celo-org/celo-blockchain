@@ -351,7 +351,7 @@ func (b *Block) resolve(ctx context.Context) (*types.Block, error) {
 
 // resolveHeader returns the internal Header object for this block, fetching it
 // if necessary. Call this function instead of `resolve` unless you need the
-// additional data (transactions and uncles).
+// additional data (transactions).
 func (b *Block) resolveHeader(ctx context.Context) (*types.Header, error) {
 	if b.numberOrHash == nil && b.hash == (common.Hash{}) {
 		return nil, errBlockInvariant
@@ -408,14 +408,6 @@ func (b *Block) Hash(ctx context.Context) (common.Hash, error) {
 	return b.hash, nil
 }
 
-func (b *Block) GasLimit(ctx context.Context) (hexutil.Uint64, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return hexutil.Uint64(header.GasLimit), nil
-}
-
 func (b *Block) GasUsed(ctx context.Context) (hexutil.Uint64, error) {
 	header, err := b.resolveHeader(ctx)
 	if err != nil {
@@ -442,36 +434,12 @@ func (b *Block) Parent(ctx context.Context) (*Block, error) {
 	return nil, nil
 }
 
-func (b *Block) Difficulty(ctx context.Context) (hexutil.Big, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return hexutil.Big{}, err
-	}
-	return hexutil.Big(*header.Difficulty), nil
-}
-
 func (b *Block) Timestamp(ctx context.Context) (hexutil.Uint64, error) {
 	header, err := b.resolveHeader(ctx)
 	if err != nil {
 		return 0, err
 	}
 	return hexutil.Uint64(header.Time), nil
-}
-
-func (b *Block) Nonce(ctx context.Context) (hexutil.Bytes, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return hexutil.Bytes{}, err
-	}
-	return hexutil.Bytes(header.Nonce[:]), nil
-}
-
-func (b *Block) MixHash(ctx context.Context) (common.Hash, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return header.MixDigest, nil
 }
 
 func (b *Block) TransactionsRoot(ctx context.Context) (common.Hash, error) {
@@ -496,40 +464,6 @@ func (b *Block) ReceiptsRoot(ctx context.Context) (common.Hash, error) {
 		return common.Hash{}, err
 	}
 	return header.ReceiptHash, nil
-}
-
-func (b *Block) OmmerHash(ctx context.Context) (common.Hash, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return header.UncleHash, nil
-}
-
-func (b *Block) OmmerCount(ctx context.Context) (*int32, error) {
-	block, err := b.resolve(ctx)
-	if err != nil || block == nil {
-		return nil, err
-	}
-	count := int32(len(block.Uncles()))
-	return &count, err
-}
-
-func (b *Block) Ommers(ctx context.Context) (*[]*Block, error) {
-	block, err := b.resolve(ctx)
-	if err != nil || block == nil {
-		return nil, err
-	}
-	ret := make([]*Block, 0, len(block.Uncles()))
-	for _, uncle := range block.Uncles() {
-		blockNumberOrHash := rpc.BlockNumberOrHashWithHash(uncle.Hash(), false)
-		ret = append(ret, &Block{
-			backend:      b.backend,
-			numberOrHash: &blockNumberOrHash,
-			header:       uncle,
-		})
-	}
-	return &ret, nil
 }
 
 func (b *Block) ExtraData(ctx context.Context) (hexutil.Bytes, error) {
@@ -639,24 +573,6 @@ func (b *Block) TransactionAt(ctx context.Context, args struct{ Index int32 }) (
 		tx:      tx,
 		block:   b,
 		index:   uint64(args.Index),
-	}, nil
-}
-
-func (b *Block) OmmerAt(ctx context.Context, args struct{ Index int32 }) (*Block, error) {
-	block, err := b.resolve(ctx)
-	if err != nil || block == nil {
-		return nil, err
-	}
-	uncles := block.Uncles()
-	if args.Index < 0 || int(args.Index) >= len(uncles) {
-		return nil, nil
-	}
-	uncle := uncles[args.Index]
-	blockNumberOrHash := rpc.BlockNumberOrHashWithHash(uncle.Hash(), false)
-	return &Block{
-		backend:      b.backend,
-		numberOrHash: &blockNumberOrHash,
-		header:       uncle,
 	}, nil
 }
 

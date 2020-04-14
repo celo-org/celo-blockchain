@@ -66,10 +66,7 @@ type core struct {
 	pendingRequestsMu *sync.Mutex
 
 	consensusTimestamp time.Time
-	// the meter to record the round change rate
-	roundMeter metrics.Meter
-	// the meter to record the sequence update rate
-	sequenceMeter metrics.Meter
+
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 }
@@ -92,8 +89,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
-		roundMeter:         metrics.NewRegisteredMeter("consensus/istanbul/core/round", nil),
-		sequenceMeter:      metrics.NewRegisteredMeter("consensus/istanbul/core/sequence", nil),
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 	}
 	msgBacklog := newMsgBacklog(
@@ -308,7 +303,7 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(c.current.Commits())
+		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
@@ -328,8 +323,11 @@ func (c *core) commit() error {
 }
 
 // GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature
-func GetAggregatedEpochValidatorSetSeal(seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
+func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
+	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
+		return types.IstanbulEpochValidatorSetSeal{}, nil
+	}
 	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
@@ -392,34 +390,32 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) error {
-	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
 
 	roundChange := false
-	// Try to get last proposal
+	// Try to get most recent block
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 
-	if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
-		// Want to be working on the block 1 beyond the last committed block.
-		diff := new(big.Int).Sub(headBlock.Number(), c.current.Sequence())
-		c.sequenceMeter.Mark(new(big.Int).Add(diff, common.Big1).Int64())
+	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
 
+	if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
+		// Update metrics.
 		if !c.consensusTimestamp.IsZero() {
 			c.consensusTimer.UpdateSince(c.consensusTimestamp)
 			c.consensusTimestamp = time.Time{}
 		}
-		logger.Trace("Catch up to the latest proposal.", "number", headBlock.Number().Uint64(), "hash", headBlock.Hash())
+		logger.Trace("Catch up to the latest block.")
 	} else if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		// Working on the block immediately after the last committed block.
 		if round.Cmp(c.current.Round()) == 0 {
 			logger.Trace("Already in the desired round.")
 			return nil
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "lastBlockNumber", headBlock.Number().Int64(), "new_round", round)
+			logger.Warn("New round should not be smaller than current round", "new_round", round)
 			return nil
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence", "new_seq", headBlock.Number().Int64())
+		logger.Warn("New sequence should be larger than current sequence")
 		return nil
 	}
 
@@ -469,7 +465,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer())
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }

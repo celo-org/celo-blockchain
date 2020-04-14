@@ -1,7 +1,7 @@
 use crate::curve::hash::HashToG1;
-
 use lazy_static::lazy_static;
 use lru::LruCache;
+use std::borrow::Borrow;
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
@@ -35,7 +35,7 @@ use std::{
     ops::Neg,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PrivateKey {
     sk: Fr,
 }
@@ -107,12 +107,19 @@ impl FromBytes for PrivateKey {
 #[derive(Debug)]
 pub enum BLSError {
     VerificationFailed,
+    HashToCurveFailed(Vec<u8>, Vec<u8>),
 }
 
 impl Display for BLSError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             BLSError::VerificationFailed => write!(f, "signature verification failed"),
+            BLSError::HashToCurveFailed(msg, data) => write!(
+                f,
+                "could not hash to curve (msg: {}, extra data: {})",
+                hex::encode(msg),
+                hex::encode(data)
+            ),
         }
     }
 }
@@ -123,7 +130,7 @@ impl Error for BLSError {
     }
 }
 
-#[derive(Clone, Eq)]
+#[derive(Clone, Eq, Debug)]
 pub struct PublicKey {
     pk: G2Projective,
 }
@@ -281,7 +288,7 @@ impl FromBytes for PublicKey {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Signature {
     sig: G1Projective,
 }
@@ -295,13 +302,77 @@ impl Signature {
         self.sig
     }
 
-    pub fn aggregate(signatures: &[Signature]) -> Signature {
+    /// Sums the provided signatures to produce the aggregate signature.
+    pub fn aggregate<S: Borrow<Signature>>(signatures: &[S]) -> Signature {
         let mut asig = G1Projective::zero();
         for i in signatures.iter() {
-            asig = asig + &(*i).sig;
+            asig = asig + &(*i).borrow().sig;
         }
 
         Signature { sig: asig }
+    }
+
+    /// Verifies the signature against a vector of pubkey & message tuples, for the provided
+    /// messages domain.
+    ///
+    /// For each message, an optional extra_data field can be provided (empty otherwise).
+    ///
+    /// The provided hash_to_g1 implementation will be used to hash each message-extra_data pair
+    /// to G1.
+    ///
+    /// The verification equation can be found in pg.11 from
+    /// https://eprint.iacr.org/2018/483.pdf: "Batch verification"
+    pub fn batch_verify<H: HashToG1, P: Borrow<PublicKey>>(
+        &self,
+        pubkeys: &[P],
+        domain: &[u8],
+        messages: &[(&[u8], &[u8])],
+        hash_to_g1: &H,
+    ) -> Result<(), BLSError> {
+        let message_hashes = messages
+            .iter()
+            .map(|(message, extra_data)| {
+                hash_to_g1
+                    .hash::<Bls12_377Parameters>(domain, message, extra_data)
+                    .map_err(|_| BLSError::HashToCurveFailed(message.to_vec(), extra_data.to_vec()))
+            })
+            .collect::<Result<Vec<G1Projective>, _>>()?;
+
+        self.batch_verify_hashes(pubkeys, &message_hashes)
+    }
+
+    /// Verifies the signature against a vector of pubkey & message hash tuples
+    /// This is a lower level method, if you prefer hashing to be done internally,
+    /// consider using the `batch_verify` method.
+    ///
+    /// The verification equation can be found in pg.11 from
+    /// https://eprint.iacr.org/2018/483.pdf: "Batch verification"
+    pub fn batch_verify_hashes<P: Borrow<PublicKey>>(
+        &self,
+        pubkeys: &[P],
+        message_hashes: &[G1Projective],
+    ) -> Result<(), BLSError> {
+        // `.into()` is needed to prepared the points
+        let mut els = vec![(
+            self.get_sig().into_affine().into(),
+            G2Affine::prime_subgroup_generator().neg().into(),
+        )];
+        message_hashes
+            .iter()
+            .zip(pubkeys)
+            .for_each(|(hash, pubkey)| {
+                els.push((
+                    hash.into_affine().into(),
+                    pubkey.borrow().get_pk().into_affine().into(),
+                ));
+            });
+
+        let pairing = Bls12_377::product_of_pairings(&els);
+        if pairing == Fq12::one() {
+            Ok(())
+        } else {
+            Err(BLSError::VerificationFailed)?
+        }
     }
 }
 
@@ -419,9 +490,11 @@ impl PublicKeyCache {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::test_helpers::{keygen_batch, sign_batch, sum};
     use crate::{
+        bls::ffi::{Message, MessageFFI},
         curve::hash::try_and_increment::TryAndIncrement,
-        hash::{composite::CompositeHasher, direct::DirectHasher},
+        hash::{composite::CompositeHasher, direct::DirectHasher, XOF},
     };
     use rand::thread_rng;
 
@@ -500,6 +573,124 @@ mod test {
         pk.verify_pop(&pk_bytes, &sig, &try_and_increment).unwrap();
         pk2.verify_pop(&pk_bytes, &sig, &try_and_increment)
             .unwrap_err();
+    }
+
+    #[test]
+    fn test_batch_verify() {
+        init();
+
+        let direct_hasher = DirectHasher::new().unwrap();
+        let composite_hasher = CompositeHasher::new().unwrap();
+
+        test_batch_verify_with_hasher(direct_hasher, false);
+        test_batch_verify_with_hasher(composite_hasher, true);
+    }
+
+    fn test_batch_verify_with_hasher<X: XOF>(hasher: X, is_composite: bool) {
+        let rng = &mut thread_rng();
+        let try_and_increment = TryAndIncrement::new(&hasher);
+        let num_epochs = 10;
+        let num_validators = 7;
+
+        // generate some msgs and extra data
+        let mut msgs = Vec::new();
+        for _ in 0..num_epochs {
+            let message: Vec<u8> = (0..32).map(|_| rng.gen()).collect::<Vec<u8>>();
+            let extra_data: Vec<u8> = (0..32).map(|_| rng.gen()).collect::<Vec<u8>>();
+            msgs.push((message, extra_data));
+        }
+        let msgs = msgs
+            .iter()
+            .map(|(m, d)| (m.as_ref(), d.as_ref()))
+            .collect::<Vec<_>>();
+
+        // get each signed by a committee _on the same domain_ and get the agg sigs of the commitee
+        let mut asig = G1Projective::zero();
+        let mut pubkeys = Vec::new();
+        let mut sigs = Vec::new();
+        for i in 0..num_epochs {
+            let mut epoch_pubkey = G2Projective::zero();
+            let mut epoch_sig = G1Projective::zero();
+            for _ in 0..num_validators {
+                let sk = PrivateKey::generate(rng);
+                let s = sk.sign(&msgs[i].0, &msgs[i].1, &try_and_increment).unwrap();
+
+                epoch_sig += s.sig;
+                epoch_pubkey += sk.to_public().pk;
+            }
+
+            pubkeys.push(PublicKey::from_pk(epoch_pubkey));
+            sigs.push(Signature::from_sig(epoch_sig));
+
+            asig += epoch_sig;
+        }
+
+        let asig = Signature::from_sig(asig);
+
+        let res = asig.batch_verify(&pubkeys, SIG_DOMAIN, &msgs, &try_and_increment);
+
+        assert!(res.is_ok());
+
+        let mut messages = Vec::new();
+        for i in 0..num_epochs {
+            messages.push(Message {
+                data: msgs[i].0,
+                extra: msgs[i].1,
+                public_key: &pubkeys[i],
+                sig: &sigs[i],
+            });
+        }
+
+        let msgs_ffi = messages
+            .iter()
+            .map(|m| MessageFFI::from(m))
+            .collect::<Vec<_>>();
+
+        let mut verified: bool = false;
+
+        let success = crate::batch_verify_signature(
+            &msgs_ffi[0] as *const MessageFFI,
+            msgs_ffi.len(),
+            is_composite,
+            &mut verified as *mut bool,
+        );
+        assert!(success);
+        assert!(verified);
+    }
+
+    #[test]
+    fn batch_verify_hashes() {
+        // generate 5 (aggregate sigs, message hash pairs)
+        // verify them all in 1 call
+        let batch_size = 5;
+        let num_keys = 7;
+        let rng = &mut rand::thread_rng();
+
+        // generate some random messages
+        let messages = (0..batch_size)
+            .map(|_| G1Projective::rand(rng))
+            .collect::<Vec<_>>();
+        //
+        // keygen for multiple rounds (7 keys per round)
+        let (secret_keys, public_keys_batches) = keygen_batch::<Bls12_377>(batch_size, num_keys);
+
+        // get the aggregate public key for each rounds
+        let aggregate_pubkeys = public_keys_batches
+            .iter()
+            .map(|pks| sum(pks))
+            .map(PublicKey::from_pk)
+            .collect::<Vec<_>>();
+
+        // the keys from each epoch sign the messages from the corresponding epoch
+        let asigs = sign_batch::<Bls12_377>(&secret_keys, &messages);
+
+        // get the complete aggregate signature
+        let asig = sum(&asigs);
+        let asig = Signature::from_sig(asig);
+
+        let res = asig.batch_verify_hashes(&aggregate_pubkeys, &messages);
+
+        assert!(res.is_ok());
     }
 
     #[test]

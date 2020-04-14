@@ -60,18 +60,10 @@ var (
 	errUnknownBlock = errors.New("unknown block")
 	// errUnauthorized is returned if a header is signed by a non authorized entity.
 	errUnauthorized = errors.New("not an elected validator")
-	// errInvalidDifficulty is returned if the difficulty of a block is not 1
-	errInvalidDifficulty = errors.New("invalid difficulty")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
 	errInvalidExtraDataFormat = errors.New("invalid extra data format")
-	// errInvalidMixDigest is returned if a block's mix digest is not Istanbul digest.
-	errInvalidMixDigest = errors.New("invalid Istanbul mix digest")
-	// errInvalidNonce is returned if a block's nonce is invalid
-	errInvalidNonce = errors.New("invalid nonce")
 	// errCoinbase is returned if a block's coinbase is invalid
 	errInvalidCoinbase = errors.New("invalid coinbase")
-	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
-	errInvalidUncleHash = errors.New("non empty uncle hash")
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than the previous block's timestamp + the minimum block period.
 	errInvalidTimestamp = errors.New("invalid timestamp")
 	// errInvalidVotingChain is returned if an authorization list is attempted to
@@ -94,10 +86,7 @@ var (
 )
 
 var (
-	defaultDifficulty = big.NewInt(1)
-	nilUncleHash      = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
-	emptyNonce        = types.BlockNonce{}
-	now               = time.Now
+	now = time.Now
 
 	inmemoryAddresses  = 20 // Number of recent addresses from ecrecover
 	recentAddresses, _ = lru.NewARC(inmemoryAddresses)
@@ -140,24 +129,6 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	// Ensure that the extra data format is satisfied
 	if _, err := types.ExtractIstanbulExtra(header); err != nil {
 		return errInvalidExtraDataFormat
-	}
-
-	// Ensure that the nonce is empty (Istanbul was originally using it for a candidate validator vote)
-	if header.Nonce != (emptyNonce) {
-		return errInvalidNonce
-	}
-
-	// Ensure that the mix digest is zero as we don't have fork protection currently
-	if header.MixDigest != types.IstanbulDigest {
-		return errInvalidMixDigest
-	}
-	// Ensure that the block doesn't contain any uncles which are meaningless in Istanbul
-	if header.UncleHash != nilUncleHash {
-		return errInvalidUncleHash
-	}
-	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
-	if header.Difficulty == nil || header.Difficulty.Cmp(defaultDifficulty) != 0 {
-		return errInvalidDifficulty
 	}
 
 	return sb.verifyCascadingFields(chain, header, parents)
@@ -216,15 +187,6 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 		}
 	}()
 	return abort, results
-}
-
-// VerifyUncles verifies that the given block's uncles conform to the consensus
-// rules of a given engine.
-func (sb *Backend) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
-	if len(block.Uncles()) > 0 {
-		return errInvalidUncleHash
-	}
-	return nil
 }
 
 // verifySigner checks whether the signer is in parent's validator set
@@ -374,8 +336,6 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
 	header.Coinbase = sb.address
-	header.Nonce = emptyNonce
-	header.MixDigest = types.IstanbulDigest
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
@@ -383,8 +343,6 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	// use the same difficulty for all blocks
-	header.Difficulty = defaultDifficulty
 
 	// set header's timestamp
 	header.Time = parent.Time + sb.config.BlockPeriod
@@ -445,8 +403,7 @@ func (sb *Backend) LookbackWindow() uint64 {
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header) {
+func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction) {
 	start := time.Now()
 	defer sb.finalizationTimer.UpdateSince(start)
 
@@ -477,7 +434,6 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
-	header.UncleHash = types.CalcUncleHash(nil)
 	logger.Debug("Finalized", "duration", now().Sub(start), "lastInEpoch", lastBlockOfEpoch)
 }
 
@@ -486,10 +442,9 @@ func (sb *Backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 //
 // Note: The block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
-	sb.Finalize(chain, header, state, txs, uncles)
+	sb.Finalize(chain, header, state, txs)
 
 	// Add extra receipt for Block's Internal Transaction Logs
 	if len(state.GetLogs(common.Hash{})) > 0 {
@@ -500,7 +455,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	}
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, nil, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness)
 	return block, nil
 }
 
@@ -560,13 +515,6 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		}
 	}()
 	return nil
-}
-
-// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-// that a new block should have based on the previous blocks in the chain and the
-// current signer.
-func (sb *Backend) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	return defaultDifficulty
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
@@ -633,21 +581,27 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return err
 	}
 
-	sb.coreStarted = true
-
+	// Having coreStarted as false at this point guarantees that announce versions
+	// will be updated by the time announce messages in the announceThread begin
+	// being generated
 	if sb.config.Proxied {
 		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
 			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
 				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
 			}
 		}
-
 		go sb.sendValEnodesShareMsgs()
 	} else {
-		headBlock := sb.GetCurrentHeadBlock()
-		valset := sb.getValidators(headBlock.Number().Uint64(), headBlock.Hash())
 		sb.updateAnnounceVersion()
-		sb.RefreshValPeers(valset)
+	}
+
+	sb.coreStarted = true
+
+	// coreStarted must be true by this point for validator peers to be successfully added
+	if !sb.config.Proxied {
+		if err := sb.RefreshValPeers(); err != nil {
+			sb.logger.Warn("Error refreshing validator peers", "err", err)
+		}
 	}
 
 	return nil
@@ -680,7 +634,6 @@ func (sb *Backend) StopValidating() error {
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
@@ -688,6 +641,13 @@ func (sb *Backend) StartAnnouncing() error {
 	go sb.announceThread()
 
 	sb.announceRunning = true
+	sb.announceMu.Unlock()
+
+	if err := sb.vph.startThread(); err != nil {
+		sb.StopAnnouncing()
+		return err
+	}
+
 	return nil
 }
 
@@ -704,7 +664,8 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceThreadWg.Wait()
 
 	sb.announceRunning = false
-	return nil
+
+	return sb.vph.stopThread()
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,

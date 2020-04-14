@@ -193,12 +193,6 @@ contract OpCodes {
      //number
      assembly {  pop(number())}
 
-     //difficulty
-     assembly {  pop(difficulty())}
-
-     //gaslimit
-     assembly {  pop(gaslimit())}
-
      //call
      address contractAddr = address(test1);
      bytes4 sig = bytes4(keccak256("isSameAddress(address,address)")); //Function signature

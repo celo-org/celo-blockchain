@@ -203,6 +203,7 @@ func (c *ChtIndexerBackend) Process(ctx context.Context, header *types.Header) e
 	if td == nil {
 		panic(nil)
 	}
+
 	var encNumber [8]byte
 	binary.BigEndian.PutUint64(encNumber[:], num)
 	data, _ := rlp.EncodeToBytes(ChtNode{hash, td})

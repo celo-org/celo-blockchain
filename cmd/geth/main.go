@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	clientIdentifier = "Celo" // Client identifier to advertise over the network
+	clientIdentifier = "celo" // Client identifier to advertise over the network
 )
 
 var (
@@ -70,12 +70,6 @@ var (
 		utils.ExternalSignerFlag,
 		utils.NoUSBFlag,
 		utils.SmartCardDaemonPathFlag,
-		utils.EthashCacheDirFlag,
-		utils.EthashCachesInMemoryFlag,
-		utils.EthashCachesOnDiskFlag,
-		utils.EthashDatasetDirFlag,
-		utils.EthashDatasetsInMemoryFlag,
-		utils.EthashDatasetsOnDiskFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -95,6 +89,7 @@ var (
 		utils.LightEgressFlag,
 		utils.LightMaxPeersFlag,
 		utils.LightKDFFlag,
+		utils.LightGatewayFeeFlag,
 		utils.UltraLightServersFlag,
 		utils.UltraLightFractionFlag,
 		utils.UltraLightOnlyAnnounceFlag,
@@ -147,8 +142,8 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
 		utils.IstanbulLookbackWindowFlag,
-		utils.AnnounceGossipPeriodFlag,
-		utils.AnnounceAggressiveGossipOnEnablementFlag,
+		utils.AnnounceQueryEnodeGossipPeriodFlag,
+		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,
@@ -226,8 +221,6 @@ func init() {
 		attachCommand,
 		javascriptCommand,
 		// See misccmd.go:
-		makecacheCommand,
-		makedagCommand,
 		versionCommand,
 		licenseCommand,
 		// See config.go

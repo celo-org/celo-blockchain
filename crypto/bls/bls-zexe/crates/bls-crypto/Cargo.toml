@@ -1,12 +1,12 @@
 [package]
 name = "bls-crypto"
 version = "0.1.0"
-authors = ["Kobi Gurkan <kobigurk@gmail.com>", "Michael Straka <mstraka@celo.org>"]
+authors = ["Kobi Gurkan <kobigurk@gmail.com>", "Michael Straka <mstraka@celo.org>", "Georgios Konstantopoulos <me@gakonst.com>"]
 edition = "2018"
 
 [dependencies]
-algebra = { git = "https://github.com/scipr-lab/zexe", features = ["bls12_377", "edwards_sw6"] }
-crypto-primitives = { git = "https://github.com/scipr-lab/zexe" }
+algebra = { git = "https://github.com/scipr-lab/zexe", features = ["bls12_377", "edwards_sw6", "parallel"] }
+crypto-primitives = { git = "https://github.com/scipr-lab/zexe", features = ["parallel"] }
 bench-utils = { git = "https://github.com/scipr-lab/zexe" }
 
 # other deps
@@ -44,3 +44,6 @@ path = "examples/pop_csv.rs"
 
 [lib]
 crate-type = ["lib", "staticlib"]
+
+[features]
+test-helpers = []

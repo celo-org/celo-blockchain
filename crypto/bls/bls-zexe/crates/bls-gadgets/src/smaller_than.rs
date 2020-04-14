@@ -21,7 +21,7 @@ impl<ConstraintF: PrimeField> SmallerThanGadget<ConstraintF> {
         let two = ConstraintF::one() + ConstraintF::one();
         let d0 = a.sub(cs.ns(|| "a - b"), b)?;
         let d = d0.mul_by_constant(cs.ns(|| "mul 2"), &two)?;
-        let d_bits = d.to_bits_strict(cs.ns(|| "d to bits"))?;
+        let d_bits = d.to_bits(cs.ns(|| "d to bits"))?;
         let d_bits_len = d_bits.len();
         Ok(d_bits[d_bits_len - 1])
     }

@@ -22,12 +22,14 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	ccerrors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/freezer"
@@ -131,6 +133,21 @@ const (
 	TxStatusIncluded
 )
 
+func (s TxStatus) String() string {
+	switch s {
+	case TxStatusUnknown:
+		return "TxStatusUnknown"
+	case TxStatusQueued:
+		return "TxStatusQueued"
+	case TxStatusPending:
+		return "TxStatusPending"
+	case TxStatusIncluded:
+		return "TxStatusIncluded"
+	default:
+		return strconv.FormatUint(uint64(s), 10)
+	}
+}
+
 // blockChain provides the state of blockchain and current gas limit to do
 // some pre checks in tx pool and event subscribers.
 type blockChain interface {
@@ -165,8 +182,6 @@ type TxPoolConfig struct {
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
-
-	CurrencyAddresses *[]common.Address // The addresses of all the currencies that are accepted by the node
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
@@ -441,6 +456,33 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 	log.Info("Transaction pool price threshold updated", "price", price)
 }
 
+// SetGasLimit updates the maximum allowed gas for a new transaction in the
+// pool, and drops all transactions above this threshold.
+//
+// Note: Only useful for testing, as this call will have no effect if
+// communication with the blockchain_parameters contract is successful.
+func (pool *TxPool) SetGasLimit(gasLimit uint64) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	limitFromContract, err := blockchain_parameters.GetBlockGasLimit(pool.chain.CurrentBlock().Header(), pool.currentState)
+	if err == nil {
+		pool.currentMaxGas = limitFromContract
+		return
+	}
+
+	pool.currentMaxGas = gasLimit
+
+	pool.demoteUnexecutables()
+
+	for _, list := range pool.queue {
+		rm, _ := list.Filter(nil, gasLimit)
+		for _, tx := range rm {
+			pool.removeTx(tx.Hash(), false)
+		}
+	}
+}
+
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *TxPool) Nonce(addr common.Address) uint64 {
@@ -593,16 +635,24 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// Ensure gold transfers are whitelisted if transfers are frozen.
 	if tx.Value().Sign() > 0 {
-		to := *tx.To()
 		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
 			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
 		} else if isFrozen {
 			log.Info("Transfers are frozen")
-			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-				return ErrTransfersFrozen
+			if tx.To() == nil {
+				if !transfer_whitelist.IsWhitelisted(from, from, nil, nil) {
+					log.Debug("Attempt to transfer to new contract from non-whitelisted address", "hash", tx.Hash(), "from", from)
+					return ErrTransfersFrozen
+				}
+				log.Info("New contract transfer is whitelisted", "hash", tx.Hash(), "from", from)
+			} else {
+				to := *tx.To()
+				if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
+					log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
+					return ErrTransfersFrozen
+				}
+				log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
 			}
-			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
 		}
 	}
 
@@ -1196,7 +1246,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
-	pool.currentMaxGas = newHead.GasLimit
+	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))

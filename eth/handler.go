@@ -281,11 +281,6 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
-
-	// Reconnect all the peer connections from the on-disk val enode table
-	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.ConnectToVals()
-	}
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -342,7 +337,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			return err
 		}
 		forcePeer = isValidator
-		p.Log().Trace("Peer completed Istanbul handshake", "forcePeer", forcePeer)
+		p.Log().Debug("Peer completed Istanbul handshake", "forcePeer", forcePeer)
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer
@@ -598,11 +593,11 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		// Gather blocks until the fetch or network limits is reached
 		var (
-			hash   common.Hash
-			bytes  int
-			bodies []rlp.RawValue
+			hash                 common.Hash
+			bytes                int
+			bodiesAndBlockHashes []rlp.RawValue
 		)
-		for bytes < softResponseLimit && len(bodies) < downloader.MaxBlockFetch {
+		for bytes < softResponseLimit && len(bodiesAndBlockHashes) < downloader.MaxBlockFetch {
 			// Retrieve the hash of the next block
 			if err := msgStream.Decode(&hash); err == rlp.EOL {
 				break
@@ -610,12 +605,18 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "msg %v: %v", msg, err)
 			}
 			// Retrieve the requested block body, stopping if enough was found
-			if data := pm.blockchain.GetBodyRLP(hash); len(data) != 0 {
-				bodies = append(bodies, data)
-				bytes += len(data)
+			if body := pm.blockchain.GetBody(hash); body != nil {
+				bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
+				bhRLPbytes, err := rlp.EncodeToBytes(bh)
+				if err != nil {
+					return err
+				}
+				bhRLP := rlp.RawValue(bhRLPbytes)
+				bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
+				bytes += len(bhRLP)
 			}
 		}
-		return p.SendBlockBodiesRLP(bodies)
+		return p.SendBlockBodiesRLP(bodiesAndBlockHashes)
 
 	case msg.Code == BlockBodiesMsg:
 		// A batch of block bodies arrived to one of our previous requests
@@ -624,24 +625,24 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		// Deliver them all to the downloader for queuing
+		blockHashes := make([]common.Hash, len(request))
 		transactions := make([][]*types.Transaction, len(request))
-		uncles := make([][]*types.Header, len(request))
 		randomness := make([]*types.Randomness, len(request))
 		epochSnarkData := make([]*types.EpochSnarkData, len(request))
 
-		for i, body := range request {
-			transactions[i] = body.Transactions
-			uncles[i] = body.Uncles
-			randomness[i] = body.Randomness
-			epochSnarkData[i] = body.EpochSnarkData
+		for i, blockBodyWithBlockHash := range request {
+			blockHashes[i] = blockBodyWithBlockHash.BlockHash
+			transactions[i] = blockBodyWithBlockHash.BlockBody.Transactions
+			randomness[i] = blockBodyWithBlockHash.BlockBody.Randomness
+			epochSnarkData[i] = blockBodyWithBlockHash.BlockBody.EpochSnarkData
 		}
 		// Filter out any explicitly requested bodies, deliver the rest to the downloader
-		filter := len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
+		filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 		if filter {
-			transactions, uncles, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, transactions, uncles, randomness, epochSnarkData, time.Now())
+			blockHashes, transactions, randomness, epochSnarkData = pm.fetcher.FilterBodies(p.id, blockHashes, transactions, randomness, epochSnarkData, time.Now())
 		}
-		if len(transactions) > 0 || len(uncles) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
-			err := pm.downloader.DeliverBodies(p.id, transactions, uncles, randomness, epochSnarkData)
+		if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
+			err := pm.downloader.DeliverBodies(p.id, transactions, randomness, epochSnarkData)
 			if err != nil {
 				log.Debug("Failed to deliver bodies", "err", err)
 			}
@@ -772,7 +773,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// calculate the head hash and TD that the peer truly must have.
 		var (
 			trueHead = request.Block.ParentHash()
-			trueTD   = new(big.Int).Sub(request.TD, request.Block.Difficulty())
+			trueTD   = new(big.Int).Sub(request.TD, big.NewInt(1))
 		)
 		// Update the peer's total difficulty if better than the previous
 		if _, td := p.Head(); trueTD.Cmp(td) > 0 {
@@ -827,7 +828,7 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
 		if parent := pm.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = new(big.Int).Add(block.Difficulty(), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
+			td = new(big.Int).Add(big.NewInt(1), pm.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
 		} else {
 			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 			return

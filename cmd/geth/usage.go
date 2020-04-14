@@ -93,6 +93,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightIngressFlag,
 			utils.LightEgressFlag,
 			utils.LightMaxPeersFlag,
+			utils.LightGatewayFeeFlag,
 			utils.UltraLightServersFlag,
 			utils.UltraLightFractionFlag,
 			utils.UltraLightOnlyAnnounceFlag,
@@ -103,17 +104,6 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.DeveloperFlag,
 			utils.DeveloperPeriodFlag,
-		},
-	},
-	{
-		Name: "ETHASH",
-		Flags: []cli.Flag{
-			utils.EthashCacheDirFlag,
-			utils.EthashCachesInMemoryFlag,
-			utils.EthashCachesOnDiskFlag,
-			utils.EthashDatasetDirFlag,
-			utils.EthashDatasetsInMemoryFlag,
-			utils.EthashDatasetsOnDiskFlag,
 		},
 	},
 	{
@@ -246,8 +236,8 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "ANNOUNCE",
 		Flags: []cli.Flag{
-			utils.AnnounceGossipPeriodFlag,
-			utils.AnnounceAggressiveGossipOnEnablementFlag,
+			utils.AnnounceQueryEnodeGossipPeriodFlag,
+			utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		},
 	},
 	{

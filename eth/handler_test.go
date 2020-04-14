@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -181,7 +181,7 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 		// Send the hash request and verify the response
 		p2p.Send(peer.app, 0x03, tt.query)
 		if err := p2p.ExpectMsg(peer.app, 0x04, headers); err != nil {
-			t.Errorf("test %d: headers mismatch: %v", i, err)
+			t.Fatalf("test %d: headers mismatch: %v", i, err)
 		}
 		// If the test used number origins, repeat with hashes as the too
 		if tt.query.Origin.Hash == (common.Hash{}) {
@@ -190,7 +190,7 @@ func testGetBlockHeaders(t *testing.T, protocol int) {
 
 				p2p.Send(peer.app, 0x03, tt.query)
 				if err := p2p.ExpectMsg(peer.app, 0x04, headers); err != nil {
-					t.Errorf("test %d: headers mismatch: %v", i, err)
+					t.Fatalf("test %d: headers mismatch: %v", i, err)
 				}
 			}
 		}
@@ -237,7 +237,7 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expect
 		hashes, seen := []common.Hash{}, make(map[int64]bool)
-		bodies := []*types.Body{}
+		bodiesAndBlockHashes := []*blockBodyWithBlockHash{}
 
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -247,8 +247,12 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 
 					block := pm.blockchain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
-					if len(bodies) < tt.expected {
-						bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), EpochSnarkData: block.EpochSnarkData()})
+					if len(bodiesAndBlockHashes) < tt.expected {
+						bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
+							BlockBody: &types.Body{Transactions: block.Transactions(),
+								Randomness:     block.Randomness(),
+								EpochSnarkData: block.EpochSnarkData()}}
+						bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
 					}
 					break
 				}
@@ -256,15 +260,19 @@ func testGetBlockBodies(t *testing.T, protocol int) {
 		}
 		for j, hash := range tt.explicit {
 			hashes = append(hashes, hash)
-			if tt.available[j] && len(bodies) < tt.expected {
+			if tt.available[j] && len(bodiesAndBlockHashes) < tt.expected {
 				block := pm.blockchain.GetBlockByHash(hash)
-				bodies = append(bodies, &types.Body{Transactions: block.Transactions(), Uncles: block.Uncles(), Randomness: block.Randomness(), EpochSnarkData: block.EpochSnarkData()})
+				bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
+					BlockBody: &types.Body{Transactions: block.Transactions(),
+						Randomness:     block.Randomness(),
+						EpochSnarkData: block.EpochSnarkData()}}
+				bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
 			}
 		}
 		// Send the hash request and verify the response
 		p2p.Send(peer.app, 0x05, hashes)
-		if err := p2p.ExpectMsg(peer.app, 0x06, bodies); err != nil {
-			t.Errorf("test %d: bodies mismatch: %v", i, err)
+		if err := p2p.ExpectMsg(peer.app, 0x06, bodiesAndBlockHashes); err != nil {
+			t.Fatalf("test %d: bodies mismatch: %v", i, err)
 		}
 	}
 }
@@ -299,14 +307,6 @@ func testGetNodeData(t *testing.T, protocol int) {
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
-		case 3:
-			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
-			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
@@ -396,14 +396,6 @@ func testGetReceipt(t *testing.T, protocol int) {
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
-		case 3:
-			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
-			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
@@ -422,7 +414,7 @@ func testGetReceipt(t *testing.T, protocol int) {
 	// Send the hash request and verify the response
 	p2p.Send(peer.app, 0x0f, hashes)
 	if err := p2p.ExpectMsg(peer.app, 0x10, receipts); err != nil {
-		t.Errorf("receipts mismatch: %v", err)
+		t.Fatalf("receipts mismatch: %v", err)
 	}
 }
 
@@ -491,11 +483,11 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 		}
 	}
 	// Create a checkpoint aware protocol manager
-	blockchain, err := core.NewBlockChain(db, nil, config, ethash.NewFaker(), vm.Config{}, nil)
+	blockchain, err := core.NewBlockChain(db, nil, config, mockEngine.NewFaker(), vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), ethash.NewFaker(), blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), mockEngine.NewFaker(), blockchain, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -572,7 +564,7 @@ func TestBroadcastBlock(t *testing.T) {
 func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	var (
 		evmux   = new(event.TypeMux)
-		pow     = ethash.NewFaker()
+		pow     = mockEngine.NewFaker()
 		db      = rawdb.NewMemoryDatabase()
 		config  = &params.ChainConfig{}
 		gspec   = &core.Genesis{Config: config}
@@ -594,14 +586,14 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 		defer peer.close()
 		peers = append(peers, peer)
 	}
-	chain, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
+	chain, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
 	pm.BroadcastBlock(chain[0], true /*propagate*/)
 
 	errCh := make(chan error, totalPeers)
 	doneCh := make(chan struct{}, totalPeers)
 	for _, peer := range peers {
 		go func(p *testPeer) {
-			if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{Block: chain[0], TD: big.NewInt(131136)}); err != nil {
+			if err := p2p.ExpectMsg(p.app, NewBlockMsg, &newBlockData{Block: chain[0], TD: big.NewInt(2)}); err != nil {
 				errCh <- err
 			} else {
 				doneCh <- struct{}{}

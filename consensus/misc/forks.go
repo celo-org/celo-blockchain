@@ -27,11 +27,7 @@ import (
 // VerifyForkHashes verifies that blocks conforming to network hard-forks do have
 // the correct hashes, to avoid clients going off on different chains. This is an
 // optional feature.
-func VerifyForkHashes(config *params.ChainConfig, header *types.Header, uncle bool) error {
-	// We don't care about uncles
-	if uncle {
-		return nil
-	}
+func VerifyForkHashes(config *params.ChainConfig, header *types.Header) error {
 	// If the homestead reprice hash is set, validate it
 	if config.EIP150Block != nil && config.EIP150Block.Cmp(header.Number) == 0 {
 		if config.EIP150Hash != (common.Hash{}) && config.EIP150Hash != header.Hash() {

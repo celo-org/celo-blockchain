@@ -6,6 +6,7 @@ use r1cs_std::{
     groups::GroupGadget, pairing::PairingGadget, select::CondSelectGadget,
 };
 use std::marker::PhantomData;
+use tracing::{debug, span, trace, Level};
 
 /// BLS Signature Verification Pairing Gadget.
 ///
@@ -42,6 +43,8 @@ where
         signature: &P::G1Gadget,
         maximum_non_signers: &FpGadget<F>,
     ) -> Result<(), SynthesisError> {
+        let span = span!(Level::TRACE, "BlsVerifyGadget_verify");
+        let _enter = span.enter();
         // Get the message hash and the aggregated public key based on the bitmap
         // and allowed number of non-signers
         let (prepared_message_hash, prepared_aggregated_pk) = Self::enforce_bitmap_and_prepare(
@@ -77,6 +80,7 @@ where
         message_hashes: &[P::G1Gadget],
         aggregated_signature: &P::G1Gadget,
     ) -> Result<(), SynthesisError> {
+        debug!("batch verifying BLS signature");
         let prepared_message_hashes = message_hashes
             .iter()
             .enumerate()
@@ -207,8 +211,10 @@ where
         message_hash: &P::G1Gadget,
         maximum_non_signers: &FpGadget<F>,
     ) -> Result<(P::G1PreparedGadget, P::G2PreparedGadget), SynthesisError> {
+        trace!("enforcing bitmap");
         enforce_maximum_occurrences_in_bitmap(&mut cs, signed_bitmap, maximum_non_signers, false)?;
 
+        trace!("preparing message hash and aggregated pubkey");
         let prepared_message_hash =
             P::prepare_g1(cs.ns(|| "prepared message hash"), &message_hash)?;
         let prepared_aggregated_pk =
@@ -248,6 +254,7 @@ where
         g1: &[P::G1PreparedGadget],
         g2: &[P::G2PreparedGadget],
     ) -> Result<(), SynthesisError> {
+        trace!("enforcing BLS equation");
         let bls_equation = P::product_of_pairings(cs.ns(|| "verify BLS signature"), g1, g2)?;
         let gt_one = &P::GTGadget::one(&mut cs.ns(|| "GT one"))?;
         bls_equation.enforce_equal(&mut cs.ns(|| "BLS equation is one"), gt_one)?;
@@ -258,7 +265,8 @@ where
 #[cfg(test)]
 mod verify_one_message {
     use super::*;
-    use crate::test_helpers::*;
+    use crate::test_helpers::alloc_vec;
+    use bls_crypto::test_helpers::*;
 
     use algebra::{
         bls12_377::{Bls12_377, Fr as Bls12_377Fr, G1Projective, G2Projective},
@@ -374,7 +382,7 @@ mod verify_one_message {
             0,
         );
         assert!(cs.is_satisfied());
-        assert_eq!(cs.num_constraints(), 20516);
+        assert_eq!(cs.num_constraints(), 21754);
 
         // random sig fails
         let cs = cs_verify::<Bls12_377, SW6Fr, Bls12_377PairingGadget>(

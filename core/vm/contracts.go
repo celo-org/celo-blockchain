@@ -24,7 +24,7 @@ import (
 	"math/big"
 
 	//nolint:goimports
-	bls "github.com/celo-org/bls-zexe/go"
+	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -545,17 +545,24 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	}
 	from := common.BytesToAddress(input[0:32])
 	to := common.BytesToAddress(input[32:64])
+
 	var parsed bool
 	value, parsed := math.ParseBig256(hexutil.Encode(input[64:96]))
 	if !parsed {
 		return nil, gas, fmt.Errorf("Error parsing transfer: unable to parse value from " + hexutil.Encode(input[64:96]))
 	}
-	// Fail if we're trying to transfer more than the available balance
-	if !evm.Context.CanTransfer(evm.StateDB, from, value) {
-		return nil, gas, ErrInsufficientBalance
-	}
 
-	gas, err = evm.TobinTransfer(evm.StateDB, from, to, gas, value)
+	if from == common.ZeroAddress {
+		// Mint case: Create cGLD out of thin air
+		evm.StateDB.AddBalance(to, value)
+	} else {
+		// Fail if we're trying to transfer more than the available balance
+		if !evm.Context.CanTransfer(evm.StateDB, from, value) {
+			return nil, gas, ErrInsufficientBalance
+		}
+
+		gas, err = evm.TobinTransfer(evm.StateDB, from, to, gas, value)
+	}
 
 	return input, gas, err
 }

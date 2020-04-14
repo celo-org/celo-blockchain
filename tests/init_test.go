@@ -53,7 +53,6 @@ var (
 	transactionTestDir = filepath.Join(baseDir, "TransactionTests")
 	vmTestDir          = filepath.Join(baseDir, "VMTests")
 	rlpTestDir         = filepath.Join(baseDir, "RLPTests")
-	difficultyTestDir  = filepath.Join(baseDir, "BasicTests")
 )
 
 func readJSON(reader io.Reader, value interface{}) error {
@@ -100,6 +99,7 @@ func findLine(data []byte, offset int64) (line int) {
 }
 
 // testMatcher controls skipping and chain config assignment to tests.
+// nolint: unused
 type testMatcher struct {
 	configpat    []testConfig
 	failpat      []testFailure
@@ -108,6 +108,7 @@ type testMatcher struct {
 	whitelistpat *regexp.Regexp
 }
 
+// nolint: unused
 type testConfig struct {
 	p      *regexp.Regexp
 	config params.ChainConfig
@@ -141,6 +142,7 @@ func (tm *testMatcher) whitelist(pattern string) {
 }
 
 // config defines chain config for tests matching the pattern.
+// nolint: unused
 func (tm *testMatcher) config(pattern string, cfg params.ChainConfig) {
 	tm.configpat = append(tm.configpat, testConfig{regexp.MustCompile(pattern), cfg})
 }
@@ -167,6 +169,7 @@ func (tm *testMatcher) findSkip(name string) (reason string, skipload bool) {
 }
 
 // findConfig returns the chain config matching defined patterns.
+// nolint: unused
 func (tm *testMatcher) findConfig(name string) *params.ChainConfig {
 	// TODO(fjl): name can be derived from testing.T when min Go version is 1.8
 	for _, m := range tm.configpat {

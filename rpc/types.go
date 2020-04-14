@@ -68,6 +68,26 @@ const (
 	EarliestBlockNumber = BlockNumber(0)
 )
 
+type RPCTransaction struct {
+	BlockHash           *common.Hash    `json:"blockHash"`
+	BlockNumber         *hexutil.Big    `json:"blockNumber"`
+	From                common.Address  `json:"from"`
+	Gas                 hexutil.Uint64  `json:"gas"`
+	GasPrice            *hexutil.Big    `json:"gasPrice"`
+	FeeCurrency         *common.Address `json:"feeCurrency"`
+	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient"`
+	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+	Hash                common.Hash     `json:"hash"`
+	Input               hexutil.Bytes   `json:"input"`
+	Nonce               hexutil.Uint64  `json:"nonce"`
+	To                  *common.Address `json:"to"`
+	TransactionIndex    *hexutil.Uint64 `json:"transactionIndex"`
+	Value               *hexutil.Big    `json:"value"`
+	V                   *hexutil.Big    `json:"v"`
+	R                   *hexutil.Big    `json:"r"`
+	S                   *hexutil.Big    `json:"s"`
+}
+
 // UnmarshalJSON parses the given JSON fragment into a BlockNumber. It supports:
 // - "latest", "earliest" or "pending" as string arguments
 // - the block number

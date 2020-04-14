@@ -155,7 +155,7 @@ func (req *ChtRequest) StoreResult(db ethdb.Database) {
 
 	if !req.Untrusted {
 		rawdb.WriteHeader(db, req.Header)
-		rawdb.WriteTd(db, hash, num, req.Td)
+		rawdb.WriteTd(db, hash, num, big.NewInt(int64(req.BlockNum+1)))
 		rawdb.WriteCanonicalHash(db, hash, num)
 	}
 }

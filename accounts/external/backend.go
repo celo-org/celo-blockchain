@@ -159,10 +159,6 @@ func (api *ExternalSigner) SignData(account accounts.Account, mimeType string, d
 		hexutil.Encode(data)); err != nil {
 		return nil, err
 	}
-	// If V is on 27/28-form, convert to to 0/1 for Clique
-	if mimeType == accounts.MimetypeClique && (res[64] == 27 || res[64] == 28) {
-		res[64] -= 27 // Transform V from 27/28 to 0/1 for Clique use
-	}
 	return res, nil
 }
 

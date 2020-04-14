@@ -39,6 +39,7 @@ import (
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -641,12 +642,10 @@ type blockStats struct {
 	Miner       common.Address `json:"miner"`
 	GasUsed     uint64         `json:"gasUsed"`
 	GasLimit    uint64         `json:"gasLimit"`
-	Diff        string         `json:"difficulty"`
 	TotalDiff   string         `json:"totalDifficulty"`
 	Txs         []txStats      `json:"transactions"`
 	TxHash      common.Hash    `json:"transactionsRoot"`
 	Root        common.Hash    `json:"stateRoot"`
-	Uncles      uncleStats     `json:"uncles"`
 	EpochSize   uint64         `json:"epochSize"`
 	BlockRemain uint64         `json:"blockRemain"`
 	Validators  validatorSet   `json:"validators"`
@@ -656,10 +655,6 @@ type blockStats struct {
 type txStats struct {
 	Hash common.Hash `json:"hash"`
 }
-
-// uncleStats is a custom wrapper around an uncle array to force serializing
-// empty arrays instead of returning null for them.
-type uncleStats []*types.Header
 
 func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	msg, err := json.Marshal(stats)
@@ -773,10 +768,9 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
 		header *types.Header
-		state  vm.StateDB
+		state  *state.StateDB
 		td     *big.Int
 		txs    []txStats
-		uncles []*types.Header
 		valSet validatorSet
 	)
 	if s.eth != nil {
@@ -792,9 +786,8 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
 		}
-		uncles = block.Uncles()
 	} else {
-		// Light nodes would need on-demand lookups for transactions/uncles, skip
+		// Light nodes would need on-demand lookups for transactions, skip
 		if block != nil {
 			header = block.Header()
 		} else {
@@ -816,6 +809,8 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		valSet = s.assembleValidatorSet(block, state)
 	}
 
+	gasLimit := core.CalcGasLimit(block, state)
+
 	return &blockStats{
 		Number:      header.Number,
 		Hash:        header.Hash(),
@@ -823,13 +818,11 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		Timestamp:   new(big.Int).SetUint64(header.Time),
 		Miner:       author,
 		GasUsed:     header.GasUsed,
-		GasLimit:    header.GasLimit,
-		Diff:        header.Difficulty.String(),
+		GasLimit:    gasLimit,
 		TotalDiff:   td.String(),
 		Txs:         txs,
 		TxHash:      header.TxHash,
 		Root:        header.Root,
-		Uncles:      uncles,
 		EpochSize:   epochSize,
 		BlockRemain: blockRemain,
 		Validators:  valSet,

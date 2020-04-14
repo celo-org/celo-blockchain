@@ -28,7 +28,7 @@ import (
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
-	bls "github.com/celo-org/bls-zexe/go"
+	bls "github.com/celo-org/bls-zexe/go/bls"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -639,8 +639,8 @@ func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData 
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	message := address.Bytes()
-	return w.signText(account, message)
+	hash := crypto.Keccak256(address.Bytes())
+	return w.signText(account, hash)
 }
 
 func (w *wallet) signText(account accounts.Account, text []byte) ([]byte, []byte, error) {
