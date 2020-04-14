@@ -328,6 +328,7 @@ func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals Message
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
 		return types.IstanbulEpochValidatorSetSeal{}, nil
 	}
+	bitmap := big.NewInt(0)
 	epochSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
@@ -338,13 +339,19 @@ func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals Message
 			return types.IstanbulEpochValidatorSetSeal{}, err
 		}
 		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
+
+		j, err := seals.GetAddressIndex(v.Address)
+		if err != nil {
+			return types.IstanbulEpochValidatorSetSeal{}, err
+		}
+		bitmap.SetBit(bitmap, int(j), 1)
 	}
 
 	asig, err := blscrypto.AggregateSignatures(epochSeals)
 	if err != nil {
 		return types.IstanbulEpochValidatorSetSeal{}, err
 	}
-	return types.IstanbulEpochValidatorSetSeal{Signature: asig}, nil
+	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate
