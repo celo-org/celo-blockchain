@@ -23,6 +23,7 @@ fi
 
 # TODO: Create an appropriate README for NPM
 rm README.md
+rm crypto/bls/bls-zexe/.gitignore
 
 npm -f --no-git-tag-version version "$new_version"
 npm publish --tag "$commit_sha_short" --access public
