@@ -536,6 +536,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// update block's header
 	block = block.WithSeal(h)
 	block = block.WithEpochSnarkData(&types.EpochSnarkData{
+		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 

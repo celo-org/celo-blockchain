@@ -47,7 +47,8 @@ type IstanbulAggregatedSeal struct {
 }
 
 type IstanbulEpochValidatorSetSeal struct {
-	// We don't add a bitmap here since it's assumed the same signers for the block have signed this
+	// Bitmap is a bitmap having an active bit for each validator that signed this epoch data
+	Bitmap *big.Int
 
 	// Signature is an aggregated BLS signature resulting from signatures by each validator that signed this block
 	Signature []byte
