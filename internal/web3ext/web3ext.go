@@ -388,6 +388,11 @@ web3._extend({
 			params: 0
 		}),
 		new web3._extend.Method({
+			name: 'getGatewayFee',
+			call: 'eth_getGatewayFee',
+			params: 0
+		}),
+		new web3._extend.Method({
 			name: 'sign',
 			call: 'eth_sign',
 			params: 2,
@@ -420,6 +425,11 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getHeaderByNumber',
 			call: 'eth_getHeaderByNumber',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'setGatewayFee',
+			call: 'eth_setGatewayFee',
 			params: 1
 		}),
 		new web3._extend.Method({

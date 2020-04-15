@@ -5464,6 +5464,14 @@ var properties = function () {
             getter: 'eth_coinbase'
         }),
         new Property({
+            name: 'getGatewayFee',
+            getter: 'eth_getGatewayFee'
+        }),
+        new Property({
+            name: 'setGatewayFee',
+            getter: 'eth_setGatewayFee'
+        }),
+        new Property({
             name: 'mining',
             getter: 'eth_mining'
         }),
