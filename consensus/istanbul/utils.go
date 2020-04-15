@@ -19,6 +19,7 @@ package istanbul
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -63,7 +64,7 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 		return val.Address(), nil
 	}
 
-	return common.Address{}, ErrUnauthorizedAddress
+	return common.Address{}, fmt.Errorf("not an elected validator %s", signer)
 }
 
 // Retrieves the block number within an epoch.  The return value will be 1-based.
