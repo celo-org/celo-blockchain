@@ -68,7 +68,7 @@ const (
 	// connectionTimeout waits for the websocket connection to be established
 	connectionTimeout = 10
 	// delegateSendTimeout waits for the proxy to sign a message
-	delegateSendTimeout = 5
+	delegateSendTimeout = 10
 	// statusUpdateInterval is the frequency of sending full node reports
 	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
@@ -386,27 +386,28 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
             }
         case <-time.After(delegateSendTimeout * time.Second):
             // Login timeout, abort
-            return errors.New("login timed out")
+			return errors.New("delegation of login timed out")
         }
-	} else {
-        auth := &authMsg{
-            ID:      s.node,
-            Info: nodeInfo{
-                Name:     s.node,
-                Node:     infos.Name,
-                Port:     infos.Ports.Listener,
-                Network:  network,
-                Protocol: protocol,
-                API:      "No",
-                Os:       runtime.GOOS,
-                OsVer:    runtime.GOARCH,
-                Client:   "0.1.1",
-                History:  true,
-            },
-        }
-        if err := s.sendStats(conn, actionHello, auth); err != nil {
-            return err
-        }
+	}
+
+	auth := &authMsg{
+		ID:      s.node,
+		Info: nodeInfo{
+			Name:     s.node,
+			Node:     infos.Name,
+			Port:     infos.Ports.Listener,
+			Network:  network,
+			Protocol: protocol,
+			API:      "No",
+			Os:       runtime.GOOS,
+			OsVer:    runtime.GOARCH,
+			Client:   "0.1.1",
+			History:  true,
+		},
+	}
+
+	if err := s.sendStats(conn, actionHello, auth); err != nil {
+		return err
 	}
 
 	// Retrieve the remote ack or connection termination
