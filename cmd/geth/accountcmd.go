@@ -316,8 +316,6 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	}
 
 	printProofOfPossession(account, pop, keyType, key)
-	log.Warn("printed PoP")
-
 	return nil
 }
 
