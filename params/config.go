@@ -203,7 +203,7 @@ var (
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
-			LookbackWindow:	12,
+			LookbackWindow: 12,
 		},
 	}
 
