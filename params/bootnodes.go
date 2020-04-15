@@ -32,6 +32,14 @@ var RinkebyBootnodes = []string{}
 // Görli test network.
 var GoerliBootnodes = []string{}
 
+// BaklavaBootnodes are the enode URLs of the P2P bootstrap nodes running on the
+// Baklava test network.
+var BaklavaBootnodes = []string{"enode://5aaf10664b12431c250597e980aacd7d5373cae00f128be5b00364344bb96bce7555b50973664bddebd1cb7a6d3fb927bec81527f80e22a26fa373c375fcdefc@35.247.75.229:30301"}
+
+// AlfajoresBootnodes are the enode URLs of the P2P bootstrap nodes running on the
+// Alfajores test network.
+var AlfajoresBootnodes = []string{}
+
 // Ottoman are the enode URLs of the P2P bootstrap nodes running on the
 // Ottoman test network.
 var OttomanBootnodes = []string{}

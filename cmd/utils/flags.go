@@ -164,6 +164,14 @@ var (
 		Name:  "goerli",
 		Usage: "Görli network: pre-configured proof-of-authority test network",
 	}
+	AlfajoresFlag = cli.BoolFlag{
+		Name:  "alfajores",
+		Usage: "Alfajores network: pre-configured Celo test network",
+	}
+	BaklavaFlag = cli.BoolFlag{
+		Name:  "baklava",
+		Usage: "Baklava network: pre-configured Celo test network",
+	}
 	DeveloperFlag = cli.BoolFlag{
 		Name:  "dev",
 		Usage: "Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled",
@@ -787,6 +795,12 @@ func MakeDataDir(ctx *cli.Context) string {
 		if ctx.GlobalBool(GoerliFlag.Name) {
 			return filepath.Join(path, "goerli")
 		}
+		if ctx.GlobalBool(BaklavaFlag.Name) {
+			return filepath.Join(path, "baklava")
+		}
+		if ctx.GlobalBool(AlfajoresFlag.Name) {
+			return filepath.Join(path, "alfajores")
+		}
 		if ctx.GlobalBool(OttomanFlag.Name) {
 			return filepath.Join(path, "ottoman")
 		}
@@ -846,6 +860,10 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		urls = params.RinkebyBootnodes
 	case ctx.GlobalBool(GoerliFlag.Name):
 		urls = params.GoerliBootnodes
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		urls = params.AlfajoresBootnodes
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		urls = params.BaklavaBootnodes
 	case ctx.GlobalBool(OttomanFlag.Name):
 		urls = params.OttomanBootnodes
 	case cfg.BootstrapNodes != nil:
@@ -880,6 +898,10 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		urls = params.RinkebyBootnodes
 	case ctx.GlobalBool(GoerliFlag.Name):
 		urls = params.GoerliBootnodes
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		urls = params.AlfajoresBootnodes
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		urls = params.BaklavaBootnodes
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
 	}
@@ -1282,6 +1304,10 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
 	case ctx.GlobalBool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
+	case ctx.GlobalBool(BaklavaFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "baklava")
+	case ctx.GlobalBool(AlfajoresFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "alfajores")
 	case ctx.GlobalBool(OttomanFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ottoman")
 	}
@@ -1543,7 +1569,7 @@ func SetShhConfig(ctx *cli.Context, stack *node.Node, cfg *whisper.Config) {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag, GoerliFlag, OttomanFlag)
+	CheckExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag, GoerliFlag, OttomanFlag, BaklavaFlag, AlfajoresFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
@@ -1625,6 +1651,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.NetworkId = 5
 		}
 		cfg.Genesis = core.DefaultGoerliGenesisBlock()
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = 40120
+		}
+		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = 44785
+		}
+		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1794,6 +1830,10 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 		genesis = core.DefaultRinkebyGenesisBlock()
 	case ctx.GlobalBool(GoerliFlag.Name):
 		genesis = core.DefaultGoerliGenesisBlock()
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		genesis = core.DefaultBaklavaGenesisBlock()
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
 	case ctx.GlobalBool(OttomanFlag.Name):

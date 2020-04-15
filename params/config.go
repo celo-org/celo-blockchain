@@ -187,6 +187,26 @@ var (
 		IstanbulBlock:       big.NewInt(1561651),
 	}
 
+	// BaklavaChainConfig contains the chain parameters to run a node on the Baklava test network.
+	BaklavaChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(40120),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow:	12,
+		},
+	}
+
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
 	GoerliTrustedCheckpoint = &TrustedCheckpoint{
 		SectionIndex: 47,
