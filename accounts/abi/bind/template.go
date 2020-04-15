@@ -360,7 +360,7 @@ var (
 		}
 	{{end}}
 
-	// TryParseLog attempts to parse a log. Returns the parsed log, evenName and whether it was succesfull
+	// TryParseLog attempts to parse a log. Returns the parsed log, eventName and whether it was successful
  	func (_{{$contract.Type}} *{{$contract.Type}}Filterer) TryParseLog(log types.Log) (eventName string, event interface{}, ok bool, err error) {
 		eventName, ok, err = _{{$contract.Type}}.contract.LogEventName(log)
 		if err != nil || !ok {
