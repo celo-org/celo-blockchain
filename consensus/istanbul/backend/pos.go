@@ -52,13 +52,33 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return nil
 	}
 
-	err := epoch_rewards.UpdateTargetVotingYield(header, state)
+	// Get necessary Addresses First
+	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {
 		return err
 	}
+	stableTokenAddress, err := contract_comm.GetRegisteredAddress(params.StableTokenRegistryId, header, state)
+	if err != nil {
+		return err
+	}
+
+	carbonOffsettingPartnerAddress, err := epoch_rewards.GetCarbonOffsettingPartnerAddress(header, state)
+	if err != nil {
+		return err
+	}
+
+	err = epoch_rewards.UpdateTargetVotingYield(header, state)
+	if err != nil {
+		return err
+	}
+
 	validatorReward, totalVoterRewards, communityReward, carbonOffsettingPartnerReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
 	if err != nil {
 		return err
+	}
+
+	if carbonOffsettingPartnerAddress == common.ZeroAddress {
+		carbonOffsettingPartnerReward = big.NewInt(0)
 	}
 
 	logger.Debug("Calculated target rewards", "validatorReward", validatorReward, "totalVoterRewards", totalVoterRewards, "communityReward", communityReward)
@@ -82,50 +102,32 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	if err != nil {
 		return err
 	}
-	totalCommunityRewards, err := sb.distributeCommunityRewards(header, state, communityReward)
-	if err != nil {
-		return err
-	}
 
-	totalDistributedVoterRewards, err := sb.distributeVoterRewards(header, state, valSet, totalVoterRewards, uptimes)
-	if err != nil {
-		return err
-	}
-
-	stableTokenAddress, err := contract_comm.GetRegisteredAddress(params.StableTokenRegistryId, header, state)
-	if err != nil {
-		return err
-	}
-
+	// Validator rewards were paid in cUSD, convert that amount to cGLD and add it to the Reserve
 	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
 	if err != nil {
 		return err
 	}
 
-	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
-	if err != nil {
+	if err = gold_token.Mint(header, state, *reserveAddress, totalValidatorRewardsConvertedToGold); err != nil {
 		return err
 	}
-	if reserveAddress != nil {
-		state.AddBalance(*reserveAddress, totalValidatorRewardsConvertedToGold)
-	} else {
-		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
-	}
 
-	carbonOffsettingPartnerAddress, err := epoch_rewards.GetCarbonOffsettingPartnerAddress(header, state)
-	if err != nil {
+	if err := sb.distributeCommunityRewards(header, state, communityReward); err != nil {
 		return err
 	}
-	if carbonOffsettingPartnerAddress != common.ZeroAddress {
-		state.AddBalance(carbonOffsettingPartnerAddress, carbonOffsettingPartnerReward)
-	} else {
-		carbonOffsettingPartnerReward = big.NewInt(0)
+
+	if err := sb.distributeVoterRewards(header, state, valSet, totalVoterRewards, uptimes); err != nil {
+		return err
 	}
 
-	mintedGold := big.NewInt(0).Add(totalDistributedVoterRewards, totalValidatorRewardsConvertedToGold)
-	mintedGold.Add(mintedGold, totalCommunityRewards)
-	mintedGold.Add(mintedGold, carbonOffsettingPartnerReward)
-	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
+	if carbonOffsettingPartnerReward.Cmp(new(big.Int)) != 0 {
+		if err = gold_token.Mint(header, state, carbonOffsettingPartnerAddress, carbonOffsettingPartnerReward); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
@@ -191,34 +193,37 @@ func (sb *Backend) distributeValidatorRewards(header *types.Header, state *state
 	return totalValidatorRewards, nil
 }
 
-func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state.StateDB, communityReward *big.Int) (*big.Int, error) {
-	totalCommunityRewards := big.NewInt(0)
+func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state.StateDB, communityReward *big.Int) error {
 	governanceAddress, err := contract_comm.GetRegisteredAddress(params.GovernanceRegistryId, header, state)
 	if err != nil {
-		return totalCommunityRewards, err
+		return err
 	}
 	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
 	if err != nil {
-		return totalCommunityRewards, err
+		return err
 	}
 	lowReserve, err := epoch_rewards.IsReserveLow(header, state)
 	if err != nil {
-		return totalCommunityRewards, err
+		return err
 	}
+
 	if lowReserve && reserveAddress != nil {
-		state.AddBalance(*reserveAddress, communityReward)
-		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
+		return gold_token.Mint(header, state, *reserveAddress, communityReward)
 	} else if governanceAddress != nil {
 		// TODO: How to split eco fund here
-		state.AddBalance(*governanceAddress, communityReward)
-		totalCommunityRewards.Add(totalCommunityRewards, communityReward)
+		return gold_token.Mint(header, state, *governanceAddress, communityReward)
 	}
-
-	return totalCommunityRewards, err
+	return nil
 }
 
-func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
-	totalVoterRewards := big.NewInt(0)
+func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.StateDB, valSet []istanbul.Validator, maxTotalRewards *big.Int, uptimes []*big.Int) error {
+
+	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
+	if err != nil {
+		return err
+	} else if lockedGoldAddress == nil {
+		return errors.New("Unable to fetch locked gold address for epoch rewards distribution")
+	}
 
 	// Select groups that elected at least one validator aggregate their uptimes.
 	var groups []common.Address
@@ -227,7 +232,7 @@ func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.Sta
 	for i, val := range valSet {
 		group, err := validators.GetMembershipInLastEpoch(header, state, val.Address())
 		if err != nil {
-			return totalVoterRewards, err
+			return err
 		}
 		if _, ok := groupElectedValidator[group]; !ok {
 			groups = append(groups, group)
@@ -239,19 +244,10 @@ func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.Sta
 
 	electionRewards, err := election.DistributeEpochRewards(header, state, groups, maxTotalRewards, groupUptimes)
 	if err != nil {
-		return totalVoterRewards, err
+		return err
 	}
-	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
-	if err != nil {
-		return totalVoterRewards, err
-	}
-	if lockedGoldAddress != nil {
-		state.AddBalance(*lockedGoldAddress, electionRewards)
-		totalVoterRewards.Add(totalVoterRewards, electionRewards)
-	} else {
-		return totalVoterRewards, errors.New("Unable to fetch locked gold address for epoch rewards distribution")
-	}
-	return totalVoterRewards, err
+
+	return gold_token.Mint(header, state, *lockedGoldAddress, electionRewards)
 }
 
 func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(header *types.Header, state *state.StateDB) error {
@@ -269,17 +265,10 @@ func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(header *types.Header, s
 		genesisSupply := new(big.Int)
 		genesisSupply.SetBytes(data)
 
-		err = sb.increaseGoldTokenTotalSupply(header, state, genesisSupply)
+		err = gold_token.IncreaseSupply(header, state, genesisSupply)
 		if err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (sb *Backend) increaseGoldTokenTotalSupply(header *types.Header, state *state.StateDB, increase *big.Int) error {
-	if increase.Cmp(common.Big0) > 0 {
-		return gold_token.IncreaseSupply(header, state, increase)
 	}
 	return nil
 }

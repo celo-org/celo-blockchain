@@ -2022,15 +2022,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 			return fmt.Errorf("invalid new chain")
 		}
 	}
-	// Ensure the user sees large reorgs
+	// Reorgs should not happen with Istanbul consensus. Warn the user.
 	if len(oldChain) > 0 && len(newChain) > 0 {
-		logFn := log.Info
-		msg := "Chain reorg detected"
-		if len(oldChain) > 63 {
-			msg = "Large chain reorg detected"
-			logFn = log.Warn
-		}
-		logFn(msg, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+		log.Error("Chain reorg detected", "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		blockReorgAddMeter.Mark(int64(len(newChain)))
 		blockReorgDropMeter.Mark(int64(len(oldChain)))
