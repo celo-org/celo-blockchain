@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const TokensBlob = "AAAAaARjVVNE7iH659QixVHlnsaPVraJnhSVN8EAAAASAAAETTBFAiEAizZZ1hwhNUkulAifI398lqJBJC6SEnV3FnWxwn3kNS4CIAF/G+4QlS1rpjNCbeOE5CvtVaSKMDpCQzFuylrrG3cF" // #nosec
+const TokensBlob = "AAAAaARjVVNES4TC75SidNv4Pi8ewWCEVsm2LZYAAAASAACcuDBFAiEAqkKjjSN4G+snqF6HY3oxwh5vmslOh/gZVG3MGg5vgfgCIGuGPU8jhvxdXF4bMSQc4vLs2iXgWzzj/1fOLX2kmDoTAAAAaARjR0xERPQ06Doxefzt4olBs6gZU/tXUhcAAAASAACcuDBFAiEAlnEhhgsbClErGxR6SmBTuGEwIE3I+gofDEufqkB6+ewCIFbdxoPuDvl6mb5xzYMM0cCeJwRvaOT7/jTj0RWHIWOZAAAAaARjVVNEpWETGhyKwlkl+4SLykWnSvYeWjgAAAASAACu8jBFAiEAxVAZSsitVIBd7Ov1wGYgZGVI68gA1tlFkPDaTzAppEACIAlPr01KDlmG1pUo7hd4nD4rN2qLdeJaT8sDk23cLuS5AAAAZwRjR0xE8ZSv31CwPmm9fQV8GqnhDJlU5MkAAAASAACu8jBEAiBkJSVHwDoQclm3VNsr1LB0JrXIUy8hQJEBDZJeKS3gsQIgNfXfisKOh/yjw5HM0kv6zYyv3Ea+XI9wVPDQ4OtaPig=" // #nosec
 
 var ErrCouldNotFindToken = errors.New("could not find token")
 var ErrNotAnERC20Transfer = errors.New("not an ERC20 transfer")
@@ -85,6 +85,7 @@ func (t *Tokens) ByContractAddressAndChainID(address common.Address, chainID *bi
 			return &token, nil
 		}
 	}
+
 
 	return nil, ErrCouldNotFindToken
 }
