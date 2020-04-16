@@ -186,42 +186,6 @@ type Body struct {
 	EpochSnarkData *EpochSnarkData
 }
 
-/*
-func (b *Body) DecodeRLP(s *rlp.Stream) error {
-	if testing {
-		var oldData struct {
-			Transactions   []*Transaction
-			Randomness     *Randomness
-		}
-		if err := s.Decode(&oldData); err != nil {
-			return err
-		}
-		b.Transactions = oldData.Transactions
-		b.Randomness = oldData.Randomness
-		return nil
-	}
-	var data struct {
-		Transactions   []*Transaction
-		Randomness     *Randomness
-		EpochSnarkData *EpochSnarkData
-	}
-	if err := s.Decode(&data); err != nil {
-		return err
-	}
-	b.Transactions = data.Transactions
-	b.Randomness = data.Randomness
-	b.EpochSnarkData = data.EpochSnarkData
-	return nil
-}
-
-func (r *Body) EncodeRLP(w io.Writer) error {
-	if testing {
-		return rlp.Encode(w, []interface{}{r.Transactions, r.Randomness})
-	}
-	return rlp.Encode(w, []interface{}{r.Transactions, r.Randomness, r.EpochSnarkData})
-}
-*/
-
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {
 	header         *Header
