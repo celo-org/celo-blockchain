@@ -36,6 +36,7 @@ var (
 	EmptyRootHash       = DeriveSha(Transactions{})
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
+	oldFormat           = false
 )
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
@@ -73,6 +74,10 @@ func (h *Header) Hash() common.Hash {
 		}
 	}
 	return rlpHash(h)
+}
+
+func SetOldFormat() {
+	oldFormat = true
 }
 
 var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
@@ -137,10 +142,23 @@ type EpochSnarkData struct {
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (r *EpochSnarkData) Size() common.StorageSize {
+	if oldFormat {
+		return common.StorageSize(blscrypto.SIGNATUREBYTES)
+	}
 	return common.StorageSize(blscrypto.SIGNATUREBYTES + (r.Bitmap.BitLen() / 8))
 }
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
+	if oldFormat {
+		var oldEpochSnarkData struct {
+			Signature []byte
+		}
+		if err := s.Decode(&oldEpochSnarkData); err != nil {
+			return err
+		}
+		r.Signature = oldEpochSnarkData.Signature
+		return nil
+	}
 	var epochSnarkData struct {
 		Bitmap    *big.Int
 		Signature []byte
@@ -154,6 +172,9 @@ func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
+	if oldFormat {
+		return rlp.Encode(w, []interface{}{r.Signature})
+	}
 	return rlp.Encode(w, []interface{}{r.Bitmap, r.Signature})
 }
 
@@ -164,6 +185,42 @@ type Body struct {
 	Randomness     *Randomness
 	EpochSnarkData *EpochSnarkData
 }
+
+/*
+func (b *Body) DecodeRLP(s *rlp.Stream) error {
+	if testing {
+		var oldData struct {
+			Transactions   []*Transaction
+			Randomness     *Randomness
+		}
+		if err := s.Decode(&oldData); err != nil {
+			return err
+		}
+		b.Transactions = oldData.Transactions
+		b.Randomness = oldData.Randomness
+		return nil
+	}
+	var data struct {
+		Transactions   []*Transaction
+		Randomness     *Randomness
+		EpochSnarkData *EpochSnarkData
+	}
+	if err := s.Decode(&data); err != nil {
+		return err
+	}
+	b.Transactions = data.Transactions
+	b.Randomness = data.Randomness
+	b.EpochSnarkData = data.EpochSnarkData
+	return nil
+}
+
+func (r *Body) EncodeRLP(w io.Writer) error {
+	if testing {
+		return rlp.Encode(w, []interface{}{r.Transactions, r.Randomness})
+	}
+	return rlp.Encode(w, []interface{}{r.Transactions, r.Randomness, r.EpochSnarkData})
+}
+*/
 
 // Block represents an entire block in the Ethereum blockchain.
 type Block struct {

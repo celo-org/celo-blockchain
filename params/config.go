@@ -205,7 +205,8 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		MintGold:			false,
+		MintGold:     false,
+		UseOldFormat: true,
 	}
 
 	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
@@ -226,7 +227,8 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		MintGold:			true,
+		MintGold:     true,
+		UseOldFormat: true,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -273,12 +275,12 @@ var (
 	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, false, false}
+	}, true, false, false, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, true, false}
+	}, true, true, false, false}
 	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 
@@ -361,7 +363,8 @@ type ChainConfig struct {
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
 
-	MintGold bool
+	MintGold     bool
+	UseOldFormat bool
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.

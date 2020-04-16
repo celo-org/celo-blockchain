@@ -199,6 +199,7 @@ func (lc *LightChain) ResetWithGenesisBlock(genesis *types.Block) {
 	rawdb.WriteBlock(lc.chainDb, genesis)
 
 	lc.genesisBlock = genesis
+	log.Info("Light genesis")
 	lc.hc.SetGenesis(lc.genesisBlock.Header())
 	lc.hc.SetCurrentHeader(lc.genesisBlock.Header())
 }

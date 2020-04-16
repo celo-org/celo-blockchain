@@ -200,6 +200,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	futureBlocks, _ := lru.New(maxFutureBlocks)
 	badBlocks, _ := lru.New(badBlockLimit)
 
+	if chainConfig.UseOldFormat {
+		types.SetOldFormat()
+	}
+
 	bc := &BlockChain{
 		chainConfig:    chainConfig,
 		cacheConfig:    cacheConfig,
@@ -754,6 +758,7 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 	if hash == (common.Hash{}) {
 		return nil
 	}
+	log.Info("Getting block")
 	return bc.GetBlock(hash, number)
 }
 
