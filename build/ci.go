@@ -80,6 +80,7 @@ var (
 		executablePath("rlpdump"),
 		executablePath("wnode"),
 		executablePath("clef"),
+		executablePath("blspopchecker"),
 	}
 
 	// A debian package is created for all executables listed here.
@@ -111,6 +112,10 @@ var (
 		{
 			BinaryName:  "clef",
 			Description: "Ethereum account management tool.",
+		},
+    {
+			BinaryName:  "blspopchecker",
+			Description: "Developer utility tool checks BLS PoP signatures in genesis.",
 		},
 	}
 
