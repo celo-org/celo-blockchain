@@ -273,12 +273,12 @@ var (
 	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, false}
+	}, true, false, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, true}
+	}, true, true, false}
 	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 

@@ -40,6 +40,11 @@ import (
 )
 
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
+
+	if !sb.chain.Config().MintGold {
+		return distributeEpochRewardsNoMint(header, state)
+	}
+
 	start := time.Now()
 	defer sb.rewardDistributionTimer.UpdateSince(start)
 	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
@@ -128,95 +133,6 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	}
 
 	return nil
-}
-
-func (sb *Backend) distributeEpochRewardsNoMint(header *types.Header, state *state.StateDB) error {
-	start := time.Now()
-	defer sb.rewardDistributionTimer.UpdateSince(start)
-	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
-
-	// Check if reward distribution has been frozen and return early without error if it is.
-	if frozen, err := freezer.IsFrozen(params.EpochRewardsRegistryId, header, state); err != nil {
-		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
-	} else if frozen {
-		logger.Debug("Epoch rewards are frozen, skipping distribution")
-		return nil
-	}
-
-	err := epoch_rewards.UpdateTargetVotingYield(header, state)
-	if err != nil {
-		return err
-	}
-	validatorReward, totalVoterRewards, communityReward, carbonOffsettingPartnerReward, err := epoch_rewards.CalculateTargetEpochRewards(header, state)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("Calculated target rewards", "validatorReward", validatorReward, "totalVoterRewards", totalVoterRewards, "communityReward", communityReward)
-
-	// The validator set that signs off on the last block of the epoch is the one that we need to
-	// iterate over.
-	valSet := sb.GetValidators(big.NewInt(header.Number.Int64()-1), header.ParentHash)
-	if len(valSet) == 0 {
-
-		err := errors.New("Unable to fetch validator set to update scores and distribute rewards")
-		logger.Error(err.Error())
-		return err
-	}
-
-	uptimes, err := sb.updateValidatorScores(header, state, valSet)
-	if err != nil {
-		return err
-	}
-
-	totalValidatorRewards, err := sb.distributeValidatorRewards(header, state, valSet, validatorReward)
-	if err != nil {
-		return err
-	}
-	totalCommunityRewards, err := sb.distributeCommunityRewards(header, state, communityReward)
-	if err != nil {
-		return err
-	}
-
-	totalDistributedVoterRewards, err := sb.distributeVoterRewards(header, state, valSet, totalVoterRewards, uptimes)
-	if err != nil {
-		return err
-	}
-
-	stableTokenAddress, err := contract_comm.GetRegisteredAddress(params.StableTokenRegistryId, header, state)
-	if err != nil {
-		return err
-	}
-
-	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
-	if err != nil {
-		return err
-	}
-
-	reserveAddress, err := contract_comm.GetRegisteredAddress(params.ReserveRegistryId, header, state)
-	if err != nil {
-		return err
-	}
-	if reserveAddress != nil {
-		state.AddBalance(*reserveAddress, totalValidatorRewardsConvertedToGold)
-	} else {
-		return errors.New("Unable to fetch reserve address for epoch rewards distribution")
-	}
-
-	carbonOffsettingPartnerAddress, err := epoch_rewards.GetCarbonOffsettingPartnerAddress(header, state)
-	if err != nil {
-		return err
-	}
-	if carbonOffsettingPartnerAddress != common.ZeroAddress {
-		state.AddBalance(carbonOffsettingPartnerAddress, carbonOffsettingPartnerReward)
-	} else {
-		carbonOffsettingPartnerReward = big.NewInt(0)
-	}
-
-	mintedGold := big.NewInt(0).Add(totalDistributedVoterRewards, totalValidatorRewardsConvertedToGold)
-	mintedGold.Add(mintedGold, totalCommunityRewards)
-	mintedGold.Add(mintedGold, carbonOffsettingPartnerReward)
-	return sb.increaseGoldTokenTotalSupply(header, state, mintedGold)
 }
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
