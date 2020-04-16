@@ -1166,7 +1166,8 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+	log.Info("Setting it here")
+	cfg.NetworkId = getNetworkId(ctx)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
@@ -1437,7 +1438,7 @@ func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
 		proxyCfg.ListenAddr = ctx.GlobalString(ProxyInternalFacingEndpointFlag.Name)
 	}
 
-	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+	proxyCfg.NetworkId = getNetworkId(ctx)
 }
 
 // Set all of the proxy related configurations.
@@ -1566,6 +1567,27 @@ func SetShhConfig(ctx *cli.Context, stack *node.Node, cfg *whisper.Config) {
 	}
 }
 
+func getNetworkId(ctx *cli.Context) uint64 {
+	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
+		return ctx.GlobalUint64(NetworkIdFlag.Name)
+	}
+	switch {
+	case ctx.GlobalBool(TestnetFlag.Name):
+		return 3
+	case ctx.GlobalBool(RinkebyFlag.Name):
+		return 4
+	case ctx.GlobalBool(GoerliFlag.Name):
+		return 5
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		return 40120
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		return 44786
+	case ctx.GlobalBool(DeveloperFlag.Name):
+		return 1337
+	}
+	return 0
+}
+
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	// Avoid conflicting network flags
@@ -1653,12 +1675,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.Genesis = core.DefaultGoerliGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
+			log.Info("Setting baklava id")
 			cfg.NetworkId = 40120
 		}
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 44785
+			cfg.NetworkId = 44786
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):

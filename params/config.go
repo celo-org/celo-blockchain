@@ -205,6 +205,28 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
+		MintGold:			false,
+	}
+
+	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
+	AlfajoresChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(44786),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(math.MaxInt64),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
+		},
+		MintGold:			true,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -338,6 +360,8 @@ type ChainConfig struct {
 
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
+
+	MintGold bool
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.

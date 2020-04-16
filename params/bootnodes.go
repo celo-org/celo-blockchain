@@ -38,7 +38,7 @@ var BaklavaBootnodes = []string{"enode://5aaf10664b12431c250597e980aacd7d5373cae
 
 // AlfajoresBootnodes are the enode URLs of the P2P bootstrap nodes running on the
 // Alfajores test network.
-var AlfajoresBootnodes = []string{}
+var AlfajoresBootnodes = []string{"enode://e99a883d0b7d0bacb84cde98c4729933b49adbc94e718b77fdb31779c7ed9da6c49236330a9ae096f42bcbf6e803394229120201704b7a4a3ae8004993fa0876@35.247.115.108:30303"}
 
 // Ottoman are the enode URLs of the P2P bootstrap nodes running on the
 // Ottoman test network.
