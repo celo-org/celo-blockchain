@@ -205,7 +205,7 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		MintGold:     false,
+		NoMintGold:     true,
 		UseOldFormat: true,
 	}
 
@@ -227,7 +227,7 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		MintGold:     true,
+		NoMintGold:   false,
 		UseOldFormat: true,
 	}
 
@@ -363,7 +363,7 @@ type ChainConfig struct {
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
 
-	MintGold     bool `json:"mintGold,omitempty"`
+	NoMintGold   bool `json:"noMintGold,omitempty"`
 	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 
