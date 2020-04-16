@@ -306,8 +306,10 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 // APIs return the collection of RPC services the ethereum package offers.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *Ethereum) APIs() []rpc.API {
+	//apis := ethapi.GetAPIs(s.APIBackend)
 	apis := ethapi.GetAPIs(s.APIBackend)
-
+	
+	fmt.Println(apis)
 	// Append any APIs exposed explicitly by the les server
 	if s.lesServer != nil {
 		apis = append(apis, s.lesServer.APIs()...)
@@ -315,12 +317,14 @@ func (s *Ethereum) APIs() []rpc.API {
 	// Append any APIs exposed explicitly by the consensus engine
 	apis = append(apis, s.engine.APIs(s.BlockChain())...)
 
-	// Append any APIs exposed explicitly by the les server
+	// // Append any APIs exposed explicitly by the les server
 	if s.lesServer != nil {
+		
 		apis = append(apis, s.lesServer.APIs()...)
 	}
 
 	// Append all the local APIs and return
+	
 	return append(apis, []rpc.API{
 		{
 			Namespace: "eth",

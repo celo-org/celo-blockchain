@@ -817,6 +817,37 @@ web3._extend({
 			call: 'les_addBalance',
 			params: 3
 		}),
+		new web3._extend.Method({
+			name: 'gatewayFeeTest',
+			call: 'les_gatewayFeeTest',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'gatewayFeeRecipientTest',
+			call: 'les_gatewayFeeRecipientTest',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'helloWorld',
+			call: 'les_helloWorld',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'helloWorldTwo',
+			call: 'les_helloWorldTwo',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'helloWorldThree',
+			call: 'les_helloWorldThree',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'setGatewayFee',
+			call: 'les_setGatewayFee',
+			params: 1
+		})
+
 	],
 	properties:
 	[
@@ -832,6 +863,10 @@ web3._extend({
 			name: 'serverInfo',
 			getter: 'les_serverInfo'
 		}),
+		new web3._extend.Property({
+			name: 'gatewayFee',
+			getter: 'les_gatewayFee'
+		})
 	]
 });
 `

@@ -310,5 +310,10 @@ func (b *EthAPIBackend) GatewayFeeRecipient() common.Address {
 }
 
 func (b *EthAPIBackend) GatewayFee() *big.Int {
-	return b.eth.GatewayFee()
+	//return b.eth.GatewayFee()
+	return big.NewInt(25)
+}
+
+func (b *EthAPIBackend) HelloWorld() string {
+	return "Hello World, From EthAPIBackend"
 }

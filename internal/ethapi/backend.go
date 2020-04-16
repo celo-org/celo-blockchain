@@ -88,6 +88,8 @@ type Backend interface {
 
 	GatewayFeeRecipient() common.Address
 	GatewayFee() *big.Int
+
+	HelloWorld() string //added by ray as test
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {
@@ -109,9 +111,9 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Service:   NewPublicTransactionPoolAPI(apiBackend, nonceLock),
 			Public:    true,
 		}, {
-			Namespace: "txpool",
+			Namespace: "les",
 			Version:   "1.0",
-			Service:   NewPublicTxPoolAPI(apiBackend),
+			Service:   NewPublicLightEthereumAPI(apiBackend),
 			Public:    true,
 		}, {
 			Namespace: "debug",

@@ -20,11 +20,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	
 )
 
 var (
@@ -51,6 +53,21 @@ func NewPrivateLightServerAPI(server *LesServer) *PrivateLightServerAPI {
 		defaultNegFactors: server.clientPool.defaultNegFactors,
 	}
 }
+
+//GatewayFee returns the current gateway fee of this light server
+func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
+	return api.server.handler.gatewayFee, nil //handle errors later
+}
+
+//SetGatewayFee allows this light server node to set a gateway fee
+func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
+	if gf.Cmp(big.NewInt(0)) == -1 {
+		return errors.New("Invalid Gateway Fee Value")
+	}
+	api.server.handler.gatewayFee = gf
+	return nil
+}
+
 
 // ServerInfo returns global server parameters
 func (api *PrivateLightServerAPI) ServerInfo() map[string]interface{} {
@@ -351,4 +368,21 @@ func (api *PrivateLightAPI) GetCheckpointContractAddress() (string, error) {
 		return "", errNotActivated
 	}
 	return api.backend.oracle.config.Address.Hex(), nil
+}
+
+//API should be for light clients of les protocol
+type LightClientAPI struct {
+	le *LightEthereum
+}
+
+func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
+	
+	return &LightClientAPI{le}
+}
+func(api *LightClientAPI) HelloWorldTwo() string {
+	return "Hello World, from LightClientAPI!"
+}
+
+func(api *LightClientAPI) HelloWorldThree() string {
+	return api.le.ApiBackend.HelloWorld()
 }
