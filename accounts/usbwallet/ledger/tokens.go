@@ -86,7 +86,6 @@ func (t *Tokens) ByContractAddressAndChainID(address common.Address, chainID *bi
 		}
 	}
 
-
 	return nil, ErrCouldNotFindToken
 }
 
