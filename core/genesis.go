@@ -155,6 +155,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.DefaultChainConfig, common.Hash{}, errGenesisNoConfig
 	}
+	if genesis.Config.UseOldFormat {
+		types.SetOldFormat()
+	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {

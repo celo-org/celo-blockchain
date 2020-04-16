@@ -363,8 +363,8 @@ type ChainConfig struct {
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
 
-	MintGold     bool
-	UseOldFormat bool
+	MintGold     bool `json:"mintGold,omitempty"`
+	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
