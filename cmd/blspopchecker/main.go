@@ -18,15 +18,15 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
-  "encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
-  "os"
-  "io/ioutil"
-  "errors"
+	"io/ioutil"
+	"os"
 
-  "github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -45,9 +45,9 @@ Verifies PoP signatures for the genesis block.`)
 }
 
 type genesisItem struct {
-  Address string `json:"address"`
-  BLSPublicKey string `json:"blsPublicKey"`
-  BLSPoP string `json:"blsPop"`
+	Address      string `json:"address"`
+	BLSPublicKey string `json:"blsPublicKey"`
+	BLSPoP       string `json:"blsPop"`
 }
 
 type genesisJson = []genesisItem
@@ -55,52 +55,52 @@ type genesisJson = []genesisItem
 func main() {
 	flag.Parse()
 
-  if *message == "" {
-    panic(errors.New("message is not set"))
-  }
+	if *message == "" {
+		panic(errors.New("message is not set"))
+	}
 
-  if *genesis == "" {
-    panic(errors.New("genesis file is not set"))
-  }
+	if *genesis == "" {
+		panic(errors.New("genesis file is not set"))
+	}
 
-  data, err := ioutil.ReadFile(*genesis)
-  check(err)
+	data, err := ioutil.ReadFile(*genesis)
+	check(err)
 
-  run(*message, data)
+	run(*message, data)
 }
 
 func run(message string, data []byte) {
-  var genesisData genesisJson
-  err := json.Unmarshal(data, &genesisData)
-  check(err)
+	var genesisData genesisJson
+	err := json.Unmarshal(data, &genesisData)
+	check(err)
 
 	messageBytes := common.HexToAddress(message)
 
-  for _, v := range genesisData {
-    address, err := hex.DecodeString(v.Address)
-    check(err)
+	for _, v := range genesisData {
+		address, err := hex.DecodeString(v.Address)
+		check(err)
 
-    blsPublicKey, err := hex.DecodeString(v.BLSPublicKey)
-    check(err)
+		blsPublicKey, err := hex.DecodeString(v.BLSPublicKey)
+		check(err)
 
-    blsPop, err := hex.DecodeString(v.BLSPoP)
-    check(err)
+		blsPop, err := hex.DecodeString(v.BLSPoP)
+		check(err)
 
-    publicKey, err := bls.DeserializePublicKey(blsPublicKey)
-    check(err)
+		publicKey, err := bls.DeserializePublicKey(blsPublicKey)
+		check(err)
 
-    signature, err := bls.DeserializeSignature(blsPop)
-    check(err)
+		signature, err := bls.DeserializeSignature(blsPop)
+		check(err)
 
-    err = publicKey.VerifyPoP(messageBytes.Bytes(), signature)
-    check(err)
+		err = publicKey.VerifyPoP(messageBytes.Bytes(), signature)
+		check(err)
 
-    fmt.Printf("PoP for signer %x is verified\n", address)
-  }
+		fmt.Printf("PoP for signer %x is verified\n", address)
+	}
 }
 
 func check(e error) {
-    if e != nil {
-        panic(e)
-    }
+	if e != nil {
+		panic(e)
+	}
 }

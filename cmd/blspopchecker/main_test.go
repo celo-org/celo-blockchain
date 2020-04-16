@@ -16,14 +16,13 @@
 package main
 
 import (
-  "io/ioutil"
-  "testing"
+	"io/ioutil"
+	"testing"
 )
 
 func TestMain(t *testing.T) {
-  data, err := ioutil.ReadFile("test.json")
-  check(err)
+	data, err := ioutil.ReadFile("test.json")
+	check(err)
 
-  run("0x993c4d601ed879b4ad36fc31f0c0214d547113eb", data)
+	run("0x993c4d601ed879b4ad36fc31f0c0214d547113eb", data)
 }
-
