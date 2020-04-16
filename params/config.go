@@ -205,7 +205,7 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		NoMintGold:     true,
+		NoMintGold:   true,
 		UseOldFormat: true,
 	}
 
