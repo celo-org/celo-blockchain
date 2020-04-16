@@ -758,7 +758,6 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 	if hash == (common.Hash{}) {
 		return nil
 	}
-	log.Info("Getting block")
 	return bc.GetBlock(hash, number)
 }
 
