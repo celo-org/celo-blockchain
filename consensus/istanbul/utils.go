@@ -64,7 +64,7 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 		return val.Address(), nil
 	}
 
-	return common.Address{}, fmt.Errorf("not an elected validator %s", signer)
+	return common.Address{}, fmt.Errorf("not an elected validator %s", signer.Hex())
 }
 
 // Retrieves the block number within an epoch.  The return value will be 1-based.
