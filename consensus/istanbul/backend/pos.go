@@ -42,7 +42,7 @@ import (
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
 
 	if !sb.chain.Config().MintGold {
-		return distributeEpochRewardsNoMint(header, state)
+		return sb.distributeEpochRewardsNoMint(header, state)
 	}
 
 	start := time.Now()

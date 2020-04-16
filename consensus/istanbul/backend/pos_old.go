@@ -18,7 +18,6 @@ package backend
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -31,11 +30,8 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/freezer"
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -78,7 +74,7 @@ func (sb *Backend) distributeEpochRewardsNoMint(header *types.Header, state *sta
 		return err
 	}
 
-	totalValidatorRewards, err := sb.distributeValidatorRewardsNoMint(header, state, valSet, validatorReward)
+	totalValidatorRewards, err := sb.distributeValidatorRewards(header, state, valSet, validatorReward)
 	if err != nil {
 		return err
 	}
