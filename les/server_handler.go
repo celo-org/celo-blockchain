@@ -55,6 +55,7 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
+	MaxGatewayFee			 = 1000000 //harcoded temp limit for now
 )
 
 var (

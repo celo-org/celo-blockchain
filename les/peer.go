@@ -523,6 +523,17 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	}
 	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
 }
+//@rayyuan 
+// RequestGatewayFee gets gateway fee of remote node
+func (p *peer) RequestGatewayFee(reqID, cost uint64, reqs []ProofReq) error {
+	p.Log().Debug("Fetching batch of proofs", "count", len(reqs))
+	return sendRequest(p.rw, GetGatewayFeeMsg, reqID, cost, reqs)
+}
+//ReplyGatewayFee creates reply with gateway fee that was requested
+func (p *peer) ReplyGatewayFee(reqID uint64, proofs light.NodeList) *reply {
+	data, _ := rlp.EncodeToBytes(proofs)
+	return &reply{p.rw, GatewayFeeMsg, reqID, data}
+}
 
 // SendTxStatus creates a reply with a batch of transactions to be added to the remote transaction pool.
 func (p *peer) SendTxs(reqID, cost uint64, txs rlp.RawValue) error {

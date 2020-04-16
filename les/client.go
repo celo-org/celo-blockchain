@@ -243,7 +243,7 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Namespace: "les",
 			Version:   "1.0",
 			Service:   NewPrivateLightAPI(&s.lesCommons),
-			Public:    true,
+			Public:    false,
 		},
 	}...)
 }

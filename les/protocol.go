@@ -77,6 +77,9 @@ const (
 	// Protocol messages introduced in LPV3
 	StopMsg   = 0x18
 	ResumeMsg = 0x19
+	//@rayyuan gateway fee msgs
+	GetGatewayFeeMsg = 0x20
+	GatewayFeeMsg = 0x21
 )
 
 type requestInfo struct {
@@ -94,6 +97,7 @@ var requests = map[uint64]requestInfo{
 	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
 	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
 	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
+	GetGatewayFeeMsg:		{"GetGatewayFee", MaxGatewayFee}
 }
 
 type errCode int
