@@ -182,8 +182,6 @@ type TxPoolConfig struct {
 	GlobalQueue  uint64 // Maximum number of non-executable transaction slots for all accounts
 
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
-
-	CurrencyAddresses *[]common.Address // The addresses of all the currencies that are accepted by the node
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
