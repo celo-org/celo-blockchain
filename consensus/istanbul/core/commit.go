@@ -121,6 +121,9 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 			return err
 		} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
 			return errOldMessage
+		} else if lastSubject.View.Sequence.Cmp(Common.Big0) == 0 {
+			// Don't handle commits for the genesis block, will cause underflows
+			return errOldMessage
 		}
 		return c.handleCheckedCommitForPreviousSequence(msg, commit)
 	} else if err != nil {
