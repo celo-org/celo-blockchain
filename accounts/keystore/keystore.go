@@ -297,10 +297,13 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.Seri
 	if useLedger == 2 {
 		log.Warn("Generating randomness for Ledger use")
 		useLedger = rand.Intn(2)
+		if useLedger == 1 {
+			log.Warn("Chosen to have signing delay")
+		}
 	}
 	if useLedger == 1 {
 		log.Warn("Simulating signing with Ledger")
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
@@ -342,7 +345,7 @@ func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []b
 	}
 	if useLedger == 1 {
 		log.Warn("Simulating signing with Ledger")
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
