@@ -1585,7 +1585,7 @@ func getNetworkId(ctx *cli.Context) uint64 {
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		return 1337
 	}
-	return 0
+	return 42220
 }
 
 // SetEthConfig applies eth-related command line flags to the config.
@@ -1606,6 +1606,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	setWhitelist(ctx, cfg)
 	setIstanbul(ctx, stack, cfg)
 	setLes(ctx, cfg)
+
+	cfg.NetworkId = 42220
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
