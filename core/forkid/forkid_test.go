@@ -37,9 +37,7 @@ func TestCreation(t *testing.T) {
 		config  *params.ChainConfig
 		genesis common.Hash
 		cases   []testcase
-	}{
-
-	}
+	}{}
 	for i, tt := range tests {
 		for j, ttt := range tt.cases {
 			if have := newID(tt.config, tt.genesis, ttt.head); have != ttt.want {
@@ -56,9 +54,7 @@ func TestValidation(t *testing.T) {
 		head uint64
 		id   ID
 		err  error
-	}{
-
-	}
+	}{}
 	for i, tt := range tests {
 		filter := newFilter(params.MainnetChainConfig, params.MainnetGenesisHash, func() uint64 { return tt.head })
 		if err := filter(tt.id); err != tt.err {
