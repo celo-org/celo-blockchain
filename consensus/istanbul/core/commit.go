@@ -19,6 +19,7 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -121,7 +122,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 			return err
 		} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
 			return errOldMessage
-		} else if lastSubject.View.Sequence.Cmp(Common.Big0) == 0 {
+		} else if lastSubject.View.Sequence.Cmp(common.Big0) == 0 {
 			// Don't handle commits for the genesis block, will cause underflows
 			return errOldMessage
 		}
