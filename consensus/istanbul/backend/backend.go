@@ -772,6 +772,12 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if header == nil {
 		return common.Hash{}, errNoBlockHeader
 	}
+	if header.Number() == number && number > 0 {
+		header = sb.chain.GetHeaderByNumber(number-1)
+		if header == nil {
+			return common.Hash{}, errNoBlockHeader
+		}
+	}
 	state, err := sb.stateAt(header.Hash())
 	if err != nil {
 		return common.Hash{}, err
