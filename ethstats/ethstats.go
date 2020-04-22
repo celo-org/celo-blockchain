@@ -166,6 +166,7 @@ func (s *Service) Stop() error {
 	return nil
 }
 
+// StatsPayload todo: document this
 type StatsPayload struct {
 	Action string      `json:"action"`
 	Stats  interface{} `json:"stats"`
