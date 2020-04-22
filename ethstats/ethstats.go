@@ -97,13 +97,13 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server    *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth       *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les       *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine    consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend   *istanbulBackend.Backend // Istanbul consensus backend
-	node      string // Name of the node to display on the monitoring page
-	host      string // Remote address of the monitoring service
+	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend *istanbulBackend.Backend // Istanbul consensus backend
+	node    string                   // Name of the node to display on the monitoring page
+	host    string                   // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -119,8 +119,8 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	}
 	// Assemble and return the stats service
 	var (
-		engine    consensus.Engine
-		id        string
+		engine consensus.Engine
+		id     string
 	)
 	id = parts[1]
 	if ethServ != nil {
@@ -132,14 +132,14 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	backend := engine.(*istanbulBackend.Backend)
 
 	return &Service{
-		eth:       ethServ,
-		les:       lesServ,
-		engine:    engine,
-		backend:   backend,
-		node:      id,
-		host:      parts[2],
-		pongCh:    make(chan struct{}),
-		histCh:    make(chan []uint64, 1),
+		eth:     ethServ,
+		les:     lesServ,
+		engine:  engine,
+		backend: backend,
+		node:    id,
+		host:    parts[2],
+		pongCh:  make(chan struct{}),
+		histCh:  make(chan []uint64, 1),
 	}, nil
 }
 
@@ -269,81 +269,81 @@ func (s *Service) loop() {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
-            // Resolve the URL, defaulting to TLS, but falling back to none too
-            path := fmt.Sprintf("%s/api", s.host)
-            urls := []string{path}
+			// Resolve the URL, defaulting to TLS, but falling back to none too
+			path := fmt.Sprintf("%s/api", s.host)
+			urls := []string{path}
 
-            // url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-            if !strings.Contains(path, "://") {
-                urls = []string{"wss://" + path, "ws://" + path}
-            }
-            // Establish a websocket connection to the server on any supported URL
-            var (
-                conn *websocket.Conn
-                err  error
-            )
-            dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-            header := make(http.Header)
-            for _, url := range urls {
-                conn, _, err = dialer.Dial(url, header)
-                if err == nil {
-                    break
-                }
-            }
+			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+			if !strings.Contains(path, "://") {
+				urls = []string{"wss://" + path, "ws://" + path}
+			}
+			// Establish a websocket connection to the server on any supported URL
+			var (
+				conn *websocket.Conn
+				err  error
+			)
+			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+			header := make(http.Header)
+			for _, url := range urls {
+				conn, _, err = dialer.Dial(url, header)
+				if err == nil {
+					break
+				}
+			}
 
-            if err != nil {
-                log.Warn("Stats server unreachable", "err", err)
-                time.Sleep(connectionTimeout * time.Second)
-                continue
-            }
-            // Authenticate the client with the server
-            if err = s.login(conn, sendCh); err != nil {
-                log.Warn("Stats login failed", "err", err)
-                conn.Close()
-                time.Sleep(connectionTimeout * time.Second)
-                continue
-            }
-            go s.readLoop(conn)
+			if err != nil {
+				log.Warn("Stats server unreachable", "err", err)
+				time.Sleep(connectionTimeout * time.Second)
+				continue
+			}
+			// Authenticate the client with the server
+			if err = s.login(conn, sendCh); err != nil {
+				log.Warn("Stats login failed", "err", err)
+				conn.Close()
+				time.Sleep(connectionTimeout * time.Second)
+				continue
+			}
+			go s.readLoop(conn)
 
-            // Send the initial stats so our node looks decent from the get go
-            if err = s.report(conn, sendCh); err != nil {
-                log.Warn("Initial stats report failed", "err", err)
-                conn.Close()
-                continue
-            }
-            // Keep sending status updates until the connection breaks
-            fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+			// Send the initial stats so our node looks decent from the get go
+			if err = s.report(conn, sendCh); err != nil {
+				log.Warn("Initial stats report failed", "err", err)
+				conn.Close()
+				continue
+			}
+			// Keep sending status updates until the connection breaks
+			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
-            for err == nil {
-                select {
-                case <-quitCh:
-                    conn.Close()
-                    return
+			for err == nil {
+				select {
+				case <-quitCh:
+					conn.Close()
+					return
 
-                case <-fullReport.C:
-                    if err = s.report(conn, sendCh); err != nil {
-                        log.Warn("Full stats report failed", "err", err)
-                    }
-                case list := <-s.histCh:
-                    if err = s.reportHistory(conn, list); err != nil {
-                        log.Warn("Requested history report failed", "err", err)
-                    }
-                case head := <-headCh:
-                    if err = s.reportBlock(conn, head); err != nil {
-                        log.Warn("Block stats report failed", "err", err)
-                    }
-                case <-txCh:
-                    if err = s.reportPending(conn); err != nil {
-                        log.Warn("Transaction stats report failed", "err", err)
-                    }
-                case signedMessage := <-sendCh:
-                    if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-                        log.Warn("Delegate send failed", "err", err)
-                    }
-                }
-            }
-            // Make sure the connection is closed
-            conn.Close()
+				case <-fullReport.C:
+					if err = s.report(conn, sendCh); err != nil {
+						log.Warn("Full stats report failed", "err", err)
+					}
+				case list := <-s.histCh:
+					if err = s.reportHistory(conn, list); err != nil {
+						log.Warn("Requested history report failed", "err", err)
+					}
+				case head := <-headCh:
+					if err = s.reportBlock(conn, head); err != nil {
+						log.Warn("Block stats report failed", "err", err)
+					}
+				case <-txCh:
+					if err = s.reportPending(conn); err != nil {
+						log.Warn("Transaction stats report failed", "err", err)
+					}
+				case signedMessage := <-sendCh:
+					if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+						log.Warn("Delegate send failed", "err", err)
+					}
+				}
+			}
+			// Make sure the connection is closed
+			conn.Close()
 		}
 	}
 }
@@ -354,8 +354,8 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	infos := s.server.NodeInfo()
 
 	var (
-		network   string
-		protocol  string
+		network  string
+		protocol string
 	)
 	if info := infos.Protocols[eth.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
@@ -378,21 +378,21 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	}
 
 	if s.backend.IsProxy() {
-        // Proxy needs a delegate send here to get ACK
-        select {
-        case signedMessage := <-sendCh:
-            err := s.handleDelegateSend(conn, signedMessage)
-            if err != nil {
-                return err
-            }
-        case <-time.After(delegateSendTimeout * time.Second):
-            // Login timeout, abort
+		// Proxy needs a delegate send here to get ACK
+		select {
+		case signedMessage := <-sendCh:
+			err := s.handleDelegateSend(conn, signedMessage)
+			if err != nil {
+				return err
+			}
+		case <-time.After(delegateSendTimeout * time.Second):
+			// Login timeout, abort
 			return errors.New("delegation of login timed out")
-        }
+		}
 	}
 
 	auth := &authMsg{
-		ID:      s.node,
+		ID: s.node,
 		Info: nodeInfo{
 			Name:     s.node,
 			Node:     infos.Name,
@@ -555,8 +555,8 @@ type nodeInfo struct {
 
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
-	ID      string         `json:"id"`
-	Info    nodeInfo       `json:"info"`
+	ID   string   `json:"id"`
+	Info nodeInfo `json:"info"`
 }
 
 // report collects all possible data to report and send it to the stats server.
