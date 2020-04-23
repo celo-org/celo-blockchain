@@ -215,7 +215,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 
-		c.sendCommit()
+		go c.sendCommit()
 	}
 
 	return nil
