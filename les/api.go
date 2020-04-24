@@ -23,9 +23,16 @@ import (
 	"math/big"
 	"time"
 
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/common"
+	//"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+
+	
 	
 )
 
@@ -379,6 +386,7 @@ func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
 	
 	return &LightClientAPI{le}
 }
+
 func(api *LightClientAPI) HelloWorldTwo() string {
 	return "Hello World, from LightClientAPI!"
 }
@@ -386,3 +394,88 @@ func(api *LightClientAPI) HelloWorldTwo() string {
 func(api *LightClientAPI) HelloWorldThree() string {
 	return api.le.ApiBackend.HelloWorld()
 }
+
+func(api *LightClientAPI) PeerCount() int {
+	return api.le.serverPool.server.PeerCount()
+}
+func(api *LightClientAPI) PeerEtherbase() []common.Address{
+	peerNodes := api.le.peers.AllPeers()
+	res := make([]common.Address, len(peerNodes))
+
+	idx := 0
+	for _, peerNode := range peerNodes {
+		res[idx] = *peerNode.etherbase
+		idx++
+	}
+	
+	return res
+}
+//no use but for testing, since full nodes have to specify etherbase themselves
+func (api *LightClientAPI) SetPeerRandomEtherbase() {
+	peerNodes := api.le.peers.peers
+
+	for currId,_ := range peerNodes {
+		key, _ := crypto.GenerateKey()
+		addr := crypto.PubkeyToAddress(key.PublicKey) //just set a random etherbase for peer
+
+		peerNodes[currId].SetEtherbase(addr)
+	}
+}
+
+func(api *LightClientAPI) PeerIds() []string{
+	return api.le.peers.AllPeerIDs()
+}
+func(api *LightClientAPI) TestMessaging() error{
+	log.Info("enter testMessaging LOL")
+	peerNode := api.le.peers.AllPeers()[0]
+
+	// type req struct {
+	// 	ReqID uint64
+	// }
+	//err := peerNode.RequestGatewayFee(1,2) //get messageHandler crash error for some reason when i use
+	//err := p2p.Send(peerNode.rw, GetGatewayFeeMsg, req{5})
+	var param1 uint64 = 5
+	var param2 uint64 = 6
+	err := peerNode.RequestGatewayFee(param1, param2)
+	//err := peerNode.RequestEtherbase(param1, param2)
+	// if err != nil {
+	// 	log.Fatal("Error")
+	// }
+	// msg, err := peerNode.rw.ReadMsg()
+
+	// var resp struct {
+	// 	ReqID, BV uint64
+	// 	Etherbase common.Address
+	// }
+	// if err := msg.Decode(&resp); err != nil {
+	// 	log.Fatal("error")
+	// }
+	return err 
+}
+func (api *LightClientAPI) TestGatewayFee() *big.Int {
+	return api.le.handler.testGWFee
+}
+
+
+func(api *LightClientAPI) TestReceiveMsg() *big.Int {
+	peerNode := api.le.peers.AllPeers()[0]
+	_, err := peerNode.rw.ReadMsg()
+	if err != nil {
+		return big.NewInt(10)
+	}
+	return big.NewInt(20)
+}
+//should return mapping of all lightserver gateway fees to corresponding coinbase . Change to map[*big.Int]common.Address
+func(api *LightClientAPI) PeerGatewayFees() map[string]common.Address{
+	peerNodes := api.le.peers.AllPeers()
+	peerEtherbases := api.PeerEtherbase()
+
+	res := make(map[string]common.Address)
+
+	for i := 0; i < len(peerNodes); i++ {
+		res[peerNodes[i].id] = peerEtherbases[i]
+	}
+	
+	return res
+}
+

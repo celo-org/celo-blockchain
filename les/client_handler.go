@@ -21,6 +21,7 @@ import (
 	"math/big"
 	"sync"
 	"time"
+	
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
@@ -45,6 +46,10 @@ type clientHandler struct {
 	closeCh  chan struct{}
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
+
+	//ray added
+	//gatewayFeeMap map[common.Address]*big.Int
+	testGWFee *big.Int
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
@@ -70,6 +75,9 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
+
+	//handler.gatewayFeeMap = make(map[common.Address]*big.Int, 0)
+	handler.testGWFee = big.NewInt(1)
 	return handler
 }
 
@@ -150,7 +158,7 @@ func (h *clientHandler) handle(p *peer) error {
 			reqID := genReqID()
 			cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
 			err := p.RequestEtherbase(reqID, cost)
-
+ 
 			if err != nil {
 				p.Log().Warn("Unable to request etherbase from peer", "err", err)
 			}
@@ -176,6 +184,7 @@ func (h *clientHandler) handle(p *peer) error {
 // peer. The remote connection is torn down upon returning any error.
 func (h *clientHandler) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
+	p.Log().Info("CLIENT HandleMsg: Ray")
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
@@ -353,6 +362,29 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
 		p.SetEtherbase(resp.Etherbase)
+		
+	case GatewayFeeMsg:
+		p.Log().Trace("Received gatewayFee response")
+		p.Log().Info("CLIENT GATEWAY FEE MSG CASE :RAY")
+
+		p.Log().Info("Here 1")
+		var resp struct {
+			ReqID, BV uint64
+			GatewayFee uint64 ///So jank but for some reason can't decode the *big.Int
+		}
+		p.Log().Info("Here 2")
+		if err := msg.Decode(&resp); err != nil {
+			p.Log().Info("Here 3")
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Info("Here 4")
+		p.Log().Trace("Setting peer gatewayFee", "gatewayFee", resp.GatewayFee, "Peer ID", p.ID)
+
+		p.Log().Info("ABOUT TO SET GW FEE CLIENT_HANDLER:RAY")
+		// h.testGWFee = resp.gatewayFee
+		h.testGWFee = big.NewInt(int64(resp.GatewayFee)) //if i comment everything else out and set it, it works
+		
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

@@ -337,6 +337,15 @@ func (r *reply) send(bv uint64) error {
 	return p2p.Send(r.w, r.msgcode, resp{r.reqID, bv, r.data})
 }
 
+// Just a test for gw fee. Try not having bv
+func (r *reply) sendGW() error {
+	type resp struct {
+		ReqID	  uint64
+		Data      rlp.RawValue
+	}
+	return p2p.Send(r.w, r.msgcode, resp{r.reqID, r.data})
+}
+
 // size returns the RLP encoded size of the message data
 func (r *reply) size() uint32 {
 	return uint32(len(r.data))
@@ -413,10 +422,6 @@ func (p *peer) SendResume(bv uint64) error {
 	return p2p.Send(p.rw, ResumeMsg, bv)
 }
 
-func (p *peer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
-	data, _ := rlp.EncodeToBytes(etherbase)
-	return &reply{p.rw, EtherbaseMsg, reqID, data}
-}
 
 // ReplyBlockHeaders creates a reply with a batch of block headers
 func (p *peer) ReplyBlockHeaders(reqID uint64, headers []*types.Header) *reply {
@@ -518,6 +523,7 @@ func (p *peer) RequestTxStatus(reqID, cost uint64, txHashes []common.Hash) error
 // RequestEtherbase fetches the etherbase of a remote node.
 func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
+	p.Log().Info("Request Etherebase Function entered")
 	type req struct {
 		ReqID uint64
 	}
@@ -525,13 +531,24 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 }
 //@rayyuan 
 // RequestGatewayFee gets gateway fee of remote node
-func (p *peer) RequestGatewayFee(reqID, cost uint64, reqs []ProofReq) error {
-	p.Log().Debug("Fetching batch of proofs", "count", len(reqs))
-	return sendRequest(p.rw, GetGatewayFeeMsg, reqID, cost, reqs)
+func (p *peer) RequestGatewayFee(reqID, cost uint64,) error {
+	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)
+	p.Log().Info("Request Gateway Fee function Entered")
+	p.Log().Trace("REQUESTGATEWAYFEE")
+	type req struct {
+		ReqID uint64
+	}
+	return p2p.Send(p.rw, GetGatewayFeeMsg, req{reqID})
 }
+
+func (p *peer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
+	data, _ := rlp.EncodeToBytes(etherbase)
+	return &reply{p.rw, EtherbaseMsg, reqID, data}
+}
+
 //ReplyGatewayFee creates reply with gateway fee that was requested
-func (p *peer) ReplyGatewayFee(reqID uint64, proofs light.NodeList) *reply {
-	data, _ := rlp.EncodeToBytes(proofs)
+func (p *peer) ReplyGatewayFee(reqID uint64, gatewayFee uint64) *reply {
+	data, _ := rlp.EncodeToBytes(gatewayFee)
 	return &reply{p.rw, GatewayFeeMsg, reqID, data}
 }
 

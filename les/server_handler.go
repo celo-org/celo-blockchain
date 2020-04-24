@@ -55,7 +55,7 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
-	MaxGatewayFee			 = 1000000 //harcoded temp limit for now
+	MaxGatewayFee			 = 1000000 //harcoded temp limit for now @rayyuan
 )
 
 var (
@@ -180,6 +180,7 @@ func (h *serverHandler) handle(p *peer) error {
 // peer. The remote connection is torn down upon returning any error.
 func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
+	p.Log().Info("Arrived in HandleMsg: Ray")
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
@@ -234,36 +235,48 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	}
 	// sendResponse sends back the response and updates the flow control statistic.
 	sendResponse := func(reqID, amount uint64, reply *reply, servingTime uint64) {
+		p.Log().Info("Here 1")
 		p.responseLock.Lock()
 		defer p.responseLock.Unlock()
-
+		p.Log().Info("Here 2")
 		// Short circuit if the client is already frozen.
 		if p.isFrozen() {
 			realCost := h.server.costTracker.realCost(servingTime, msg.Size, 0)
 			p.fcClient.RequestProcessed(reqID, responseCount, maxCost, realCost)
 			return
 		}
+		p.Log().Info("Here 3")
 		// Positive correction buffer value with real cost.
 		var replySize uint32
 		if reply != nil {
+			p.Log().Info("Here 4")
 			replySize = reply.size()
 		}
+		p.Log().Info("Here 5")
 		var realCost uint64
 		if h.server.costTracker.testing {
 			realCost = maxCost // Assign a fake cost for testing purpose
+			p.Log().Info("Here 6")
 		} else {
 			realCost = h.server.costTracker.realCost(servingTime, msg.Size, replySize)
+			p.Log().Info("Here 7")
 		}
 		bv := p.fcClient.RequestProcessed(reqID, responseCount, maxCost, realCost)
+		p.Log().Info(string(bv))
+		p.Log().Info("Here 8")
 		if amount != 0 {
+			p.Log().Info("Here 9") //Gateway Fee gets to here
 			// Feed cost tracker request serving statistic.
-			h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost)
+			//h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost) comment out for now
 			// Reduce priority "balance" for the specific peer.
-			h.server.clientPool.requestCost(p, realCost)
+			//h.server.clientPool.requestCost(p, realCost) comment out for now
 		}
+		p.Log().Info("Here 10")
 		if reply != nil {
+			p.Log().Info("Here 11")
 			p.queueSend(func() {
-				if err := reply.send(bv); err != nil {
+				if err := reply.send(bv); err != nil { //should replace 1 with bv
+					p.Log().Info("Here 12")
 					select {
 					case p.errCh <- err:
 					default:
@@ -866,8 +879,50 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 				}
 			}()
 		}
+	case GetGatewayFeeMsg:
+		p.Log().Info("ENTERED GW FEE:Ray")
+		p.Log().Info(p.id)
+		p.Log().Trace("Received gatewayFee request")
+		//add medtrics enable part later
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		// if accept(req.ReqID, 1, MaxEtherbase) {
+		// 	wg.Add(1)
+		// 	go func() {
+		// 		defer wg.Done()
+		// 		reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee)
+		// 		sendResponse(req.ReqID, 1, reply, task.done())
+		// 	}()
+		// }
+		if h == nil || h.gatewayFee == nil {
+			p.Log().Info("Something is null here")
+		}
+		p.Log().Info(string(req.ReqID))
+		p.Log().Info(h.gatewayFee.String())
+
+		if accept(req.ReqID, 1, MaxGatewayFee) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee.Uint64()) ///this line seems okay
+				p.Log().Info("Got ReplyGatewayFee")
+				p.Log().Info("Hello GW Fee",string((*reply).msgcode))
+				sendResponse(req.ReqID, 1, reply, 10) //send response seems to be messing things up with the runtime errors
+				p.Log().Info("Finished case GetGatewayFeeMsg in Server handler")
+			}()
+		}
+
+		// reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee) ///this line seems okay
+		// p.Log().Info("Got ReplyGatewayFee")
+		// p.Log().Info("Hello GW Fee",string((*reply).msgcode))
+		// sendResponse(req.ReqID, 1, reply, 10) //send response seems to be messing things up with the runtime errors
 
 	default:
+		p.Log().Info("ENTERED DEFAULT: Ray")
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

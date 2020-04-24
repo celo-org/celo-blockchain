@@ -91,10 +91,10 @@ func (ec *Client) Coinbase(ctx context.Context) (*common.Address, error) {
 	return &result, err
 }
 
-// Get Gateway Fee retrieves gateway fee of full node
+// Get Gateway Fee retrieves gateway fee of full node tha is light server
 func (ec *Client) GetGatewayFee(ctx context.Context) (*big.Int, error) {
 	var result big.Int
-	err := ec.c.CallContext(ctx, &result, "eth_getGatewayFee")
+	err := ec.c.CallContext(ctx, &result, "les_gatewayFee")
 	if err != nil {
 		return nil, err
 	}
@@ -103,11 +103,21 @@ func (ec *Client) GetGatewayFee(ctx context.Context) (*big.Int, error) {
 
 //Set Gateway Fee sets gateway fee of full node
 func (ec *Client) SetGatewayFee(ctx context.Context, arg *big.Int) error{
-	err := ec.c.CallContext(ctx, nil, "eth_setGatewayFee", arg)
+	err := ec.c.CallContext(ctx, nil, "les_setGatewayFee", arg)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (ec *Client) PeerGatewayFee(ctx context.Context) (common.Address,error){
+	var result common.Address
+	err := ec.c.CallContext(ctx, result, "les_peerGatewayFees")
+	if err != nil {
+		fmt.Println("HAD AND ERROR")
+		return common.Address{}, err
+	}
+	return result, err
 }
 
 // BlockByHash returns the given full block.

@@ -866,6 +866,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFee',
 			getter: 'les_gatewayFee'
+		}),
+		new web3._extend.Property({
+			name: 'peerGatewayFees',
+			getter: 'les_peerGatewayFees'
 		})
 	]
 });

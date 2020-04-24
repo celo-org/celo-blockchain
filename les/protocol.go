@@ -43,7 +43,7 @@ var (
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 28}
 
 const (
 	NetworkId          = 1
@@ -78,8 +78,8 @@ const (
 	StopMsg   = 0x18
 	ResumeMsg = 0x19
 	//@rayyuan gateway fee msgs
-	GetGatewayFeeMsg = 0x20
-	GatewayFeeMsg = 0x21
+	GetGatewayFeeMsg = 0x1A
+	GatewayFeeMsg = 0x1B
 )
 
 type requestInfo struct {
@@ -97,7 +97,7 @@ var requests = map[uint64]requestInfo{
 	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
 	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
 	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
-	GetGatewayFeeMsg:		{"GetGatewayFee", MaxGatewayFee}
+	GetGatewayFeeMsg:		{"GetGatewayFee", MaxGatewayFee},
 }
 
 type errCode int
