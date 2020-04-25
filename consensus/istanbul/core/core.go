@@ -451,6 +451,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	if err != nil {
 		return err
 	}
+	log.Warn("Calculated next proposer", "nextProposer", nextProposer)
 
 	// Process backlog
 	c.processPendingRequests()
