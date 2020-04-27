@@ -23,7 +23,7 @@ func TestCUSD(t *testing.T) {
 	if cUSDInfo.Decimals != 18 {
 		t.Fatalf("Decimals incorrect: %d", cUSDInfo.Decimals)
 	}
-	if cUSDInfo.ChainID != 1101 {
+	if cUSDInfo.ChainID != 42220 {
 		t.Fatalf("ChainID incorrect: %d", cUSDInfo.ChainID)
 	}
 }
