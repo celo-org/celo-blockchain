@@ -10,10 +10,10 @@ import (
 
 func TestCUSD(t *testing.T) {
 	tokens, _ := LoadTokens(TokensBlob)
-	cUSDAddress, _ := hex.DecodeString("ee21fae7d422c551e59ec68f56b6899e149537c1")
+	cUSDAddress, _ := hex.DecodeString("765de816845861e75a25fca122bb6898b8b1282a")
 	var cUSDAddressFixedSize common.Address
 	copy(cUSDAddressFixedSize[:], cUSDAddress)
-	cUSDInfo, err := tokens.ByContractAddressAndChainID(cUSDAddressFixedSize, big.NewInt(1101))
+	cUSDInfo, err := tokens.ByContractAddressAndChainID(cUSDAddressFixedSize, big.NewInt(42220))
 	if err != nil {
 		t.Fatal("Could not find cUSD")
 	}
