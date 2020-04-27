@@ -18,6 +18,7 @@ package backend
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -106,8 +107,9 @@ func TestCheckValidatorSignature(t *testing.T) {
 
 	// CheckValidatorSignature should return ErrUnauthorizedAddress
 	addr, err := istanbul.CheckValidatorSignature(vset, data, sig)
-	if err != istanbul.ErrUnauthorizedAddress {
-		t.Errorf("error mismatch: have %v, want %v", err, istanbul.ErrUnauthorizedAddress)
+	expectedErr := fmt.Errorf("not an elected validator %s", crypto.PubkeyToAddress(key.PublicKey).Hex())
+	if err.Error() != expectedErr.Error() {
+		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
 	}
 	emptyAddr := common.Address{}
 	if addr != emptyAddr {
