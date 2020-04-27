@@ -404,15 +404,16 @@ func (c *core) startNewRound(round *big.Int) error {
 	} else if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		// Working on the block immediately after the last committed block.
 		if round.Cmp(c.current.Round()) == 0 {
-			logger.Trace("Already in the desired round.")
+			//logger.Trace("Already in the desired round.")
+			logger.Warn("Already in the desired round","ssequence", c.current.Sequence(), "rround", round)
 			return nil
 		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "new_round", round)
+			logger.Warn("New round should not be smaller than current round", "ssequence", c.current.Sequence(), "rround", round)
 			return nil
 		}
 		roundChange = true
 	} else {
-		logger.Warn("New sequence should be larger than current sequence")
+		logger.Warn("New sequence should be larger than current sequence", "ssequence", c.current.Sequence(), "rround", round)
 		return nil
 	}
 
@@ -431,7 +432,8 @@ func (c *core) startNewRound(round *big.Int) error {
 		var err error
 		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
 		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+//			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+			logger.Warn("Unable to produce round change certificate", "ssequence", c.current.Sequence(), "rround", round)
 			return nil
 		}
 	} else {
@@ -449,9 +451,10 @@ func (c *core) startNewRound(round *big.Int) error {
 	err := c.resetRoundState(newView, valSet, nextProposer, roundChange)
 
 	if err != nil {
+		log.Warn("Failed to reset round state", "ssequence", c.current.Sequence(), "rround", round)
 		return err
 	}
-	log.Warn("Calculated next proposer", "nextProposer", nextProposer, "sequence", c.current.Sequence(), "round", round)
+	log.Warn("Calculated next proposer", "nextProposer", nextProposer, "ssequence", c.current.Sequence(), "rround", round)
 
 	// Process backlog
 	c.processPendingRequests()
