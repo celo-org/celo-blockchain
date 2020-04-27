@@ -30,6 +30,8 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+var BLSHardwareWalletAddress = common.HexToAddress("0x0000000000000000000000000000000000000001")
+
 // Account represents an Ethereum account located at a specific location defined
 // by the optional URL field.
 type Account struct {
@@ -153,6 +155,7 @@ type Wallet interface {
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)
 	GetPublicKey(account Account) (*ecdsa.PublicKey, error)
+	GetPublicKeyBLS(account Account) ([]byte, error)
 
 	// SignTx requests the wallet to sign the given transaction.
 	//

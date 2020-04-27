@@ -80,6 +80,7 @@ type Config struct {
 	// Also the coinbase used for mining.
 	Etherbase common.Address `toml:",omitempty"`
 	BLSbase   common.Address `toml:",omitempty"`
+	BLSwallet bool
 
 	// Ultra Light client options
 	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers

@@ -28,6 +28,7 @@ import (
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
+	bls "github.com/celo-org/bls-zexe/go/bls"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -71,6 +72,11 @@ type driver interface {
 	// or deny the transaction.
 	SignTx(path accounts.DerivationPath, tx *types.Transaction, chainID *big.Int) (common.Address, *types.Transaction, error)
 
+	// SignHashBLS sends the hash of a message to the USB device and automatically signs and returns its signature
+	SignHashBLS(hash []byte) ([]byte, error)
+
+	// GetPublicKeyBLS sends a request to the USB device to return its associated BLS public key
+	GetPublicKeyBLS() ([]byte, error)
 	// SignPersonalMessage sends the message to the USB device and waits for the user to confirm
 	// or deny the message.
 	SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error)
@@ -167,14 +173,22 @@ func (w *wallet) Open(passphrase string) error {
 	}
 	// Connection successful, start life-cycle management
 	w.paths = make(map[common.Address]accounts.DerivationPath)
-
+	_, err := w.driver.GetPublicKeyBLS()
+	// Set up default address if BLS app running
+	if err == nil {
+		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultBaseDerivationPath
+	}
 	w.deriveReq = make(chan chan struct{})
 	w.deriveQuit = make(chan chan error)
 	w.healthQuit = make(chan chan error)
 
 	go w.heartbeat()
-	go w.selfDerive()
-
+	// Derive accounts if tx signer app running
+	if err == nil {
+		w.paths[accounts.BLSHardwareWalletAddress] = accounts.DefaultBaseDerivationPath
+	} else {
+		go w.selfDerive()
+	}
 	// Notify anyone listening for wallet events that a new device is accessible
 	go w.hub.updateFeed.Send(accounts.WalletEvent{Wallet: w, Kind: accounts.WalletOpened})
 
@@ -533,12 +547,95 @@ func (w *wallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKey, error
 	return nil, accounts.ErrNotSupported
 }
 
+func (w *wallet) GetPublicKeyBLS(account accounts.Account) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 func (w *wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
-	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	hashedHash, err := bls.HashDirect(hash, false)
+	defer w.stateLock.RUnlock()
+
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return blscrypto.SerializedSignature{}, accounts.ErrWalletClosed
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the hash
+	signed, err := w.driver.SignHashBLS(hashedHash)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	signedCompressed, err := bls.CompressSignature(signed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	signatureResult, err := blscrypto.SerializedSignatureFromBytes(signedCompressed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	return signatureResult, nil
 }
 
 func (w *wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
+	hash, err := bls.HashComposite(msg, extraData)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	defer w.stateLock.RUnlock()
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return blscrypto.SerializedSignature{}, accounts.ErrWalletClosed
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the hash
+	signed, err := w.driver.SignHashBLS(hash)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	signedCompressed, err := bls.CompressSignature(signed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	signatureResult, err := blscrypto.SerializedSignatureFromBytes(signedCompressed)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	return signatureResult, nil
 }
 
 func (w *wallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {
@@ -586,7 +683,53 @@ func (w *wallet) signText(account accounts.Account, text []byte) ([]byte, []byte
 }
 
 func (w *wallet) GenerateProofOfPossessionBLS(account accounts.Account, address common.Address) ([]byte, []byte, error) {
-	return nil, nil, accounts.ErrNotSupported
+	hashPoP, err := bls.HashDirect(address.Bytes(), true)
+	if err != nil {
+		return nil, nil, err
+	}
+	w.stateLock.RLock() // Comms have own mutex, this is for the state fields
+	defer w.stateLock.RUnlock()
+
+	// If the wallet is closed, abort
+	if w.device == nil {
+		return nil, nil, accounts.ErrWalletClosed
+	}
+	// All infos gathered and metadata checks out, request signing
+	<-w.commsLock
+	defer func() { w.commsLock <- struct{}{} }()
+
+	// Ensure the device isn't screwed with while user confirmation is pending
+	// TODO(karalabe): remove if hotplug lands on Windows
+	w.hub.commsLock.Lock()
+	w.hub.commsPend++
+	w.hub.commsLock.Unlock()
+
+	defer func() {
+		w.hub.commsLock.Lock()
+		w.hub.commsPend--
+		w.hub.commsLock.Unlock()
+	}()
+	// Sign the hash
+	signatureBytes, err := w.driver.SignHashBLS(hashPoP)
+	if err != nil {
+		return nil, nil, err
+	}
+	signatureBytesCompressed, err := bls.CompressSignature(signatureBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pubKeyBytes, err := w.driver.GetPublicKeyBLS()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pubKeyBytesCompressed, err := bls.CompressPublickey(pubKeyBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pubKeyBytesCompressed, signatureBytesCompressed, nil
 }
 
 // SignData signs keccak256(data). The mimetype parameter describes the type of data being signed

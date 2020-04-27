@@ -494,6 +494,12 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
+			// Need to open hardware wallet if used for BLS signing; otherwise a race condition
+			// appears between registering the wallet's address and looking up blsbase
+			for _, wallet := range s.accountManager.Wallets() {
+				wallet.Open("")
+				defer wallet.Close()
+			}
 			publicKey, err := wallet.GetPublicKey(ebAccount)
 			if err != nil {
 				return fmt.Errorf("ECDSA public key missing: %v", err)

@@ -49,16 +49,29 @@ type ledgerParam1 byte
 // specific opcodes. The same parameter values may be reused between opcodes.
 type ledgerParam2 byte
 
+// appType is used to identify which app is being used on the device
+type appType byte
+
 const (
 	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Celo address for a given BIP 32 path
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
+	ledgerOpGetAppType       ledgerOpcode = 0x0C // Returns the Celo app being run on the Ledger device
+
+	ledgerOpSignHashBLS ledgerOpcode = 0x02 // Signs hash for BLS validator app
+
+	ledgerOpGetPubkeyBLS ledgerOpcode = 0x04 // Returns public key for BLS validator app
+
+	ledgerP1FinalBLSData ledgerParam1 = 0x80 // BLS message/hash data to be signed, final chunk
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
+
+	ledgerTxSigner  appType = 0x02
+	ledgerBLSsigner appType = 0x04
 )
 
 // errLedgerReplyInvalidHeader is the error message returned by a Ledger data exchange
@@ -70,10 +83,15 @@ var errLedgerReplyInvalidHeader = errors.New("ledger: invalid reply header")
 // when a response does arrive, but it does not contain the expected data.
 var errLedgerInvalidVersionReply = errors.New("ledger: invalid version reply")
 
+// errLedgerInvalidAppReply is the error message returned by an operation not implemented
+// for the app type currently detected on the device
+var errLedgerInvalidApp = errors.New("ledger: invalid app")
+
 // ledgerDriver implements the communication with a Ledger hardware wallet.
 type ledgerDriver struct {
 	device  io.ReadWriter // USB device connection to communicate through
 	version [3]byte       // Current version of the Ledger firmware (zero if app is offline)
+	app     appType       // App currently running on the Ledger device
 	browser bool          // Flag whether the Ledger is in browser mode (reply channel mismatch)
 	failure error         // Any failure that would make the device unusable
 	log     log.Logger    // Contextual logger to tag the ledger with its id
@@ -98,7 +116,10 @@ func (w *ledgerDriver) Status() (string, error) {
 	if w.offline() {
 		return "Celo app offline", w.failure
 	}
-	return fmt.Sprintf("Celo app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
+	if w.app == ledgerBLSsigner {
+		return fmt.Sprintf("Celo BLS app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
+	}
+	return fmt.Sprintf("Celo tx signer app v%d.%d.%d online", w.version[0], w.version[1], w.version[2]), w.failure
 }
 
 // offline returns whether the wallet and the Celo app is offline or not.
@@ -114,19 +135,30 @@ func (w *ledgerDriver) offline() bool {
 func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
-	_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
+	// Try to resolve the Celo app's type
+	versionReply, err := w.ledgerVersion()
 	if err != nil {
-		// Celo app is not running or in browser mode, nothing more to do, return
-		if err == errLedgerReplyInvalidHeader {
-			w.browser = true
-		}
 		return nil
 	}
-
-	// Try to resolve the Celo app's version
-	if w.version, err = w.ledgerVersion(); err != nil {
-		w.version = [3]byte{1, 0, 0} // Assume worst case
+	// Assume spend app if error occurs for backwards compatibility with older versions of spend TxSigner app
+	appTypeReply, err := w.ledgerAppType()
+	if err != nil {
+		w.app = ledgerTxSigner
+	} else {
+		w.app = appType(appTypeReply[0])
 	}
+
+	if w.app == ledgerTxSigner {
+		_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
+		if err != nil {
+			// Celo app is not running or in browser mode, nothing more to do, return
+			if err == errLedgerReplyInvalidHeader {
+				w.browser = true
+			}
+			return nil
+		}
+	}
+	copy(w.version[:], versionReply[:])
 
 	/*
 	  This is an example of how to enforce version numbers for features
@@ -159,6 +191,12 @@ func (w *ledgerDriver) Heartbeat() error {
 // Derive implements usbwallet.driver, sending a derivation request to the Ledger
 // and returning the Celo address located on that derivation path.
 func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, error) {
+	if w.app == ledgerBLSsigner {
+		return accounts.BLSHardwareWalletAddress, nil
+	}
+	if w.app != ledgerTxSigner {
+		return common.Address{}, errLedgerInvalidApp
+	}
 	return w.ledgerDerive(path)
 }
 
@@ -173,8 +211,36 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	if w.offline() {
 		return common.Address{}, nil, accounts.ErrWalletClosed
 	}
+	// Abort if not using the tx signer app
+	if w.app != ledgerTxSigner {
+		return common.Address{}, nil, errLedgerInvalidApp
+	}
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSign(path, tx, chainID)
+}
+
+func (w *ledgerDriver) SignHashBLS(hash []byte) ([]byte, error) {
+	// Abort if app not online
+	if w.offline() {
+		return nil, accounts.ErrWalletClosed
+	}
+	// Abort if not using the BLS signer app
+	if w.app != ledgerBLSsigner {
+		return nil, errLedgerInvalidApp
+	}
+	return w.ledgerBLSHashSign(hash)
+}
+
+func (w *ledgerDriver) GetPublicKeyBLS() ([]byte, error) {
+	// Abort if app not online
+	if w.offline() {
+		return nil, accounts.ErrWalletClosed
+	}
+	// Abort if not using the BLS signer app
+	if w.app != ledgerBLSsigner {
+		return nil, errLedgerInvalidApp
+	}
+	return w.ledgerGetPubKeyBLS()
 }
 
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Ledger and
@@ -216,9 +282,38 @@ func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 		return [3]byte{}, errLedgerInvalidVersionReply
 	}
 	// Cache the version for future reference
-	var version [3]byte
-	copy(version[:], reply[1:])
-	return version, nil
+	var result [3]byte
+	copy(result[:], reply[1:])
+	return result, nil
+}
+
+// ledgerAppType retrieves the current version of the Celo wallet app running
+// on the Ledger wallet.
+//
+// The app type retrieval protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc | Le
+//   ----+-----+----+----+----+---
+//    E0 | 06  | 00 | 00 | 00 | 04
+//
+// With no input data, and the output data being:
+//
+//   Description                                        | Length
+//   ---------------------------------------------------+--------
+//   Application Type                                   | 1 byte
+func (w *ledgerDriver) ledgerAppType() ([1]byte, error) {
+	// Send the request and wait for the response
+	reply, err := w.ledgerExchange(ledgerOpGetAppType, 0, 0, nil)
+	if err != nil {
+		return [1]byte{}, err
+	}
+	if len(reply) != 1 {
+		return [1]byte{}, errLedgerInvalidVersionReply
+	}
+	// Cache the version for future reference
+	var result [1]byte
+	result[0] = reply[0]
+	return result, nil
 }
 
 // ledgerDerive retrieves the currently active Celo address from a Ledger
@@ -331,7 +426,6 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		err   error
 	)
 	if chainID == nil {
-		//if txrlp, err = rlp.EncodeToBytes([]interface{}{tx.Nonce(), tx.GasPrice(), tx.Gas(), tx.To(), tx.Value(), tx.Data()}); err != nil {
 		if txrlp, err = rlp.EncodeToBytes([]interface{}{tx.Nonce(), tx.GasPrice(), tx.Gas(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.To(), tx.Value(), tx.Data()}); err != nil {
 			return common.Address{}, nil, err
 		}
@@ -385,6 +479,80 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		return common.Address{}, nil, err
 	}
 	return sender, signed, nil
+}
+
+// ledgerGetPubKeyBLS sends a request to the Ledger wallet, and waits for the
+// response containing the BLS public key
+//
+// The transaction signing protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc  | Le
+//   ----+-----+----+----+-----+---
+//    E0 | 04  | 80: final request data block (no payload)
+//
+// The output data is:
+//
+//   Description   | Length
+//   --------------+---------
+//   public key pk | 192 bytes
+func (w *ledgerDriver) ledgerGetPubKeyBLS() ([]byte, error) {
+	var (
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
+		reply []byte
+		err   error
+	)
+	// Send the chunk over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpGetPubkeyBLS, op, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Check length of public key returned
+	if len(reply) != 192 {
+		return nil, errors.New("public key reply invalid")
+	}
+
+	return reply, nil
+}
+
+// ledgerBLSHashSign sends a hashed message to the Ledger wallet representing
+// an elliptic curve point in G1. It then receives the BLS signature computed
+// on this hash.
+//
+// The transaction signing protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc  | Le
+//   ----+-----+----+----+-----+---
+//    E0 | 02  | 80: final hash data block (less than 255 bytes)
+//
+// Where the input is:
+//
+//   Description                                      | Length
+//   -------------------------------------------------+----------
+//   Hash of message as serialized G1 point           | 96 bytes
+//
+// And the output data is:
+//
+//   Description | Length
+//   ------------+---------
+//   signature S | 96 bytes
+func (w *ledgerDriver) ledgerBLSHashSign(hash []byte) ([]byte, error) {
+	// Send the request and wait for the response
+	var (
+		err   error
+		op    = ledgerP1FinalBLSData // hash should be processed in one chunk
+		reply []byte
+	)
+	// Send the chunk over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpSignHashBLS, op, 0, hash)
+	if err != nil {
+		return nil, err
+	}
+	// Make sure reply is the correct length
+	if len(reply) != 96 {
+		return nil, errors.New("invalid signature reply")
+	}
+
+	return reply, nil
 }
 
 // ledgerSignData sends the message to the Ledger wallet, and waits for the user

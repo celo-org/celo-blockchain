@@ -234,6 +234,10 @@ var (
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
+	BLSwalletFlag = cli.BoolFlag{
+		Name:  "blswallet",
+		Usage: "Use hardware wallet for BLS signing. Overrides blsbase",
+	}
 	// Light server and client settings
 	LightServeFlag = cli.IntFlag{
 		Name:  "light.serve",
@@ -1117,6 +1121,9 @@ func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 		}
 		cfg.BLSbase = account.Address
 	}
+	if ctx.GlobalIsSet(BLSwalletFlag.Name) {
+		cfg.BLSbase = accounts.BLSHardwareWalletAddress
+	}
 }
 
 // MakePasswordList reads password lines from the file specified by the global --password flag.
@@ -1546,6 +1553,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	CheckExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag, GoerliFlag, OttomanFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
+	CheckExclusive(ctx, BLSbaseFlag, BLSwalletFlag)
 
 	var ks *keystore.KeyStore
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {

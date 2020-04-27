@@ -37,6 +37,10 @@ var (
 		Name:  "bls",
 		Usage: "Set to specify generation of proof-of-possession of a BLS key.",
 	}
+	blsWalletFlag = cli.BoolFlag{
+		Name:  "blswallet",
+		Usage: "Set to specify generation of proof-of-possession using a hardware wallet",
+	}
 	walletCommand = cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
@@ -119,6 +123,7 @@ Print a short summary of all accounts`,
 					utils.PasswordFileFlag,
 					utils.LightKDFFlag,
 					blsFlag,
+					blsWalletFlag,
 				},
 				Description: `
 Print a proof-of-possession signature for the given account.
@@ -237,22 +242,34 @@ func printProofOfPossession(account accounts.Account, pop []byte, keyType string
 }
 
 func accountProofOfPossession(ctx *cli.Context) error {
-	if len(ctx.Args()) != 2 {
+	if !ctx.IsSet(blsWalletFlag.Name) && len(ctx.Args()) != 2 {
 		utils.Fatalf("Please specify the address to prove possession of and the address to sign as proof-of-possession.")
+	}
+	if ctx.IsSet(blsWalletFlag.Name) && len(ctx.Args()) != 1 {
+		utils.Fatalf("Please specify the address to sign as proof-of-possession.")
 	}
 
 	stack, _ := makeConfigNode(ctx)
 	am := stack.AccountManager()
 	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	signer := common.HexToAddress(ctx.Args()[0])
-	message := common.HexToAddress(ctx.Args()[1])
+	var (
+		signer  common.Address
+		message common.Address
+		account accounts.Account
+		err error
+		wallet accounts.Wallet
+	)
 
-	var err error
-	var wallet accounts.Wallet
-	account := accounts.Account{Address: signer}
+	if ctx.IsSet(blsWalletFlag.Name) {
+		signer = accounts.BLSHardwareWalletAddress
+		message = common.HexToAddress(ctx.Args()[0])
+	} else {
+		signer = common.HexToAddress(ctx.Args()[0])
+		message = common.HexToAddress(ctx.Args()[1])
+	}
+	account = accounts.Account{Address: signer}
 	foundAccount := false
-
 	for _, wallet = range am.Wallets() {
 		if wallet.URL().Scheme == keystore.KeyStoreScheme {
 			if wallet.Contains(account) {
@@ -282,15 +299,15 @@ func accountProofOfPossession(ctx *cli.Context) error {
 		utils.Fatalf("Could not find signer account %x", signer)
 	}
 
-	if wallet.URL().Scheme == keystore.KeyStoreScheme {
+	if !ctx.IsSet(blsWalletFlag.Name) && wallet.URL().Scheme == keystore.KeyStoreScheme {
 		account, _ = unlockAccount(ks, signer.String(), 0, utils.MakePasswordList(ctx))
 	}
 	var key []byte
 	var pop []byte
 	keyType := "ECDSA"
-	if ctx.IsSet(blsFlag.Name) {
+	if ctx.IsSet(blsFlag.Name) || ctx.IsSet(blsWalletFlag.Name) {
 		keyType = "BLS"
-		key, pop, err = ks.GenerateProofOfPossessionBLS(account, message)
+		key, pop, err = wallet.GenerateProofOfPossessionBLS(account, message)
 	} else {
 		key, pop, err = wallet.GenerateProofOfPossession(account, message)
 	}
@@ -299,7 +316,6 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	}
 
 	printProofOfPossession(account, pop, keyType, key)
-
 	return nil
 }
 

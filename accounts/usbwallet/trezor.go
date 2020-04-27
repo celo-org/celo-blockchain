@@ -185,6 +185,14 @@ func (w *trezorDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	return w.trezorSign(path, tx, chainID)
 }
 
+func (w *trezorDriver) SignHashBLS(hash []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+func (w *trezorDriver) GetPublicKeyBLS() ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Trezor and
 // waiting for the user to confirm or deny the message.
 func (w *trezorDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
