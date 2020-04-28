@@ -145,6 +145,10 @@ func (api *ExternalSigner) Derive(path accounts.DerivationPath, pin bool) (accou
 	return accounts.Account{}, fmt.Errorf("operation not supported on external signers")
 }
 
+func (api *ExternalSigner) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, fmt.Errorf("operation not supported on external signers")
+}
+
 func (api *ExternalSigner) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
 	log.Error("operation SelfDerive not supported on external signers")
 }
