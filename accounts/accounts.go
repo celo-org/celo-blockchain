@@ -71,6 +71,9 @@ type Wallet interface {
 	// resources (especially important when working with hardware wallets).
 	Open(passphrase string) error
 
+	// ConfirmAddress shows the address of the given path on the wallet's display.
+	ConfirmAddress(path DerivationPath) (common.Address, error)
+
 	// Close releases any resources held by an open wallet instance.
 	Close() error
 
