@@ -30,6 +30,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/usbwallet/ledger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -54,11 +55,14 @@ const (
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
+	ledgerOpProvideERC20     ledgerOpcode = 0x0A // Provides ERC20 information for tokens
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
+
+	statusCodeOK = 0x9000
 )
 
 // errLedgerReplyInvalidHeader is the error message returned by a Ledger data exchange
@@ -70,13 +74,18 @@ var errLedgerReplyInvalidHeader = errors.New("ledger: invalid reply header")
 // when a response does arrive, but it does not contain the expected data.
 var errLedgerInvalidVersionReply = errors.New("ledger: invalid version reply")
 
+// errLedgerBadStatusCode is the error message returned by any Ledger command
+// when a response arrives with a bad status code.
+var errLedgerBadStatusCode = errors.New("ledger: bad status code")
+
 // ledgerDriver implements the communication with a Ledger hardware wallet.
 type ledgerDriver struct {
-	device  io.ReadWriter // USB device connection to communicate through
-	version [3]byte       // Current version of the Ledger firmware (zero if app is offline)
-	browser bool          // Flag whether the Ledger is in browser mode (reply channel mismatch)
-	failure error         // Any failure that would make the device unusable
-	log     log.Logger    // Contextual logger to tag the ledger with its id
+	device  io.ReadWriter  // USB device connection to communicate through
+	version [3]byte        // Current version of the Ledger firmware (zero if app is offline)
+	browser bool           // Flag whether the Ledger is in browser mode (reply channel mismatch)
+	failure error          // Any failure that would make the device unusable
+	log     log.Logger     // Contextual logger to tag the ledger with its id
+	tokens  *ledger.Tokens // Tokens list
 }
 
 // newLedgerDriver creates a new instance of a Ledger USB protocol driver.
@@ -136,6 +145,10 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	    return common.Address{}, nil, fmt.Errorf("Ledger v%d.%d.%d doesn't support signing this transaction, please update to v1.0.3 at least", w.version[0], w.version[1], w.version[2])
 	  }
 	*/
+	if w.tokens, err = ledger.LoadTokens(ledger.TokensBlob); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -325,11 +338,27 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	for i, component := range derivationPath {
 		binary.BigEndian.PutUint32(path[1+4*i:], component)
 	}
-	// Create the transaction RLP based on whether legacy or EIP155 signing was requested
+
 	var (
 		txrlp []byte
 		err   error
 	)
+
+	if ledger.IsERC20Transfer(tx.Data()) {
+		err = w.ledgerProvideERC20(*tx.To(), chainID)
+		if err != nil && err != ledger.ErrCouldNotFindToken {
+			return common.Address{}, nil, err
+		}
+
+		if tx.FeeCurrency() != nil {
+			err = w.ledgerProvideERC20(*tx.FeeCurrency(), chainID)
+			if err != nil && err != ledger.ErrCouldNotFindToken {
+				return common.Address{}, nil, err
+			}
+		}
+	}
+
+	// Create the transaction RLP based on whether legacy or EIP155 signing was requested
 	if chainID == nil {
 		//if txrlp, err = rlp.EncodeToBytes([]interface{}{tx.Nonce(), tx.GasPrice(), tx.Gas(), tx.To(), tx.Value(), tx.Data()}); err != nil {
 		if txrlp, err = rlp.EncodeToBytes([]interface{}{tx.Nonce(), tx.GasPrice(), tx.Gas(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.To(), tx.Value(), tx.Data()}); err != nil {
@@ -385,6 +414,42 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 		return common.Address{}, nil, err
 	}
 	return sender, signed, nil
+}
+
+// ledgerProvideERC20 provides ERC20 information for tokens.
+//
+// The data protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2 | Lc  | Le
+//   ----+-----+----+----+-----+---
+//    E0 | 04  | 00: first data block
+//               80: subsequent data block
+//                  | 00 | variable | variable
+//
+// Where the input for the data block is:
+//
+//   Description                                      | Length
+//   -------------------------------------------------+----------
+//   Ticker length                                    | 1 byte
+//   Ticker                                           | abitrary (< 10 bytes)
+//   Address                                          | 20 bytes
+//   Decimals                                         | 4 bytes
+//   ChainID                                          | 4 bytes
+//   Signature                                        | arbitrary
+//
+// And the output data is nothing.
+func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainID *big.Int) error {
+	token, err := w.tokens.ByContractAddressAndChainID(contractAddress, chainID)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.ledgerExchange(ledgerOpProvideERC20, 0, 0, token.Data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ledgerSignData sends the message to the Ledger wallet, and waits for the user
@@ -572,6 +637,12 @@ func (w *ledgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 			reply = append(reply, payload[:left]...)
 			break
 		}
+	}
+
+	statusCodeBytes := reply[len(reply)-2:]
+	statusCode := int(binary.BigEndian.Uint16(statusCodeBytes))
+	if statusCode != statusCodeOK {
+		return nil, errLedgerBadStatusCode
 	}
 	return reply[:len(reply)-2], nil
 }
