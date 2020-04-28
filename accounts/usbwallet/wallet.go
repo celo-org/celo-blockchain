@@ -56,6 +56,9 @@ type driver interface {
 	// or may not be used by the implementation of a particular wallet instance.
 	Open(device io.ReadWriter, passphrase string) error
 
+	// ConfirmAddress shows the address of the given path on the wallet's display.
+	ConfirmAddress(path accounts.DerivationPath) (common.Address, error)
+
 	// Close releases any resources held by an open wallet instance.
 	Close() error
 
@@ -494,6 +497,29 @@ func (w *wallet) Derive(path accounts.DerivationPath, pin bool) (accounts.Accoun
 		copy(w.paths[address], path)
 	}
 	return account, nil
+}
+
+// ConfirmAddress implements accounts.Wallet, showing the address on the device.
+func (w *wallet) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	// Try to derive the actual account and update its URL if successful
+	w.stateLock.RLock() // Avoid device disappearing during derivation
+
+	if w.device == nil {
+		w.stateLock.RUnlock()
+		return common.Address{}, accounts.ErrWalletClosed
+	}
+	<-w.commsLock // Avoid concurrent hardware access
+	address, err := w.driver.ConfirmAddress(path)
+	w.commsLock <- struct{}{}
+
+	w.stateLock.RUnlock()
+
+	// If an error occurred or no pinning was requested, return
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return address, nil
 }
 
 // SelfDerive sets a base account derivation path from which the wallet attempts

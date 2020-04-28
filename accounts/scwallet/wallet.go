@@ -410,6 +410,12 @@ func (w *Wallet) Open(passphrase string) error {
 	return nil
 }
 
+// ConfirmAddress implements accounts.Wallet, but is a noop for plain wallets since there
+// is no notion of address confirmation for smartcards.
+func (w *Wallet) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, accounts.ErrNotSupported
+}
+
 // Close stops and closes the wallet, freeing any resources.
 func (w *Wallet) Close() error {
 	// Ensure the wallet was opened
