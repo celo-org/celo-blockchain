@@ -58,6 +58,7 @@ const (
 	ledgerOpProvideERC20     ledgerOpcode = 0x0A // Provides ERC20 information for tokens
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
+	ledgerP1ShowFetchAddress        ledgerParam1 = 0x01 // Return address from the wallet after showing it
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
@@ -123,7 +124,7 @@ func (w *ledgerDriver) offline() bool {
 func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	w.device, w.failure = device, nil
 
-	_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath)
+	_, err := w.ledgerDerive(accounts.DefaultBaseDerivationPath, false)
 	if err != nil {
 		// Celo app is not running or in browser mode, nothing more to do, return
 		if err == errLedgerReplyInvalidHeader {
@@ -152,6 +153,11 @@ func (w *ledgerDriver) Open(device io.ReadWriter, passphrase string) error {
 	return nil
 }
 
+// ConfirmAddress implements usbwallet.driver, showing the address on the device.
+func (w *ledgerDriver) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return w.ledgerDerive(path, true)
+}
+
 // Close implements usbwallet.driver, cleaning up and metadata maintained within
 // the Ledger driver.
 func (w *ledgerDriver) Close() error {
@@ -172,7 +178,7 @@ func (w *ledgerDriver) Heartbeat() error {
 // Derive implements usbwallet.driver, sending a derivation request to the Ledger
 // and returning the Celo address located on that derivation path.
 func (w *ledgerDriver) Derive(path accounts.DerivationPath) (common.Address, error) {
-	return w.ledgerDerive(path)
+	return w.ledgerDerive(path, false)
 }
 
 // SignTx implements usbwallet.driver, sending the transaction to the Ledger and
@@ -265,7 +271,7 @@ func (w *ledgerDriver) ledgerVersion() ([3]byte, error) {
 //   Celo address length     | 1 byte
 //   Celo address            | 40 bytes hex ascii
 //   Chain code if requested | 32 bytes
-func (w *ledgerDriver) ledgerDerive(derivationPath []uint32) (common.Address, error) {
+func (w *ledgerDriver) ledgerDerive(derivationPath []uint32, showOnWallet bool) (common.Address, error) {
 	// Flatten the derivation path into the Ledger request
 	path := make([]byte, 1+4*len(derivationPath))
 	path[0] = byte(len(derivationPath))
@@ -273,7 +279,11 @@ func (w *ledgerDriver) ledgerDerive(derivationPath []uint32) (common.Address, er
 		binary.BigEndian.PutUint32(path[1+4*i:], component)
 	}
 	// Send the request and wait for the response
-	reply, err := w.ledgerExchange(ledgerOpRetrieveAddress, ledgerP1DirectlyFetchAddress, ledgerP2DiscardAddressChainCode, path)
+	p1 := ledgerP1DirectlyFetchAddress
+	if showOnWallet {
+		p1 = ledgerP1ShowFetchAddress
+	}
+	reply, err := w.ledgerExchange(ledgerOpRetrieveAddress, p1, ledgerP2DiscardAddressChainCode, path)
 	if err != nil {
 		return common.Address{}, err
 	}
