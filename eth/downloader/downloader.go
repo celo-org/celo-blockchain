@@ -805,7 +805,7 @@ func (d *Downloader) findAncestor(p *peerConnection, remoteHeader *types.Header)
 			for i, header := range headers {
 				expectNumber := from + int64(i)*int64(skip+1)
 				if number := header.Number.Int64(); number != expectNumber {
-					p.log.Warn("Head headers broke chain ordering", "index", i, "requested", expectNumber, "received", number)
+					p.log.Warn("Head headers broke chain ordering", "index", i, "requested", expectNumber, "received", number, "localHeight", localHeight, "remoteHeight", remoteHeight)
 					return 0, errInvalidChain
 				}
 			}
