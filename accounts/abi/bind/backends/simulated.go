@@ -245,6 +245,12 @@ func (b *SimulatedBackend) SuggestGasPrice(ctx context.Context) (*big.Int, error
 	return big.NewInt(1), nil
 }
 
+// SuggestGasPriceFromCurrency implements ContractTransactor.SuggestGasPriceFromCurrency.
+// Since the simulated chain doesn't have miners, we just return a gas price of 1 for any call.
+func (b *SimulatedBackend) SuggestGasPriceFromCurrency(ctx context.Context, account common.Address) (*big.Int, error) {
+	return big.NewInt(1), nil
+}
+
 // EstimateGas executes the requested code against the currently pending block/state and
 // returns the used amount of gas.
 func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMsg) (uint64, error) {

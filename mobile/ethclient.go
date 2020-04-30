@@ -298,6 +298,13 @@ func (ec *EthereumClient) SuggestGasPrice(ctx *Context) (price *BigInt, _ error)
 	return &BigInt{rawPrice}, err
 }
 
+// SuggestGasPriceFromCurrency retrieves the currently suggested gas price to allow
+// a timely execution of a transaction for an specific currency
+func (ec *EthereumClient) SuggestGasPriceFromCurrency(ctx *Context, account Address) (price *BigInt, _ error) {
+	rawPrice, err := ec.client.SuggestGasPriceFromCurrency(ctx.context, account.address)
+	return &BigInt{rawPrice}, err
+}
+
 // EstimateGas tries to estimate the gas needed to execute a specific transaction based on
 // the current pending state of the backend blockchain. There is no guarantee that this is
 // the true gas limit requirement as other transactions may be added or removed by miners,

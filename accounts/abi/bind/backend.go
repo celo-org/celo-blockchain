@@ -74,6 +74,9 @@ type ContractTransactor interface {
 	// SuggestGasPrice retrieves the currently suggested gas price to allow a timely
 	// execution of a transaction.
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
+	// SuggestGasPriceFromCurrency retrieves the currently suggested gas price to allow
+  // a timely execution of a transaction for an specific currency
+  SuggestGasPriceFromCurrency(ctx context.Context, account common.Address) (*big.Int, error)
 	// EstimateGas tries to estimate the gas needed to execute a specific
 	// transaction based on the current pending state of the backend blockchain.
 	// There is no guarantee that this is the true gas limit requirement as other

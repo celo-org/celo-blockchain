@@ -209,14 +209,18 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	}
 	// Figure out the gas allowance and gas price values
 	gasPrice := opts.GasPrice
+	feeCurrency := opts.FeeCurrency
 	if gasPrice == nil {
-		gasPrice, err = c.transactor.SuggestGasPrice(ensureContext(opts.Context))
+		if feeCurrency == nil {
+			gasPrice, err = c.transactor.SuggestGasPrice(ensureContext(opts.Context))
+		} else {
+			gasPrice, err = c.transactor.SuggestGasPriceFromCurrency(ensureContext(opts.Context), *feeCurrency)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 		}
 	}
 
-	feeCurrency := opts.FeeCurrency
 	// TODO(nategraf): Add SuggestFeeCurrency to Transactor to get fee currency
 	// Otherwise, the user might not be able to pay in non-native currency for contract
 	// deployment. Paying for Contract deployment in non-native currency might not work right now.

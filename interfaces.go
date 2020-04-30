@@ -179,6 +179,7 @@ type TransactionSender interface {
 // optimal gas price given current fee market conditions.
 type GasPricer interface {
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
+	SuggestGasPriceFromCurrency(ctx context.Context, account common.Address) (*big.Int, error)
 }
 
 // A PendingStateReader provides access to the pending state, which is the result of all
