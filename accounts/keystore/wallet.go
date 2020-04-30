@@ -94,6 +94,12 @@ func (w *keystoreWallet) Derive(path accounts.DerivationPath, pin bool) (account
 	return accounts.Account{}, accounts.ErrNotSupported
 }
 
+// ConfirmAddress implements accounts.Wallet, but is a noop for plain wallets since there
+// is no notion of address confirmation for plain keystore accounts.
+func (w *keystoreWallet) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, accounts.ErrNotSupported
+}
+
 // SelfDerive implements accounts.Wallet, but is a noop for plain wallets since
 // there is no notion of hierarchical account derivation for plain keystore accounts.
 func (w *keystoreWallet) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
