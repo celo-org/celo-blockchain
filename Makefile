@@ -29,6 +29,11 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+geth-musl:
+	MUSL=true build/env.sh go run build/ci.go install ./cmd/geth
+	@echo "Done building with musl."
+	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
 check_android_env:
 	@test $${ANDROID_NDK?Please set environment variable ANDROID_NDK}
 	@test $${ANDROID_HOME?Please set environment variable ANDROID_HOME}
@@ -55,6 +60,9 @@ swarm:
 
 all:
 	build/env.sh go run build/ci.go install
+
+all-musl:
+	MUSL=true build/env.sh go run build/ci.go install
 
 android:
 	ANDROID_NDK_HOME=$(ANDROID_NDK) build/env.sh go run build/ci.go aar --local

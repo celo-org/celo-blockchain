@@ -290,6 +290,10 @@ func buildFlags(env build.Environment) (flags []string) {
 	if len(ld) > 0 {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
 	}
+
+  if env.IsMusl {
+    flags = append(flags, "-tags musl")
+  }
 	return flags
 }
 

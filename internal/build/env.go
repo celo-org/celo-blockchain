@@ -34,6 +34,7 @@ var (
 	BuildnumFlag    = flag.String("buildnum", "", `Overrides CI build number`)
 	PullRequestFlag = flag.Bool("pull-request", false, `Overrides pull request status of the build`)
 	CronJobFlag     = flag.Bool("cron-job", false, `Overrides cron job status of the build`)
+	MuslFlag        = flag.Bool("musl", false, `Overrides musl config of the build`)
 )
 
 // Environment contains metadata provided by the build environment.
@@ -44,11 +45,12 @@ type Environment struct {
 	Buildnum                  string
 	IsPullRequest             bool
 	IsCronJob                 bool
+	IsMusl                    bool
 }
 
 func (env Environment) String() string {
-	return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t)",
-		env.Name, env.Commit, env.Date, env.Branch, env.Tag, env.Buildnum, env.IsPullRequest)
+  return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t musl:%t)",
+		env.Name, env.Commit, env.Date, env.Branch, env.Tag, env.Buildnum, env.IsPullRequest, env.IsMusl)
 }
 
 // Env returns metadata about the current CI environment, falling back to LocalEnv
@@ -70,6 +72,7 @@ func Env() Environment {
 			Buildnum:      os.Getenv("TRAVIS_BUILD_NUMBER"),
 			IsPullRequest: os.Getenv("TRAVIS_PULL_REQUEST") != "false",
 			IsCronJob:     os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
+			IsMusl:        os.Getenv("MUSL") == "true",
 		}
 	case os.Getenv("CI") == "True" && os.Getenv("APPVEYOR") == "True":
 		commit := os.Getenv("APPVEYOR_PULL_REQUEST_HEAD_COMMIT")
@@ -86,6 +89,7 @@ func Env() Environment {
 			Buildnum:      os.Getenv("APPVEYOR_BUILD_NUMBER"),
 			IsPullRequest: os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
 			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
+			IsMusl:        os.Getenv("MUSL") == "true",
 		}
 	default:
 		return LocalEnv()
@@ -164,6 +168,9 @@ func applyEnvFlags(env Environment) Environment {
 	}
 	if *CronJobFlag {
 		env.IsCronJob = true
+	}
+  if *MuslFlag {
+		env.IsMusl = true
 	}
 	return env
 }
