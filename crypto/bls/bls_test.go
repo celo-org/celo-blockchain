@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	//nolint:goimports
-	"github.com/celo-org/celo-bls-go"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 

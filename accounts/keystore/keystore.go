@@ -34,7 +34,7 @@ import (
 	"time"
 
 	//nolint:goimports
-	"github.com/celo-org/celo-bls-go"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

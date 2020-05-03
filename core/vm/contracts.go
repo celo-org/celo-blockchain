@@ -24,7 +24,7 @@ import (
 	"math/big"
 
 	//nolint:goimports
-	"github.com/celo-org/celo-bls-go"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
