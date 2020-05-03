@@ -113,7 +113,7 @@ var (
 			BinaryName:  "clef",
 			Description: "Ethereum account management tool.",
 		},
-    {
+		{
 			BinaryName:  "blspopchecker",
 			Description: "Developer utility tool checks BLS PoP signatures in genesis.",
 		},
@@ -276,6 +276,9 @@ func doInstall(cmdline []string) {
 
 func buildFlags(env build.Environment) (flags []string) {
 	var ld []string
+	if env.IsMusl {
+		flags = append(flags, []string{"-tags", "musl"}...)
+	}
 	if env.Commit != "" {
 		ld = append(ld, "-X", "main.gitCommit="+env.Commit)
 		ld = append(ld, "-X", "main.gitDate="+env.Date)
@@ -291,9 +294,6 @@ func buildFlags(env build.Environment) (flags []string) {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
 	}
 
-  if env.IsMusl {
-    flags = append(flags, "-tags musl")
-  }
 	return flags
 }
 

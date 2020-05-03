@@ -30,8 +30,7 @@ geth:
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 geth-musl:
-	export MUSL=true
-	build/env.sh go run build/ci.go install ./cmd/geth
+	build/env.sh go run build/ci.go install -musl ./cmd/geth
 	@echo "Done building with musl."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
@@ -63,8 +62,7 @@ all:
 	build/env.sh go run build/ci.go install
 
 all-musl:
-	export MUSL=true
-	build/env.sh go run build/ci.go install
+	build/env.sh go run build/ci.go install -musl
 
 android:
 	ANDROID_NDK_HOME=$(ANDROID_NDK) build/env.sh go run build/ci.go aar --local
