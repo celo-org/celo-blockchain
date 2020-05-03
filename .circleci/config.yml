@@ -112,9 +112,6 @@ jobs:
               exit 1
             fi
       - run:
-          name: Setup Rust language
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
-      - run:
           name: Compile ios client
           command: make ios
       - persist_to_workspace:
