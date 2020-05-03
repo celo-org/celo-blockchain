@@ -41,6 +41,8 @@ github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6 h1:Eey/GGQ/E5Xp1P2Ly
 github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6/go.mod h1:Dmm/EzmjnCiweXmzRIAiUWCInVmPgjkzgv5k4tVyXiQ=
 github.com/celo-org/celo-bls-go v0.0.0-20200503082650-14349fabce7c h1:rDYmQsyuL7oK3Iqvn1E29ejfZKi+R9VUa01ghMqspS8=
 github.com/celo-org/celo-bls-go v0.0.0-20200503082650-14349fabce7c/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.1.0 h1:XTAYA7zQyGF1jYL/lv5UE1RYTI0Byxgl70x8x+SGsP4=
+github.com/celo-org/celo-bls-go v0.1.0/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/gosigar v0.10.5-celo1 h1:LbhCsvNot586MAVvGFVF4cekBAo1pAYfUxktl8VuPas=
 github.com/celo-org/gosigar v0.10.5-celo1/go.mod h1:/kPo9MOBSowZbtkqUg0tJ048OJJVjG8dpaHKwAgBLz4=
 github.com/cespare/cp v0.1.0 h1:SE+dxFebS7Iik5LK0tsi1k9ZCxEaFX4AjQmoyA+1dJk=
