@@ -49,7 +49,7 @@ type Environment struct {
 }
 
 func (env Environment) String() string {
-  return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t musl:%t)",
+	return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t musl:%t)",
 		env.Name, env.Commit, env.Date, env.Branch, env.Tag, env.Buildnum, env.IsPullRequest, env.IsMusl)
 }
 
@@ -169,7 +169,7 @@ func applyEnvFlags(env Environment) Environment {
 	if *CronJobFlag {
 		env.IsCronJob = true
 	}
-  if *MuslFlag {
+	if *MuslFlag {
 		env.IsMusl = true
 	}
 	return env
