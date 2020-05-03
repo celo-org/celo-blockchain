@@ -11,7 +11,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.5.2
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847
 	github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6
-	github.com/celo-org/bls-zexe/go v0.0.0-00010101000000-000000000000
+	github.com/celo-org/celo-bls-go 75772e8824d71212c199e400988951c1a234067b
 	github.com/cespare/cp v0.1.0
 	github.com/cloudflare/cloudflare-go v0.10.2-0.20190916151808-a80f83b9add9
 	github.com/davecgh/go-spew v1.1.1
@@ -36,6 +36,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2-0.20160603034137-1fa385a6f458
 	github.com/julienschmidt/httprouter v1.1.1-0.20170430222011-975b5c4c7c21
 	github.com/karalabe/usb v0.0.0-20190919080040-51dc0efba356
+	github.com/karalabe/xgo v0.0.0-20191115072854-c5ccff8648a7 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/kyoh86/richgo v0.3.3 // indirect
@@ -61,12 +62,12 @@ require (
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/wacul/ptr v1.0.0 // indirect
 	github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/mobile v0.0.0-20200329125638-4c31acba0007 // indirect
 	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449
 	golang.org/x/text v0.3.2
-	golang.org/x/tools v0.0.0-20191211182746-0d087302095d // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20190213234257-ec84240a7772
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
@@ -74,8 +75,6 @@ require (
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
-
-replace github.com/celo-org/bls-zexe/go => ./crypto/bls/bls-zexe/go
 
 // Use our fork which contains the fix to build on iOS
 replace github.com/elastic/gosigar => github.com/celo-org/gosigar v0.10.5-celo1
