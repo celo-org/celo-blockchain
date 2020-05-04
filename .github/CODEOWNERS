@@ -4,15 +4,19 @@
 # default owners, overridden by package specific owners below
 * @asaj @timmoreton
 
+/accounts/ @kobigurk
 /cmd/ @kevjue
 /consensus/ @kevjue @mcortesi
+/consensus/istanbul/backend/ @tkporter
 /contract_comm/ @kevjue
 /core/ @kevjue
 /crypto/ @kobigurk
-/eth/ @kevjue
+/eth/ @kevjue @tkporter
 /ethstats/ @diminator
 /les/ @kevjue
 /light/ @kevjue
+/logging/ @timmoreton
+/metrics/ @timmoreton
 /miner/ @kevjue
 /node/ @kevjue
 /p2p/ @kevjue
