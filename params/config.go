@@ -28,7 +28,7 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash = common.HexToHash("0x6f5dc2df52443f4125ccd298d922bfd4289a1746db748ef1f539847ce3575a55")
+	MainnetGenesisHash = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
 	TestnetGenesisHash = common.HexToHash("0x92d444499499d38509bf085d1ae892439fae3eae5102c916a3d13627626322bf")
 	RinkebyGenesisHash = common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
@@ -37,7 +37,6 @@ var (
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
 // the chain it belongs to.
 var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{
-	MainnetGenesisHash: MainnetTrustedCheckpoint,
 	TestnetGenesisHash: TestnetTrustedCheckpoint,
 	RinkebyGenesisHash: RinkebyTrustedCheckpoint,
 	GoerliGenesisHash:  GoerliTrustedCheckpoint,
@@ -47,7 +46,6 @@ var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{
 // the chain it belongs to.
 var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{
 	MainnetGenesisHash: MainnetCheckpointOracle,
-	TestnetGenesisHash: TestnetCheckpointOracle,
 	RinkebyGenesisHash: RinkebyCheckpointOracle,
 	GoerliGenesisHash:  GoerliCheckpointOracle,
 }
@@ -55,22 +53,24 @@ var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(1),
-		HomesteadBlock:      big.NewInt(1150000),
-		DAOForkBlock:        big.NewInt(1920000),
+		ChainID:             big.NewInt(42220),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(2463000),
-		EIP150Hash:          common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
-		EIP155Block:         big.NewInt(2675000),
-		EIP158Block:         big.NewInt(2675000),
-		ByzantiumBlock:      big.NewInt(4370000),
-		ConstantinopleBlock: big.NewInt(7280000),
-		PetersburgBlock:     big.NewInt(7280000),
-		IstanbulBlock:       big.NewInt(9069000),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
-			ProposerPolicy: 0,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
 		},
+		NoMintGold:   false,
+		UseOldFormat: false,
 	}
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
@@ -187,6 +187,50 @@ var (
 		IstanbulBlock:       big.NewInt(1561651),
 	}
 
+	// BaklavaChainConfig contains the chain parameters to run a node on the Baklava test network.
+	BaklavaChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(40120),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
+		},
+		NoMintGold:   true,
+		UseOldFormat: true,
+	}
+
+	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
+	AlfajoresChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(44786),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(math.MaxInt64),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
+		},
+		NoMintGold:   false,
+		UseOldFormat: true,
+	}
+
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
 	GoerliTrustedCheckpoint = &TrustedCheckpoint{
 		SectionIndex: 47,
@@ -231,12 +275,12 @@ var (
 	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, false}
+	}, true, false, false, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, true}
+	}, true, true, false, false}
 	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 
@@ -318,6 +362,9 @@ type ChainConfig struct {
 
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
+
+	NoMintGold   bool `json:"noMintGold,omitempty"`
+	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.

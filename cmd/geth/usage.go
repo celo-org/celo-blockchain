@@ -75,6 +75,8 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.TestnetFlag,
 			utils.RinkebyFlag,
 			utils.GoerliFlag,
+			utils.BaklavaFlag,
+			utils.AlfajoresFlag,
 			utils.OttomanFlag,
 			utils.SyncModeFlag,
 			utils.ExitWhenSyncedFlag,
