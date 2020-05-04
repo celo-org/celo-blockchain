@@ -1,5 +1,9 @@
 # Lines starting with '#' are comments.
 # Each line is a file pattern followed by one or more owners.
 
-# default owners for everything in the repo.
+# default owners, overridden by package specific owners below
 * @asaj @timmoreton
+
+/consensus/ @kevjue @mcortesi
+/crypto/ @kobigurk
+/ethstats/ @diminator
