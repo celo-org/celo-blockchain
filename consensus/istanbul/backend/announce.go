@@ -419,7 +419,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return err
 		}
 
-		if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
+		if err := sb.Multicast(nil, payload, istanbul.QueryEnodeMsg); err != nil {
 			return err
 		}
 
@@ -501,7 +501,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeDestAddresses [
 	}
 
 	msg := &istanbul.Message{
-		Code:      istanbulQueryEnodeMsg,
+		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
 		Address:   sb.Address(),
 		Signature: []byte{},
@@ -713,7 +713,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
+	if err := sb.Multicast(nil, payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
@@ -835,7 +835,7 @@ func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCe
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code: istanbulVersionCertificatesMsg,
+		Code: istanbul.VersionCertificatesMsg,
 		Msg:  payload,
 	}
 	msgPayload, err := msg.Payload()
@@ -853,7 +853,7 @@ func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCe
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return sb.Multicast(nil, payload, istanbulVersionCertificatesMsg)
+	return sb.Multicast(nil, payload, istanbul.VersionCertificatesMsg)
 }
 
 func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
@@ -882,7 +882,7 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return peer.Send(istanbulVersionCertificatesMsg, payload)
+	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
 func (sb *Backend) handleVersionCertificatesMsg(peer consensus.Peer, payload []byte) error {
@@ -992,10 +992,10 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	return nil
 }
 
-// updateAnnounceVersion will synchronously update the announce version.
+// UpdateAnnounceVersion will synchronously update the announce version.
 // Must be called in a separate goroutine from the announceThread to avoid
 // a deadlock.
-func (sb *Backend) updateAnnounceVersion() {
+func (sb *Backend) UpdateAnnounceVersion() {
 	sb.updateAnnounceVersionCh <- struct{}{}
 	<-sb.updateAnnounceVersionCompleteCh
 }
@@ -1043,7 +1043,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		destAddresses[i] = address
 		i++
 	}
-	err = sb.Multicast(destAddresses, payload, istanbulEnodeCertificateMsg)
+	err = sb.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg)
 	if err != nil {
 		return err
 	}
@@ -1139,7 +1139,7 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code:    istanbulEnodeCertificateMsg,
+		Code:    istanbul.EnodeCertificateMsg,
 		Address: sb.Address(),
 		Msg:     enodeCertificateBytes,
 	}
@@ -1272,7 +1272,7 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 		logger.Error("Error getting payload of enode certificate message", "err", err)
 		return err
 	}
-	return peer.Send(istanbulEnodeCertificateMsg, payload)
+	return peer.Send(istanbul.EnodeCertificateMsg, payload)
 }
 
 func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {
@@ -1291,4 +1291,40 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 	sb.enodeCertificateMsgMu.RLock()
 	defer sb.enodeCertificateMsgMu.RUnlock()
 	return sb.enodeCertificateMsgVersion
+}
+
+func (sb *Backend) NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) istanbul.ValEnodeTableEntry {
+     return &vet.AddressEntry{
+     	    Address: address,
+	    Node: node,
+	    Version: version,
+     }
+}
+
+func (sb *Backend) GetAllValEnodeTableEntries() (map[common.Address]istanbul.ValEnodeTableEntry, error) {
+     addressEntries, err := sb.valEnodeTable.GetAllValEnodes()
+
+     if err != nil {
+     	return nil, err
+     }
+
+     returnMap := make(map[common.Address]istanbul.ValEnodeTableEntry)
+
+     for address, addressEntry := range addressEntries {
+     	 returnMap[address] = addressEntry
+     }
+
+     return returnMap, nil
+}
+
+func (sb *Backend) UpsertValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
+     addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
+
+     for idx, entry := range entries {
+     	 // This is a bit of a hack, but it currently works since vet.AddressEntry is currently
+	 // the only implementation of the istanbul.ValEnodeTableEntry interface
+     	 addressEntries[idx] = entry.(*vet.AddressEntry)
+     }
+     
+     return sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
 }

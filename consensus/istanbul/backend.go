@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"	
 )
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
@@ -105,4 +107,23 @@ type Backend interface {
 
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
+
+	// AddPeer will add a static peer
+	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)	
+
+	// RemovePeer will remove a static peer
+	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
+
+	// ValEnodeTable related functions
+	// NewValEnodeTableEntry will create a new ValEnodeTableEntry object (but will NOT save it into the valEnodeTable)
+	NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) ValEnodeTableEntry
+
+	// GetAllValEnodeTableEntries rerieves all the entries in the valEnodeTable
+	GetAllValEnodeTableEntries() (map[common.Address]ValEnodeTableEntry, error)
+
+	// UpsertValEnodeTableEntries will upsert an array of valEnodeTableEntries into the valEnodeTable
+	UpsertValEnodeTableEntries(entries []ValEnodeTableEntry) error
+
+	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
+	UpdateAnnounceVersion()
 }

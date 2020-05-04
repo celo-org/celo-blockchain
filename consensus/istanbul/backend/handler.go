@@ -43,26 +43,8 @@ var (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg = 0x11
-	// TODO:  Support sending multiple announce messages withone one message
-	istanbulQueryEnodeMsg          = 0x12
-	istanbulValEnodesShareMsg      = 0x13
-	istanbulFwdMsg                 = 0x14
-	istanbulDelegateSign           = 0x15
-	istanbulVersionCertificatesMsg = 0x16
-	istanbulEnodeCertificateMsg    = 0x17
-	istanbulValidatorHandshakeMsg  = 0x18
-
 	handshakeTimeout = 5 * time.Second
 )
-
-func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
-}
-
-func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
-	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
-}
 
 type announceMsgHandler func(consensus.Peer, []byte) error
 
@@ -127,6 +109,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		} else if msg.Code == istanbulValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
+		} else if sb.proxyHandler {
+		        if handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data); handled {
+			   return handled, error
+			}
 		}
 
 		// If we got here, then that means that there is an istanbul message type that we

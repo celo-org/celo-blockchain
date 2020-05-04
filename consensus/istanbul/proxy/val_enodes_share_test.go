@@ -1,4 +1,4 @@
-package backend
+package proxy
 
 import (
 	"net"

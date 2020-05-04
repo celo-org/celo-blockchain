@@ -155,3 +155,11 @@ func (vph *validatorPeerHandler) ClearValidatorPeers() {
 		vph.sb.p2pserver.RemoveTrustedPeer(peer.Node(), p2p.ValidatorPurpose)
 	}
 }
+
+func (sb *Backend) AddPeer(node *enode.Node, purpose p2p.PurposeFlag) {
+     sb.p2pserver.AddPeer(node, purpose)
+}
+
+func (sb *Backend) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag) {
+     sb.p2pserver.RemovePeer(node, purpose)
+}

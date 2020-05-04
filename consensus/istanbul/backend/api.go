@@ -128,7 +128,7 @@ func (api *API) AddProxy(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	err = api.istanbul.addProxy(node, externalNode)
+	err = api.istanbul.AddProxy(node, externalNode)
 	return true, err
 }
 
@@ -139,7 +139,7 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.removeProxy(node)
+	api.istanbul.RemoveProxy(node)
 	return true, nil
 }
 

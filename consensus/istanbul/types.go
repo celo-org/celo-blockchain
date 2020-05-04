@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
@@ -326,7 +327,7 @@ type ForwardMessage struct {
 	DestAddresses []common.Address
 }
 
-// ## Message #################################################################
+// ## Consensus Message codes ##########################################################
 
 const (
 	MsgPreprepare uint64 = iota
@@ -419,4 +420,10 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 	}
 
 	return returnList
+}
+
+// ## ValEnodeTable entry interface ##########################################################
+type ValEnodeTableEntry interface {
+     GetNode() *enode.Node
+     GetVersion() uint
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -60,23 +61,12 @@ var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 
-	// errProxyAlreadySet is returned if a user tries to add a proxy that is already set.
-	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
-	errProxyAlreadySet = errors.New("proxy already set")
-
 	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
 	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
-
-// Information about the proxy for a proxied validator
-type proxyInfo struct {
-	node         *enode.Node    // Enode for the internal network interface
-	externalNode *enode.Node    // Enode for the external network interface
-	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
-}
 
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
@@ -112,8 +102,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
-		valEnodesShareWg:                   new(sync.WaitGroup),
-		valEnodesShareQuit:                 make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -149,10 +137,14 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbulQueryEnodeMsg] = backend.handleQueryEnodeMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulVersionCertificatesMsg] = backend.handleVersionCertificatesMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.QueryEnodeMsg] = backend.handleQueryEnodeMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.VersionCertificatesMsg] = backend.handleVersionCertificatesMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.EnodeCertificateMsg] = backend.handleEnodeCertificateMsg
+
+	// If this node is a proxy or is a proxied validator, then create a proxy handler object
+	if backend.IsProxiedValidator() || backend.IsProxy() {
+	   backend.proxyHandler = proxy.New(backend, backend.config)
+	}
 
 	return backend
 }
@@ -227,16 +219,6 @@ type Backend struct {
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMu      sync.RWMutex
 
-	valEnodesShareWg   *sync.WaitGroup
-	valEnodesShareQuit chan struct{}
-
-	// Validator's proxy
-	proxyNode *proxyInfo
-
-	// Right now, we assume that there is at most one proxied peer for a proxy
-	// Proxy's validator
-	proxiedPeer consensus.Peer
-
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
 
@@ -271,6 +253,10 @@ type Backend struct {
 	updatingCachedValidatorConnSetCond *sync.Cond
 
 	vph *validatorPeerHandler
+
+	proxyHandler proxy.Proxy
+	proxyHandlerRunning               bool
+	proxyHandlerMu                    sync.RWMutex
 }
 
 // IsProxy returns if instance has proxy flag
@@ -841,23 +827,6 @@ func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 	return sb.hasBadBlock(hash)
 }
 
-func (sb *Backend) addProxy(node, externalNode *enode.Node) error {
-	if sb.proxyNode != nil {
-		return errProxyAlreadySet
-	}
-	sb.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
-	sb.updateAnnounceVersion()
-	sb.p2pserver.AddPeer(node, p2p.ProxyPurpose)
-	return nil
-}
-
-func (sb *Backend) removeProxy(node *enode.Node) {
-	if sb.proxyNode != nil && sb.proxyNode.node.ID() == node.ID() {
-		sb.p2pserver.RemovePeer(node, p2p.ProxyPurpose)
-		sb.proxyNode = nil
-	}
-}
-
 // RefreshValPeers will create 'validator' type peers to all the valset validators, and disconnect from the
 // peers that are not part of the valset.
 // It will also disconnect all validator connections if this node is not a validator.
@@ -999,4 +968,12 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 
 	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
 	return validatorsSet, nil
+}
+
+func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
+     return sb.proxyHandler.AddProxy(node, externalNode)
+}
+
+func (sb *Backend) RemoveProxy(node *enode.Node) {
+     sb.proxyHandler.RemoveProxy(node)
 }

@@ -80,9 +80,6 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
-	// an unauthorized sender
-	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
 )
 
 var (
@@ -584,14 +581,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// Having coreStarted as false at this point guarantees that announce versions
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
-	if sb.config.Proxied {
-		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-			}
-		}
-		go sb.sendValEnodesShareMsgs()
-	} else {
+	if !sb.config.Proxied {
 		sb.updateAnnounceVersion()
 	}
 
@@ -620,20 +610,13 @@ func (sb *Backend) StopValidating() error {
 	}
 	sb.coreStarted = false
 
-	if sb.config.Proxied {
-		sb.valEnodesShareQuit <- struct{}{}
-		sb.valEnodesShareWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
-	}
 	return nil
 }
 
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
@@ -641,7 +624,6 @@ func (sb *Backend) StartAnnouncing() error {
 	go sb.announceThread()
 
 	sb.announceRunning = true
-	sb.announceMu.Unlock()
 
 	if err := sb.vph.startThread(); err != nil {
 		sb.StopAnnouncing()
@@ -666,6 +648,40 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceRunning = false
 
 	return sb.vph.stopThread()
+}
+
+// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
+func (sb *Backend) StartProxyHandler() error {
+        sb.proxyHandlerMu.Lock()
+        defer sb.proxyHandlerMu.Unlock()
+	
+	if sb.proxyHandlerRunning {
+		return istanbul.ErrStartedProxyHandler
+	}
+
+	if !sb.config.Proxied {
+	        return istanbul.ErrValidatorNotProxied
+	}
+
+	sb.proxyHandler.Start()
+	sb.proxyHandlerRunning = true
+	
+	return nil
+}
+
+// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
+func (sb *Backend) StopProxyHandler() error {
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
+	if !sb.proxyHandlerRunning {
+		return istanbul.ErrStoppedProxyHandler
+	}
+
+	sb.proxyHandler.Stop()
+	sb.proxyHandlerRunning = false
+	
+	return nil
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,

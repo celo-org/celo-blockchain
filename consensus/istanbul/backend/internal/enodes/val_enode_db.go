@@ -160,6 +160,16 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+// GetNode returns the address entry's node
+func (ae *AddressEntry) GetNode() *enode.Node {
+     return ae.Node
+}
+
+// GetVersion returns the addess entry's version
+func (ae *AddressEntry) GetVersion() uint {
+     return ae.Version
+}
+
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
@@ -268,7 +278,7 @@ func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry
 	})
 
 	if err != nil {
-		vet.logger.Error("ValidatorEnodeDB.GetAllAddressEntries error", "err", err)
+		vet.logger.Error("ValidatorEnodeDB.GetAllValEnodes error", "err", err)
 		return nil, err
 	}
 
