@@ -28,20 +28,18 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
+	MainnetGenesisHash   = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
 	AlfajoresGenesisHash = common.HexToHash("0xcdfbb05debfdbf4cb2f58c5a2e3915983898728188014f94728c4f72864652fc")
-	BaklavaGenesisHash = common.HexToHash("0x09bb180829b78343cc752e110c2ece86dad46904ffad9a5791b3440f140f1d7f")
+	BaklavaGenesisHash   = common.HexToHash("0x09bb180829b78343cc752e110c2ece86dad46904ffad9a5791b3440f140f1d7f")
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
 // the chain it belongs to.
-var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{
-}
+var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{}
 
 // CheckpointOracles associates each known checkpoint oracles with the genesis hash of
 // the chain it belongs to.
-var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{
-}
+var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{}
 
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
@@ -128,7 +126,6 @@ var (
 		NoMintGold:   false,
 		UseOldFormat: true,
 	}
-
 
 	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
