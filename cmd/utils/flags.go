@@ -149,20 +149,8 @@ var (
 	}
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
-		Usage: "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby, 5=Ottoman)",
+		Usage: "Network identifier",
 		Value: node.DefaultConfig.P2P.NetworkId,
-	}
-	TestnetFlag = cli.BoolFlag{
-		Name:  "testnet",
-		Usage: "Ropsten network: pre-configured proof-of-work test network",
-	}
-	RinkebyFlag = cli.BoolFlag{
-		Name:  "rinkeby",
-		Usage: "Rinkeby network: pre-configured proof-of-authority test network",
-	}
-	GoerliFlag = cli.BoolFlag{
-		Name:  "goerli",
-		Usage: "Görli network: pre-configured proof-of-authority test network",
 	}
 	AlfajoresFlag = cli.BoolFlag{
 		Name:  "alfajores",
@@ -175,10 +163,6 @@ var (
 	DeveloperFlag = cli.BoolFlag{
 		Name:  "dev",
 		Usage: "Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled",
-	}
-	OttomanFlag = cli.BoolFlag{
-		Name:  "ottoman",
-		Usage: "Ottoman network: pre-configured istanbul bft test network",
 	}
 	DeveloperPeriodFlag = cli.IntFlag{
 		Name:  "dev.period",
@@ -786,23 +770,10 @@ var (
 // the a subdirectory of the specified datadir will be used.
 func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.GlobalString(DataDirFlag.Name); path != "" {
-		if ctx.GlobalBool(TestnetFlag.Name) {
-			return filepath.Join(path, "testnet")
-		}
-		if ctx.GlobalBool(RinkebyFlag.Name) {
-			return filepath.Join(path, "rinkeby")
-		}
-		if ctx.GlobalBool(GoerliFlag.Name) {
-			return filepath.Join(path, "goerli")
-		}
 		if ctx.GlobalBool(BaklavaFlag.Name) {
 			return filepath.Join(path, "baklava")
-		}
-		if ctx.GlobalBool(AlfajoresFlag.Name) {
+		} else if ctx.GlobalBool(AlfajoresFlag.Name) {
 			return filepath.Join(path, "alfajores")
-		}
-		if ctx.GlobalBool(OttomanFlag.Name) {
-			return filepath.Join(path, "ottoman")
 		}
 		return path
 	}
@@ -854,18 +825,10 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
-	case ctx.GlobalBool(TestnetFlag.Name):
-		urls = params.TestnetBootnodes
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		urls = params.BaklavaBootnodes
-	case ctx.GlobalBool(OttomanFlag.Name):
-		urls = params.OttomanBootnodes
 	case cfg.BootstrapNodes != nil:
 		return // already set, don't apply defaults.
 	}
@@ -894,10 +857,6 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
@@ -1299,19 +1258,11 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = ctx.GlobalString(DataDirFlag.Name)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		cfg.DataDir = "" // unless explicitly requested, use memory databases
-	case ctx.GlobalBool(TestnetFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "testnet")
-	case ctx.GlobalBool(RinkebyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case ctx.GlobalBool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
 	case ctx.GlobalBool(BaklavaFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		log.Info("setting data dir")
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "baklava")
 	case ctx.GlobalBool(AlfajoresFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "alfajores")
-	case ctx.GlobalBool(OttomanFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ottoman")
 	}
 }
 
@@ -1573,12 +1524,6 @@ func getNetworkId(ctx *cli.Context) uint64 {
 		return ctx.GlobalUint64(NetworkIdFlag.Name)
 	}
 	switch {
-	case ctx.GlobalBool(TestnetFlag.Name):
-		return 3
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		return 4
-	case ctx.GlobalBool(GoerliFlag.Name):
-		return 5
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		return 40120
 	case ctx.GlobalBool(AlfajoresFlag.Name):
@@ -1592,7 +1537,7 @@ func getNetworkId(ctx *cli.Context) uint64 {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag, GoerliFlag, OttomanFlag, BaklavaFlag, AlfajoresFlag)
+	CheckExclusive(ctx, DeveloperFlag, BaklavaFlag, AlfajoresFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
@@ -1661,21 +1606,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	// Override any default configs for hard coded networks.
 	switch {
-	case ctx.GlobalBool(TestnetFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 3
-		}
-		cfg.Genesis = core.DefaultTestnetGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 4
-		}
-		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultGoerliGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			log.Info("Setting baklava id")
@@ -1713,11 +1643,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
-	case ctx.GlobalBool(OttomanFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultOttomanGenesisBlock()
 	}
 }
 
@@ -1850,20 +1775,12 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
-	case ctx.GlobalBool(TestnetFlag.Name):
-		genesis = core.DefaultTestnetGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		genesis = core.DefaultGoerliGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
-	case ctx.GlobalBool(OttomanFlag.Name):
-		genesis = core.DefaultOttomanGenesisBlock()
 	}
 	return genesis
 }

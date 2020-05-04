@@ -181,7 +181,7 @@ func discv4Crawl(ctx *cli.Context) error {
 }
 
 func parseBootnodes(ctx *cli.Context) ([]*enode.Node, error) {
-	s := params.RinkebyBootnodes
+	s := params.AlfajoresBootnodes
 	if ctx.IsSet(bootnodesFlag.Name) {
 		s = strings.Split(ctx.String(bootnodesFlag.Name), ",")
 	}

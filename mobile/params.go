@@ -32,18 +32,8 @@ func MainnetGenesis() string {
 	return ""
 }
 
-// TestnetGenesis returns the JSON spec to use for the Ethereum test network.
-func TestnetGenesis() string {
-	enc, err := json.Marshal(core.DefaultTestnetGenesisBlock())
-	if err != nil {
-		panic(err)
-	}
-	return string(enc)
-}
-
-// RinkebyGenesis returns the JSON spec to use for the Rinkeby test network
-func RinkebyGenesis() string {
-	enc, err := json.Marshal(core.DefaultRinkebyGenesisBlock())
+func AlfajoresGenesis() string {
+	enc, err := json.Marshal(core.DefaultAlfajoresGenesisBlock())
 	if err != nil {
 		panic(err)
 	}
