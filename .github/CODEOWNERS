@@ -4,6 +4,13 @@
 # default owners, overridden by package specific owners below
 * @asaj @timmoreton
 
+/cmd/ @kevjue
 /consensus/ @kevjue @mcortesi
+/contract_comm/ @kevjue
+/core/ @kevjue
 /crypto/ @kobigurk
+/eth/ @kevjue
 /ethstats/ @diminator
+/les/ @kevjue
+/light/ @kevjue
+/miner/ @kevjue
