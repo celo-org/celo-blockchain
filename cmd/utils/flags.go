@@ -149,8 +149,8 @@ var (
 	}
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
-		Usage: "Network identifier",
-		Value: node.DefaultConfig.P2P.NetworkId,
+		Usage: fmt.Sprintf("Network identifier (%s)", params.NetworkIdHelp),
+		Value: params.MainnetNetworkId,
 	}
 	AlfajoresFlag = cli.BoolFlag{
 		Name:  "alfajores",
@@ -1525,13 +1525,13 @@ func getNetworkId(ctx *cli.Context) uint64 {
 	}
 	switch {
 	case ctx.GlobalBool(BaklavaFlag.Name):
-		return 40120
+		return params.BaklavaNetworkId
 	case ctx.GlobalBool(AlfajoresFlag.Name):
-		return 44786
+		return params.AlfajoresNetworkId
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		return 1337
 	}
-	return 42220
+	return params.MainnetNetworkId
 }
 
 // SetEthConfig applies eth-related command line flags to the config.
@@ -1553,7 +1553,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	setIstanbul(ctx, stack, cfg)
 	setLes(ctx, cfg)
 
-	cfg.NetworkId = 42220
+	cfg.NetworkId = params.MainnetNetworkId
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
@@ -1609,12 +1609,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			log.Info("Setting baklava id")
-			cfg.NetworkId = 40120
+			cfg.NetworkId = params.BaklavaNetworkId
 		}
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 44786
+			cfg.NetworkId = params.AlfajoresNetworkId
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):

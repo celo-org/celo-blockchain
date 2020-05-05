@@ -95,7 +95,7 @@ var (
 	chainIdFlag = cli.Int64Flag{
 		Name:  "chainid",
 		Value: params.MainnetChainConfig.ChainID.Int64(),
-		Usage: "Chain id to use for signing (42220=mainnet)",
+		Usage: fmt.Sprintf("Chain id to use for signing (%s)", params.NetworkIdHelp),
 	}
 	rpcPortFlag = cli.IntFlag{
 		Name:  "rpcport",

@@ -37,7 +37,11 @@ func TestDefaultGenesisBlock(t *testing.T) {
 	}
 	block = DefaultBaklavaGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.BaklavaGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.BaklavaGenesisHash.Hex())
+		t.Errorf("wrong baklava testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.BaklavaGenesisHash.Hex())
+	}
+	block = DefaultAlfajoresGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.AlfajoresGenesisHash {
+		t.Errorf("wrong alfajores testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.AlfajoresGenesisHash.Hex())
 	}
 }
 
@@ -103,6 +107,16 @@ func TestSetupGenesis(t *testing.T) {
 			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.BaklavaGenesisHash},
 			wantHash:   params.BaklavaGenesisHash,
 			wantConfig: params.BaklavaChainConfig,
+		},
+		{
+			name: "custom block in DB, genesis == alfajores",
+			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
+				customg.MustCommit(db)
+				return SetupGenesisBlock(db, DefaultAlfajoresGenesisBlock())
+			},
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.AlfajoresGenesisHash},
+			wantHash:   params.AlfajoresGenesisHash,
+			wantConfig: params.AlfajoresChainConfig,
 		},
 		{
 			name: "compatible config in DB",

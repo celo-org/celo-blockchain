@@ -180,7 +180,12 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		if config.EthereumGenesis == AlfajoresGenesis() {
 			genesis.Config = params.AlfajoresChainConfig
 			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = 40120
+				config.EthereumNetworkID = int64(params.AlfajoresNetworkId)
+			}
+		} else if config.EthereumGenesis == BaklavaGenesis() {
+			genesis.Config = params.BaklavaChainConfig
+			if config.EthereumNetworkID == 1 {
+				config.EthereumNetworkID = int64(params.BaklavaNetworkId)
 			}
 		}
 	}

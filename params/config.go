@@ -33,6 +33,14 @@ var (
 	BaklavaGenesisHash   = common.HexToHash("0x09bb180829b78343cc752e110c2ece86dad46904ffad9a5791b3440f140f1d7f")
 )
 
+var (
+	MainnetNetworkId   = uint64(42220)
+	BaklavaNetworkId   = uint64(40120)
+	AlfajoresNetworkId = uint64(44786)
+)
+
+var NetworkIdHelp = fmt.Sprintf("Mainnet=%v, Baklava=%v, Alfajores=%v", MainnetNetworkId, BaklavaNetworkId, AlfajoresNetworkId)
+
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
 // the chain it belongs to.
 var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{}
@@ -44,7 +52,7 @@ var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{}
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(42220),
+		ChainID:             big.NewInt(int64(MainnetNetworkId)),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -63,9 +71,10 @@ var (
 		NoMintGold:   false,
 		UseOldFormat: false,
 	}
-	// TestnetChainConfig contains the chain parameters to run a node on the Ropsten test network.
+
+	// TestnetChainConfig is left here until Baklava or Alfajores are up to date with the mainnet
 	TestnetChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(3),
+		ChainID:             big.NewInt(321),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -85,7 +94,7 @@ var (
 
 	// BaklavaChainConfig contains the chain parameters to run a node on the Baklava test network.
 	BaklavaChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(40120),
+		ChainID:             big.NewInt(int64(BaklavaNetworkId)),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -107,7 +116,7 @@ var (
 
 	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
 	AlfajoresChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(44786),
+		ChainID:             big.NewInt(int64(AlfajoresNetworkId)),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
