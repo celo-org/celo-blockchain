@@ -814,7 +814,7 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
-func GetBootstrapNodes(ctx *cli.Context) ([]string) {
+func GetBootstrapNodes(ctx *cli.Context) []string {
 	urls := params.MainnetBootnodes
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV4Flag.Name):
