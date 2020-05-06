@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -35,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
@@ -246,8 +244,10 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
-	case ghash == params.TestnetGenesisHash:
-		return params.TestnetChainConfig
+	case ghash == params.BaklavaGenesisHash:
+		return params.BaklavaChainConfig
+	case ghash == params.AlfajoresGenesisHash:
+		return params.AlfajoresChainConfig
 	default:
 		return params.DefaultChainConfig
 	}
@@ -355,35 +355,6 @@ func DefaultGenesisBlock() *Genesis {
 	}
 }
 
-// DefaultTestnetGenesisBlock returns the Ropsten network genesis block.
-func DefaultTestnetGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:    params.TestnetChainConfig,
-		ExtraData: hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
-		Alloc:     decodePrealloc(testnetAllocData),
-	}
-}
-
-// DefaultRinkebyGenesisBlock returns the Rinkeby network genesis block.
-func DefaultRinkebyGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:    params.RinkebyChainConfig,
-		Timestamp: 1492009146,
-		ExtraData: hexutil.MustDecode("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e000000000000000000000000000000000000000042eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		Alloc:     decodePrealloc(rinkebyAllocData),
-	}
-}
-
-// DefaultGoerliGenesisBlock returns the Görli network genesis block.
-func DefaultGoerliGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:    params.GoerliChainConfig,
-		Timestamp: 1548854791,
-		ExtraData: hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		Alloc:     decodePrealloc(goerliAllocData),
-	}
-}
-
 // DefaultBaklavaGenesisBlock returns the Baklava network genesis block.
 func DefaultBaklavaGenesisBlock() *Genesis {
 	baklavaAlloc := &GenesisAlloc{}
@@ -404,16 +375,6 @@ func DefaultAlfajoresGenesisBlock() *Genesis {
 		Timestamp: 0x5b843511,
 		ExtraData: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000f905bbf8d294456f41406b32c45d59e539e4bba3d7898c3584da94dd1f519f63423045f526b8c83edc0eb4ba6434a494050f34537f5b2a00b9b9c752cb8500a3fce3da7d94cda518f6b5a797c3ec45d37c65b83e0b0748edca94b4e92c94a2712e98c020a81868264bde52c188cb94ae1ec841923811219b98aceb1db297aade2f46f394621843731fe33418007c06ee48cfd71e0ea828d9942a43f97f8bf959e31f69a894ebd80a88572c855394ad682035be6ab6f06e478d2bdab0eab6477b460e9430d060f129817c4de5fbc1366d53e19f43c8c64ff903d4b86011877b768127c8eb0f122fbe69553bc9d142d27c06a85c6eeb7b8b457f511e50c33a57fcbc5fd6d1823f69a111f8010151a17f6a8798a25343f5403b1e6a595c7d9698af3db78b013d26a761fc201b3cf793be5f0a0a849b3f68a8bfa81e7001b860d882cd4cc09109928e9517644d5303610155978cf5e3b7ad6122daa19c3dab3da8c439bc763d6d3eef18a38ebb0d3200664b94fab11adbb3f44b963969763b590af45931c482396be88a185214c9c8690615aae5197e852bc1d04b3dbd03ab80b86051588d46ba8998d944a30cde93bfe946e774ef1f6fe2fb559a74ffebf60d1ad967b876a038c6e312d0c20752cbc8440012293b6ea417f32a163caedeaaae7aad3c1b31be1fe86c405924b1be7d0aaae6f3ba567ee907d0d4c00dce5091442380b8601f2becc31c1f0141e8c5768c5f07d02d1342c086c037cce70aaf3629b40ea017884a81163f58697b020b21fe39c440006970bc1f52b847d7262599ae92ee7db45ad38efe5612c8ed42d9db9380da0769bab713f5259b7c015998296bf02a0a01b860d02ec615b916bba4fe7e65a3d79e607aa27bb5a84b0c2f242e9d8f379512cf40051a43030e55aca965d91c905b656d006434d95b7034bfc2e5e2ef7384e8cd640efae740558216f6f9db24c6d1acf755746dfbb68c76961593741105725d5680b860d6e86d5e73db3b3a2c96c6caa1a7e153e17adb13fb541943a44bfa90beab38aa73ad453d918fea2ba57c0a67115d0401c56946d8894f346d796864e9344fd1439dd1345de762f85d7e18e311b35c3cbe492886ef8bc872b4aabfa23c2e38a901b8601cf59939da60cdb9aff09f76e6070a17fa21356ca7016390ef4444243e12ab7ed7a233d7ca48b0d17870ba015a4410014e5cac8d456e03ec2908d347627d5e9ecd496ce990d10900ddc529300eef3d037e48d79f03ad2b6bcd48affe2ddf2681b8601cfe8876c0b89ef15128bb27eb69e7939b4a888b0a81195d5fd1bbda748a29838274e652dcf857f4090bb85343055300ca3e75a980b100403d3b6d34f62c6a86bbd75203391c63dd405725c69241a828e6892f623ed5b35c8dc132b032061201b860a6fc71d63c5adedb7b30b9e0ba3d83debf86d12ba235c13584a9cbad410f082030427be4f8a9127889979c3eea58860031af128deece487df5aef9d999c8dc2fb51f308eb1ee229e6bbd6860138d4fcf4209eb7bec62ca70dd8643104003c200b8606b7adb5d01e3fd72ae2c4ff17e6620dc383431e0ebe06c9af5b94207f380287429043e7bbe417b82d0aed2e43dc7b8002bb52886773e4a2c23bf0ebfd401471e8da3cf3a0a7e0949d9ad4de38138a787a975993ba311525ce8be331cd60d670080b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f86480b86000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080f86480b86000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080"),
 		Alloc:     *alfajoresAlloc,
-	}
-}
-
-// DefaultOttomanGenesisBlock returns the Ottoman network genesis block.
-func DefaultOttomanGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:    params.OttomanChainConfig,
-		Timestamp: 1496993285,
-		ExtraData: hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000f89af85494475cc98b5521ab2a1335683e7567c8048bfe79ed9407d8299de61faed3686ba4c4e6c3b9083d7e2371944fe035ce99af680d89e2c4d73aca01dbfc1bd2fd94dc421209441a754f79c4a4ecd2b49c935aad0312b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0"),
-		Alloc:     decodePrealloc(ottomanAllocData),
 	}
 }
 
@@ -439,16 +400,4 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
 		},
 	}
-}
-
-func decodePrealloc(data string) GenesisAlloc {
-	var p []struct{ Addr, Balance *big.Int }
-	if err := rlp.NewStream(strings.NewReader(data), 0).Decode(&p); err != nil {
-		panic(err)
-	}
-	ga := make(GenesisAlloc, len(p))
-	for _, account := range p {
-		ga[common.BigToAddress(account.Addr)] = GenesisAccount{Balance: account.Balance}
-	}
-	return ga
 }
