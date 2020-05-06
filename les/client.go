@@ -79,7 +79,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		chainName = "lightchaindata"
 		fullChainAvailable = true
 	} else if syncMode == downloader.LightestSync {
-		chainName = "lightestchaindata"
+		chainName = "plumochaindata"
 		fullChainAvailable = false
 	} else {
 		panic("Unexpected sync mode: " + syncMode.String())

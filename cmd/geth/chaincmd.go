@@ -214,7 +214,7 @@ func initGenesis(ctx *cli.Context) error {
 	stack := makeFullNode(ctx)
 	defer stack.Close()
 
-	for _, name := range []string{"chaindata", "lightchaindata", "lightestchaindata"} {
+	for _, name := range []string{"chaindata", "lightchaindata", "plumochaindata"} {
 		chaindb, err := stack.OpenDatabase(name, 0, 0, "")
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
