@@ -17,7 +17,10 @@
 package proxy
 
 import (
+	"reflect"
+	
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -53,6 +56,32 @@ func (p *proxy) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode u
 	return nil
 }
 
-func (p *proxy) handleForwardMsg() error {
-     return nil
+func (p *proxy) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
+        logger := p.logger.New("func", "HandleForwardMsg")
+	
+	// Verify that it's coming from the proxied peer
+	if !reflect.DeepEqual(peer, p.proxiedPeer) {
+		logger.Warn("Got a forward consensus message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
+		return false, nil
+	}
+
+	istMsg := new(istanbul.Message)
+
+	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
+	// the wrapped message is already signed by the proxied validator.
+	if err := istMsg.FromPayload(payload, nil); err != nil {
+		logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
+		return true, err
+	}
+
+	var fwdMsg *istanbul.ForwardMessage
+	err := istMsg.Decode(&fwdMsg)
+	if err != nil {
+		logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
+		return true, err
+	}
+
+	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+	go p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
+	return true, nil
 }

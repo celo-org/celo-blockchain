@@ -76,9 +76,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		if msg.Code == istanbul.ConsensusMsg {
 			err := sb.handleConsensusMsg(peer, data)
 			return true, err
-		} else if msg.Code == istanbul.FwdMsg {
-			err := sb.handleFwdMsg(peer, data)
-			return true, err
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
 			go announceHandlerFunc(addr, peer, data)
 			return true, nil
@@ -86,15 +83,19 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		} else if sb.IsProxy() || sb.IsProxiedValidator() {
+		        // The message codes that proxies or proxied validators will handle are:
+			// 1) ValEnodesShareMsg
+			// 2) FwdMsg
 		        handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data)
 		        if handled {
 			   return handled, error
 			}
 		}
 
-		// If we got here, then that means that there is an istanbul message type that we
-		// don't handle, and hence a bug in the code.
-		logger.Crit("Unhandled istanbul message type")
+		// If we got here, then that means that there is an istanbul message type that either there
+		// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
+		// node other than a proxy received the message).
+		logger.Error("Unhandled istanbul message", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
 		return false, nil
 	}
 	return false, nil
@@ -125,7 +126,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		// Need to forward the message to the proxied validator
 		sb.logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
 		if sb.proxiedPeer != nil {
-			go sb.proxiedPeer.Send(istanbulConsensusMsg, payload)
+			go sb.proxiedPeer.Send(istanbul.ConsensusMsg, payload)
 		}
 	} else { // The case when this node is a validator
 		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
@@ -133,41 +134,6 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		})
 	}
 
-	return nil
-}
-
-// Handle an incoming forward msg
-func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
-	// Ignore the message if this node it not a proxy
-	if !sb.config.Proxy {
-		sb.logger.Warn("Got a forward consensus message and this node is not a proxy. Ignoring it", "from", peer.Node().ID())
-		return nil
-	}
-
-	// Verify that it's coming from the proxied peer
-	if !reflect.DeepEqual(peer, sb.proxiedPeer) {
-		sb.logger.Warn("Got a forward consensus message from a non proxied validator. Ignoring it", "from", peer.Node().ID())
-		return nil
-	}
-
-	istMsg := new(istanbul.Message)
-
-	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
-	// the wrapped message is already signed by the proxied validator.
-	if err := istMsg.FromPayload(payload, nil); err != nil {
-		sb.logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
-		return err
-	}
-
-	var fwdMsg *istanbul.ForwardMessage
-	err := istMsg.Decode(&fwdMsg)
-	if err != nil {
-		sb.logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
-		return err
-	}
-
-	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
 	return nil
 }
 

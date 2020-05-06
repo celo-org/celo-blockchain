@@ -112,8 +112,8 @@ func (p *proxy) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (
      	err := p.handleValEnodesShareMsg(peer, payload)
 	return true, err
      } else if msgCode == istanbul.FwdMsg {
-       err := p.handleForwardMsg()
-       return true, err
+       handled, err := p.handleForwardMsg(peer, payload)
+       return handled, err
      }
 
      return false, nil
