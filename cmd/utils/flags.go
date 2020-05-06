@@ -1876,7 +1876,10 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("%v", err)
 	}
-	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
+	config.FullHeaderChainAvailable = true
+	if ctx.GlobalString(SyncModeFlag.Name) == "lightest" || ctx.GlobalString(SyncModeFlag.Name) == "plumo" {
+		config.FullHeaderChainAvailable = false
+	}
 	if !ctx.GlobalBool(FakePoWFlag.Name) {
 		Fatalf("Only fake PoW engine is available")
 	}
