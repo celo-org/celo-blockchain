@@ -35,13 +35,18 @@ var (
 	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
 	// an unauthorized sender
 	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
+
+	// errNoConnectedProxy is returned when there is no connected proxy
+	errNoConnectedProxy = errors.New("no connected proxy")
 )
 
 type Proxy interface {
 	Start() error
 	Stop() error
+	GetProxyExternalNode() *enode.Node
 	AddProxy(node, externalNode *enode.Node) error
 	RemoveProxy(node *enode.Node)
+	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
 }
 
 // Information about the proxy for a proxied validator

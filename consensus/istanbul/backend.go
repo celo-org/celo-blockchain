@@ -59,13 +59,13 @@ type Backend interface {
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// BroadcastConsensusMsg sends a message to all validators (include self)
-	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
+	// Gossip will send a message to all connnected peers
+	Gossip(payload []byte, ethMsgCode uint64) error
 
 	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
 	// is associated with those node's signing key)
-	// If that parameter is nil, then it will send the message to all it's connected peers.
-	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64) error
+	// If sendToSelf is set to true, then the function will send an event to self via a message event
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.

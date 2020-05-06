@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 var (
@@ -46,7 +45,7 @@ const (
 	handshakeTimeout = 5 * time.Second
 )
 
-type announceMsgHandler func(consensus.Peer, []byte) error
+type announceMsgHandler func(common.Address, consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
@@ -54,8 +53,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if sb.isIstanbulMsg(msg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
+	if istanbul.IsIstanbulMsg(msg) {
+		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbul.ConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -65,7 +64,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errDecodeFailed
 		}
 
-		if msg.Code == istanbulDelegateSign {
+		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign() {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				return true, nil
@@ -74,43 +73,21 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for messages
-		// that are gossiped
-		if sb.isGossipedMsgCode(msg.Code) {
-			hash := istanbul.RLPHash(data)
-
-			// Mark peer's message
-			ms, ok := sb.peerRecentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
-				sb.peerRecentMessages.Add(addr, m)
-			}
-			m.Add(hash, true)
-
-			// Mark self known message
-			if _, ok := sb.selfRecentMessages.Get(hash); ok {
-				return true, nil
-			}
-			sb.selfRecentMessages.Add(hash, true)
-		}
-
-		if msg.Code == istanbulConsensusMsg {
+		if msg.Code == istanbul.ConsensusMsg {
 			err := sb.handleConsensusMsg(peer, data)
 			return true, err
-		} else if msg.Code == istanbulFwdMsg {
+		} else if msg.Code == istanbul.FwdMsg {
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
-			go announceHandlerFunc(peer, data)
+			go announceHandlerFunc(addr, peer, data)
 			return true, nil
-		} else if msg.Code == istanbulValidatorHandshakeMsg {
+		} else if msg.Code == istanbul.ValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
-		} else if sb.proxyHandler {
-		        if handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data); handled {
+		} else if sb.IsProxy() || sb.IsProxiedValidator() {
+		        handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data)
+		        if handled {
 			   return handled, error
 			}
 		}

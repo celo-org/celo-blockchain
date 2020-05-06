@@ -33,9 +33,11 @@ type proxy struct {
 	logger         log.Logger
 	backend        istanbul.Backend
 
-	// Validator's proxy
+	// Proxied validator's proxy
 	proxyNode *proxyInfo
+	proxyPeer consensus.Peer
 
+	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	// Proxy's validator
 	proxiedPeer consensus.Peer
@@ -52,6 +54,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Proxy {
 		logger:             log.New(),
 		backend:            backend,
 		proxyNode:          nil,
+		proxyPeer:          nil,
 		
 		valEnodesShareWg:                   new(sync.WaitGroup),
 		valEnodesShareQuit:                 make(chan struct{}),
@@ -83,6 +86,10 @@ func (p *proxy) Stop() error {
 	return nil
 }
 
+func (p* proxy) GetProxyExternalNode() *enode.Node {
+     return p.config.ProxyExternalFacingNode
+}
+
 func (p *proxy) AddProxy(node, externalNode *enode.Node) error {
 	if p.proxyNode != nil {
 		return errProxyAlreadySet
@@ -104,6 +111,9 @@ func (p *proxy) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (
      if msgCode == istanbul.ValEnodesShareMsg {
      	err := p.handleValEnodesShareMsg(peer, payload)
 	return true, err
+     } else if msgCode == istanbul.FwdMsg {
+       err := p.handleForwardMsg()
+       return true, err
      }
 
      return false, nil

@@ -582,7 +582,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
 	if !sb.config.Proxied {
-		sb.updateAnnounceVersion()
+		sb.UpdateAnnounceVersion()
 	}
 
 	sb.coreStarted = true

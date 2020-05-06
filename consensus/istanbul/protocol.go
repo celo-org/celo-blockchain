@@ -53,6 +53,12 @@ func IsIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
 }
 
-func IsGossipedMsgCode(msgCode uint64) bool {
+// IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).
+func IsGossipedMsg(msgCode uint64) bool {
 	return msgCode == QueryEnodeMsg || msgCode == VersionCertificatesMsg
+}
+
+// IsMsgToForward specifies which messages that a proxied validator needs to wrap in a forward message.
+func IsMsgToForward(msgCode uint64) bool {
+        return msgCode == ConsensusMsg || msgCode == EnodeCertificateMsg
 }

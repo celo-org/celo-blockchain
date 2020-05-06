@@ -419,7 +419,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return err
 		}
 
-		if err := sb.Multicast(nil, payload, istanbul.QueryEnodeMsg); err != nil {
+		if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 			return err
 		}
 
@@ -544,8 +544,14 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string, queryEnodeDestAdd
 }
 
 // This function will handle a queryEnode message.
-func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleQueryEnodeMsg")
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
+	sb.markPeerGossipCache(addr, payload)
+	if sb.checkSelfGossipCache(payload) {
+	   return nil
+	}
 
 	msg := new(istanbul.Message)
 
@@ -713,7 +719,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := sb.Multicast(nil, payload, istanbul.QueryEnodeMsg); err != nil {
+	if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
@@ -853,7 +859,7 @@ func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCe
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return sb.Multicast(nil, payload, istanbul.VersionCertificatesMsg)
+	return sb.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
 func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
@@ -885,9 +891,15 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
-func (sb *Backend) handleVersionCertificatesMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
+	sb.markPeerGossipCache(addr, payload)
+	if sb.checkSelfGossipCache(payload) {
+	   return nil
+	}
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
@@ -1004,10 +1016,10 @@ func (sb *Backend) UpdateAnnounceVersion() {
 // and shares them with relevant nodes.
 // It will:
 //  1) Generate a new enode certificate
-//  2) Send the new enode certificate to this node's proxy if one exists
-//  3) Send the new enode certificate to all peers in the validator conn set
-//  4) Generate a new version certificate
-//  5) Gossip the new version certificate to all peers
+//  2) Multicast the new enode certificate to all peers in the validator conn set (note that if this is a proxied validator, it's multicast
+//     message will be wrapped within a forward message to the proxy (which will in turn send the enode certificate to remote validators).
+//  3) Generate a new version certificate
+//  4) Gossip the new version certificate to all peers
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
@@ -1015,24 +1027,19 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
+
 	enodeCertificateMsg, err := sb.generateEnodeCertificateMsg(version)
 	if err != nil {
 		return err
 	}
 	sb.setEnodeCertificateMsg(enodeCertificateMsg)
-	// Send the new versioned enode msg to the proxy peer
-	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, enodeCertificateMsg)
-		if err != nil {
-			logger.Error("Error in sending versioned enode msg to proxy", "err", err)
-			return err
-		}
-	}
+	
 	// Don't send any of the following messages if this node is not in the validator conn set
 	if !validatorConnSet[sb.Address()] {
 		logger.Trace("Not in the validator conn set, not updating announce version")
 		return nil
 	}
+
 	payload, err := enodeCertificateMsg.Payload()
 	if err != nil {
 		return err
@@ -1043,7 +1050,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		destAddresses[i] = address
 		i++
 	}
-	err = sb.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg)
+	err = sb.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false)
 	if err != nil {
 		return err
 	}
@@ -1059,11 +1066,12 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 }
 
 func (sb *Backend) getEnodeURL() (string, error) {
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			return sb.proxyNode.externalNode.URLv4(), nil
+	if sb.IsProxiedValidator() {
+		if proxyExternalNode := sb.proxyHandler.GetProxyExternalNode(); proxyExternalNode != nil {
+		   return proxyExternalNode.URLv4(), nil
+		} else {
+		  return "", errNoProxyConnection
 		}
-		return "", errNoProxyConnection
 	}
 	return sb.p2pserver.Self().URLv4(), nil
 }
@@ -1120,14 +1128,10 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 	logger := sb.logger.New("func", "generateEnodeCertificateMsg")
 
 	var enodeURL string
-	if sb.config.Proxied {
-		if sb.proxyNode != nil {
-			enodeURL = sb.proxyNode.externalNode.URLv4()
-		} else {
-			return nil, errNoProxyConnection
-		}
-	} else {
-		enodeURL = sb.p2pserver.Self().URLv4()
+	enodeURL, err := sb.getEnodeURL()
+	if err != nil {
+	   logger.Warn("Couldn't get external facing enodeURL", "err", err)
+	   return nil, err
 	}
 
 	enodeCertificate := &enodeCertificate{
@@ -1159,7 +1163,7 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 // will send it back to this node.
 // If the proxied validator sends an enode certificate for itself to this node,
 // this node will set the enode certificate as its own for handshaking.
-func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
