@@ -267,9 +267,9 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 		if amount != 0 {
 			p.Log().Info("Here 9") //Gateway Fee gets to here
 			// Feed cost tracker request serving statistic.
-			//h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost) comment out for now
+			h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost) 
 			// Reduce priority "balance" for the specific peer.
-			//h.server.clientPool.requestCost(p, realCost) comment out for now
+			h.server.clientPool.requestCost(p, realCost)
 		}
 		p.Log().Info("Here 10")
 		if reply != nil {
@@ -908,7 +908,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee.Uint64()) ///this line seems okay
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase}) ///this line seems okay
 				p.Log().Info("Got ReplyGatewayFee")
 				p.Log().Info("Hello GW Fee",string((*reply).msgcode))
 				sendResponse(req.ReqID, 1, reply, 10) //send response seems to be messing things up with the runtime errors

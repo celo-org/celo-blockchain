@@ -547,8 +547,12 @@ func (p *peer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
 }
 
 //ReplyGatewayFee creates reply with gateway fee that was requested
-func (p *peer) ReplyGatewayFee(reqID uint64, gatewayFee uint64) *reply {
-	data, _ := rlp.EncodeToBytes(gatewayFee)
+func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeResps) *reply {
+	// type repl struct {
+	// 	GatewayFee uint64
+	// 	Etherbase common.Address
+	// }
+	data, _ := rlp.EncodeToBytes(resp)
 	return &reply{p.rw, GatewayFeeMsg, reqID, data}
 }
 
@@ -1002,6 +1006,30 @@ func (ps *peerSet) AllPeers() []*peer {
 		i++
 	}
 	return list
+}
+
+//Ray: Get all peers that only support les and have no other caps. 
+func (ps *peerSet) AllLightClientPeers() []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	peerNodes := ps.AllPeers()
+	lightClientPeers := make([]*peer, 0)
+	
+	for _, peerNode := range peerNodes {//essentailly a filter func. Could abstract this out later
+		currPeerProtocols := peerNode.Caps() //this is in p2p/peer.go
+		nonLes := 0
+		for _, cap := range currPeerProtocols{
+			if cap.Name != "les" {
+				nonLes++
+				break
+			}
+		}
+		if nonLes == 0 {
+			lightClientPeers = append(lightClientPeers, peerNode)
+		}
+	}
+	return lightClientPeers
 }
 
 // Close disconnects all peers.
