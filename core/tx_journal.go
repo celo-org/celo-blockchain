@@ -43,15 +43,15 @@ func (*devNull) Close() error                      { return nil }
 // txJournal is a rotating log of transactions with the aim of storing locally
 // created transactions to allow non-executed ones to survive node restarts.
 type txJournal struct {
-	path   		   string         // Filesystem path to store the transactions at
-	priorityPath   string         // Filesystem path to store the priority addresses at
-	writer 	       io.WriteCloser // Output stream to write new transactions into
+	path         string         // Filesystem path to store the transactions at
+	priorityPath string         // Filesystem path to store the priority addresses at
+	writer       io.WriteCloser // Output stream to write new transactions into
 }
 
 // newTxJournal creates a new transaction journal to
 func newTxJournal(path string, priorityPath string) *txJournal {
 	return &txJournal{
-		path: 		  path,
+		path:         path,
 		priorityPath: priorityPath,
 	}
 }
@@ -211,10 +211,10 @@ func (journal *txJournal) savePriority(priority []common.Address) error {
 		return err
 	}
 	for _, addr := range priority {
-			if err = rlp.Encode(replacement, addr); err != nil {
-				replacement.Close()
-				return err
-			}
+		if err = rlp.Encode(replacement, addr); err != nil {
+			replacement.Close()
+			return err
+		}
 	}
 	replacement.Close()
 

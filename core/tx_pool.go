@@ -168,11 +168,11 @@ type blockChain interface {
 
 // TxPoolConfig are the configuration parameters of the transaction pool.
 type TxPoolConfig struct {
-	Locals    []common.Address // Addresses that should be treated by default as local
-	NoLocals  bool             // Whether local transaction handling should be disabled
-	Journal   string           // Journal of local transactions to survive node restarts
-	PriorityJournal   string
-	Rejournal time.Duration    // Time interval to regenerate the local transaction journal
+	Locals          []common.Address // Addresses that should be treated by default as local
+	NoLocals        bool             // Whether local transaction handling should be disabled
+	Journal         string           // Journal of local transactions to survive node restarts
+	PriorityJournal string
+	Rejournal       time.Duration // Time interval to regenerate the local transaction journal
 
 	PriceLimit uint64 // Minimum gas price to enforce for acceptance into the pool
 	PriceBump  uint64 // Minimum price bump percentage to replace an already existing transaction (nonce)
@@ -188,9 +188,9 @@ type TxPoolConfig struct {
 // DefaultTxPoolConfig contains the default configurations for the transaction
 // pool.
 var DefaultTxPoolConfig = TxPoolConfig{
-	Journal:   		 "transactions.rlp",
+	Journal:         "transactions.rlp",
 	PriorityJournal: "priority.rlp",
-	Rejournal: 		 time.Hour,
+	Rejournal:       time.Hour,
 
 	PriceLimit: 0,
 	PriceBump:  10,
