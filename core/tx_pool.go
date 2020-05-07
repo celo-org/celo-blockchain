@@ -259,8 +259,9 @@ type TxPool struct {
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
 	currentMaxGas uint64         // Current gas limit for transaction caps
 
-	locals  *accountSet // Set of local transaction to exempt from eviction rules
-	journal *txJournal  // Journal of local transaction to back up to disk
+	priority *accountSet // Set of prioritized accounts
+	locals   *accountSet // Set of local transaction to exempt from eviction rules
+	journal  *txJournal  // Journal of local transaction to back up to disk
 
 	pending map[common.Address]*txList   // All currently processable transactions
 	queue   map[common.Address]*txList   // Queued but non-processable transactions
@@ -307,9 +308,14 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		gasPrice:        new(big.Int).SetUint64(config.PriceLimit),
 	}
 	pool.locals = newAccountSet(pool.signer)
+	pool.priority = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
+	}
+	for _, addr := range params.PriorityAddresses {
+		log.Info("Setting new priority address", "address", addr)
+		pool.priority.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all)
 
@@ -412,6 +418,15 @@ func (pool *TxPool) loop() {
 			}
 		}
 	}
+}
+
+func (pool *TxPool) AddPriorityAddress(addr common.Address) {
+	log.Info("Adding new priority address", "address", addr)
+	pool.priority.add(addr)
+}
+
+func (pool *TxPool) GetPriorityAddresses() []common.Address {
+	return pool.priority.flatten()
 }
 
 // Stop terminates the transaction pool.
@@ -680,6 +695,16 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		invalidTxMeter.Mark(1)
 		return false, err
 	}
+
+	// Check if sender is priority account
+	from, _ := types.Sender(pool.signer, tx)
+	if err != nil {
+		return false, ErrInvalidSender
+	}
+	if pool.priority.contains(from) {
+		local = true
+	}
+
 	// If the transaction pool is full, discard underpriced transactions
 	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
@@ -697,7 +722,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		}
 	}
 	// Try to replace an existing transaction in the pending pool
-	from, _ := types.Sender(pool.signer, tx) // already validated
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
 		// Nonce already pending, check if required price bump is met
 		inserted, old := list.Add(tx, pool.config.PriceBump)

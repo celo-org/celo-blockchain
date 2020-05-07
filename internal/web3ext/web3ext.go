@@ -648,12 +648,22 @@ web3._extend({
 const TxpoolJs = `
 web3._extend({
 	property: 'txpool',
-	methods: [],
+	methods: [
+		new web3._extend.Method({
+			name: 'addPriorityAddress',
+			call: 'txpool_addPriorityAddress',
+			params: 1
+		}),
+	],
 	properties:
 	[
 		new web3._extend.Property({
 			name: 'content',
 			getter: 'txpool_content'
+		}),
+		new web3._extend.Property({
+			name: 'priorityAddresses',
+			getter: 'txpool_priorityAddresses'
 		}),
 		new web3._extend.Property({
 			name: 'inspect',

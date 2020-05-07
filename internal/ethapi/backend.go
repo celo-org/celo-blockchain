@@ -75,6 +75,8 @@ type Backend interface {
 	Stats() (pending int, queued int)
 	TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
 	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
+	PriorityAddresses() []common.Address
+	AddPriorityAddress(addr common.Address)
 
 	// Filter API
 	BloomStatus() (uint64, uint64)
@@ -113,6 +115,10 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Version:   "1.0",
 			Service:   NewPublicTxPoolAPI(apiBackend),
 			Public:    true,
+		}, {
+			Namespace: "txpool",
+			Version:   "1.0",
+			Service:   NewPrivateTxPoolAPI(apiBackend),
 		}, {
 			Namespace: "debug",
 			Version:   "1.0",

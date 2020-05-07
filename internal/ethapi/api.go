@@ -102,6 +102,10 @@ func NewPublicTxPoolAPI(b Backend) *PublicTxPoolAPI {
 	return &PublicTxPoolAPI{b}
 }
 
+func (s *PublicTxPoolAPI) PriorityAddresses() []common.Address {
+	return s.b.PriorityAddresses()
+}
+
 // Content returns the transactions contained within the transaction pool.
 func (s *PublicTxPoolAPI) Content() map[string]map[string]map[string]*RPCTransaction {
 	content := map[string]map[string]map[string]*RPCTransaction{
@@ -171,6 +175,19 @@ func (s *PublicTxPoolAPI) Inspect() map[string]map[string]map[string]string {
 		content["queued"][account.Hex()] = dump
 	}
 	return content
+}
+
+// PrivateTxPoolAPI offers an API for the transaction pool
+type PrivateTxPoolAPI struct {
+	b Backend
+}
+
+func NewPrivateTxPoolAPI(b Backend) *PrivateTxPoolAPI {
+	return &PrivateTxPoolAPI{b}
+}
+
+func (s *PrivateTxPoolAPI) AddPriorityAddress(addr common.Address) {
+	s.b.AddPriorityAddress(addr)
 }
 
 // PublicAccountAPI provides an API to access accounts managed by this node.

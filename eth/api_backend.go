@@ -250,6 +250,14 @@ func (b *EthAPIBackend) Stats() (pending int, queued int) {
 	return b.eth.txPool.Stats()
 }
 
+func (b *EthAPIBackend) PriorityAddresses() []common.Address {
+	return b.eth.txPool.GetPriorityAddresses()
+}
+
+func (b *EthAPIBackend) AddPriorityAddress(addr common.Address) {
+	b.eth.txPool.AddPriorityAddress(addr)
+}
+
 func (b *EthAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	return b.eth.TxPool().Content()
 }
