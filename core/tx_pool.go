@@ -702,6 +702,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		return false, ErrInvalidSender
 	}
 	if pool.priority.contains(from) {
+		log.Info("Adding priority transaction", "address", from)
 		local = true
 	}
 
