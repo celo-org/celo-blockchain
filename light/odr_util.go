@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -59,13 +60,19 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 			}
 		}
 	}
-	if number >= chtCount*odr.IndexerConfig().ChtSize {
-		return nil, errNoTrustedCht
-	}
-	r := &ChtRequest{ChtRoot: GetChtRoot(db, chtCount-1, sectionHead), ChtNum: chtCount - 1, BlockNum: number, Config: odr.IndexerConfig()}
+	// TODO(lucas): How to check for `lightest` mode here - `ChtIndexer == nil` seems insufficient
+	// if number >= chtCount*odr.IndexerConfig().ChtSize {
+	// 	return nil, errNoTrustedCht
+	// }
+	r := &HeaderRequest{Number: number}
 	if err := odr.Retrieve(ctx, r); err != nil {
+		log.Error("Error after retrieve", "Err", err)
 		return nil, err
 	}
+	// r := &ChtRequest{ChtRoot: GetChtRoot(db, chtCount-1, sectionHead), ChtNum: chtCount - 1, BlockNum: number, Config: odr.IndexerConfig()}
+	// if err := odr.Retrieve(ctx, r); err != nil {
+	// 	return nil, err
+	// }
 	return r.Header, nil
 }
 

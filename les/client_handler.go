@@ -232,9 +232,21 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
-		} else {
-			if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
-				log.Debug("Failed to deliver headers", "err", err)
+		} else { // TODO(lucas): this is likely imperfect
+			if len(resp.Headers) > 1 || resp.Headers[0].Number.Cmp(h.fetcher.chain.CurrentHeader().Number) >= 0 {
+				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
+					log.Error("Failed to deliver headers", "err", err)
+				}
+			} else {
+				if i, err := h.fetcher.chain.HeaderChain().ValidateHeaderChain(resp.Headers, 1, true); err != nil {
+					p.Log().Error("Failed to validate the header chain at %d due to \"%v\"", i, err)
+					return err
+				}
+				deliverMsg = &Msg{
+					MsgType: MsgBlockHeaders,
+					ReqID:   resp.ReqID,
+					Obj:     resp.Headers,
+				}
 			}
 		}
 	case BlockBodiesMsg:

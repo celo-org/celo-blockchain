@@ -55,6 +55,8 @@ func LesRequest(req light.OdrRequest) LesOdrRequest {
 	switch r := req.(type) {
 	case *light.BlockRequest:
 		return (*BlockRequest)(r)
+	case *light.HeaderRequest:
+		return (*HeaderRequest)(r)
 	case *light.ReceiptsRequest:
 		return (*ReceiptsRequest)(r)
 	case *light.TrieRequest:
@@ -122,6 +124,38 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 		return err
 	}
 	r.Rlp = data
+	return nil
+}
+
+//TODO(lucas): Comments
+type HeaderRequest light.HeaderRequest
+
+func (r *HeaderRequest) GetCost(peer *peer) uint64 {
+	return peer.GetRequestCost(GetBlockHeadersMsg, 1)
+}
+
+func (r *HeaderRequest) CanSend(peer *peer) bool {
+	peer.lock.RLock()
+	defer peer.lock.RUnlock()
+	// TODO(lucas): Is there a better way?
+	return peer.headInfo.Number >= r.Number
+}
+
+func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
+	peer.Log().Debug("Requesting block header", "number", r.Number, "Getcost", r.GetCost(peer))
+	return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), r.Number, 1, 0, false)
+}
+
+func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
+	if msg.MsgType != MsgBlockHeaders {
+		log.Error("Bad message response", "type", msg.MsgType)
+		return errInvalidMessageType
+	}
+	headers := msg.Obj.([]*types.Header)
+	if len(headers) != 1 {
+		return errInvalidEntryCount
+	}
+	r.Header = headers[0]
 	return nil
 }
 
