@@ -38,6 +38,10 @@ var (
 
 	// errNoConnectedProxy is returned when there is no connected proxy
 	errNoConnectedProxy = errors.New("no connected proxy")
+
+	// errNonValidatorMessage is returned when `handleConsensusMsg` receives
+	// a message with a signature from a non validator
+	errNonValidatorMessage = errors.New("proxy received consensus message of a non validator")
 )
 
 type Proxy interface {

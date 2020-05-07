@@ -851,3 +851,11 @@ func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
 func (sb *Backend) RemoveProxy(node *enode.Node) {
      sb.proxyHandler.RemoveProxy(node)
 }
+
+// VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible
+// for the current pending block (the next block right after the head block).
+func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+	block := sb.currentBlock()
+	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
+	return istanbul.CheckValidatorSignature(valSet, data, sig)     
+}

@@ -126,4 +126,8 @@ type Backend interface {
 
 	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
 	UpdateAnnounceVersion()
+
+	// VerifyPendingBlockValidatorSignature is a validation function to verify that a message's sender is within the validator set
+	// of the current pending block
+	VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error)
 }

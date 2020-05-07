@@ -35,9 +35,6 @@ import (
 var (
 	// errDecodeFailed is returned when decode message fails
 	errDecodeFailed = errors.New("fail to decode istanbul message")
-	// errNonValidatorMessage is returned when `handleConsensusMsg` receives
-	// a message with a signature from a non validator
-	errNonValidatorMessage = errors.New("proxy received consensus message of a non validator")
 )
 
 // If you want to add a code, you need to increment the Lengths Array size!
@@ -103,32 +100,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 // Handle an incoming consensus msg
 func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error {
-	if sb.config.Proxy {
-		// Verify that this message is not from the proxied peer
-		if reflect.DeepEqual(peer, sb.proxiedPeer) {
-			sb.logger.Warn("Got a consensus message from the proxied validator. Ignoring it", "from", peer.Node().ID())
-			return nil
-		}
-
-		msg := new(istanbul.Message)
-
-		// Verify that this message is created by a legitimate validator before forwarding.
-		checkValidatorSignature := func(data []byte, sig []byte) (common.Address, error) {
-			block := sb.currentBlock()
-			valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-			return istanbul.CheckValidatorSignature(valSet, data, sig)
-		}
-		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
-			sb.logger.Error("Got a consensus message signed by a non validator.", "err", err)
-			return errNonValidatorMessage
-		}
-
-		// Need to forward the message to the proxied validator
-		sb.logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
-		if sb.proxiedPeer != nil {
-			go sb.proxiedPeer.Send(istanbul.ConsensusMsg, payload)
-		}
-	} else { // The case when this node is a validator
+	if sb.IsProxy() {
+	        handled, err := sb.proxyHandler.HandleMsg(peer, istanbul.ConsensusMsg, payload)
+		return err
+	} else { // The case when this node is a validator (either standalone or proxied)
 		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 			Payload: payload,
 		})
