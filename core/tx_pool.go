@@ -34,6 +34,7 @@ import (
 	ccerrors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/freezer"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/contract_comm/sorted_oracles"
 	"github.com/ethereum/go-ethereum/contract_comm/transfer_whitelist"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -268,8 +269,9 @@ type TxPool struct {
 	pending map[common.Address]*txList   // All currently processable transactions
 	queue   map[common.Address]*txList   // Queued but non-processable transactions
 	beats   map[common.Address]time.Time // Last heartbeat from each known account
-	all     *txLookup                    // All transactions to allow lookups
-	priced  *txPricedList                // All transactions sorted by price.  One heap per fee currency.
+	all       *txLookup                    // All transactions to allow lookups
+	important *txLookup                    // Lookup if transaction is local or important
+	priced    *txPricedList                // All transactions sorted by price.  One heap per fee currency.
 
 	chainHeadCh     chan ChainHeadEvent
 	chainHeadSub    event.Subscription
@@ -642,7 +644,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
-	local = local || pool.locals.contains(from) || pool.priority.contains(from) // account may be local even if the transaction arrived from the network
+	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
 	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
 		return ErrUnderpriced
 	}
@@ -729,9 +731,14 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	if err != nil {
 		return false, ErrInvalidSender
 	}
-	if pool.priority.contains(from) {
+	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to",  tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
+	if /* pool.priority.contains(from) && */ sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
 		log.Info("Adding priority transaction", "address", from)
-		local = true
+		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
+		log.Info("Found token", "token", token)
+		if sorted_oracles.IsOracle(token, &from, nil, nil) {
+			local = true
+		}
 	}
 
 	// If the transaction pool is full, discard underpriced transactions

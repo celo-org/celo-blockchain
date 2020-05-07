@@ -211,6 +211,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
+	if config.TxPool.PriorityJournal != "" {
+		config.TxPool.PriorityJournal = ctx.ResolvePath(config.TxPool.PriorityJournal)
+	}
+
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
 	contract_comm.SetInternalEVMHandler(eth.blockchain)
