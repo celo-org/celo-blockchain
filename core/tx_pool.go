@@ -171,6 +171,7 @@ type TxPoolConfig struct {
 	Locals    []common.Address // Addresses that should be treated by default as local
 	NoLocals  bool             // Whether local transaction handling should be disabled
 	Journal   string           // Journal of local transactions to survive node restarts
+	PriorityJournal   string
 	Rejournal time.Duration    // Time interval to regenerate the local transaction journal
 
 	PriceLimit uint64 // Minimum gas price to enforce for acceptance into the pool
@@ -187,8 +188,9 @@ type TxPoolConfig struct {
 // DefaultTxPoolConfig contains the default configurations for the transaction
 // pool.
 var DefaultTxPoolConfig = TxPoolConfig{
-	Journal:   "transactions.rlp",
-	Rejournal: time.Hour,
+	Journal:   		 "transactions.rlp",
+	PriorityJournal: "priority.rlp",
+	Rejournal: 		 time.Hour,
 
 	PriceLimit: 0,
 	PriceBump:  10,
@@ -316,6 +318,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	for _, addr := range params.PriorityAddresses {
 		log.Info("Setting new priority address", "address", addr)
 		pool.priority.add(addr)
+		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all)
 
@@ -327,12 +330,18 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 
 	// If local transactions and journaling is enabled, load from disk
 	if !config.NoLocals && config.Journal != "" {
-		pool.journal = newTxJournal(config.Journal)
+		pool.journal = newTxJournal(config.Journal, config.PriorityJournal)
 
 		if err := pool.journal.load(pool.AddLocals); err != nil {
 			log.Warn("Failed to load transaction journal", "err", err)
 		}
+		if err := pool.journal.loadPriority(pool.addPriorityAddress); err != nil {
+			log.Warn("Failed to load priority addresses", "err", err)
+		}
 		if err := pool.journal.rotate(pool.local()); err != nil {
+			log.Warn("Failed to rotate transaction journal", "err", err)
+		}
+		if err := pool.journal.savePriority(pool.priority.flatten()); err != nil {
 			log.Warn("Failed to rotate transaction journal", "err", err)
 		}
 	}
@@ -395,7 +404,7 @@ func (pool *TxPool) loop() {
 			pool.mu.Lock()
 			for addr := range pool.queue {
 				// Skip local transactions from the eviction mechanism
-				if pool.locals.contains(addr) {
+				if pool.locals.contains(addr) || pool.priority.contains(addr) {
 					continue
 				}
 				// Any non-locals old enough should be removed
@@ -421,11 +430,30 @@ func (pool *TxPool) loop() {
 }
 
 func (pool *TxPool) AddPriorityAddress(addr common.Address) {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
 	log.Info("Adding new priority address", "address", addr)
 	pool.priority.add(addr)
+	pool.locals.add(addr)
+	if err := pool.journal.savePriority(pool.priority.flatten()); err != nil {
+		log.Warn("Failed to save priority addresses", "err", err)
+	}
+}
+
+func (pool *TxPool) addPriorityAddress(addr common.Address) {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
+	log.Info("Adding new priority address", "address", addr)
+	pool.priority.add(addr)
+	pool.locals.add(addr)
 }
 
 func (pool *TxPool) GetPriorityAddresses() []common.Address {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
 	return pool.priority.flatten()
 }
 
@@ -614,7 +642,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
-	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
+	local = local || pool.locals.contains(from) || pool.priority.contains(from) // account may be local even if the transaction arrived from the network
 	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
 		return ErrUnderpriced
 	}
@@ -799,7 +827,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 // deemed to have been sent from a local account.
 func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 	// Only journal if it's enabled and the transaction is local
-	if pool.journal == nil || !pool.locals.contains(from) {
+	if pool.journal == nil || !pool.locals.contains(from) || !pool.priority.contains(from) {
 		return
 	}
 	if err := pool.journal.insert(tx); err != nil {

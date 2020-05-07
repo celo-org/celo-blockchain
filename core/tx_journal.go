@@ -43,14 +43,16 @@ func (*devNull) Close() error                      { return nil }
 // txJournal is a rotating log of transactions with the aim of storing locally
 // created transactions to allow non-executed ones to survive node restarts.
 type txJournal struct {
-	path   string         // Filesystem path to store the transactions at
-	writer io.WriteCloser // Output stream to write new transactions into
+	path   		   string         // Filesystem path to store the transactions at
+	priorityPath   string         // Filesystem path to store the priority addresses at
+	writer 	       io.WriteCloser // Output stream to write new transactions into
 }
 
 // newTxJournal creates a new transaction journal to
-func newTxJournal(path string) *txJournal {
+func newTxJournal(path string, priorityPath string) *txJournal {
 	return &txJournal{
-		path: path,
+		path: 		  path,
+		priorityPath: priorityPath,
 	}
 }
 
@@ -116,6 +118,41 @@ func (journal *txJournal) load(add func([]*types.Transaction) []error) error {
 	return failure
 }
 
+func (journal *txJournal) loadPriority(addPriority func(common.Address)) error {
+	// Skip the parsing if the journal file doesn't exist at all
+	if _, err := os.Stat(journal.priorityPath); os.IsNotExist(err) {
+		return nil
+	}
+	// Open the journal for loading any past transactions
+	input, err := os.Open(journal.priorityPath)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	// Inject all addresses from the journal into the pool
+	stream := rlp.NewStream(input, 0)
+	total := 0
+
+	var failure error
+	for {
+		// Parse the next transaction and terminate on error
+		addr := new(common.Address)
+		if err = stream.Decode(addr); err != nil {
+			if err != io.EOF {
+				failure = err
+			}
+			break
+		}
+		addPriority(*addr)
+		// New transaction parsed, queue up for later, import if threshold is reached
+		total++
+	}
+	log.Info("Loaded priority addresses", "addresses", total)
+
+	return failure
+}
+
 // insert adds the specified transaction to the local disk journal.
 func (journal *txJournal) insert(tx *types.Transaction) error {
 	if journal.writer == nil {
@@ -164,6 +201,28 @@ func (journal *txJournal) rotate(all map[common.Address]types.Transactions) erro
 	}
 	journal.writer = sink
 	log.Info("Regenerated local transaction journal", "transactions", journaled, "accounts", len(all))
+
+	return nil
+}
+
+func (journal *txJournal) savePriority(priority []common.Address) error {
+	replacement, err := os.OpenFile(journal.priorityPath+".new", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	for _, addr := range priority {
+			if err = rlp.Encode(replacement, addr); err != nil {
+				replacement.Close()
+				return err
+			}
+	}
+	replacement.Close()
+
+	// Replace the live journal with the newly generated one
+	if err = os.Rename(journal.priorityPath+".new", journal.priorityPath); err != nil {
+		return err
+	}
+	log.Info("Saved priority addresses", "addresses", len(priority))
 
 	return nil
 }
