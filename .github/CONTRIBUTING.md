@@ -10,11 +10,4 @@ If you wish to submit more complex changes, please sync with a core developer fi
 This will help ensure those changes are in line with the general philosophy of the project
 and enable you to get some early feedback.
 
-## Pull requests
-
-Please follow the issue and PR templates and include details about how the changeset has been tested.
-
-## Configuration, dependencies, and tests
-
-Please see the [Developers' Guide](TODO) for more details on configuring your environment,
-managing project dependencies and testing procedures.
+See the [contributing guide](https://docs.celo.org/community/contributing) for details on how to participate.
