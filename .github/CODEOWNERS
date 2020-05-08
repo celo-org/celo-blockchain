@@ -5,7 +5,7 @@
 * @asaj @timmoreton
 
 /accounts/ @kobigurk
-/cmd/ @kevjue
+/cmd/ @kevjue @mcortesi
 /consensus/ @kevjue @mcortesi
 /consensus/istanbul/backend/ @tkporter
 /contract_comm/ @kevjue
@@ -15,7 +15,7 @@
 /ethstats/ @diminator
 /les/ @kevjue
 /light/ @kevjue
-/logging/ @timmoreton
+/logging/ @timmoreton @mcortesi
 /metrics/ @timmoreton
 /miner/ @kevjue
 /node/ @kevjue
