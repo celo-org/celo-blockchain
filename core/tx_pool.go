@@ -594,6 +594,33 @@ func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
 	return pending, nil
 }
 
+func (pool *TxPool) SortedPending() (map[common.Address]types.Transactions, map[common.Address]types.Transactions, error) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	pending := make(map[common.Address]types.Transactions)
+	priority := make(map[common.Address]types.Transactions)
+	for addr, list := range pool.pending {
+		locals := make([]*types.Transaction, 0)
+		normal := make([]*types.Transaction, 0)
+		for _, elem := range list.Flatten() {
+			if pool.locals.contains(addr) || pool.all.Important(elem.Hash()) {
+				locals = append(locals, elem)
+			} else {
+				normal = append(normal, elem)
+			}
+		}
+		if len(normal) > 0 {
+			pending[addr] = normal
+		}
+		if len(locals) > 0 {
+			priority[addr] = locals
+		}
+	}
+	log.Info("Got stuff", "pending", pending, "priority", priority)
+	return pending, priority, nil
+}
+
 // Locals retrieves the accounts currently considered local by the pool.
 func (pool *TxPool) Locals() []common.Address {
 	pool.mu.Lock()
@@ -783,6 +810,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
+		log.Info("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
 		return old != nil, nil
 	}
 	// New transaction isn't replacing a pending one, push into queue
@@ -803,6 +831,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	pool.journalTx(from, tx)
 
 	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
+	log.Info("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
 	return replaced, nil
 }
 

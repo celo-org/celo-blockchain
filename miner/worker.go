@@ -910,7 +910,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
+	remoteTxs, localTxs, err := w.eth.TxPool().SortedPending()
 
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
@@ -919,17 +919,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	// Short circuit if there is no available pending transactions
-	if len(pending) == 0 {
+	if len(remoteTxs)+len(localTxs) == 0 {
 		istanbulEmptyBlockCommit()
 		return
-	}
-	// Split the pending transactions into locals and remotes
-	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
-	for _, account := range w.eth.TxPool().Locals() {
-		if txs := remoteTxs[account]; len(txs) > 0 {
-			delete(remoteTxs, account)
-			localTxs[account] = txs
-		}
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
