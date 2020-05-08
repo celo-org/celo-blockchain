@@ -343,7 +343,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 			log.Warn("Failed to rotate transaction journal", "err", err)
 		}
 		if err := pool.journal.savePriority(pool.priority.flatten()); err != nil {
-			log.Warn("Failed to rotate transaction journal", "err", err)
+			log.Warn("Failed to save priority addresses", "err", err)
 		}
 	}
 
