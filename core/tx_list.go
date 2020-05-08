@@ -479,7 +479,7 @@ func (l *txPricedList) Removed(count int) {
 
 // Cap finds all the transactions below the given celo gold price threshold, drops them
 // from the priced list and returns them for further removal from the entire pool.
-func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transactions {
+func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet, all *txLookup) types.Transactions {
 	drop := make(types.Transactions, 0, 128) // Remote underpriced transactions to drop
 	save := make(types.Transactions, 0, 64)  // Local underpriced transactions to keep
 
@@ -497,7 +497,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 		}
 
 		// Non stale transaction found, discard unless local
-		if local.containsTx(tx) {
+		if local.containsTx(tx) || all.Important(tx.Hash()) {
 			save = append(save, tx)
 		} else {
 			drop = append(drop, tx)
@@ -511,9 +511,9 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 
 // Underpriced checks whether a transaction is cheaper than (or as cheap as) the
 // lowest priced transaction currently being tracked.
-func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) bool {
+func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet, all *txLookup) bool {
 	// Local transactions cannot be underpriced
-	if local.containsTx(tx) {
+	if local.containsTx(tx) || all.Important(tx.Hash()) {
 		return false
 	}
 	// Discard stale price points if found at the heap start
@@ -538,19 +538,20 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 
 // Discard finds a number of most underpriced transactions, removes them from the
 // priced list and returns them for further removal from the entire pool.
-func (l *txPricedList) Discard(count int, local *accountSet) types.Transactions {
+func (l *txPricedList) Discard(count int, local *accountSet, all *txLookup) types.Transactions {
 	drop := make(types.Transactions, 0, count) // Remote underpriced transactions to drop
 	save := make(types.Transactions, 0, 64)    // Local underpriced transactions to keep
 
 	for l.Len() > 0 && count > 0 {
 		// Discard stale transactions if found during cleanup
 		tx := l.pop()
-		if l.all.Get(tx.Hash()) == nil {
+		hash := tx.Hash()
+		if l.all.Get(hash) == nil {
 			l.stales--
 			continue
 		}
 		// Non stale transaction found, discard unless local
-		if local.containsTx(tx) {
+		if local.containsTx(tx) || all.Important(hash) {
 			save = append(save, tx)
 		} else {
 			drop = append(drop, tx)

@@ -102,7 +102,6 @@ func GetAddress() *common.Address {
 
 func IsOracle(token *common.Address, addr *common.Address, header *types.Header, state vm.StateDB) bool {
 	var isOracle = reflect.New(reflect.TypeOf(true))
-	log.Info("testing", "token", token, "addr", addr)
 	_, err := contract_comm.MakeStaticCall(
 		params.SortedOraclesRegistryId,
 		sortedOraclesABI,
@@ -114,20 +113,18 @@ func IsOracle(token *common.Address, addr *common.Address, header *types.Header,
 		state,
 	)
 	if err != nil {
-		log.Warn("Cannot determine if is an oracle", "err", err)
+		log.Warn("Cannot determine if address is an oracle", "err", err)
 		return false
 	}
-	log.Info("What is it???", "iface", isOracle.Elem().Bool())
 	return isOracle.Elem().Bool()
 }
 
 func GetTokenFromTxData(data []byte) (*common.Address, error) {
 	method, err := sortedOraclesABI.MethodById(data)
 	if err != nil {
-		log.Warn("Wrong method", "err", err)
+		log.Debug("Unknown method", "err", err)
 		return nil, err
 	}
-	log.Info("got method", "name", method.Name)
 	if method.Name == "report" {
 		type ReportArgs struct {
 			Token common.Address
@@ -138,7 +135,7 @@ func GetTokenFromTxData(data []byte) (*common.Address, error) {
 		var res ReportArgs
 		err = method.Inputs.Unpack(&res, data[4:])
 		if err != nil {
-			log.Warn("Bad data", "err", err)
+			log.Warn("Bad data", "method", method.Name, "err", err)
 			return nil, err
 		}
 		return &res.Token, nil
@@ -151,10 +148,9 @@ func GetTokenFromTxData(data []byte) (*common.Address, error) {
 		var res RemoveArgs
 		err = method.Inputs.Unpack(&res, data[4:])
 		if err != nil {
-			log.Warn("Bad data", "err", err)
+			log.Warn("Bad data", "method", method.Name, "err", err)
 			return nil, err
 		}
-		log.Info("Got answer", "res", res)
 		return &res.Token, nil
 	}
 	return nil, nil

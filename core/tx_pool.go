@@ -270,7 +270,6 @@ type TxPool struct {
 	queue   map[common.Address]*txList   // Queued but non-processable transactions
 	beats   map[common.Address]time.Time // Last heartbeat from each known account
 	all       *txLookup                    // All transactions to allow lookups
-	important *txLookup                    // Lookup if transaction is local or important
 	priced    *txPricedList                // All transactions sorted by price.  One heap per fee currency.
 
 	chainHeadCh     chan ChainHeadEvent
@@ -406,13 +405,17 @@ func (pool *TxPool) loop() {
 			pool.mu.Lock()
 			for addr := range pool.queue {
 				// Skip local transactions from the eviction mechanism
-				if pool.locals.contains(addr) || pool.priority.contains(addr) {
+				if pool.locals.contains(addr) {
 					continue
 				}
 				// Any non-locals old enough should be removed
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					for _, tx := range pool.queue[addr].Flatten() {
-						pool.removeTx(tx.Hash(), true)
+						hash := tx.Hash()
+						if pool.all.Important(hash) {
+							continue
+						}
+						pool.removeTx(hash, true)
 					}
 				}
 			}
@@ -495,7 +498,7 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 	defer pool.mu.Unlock()
 
 	pool.gasPrice = price
-	for _, tx := range pool.priced.Cap(price, pool.locals) {
+	for _, tx := range pool.priced.Cap(price, pool.locals, pool.all) {
 		pool.removeTx(tx.Hash(), false)
 	}
 	log.Info("Transaction pool price threshold updated", "price", price)
@@ -638,6 +641,17 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
+	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to",  tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
+	if sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
+		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
+		log.Info("Adding priority transaction", "address", from)
+		if sorted_oracles.IsOracle(token, &from, nil, nil) {
+			log.Info("Adding priority transaction", "address", from, "tx", tx.Hash())
+			pool.all.SetImportant(tx)
+			local = true
+		}
+	}
+
 	// Ensure the fee currency is native or whitelisted.
 	if tx.FeeCurrency() != nil && !currency.IsWhitelisted(*tx.FeeCurrency(), nil, nil) {
 		return ErrNonWhitelistedFeeCurrency
@@ -726,31 +740,24 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		return false, err
 	}
 
+	priority := local || pool.all.Important(hash)
+
 	// Check if sender is priority account
 	from, _ := types.Sender(pool.signer, tx)
 	if err != nil {
 		return false, ErrInvalidSender
 	}
-	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to",  tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
-	if /* pool.priority.contains(from) && */ sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
-		log.Info("Adding priority transaction", "address", from)
-		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
-		log.Info("Found token", "token", token)
-		if sorted_oracles.IsOracle(token, &from, nil, nil) {
-			local = true
-		}
-	}
 
 	// If the transaction pool is full, discard underpriced transactions
 	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
-		if !local && pool.priced.Underpriced(tx, pool.locals) {
+		if !priority && pool.priced.Underpriced(tx, pool.locals, pool.all) {
 			log.Debug("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
 			underpricedTxMeter.Mark(1)
 			return false, ErrUnderpriced
 		}
 		// New transaction is better than our worse ones, make room for it
-		drop := pool.priced.Discard(pool.all.Count()-int(pool.config.GlobalSlots+pool.config.GlobalQueue-1), pool.locals)
+		drop := pool.priced.Discard(pool.all.Count()-int(pool.config.GlobalSlots+pool.config.GlobalQueue-1), pool.locals, pool.all)
 		for _, tx := range drop {
 			log.Debug("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
 			underpricedTxMeter.Mark(1)
@@ -834,7 +841,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 // deemed to have been sent from a local account.
 func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 	// Only journal if it's enabled and the transaction is local
-	if pool.journal == nil || !pool.locals.contains(from) || !pool.priority.contains(from) {
+	if pool.journal == nil || (!pool.locals.contains(from) && !pool.all.Important(tx.Hash())) {
 		return
 	}
 	if err := pool.journal.insert(tx); err != nil {
@@ -1362,12 +1369,17 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		var caps types.Transactions
 		if !pool.locals.contains(addr) {
 			caps = list.Cap(int(pool.config.AccountQueue))
+			var dropped int64 = 0
 			for _, tx := range caps {
 				hash := tx.Hash()
+				if pool.all.Important(hash) {
+					continue
+				}
+				dropped++
 				pool.all.Remove(hash)
 				log.Trace("Removed cap-exceeding queued transaction", "hash", hash)
 			}
-			queuedRateLimitMeter.Mark(int64(len(caps)))
+			queuedRateLimitMeter.Mark(dropped)
 		}
 		// Mark all the items dropped as removed
 		pool.priced.Removed(len(forwards) + len(drops) + len(caps))
@@ -1498,17 +1510,27 @@ func (pool *TxPool) truncateQueue() {
 
 		// Drop all transactions if they are less than the overflow
 		if size := uint64(list.Len()); size <= drop {
+			var dropped uint64 = 0
 			for _, tx := range list.Flatten() {
-				pool.removeTx(tx.Hash(), true)
+				hash := tx.Hash()
+				if pool.all.Important(hash) {
+					continue
+				}
+				dropped++
+				pool.removeTx(hash, true)
 			}
-			drop -= size
-			queuedRateLimitMeter.Mark(int64(size))
+			drop -= dropped
+			queuedRateLimitMeter.Mark(int64(dropped))
 			continue
 		}
 		// Otherwise drop only last few transactions
 		txs := list.Flatten()
 		for i := len(txs) - 1; i >= 0 && drop > 0; i-- {
-			pool.removeTx(txs[i].Hash(), true)
+			hash := txs[i].Hash()
+			if pool.all.Important(hash) {
+				continue
+			}
+			pool.removeTx(hash, true)
 			drop--
 			queuedRateLimitMeter.Mark(1)
 		}
@@ -1690,6 +1712,7 @@ func (as *accountSet) merge(other *accountSet) {
 // TxPool.mu mutex.
 type txLookup struct {
 	all                       map[common.Hash]*types.Transaction
+	priority                  map[common.Hash]bool
 	nonNilCurrencyTxCurrCount map[common.Address]uint64
 	nilCurrencyTxCurrCount    uint64
 	lock                      sync.RWMutex
@@ -1700,6 +1723,7 @@ func newTxLookup() *txLookup {
 	return &txLookup{
 		all:                       make(map[common.Hash]*types.Transaction),
 		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
+		priority: 				   make(map[common.Hash]bool),
 	}
 }
 
@@ -1723,6 +1747,14 @@ func (t *txLookup) Get(hash common.Hash) *types.Transaction {
 	return t.all[hash]
 }
 
+// Get returns true if a transaction exists in the lookup, or false if not found.
+func (t *txLookup) Important(hash common.Hash) bool {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+
+	return t.priority[hash]
+}
+
 // Count returns the current number of items in the lookup.
 func (t *txLookup) Count() int {
 	t.lock.RLock()
@@ -1744,6 +1776,13 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	t.all[tx.Hash()] = tx
 }
 
+func (t *txLookup) SetImportant(tx *types.Transaction) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	t.priority[tx.Hash()] = true
+}
+
 // Remove removes a transaction from the lookup.
 func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
@@ -1754,6 +1793,6 @@ func (t *txLookup) Remove(hash common.Hash) {
 	} else {
 		t.nonNilCurrencyTxCurrCount[*t.all[hash].FeeCurrency()]--
 	}
-
 	delete(t.all, hash)
+	delete(t.priority, hash)
 }
