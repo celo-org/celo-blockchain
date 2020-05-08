@@ -617,7 +617,6 @@ func (pool *TxPool) SortedPending() (map[common.Address]types.Transactions, map[
 			priority[addr] = locals
 		}
 	}
-	log.Info("Got stuff", "pending", pending, "priority", priority)
 	return pending, priority, nil
 }
 
@@ -668,10 +667,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to", tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
 	if sorted_oracles.GetAddress() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
 		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
-		log.Info("Adding priority transaction", "address", from)
 		if sorted_oracles.IsOracle(token, &from, nil, nil) {
 			log.Info("Adding priority transaction", "address", from, "tx", tx.Hash())
 			pool.all.SetImportant(tx)
@@ -810,7 +807,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
-		log.Info("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
 		return old != nil, nil
 	}
 	// New transaction isn't replacing a pending one, push into queue
@@ -831,7 +827,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	pool.journalTx(from, tx)
 
 	log.Trace("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
-	log.Info("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
 	return replaced, nil
 }
 
