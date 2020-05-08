@@ -269,8 +269,8 @@ type TxPool struct {
 	pending map[common.Address]*txList   // All currently processable transactions
 	queue   map[common.Address]*txList   // Queued but non-processable transactions
 	beats   map[common.Address]time.Time // Last heartbeat from each known account
-	all       *txLookup                    // All transactions to allow lookups
-	priced    *txPricedList                // All transactions sorted by price.  One heap per fee currency.
+	all     *txLookup                    // All transactions to allow lookups
+	priced  *txPricedList                // All transactions sorted by price.  One heap per fee currency.
 
 	chainHeadCh     chan ChainHeadEvent
 	chainHeadSub    event.Subscription
@@ -641,8 +641,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to",  tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
-	if sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
+	log.Warn("Processing", "addr", sorted_oracles.GetAddress(), "to", tx.To(), "eq", sorted_oracles.GetAddress() == tx.To())
+	if sorted_oracles.GetAddress() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
 		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
 		log.Info("Adding priority transaction", "address", from)
 		if sorted_oracles.IsOracle(token, &from, nil, nil) {
@@ -1723,7 +1723,7 @@ func newTxLookup() *txLookup {
 	return &txLookup{
 		all:                       make(map[common.Hash]*types.Transaction),
 		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
-		priority: 				   make(map[common.Hash]bool),
+		priority:                  make(map[common.Hash]bool),
 	}
 }
 

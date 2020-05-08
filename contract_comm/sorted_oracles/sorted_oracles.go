@@ -87,7 +87,7 @@ const sortedOraclesJSON = `[
 ]`
 
 var (
-	sortedOraclesABI, _   = abi.JSON(strings.NewReader(sortedOraclesJSON))
+	sortedOraclesABI, _ = abi.JSON(strings.NewReader(sortedOraclesJSON))
 )
 
 func GetAddress() *common.Address {
@@ -127,9 +127,9 @@ func GetTokenFromTxData(data []byte) (*common.Address, error) {
 	}
 	if method.Name == "report" {
 		type ReportArgs struct {
-			Token common.Address
-			Value *big.Int
-			LesserKey common.Address
+			Token      common.Address
+			Value      *big.Int
+			LesserKey  common.Address
 			GreaterKey common.Address
 		}
 		var res ReportArgs
@@ -143,7 +143,7 @@ func GetTokenFromTxData(data []byte) (*common.Address, error) {
 	if method.Name == "removeExpiredReports" {
 		type RemoveArgs struct {
 			Token common.Address
-			N *big.Int
+			N     *big.Int
 		}
 		var res RemoveArgs
 		err = method.Inputs.Unpack(&res, data[4:])
@@ -155,4 +155,3 @@ func GetTokenFromTxData(data []byte) (*common.Address, error) {
 	}
 	return nil, nil
 }
-
