@@ -33,15 +33,16 @@ import (
 )
 
 var (
-	errInvalidMessageType  = errors.New("invalid message type")
-	errInvalidEntryCount   = errors.New("invalid number of response entries")
-	errHeaderUnavailable   = errors.New("header unavailable")
-	errTxHashMismatch      = errors.New("transaction hash mismatch")
-	errReceiptHashMismatch = errors.New("receipt hash mismatch")
-	errDataHashMismatch    = errors.New("data hash mismatch")
-	errCHTHashMismatch     = errors.New("cht hash mismatch")
-	errCHTNumberMismatch   = errors.New("cht number mismatch")
-	errUselessNodes        = errors.New("useless nodes in merkle proof nodeset")
+	errInvalidMessageType      = errors.New("invalid message type")
+	errInvalidEntryCount       = errors.New("invalid number of response entries")
+	errHeaderUnavailable       = errors.New("header unavailable")
+	errTxHashMismatch          = errors.New("transaction hash mismatch")
+	errReceiptHashMismatch     = errors.New("receipt hash mismatch")
+	errDataHashMismatch        = errors.New("data hash mismatch")
+	errCHTHashMismatch         = errors.New("cht hash mismatch")
+	errCHTNumberMismatch       = errors.New("cht number mismatch")
+	errUselessNodes            = errors.New("useless nodes in merkle proof nodeset")
+	errRequestResponseMismatch = errors.New("header and request mismatch")
 )
 
 type LesOdrRequest interface {
@@ -135,15 +136,17 @@ func (r *HeaderRequest) GetCost(peer *peer) uint64 {
 }
 
 func (r *HeaderRequest) CanSend(peer *peer) bool {
-	peer.lock.RLock()
-	defer peer.lock.RUnlock()
-	// TODO(lucas): Is there a better way?
-	return peer.headInfo.Number >= r.Number
+	return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
 }
 
 func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
-	peer.Log().Debug("Requesting block header", "number", r.Number, "Getcost", r.GetCost(peer))
-	return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), r.Number, 1, 0, false)
+	if r.Origin.Hash != (common.Hash{}) {
+		peer.Log().Debug("Requesting block header", "hash", r.Origin.Hash)
+		return peer.RequestHeadersByHash(reqId, r.GetCost(peer), r.Origin.Hash, 1, 0, false)
+	} else {
+		peer.Log().Debug("Requesting block header", "number", r.Origin.Number)
+		return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), r.Origin.Number, 1, 0, false)
+	}
 }
 
 func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
@@ -154,6 +157,11 @@ func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
 	headers := msg.Obj.([]*types.Header)
 	if len(headers) != 1 {
 		return errInvalidEntryCount
+	}
+	if r.Origin.Hash != (common.Hash{}) && headers[0].Hash() != r.Origin.Hash {
+		return errRequestResponseMismatch
+	} else if r.Origin.Hash == (common.Hash{}) && headers[0].Number.Uint64() != r.Origin.Number {
+		return errRequestResponseMismatch
 	}
 	r.Header = headers[0]
 	return nil

@@ -233,19 +233,25 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
 		} else { // TODO(lucas): this is likely imperfect
-			if len(resp.Headers) > 1 || resp.Headers[0].Number.Cmp(h.fetcher.chain.CurrentHeader().Number) >= 0 {
-				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
-					log.Error("Failed to deliver headers", "err", err)
+			h.backend.retriever.lock.RLock()
+			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
+			h.backend.retriever.lock.RUnlock()
+			if headerRequested != nil {
+				contiguousHeaders := true
+				if h.syncMode == downloader.LightestSync {
+					contiguousHeaders = false
 				}
-			} else {
-				if i, err := h.fetcher.chain.HeaderChain().ValidateHeaderChain(resp.Headers, 1, true); err != nil {
-					p.Log().Error("Failed to validate the header chain at %d due to \"%v\"", i, err)
+				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
 					return err
 				}
 				deliverMsg = &Msg{
 					MsgType: MsgBlockHeaders,
 					ReqID:   resp.ReqID,
 					Obj:     resp.Headers,
+				}
+			} else {
+				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
+					log.Error("Failed to deliver headers", "err", err)
 				}
 			}
 		}

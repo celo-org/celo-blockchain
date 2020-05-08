@@ -119,16 +119,21 @@ func (req *BlockRequest) StoreResult(db ethdb.Database) {
 	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
 }
 
+type hashOrNumber struct {
+	Hash   common.Hash
+	Number uint64
+}
+
 type HeaderRequest struct {
 	OdrRequest
-	Number uint64
+	Origin hashOrNumber
 	Header *types.Header
 }
 
 func (req *HeaderRequest) StoreResult(db ethdb.Database) {
 	rawdb.WriteHeader(db, req.Header)
-	rawdb.WriteTd(db, req.Header.Hash(), req.Number, big.NewInt(int64(req.Number+1)))
-	rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Number)
+	rawdb.WriteTd(db, req.Header.Hash(), req.Header.Number.Uint64(), big.NewInt(int64(req.Header.Number.Uint64()+1)))
+	rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
 }
 
 // ReceiptsRequest is the ODR request type for retrieving block bodies

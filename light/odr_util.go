@@ -59,20 +59,31 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 				canonicalHash = rawdb.ReadCanonicalHash(db, sectionHeadNum)
 			}
 		}
+	} else {
+		// If `ChtIndexer` is `nil` then we are effectively in `lightest` mode
+		r := &HeaderRequest{Origin: hashOrNumber{Number: number}}
+		if err := odr.Retrieve(ctx, r); err != nil {
+			log.Error("Error after retrieve", "Err", err)
+			return nil, err
+		}
+		return r.Header, nil
 	}
-	// TODO(lucas): How to check for `lightest` mode here - `ChtIndexer == nil` seems insufficient
-	// if number >= chtCount*odr.IndexerConfig().ChtSize {
-	// 	return nil, errNoTrustedCht
-	// }
-	r := &HeaderRequest{Number: number}
+	if number >= chtCount*odr.IndexerConfig().ChtSize {
+		return nil, errNoTrustedCht
+	}
+	r := &ChtRequest{ChtRoot: GetChtRoot(db, chtCount-1, sectionHead), ChtNum: chtCount - 1, BlockNum: number, Config: odr.IndexerConfig()}
+	if err := odr.Retrieve(ctx, r); err != nil {
+		return nil, err
+	}
+	return r.Header, nil
+}
+
+func GetHeaderByHash(ctx context.Context, odr OdrBackend, hash common.Hash) (*types.Header, error) {
+	r := &HeaderRequest{Origin: hashOrNumber{Hash: hash}}
 	if err := odr.Retrieve(ctx, r); err != nil {
 		log.Error("Error after retrieve", "Err", err)
 		return nil, err
 	}
-	// r := &ChtRequest{ChtRoot: GetChtRoot(db, chtCount-1, sectionHead), ChtNum: chtCount - 1, BlockNum: number, Config: odr.IndexerConfig()}
-	// if err := odr.Retrieve(ctx, r); err != nil {
-	// 	return nil, err
-	// }
 	return r.Header, nil
 }
 
