@@ -40,6 +40,9 @@ var (
 	// errNoConnectedProxy is returned when there is no connected proxy
 	errNoConnectedProxy = errors.New("no connected proxy")
 
+	// errNoConnectedProxiedValidator is returned when there is no connected proxied validator
+	errNoConnectedProxiedValidator = errors.New("no connected proxied validator")
+
 	// errInvalidEnodeCertificate is returned if the enode certificate is invalid
 	errInvalidEnodeCertificate = errors.New("invalid enode certificate")
 
@@ -62,6 +65,8 @@ type Proxy interface {
 	UnregisterProxy(proxyPeer consensus.Peer)
 	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
 	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
+	SendDelegateSignMsgToProxy(msg []byte) error
+	SendDelegateSignMsgToProxiedValidator(msg []byte) error
 }
 
 // Information about the proxy for a proxied validator

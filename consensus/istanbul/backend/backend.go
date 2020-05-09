@@ -271,23 +271,21 @@ func (sb *Backend) IsValidating() bool {
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
-	if !sb.IsProxiedValidator() || sb.proxyNode == nil || sb.proxyNode.peer == nil {
-		err := errors.New("No Proxy found")
-		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
-		return err
+	if sb.IsProxiedValidator() {
+		return sb.proxyHandler.SendDelegateSignMsgToProxy(msg)
+	} else {
+		return errors.New("No Proxy found")
 	}
-	return sb.proxyNode.peer.Send(istanbul.DelegateSignMsg, msg)
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
-	if !sb.IsProxy() || sb.proxiedPeer == nil {
-		err := errors.New("No Proxied Validator found")
-		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
-		return err
+	if sb.IsProxy() {
+		return sb.proxyHandler.SendDelegateSignMsgToProxiedValidator(msg)
+	} else {
+		return errors.New("No Proxied Validator found")
 	}
-	return sb.proxiedPeer.Send(istanbul.DelegateSignMsg, msg)
 }
 
 // Authorize implements istanbul.Backend.Authorize

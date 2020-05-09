@@ -46,8 +46,6 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 // in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
 // destAddresses.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error {
-	logger := sb.logger.New("func", "Multicast")
-
 	var err error
 
 	if sb.IsProxiedValidator() {
@@ -79,34 +77,32 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "Gossip")
 
 	// Get all connected peers
-	allPeers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
+	peersToSendMsg := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
 
 	// Mark that this node gossiped this message, so that it will ignore it if
 	// one of it's peers sends the message to it.
 	sb.markSelfGossipCache(payload)
 
-	peersToSend := make([]consensus.Peer, 1)
-
 	// Filter out peers that already sent us this gossip message
-	for _, peer := range allPeers {
+	for nodeID, peer := range peersToSendMsg {
 		nodePubKey := peer.Node().Pubkey()
 		nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
 		if sb.checkPeerGossipCache(nodeAddr, payload) {
+			delete(peersToSendMsg, nodeID)
 			logger.Trace("Peer already gossiped this message.  Not sending message to it", "peer", peer)
 			continue
 		} else {
-			peersToSend = append(peersToSend, peer)
 			sb.markPeerGossipCache(nodeAddr, payload)
 		}
 	}
 
-	return sb.sendMsg(peersToSend, payload, ethMsgCode)
+	return sb.sendMsg(peersToSendMsg, payload, ethMsgCode)
 }
 
 // sendMsg will send the eth message (with the message's payload and msgCode field set to the params
 // payload and ethMsgCode respectively) to either the nodes with the signing address in the destAddresses param,
 // or to all the connected peers with this node (if gossip parameter set to true).
-func (sb *Backend) sendMsg(destPeers []consensus.Peer, payload []byte, ethMsgCode uint64) error {
+func (sb *Backend) sendMsg(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "multicast")
 
 	logger.Trace("Going to send a message", "peers", destPeers, "ethMsgCode", ethMsgCode)
