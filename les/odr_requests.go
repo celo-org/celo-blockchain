@@ -136,7 +136,9 @@ func (r *HeaderRequest) GetCost(peer *peer) uint64 {
 }
 
 func (r *HeaderRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
+	// TODO(lucas): `HasBlock` doesn't work for the hash only case
+	return true
+	// return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
 }
 
 func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
