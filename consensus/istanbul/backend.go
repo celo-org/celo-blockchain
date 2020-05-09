@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"	
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
@@ -51,6 +51,15 @@ type BLSMessageSignerFn func(accounts.Account, []byte, []byte) (blscrypto.Serial
 type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
+
+	// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+	SelfNode() *enode.Node
+
+	// IsProxiedValidator returns true if this node is a proxied validator
+	IsProxiedValidator() bool
+
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
@@ -109,7 +118,7 @@ type Backend interface {
 	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
 
 	// AddPeer will add a static peer
-	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)	
+	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)
 
 	// RemovePeer will remove a static peer
 	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
@@ -127,7 +136,17 @@ type Backend interface {
 	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
 	UpdateAnnounceVersion()
 
-	// VerifyPendingBlockValidatorSignature is a validation function to verify that a message's sender is within the validator set
-	// of the current pending block
+	// SetEnodeCertificateMsg will set this node's enodeCertificate to be used for connection handshakes
+	SetEnodeCertificateMsg(enodeCertificateMsg *Message) error
+
+	// RetrieveEnodeCertificateMsg will retrieve this node's handshake enodeCertificate
+	RetrieveEnodeCertificateMsg() (*Message, error)
+
+	// VerifyPendingBlockValidatorSignature is a message validation function to verify that a message's sender is within the validator set
+	// of the current pending block and that the message's address field matches the message's signature's signer
 	VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error)
+
+	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
+	// validator connection set and that the message's address field matches the message's signature's signer
+	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
 }

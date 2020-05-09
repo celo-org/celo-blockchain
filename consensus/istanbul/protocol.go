@@ -24,6 +24,7 @@ import (
 const (
 	celo64 = 64
 	celo65 = 65
+	celo66 = 66
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
@@ -31,34 +32,31 @@ const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the eth protocol (first is primary).
 var ProtocolVersions = []uint{celo65, celo64}
+var ProxyInterfaceProtocolVersions = []uint{celo66}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var protocolLengths = map[uint]uint64{celo64: 22, celo65: 27}
+var protocolLengths = map[uint]uint64{celo64: 22, celo65: 27, celo66: 28}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size
 // and update the IsIstanbulMsg function below!
 const (
-	ConsensusMsg = 0x11
-	QueryEnodeMsg          = 0x12
-	ValEnodesShareMsg      = 0x13
-	FwdMsg                 = 0x14
-	DelegateSignMsg        = 0x15
-	VersionCertificatesMsg = 0x16
-	EnodeCertificateMsg    = 0x17
-	ValidatorHandshakeMsg  = 0x18
+	ConsensusMsg                  = 0x11
+	QueryEnodeMsg                 = 0x12
+	ValEnodesShareMsg             = 0x13
+	FwdMsg                        = 0x14
+	DelegateSignMsg               = 0x15
+	VersionCertificatesMsg        = 0x16
+	EnodeCertificateMsg           = 0x17
+	ValidatorHandshakeMsg         = 0x18
+	ProxyEnodeCertificateShareMsg = 0x19
 )
 
 func IsIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
+	return msg.Code >= ConsensusMsg && msg.Code <= ProxyEnodeCertificateShareMsg
 }
 
 // IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).
 func IsGossipedMsg(msgCode uint64) bool {
 	return msgCode == QueryEnodeMsg || msgCode == VersionCertificatesMsg
-}
-
-// IsMsgToForward specifies which messages that a proxied validator needs to wrap in a forward message.
-func IsMsgToForward(msgCode uint64) bool {
-        return msgCode == ConsensusMsg || msgCode == EnodeCertificateMsg
 }

@@ -28,7 +28,7 @@ import (
 
 // This function is meant to be run as a goroutine.  It will periodically send validator enode share messages
 // to this node's proxies so that proxies know the enodes of validators
-func (p *proxy) sendValEnodesShareMsgs() {
+func (p *proxy) sendValEnodesShareMsgEventLoop() {
 	p.valEnodesShareWg.Add(1)
 	defer p.valEnodesShareWg.Done()
 
@@ -37,7 +37,11 @@ func (p *proxy) sendValEnodesShareMsgs() {
 	for {
 		select {
 		case <-ticker.C:
-			// output the valEnodeTable for debugging purposes
+			go p.sendValEnodesShareMsg()
+
+		case <-p.sendValEnodesShareMsgCh:
+			// TODO:  Right now the proxied validator will send the full valEnodeTable to the proxies.
+			//        The reduce network usage, this can be changed so that only diffs of the table are sent.
 			go p.sendValEnodesShareMsg()
 
 		case <-p.valEnodesShareQuit:
@@ -45,6 +49,10 @@ func (p *proxy) sendValEnodesShareMsgs() {
 			return
 		}
 	}
+}
+
+func (p *proxy) SendValEnodesShareMsg() {
+	p.sendValEnodesShareMsgCh <- struct{}{}
 }
 
 func (p *proxy) generateValEnodesShareMsg() (*istanbul.Message, error) {
@@ -124,36 +132,44 @@ func (p *proxy) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (p *proxy) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error {
-	p.logger.Debug("Handling an Istanbul Validator Enodes Share message")
+func (p *proxy) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
+	logger := p.logger.New("func", "handleValEnodesShareMsg")
+
+	logger.Debug("Handling an Istanbul Validator Enodes Share message")
+
+	// Verify that it's coming from the proxied peer
+	if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {
+		logger.Warn("Got a valEnodesShare message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
+		return false, nil
+	}
 
 	msg := new(istanbul.Message)
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
-		p.logger.Error("Error in decoding received Istanbul Validator Enode Share message", "err", err, "payload", hex.EncodeToString(payload))
-		return err
+		logger.Error("Error in decoding received Istanbul Validator Enode Share message", "err", err, "payload", hex.EncodeToString(payload))
+		return true, err
 	}
 
 	// Verify that the sender is from the proxied validator
 	if msg.Address != p.config.ProxiedValidatorAddress {
-		p.logger.Error("Unauthorized valEnodesShare message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
-		return errUnauthorizedValEnodesShareMessage
+		logger.Error("Unauthorized valEnodesShare message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
+		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
 	var valEnodesShareData valEnodesShareData
 	err = rlp.DecodeBytes(msg.Msg, &valEnodesShareData)
 	if err != nil {
-		p.logger.Error("Error in decoding received Istanbul Validator Enodes Share message content", "err", err, "IstanbulMsg", msg.String())
-		return err
+		logger.Error("Error in decoding received Istanbul Validator Enodes Share message content", "err", err, "IstanbulMsg", msg.String())
+		return true, err
 	}
 
-	p.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
+	logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
 	var upsertBatch []istanbul.ValEnodeTableEntry
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
-			p.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
+			logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
 			upsertBatch = append(upsertBatch, p.backend.NewValEnodeTableEntry(sharedValidatorEnode.Address, node, sharedValidatorEnode.Version))
@@ -162,9 +178,9 @@ func (p *proxy) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error 
 
 	if len(upsertBatch) > 0 {
 		if err := p.backend.UpsertValEnodeTableEntries(upsertBatch); err != nil {
-			p.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
+			logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
 		}
 	}
 
-	return nil
+	return true, nil
 }

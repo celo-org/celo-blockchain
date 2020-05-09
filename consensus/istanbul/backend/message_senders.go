@@ -18,7 +18,9 @@ package backend
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"	
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -49,52 +51,56 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	var err error
 
 	if sb.IsProxiedValidator() {
-	   if err := sb.proxyHandler.SendForwardMessage(destAddresses, ethMsgCode, payload); err != nil {
-	      return err
-	   }
+		if err := sb.proxyHandler.SendForwardMsg(destAddresses, ethMsgCode, payload); err != nil {
+			return err
+		}
 	} else {
-	  destPeers := sb.getPeersFromDestAddresses(destAddresses)
-	  if len(destPeers) > 0 {
-	     err = sb.sendMsg(destAddresses, false, payload, ethMsgCode)
-	  }
+		destPeers := sb.getPeersFromDestAddresses(destAddresses)
+		if len(destPeers) > 0 {
+			err = sb.sendMsg(destPeers, payload, ethMsgCode)
+		}
 	}
 
 	if sendToSelf {
-	   // Send to self.  Note that it will never be a wrapped version of the consensus message.
-	   msg := istanbul.MessageEvent{
-		Payload: payload,
-	   }
-	   
-	   go sb.istanbulEventMux.Post(msg)
+		// Send to self.  Note that it will never be a wrapped version of the consensus message.
+		msg := istanbul.MessageEvent{
+			Payload: payload,
+		}
+
+		go sb.istanbulEventMux.Post(msg)
 	}
-	
+
 	return err
 }
 
 // Gossip implements istanbul.Backend.Gossip
 // Gossip will gossip the eth message to all connected peers
 func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
-     // Get all connected peers
-     allPeers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
-     
-     // Mark that this node gossiped this message, so that it will ignore it if
-     // one of it's peers sends the message to it.
-     sb.markSelfGossipCache(payload)
+	logger := sb.logger.New("func", "Gossip")
 
-     peersToSend := make([]consensus.Peer, 1)
-     
-     // Filter out peers that already sent us this gossip message
-     for _, peer := range(allPeers) {
-         if sb.checkPeerGossipCache(p, payload) {
-	    logger.Trace("Peer already gossiped this message.  Not sending message to it", "peer", p)
-	    continue				   
-	   } else {
-	     peersToSend = append(peersToSend, peer)
-	     sb.markPeerGossipCache(p, payload)
-	   }
-     }     
+	// Get all connected peers
+	allPeers := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
 
-     return sb.sendMsg(peerToSend, payload, ethMsgCode)
+	// Mark that this node gossiped this message, so that it will ignore it if
+	// one of it's peers sends the message to it.
+	sb.markSelfGossipCache(payload)
+
+	peersToSend := make([]consensus.Peer, 1)
+
+	// Filter out peers that already sent us this gossip message
+	for _, peer := range allPeers {
+		nodePubKey := peer.Node().Pubkey()
+		nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
+		if sb.checkPeerGossipCache(nodeAddr, payload) {
+			logger.Trace("Peer already gossiped this message.  Not sending message to it", "peer", peer)
+			continue
+		} else {
+			peersToSend = append(peersToSend, peer)
+			sb.markPeerGossipCache(nodeAddr, payload)
+		}
+	}
+
+	return sb.sendMsg(peersToSend, payload, ethMsgCode)
 }
 
 // sendMsg will send the eth message (with the message's payload and msgCode field set to the params
@@ -103,12 +109,12 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 func (sb *Backend) sendMsg(destPeers []consensus.Peer, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "multicast")
 
-	logger.Trace("Going to send a message", "peers", peers, "ethMsgCode", ethMsgCode)
+	logger.Trace("Going to send a message", "peers", destPeers, "ethMsgCode", ethMsgCode)
 
 	for _, peer := range destPeers {
-		logger.Trace("Sending istanbul message to peer", "peer", p)
+		logger.Trace("Sending istanbul message to peer", "peer", peer)
 		go peer.Send(ethMsgCode, payload)
 	}
-	
+
 	return nil
 }

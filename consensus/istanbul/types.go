@@ -23,8 +23,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
@@ -424,6 +424,31 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 
 // ## ValEnodeTable entry interface ##########################################################
 type ValEnodeTableEntry interface {
-     GetNode() *enode.Node
-     GetVersion() uint
+	GetNode() *enode.Node
+	GetVersion() uint
+}
+
+// ## EnodeCertificate ######################################################################
+type EnodeCertificate struct {
+	EnodeURL string
+	Version  uint
+}
+
+// EncodeRLP serializes ec into the Ethereum RLP format.
+func (ec *EnodeCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ec.EnodeURL, ec.Version})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ec fields from a RLP stream.
+func (ec *EnodeCertificate) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EnodeURL string
+		Version  uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
+	return nil
 }

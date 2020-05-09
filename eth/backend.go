@@ -582,13 +582,19 @@ func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPrun
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
-func (s *Ethereum) Protocols() []p2p.Protocol {
-	protos := make([]p2p.Protocol, len(ProtocolVersions))
+func (s *Ethereum) Protocols(forProxyInterface bool) []p2p.Protocol {
+	if forProxyInterface {
+		protocolVersions = istanbul.ProxyInterfaceProtocolVersions
+	} else {
+		protocolVersions = istanbul.ProtocolVersions
+	}
+
+	protos := make([]p2p.Protocol, len(protocolVersions))
 	for i, vsn := range ProtocolVersions {
 		protos[i] = s.protocolManager.makeProtocol(vsn, i == 0)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
 	}
-	if s.lesServer != nil {
+	if s.lesServer != nil && !forProxyInterface {
 		protos = append(protos, s.lesServer.Protocols()...)
 	}
 	return protos

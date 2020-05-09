@@ -17,8 +17,6 @@
 package proxy
 
 import (
-	"reflect"
-	
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -26,10 +24,10 @@ import (
 )
 
 func (p *proxy) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
-        logger := p.logger.New("func", "SendForwardMsg")
-        if p.proxyPeer == nil {
-	   logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-	   return errNoConnectedProxy
+	logger := p.logger.New("func", "SendForwardMsg")
+	if p.proxyNode.peer == nil {
+		logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
+		return errNoConnectedProxy
 	}
 
 	// Convert the message to a fwdMessage
@@ -51,16 +49,16 @@ func (p *proxy) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode u
 		return err
 	}
 
-	go p.proxyPeer.Send(istanbul.FwdMsg, fwdMsgPayload)
+	go p.proxyNode.peer.Send(istanbul.FwdMsg, fwdMsgPayload)
 
 	return nil
 }
 
 func (p *proxy) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
-        logger := p.logger.New("func", "HandleForwardMsg")
-	
+	logger := p.logger.New("func", "HandleForwardMsg")
+
 	// Verify that it's coming from the proxied peer
-	if !reflect.DeepEqual(peer, p.proxiedPeer) {
+	if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {
 		logger.Warn("Got a forward consensus message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
 		return false, nil
 	}

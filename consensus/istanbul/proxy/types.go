@@ -17,12 +17,13 @@
 package proxy
 
 import (
-        "errors"
+	"errors"
 	"fmt"
-        "io"	
+	"io"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -32,16 +33,19 @@ var (
 	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
 	errProxyAlreadySet = errors.New("proxy already set")
 
-	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
-	// an unauthorized sender
-	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
+	// errUnauthorizedMessageFromProxiedValidator is returned when the received message expected to be signed
+	// by the proxied validator, but signed from another key
+	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
 
 	// errNoConnectedProxy is returned when there is no connected proxy
 	errNoConnectedProxy = errors.New("no connected proxy")
 
-	// errNonValidatorMessage is returned when `handleConsensusMsg` receives
-	// a message with a signature from a non validator
-	errNonValidatorMessage = errors.New("proxy received consensus message of a non validator")
+	// errInvalidEnodeCertificate is returned if the enode certificate is invalid
+	errInvalidEnodeCertificate = errors.New("invalid enode certificate")
+
+	// errUnauthorizedProxiedValidator is returned if the peer connecting is not the
+	// authorized proxied validator
+	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
 )
 
 type Proxy interface {
@@ -51,6 +55,13 @@ type Proxy interface {
 	AddProxy(node, externalNode *enode.Node) error
 	RemoveProxy(node *enode.Node)
 	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
+	SendValEnodesShareMsg()
+	RegisterProxiedValidator(proxiedValidatorPeer consensus.Peer)
+	RegisterProxy(proxyPeer consensus.Peer) error
+	UnregisterProxiedValidator(proxiedValidatorPeer consensus.Peer)
+	UnregisterProxy(proxyPeer consensus.Peer)
+	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
+	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
 }
 
 // Information about the proxy for a proxied validator

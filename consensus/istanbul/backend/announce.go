@@ -20,7 +20,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -550,7 +549,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
 	sb.markPeerGossipCache(addr, payload)
 	if sb.checkSelfGossipCache(payload) {
-	   return nil
+		return nil
 	}
 
 	msg := new(istanbul.Message)
@@ -641,7 +640,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// The target could be an existing peer of any purpose.
 	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
 	if matches[node.ID()] != nil {
-		enodeCertificateMsg, err := sb.retrieveEnodeCertificateMsg()
+		enodeCertificateMsg, err := sb.RetrieveEnodeCertificateMsg()
 		if err != nil {
 			return err
 		}
@@ -898,7 +897,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
 	sb.markPeerGossipCache(addr, payload)
 	if sb.checkSelfGossipCache(payload) {
-	   return nil
+		return nil
 	}
 
 	var msg istanbul.Message
@@ -1032,8 +1031,8 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	sb.setEnodeCertificateMsg(enodeCertificateMsg)
-	
+	sb.SetEnodeCertificateMsg(enodeCertificateMsg)
+
 	// Don't send any of the following messages if this node is not in the validator conn set
 	if !validatorConnSet[sb.Address()] {
 		logger.Trace("Not in the validator conn set, not updating announce version")
@@ -1068,9 +1067,9 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 func (sb *Backend) getEnodeURL() (string, error) {
 	if sb.IsProxiedValidator() {
 		if proxyExternalNode := sb.proxyHandler.GetProxyExternalNode(); proxyExternalNode != nil {
-		   return proxyExternalNode.URLv4(), nil
+			return proxyExternalNode.URLv4(), nil
 		} else {
-		  return "", errNoProxyConnection
+			return "", errNoProxyConnection
 		}
 	}
 	return sb.p2pserver.Self().URLv4(), nil
@@ -1081,38 +1080,10 @@ func getTimestamp() uint {
 	return uint(time.Now().Unix())
 }
 
-type enodeCertificate struct {
-	EnodeURL string
-	Version  uint
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes ec into the Ethereum RLP format.
-func (ec *enodeCertificate) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ec.EnodeURL, ec.Version})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ec fields from a RLP stream.
-func (ec *enodeCertificate) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		EnodeURL string
-		Version  uint
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
-	return nil
-}
-
-// retrieveEnodeCertificateMsg gets the most recent enode certificate message.
+// RetrieveEnodeCertificateMsg gets the most recent enode certificate message.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
-func (sb *Backend) retrieveEnodeCertificateMsg() (*istanbul.Message, error) {
+func (sb *Backend) RetrieveEnodeCertificateMsg() (*istanbul.Message, error) {
 	sb.enodeCertificateMsgMu.Lock()
 	defer sb.enodeCertificateMsgMu.Unlock()
 	if sb.enodeCertificateMsg == nil {
@@ -1130,11 +1101,11 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 	var enodeURL string
 	enodeURL, err := sb.getEnodeURL()
 	if err != nil {
-	   logger.Warn("Couldn't get external facing enodeURL", "err", err)
-	   return nil, err
+		logger.Warn("Couldn't get external facing enodeURL", "err", err)
+		return nil, err
 	}
 
-	enodeCertificate := &enodeCertificate{
+	enodeCertificate := &istanbul.EnodeCertificate{
 		EnodeURL: enodeURL,
 		Version:  version,
 	}
@@ -1163,7 +1134,7 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 // will send it back to this node.
 // If the proxied validator sends an enode certificate for itself to this node,
 // this node will set the enode certificate as its own for handshaking.
-func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
@@ -1175,7 +1146,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Pe
 	}
 	logger = logger.New("msg address", msg.Address)
 
-	var enodeCertificate enodeCertificate
+	var enodeCertificate istanbul.EnodeCertificate
 	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
 		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
 		return err
@@ -1188,55 +1159,6 @@ func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Pe
 		return err
 	}
 
-	upsertVersionAndEnode := func() error {
-		if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
-			logger.Warn("Error in upserting a val enode table entry", "error", err)
-			return err
-		}
-		return nil
-	}
-
-	if sb.config.Proxy {
-		if sb.proxiedPeer == nil {
-			logger.Warn("No proxied peer, ignoring message")
-			return nil
-		}
-		if sb.proxiedPeer.Node().ID() == peer.Node().ID() {
-			// if this message is from the proxied peer and contains the proxied
-			// validator's enodeCertificate, save it for handshake use
-			if msg.Address == sb.config.ProxiedValidatorAddress {
-				existingVersion := sb.getEnodeCertificateMsgVersion()
-				if enodeCertificate.Version < existingVersion {
-					logger.Warn("Enode certificate from proxied peer contains version lower than existing enode msg", "msg version", enodeCertificate.Version, "existing", existingVersion)
-					return errors.New("Version too low")
-				}
-				// There may be a difference in the URLv4 string because of `discport`,
-				// so instead compare the ID
-				selfNode := sb.p2pserver.Self()
-				if parsedNode.ID() != selfNode.ID() {
-					logger.Warn("Received Istanbul Enode Certificate message with an incorrect enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", sb.p2pserver.Self().URLv4())
-					return errors.New("Incorrect enode url")
-				}
-				if err := sb.setEnodeCertificateMsg(&msg); err != nil {
-					logger.Warn("Error setting enode certificate msg", "err", err)
-					return err
-				}
-				return nil
-			}
-			// Otherwise, this enode certificate originates from a remote validator
-			// but was sent by the proxied validator to be upserted
-			return upsertVersionAndEnode()
-		}
-		// If this message is not from the proxied validator, send it to the
-		// proxied validator without upserting it in this node. If the validator
-		// decides this proxy should upsert the enodeCertificate, then it
-		// will send it back to this node.
-		if err := sb.sendEnodeCertificateMsg(sb.proxiedPeer, &msg); err != nil {
-			logger.Warn("Error forwarding enodeCertificate to proxied validator", "err", err)
-			return err
-		}
-		return nil
-	}
 	// Ensure this node is a validator in the validator conn set
 	shouldSave, err := sb.shouldSaveAndPublishValEnodeURLs()
 	if err != nil {
@@ -1259,14 +1181,17 @@ func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Pe
 		return errUnauthorizedAnnounceMessage
 	}
 
-	// Send enode certificate to proxy
-	if sb.config.Proxied && sb.proxyNode != nil && sb.proxyNode.peer != nil {
-		if err := sb.sendEnodeCertificateMsg(sb.proxyNode.peer, &msg); err != nil {
-			logger.Warn("Error sending enodeCertificate back to proxy peer", "err", err)
-		}
+	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+		logger.Warn("Error in upserting a val enode table entry", "error", err)
+		return err
 	}
 
-	return upsertVersionAndEnode()
+	if sb.IsProxiedValidator() {
+		// Send a valEnodesShare message to the proxy
+		sb.proxyHandler.SendValEnodesShareMsg()
+	}
+
+	return nil
 }
 
 func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Message) error {
@@ -1279,15 +1204,23 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 	return peer.Send(istanbul.EnodeCertificateMsg, payload)
 }
 
-func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {
-	sb.enodeCertificateMsgMu.Lock()
-	var enodeCertificate enodeCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
+func (sb *Backend) SetEnodeCertificateMsg(msg *istanbul.Message) error {
+	var newEnodeCertificate istanbul.EnodeCertificate
+	if err := rlp.DecodeBytes(msg.Msg, &newEnodeCertificate); err != nil {
 		return err
 	}
-	sb.enodeCertificateMsg = msg
-	sb.enodeCertificateMsgVersion = enodeCertificate.Version
-	sb.enodeCertificateMsgMu.Unlock()
+
+	sb.enodeCertificateMsgMu.Lock()
+	defer sb.enodeCertificateMsgMu.Unlock()
+
+	// Already have a more recent or the same enodeCertificate
+	if newEnodeCertificate.Version <= sb.enodeCertificateMsgVersion {
+		return nil
+	} else {
+		sb.enodeCertificateMsg = msg
+		sb.enodeCertificateMsgVersion = newEnodeCertificate.Version
+	}
+
 	return nil
 }
 
@@ -1298,37 +1231,37 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 }
 
 func (sb *Backend) NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) istanbul.ValEnodeTableEntry {
-     return &vet.AddressEntry{
-     	    Address: address,
-	    Node: node,
-	    Version: version,
-     }
+	return &vet.AddressEntry{
+		Address: address,
+		Node:    node,
+		Version: version,
+	}
 }
 
 func (sb *Backend) GetAllValEnodeTableEntries() (map[common.Address]istanbul.ValEnodeTableEntry, error) {
-     addressEntries, err := sb.valEnodeTable.GetAllValEnodes()
+	addressEntries, err := sb.valEnodeTable.GetAllValEnodes()
 
-     if err != nil {
-     	return nil, err
-     }
+	if err != nil {
+		return nil, err
+	}
 
-     returnMap := make(map[common.Address]istanbul.ValEnodeTableEntry)
+	returnMap := make(map[common.Address]istanbul.ValEnodeTableEntry)
 
-     for address, addressEntry := range addressEntries {
-     	 returnMap[address] = addressEntry
-     }
+	for address, addressEntry := range addressEntries {
+		returnMap[address] = addressEntry
+	}
 
-     return returnMap, nil
+	return returnMap, nil
 }
 
 func (sb *Backend) UpsertValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
-     addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
+	addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
 
-     for idx, entry := range entries {
-     	 // This is a bit of a hack, but it currently works since vet.AddressEntry is currently
-	 // the only implementation of the istanbul.ValEnodeTableEntry interface
-     	 addressEntries[idx] = entry.(*vet.AddressEntry)
-     }
-     
-     return sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
+	for idx, entry := range entries {
+		// This is a bit of a hack, but it currently works since vet.AddressEntry is currently
+		// the only implementation of the istanbul.ValEnodeTableEntry interface
+		addressEntries[idx] = entry.(*vet.AddressEntry)
+	}
+
+	return sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
 }

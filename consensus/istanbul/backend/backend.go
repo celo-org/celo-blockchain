@@ -32,8 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -132,15 +132,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.versionCertificateTable = versionCertificateTable
 
-	// Set the handler functions for each istanbul message type
-	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbul.QueryEnodeMsg] = backend.handleQueryEnodeMsg
-	backend.istanbulAnnounceMsgHandlers[istanbul.VersionCertificatesMsg] = backend.handleVersionCertificatesMsg
-	backend.istanbulAnnounceMsgHandlers[istanbul.EnodeCertificateMsg] = backend.handleEnodeCertificateMsg
-
 	// If this node is a proxy or is a proxied validator, then create a proxy handler object
 	if backend.IsProxiedValidator() || backend.IsProxy() {
-	   backend.proxyHandler = proxy.New(backend, backend.config)
+		backend.proxyHandler = proxy.New(backend, backend.config)
 	}
 
 	return backend
@@ -236,8 +230,6 @@ type Backend struct {
 	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
 	blocksTotalMissedRoundsMeter metrics.Meter
 
-	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
-
 	// Cache for the return values of the method retrieveValidatorConnSet
 	cachedValidatorConnSet          map[common.Address]bool
 	cachedValidatorConnSetTimestamp time.Time
@@ -254,19 +246,26 @@ type Backend struct {
 
 	// Handler for proxy related functionality.  Note that BOTH the proxy
 	// and the proxied validator will create and use this handler.
-	proxyHandler proxy.Proxy
-	proxyHandlerRunning               bool
-	proxyHandlerMu                    sync.RWMutex
+	proxyHandler        proxy.Proxy
+	proxyHandlerRunning bool
+	proxyHandlerMu      sync.RWMutex
 }
 
-// IsProxy returns if instance has proxy flag
+// IsProxy returns true if instance has proxy flag
 func (sb *Backend) IsProxy() bool {
 	return sb.config.Proxy
 }
 
-// IsProxiedValidator returns if instance has proxied validator flag
+// IsProxiedValidator returns true if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.config.Proxied
+	return sb.config.Proxied && sb.IsValidating()
+}
+
+// IsValidating return true if instance is validating
+func (sb *Backend) IsValidating() bool {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+	return sb.coreStarted
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -308,6 +307,11 @@ func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey,
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
 	return sb.address
+}
+
+// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+func (sb *Backend) SelfNode() *enode.Node {
+	return sb.p2pserver.Self()
 }
 
 // Close the backend
@@ -724,7 +728,7 @@ func (sb *Backend) RefreshValPeers() error {
 
 func (sb *Backend) ValidatorAddress() common.Address {
 	var localAddress common.Address
-	if sb.config.Proxy {
+	if sb.IsProxy() {
 		localAddress = sb.config.ProxiedValidatorAddress
 	} else {
 		localAddress = sb.Address()
@@ -845,11 +849,11 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 }
 
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
-     return sb.proxyHandler.AddProxy(node, externalNode)
+	return sb.proxyHandler.AddProxy(node, externalNode)
 }
 
 func (sb *Backend) RemoveProxy(node *enode.Node) {
-     sb.proxyHandler.RemoveProxy(node)
+	sb.proxyHandler.RemoveProxy(node)
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible
@@ -857,5 +861,25 @@ func (sb *Backend) RemoveProxy(node *enode.Node) {
 func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	block := sb.currentBlock()
 	valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-	return istanbul.CheckValidatorSignature(valSet, data, sig)     
+	return istanbul.CheckValidatorSignature(valSet, data, sig)
+}
+
+// VerifyValidatorConnectionSetSignature will verify that the message sender is a validator that is responsible
+// for the current pending block (the next block right after the head block).
+// Note that it is NOT using the cached validator conn set.  The reason is that
+// the current user of this function is the proxy's handleEnodeCertificate function (which is executed in it's own thread),
+// and it shouldn't be a big deal if it slightly delays the forwarding of the enodeCertificate to the proxied validator.
+func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error) {
+	if valConnSet, err := sb.retrieveUncachedValidatorConnSet(); err != nil {
+		return common.Address{}, err
+	} else {
+		validators := make([]istanbul.ValidatorData, len(valConnSet))
+		i := 0
+		for address, _ := range valConnSet {
+			validators[i].Address = address
+			i++
+		}
+
+		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
+	}
 }

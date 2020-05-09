@@ -17,8 +17,6 @@
 package proxy
 
 import (
-        "reflect"
-	
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -26,10 +24,10 @@ import (
 // handleConsensusMsg is invoked by the proxy to forward valid consensus messages to
 // it's proxied validator
 func (p *proxy) handleConsensusMsg(peer consensus.Peer, payload []byte) (bool, error) {
-        logger := p.logger.New("func", "handleConsensusMsg")
-	
-	// Verify that this message is not from the proxied peer
-	if reflect.DeepEqual(peer, p.proxiedPeer) {
+	logger := p.logger.New("func", "handleConsensusMsg")
+
+	// Verify that this message is not from the proxied validator
+	if p.proxiedValidator != nil && peer.Node().ID() == p.proxiedValidator.Node().ID() {
 		logger.Warn("Got a consensus message from the proxied validator. Ignoring it", "from", peer.Node().ID())
 		return false, nil
 	}
@@ -39,13 +37,13 @@ func (p *proxy) handleConsensusMsg(peer consensus.Peer, payload []byte) (bool, e
 	// Verify that this message is created by a legitimate validator before forwarding to the proxied validator.
 	if err := msg.FromPayload(payload, p.backend.VerifyPendingBlockValidatorSignature); err != nil {
 		logger.Error("Got a consensus message signed by a validator not within the pending block validator set.", "err", err)
-		return true, errNonValidatorMessage
+		return true, istanbul.ErrUnauthorizedAddress
 	}
 
 	// Need to forward the message to the proxied validator
 	logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
-	if p.proxiedPeer != nil {
-		go p.proxiedPeer.Send(istanbul.ConsensusMsg, payload)
+	if p.proxiedValidator != nil {
+		go p.proxiedValidator.Send(istanbul.ConsensusMsg, payload)
 	}
 
 	return true, nil

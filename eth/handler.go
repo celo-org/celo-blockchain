@@ -215,7 +215,7 @@ func (pm *ProtocolManager) makeProtocol(version uint, primary bool) p2p.Protocol
 	}
 
 	return p2p.Protocol{
-		Name:    ProtocolName,
+		Name:    istanbul.ProtocolName,
 		Version: version,
 		Length:  length,
 		Primary: primary,
@@ -376,7 +376,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Register the peer with the consensus engine.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.RegisterPeer(p, p.Peer.Server == pm.proxyServer)
+		if err := handler.RegisterPeer(p, p.Peer.Server == pm.proxyServer); err != nil {
+			return err
+		}
 	}
 
 	// Propagate existing transactions. new transactions appearing
