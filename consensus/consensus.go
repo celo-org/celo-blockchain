@@ -144,7 +144,7 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, fromProxiedNode bool)
+	RegisterPeer(peer Peer, fromProxiedNode bool) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
 	UnregisterPeer(peer Peer, fromProxiedNode bool)
@@ -165,6 +165,12 @@ type PoW interface {
 // Istanbul is a consensus engine to avoid byzantine failure
 type Istanbul interface {
 	Engine
+
+	// IsProxiedValidator returns true if this node is a proxied validator
+	IsProxiedValidator() bool
+
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
 
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))

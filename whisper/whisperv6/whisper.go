@@ -213,7 +213,7 @@ func (whisper *Whisper) RegisterServer(server MailServer) {
 }
 
 // Protocols returns the whisper sub-protocols ran by this particular client.
-func (whisper *Whisper) Protocols() []p2p.Protocol {
+func (whisper *Whisper) Protocols(_ bool) []p2p.Protocol {
 	return []p2p.Protocol{whisper.protocol}
 }
 

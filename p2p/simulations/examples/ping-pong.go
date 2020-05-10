@@ -100,7 +100,7 @@ func newPingPongService(id enode.ID) *pingPongService {
 	}
 }
 
-func (p *pingPongService) Protocols() []p2p.Protocol {
+func (p *pingPongService) Protocols(_ bool) []p2p.Protocol {
 	return []p2p.Protocol{{
 		Name:     "ping-pong",
 		Version:  1,

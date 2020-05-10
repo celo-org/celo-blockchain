@@ -282,7 +282,7 @@ func initialize() {
 			PrivateKey:     nodeid,
 			MaxPeers:       maxPeers,
 			Name:           common.MakeName("wnode", "6.0"),
-			Protocols:      shh.Protocols(),
+			Protocols:      shh.Protocols(false),
 			ListenAddr:     *argIP,
 			NAT:            nat.Any(),
 			BootstrapNodes: peers,

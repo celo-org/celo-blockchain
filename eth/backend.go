@@ -171,7 +171,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if bcVersion != nil {
 		dbVer = fmt.Sprintf("%d", *bcVersion)
 	}
-	log.Info("Initialising Ethereum protocol", "versions", ProtocolVersions, "network", config.NetworkId, "dbversion", dbVer)
+	log.Info("Initialising Ethereum protocol", "versions", eth.ethProtocolVersions(false), "network", config.NetworkId, "dbversion", dbVer)
 
 	if !config.SkipBcVersionCheck {
 		if bcVersion != nil && *bcVersion > core.BlockChainVersion {
@@ -571,8 +571,8 @@ func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
-func (s *Ethereum) IsListening() bool                   { return true } // Always listening
-func (s *Ethereum) EthVersion() int                     { return int(ProtocolVersions[0]) }
+func (s *Ethereum) IsListening() bool                   { return true }                                 // Always listening
+func (s *Ethereum) EthVersion() int                     { return int(s.ethProtocolVersions(false)[0]) } // Proxies will return the external facing eth protocol version
 func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
 func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
@@ -580,21 +580,33 @@ func (s *Ethereum) GatewayFee() *big.Int                { return common.Big0 }
 func (s *Ethereum) Synced() bool                        { return atomic.LoadUint32(&s.protocolManager.acceptTxs) == 1 }
 func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPruning }
 
-// Protocols implements node.Service, returning all the currently configured
-// network protocols to start.
-func (s *Ethereum) Protocols(forProxyInterface bool) []p2p.Protocol {
-	if forProxyInterface {
-		protocolVersions = istanbul.ProxyInterfaceProtocolVersions
-	} else {
-		protocolVersions = istanbul.ProtocolVersions
+func (s *Ethereum) ethProtocolVersions(forProxyConnection bool) []uint {
+	isProxiedValidator := false
+	if istanbulEngine, ok := s.engine.(consensus.Istanbul); ok {
+		isProxiedValidator = istanbulEngine.IsProxiedValidator()
 	}
 
-	protos := make([]p2p.Protocol, len(protocolVersions))
-	for i, vsn := range ProtocolVersions {
+	if forProxyConnection || isProxiedValidator {
+		return istanbul.ProxyConnectionProtocolVersions
+	} else {
+		return istanbul.ProtocolVersions
+	}
+}
+
+// Protocols implements node.Service, returning all the currently configured
+// network protocols to start.
+// The protocol set used for proxy and proxied validators can be different
+// than the protocol set that full nodes, proxies, and standalone validators
+// use to connect to each other.
+func (s *Ethereum) Protocols(forProxyConnection bool) []p2p.Protocol {
+	ethProtocolVersions := s.ethProtocolVersions(forProxyConnection)
+
+	protos := make([]p2p.Protocol, len(ethProtocolVersions))
+	for i, vsn := range ethProtocolVersions {
 		protos[i] = s.protocolManager.makeProtocol(vsn, i == 0)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
 	}
-	if s.lesServer != nil && !forProxyInterface {
+	if s.lesServer != nil && !forProxyConnection {
 		protos = append(protos, s.lesServer.Protocols()...)
 	}
 	return protos

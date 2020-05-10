@@ -52,7 +52,7 @@ func New(backend ethapi.Backend, endpoint string, cors, vhosts []string, timeout
 }
 
 // Protocols returns the list of protocols exported by this service.
-func (s *Service) Protocols() []p2p.Protocol { return nil }
+func (s *Service) Protocols(_ bool) []p2p.Protocol { return nil }
 
 // APIs returns the list of APIs exported by this service.
 func (s *Service) APIs() []rpc.API { return nil }

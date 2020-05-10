@@ -149,7 +149,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 
 // Protocols implements node.Service, returning the P2P network protocols used
 // by the stats service (nil as it doesn't use the devp2p overlay network).
-func (s *Service) Protocols() []p2p.Protocol { return nil }
+func (s *Service) Protocols(_ bool) []p2p.Protocol { return nil }
 
 // APIs implements node.Service, returning the RPC API endpoints provided by the
 // stats service (nil as it doesn't provide any user callable APIs).
@@ -369,13 +369,13 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		protocol  string
 		err       error
 	)
-	if info := infos.Protocols[eth.ProtocolName]; info != nil {
+	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
 			return errors.New("Could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
+		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {

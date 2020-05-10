@@ -256,7 +256,7 @@ func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux 
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
-func (s *LightEthereum) Protocols() []p2p.Protocol {
+func (s *LightEthereum) Protocols(_ bool) []p2p.Protocol {
 	return s.makeProtocols(ClientProtocolVersions, s.handler.runPeer, func(id enode.ID) interface{} {
 		if p := s.peers.Peer(peerIdToString(id)); p != nil {
 			return p.Info()
