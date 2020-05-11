@@ -79,6 +79,9 @@ type serverHandler struct {
 	etherbase  common.Address
 	gatewayFee *big.Int
 
+	//@ray
+	
+
 	// Testing fields
 	addTxsSync bool
 }
@@ -880,50 +883,28 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			}()
 		}
 	case GetGatewayFeeMsg:
-		p.Log().Info("ENTERED GW FEE:Ray")
-		p.Log().Info(p.id)
 		p.Log().Trace("Received gatewayFee request")
-		//add medtrics enable part later
 		var req struct {
 			ReqID uint64
 		}
 		if err := msg.Decode(&req); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		// if accept(req.ReqID, 1, MaxEtherbase) {
-		// 	wg.Add(1)
-		// 	go func() {
-		// 		defer wg.Done()
-		// 		reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee)
-		// 		sendResponse(req.ReqID, 1, reply, task.done())
-		// 	}()
-		// }
+	
 		if h == nil || h.gatewayFee == nil {
-			p.Log().Info("Something is null here")
+			p.Log().Info("Something null")
 		}
-		p.Log().Info(string(req.ReqID))
-		p.Log().Info(h.gatewayFee.String())
-
+		
 		if accept(req.ReqID, 1, MaxGatewayFee) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase}) ///this line seems okay
-				p.Log().Info("Got ReplyGatewayFee")
-				p.Log().Info("Hello GW Fee",string((*reply).msgcode))
-				sendResponse(req.ReqID, 1, reply, 10) //send response seems to be messing things up with the runtime errors
-				p.Log().Info("Finished case GetGatewayFeeMsg in Server handler")
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase}) 
+				sendResponse(req.ReqID, 1, reply, 10) 
 			}()
 		}
 
-		// reply := p.ReplyGatewayFee(req.ReqID, h.gatewayFee) ///this line seems okay
-		// p.Log().Info("Got ReplyGatewayFee")
-		// p.Log().Info("Hello GW Fee",string((*reply).msgcode))
-		// sendResponse(req.ReqID, 1, reply, 10) //send response seems to be messing things up with the runtime errors
-
 	default:
-		p.Log().Info("ENTERED DEFAULT: Ray")
-		p.Log().Trace("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

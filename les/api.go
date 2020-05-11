@@ -28,8 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/common"
-	//"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	
@@ -78,9 +76,11 @@ func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 	return nil
 }
 // SetEtherbase sets the etherbase of the miner. Not sure if there should be one here or not because theres already one in the eth api
-func (api *PrivateLightServerAPI) SetEtherbase(etherbase int64) common.Address { //could do the casting thing again for test. Also, sending push notif here. Generally assume not changing etherbase. but if it can, need more checks on cache get
-	api.server.handler.etherbase = common.BigToAddress(big.NewInt(etherbase))
-	api.BroadcastGatewayFeeUpdate()
+func (api *PrivateLightServerAPI) SetEtherbase(etherbase common.Address) common.Address { //could do the casting thing again for test. Also, sending push notif here. Generally assume not changing etherbase. but if it can, need more checks on cache get
+	api.server.handler.etherbase = etherbase
+	if etherbase != common.ZeroAddress {
+		api.BroadcastGatewayFeeUpdate()
+	} 
 	return api.server.handler.etherbase
 }
 //This sends messages to light client peers whenever this light server updates gateway fee.
@@ -91,20 +91,24 @@ func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
 	}
 	
 	type req struct {
-		ReqID uint64 //still a random reqid for now
+		ReqID uint64 
 	}
+	currGatewayFee := api.server.handler.gatewayFee.Uint64()
+	currEtherbase := api.server.handler.etherbase
+	if currGatewayFee >= 0 && currEtherbase != common.ZeroAddress {
 
-	for _, lightClientPeer := range lightClientPeerNodes{
-		reply := lightClientPeer.ReplyGatewayFee(5, GatewayFeeResps{GatewayFee: api.server.handler.gatewayFee.Uint64(), Etherbase: api.server.handler.etherbase}) //this works as push notification
-		if reply != nil {
-			lightClientPeer.queueSend(func() {
-				if err := reply.send(1); err != nil { //should replace 1 with bv
-					select {
-					case lightClientPeer.errCh <- err:
-					default:
+		for _, lightClientPeer := range lightClientPeerNodes{
+			reply := lightClientPeer.ReplyGatewayFee(genReqID(), GatewayFeeResps{GatewayFee: api.server.handler.gatewayFee.Uint64(), Etherbase: api.server.handler.etherbase}) //this works as push notification
+			if reply != nil {
+				lightClientPeer.queueSend(func() {
+					if err := reply.send(1); err != nil { //should replace 1 with bv
+						select {
+						case lightClientPeer.errCh <- err:
+						default:
+						}
 					}
-				}
-			})
+				})
+			}
 		}
 	}
 	
@@ -422,86 +426,31 @@ type LightClientAPI struct {
 }
 
 func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
-	
 	return &LightClientAPI{le}
 }
 
-func(api *LightClientAPI) HelloWorldTwo() string {
-	return "Hello World, from LightClientAPI!"
+// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
+func(api *LightClientAPI) GetAllPeerGatewayFees() map[common.Address]*big.Int { 
+	return api.le.handler.gatewayFeeMap
 }
 
-func(api *LightClientAPI) HelloWorldThree() string {
-	return api.le.ApiBackend.HelloWorld()
-}
-
-func(api *LightClientAPI) PeerCount() int {
-	return api.le.serverPool.server.PeerCount()
-}
-func(api *LightClientAPI) PeerEtherbase() []common.Address{
-	peerNodes := api.le.peers.AllPeers()
-	res := make([]common.Address, len(peerNodes))
-
-	idx := 0
-	for _, peerNode := range peerNodes {
-		res[idx] = *peerNode.etherbase
-		idx++
-	}
-	
-	return res
-}
-//no use but for testing, since full nodes have to specify etherbase themselves
-func (api *LightClientAPI) SetPeerRandomEtherbase() {
-	peerNodes := api.le.peers.peers
-
-	for currId,_ := range peerNodes {
-		key, _ := crypto.GenerateKey()
-		addr := crypto.PubkeyToAddress(key.PublicKey) //just set a random etherbase for peer
-
-		peerNodes[currId].SetEtherbase(addr)
-	}
-}
-
-func(api *LightClientAPI) PeerIds() []string{
-	return api.le.peers.AllPeerIDs()
-}
-func(api *LightClientAPI) PullPeerGatewayFees() error { //Pull request all peer gw fees to update cache
+// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
+func(api *LightClientAPI) PullPeerGatewayFees() error { 
 	peerNodes := api.le.peers.AllPeers()
 	if len(peerNodes) == 0 {
 		return errors.New("No peers")
 	} 
-	var reqId uint64 = 5
-	var cost uint64 = 6
+
+	reqId := genReqID()
 
 	for _, peerNode := range peerNodes {
-		reqId++
+		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
 		err := peerNode.RequestGatewayFee(reqId, cost)
 		if err != nil {
 			continue
 		}
 	}
 	return nil
-}
-func(api *LightClientAPI) GetAllPeerGatewayFees() map[common.Address]*big.Int { //try to get from cache
-	return api.le.handler.gatewayFeeMap
-}
-func(api *LightClientAPI) GetMinTest() (common.Address, *big.Int) { //try to get from cache
-	gatewayFeeMap := api.GetAllPeerGatewayFees()
-	if len(gatewayFeeMap) == 0 {
-		log.Info("No Peers")
-		return common.ZeroAddress, nil
-		
-	} else {
-		minGwFee := big.NewInt(math.MaxInt64)
-		minEtherbase := common.ZeroAddress
-
-		for etherbase, gwFee := range gatewayFeeMap {
-			if gwFee.Cmp(minGwFee) < 0 {
-				minGwFee = gwFee
-				minEtherbase = etherbase
-			}
-		}
-		return minEtherbase, minGwFee
-	}
 }
 
 func(api *LightClientAPI) GetMinGatewayFee() map[common.Address]*big.Int { //get min gwFee as well as corresponding etherbase from cache. Can't return a tuple for some reason
@@ -525,57 +474,6 @@ func(api *LightClientAPI) GetMinGatewayFee() map[common.Address]*big.Int { //get
 	}
 }
 
-func(api *LightClientAPI) TestMessaging() error{
-	log.Info("enter testMessaging LOL")
-	peerNodes := api.le.peers.AllPeers()
-	
-	if len(peerNodes) == 0 {
-		log.Info("No peers")
-	} 
 
-	var param1 uint64 = 5
-	var param2 uint64 = 6
-	err := peerNodes[0].RequestGatewayFee(param1, param2)
-	
-
-	// type req struct {
-	// 	ReqID uint64
-	// }
-	//err := peerNode.RequestGatewayFee(1,2) //get messageHandler crash error for some reason when i use
-	//err := p2p.Send(peerNode.rw, GetGatewayFeeMsg, req{5})
-	
-	//err := peerNode.RequestEtherbase(param1, param2)
-	// if err != nil {
-	// 	log.Fatal("Error")
-	// }
-	// msg, err := peerNode.rw.ReadMsg()
-
-	// var resp struct {
-	// 	ReqID, BV uint64
-	// 	Etherbase common.Address
-	// }
-	// if err := msg.Decode(&resp); err != nil {
-	// 	log.Fatal("error")
-	// }
-	return err 
-}
-type gwRepl struct {
-	GatewayFee *big.Int
-	Etherbase common.Address
-}
-func (api *LightClientAPI) TestGatewayFee() gwRepl{
-	res := gwRepl{api.le.handler.testGWFee, api.le.handler.Etherbase}
-	return res
-}
-
-
-func(api *LightClientAPI) TestReceiveMsg() *big.Int {
-	peerNode := api.le.peers.AllPeers()[0]
-	_, err := peerNode.rw.ReadMsg()
-	if err != nil {
-		return big.NewInt(10)
-	}
-	return big.NewInt(20)
-}
 
 
