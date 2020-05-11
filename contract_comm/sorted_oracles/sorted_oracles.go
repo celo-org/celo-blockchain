@@ -121,6 +121,9 @@ func IsOracle(token *common.Address, addr *common.Address, header *types.Header,
 }
 
 func GetTokenFromTxData(data []byte) (*common.Address, error) {
+	if len(data) < 4 {
+		return nil, nil
+	}
 	method, err := sortedOraclesABI.MethodById(data)
 	if err != nil {
 		log.Debug("Unknown method", "err", err)
