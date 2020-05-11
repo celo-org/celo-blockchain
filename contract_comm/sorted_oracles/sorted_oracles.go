@@ -102,6 +102,7 @@ func GetAddress() *common.Address {
 
 func IsOracle(token *common.Address, addr *common.Address, header *types.Header, state vm.StateDB) bool {
 	var isOracle = reflect.New(reflect.TypeOf(true))
+	log.Warn("Testing", "token", token, "addr", addr)
 	_, err := contract_comm.MakeStaticCall(
 		params.SortedOraclesRegistryId,
 		sortedOraclesABI,
