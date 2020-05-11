@@ -391,6 +391,7 @@ func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number uint64, ha
 	//
 	// when syncing, just check if it is part of the known chain, there is nothing better we
 	// can do since we do not know the most recent block hash yet
+	// If number is 0 we only have hash, so we return a tentatively false positive
 	return rawdb.ReadCanonicalHash(f.handler.backend.chainDb, fp.root.number) == fp.root.hash && (number == 0 || rawdb.ReadCanonicalHash(f.handler.backend.chainDb, number) == hash)
 }
 
