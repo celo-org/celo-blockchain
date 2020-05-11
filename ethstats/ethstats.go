@@ -371,18 +371,18 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	if info := infos.Protocols[eth.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
-			return errors.New("Could not resolve NodeInfo")
+			return errors.New("could not resolve node info")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
 		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
-			return errors.New("No less protocol found")
+			return errors.New("no less protocol found")
 		}
 		lesInfo, ok := lesProtocol.(*les.NodeInfo)
 		if !ok {
-			return errors.New("Could not resolve NodeInfo")
+			return errors.New("could not resolve node info")
 		}
 		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
@@ -544,7 +544,13 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Info("Ping from websocket server", "msg", msg)
 			// Primus server might want to have a pong or it closes the connection
 			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
-			conn.WriteJSON(serverTime)
+			var pong = map[string]interface{}{
+				"serverTime": serverTime,
+			}
+			err := conn.WriteJSON(pong)
+			if err != nil {
+				log.Error("Writing JSON failed!", "err", err)
+			}
 		}
 	}
 }
@@ -766,11 +772,11 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header *types.Header
-		state  *state.StateDB
-		td     *big.Int
-		txs    []txStats
-		valSet validatorSet
+		header  *types.Header
+		stateDB *state.StateDB
+		td      *big.Int
+		txs     []txStats
+		valSet  validatorSet
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -778,7 +784,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			block = s.eth.BlockChain().CurrentBlock()
 		}
 		header = block.Header()
-		state, _ = s.eth.BlockChain().State()
+		stateDB, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
 		txs = make([]txStats, len(block.Transactions()))
@@ -792,7 +798,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		} else {
 			header = s.les.BlockChain().CurrentHeader()
 		}
-		state, _ = s.les.BlockChain().State()
+		stateDB, _ = s.les.BlockChain().State()
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -804,11 +810,11 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
 
 	// only assemble every valSetInterval blocks
-	if block.Number().Uint64()%valSetInterval == 0 {
-		valSet = s.assembleValidatorSet(block, state)
+	if block != nil && block.Number().Uint64()%valSetInterval == 0 {
+		valSet = s.assembleValidatorSet(block, stateDB)
 	}
 
-	gasLimit := core.CalcGasLimit(block, state)
+	gasLimit := core.CalcGasLimit(block, stateDB)
 
 	return &blockStats{
 		Number:      header.Number,
