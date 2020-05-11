@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -621,7 +620,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 		// Ping timeout, abort
 		return errors.New("ping timed out")
 	}
-	latency := strconv.Itoa(int((time.Since(start) / time.Duration(2)).Nanoseconds() / 1000000))
+	latency := int((time.Since(start) / time.Duration(2)).Nanoseconds() / 1000000)
 
 	// Send back the measured latency
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
