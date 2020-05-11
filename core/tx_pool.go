@@ -667,7 +667,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	if sorted_oracles.GetAddress() != nil && tx.To() != && nil tx.Data() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
+	if sorted_oracles.GetAddress() != nil && tx.To() != nil && tx.Data() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
 		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
 		if token != nil && sorted_oracles.IsOracle(token, &from, nil, nil) {
 			log.Info("Adding priority transaction", "address", from, "tx", tx.Hash())
