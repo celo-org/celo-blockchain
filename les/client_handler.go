@@ -57,25 +57,33 @@ type gatewayFeeEtherbase struct{
 	GatewayFee *big.Int
 	Etherbase common.Address
 }
-func newGatewayFeeEtherbase() *gatewayFeeEtherbase {
+func newGatewayFeeEtherbase(gatewayFee *big.Int, etherbase common.Address) *gatewayFeeEtherbase {
 	ret := &gatewayFeeEtherbase {
-		GatewayFee: big.NewInt(0),
-		Etherbase: common.ZeroAddress,
+		GatewayFee: gatewayFee,
+		Etherbase: etherbase,
 	}
 	return ret;
 }
 
 type gatewayFeeCache struct {
-	mux sync.RWMutex
-	gatewayFeeMap map[common.Address]*big.Int ///map enode id to (address, big.Int)
-	size int
+	mux *sync.RWMutex
+	gatewayFeeMap map[string]*gatewayFeeEtherbase
 }
 func newGatewayFeeCache() *gatewayFeeCache {
 	cache := &gatewayFeeCache {
-		gatewayFeeMap: make(map[common.Address]*big.Int, 0),
-		size: 0,
+		mux : new(sync.RWMutex),
+		gatewayFeeMap: make(map[string]*gatewayFeeEtherbase, 0),
 	}
 	return cache;
+}
+func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeEtherbase) error{
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if val.Etherbase == common.ZeroAddress || val.GatewayFee.Cmp(big.NewInt(0)) < 0 {
+		return errors.New("Invalid gatewayFeeEtherbase object")
+	}
+	c.gatewayFeeMap[nodeID] = val
+	return nil
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
@@ -103,6 +111,7 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
 
 	handler.gatewayFeeMap = make(map[common.Address]*big.Int, 0) //, , eth.DefaultConfig.GatewayFee
+	handler.gatewayFeeMap1 = make(map[string]*gatewayFeeEtherbase)
 	//handler.testGWFee = big.NewInt(0)
 	//handler.Etherbase = common.ZeroAddress
 	handler.gatewayFeeCache = newGatewayFeeCache()
@@ -407,7 +416,6 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		var resp struct {
 			ReqID, BV uint64
 			Data GatewayFeeResps
-			// GatewayFee uint64 ///So jank but for some reason can't decode the *big.Int
 		}
 
 		if err := msg.Decode(&resp); err != nil {
@@ -418,12 +426,15 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 		currGatewayFee := big.NewInt(int64(resp.Data.GatewayFee))
 		currEtherbase := resp.Data.Etherbase
+		nodeID := resp.Data.NodeID
 
 		// if err := h.updateGatewayFeeCache(currGatewayFee, currEtherbase); err != nil {
 		// 	return err
 		// }
 		h.gatewayFeeMap[currEtherbase] = currGatewayFee
-		
+		h.gatewayFeeMap1[nodeID] = &gatewayFeeEtherbase{currGatewayFee, currEtherbase}
+		h.gatewayFeeCache.update(nodeID, &gatewayFeeEtherbase{currGatewayFee, currEtherbase})
+
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

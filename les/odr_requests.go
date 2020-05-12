@@ -310,6 +310,7 @@ type HelperTrieResps struct { // describes all responses, not just a single one
 type GatewayFeeResps struct {
 	GatewayFee uint64
 	Etherbase common.Address
+	NodeID string
 }
 
 // ODR request type for requesting headers by Canonical Hash Trie, see LesOdrRequest interface

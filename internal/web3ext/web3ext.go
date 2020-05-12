@@ -853,6 +853,11 @@ web3._extend({
 			params: 0
 		}),
 		new web3._extend.Method({
+			name: 'getNodeId',
+			call: 'les_nodeId',
+			params: 0
+		}),
+		new web3._extend.Method({
 			name: 'setGatewayFee',
 			call: 'les_setGatewayFee',
 			params: 1
@@ -880,6 +885,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'minGatewayFeePeer',
 			getter: 'les_getMinGatewayFee'
+		}),
+		new web3._extend.Property({
+			name: 'peerGatewayFeesFull',
+			getter: 'les_getAllPeerGatewayFeesFull'
 		}),
 		new web3._extend.Property({
 			name: 'peerGatewayFees',

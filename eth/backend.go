@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	//"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -98,6 +99,7 @@ type Ethereum struct {
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
 
+	NodeID string //@rayyuan id of node
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
 
@@ -258,6 +260,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
+	eth.NodeID = ctx.Server.NodeID()
+	
 
 	return eth, nil
 }
@@ -575,6 +579,7 @@ func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{
 func (s *Ethereum) GatewayFee() *big.Int                { return common.Big0 }
 func (s *Ethereum) Synced() bool                        { return atomic.LoadUint32(&s.protocolManager.acceptTxs) == 1 }
 func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPruning }
+func (s *Ethereum) NetRPCService() *ethapi.PublicNetAPI { return s.netRPCService } //@rayyuan, need this to access the publicnetapi
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

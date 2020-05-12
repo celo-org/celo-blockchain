@@ -80,13 +80,13 @@ type serverHandler struct {
 	gatewayFee *big.Int
 
 	//@ray
-	
+	nodeID string
 
 	// Testing fields
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int, nodeID string) *serverHandler {
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
@@ -96,6 +96,7 @@ func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb et
 		synced:     synced,
 		etherbase:  etherbase,
 		gatewayFee: gatewayFee,
+		nodeID: nodeID,
 	}
 	return handler
 }
@@ -899,7 +900,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase}) 
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase, NodeID: h.nodeID}) 
 				sendResponse(req.ReqID, 1, reply, 10) 
 			}()
 		}

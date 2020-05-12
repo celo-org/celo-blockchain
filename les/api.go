@@ -83,6 +83,12 @@ func (api *PrivateLightServerAPI) SetEtherbase(etherbase common.Address) common.
 	} 
 	return api.server.handler.etherbase
 }
+
+//get the unique node id of current node
+func (api *PrivateLightServerAPI) NodeId() string { 
+	return api.server.handler.nodeID
+}
+
 //This sends messages to light client peers whenever this light server updates gateway fee.
 func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
 	lightClientPeerNodes := api.server.peers.AllLightClientPeers()
@@ -93,15 +99,15 @@ func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
 	type req struct {
 		ReqID uint64 
 	}
+	
 	currGatewayFee := api.server.handler.gatewayFee.Uint64()
 	currEtherbase := api.server.handler.etherbase
 	if currGatewayFee >= 0 && currEtherbase != common.ZeroAddress {
-
 		for _, lightClientPeer := range lightClientPeerNodes{
-			reply := lightClientPeer.ReplyGatewayFee(genReqID(), GatewayFeeResps{GatewayFee: api.server.handler.gatewayFee.Uint64(), Etherbase: api.server.handler.etherbase}) //this works as push notification
+			reply := lightClientPeer.ReplyGatewayFee(genReqID(), GatewayFeeResps{GatewayFee: api.server.handler.gatewayFee.Uint64(), Etherbase: api.server.handler.etherbase, NodeID: api.server.handler.nodeID}) //this works as push notification
 			if reply != nil {
 				lightClientPeer.queueSend(func() {
-					if err := reply.send(1); err != nil { //should replace 1 with bv
+					if err := reply.send(1); err != nil { 
 						select {
 						case lightClientPeer.errCh <- err:
 						default:
@@ -432,6 +438,16 @@ func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
 // PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
 func(api *LightClientAPI) GetAllPeerGatewayFees() map[common.Address]*big.Int { 
 	return api.le.handler.gatewayFeeMap
+}
+
+// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
+func(api *LightClientAPI) GetAllPeerGatewayFeesFull() map[string]*gatewayFeeEtherbase { 
+	return api.le.handler.gatewayFeeMap1
+}
+
+// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
+func(api *LightClientAPI) GatewayFeeCache() map[string]*gatewayFeeEtherbase { 
+	return api.le.handler.gatewayFeeCache.gatewayFeeMap
 }
 
 // PullPeerGatewayFees updates cache by pulling gateway fee peer nodes

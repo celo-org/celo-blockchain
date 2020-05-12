@@ -1791,6 +1791,11 @@ func (s *PublicNetAPI) Listening() bool {
 	return true // always listening
 }
 
+//return p2p Server
+func (s *PublicNetAPI) Net() *p2p.Server {
+	return s.net
+}
+
 // PeerCount returns the number of connected peers
 func (s *PublicNetAPI) PeerCount() hexutil.Uint {
 	return hexutil.Uint(s.net.PeerCount())
