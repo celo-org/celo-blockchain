@@ -48,7 +48,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = val2Address
 
 	// Handle val1's announce message
-	if err = b.handleQueryEnodeMsg(nil, payload); err != nil {
+	if err = b.handleQueryEnodeMsg(common.Address{}, nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

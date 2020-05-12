@@ -132,7 +132,7 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	}
 
 	msg := &istanbul.Message{
-		Code:      istanbulValEnodesShareMsg,
+		Code:      istanbul.ValEnodesShareMsg,
 		Msg:       valEnodesShareBytes,
 		Address:   sb.Address(),
 		Signature: []byte{},
@@ -170,7 +170,7 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	}
 
 	logger.Trace("Sending Istanbul Validator Enodes Share payload to proxy peer")
-	if err := sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload); err != nil {
+	if err := sb.proxyNode.peer.Send(istanbul.ValEnodesShareMsg, payload); err != nil {
 		logger.Error("Error sending Istanbul ValEnodesShare Message to proxy", "err", err)
 		return err
 	}
@@ -178,7 +178,7 @@ func (sb *Backend) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error {
+func (sb *Backend) handleValEnodesShareMsg(_ common.Address, _ consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)

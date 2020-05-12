@@ -117,9 +117,11 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	return nil
 }
 
-func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64) error {
+func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64, sendToSelf bool) error {
 	return nil
 }
+
+func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error
 
 func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
