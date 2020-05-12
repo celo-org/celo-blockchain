@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // Msg defines the structure of a p2p message.
@@ -54,12 +53,7 @@ type Msg struct {
 //
 // For the decoding rules, please see package rlp.
 func (msg Msg) Decode(val interface{}) error {
-	temp := string(msg.Size)
-	log.Info(temp)
-	log.Info("Decode first line")
-	log.Info(string(msg.Code))
 	s := rlp.NewStream(msg.Payload, uint64(msg.Size))
-	log.Info("Decod second Line")
 	if err := s.Decode(val); err != nil {
 		return newPeerError(errInvalidMsg, "(code %x) (size %d) %v", msg.Code, msg.Size, err)
 	}

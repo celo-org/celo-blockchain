@@ -422,6 +422,10 @@ func (p *peer) SendResume(bv uint64) error {
 	return p2p.Send(p.rw, ResumeMsg, bv)
 }
 
+func (p *peer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
+	data, _ := rlp.EncodeToBytes(etherbase)
+	return &reply{p.rw, EtherbaseMsg, reqID, data}
+}
 
 // ReplyBlockHeaders creates a reply with a batch of block headers
 func (p *peer) ReplyBlockHeaders(reqID uint64, headers []*types.Header) *reply {
@@ -466,6 +470,12 @@ func (p *peer) ReplyHelperTrieProofs(reqID uint64, resp HelperTrieResps) *reply 
 func (p *peer) ReplyTxStatus(reqID uint64, stats []light.TxStatus) *reply {
 	data, _ := rlp.EncodeToBytes(stats)
 	return &reply{p.rw, TxStatusMsg, reqID, data}
+}
+
+//ReplyGatewayFee creates reply with gateway fee that was requested
+func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeResps) *reply {
+	data, _ := rlp.EncodeToBytes(resp)
+	return &reply{p.rw, GatewayFeeMsg, reqID, data}
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
@@ -523,7 +533,6 @@ func (p *peer) RequestTxStatus(reqID, cost uint64, txHashes []common.Hash) error
 // RequestEtherbase fetches the etherbase of a remote node.
 func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
-	p.Log().Info("Request Etherebase Function entered")
 	type req struct {
 		ReqID uint64
 	}
@@ -533,27 +542,10 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 // RequestGatewayFee gets gateway fee of remote node
 func (p *peer) RequestGatewayFee(reqID, cost uint64,) error {
 	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)
-	p.Log().Info("Request Gateway Fee function Entered")
-	p.Log().Trace("REQUESTGATEWAYFEE")
 	type req struct {
 		ReqID uint64
 	}
 	return p2p.Send(p.rw, GetGatewayFeeMsg, req{reqID})
-}
-
-func (p *peer) SendEtherbaseRLP(reqID uint64, etherbase common.Address) *reply {
-	data, _ := rlp.EncodeToBytes(etherbase)
-	return &reply{p.rw, EtherbaseMsg, reqID, data}
-}
-
-//ReplyGatewayFee creates reply with gateway fee that was requested
-func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeResps) *reply {
-	// type repl struct {
-	// 	GatewayFee uint64
-	// 	Etherbase common.Address
-	// }
-	data, _ := rlp.EncodeToBytes(resp)
-	return &reply{p.rw, GatewayFeeMsg, reqID, data}
 }
 
 // SendTxStatus creates a reply with a batch of transactions to be added to the remote transaction pool.

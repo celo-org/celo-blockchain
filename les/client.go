@@ -214,7 +214,6 @@ func (s *LightDummyAPI) Mining() bool {
 func (s *LightEthereum) APIs() []rpc.API {
 	apis := ethapi.GetAPIs(s.ApiBackend)
 	apis = append(apis, s.engine.APIs(s.BlockChain().HeaderChain())...)
-	log.Info("HELLO SHOW UP PLS")
 	return append(apis, []rpc.API{
 		{
 			Namespace: "eth",

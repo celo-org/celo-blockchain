@@ -239,48 +239,35 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	}
 	// sendResponse sends back the response and updates the flow control statistic.
 	sendResponse := func(reqID, amount uint64, reply *reply, servingTime uint64) {
-		p.Log().Info("Here 1")
 		p.responseLock.Lock()
 		defer p.responseLock.Unlock()
-		p.Log().Info("Here 2")
 		// Short circuit if the client is already frozen.
 		if p.isFrozen() {
 			realCost := h.server.costTracker.realCost(servingTime, msg.Size, 0)
 			p.fcClient.RequestProcessed(reqID, responseCount, maxCost, realCost)
 			return
 		}
-		p.Log().Info("Here 3")
 		// Positive correction buffer value with real cost.
 		var replySize uint32
 		if reply != nil {
-			p.Log().Info("Here 4")
 			replySize = reply.size()
 		}
-		p.Log().Info("Here 5")
 		var realCost uint64
 		if h.server.costTracker.testing {
 			realCost = maxCost // Assign a fake cost for testing purpose
-			p.Log().Info("Here 6")
 		} else {
 			realCost = h.server.costTracker.realCost(servingTime, msg.Size, replySize)
-			p.Log().Info("Here 7")
 		}
 		bv := p.fcClient.RequestProcessed(reqID, responseCount, maxCost, realCost)
-		p.Log().Info(string(bv))
-		p.Log().Info("Here 8")
 		if amount != 0 {
-			p.Log().Info("Here 9") //Gateway Fee gets to here
 			// Feed cost tracker request serving statistic.
 			h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost) 
 			// Reduce priority "balance" for the specific peer.
 			h.server.clientPool.requestCost(p, realCost)
 		}
-		p.Log().Info("Here 10")
 		if reply != nil {
-			p.Log().Info("Here 11")
 			p.queueSend(func() {
-				if err := reply.send(bv); err != nil { //should replace 1 with bv
-					p.Log().Info("Here 12")
+				if err := reply.send(bv); err != nil { 
 					select {
 					case p.errCh <- err:
 					default:
