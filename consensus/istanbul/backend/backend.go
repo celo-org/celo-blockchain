@@ -271,6 +271,9 @@ type Backend struct {
 	updatingCachedValidatorConnSetCond *sync.Cond
 
 	vph *validatorPeerHandler
+
+	proxyHandlerRunning bool
+	proxyHandlerMu      sync.RWMutex
 }
 
 // IsProxy returns if instance has proxy flag

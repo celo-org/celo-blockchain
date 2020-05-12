@@ -260,7 +260,7 @@ func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 		return false, err
 	}
 
-	return sb.coreStarted && validatorConnSet[sb.Address()], nil
+	return validatorConnSet[sb.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.

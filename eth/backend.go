@@ -545,6 +545,22 @@ func (s *Ethereum) stopAnnounce() error {
 	return nil
 }
 
+func (s *Ethereum) StartProxyHandler() error {
+	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
+		return istanbul.StartProxyHandler()
+	}
+
+	return nil
+}
+
+func (s *Ethereum) StopProxyHandler() error {
+	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
+		return istanbul.StopProxyHandler()
+	}
+
+	return nil
+}
+
 func (s *Ethereum) IsMining() bool      { return s.miner.Mining() }
 func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 

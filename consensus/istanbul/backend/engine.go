@@ -584,14 +584,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// Having coreStarted as false at this point guarantees that announce versions
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
-	if sb.config.Proxied {
-		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-			}
-		}
-		go sb.sendValEnodesShareMsgs()
-	} else {
+	if !sb.IsProxiedValidator() {
 		sb.updateAnnounceVersion()
 	}
 
@@ -620,14 +613,6 @@ func (sb *Backend) StopValidating() error {
 	}
 	sb.coreStarted = false
 
-	if sb.config.Proxied {
-		sb.valEnodesShareQuit <- struct{}{}
-		sb.valEnodesShareWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
-	}
 	return nil
 }
 
@@ -666,6 +651,54 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceRunning = false
 
 	return sb.vph.stopThread()
+}
+
+// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
+func (sb *Backend) StartProxyHandler() error {
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
+	if sb.proxyHandlerRunning {
+		return istanbul.ErrStartedProxyHandler
+	}
+
+	if !sb.IsProxiedValidator() {
+		return istanbul.ErrValidatorNotProxied
+	} else {
+		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
+			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
+				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
+			}
+		}
+		go sb.sendValEnodesShareMsgs()
+	}
+
+	sb.proxyHandlerRunning = true
+
+	return nil
+}
+
+// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
+func (sb *Backend) StopProxyHandler() error {
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
+	if !sb.proxyHandlerRunning {
+		return istanbul.ErrStoppedProxyHandler
+	}
+
+	if sb.IsProxiedValidator() {
+		sb.valEnodesShareQuit <- struct{}{}
+		sb.valEnodesShareWg.Wait()
+
+		if sb.proxyNode != nil {
+			sb.removeProxy(sb.proxyNode.node)
+		}
+	}
+
+	sb.proxyHandlerRunning = false
+
+	return nil
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
