@@ -388,11 +388,6 @@ web3._extend({
 			params: 0
 		}),
 		new web3._extend.Method({
-			name: 'getGatewayFee',
-			call: 'eth_getGatewayFee',
-			params: 0
-		}),
-		new web3._extend.Method({
 			name: 'sign',
 			call: 'eth_sign',
 			params: 2,
@@ -425,11 +420,6 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getHeaderByNumber',
 			call: 'eth_getHeaderByNumber',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'setGatewayFee',
-			call: 'eth_setGatewayFee',
 			params: 1
 		}),
 		new web3._extend.Method({
@@ -818,31 +808,6 @@ web3._extend({
 			params: 3
 		}),
 		new web3._extend.Method({
-			name: 'gatewayFeeTest',
-			call: 'les_gatewayFeeTest',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'gatewayFeeRecipientTest',
-			call: 'les_gatewayFeeRecipientTest',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'helloWorld',
-			call: 'les_helloWorld',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'helloWorldTwo',
-			call: 'les_helloWorldTwo',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'helloWorldThree',
-			call: 'les_helloWorldThree',
-			params: 0
-		}),
-		new web3._extend.Method({
 			name: 'setEtherbase',
 			call: 'les_setEtherbase',
 			params: 1
@@ -850,11 +815,6 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'pullPeerGatewayFees',
 			call: 'les_pullPeerGatewayFees',
-			params: 0
-		}),
-		new web3._extend.Method({
-			name: 'getNodeId',
-			call: 'les_nodeId',
 			params: 0
 		}),
 		new web3._extend.Method({
@@ -883,16 +843,16 @@ web3._extend({
 			getter: 'les_gatewayFee'
 		}),
 		new web3._extend.Property({
-			name: 'minGatewayFeePeer',
-			getter: 'les_getMinGatewayFee'
+			name: 'minPeerGatewayFee',
+			getter: 'les_minPeerGatewayFee'
 		}),
 		new web3._extend.Property({
-			name: 'peerGatewayFeesFull',
-			getter: 'les_getAllPeerGatewayFeesFull'
+			name: 'gatewayFeeCache',
+			getter: 'les_gatewayFeeCache'
 		}),
 		new web3._extend.Property({
-			name: 'peerGatewayFees',
-			getter: 'les_getAllPeerGatewayFees'
+			name: 'nodeID',
+			getter: 'les_nodeID'
 		})
 	]
 });

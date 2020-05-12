@@ -48,15 +48,15 @@ type clientHandler struct {
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
 
-	//ray added
-	gatewayFeeMap map[common.Address]*big.Int
-	gatewayFeeMap1 map[string]*gatewayFeeEtherbase
+	//@rayyuan
 	gatewayFeeCache *gatewayFeeCache
 }
+
 type gatewayFeeEtherbase struct{
 	GatewayFee *big.Int
 	Etherbase common.Address
 }
+
 func newGatewayFeeEtherbase(gatewayFee *big.Int, etherbase common.Address) *gatewayFeeEtherbase {
 	ret := &gatewayFeeEtherbase {
 		GatewayFee: gatewayFee,
@@ -69,6 +69,7 @@ type gatewayFeeCache struct {
 	mux *sync.RWMutex
 	gatewayFeeMap map[string]*gatewayFeeEtherbase
 }
+
 func newGatewayFeeCache() *gatewayFeeCache {
 	cache := &gatewayFeeCache {
 		mux : new(sync.RWMutex),
@@ -76,13 +77,16 @@ func newGatewayFeeCache() *gatewayFeeCache {
 	}
 	return cache;
 }
+
 func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeEtherbase) error{
 	c.mux.Lock()
 	defer c.mux.Unlock()
+
 	if val.Etherbase == common.ZeroAddress || val.GatewayFee.Cmp(big.NewInt(0)) < 0 {
 		return errors.New("Invalid gatewayFeeEtherbase object")
 	}
 	c.gatewayFeeMap[nodeID] = val
+
 	return nil
 }
 
@@ -110,10 +114,6 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
 
-	handler.gatewayFeeMap = make(map[common.Address]*big.Int, 0) //, , eth.DefaultConfig.GatewayFee
-	handler.gatewayFeeMap1 = make(map[string]*gatewayFeeEtherbase)
-	//handler.testGWFee = big.NewInt(0)
-	//handler.Etherbase = common.ZeroAddress
 	handler.gatewayFeeCache = newGatewayFeeCache()
 	return handler
 }
@@ -141,18 +141,6 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 	err := h.handle(peer)
 	h.backend.serverPool.disconnect(peer.poolEntry)
 	return err
-}
-
-func (h *clientHandler) updateGatewayFeeCache(gwFee *big.Int, etherbase common.Address) error {
-	h.gatewayFeeCache.mux.Lock()
-	defer h.gatewayFeeCache.mux.Unlock()
-
-	if etherbase == common.ZeroAddress{
-		return errors.New("Not a valid Etherbase")
-	}
-	
-	h.gatewayFeeMap[etherbase] = gwFee
-	return nil
 }
 
 func (h *clientHandler) handle(p *peer) error {
@@ -428,11 +416,6 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		currEtherbase := resp.Data.Etherbase
 		nodeID := resp.Data.NodeID
 
-		// if err := h.updateGatewayFeeCache(currGatewayFee, currEtherbase); err != nil {
-		// 	return err
-		// }
-		h.gatewayFeeMap[currEtherbase] = currGatewayFee
-		h.gatewayFeeMap1[nodeID] = &gatewayFeeEtherbase{currGatewayFee, currEtherbase}
 		h.gatewayFeeCache.update(nodeID, &gatewayFeeEtherbase{currGatewayFee, currEtherbase})
 
 	default:

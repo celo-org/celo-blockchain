@@ -85,7 +85,7 @@ func (api *PrivateLightServerAPI) SetEtherbase(etherbase common.Address) common.
 }
 
 //get the unique node id of current node
-func (api *PrivateLightServerAPI) NodeId() string { 
+func (api *PrivateLightServerAPI) NodeID() string { 
 	return api.server.handler.nodeID
 }
 
@@ -120,6 +120,7 @@ func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
 	
 	return nil
 }
+
 func (api *PrivateLightServerAPI) Etherbase() (eb common.Address, err error) {
 	return api.server.handler.etherbase, nil
 }
@@ -436,16 +437,6 @@ func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
 }
 
 // PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func(api *LightClientAPI) GetAllPeerGatewayFees() map[common.Address]*big.Int { 
-	return api.le.handler.gatewayFeeMap
-}
-
-// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func(api *LightClientAPI) GetAllPeerGatewayFeesFull() map[string]*gatewayFeeEtherbase { 
-	return api.le.handler.gatewayFeeMap1
-}
-
-// PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
 func(api *LightClientAPI) GatewayFeeCache() map[string]*gatewayFeeEtherbase { 
 	return api.le.handler.gatewayFeeCache.gatewayFeeMap
 }
@@ -469,23 +460,26 @@ func(api *LightClientAPI) PullPeerGatewayFees() error {
 	return nil
 }
 
-func(api *LightClientAPI) GetMinGatewayFee() map[common.Address]*big.Int { //get min gwFee as well as corresponding etherbase from cache. Can't return a tuple for some reason
-	gatewayFeeMap := api.GetAllPeerGatewayFees()
-	minMap := make(map[common.Address]*big.Int, 0)
+func(api *LightClientAPI) MinPeerGatewayFee() map[string]*gatewayFeeEtherbase { //get min gwFee as well as corresponding etherbase from cache. Can't return a tuple for some reason
+	gatewayFeeMap := api.GatewayFeeCache()
+	minMap := make(map[string]*gatewayFeeEtherbase, 0)
+
 	if len(gatewayFeeMap) == 0 {
 		log.Info("No Peers")
 		return minMap
 	} else {
 		minGwFee := big.NewInt(math.MaxInt64)
 		minEtherbase := common.ZeroAddress
+		minID := ""
 
-		for etherbase, gwFee := range gatewayFeeMap {
-			if gwFee.Cmp(minGwFee) < 0 {
-				minGwFee = gwFee
-				minEtherbase = etherbase
+		for id, gwFeeEtherbase := range gatewayFeeMap {
+			if gwFeeEtherbase.GatewayFee.Cmp(minGwFee) < 0 {
+				minGwFee = gwFeeEtherbase.GatewayFee
+				minEtherbase = gwFeeEtherbase.Etherbase
+				minID = id
 			}
 		}
-		minMap[minEtherbase] = minGwFee
+		minMap[minID] = newGatewayFeeEtherbase(minGwFee, minEtherbase)
 		return minMap
 	}
 }

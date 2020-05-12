@@ -61,16 +61,6 @@ func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
 	return api.Etherbase()
 }
 
-//GetGatewayFee test. Will be deleted and moved to les protocol 
-func(api *PublicEthereumAPI) GetGatewayFee() (*big.Int, error) {
-	return api.e.GetGatewayFee()
-}
-
-//GetGatewayFee test. Will be deleted and moved to les protocol 
-func(api *PublicEthereumAPI) SetGatewayFee(gf *big.Int) {
-	api.e.SetGatewayFee(gf)
-}
-
 // Hashrate returns the POW hashrate
 func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
 	return hexutil.Uint64(api.e.Miner().HashRate())

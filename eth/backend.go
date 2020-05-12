@@ -397,21 +397,6 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
 }
 
-//This will get the GatewayFee of the full node. Just a test to make sure works. Will be deleted
-func (s *Ethereum) GetGatewayFee() (gf *big.Int, err error) {
-	s.lock.RLock()
-	gatewayFee := s.gatewayFee
-	s.lock.RUnlock()
-	
-	return gatewayFee, nil //do more checks and processing stuff later.
-}
-//set gateway fee. Same as above, will be moved to les protocol
-func (s *Ethereum) SetGatewayFee(gatewayFee *big.Int) {
-	s.lock.Lock() //what is the point of doing this lock. I thought only full node operator can set gateway fee? When are we gonna be hitting this method concurrently?
-	s.gatewayFee = gatewayFee;
-	s.lock.Unlock()
-}
-
 func (s *Ethereum) BLSbase() (eb common.Address, err error) {
 	s.lock.RLock()
 	blsbase := s.blsbase

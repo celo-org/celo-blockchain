@@ -314,6 +314,3 @@ func (b *EthAPIBackend) GatewayFee() *big.Int {
 	return big.NewInt(25)
 }
 
-func (b *EthAPIBackend) HelloWorld() string {
-	return "Hello World, From EthAPIBackend"
-}

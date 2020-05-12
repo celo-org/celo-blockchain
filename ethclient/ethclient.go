@@ -91,35 +91,6 @@ func (ec *Client) Coinbase(ctx context.Context) (*common.Address, error) {
 	return &result, err
 }
 
-// Get Gateway Fee retrieves gateway fee of full node tha is light server
-func (ec *Client) GetGatewayFee(ctx context.Context) (*big.Int, error) {
-	var result big.Int
-	err := ec.c.CallContext(ctx, &result, "les_gatewayFee")
-	if err != nil {
-		return nil, err
-	}
-	return &result, err
-}
-
-//Set Gateway Fee sets gateway fee of full node
-func (ec *Client) SetGatewayFee(ctx context.Context, arg *big.Int) error{
-	err := ec.c.CallContext(ctx, nil, "les_setGatewayFee", arg)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (ec *Client) PeerGatewayFee(ctx context.Context) (common.Address,error){
-	var result common.Address
-	err := ec.c.CallContext(ctx, result, "les_peerGatewayFees")
-	if err != nil {
-		fmt.Println("HAD AND ERROR")
-		return common.Address{}, err
-	}
-	return result, err
-}
-
 // BlockByHash returns the given full block.
 //
 // Note that loading full blocks requires two requests. Use HeaderByHash

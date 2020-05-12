@@ -80,7 +80,7 @@ type serverHandler struct {
 	gatewayFee *big.Int
 
 	//@ray
-	nodeID string
+	nodeID string 
 
 	// Testing fields
 	addTxsSync bool
@@ -893,7 +893,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 		}
 	
 		if h == nil || h.gatewayFee == nil {
-			p.Log().Info("Something null")
+			p.Log().Info("null handler or gatewayfee")
 		}
 		
 		if accept(req.ReqID, 1, MaxGatewayFee) {

@@ -93,26 +93,6 @@ func (s *PublicEthereumAPI) Syncing() (interface{}, error) {
 }
 
 // PublicTxPoolAPI offers and API for the transaction pool. It only operates on data that is non confidential.
-type PublicLightEthereumAPI struct {
-	b Backend
-}
-
-// NewPublicTxPoolAPI creates a new tx pool service that gives information about the transaction pool.
-func NewPublicLightEthereumAPI(b Backend) *PublicLightEthereumAPI {
-	return &PublicLightEthereumAPI{b}
-}
-
-func(s *PublicLightEthereumAPI) GatewayFeeTest() *big.Int {
-	return s.b.GatewayFee()
-}
-func(s *PublicLightEthereumAPI) GatewayFeeRecipientTest() common.Address {
-	return s.b.GatewayFeeRecipient()
-}
-func(s * PublicLightEthereumAPI) HelloWorld() string {
-	return s.b.HelloWorld()
-}
-
-// PublicTxPoolAPI offers and API for the transaction pool. It only operates on data that is non confidential.
 type PublicTxPoolAPI struct {
 	b Backend
 }

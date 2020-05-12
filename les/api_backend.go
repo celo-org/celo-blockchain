@@ -292,6 +292,3 @@ func (b *LesApiBackend) GatewayFee() *big.Int {
 	return big.NewInt(23)
 }
 
-func (b *LesApiBackend) HelloWorld() string {
-	return "Hello World, From LesApiBackend"
-}
