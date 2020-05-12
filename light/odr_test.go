@@ -81,8 +81,13 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 			req.Rlp = rawdb.ReadBodyRLP(odr.sdb, req.Hash, *number)
 		}
 	case *HeaderRequest:
-		hash := rawdb.ReadCanonicalHash(odr.sdb, req.Origin.Number)
-		req.Header = rawdb.ReadHeader(odr.sdb, hash, req.Origin.Number)
+		if req.Origin.Hash != (common.Hash{}) {
+			number := rawdb.ReadHeaderNumber(odr.sdb, req.Origin.Hash)
+			req.Header = rawdb.ReadHeader(odr.sdb, req.Origin.Hash, *number)
+		} else {
+			hash := rawdb.ReadCanonicalHash(odr.sdb, req.Origin.Number)
+			req.Header = rawdb.ReadHeader(odr.sdb, hash, req.Origin.Number)
+		}
 	case *ReceiptsRequest:
 		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
 		if number != nil {
@@ -348,9 +353,11 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 	var (
 		sdb     = rawdb.NewMemoryDatabase()
+		ldb     = rawdb.NewMemoryDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
 		genesis = gspec.MustCommit(sdb)
 	)
+	gspec.MustCommit(ldb)
 	// Assemble the test environment
 	blockchain, _ := core.NewBlockChain(sdb, nil, params.DefaultChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
 	gchain, _ := core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
@@ -358,8 +365,7 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 		t.Fatal(err)
 	}
 
-	// Use the same DB, split is not important for this test
-	odr := &testOdr{sdb: sdb, ldb: sdb, indexerConfig: TestClientIndexerConfig}
+	odr := &testOdr{sdb: sdb, ldb: ldb, indexerConfig: TestClientIndexerConfig}
 	lightchain, err := NewLightChain(odr, params.DefaultChainConfig, mockEngine.NewFullFaker(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -383,7 +389,7 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 			defer cancel()
 
 			exp := i < uint64(expFail)
-			b2, err := fn(ctx, sdb, nil, lightchain, origin)
+			b2, err := fn(ctx, ldb, nil, lightchain, origin)
 			if err != nil && exp {
 				t.Errorf("error in ODR test for block %d: %v", i, err)
 			}
