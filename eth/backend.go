@@ -171,7 +171,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if bcVersion != nil {
 		dbVer = fmt.Sprintf("%d", *bcVersion)
 	}
-	log.Info("Initialising Ethereum protocol", "versions", ProtocolVersions, "network", config.NetworkId, "dbversion", dbVer)
+	log.Info("Initialising Ethereum protocol", "versions", istanbul.ProtocolVersions, "network", config.NetworkId, "dbversion", dbVer)
 
 	if !config.SkipBcVersionCheck {
 		if bcVersion != nil && *bcVersion > core.BlockChainVersion {
@@ -572,7 +572,7 @@ func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
 func (s *Ethereum) IsListening() bool                   { return true } // Always listening
-func (s *Ethereum) EthVersion() int                     { return int(ProtocolVersions[0]) }
+func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) }
 func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
 func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
@@ -583,8 +583,8 @@ func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPrun
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
 func (s *Ethereum) Protocols() []p2p.Protocol {
-	protos := make([]p2p.Protocol, len(ProtocolVersions))
-	for i, vsn := range ProtocolVersions {
+	protos := make([]p2p.Protocol, len(istanbul.ProtocolVersions))
+	for i, vsn := range istanbul.ProtocolVersions {
 		protos[i] = s.protocolManager.makeProtocol(vsn, i == 0)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
 	}
