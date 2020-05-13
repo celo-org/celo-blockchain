@@ -106,7 +106,7 @@ type peer struct {
 	invalidCount  uint32
 
 	poolEntry      *poolEntry
-	hasBlock       func(common.Hash, uint64, bool) bool
+	hasBlock       func(common.Hash, *uint64, bool) bool
 	responseErrors int
 	updateCounter  uint64
 	updateTime     mclock.AbsTime
@@ -378,7 +378,7 @@ func (p *peer) GetTxRelayCost(amount, size int) uint64 {
 }
 
 // HasBlock checks if the peer has a given block
-func (p *peer) HasBlock(hash common.Hash, number uint64, hasState bool) bool {
+func (p *peer) HasBlock(hash common.Hash, number *uint64, hasState bool) bool {
 	var head, since, recent uint64
 	p.lock.RLock()
 	if p.headInfo != nil {
@@ -394,7 +394,7 @@ func (p *peer) HasBlock(hash common.Hash, number uint64, hasState bool) bool {
 	hasBlock := p.hasBlock
 	p.lock.RUnlock()
 
-	return head >= number && number >= since && (recent == 0 || number+recent+4 > head) && hasBlock != nil && hasBlock(hash, number, hasState)
+	return head >= *number && *number >= since && (recent == 0 || *number+recent+4 > head) && hasBlock != nil && hasBlock(hash, number, hasState)
 }
 
 // SendAnnounce announces the availability of a number of blocks through

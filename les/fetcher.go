@@ -225,7 +225,7 @@ func (f *lightFetcher) syncLoop() {
 // registerPeer adds a new peer to the fetcher's peer set
 func (f *lightFetcher) registerPeer(p *peer) {
 	p.lock.Lock()
-	p.hasBlock = func(hash common.Hash, number uint64, hasState bool) bool {
+	p.hasBlock = func(hash common.Hash, number *uint64, hasState bool) bool {
 		return f.peerHasBlock(p, hash, number, hasState)
 	}
 	p.lock.Unlock()
@@ -359,7 +359,11 @@ func (f *lightFetcher) announce(p *peer, head *announceData) {
 
 // peerHasBlock returns true if we can assume the peer knows the given block
 // based on its announcements
-func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number uint64, hasState bool) bool {
+func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number *uint64, hasState bool) bool {
+	// If number is not provided then we return a possible false positive
+	if number == nil {
+		return true
+	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -369,7 +373,7 @@ func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number uint64, ha
 	}
 
 	if hasState {
-		if fp.lastAnnounced == nil || fp.lastAnnounced.number > number+serverStateAvailable {
+		if fp.lastAnnounced == nil || fp.lastAnnounced.number > *number+serverStateAvailable {
 			return false
 		}
 	}
@@ -380,7 +384,7 @@ func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number uint64, ha
 		return true
 	}
 
-	if number >= fp.root.number {
+	if *number >= fp.root.number {
 		// it is recent enough that if it is known, is should be in the peer's block tree
 		return fp.nodeByHash[hash] != nil
 	}
@@ -392,7 +396,7 @@ func (f *lightFetcher) peerHasBlock(p *peer, hash common.Hash, number uint64, ha
 	// when syncing, just check if it is part of the known chain, there is nothing better we
 	// can do since we do not know the most recent block hash yet
 	// If number is 0 we only have hash, so we return a tentatively false positive
-	return rawdb.ReadCanonicalHash(f.handler.backend.chainDb, fp.root.number) == fp.root.hash && (number == 0 || rawdb.ReadCanonicalHash(f.handler.backend.chainDb, number) == hash)
+	return rawdb.ReadCanonicalHash(f.handler.backend.chainDb, fp.root.number) == fp.root.hash && rawdb.ReadCanonicalHash(f.handler.backend.chainDb, *number) == hash
 }
 
 // requestAmount calculates the amount of headers to be downloaded starting

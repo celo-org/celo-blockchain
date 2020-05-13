@@ -232,15 +232,12 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
-		} else { // TODO(lucas): this is likely imperfect
+		} else {
 			h.backend.retriever.lock.RLock()
 			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
 			h.backend.retriever.lock.RUnlock()
 			if headerRequested != nil {
-				contiguousHeaders := true
-				if h.syncMode == downloader.LightestSync {
-					contiguousHeaders = false
-				}
+				contiguousHeaders := h.syncMode != downloader.LightestSync
 				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
 					return err
 				}

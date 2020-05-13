@@ -86,7 +86,7 @@ func (r *BlockRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *BlockRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Hash, r.Number, false)
+	return peer.HasBlock(r.Hash, &r.Number, false)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -136,7 +136,6 @@ func (r *HeaderRequest) GetCost(peer *peer) uint64 {
 }
 
 func (r *HeaderRequest) CanSend(peer *peer) bool {
-	// TODO(lucas): `HasBlock` doesn't work for the hash only case
 	return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
 }
 
@@ -146,7 +145,7 @@ func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
 		return peer.RequestHeadersByHash(reqId, r.GetCost(peer), r.Origin.Hash, 1, 0, false)
 	} else {
 		peer.Log().Debug("Requesting block header", "number", r.Origin.Number)
-		return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), r.Origin.Number, 1, 0, false)
+		return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), *r.Origin.Number, 1, 0, false)
 	}
 }
 
@@ -161,7 +160,7 @@ func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
 	}
 	if r.Origin.Hash != (common.Hash{}) && headers[0].Hash() != r.Origin.Hash {
 		return errRequestResponseMismatch
-	} else if r.Origin.Hash == (common.Hash{}) && headers[0].Number.Uint64() != r.Origin.Number {
+	} else if r.Origin.Hash == (common.Hash{}) && headers[0].Number.Uint64() != *r.Origin.Number {
 		return errRequestResponseMismatch
 	}
 	r.Header = headers[0]
@@ -179,7 +178,7 @@ func (r *ReceiptsRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *ReceiptsRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Hash, r.Number, false)
+	return peer.HasBlock(r.Hash, &r.Number, false)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -236,7 +235,7 @@ func (r *TrieRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *TrieRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Id.BlockHash, r.Id.BlockNumber, true)
+	return peer.HasBlock(r.Id.BlockHash, &r.Id.BlockNumber, true)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -290,7 +289,7 @@ func (r *CodeRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *CodeRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Id.BlockHash, r.Id.BlockNumber, true)
+	return peer.HasBlock(r.Id.BlockHash, &r.Id.BlockNumber, true)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)

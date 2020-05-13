@@ -85,8 +85,8 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 			number := rawdb.ReadHeaderNumber(odr.sdb, req.Origin.Hash)
 			req.Header = rawdb.ReadHeader(odr.sdb, req.Origin.Hash, *number)
 		} else {
-			hash := rawdb.ReadCanonicalHash(odr.sdb, req.Origin.Number)
-			req.Header = rawdb.ReadHeader(odr.sdb, hash, req.Origin.Number)
+			hash := rawdb.ReadCanonicalHash(odr.sdb, *req.Origin.Number)
+			req.Header = rawdb.ReadHeader(odr.sdb, hash, *req.Origin.Number)
 		}
 	case *ReceiptsRequest:
 		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
@@ -141,13 +141,13 @@ func odrGetBlockHashOrNumber(ctx context.Context, db ethdb.Database, bc *core.Bl
 		if origin.Hash != (common.Hash{}) {
 			block = bc.GetBlockByHash(origin.Hash)
 		} else {
-			block = bc.GetBlockByNumber(origin.Number)
+			block = bc.GetBlockByNumber(*origin.Number)
 		}
 	} else {
 		if origin.Hash != (common.Hash{}) {
 			block, err = lc.GetBlockByHash(ctx, origin.Hash)
 		} else {
-			block, err = lc.GetBlockByNumber(ctx, origin.Number)
+			block, err = lc.GetBlockByNumber(ctx, *origin.Number)
 		}
 		if err != nil {
 			return nil, err
@@ -378,7 +378,7 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 			if tryHash {
 				origin = hashOrNumber{Hash: bhash}
 			} else {
-				origin = hashOrNumber{Number: i}
+				origin = hashOrNumber{Number: &i}
 			}
 			b1, err := fn(NoOdr, sdb, blockchain, nil, origin)
 			if err != nil {

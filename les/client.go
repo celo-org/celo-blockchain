@@ -125,7 +125,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.relay = newLesTxRelay(peers, leth.retriever, config.GatewayFee)
 
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
-	if syncMode != downloader.LightestSync {
+	// If the full chain is not available then indexing each block header isn't possible.
+	if !fullChainAvailable {
 		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
 	}
 	leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)

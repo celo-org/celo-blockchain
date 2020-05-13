@@ -61,7 +61,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 		}
 	} else {
 		// If `ChtIndexer` is `nil` then we are effectively in `lightest` mode
-		r := &HeaderRequest{Origin: hashOrNumber{Number: number}}
+		r := &HeaderRequest{Origin: hashOrNumber{Number: &number}}
 		if err := odr.Retrieve(ctx, r); err != nil {
 			log.Error("Error after retrieve", "Err", err)
 			return nil, err

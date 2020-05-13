@@ -121,7 +121,7 @@ func (req *BlockRequest) StoreResult(db ethdb.Database) {
 
 type hashOrNumber struct {
 	Hash   common.Hash
-	Number uint64
+	Number *uint64
 }
 
 type HeaderRequest struct {
