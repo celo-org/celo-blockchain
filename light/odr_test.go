@@ -88,6 +88,10 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 			hash := rawdb.ReadCanonicalHash(odr.sdb, *req.Origin.Number)
 			req.Header = rawdb.ReadHeader(odr.sdb, hash, *req.Origin.Number)
 		}
+		// Simulate `InsertHeaderChain` call that would be done in the real `odr`
+		rawdb.WriteHeader(odr.ldb, req.Header)
+		rawdb.WriteTd(odr.ldb, req.Header.Hash(), req.Header.Number.Uint64(), big.NewInt(int64(req.Header.Number.Uint64()+1)))
+		rawdb.WriteCanonicalHash(odr.ldb, req.Header.Hash(), req.Header.Number.Uint64())
 	case *ReceiptsRequest:
 		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
 		if number != nil {
