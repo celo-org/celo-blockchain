@@ -544,12 +544,9 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Info("Ping from websocket server", "msg", msg)
 			// Primus server might want to have a pong or it closes the connection
 			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
-			var pong = map[string]interface{}{
-				"serverTime": serverTime,
-			}
-			err := conn.WriteJSON(pong)
+			err := conn.WriteMessage(websocket.TextMessage, []byte(serverTime))
 			if err != nil {
-				log.Error("Writing JSON failed!", "err", err)
+				log.Error("Sending pong failed!", "err", err)
 			}
 		}
 	}
