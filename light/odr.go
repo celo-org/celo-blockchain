@@ -130,9 +130,13 @@ type HeaderRequest struct {
 	Header *types.Header
 }
 
-// StoreResult is unnecessary because storage is already done within `lightchain.InsertHeaderChain`
-// which also handles header validation.
-func (req *HeaderRequest) StoreResult(_ ethdb.Database) {}
+// StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
+// This occurs if the total difficulty of the requested header is less than the current known TD.
+func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
+		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
+	}
+}
 
 // ReceiptsRequest is the ODR request type for retrieving block bodies
 type ReceiptsRequest struct {
