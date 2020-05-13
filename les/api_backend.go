@@ -291,4 +291,3 @@ func (b *LesApiBackend) GatewayFee() *big.Int {
 	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
 	return big.NewInt(23)
 }
-

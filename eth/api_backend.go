@@ -313,4 +313,3 @@ func (b *EthAPIBackend) GatewayFee() *big.Int {
 	//return b.eth.GatewayFee()
 	return big.NewInt(25)
 }
-

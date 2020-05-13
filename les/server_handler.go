@@ -55,7 +55,7 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
-	MaxGatewayFee			 = 1000000 //harcoded temp limit for now @rayyuan
+	MaxGatewayFee            = 1000000 //harcoded temp limit for now @rayyuan
 )
 
 var (
@@ -80,7 +80,7 @@ type serverHandler struct {
 	gatewayFee *big.Int
 
 	//@ray
-	nodeID string 
+	nodeID string
 
 	// Testing fields
 	addTxsSync bool
@@ -96,7 +96,7 @@ func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb et
 		synced:     synced,
 		etherbase:  etherbase,
 		gatewayFee: gatewayFee,
-		nodeID: nodeID,
+		nodeID:     nodeID,
 	}
 	return handler
 }
@@ -261,13 +261,13 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 		bv := p.fcClient.RequestProcessed(reqID, responseCount, maxCost, realCost)
 		if amount != 0 {
 			// Feed cost tracker request serving statistic.
-			h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost) 
+			h.server.costTracker.updateStats(msg.Code, amount, servingTime, realCost)
 			// Reduce priority "balance" for the specific peer.
 			h.server.clientPool.requestCost(p, realCost)
 		}
 		if reply != nil {
 			p.queueSend(func() {
-				if err := reply.send(bv); err != nil { 
+				if err := reply.send(bv); err != nil {
 					select {
 					case p.errCh <- err:
 					default:
@@ -878,17 +878,17 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 		if err := msg.Decode(&req); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-	
+
 		if h == nil || h.gatewayFee == nil {
 			p.Log().Info("null handler or gatewayfee")
 		}
-		
+
 		if accept(req.ReqID, 1, MaxGatewayFee) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase, NodeID: h.nodeID}) 
-				sendResponse(req.ReqID, 1, reply, 10) 
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase, NodeID: h.nodeID})
+				sendResponse(req.ReqID, 1, reply, 10)
 			}()
 		}
 

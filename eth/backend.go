@@ -97,9 +97,8 @@ type Ethereum struct {
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
-
-	NodeID string //@rayyuan id of node
-	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+	NodeID        string       // @rayyuan id of node
+	lock          sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -260,7 +259,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
 	eth.NodeID = ctx.Server.NodeID()
-	
 
 	return eth, nil
 }
@@ -310,12 +308,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *Ethereum) APIs() []rpc.API {
 	apis := ethapi.GetAPIs(s.APIBackend)
-	
+
 	// Append any APIs exposed explicitly by the les server
 	if s.lesServer != nil {
 		apis = append(apis, s.lesServer.APIs()...)
 	}
-	
+
 	// Append any APIs exposed explicitly by the consensus engine
 	apis = append(apis, s.engine.APIs(s.BlockChain())...)
 

@@ -79,7 +79,7 @@ const (
 	ResumeMsg = 0x19
 	//@rayyuan gateway fee msgs
 	GetGatewayFeeMsg = 0x1A
-	GatewayFeeMsg = 0x1B
+	GatewayFeeMsg    = 0x1B
 )
 
 type requestInfo struct {
@@ -97,7 +97,7 @@ var requests = map[uint64]requestInfo{
 	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
 	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
 	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
-	GetGatewayFeeMsg:		{"GetGatewayFee", MaxGatewayFee},
+	GetGatewayFeeMsg:       {"GetGatewayFee", MaxGatewayFee},
 }
 
 type errCode int

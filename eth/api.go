@@ -75,13 +75,12 @@ func (api *PublicEthereumAPI) ChainId() hexutil.Uint64 {
 	return (hexutil.Uint64)(chainID.Uint64())
 }
 
-
 // PublicMinerAPI provides an API to control the miner.
 // It offers only methods that operate on data that pose no security risk when it is publicly accessible.
 type PublicMinerAPI struct {
 	e *Ethereum
 }
- 
+
 // NewPublicMinerAPI create a new PublicMinerAPI instance.
 func NewPublicMinerAPI(e *Ethereum) *PublicMinerAPI {
 	return &PublicMinerAPI{e}

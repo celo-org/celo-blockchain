@@ -69,7 +69,6 @@ type LightEthereum struct {
 	netRPCService  *ethapi.PublicNetAPI
 
 	networkId uint64
-
 }
 
 func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
@@ -225,7 +224,7 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Version:   "1.0",
 			Service:   downloader.NewPublicDownloaderAPI(s.handler.downloader, s.eventMux),
 			Public:    true,
-		},{
+		}, {
 			Namespace: "les",
 			Version:   "1.0",
 			Service:   NewLightClientAPI(s),

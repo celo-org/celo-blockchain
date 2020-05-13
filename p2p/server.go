@@ -472,7 +472,7 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
-//gets unique identifier id of node. 
+// Gets unique identifier id of node.
 func (srv *Server) NodeID() string {
 	return enode.PubkeyToIDV4(&srv.PrivateKey.PublicKey).String()
 }

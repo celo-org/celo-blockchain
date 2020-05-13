@@ -23,15 +23,11 @@ import (
 	"math/big"
 	"time"
 
-
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-
-	
-	
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 var (
@@ -61,7 +57,7 @@ func NewPrivateLightServerAPI(server *LesServer) *PrivateLightServerAPI {
 
 //GatewayFee returns the current gateway fee of this light server
 func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
-	return api.server.handler.gatewayFee, nil 
+	return api.server.handler.gatewayFee, nil
 }
 
 //SetGatewayFee allows this light server node to set a gateway fee
@@ -75,39 +71,37 @@ func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 	}
 	return nil
 }
+
 // SetEtherbase sets the etherbase of the miner. Not sure if there should be one here or not because theres already one in the eth api
 func (api *PrivateLightServerAPI) SetEtherbase(etherbase common.Address) common.Address { //could do the casting thing again for test. Also, sending push notif here. Generally assume not changing etherbase. but if it can, need more checks on cache get
 	api.server.handler.etherbase = etherbase
 	if etherbase != common.ZeroAddress {
 		api.BroadcastGatewayFeeUpdate()
-	} 
+	}
 	return api.server.handler.etherbase
 }
 
 //get the unique node id of current node
-func (api *PrivateLightServerAPI) NodeID() string { 
+func (api *PrivateLightServerAPI) NodeID() string {
 	return api.server.handler.nodeID
 }
 
 //This sends messages to light client peers whenever this light server updates gateway fee.
-func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
+func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error {
 	lightClientPeerNodes := api.server.peers.AllLightClientPeers()
 	if len(lightClientPeerNodes) == 0 {
 		return errors.New("No light client peers")
 	}
-	
-	type req struct {
-		ReqID uint64 
-	}
-	
-	currGatewayFee := api.server.handler.gatewayFee.Uint64()
+
+	currGatewayFee := api.server.handler.gatewayFee
 	currEtherbase := api.server.handler.etherbase
-	if currGatewayFee >= 0 && currEtherbase != common.ZeroAddress {
-		for _, lightClientPeer := range lightClientPeerNodes{
-			reply := lightClientPeer.ReplyGatewayFee(genReqID(), GatewayFeeResps{GatewayFee: api.server.handler.gatewayFee.Uint64(), Etherbase: api.server.handler.etherbase, NodeID: api.server.handler.nodeID}) //this works as push notification
+	currNodeID := api.server.handler.nodeID
+	if currGatewayFee.Cmp(big.NewInt(0)) >= 0 && currEtherbase != common.ZeroAddress {
+		for _, lightClientPeer := range lightClientPeerNodes {
+			reply := lightClientPeer.ReplyGatewayFee(genReqID(), GatewayFeeResps{GatewayFee: currGatewayFee.Uint64(), Etherbase: currEtherbase, NodeID: currNodeID}) //this works as push notification
 			if reply != nil {
 				lightClientPeer.queueSend(func() {
-					if err := reply.send(1); err != nil { 
+					if err := reply.send(1); err != nil {
 						select {
 						case lightClientPeer.errCh <- err:
 						default:
@@ -117,14 +111,13 @@ func (api *PrivateLightServerAPI) BroadcastGatewayFeeUpdate() error{
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 func (api *PrivateLightServerAPI) Etherbase() (eb common.Address, err error) {
 	return api.server.handler.etherbase, nil
 }
-
 
 // ServerInfo returns global server parameters
 func (api *PrivateLightServerAPI) ServerInfo() map[string]interface{} {
@@ -437,16 +430,16 @@ func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
 }
 
 // PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func(api *LightClientAPI) GatewayFeeCache() map[string]*gatewayFeeEtherbase { 
+func (api *LightClientAPI) GatewayFeeCache() map[string]*gatewayFeeEtherbase {
 	return api.le.handler.gatewayFeeCache.gatewayFeeMap
 }
 
 // PullPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func(api *LightClientAPI) PullPeerGatewayFees() error { 
+func (api *LightClientAPI) PullPeerGatewayFees() error {
 	peerNodes := api.le.peers.AllPeers()
 	if len(peerNodes) == 0 {
 		return errors.New("No peers")
-	} 
+	}
 
 	reqId := genReqID()
 
@@ -460,9 +453,9 @@ func(api *LightClientAPI) PullPeerGatewayFees() error {
 	return nil
 }
 
-func(api *LightClientAPI) MinPeerGatewayFee() map[string]*gatewayFeeEtherbase { //get min gwFee as well as corresponding etherbase from cache. Can't return a tuple for some reason
+func (api *LightClientAPI) MinPeerGatewayFee() map[string]*gatewayFeeEtherbase { //get min gwFee as well as corresponding etherbase from cache. Can't return a tuple for some reason
 	gatewayFeeMap := api.GatewayFeeCache()
-	minMap := make(map[string]*gatewayFeeEtherbase, 0)
+	minMap := make(map[string]*gatewayFeeEtherbase)
 
 	if len(gatewayFeeMap) == 0 {
 		log.Info("No Peers")
@@ -483,7 +476,3 @@ func(api *LightClientAPI) MinPeerGatewayFee() map[string]*gatewayFeeEtherbase { 
 		return minMap
 	}
 }
-
-
-
-

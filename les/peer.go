@@ -337,15 +337,6 @@ func (r *reply) send(bv uint64) error {
 	return p2p.Send(r.w, r.msgcode, resp{r.reqID, bv, r.data})
 }
 
-// Just a test for gw fee. Try not having bv
-func (r *reply) sendGW() error {
-	type resp struct {
-		ReqID	  uint64
-		Data      rlp.RawValue
-	}
-	return p2p.Send(r.w, r.msgcode, resp{r.reqID, r.data})
-}
-
 // size returns the RLP encoded size of the message data
 func (r *reply) size() uint32 {
 	return uint32(len(r.data))
@@ -538,9 +529,10 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	}
 	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
 }
-//@rayyuan 
+
+//@rayyuan
 // RequestGatewayFee gets gateway fee of remote node
-func (p *peer) RequestGatewayFee(reqID, cost uint64,) error {
+func (p *peer) RequestGatewayFee(reqID, cost uint64) error {
 	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)
 	type req struct {
 		ReqID uint64
@@ -1000,18 +992,18 @@ func (ps *peerSet) AllPeers() []*peer {
 	return list
 }
 
-//Ray: Get all peers that only support les and have no other caps. 
+//Ray: Get all peers that only support les and have no other caps.
 func (ps *peerSet) AllLightClientPeers() []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	peerNodes := ps.AllPeers()
 	lightClientPeers := make([]*peer, 0)
-	
-	for _, peerNode := range peerNodes {//essentailly a filter func. Could abstract this out later
+
+	for _, peerNode := range peerNodes { //essentailly a filter func. Could abstract this out later
 		currPeerProtocols := peerNode.Caps() //this is in p2p/peer.go
 		nonLes := 0
-		for _, cap := range currPeerProtocols{
+		for _, cap := range currPeerProtocols {
 			if cap.Name != "les" {
 				nonLes++
 				break

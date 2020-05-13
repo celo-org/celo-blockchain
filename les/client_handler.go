@@ -17,12 +17,11 @@
 package les
 
 import (
+	"errors"
 	"math"
 	"math/big"
 	"sync"
 	"time"
-	"errors"
-	
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
@@ -52,33 +51,33 @@ type clientHandler struct {
 	gatewayFeeCache *gatewayFeeCache
 }
 
-type gatewayFeeEtherbase struct{
+type gatewayFeeEtherbase struct {
 	GatewayFee *big.Int
-	Etherbase common.Address
+	Etherbase  common.Address
 }
 
 func newGatewayFeeEtherbase(gatewayFee *big.Int, etherbase common.Address) *gatewayFeeEtherbase {
-	ret := &gatewayFeeEtherbase {
+	ret := &gatewayFeeEtherbase{
 		GatewayFee: gatewayFee,
-		Etherbase: etherbase,
+		Etherbase:  etherbase,
 	}
-	return ret;
+	return ret
 }
 
 type gatewayFeeCache struct {
-	mux *sync.RWMutex
+	mux           *sync.RWMutex
 	gatewayFeeMap map[string]*gatewayFeeEtherbase
 }
 
 func newGatewayFeeCache() *gatewayFeeCache {
-	cache := &gatewayFeeCache {
-		mux : new(sync.RWMutex),
-		gatewayFeeMap: make(map[string]*gatewayFeeEtherbase, 0),
+	cache := &gatewayFeeCache{
+		mux:           new(sync.RWMutex),
+		gatewayFeeMap: make(map[string]*gatewayFeeEtherbase),
 	}
-	return cache;
+	return cache
 }
 
-func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeEtherbase) error{
+func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeEtherbase) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -195,7 +194,7 @@ func (h *clientHandler) handle(p *peer) error {
 			reqID := genReqID()
 			cost := p.GetRequestCost(GetEtherbaseMsg, int(1))
 			err := p.RequestEtherbase(reqID, cost)
- 
+
 			if err != nil {
 				p.Log().Warn("Unable to request etherbase from peer", "err", err)
 			}
@@ -399,11 +398,11 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
 		p.SetEtherbase(resp.Etherbase)
-		
+
 	case GatewayFeeMsg:
 		var resp struct {
 			ReqID, BV uint64
-			Data GatewayFeeResps
+			Data      GatewayFeeResps
 		}
 
 		if err := msg.Decode(&resp); err != nil {
