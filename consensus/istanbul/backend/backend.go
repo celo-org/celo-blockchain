@@ -275,12 +275,12 @@ type Backend struct {
 
 // IsProxy returns if instance has proxy flag
 func (sb *Backend) IsProxy() bool {
-	return sb.proxiedPeer != nil || sb.config.Proxy
+	return sb.config.Proxy
 }
 
 // IsProxiedValidator returns if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
-	return (sb.proxyNode != nil && sb.proxyNode.peer != nil) || sb.config.Proxied
+	return sb.config.Proxied
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
