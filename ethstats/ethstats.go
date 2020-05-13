@@ -67,8 +67,8 @@ const (
 
 	// connectionTimeout waits for the websocket connection to be established
 	connectionTimeout = 10
-	// delegateSendTimeout waits for the proxy to sign a message
-	delegateSendTimeout = 10
+	// delegateSignTimeout waits for the proxy to sign a message
+	delegateSignTimeout = 5
 	// statusUpdateInterval is the frequency of sending full node reports
 	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
@@ -385,7 +385,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 			if err != nil {
 				return err
 			}
-		case <-time.After(delegateSendTimeout * time.Second):
+		case <-time.After(delegateSignTimeout * time.Second):
 			// Login timeout, abort
 			return errors.New("delegation of login timed out")
 		}
