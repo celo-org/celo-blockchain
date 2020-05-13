@@ -282,7 +282,12 @@ func (sb *Backend) IsProxy() bool {
 
 // IsProxiedValidator returns if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.config.Proxied
+	return sb.config.Proxied && sb.config.Validator
+}
+
+// IsValidator return if instance is a validator (either proxied or standalone)
+func (sb *Backend) IsValidator() bool {
+	return sb.config.Validator
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy

@@ -54,7 +54,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	defer sb.coreMu.Unlock()
 
 	if istanbul.IsIstanbulMsg(msg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbul.ConsensusMsg) {
+		if (!sb.coreStarted && !sb.IsProxy()) && (msg.Code == istanbul.ConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
