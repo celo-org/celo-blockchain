@@ -130,11 +130,9 @@ type HeaderRequest struct {
 	Header *types.Header
 }
 
-func (req *HeaderRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteHeader(db, req.Header)
-	rawdb.WriteTd(db, req.Header.Hash(), req.Header.Number.Uint64(), big.NewInt(int64(req.Header.Number.Uint64()+1)))
-	rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
-}
+// StoreResult is unnecessary because storage is already done within `lightchain.InsertHeaderChain`
+// which also handles header validation.
+func (req *HeaderRequest) StoreResult(_ ethdb.Database) {}
 
 // ReceiptsRequest is the ODR request type for retrieving block bodies
 type ReceiptsRequest struct {
