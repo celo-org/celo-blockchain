@@ -158,7 +158,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
-	if syncMode != downloader.LightestSync {
+	if leth.chtIndexer != nil {
 		leth.chtIndexer.Start(leth.blockchain)
 	}
 	leth.bloomIndexer.Start(leth.blockchain)
