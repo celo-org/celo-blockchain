@@ -147,7 +147,6 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
-	testLogger.Info("?????????????????? ----------------------")
 
 	proposal := newTestProposal()
 	expectedSubject := &istanbul.Subject{
@@ -166,7 +165,6 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"normal case",
 			func() *testSystem {
-				testLogger.Info("GENERATING ----------------------")
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
@@ -186,7 +184,6 @@ func TestHandlePrepare(t *testing.T) {
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
-				testLogger.Info("GENERATED ----------------------")
 				return sys
 			}(),
 			nil,
