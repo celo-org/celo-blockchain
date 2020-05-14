@@ -141,6 +141,9 @@ func TestRecentMessageCaches(t *testing.T) {
 			t.Fatalf("handle message failed: %v", err)
 		}
 
+		// Sleep for a bit, since some of the messages are handled in a different thread
+		time.Sleep(10 * time.Second)
+
 		// for peers
 		if ms, ok := backend.peerRecentMessages.Get(addr); tt.shouldCache != ok {
 			t.Fatalf("the cache of messages for this peer should be nil")

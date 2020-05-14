@@ -554,6 +554,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	if sb.checkSelfGossipCache(payload) {
 		return nil
 	}
+	defer sb.markSelfGossipCache(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -900,6 +901,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	if sb.checkSelfGossipCache(payload) {
 		return nil
 	}
+	defer sb.markSelfGossipCache(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
