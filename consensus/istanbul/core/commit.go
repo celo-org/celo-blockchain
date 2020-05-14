@@ -42,6 +42,13 @@ func (c *core) commitHandler() {
 	for {
 		select {
 		case sub := <- c.commitCh:
+			loop: for {
+				select {
+				case sub = <- c.commitCh:
+				default:
+					break loop
+				}
+			}
 			c.broadcastCommit(&sub)
 		case <- c.quitCommitCh:
 			return
