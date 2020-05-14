@@ -37,6 +37,8 @@ func (c *core) commitHandler() {
 		c.handlerWg.Done()
 	}()
 	
+	c.handlerWg.Add(1)
+
 	for {
 		select {
 		case sub := <- c.commitCh:
