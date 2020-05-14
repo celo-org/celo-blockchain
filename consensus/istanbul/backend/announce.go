@@ -259,7 +259,7 @@ func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 		return false, err
 	}
 
-	return sb.coreStarted && validatorConnSet[sb.Address()], nil
+	return validatorConnSet[sb.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -553,6 +553,13 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	msg := new(istanbul.Message)
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
+	sb.markPeerGossipCache(addr, payload)
+	if sb.checkSelfGossipCache(payload) {
+		return nil
+	}
+	defer sb.markSelfGossipCache(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -899,6 +906,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	if sb.checkSelfGossipCache(payload) {
 		return nil
 	}
+	defer sb.markSelfGossipCache(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {

@@ -137,7 +137,9 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 }
 
 // IsProposer implements RoundState.IsProposer
-func (rsp *rsSaveDecorator) IsProposer(address common.Address) bool { return rsp.rs.IsProposer(address) }
+func (rsp *rsSaveDecorator) IsProposer(address common.Address) bool {
+	return rsp.rs.IsProposer(address)
+}
 
 // PreparedCertificate implements RoundState.PreparedCertificate
 func (rsp *rsSaveDecorator) PreparedCertificate() istanbul.PreparedCertificate {

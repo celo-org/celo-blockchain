@@ -581,7 +581,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// Having coreStarted as false at this point guarantees that announce versions
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
-	if !sb.config.Proxied {
+	if !sb.IsProxiedValidator() {
 		sb.UpdateAnnounceVersion()
 	}
 
@@ -652,9 +652,9 @@ func (sb *Backend) StopAnnouncing() error {
 
 // StartProxyHandler implements consensus.Istanbul.StartProxyHandler
 func (sb *Backend) StartProxyHandler() error {
-        sb.proxyHandlerMu.Lock()
-        defer sb.proxyHandlerMu.Unlock()
-	
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
 	if sb.proxyHandlerRunning {
 		return istanbul.ErrStartedProxyHandler
 	}

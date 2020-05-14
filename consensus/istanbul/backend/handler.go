@@ -48,7 +48,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	defer sb.coreMu.Unlock()
 
 	if istanbul.IsIstanbulMsg(msg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbul.ConsensusMsg) {
+		// Only a running validator or proxy should handle consensus messages
+		if (msg.Code == istanbul.ConsensusMsg) && (!sb.IsValidating() && !sb.IsProxy()) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -68,39 +69,39 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		}
 
 		if sb.IsProxy() {
-		   // This will handle the following messages:
-		   // 1) ValEnodesShareMsg
-		   // 2) FwdMsg
-		   // 3) ConsensusMsg
-		   // 4) EnodeCertificateMsg
-		   handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data)
-		   if handled {
-		      return handled, error
-		   }
+			// This will handle the following messages:
+			// 1) ValEnodesShareMsg
+			// 2) FwdMsg
+			// 3) ConsensusMsg
+			// 4) EnodeCertificateMsg
+			handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data)
+			if handled {
+				return handled, error
+			}
 		} else if sb.IsValidating() {
-		  if msg.Code == istanbul.ConsensusMsg {
-		     go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-			Payload: data,
-		     })
-		     return true, nil
-		  } else if msg.Code == istanbul.EnodeCertificateMsg {
-		    go sb.handleEnodeCertificateMsg(peer, data)
-		    return true, nil
-		  }
+			if msg.Code == istanbul.ConsensusMsg {
+				go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+					Payload: data,
+				})
+				return true, nil
+			} else if msg.Code == istanbul.EnodeCertificateMsg {
+				go sb.handleEnodeCertificateMsg(peer, data)
+				return true, nil
+			}
 		}
 
 		// Handle gossip messages (which ALL node types, other than light nodes, need to handle)
 		if msg.Code == istanbul.QueryEnodeMsg {
-		   go sb.handleQueryEnodeMsg(addr, peer, data)
-		   return true, nil
+			go sb.handleQueryEnodeMsg(addr, peer, data)
+			return true, nil
 		} else if msg.Code == istanbul.VersionCertificatesMsg {
-		  go sb.handleVersionCertificatesMsg(addr, peer, data)
-		  return true, nil
+			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			return true, nil
 		} else if msg.Code == istanbul.ValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		}
-		
+
 		// If we got here, then that means that there is an istanbul message type that either there
 		// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
 		// node other than a proxy received the message).
@@ -108,11 +109,6 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		return false, nil
 	}
 	return false, nil
-}
-
-// Handle an incoming consensus msg
-func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error {
-	return nil
 }
 
 func (sb *Backend) shouldHandleDelegateSign() bool {
@@ -150,17 +146,16 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// Determine if this validator signed the parent of the supplied block:
-// First check the grandparent's validator set. If not elected, it didn't.
-// Then, check the parent seal on the supplied block.
+// Maintain metrics around the *parent* of the supplied block.
+// To figure out if this validator signed the parent block:
+// * First check the grandparent's validator set. If not elected, it didn't.
+// * Then, check the parent seal on the supplied (child) block.
 // We cannot determine any specific info from the validators in the seal of
 // the parent block, because different nodes circulate different versions.
-// It only becomes canonical when the child block is proposed.
-func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
+// The bitmap of signed validators only becomes canonical when the child block is proposed.
+func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-
-	countInParentSeal = -1
 
 	// Check the parent is not the genesis block.
 	number := child.Number().Uint64()
@@ -174,7 +169,6 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
 	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
-	elected = gpValSetIndex >= 0
 
 	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
@@ -182,16 +176,45 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 		return
 	}
 
-	if elected {
-		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
-	}
+	// total possible signatures
+	valSetSize := gpValSet.Size()
+	sb.blocksValSetSizeGauge.Update(int64(valSetSize))
 
-	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
-	countInParentSeal = 0
+	// signatures present
+	countInParentSeal := 0
 	for i := 0; i < gpValSet.Size(); i++ {
 		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
 	}
-	return
+	sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+
+	// cumulative count of rounds missed (i.e sequences not agreed on round=0)
+	missedRounds := childExtra.ParentAggregatedSeal.Round.Int64()
+	if missedRounds > 0 {
+		sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+	}
+
+	// elected?
+	elected := gpValSetIndex >= 0
+	if !elected {
+		return
+	}
+	sb.blocksElectedMeter.Mark(1)
+
+	// The following metrics are only tracked if the validator is elected.
+
+	// proposed?
+	if parentHeader.Coinbase == sb.ValidatorAddress() {
+		sb.blocksElectedAndProposedMeter.Mark(1)
+	}
+
+	// signed, or missed?
+	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
+	if inParentSeal {
+		sb.blocksElectedAndSignedMeter.Mark(1)
+	} else {
+		sb.blocksElectedButNotSignedMeter.Mark(1)
+		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+	}
 }
 
 // Actions triggered by a new block being added to the chain.
@@ -200,21 +223,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
-	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
-	if countInParentSeal >= 0 {
-		if elected {
-			sb.blocksElectedMeter.Mark(1)
-			if inChildsParentSeal {
-				sb.blocksElectedAndSignedMeter.Mark(1)
-			} else {
-				sb.blocksElectedButNotSignedMeter.Mark(1)
-			}
-		}
-		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
-		if missedRounds > 0 {
-			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
-		}
-	}
+	sb.UpdateMetricsForParentOfBlock(newBlock)
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
@@ -252,9 +261,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyHandler.RegisterProxiedValidator(peer)
 	} else if sb.IsProxiedValidator() {
-	        if err := sb.proxyHandler.RegisterProxy(peer); err != nil {
-		   return err
-		}		
+		if err := sb.proxyHandler.RegisterProxy(peer); err != nil {
+			return err
+		}
 	}
 
 	if err := sb.sendVersionCertificateTable(peer); err != nil {
@@ -268,7 +277,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyHandler.UnregisterProxiedValidator(peer)
 	} else if sb.IsProxiedValidator() {
-	        sb.proxyHandler.UnregisterProxy(peer)
+		sb.proxyHandler.UnregisterProxy(peer)
 	}
 }
 
@@ -413,7 +422,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	// to its val enode table, which occurs if the proxied validator sends back
 	// the enode certificate to this proxy.
 	if sb.IsProxy() {
-	        sb.proxyHandler.SendEnodeCertificateMsgToProxiedValidator(&msg)
+		sb.proxyHandler.SendEnodeCertificateMsgToProxiedValidator(&msg)
 		return false, nil
 	}
 

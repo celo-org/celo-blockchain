@@ -50,12 +50,12 @@ func (sb *Backend) checkPeerGossipCache(peerNodeAddr common.Address, payload []b
 }
 
 func (sb *Backend) markSelfGossipCache(payload []byte) {
-     payloadHash := istanbul.RLPHash(payload)
+	payloadHash := istanbul.RLPHash(payload)
 	sb.selfRecentMessages.Add(payloadHash, true)
 }
 
 func (sb *Backend) checkSelfGossipCache(payload []byte) bool {
-     payloadHash := istanbul.RLPHash(payload)
-        _, ok := sb.selfRecentMessages.Get(payloadHash)
+	payloadHash := istanbul.RLPHash(payload)
+	_, ok := sb.selfRecentMessages.Get(payloadHash)
 	return ok
 }
