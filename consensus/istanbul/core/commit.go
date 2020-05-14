@@ -36,21 +36,22 @@ func (c *core) commitHandler() {
 	defer func() {
 		c.handlerWg.Done()
 	}()
-	
+
 	c.handlerWg.Add(1)
 
 	for {
 		select {
-		case sub := <- c.commitCh:
-			loop: for {
+		case sub := <-c.commitCh:
+		loop:
+			for {
 				select {
-				case sub = <- c.commitCh:
+				case sub = <-c.commitCh:
 				default:
 					break loop
 				}
 			}
 			c.broadcastCommit(&sub)
-		case <- c.quitCommitCh:
+		case <-c.quitCommitCh:
 			return
 		}
 	}
