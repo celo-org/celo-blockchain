@@ -24,13 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
-	return &istanbul.Preprepare{
-		View:     v,
-		Proposal: newTestProposal(),
-	}
-}
-
 func TestHandlePreprepare(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests

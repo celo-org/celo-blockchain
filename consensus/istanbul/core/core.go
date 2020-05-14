@@ -93,7 +93,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
-		commitCh:           make(chan istanbul.Subject),
+		commitCh:           make(chan istanbul.Subject, 100),
 		quitCommitCh:       make(chan struct{}),
 	}
 	msgBacklog := newMsgBacklog(

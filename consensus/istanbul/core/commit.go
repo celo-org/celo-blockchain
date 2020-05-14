@@ -32,6 +32,8 @@ func (c *core) sendCommit() {
 }
 
 func (c *core) commitHandler() {
+	logger := c.newLogger("func", "commitHandler")
+	logger.Trace("Starting commit handler")
 	// Clear state
 	defer func() {
 		c.handlerWg.Done()

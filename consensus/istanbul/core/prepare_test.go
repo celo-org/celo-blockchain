@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -146,6 +147,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 func TestHandlePrepare(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
+	testLogger.Info("?????????????????? ----------------------")
 
 	proposal := newTestProposal()
 	expectedSubject := &istanbul.Subject{
@@ -164,10 +166,12 @@ func TestHandlePrepare(t *testing.T) {
 		{
 			"normal case",
 			func() *testSystem {
+				testLogger.Info("GENERATING ----------------------")
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 
 					c.current = newTestRoundState(
 						&istanbul.View{
@@ -182,6 +186,7 @@ func TestHandlePrepare(t *testing.T) {
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
 				}
+				testLogger.Info("GENERATED ----------------------")
 				return sys
 			}(),
 			nil,
@@ -202,6 +207,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
@@ -236,6 +242,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
@@ -261,6 +268,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -289,6 +297,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -317,6 +326,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -347,6 +357,7 @@ func TestHandlePrepare(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					c := backend.engine.(*core)
+					c.Start()
 					c.current = newTestRoundState(
 						expectedSubject.View,
 						backend.peers,
@@ -388,6 +399,8 @@ func TestHandlePrepare(t *testing.T) {
 				}
 			}
 
+			time.Sleep(100 * time.Millisecond)
+
 			// prepared is normal case
 			if r0.current.State() != StatePrepared {
 				// There are not enough PREPARE messages in core
@@ -409,6 +422,7 @@ func TestHandlePrepare(t *testing.T) {
 			// a message will be delivered to backend if 2F+1
 			if int64(len(v0.sentMsgs)) != 1 {
 				t.Errorf("the Send() should be called once: times %v", len(test.system.backends[0].sentMsgs))
+				return
 			}
 
 			// verify COMMIT messages
