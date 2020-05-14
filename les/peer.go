@@ -394,6 +394,11 @@ func (p *peer) HasBlock(hash common.Hash, number *uint64, hasState bool) bool {
 	hasBlock := p.hasBlock
 	p.lock.RUnlock()
 
+	// If number is not provided then we return an optimistic yet possible false positive
+	if number == nil {
+		return true
+	}
+
 	return head >= *number && *number >= since && (recent == 0 || *number+recent+4 > head) && hasBlock != nil && hasBlock(hash, number, hasState)
 }
 

@@ -114,7 +114,7 @@ func (odr *testOdr) IndexerConfig() *IndexerConfig {
 }
 
 type odrTestFn func(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, bhash common.Hash) ([]byte, error)
-type odrTestFnNum func(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, origin hashOrNumber) ([]byte, error)
+type odrTestFnNum func(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, origin blockHashOrNumber) ([]byte, error)
 
 func TestOdrGetBlockLes2(t *testing.T) { testChainOdr(t, 1, odrGetBlock) }
 
@@ -138,7 +138,7 @@ func odrGetBlock(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc
 	return rlp, nil
 }
 
-func odrGetBlockHashOrNumber(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, origin hashOrNumber) ([]byte, error) {
+func odrGetBlockHashOrNumber(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *LightChain, origin blockHashOrNumber) ([]byte, error) {
 	var block *types.Block
 	var err error
 	if bc != nil {
@@ -378,11 +378,11 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 	test := func(expFail int, tryHash bool) {
 		for i := uint64(0); i <= blockchain.CurrentHeader().Number.Uint64(); i++ {
 			bhash := rawdb.ReadCanonicalHash(sdb, i)
-			var origin hashOrNumber
+			var origin blockHashOrNumber
 			if tryHash {
-				origin = hashOrNumber{Hash: bhash}
+				origin = blockHashOrNumber{Hash: bhash}
 			} else {
-				origin = hashOrNumber{Number: &i}
+				origin = blockHashOrNumber{Number: &i}
 			}
 			b1, err := fn(NoOdr, sdb, blockchain, nil, origin)
 			if err != nil {

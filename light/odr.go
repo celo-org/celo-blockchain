@@ -119,14 +119,14 @@ func (req *BlockRequest) StoreResult(db ethdb.Database) {
 	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
 }
 
-type hashOrNumber struct {
+type blockHashOrNumber struct {
 	Hash   common.Hash
 	Number *uint64
 }
 
 type HeaderRequest struct {
 	OdrRequest
-	Origin hashOrNumber
+	Origin blockHashOrNumber
 	Header *types.Header
 }
 
