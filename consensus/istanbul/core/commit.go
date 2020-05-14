@@ -28,7 +28,16 @@ func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
-	c.broadcastCommit(sub)
+	c.commitCh <- *sub
+}
+
+func (c *core) commitHandler() {
+	for {
+		select {
+		case sub := <- c.commitCh:
+			c.broadcastCommit(&sub)
+		}
+	}
 }
 
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
