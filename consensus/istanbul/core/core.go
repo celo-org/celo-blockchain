@@ -70,7 +70,8 @@ type core struct {
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 
-	commitCh chan istanbul.Subject
+	commitCh 	 chan istanbul.Subject
+	quitCommitCh chan struct{}
 }
 
 // New creates an Istanbul consensus core
@@ -93,6 +94,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 		commitCh:			make(chan istanbul.Subject),
+		quitCommitCh:		make(chan struct{}),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -110,7 +112,6 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 			return common.Big0
 		},
 	)
-	go c.commitHandler()
 	return c
 }
 

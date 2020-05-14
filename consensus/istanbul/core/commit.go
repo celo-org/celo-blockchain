@@ -32,10 +32,17 @@ func (c *core) sendCommit() {
 }
 
 func (c *core) commitHandler() {
+	// Clear state
+	defer func() {
+		c.handlerWg.Done()
+	}()
+	
 	for {
 		select {
 		case sub := <- c.commitCh:
 			c.broadcastCommit(&sub)
+		case <- c.quitCommitCh:
+			return
 		}
 	}
 }

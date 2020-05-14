@@ -47,6 +47,7 @@ func (c *core) Start() error {
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
 	c.subscribeEvents()
+	go c.commitHandler()
 	go c.handleEvents()
 
 	return nil
@@ -56,6 +57,7 @@ func (c *core) Start() error {
 func (c *core) Stop() error {
 	c.stopAllTimers()
 	c.unsubscribeEvents()
+	c.quitCommitCh <- struct{}{}
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
