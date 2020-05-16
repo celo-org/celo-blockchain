@@ -101,7 +101,7 @@ func PrivateToPublic(privateKeyBytes []byte) (SerializedPublicKey, error) {
 func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
-		publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
+		publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 }
 
 func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
-	publicKeyObj, err := bls.DeserializePublicKey(publicKey[:])
+	publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16) ([]byte, error) {
 	pubKeys := []*bls.PublicKey{}
 	for _, pubKey := range newValSet {
-		publicKeyObj, err := bls.DeserializePublicKey(pubKey[:])
+		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
 		if err != nil {
 			return nil, err
 		}

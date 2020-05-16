@@ -706,7 +706,7 @@ func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, g
 	addressBytes := input[:common.AddressLength]
 
 	publicKeyBytes := input[common.AddressLength : common.AddressLength+blscrypto.PUBLICKEYBYTES]
-	publicKey, err := bls.DeserializePublicKey(publicKeyBytes)
+	publicKey, err := bls.DeserializePublicKeyCached(publicKeyBytes)
 	if err != nil {
 		return nil, gas, err
 	}
