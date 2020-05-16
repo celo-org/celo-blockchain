@@ -24,8 +24,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/celo-org/celo-bls-go/bls"
-	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -256,63 +254,8 @@ func TestValSetChange(t *testing.T) {
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		signerFn := func(_ ethAccounts.Account, mimeType string, data []byte) ([]byte, error) {
-			return crypto.Sign(data, privateKey)
-		}
 
-		signerBLSHashFn := func(_ ethAccounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
-			key := privateKey
-			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-
-			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-			defer privateKey.Destroy()
-
-			signature, err := privateKey.SignMessage(data, []byte{}, false)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-			defer signature.Destroy()
-			signatureBytes, err := signature.Serialize()
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-
-			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-		}
-
-		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-			key := privateKey
-			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-
-			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-			defer privateKey.Destroy()
-
-			signature, err := privateKey.SignMessage(data, extraData, true)
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-			defer signature.Destroy()
-			signatureBytes, err := signature.Serialize()
-			if err != nil {
-				return blscrypto.SerializedSignature{}, err
-			}
-
-			return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-		}
-
-		engine.Authorize(address, &privateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+		engine.Authorize(address, &privateKey.PublicKey, decryptFn, SignFn(privateKey), SignBLSFn(privateKey))
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

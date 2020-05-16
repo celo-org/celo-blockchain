@@ -14,7 +14,7 @@ executors:
 jobs:
   build-geth:
     executor: golang
-    working_directory: ~/repos/geth
+    resource_class: medium+
     steps:
       - checkout
       - restore_cache:

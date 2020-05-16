@@ -35,9 +35,13 @@ func TestDefaultGenesisBlock(t *testing.T) {
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash().Hex(), params.MainnetGenesisHash.Hex())
 	}
-	block = DefaultTestnetGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.TestnetGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.TestnetGenesisHash.Hex())
+	block = DefaultBaklavaGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.BaklavaGenesisHash {
+		t.Errorf("wrong baklava testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.BaklavaGenesisHash.Hex())
+	}
+	block = DefaultAlfajoresGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.AlfajoresGenesisHash {
+		t.Errorf("wrong alfajores testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.AlfajoresGenesisHash.Hex())
 	}
 }
 
@@ -95,14 +99,24 @@ func TestSetupGenesis(t *testing.T) {
 			wantConfig: customg.Config,
 		},
 		{
-			name: "custom block in DB, genesis == testnet",
+			name: "custom block in DB, genesis == baklava",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				customg.MustCommit(db)
-				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock())
+				return SetupGenesisBlock(db, DefaultBaklavaGenesisBlock())
 			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestnetGenesisHash},
-			wantHash:   params.TestnetGenesisHash,
-			wantConfig: params.TestnetChainConfig,
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.BaklavaGenesisHash},
+			wantHash:   params.BaklavaGenesisHash,
+			wantConfig: params.BaklavaChainConfig,
+		},
+		{
+			name: "custom block in DB, genesis == alfajores",
+			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
+				customg.MustCommit(db)
+				return SetupGenesisBlock(db, DefaultAlfajoresGenesisBlock())
+			},
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.AlfajoresGenesisHash},
+			wantHash:   params.AlfajoresGenesisHash,
+			wantConfig: params.AlfajoresChainConfig,
 		},
 		{
 			name: "compatible config in DB",
