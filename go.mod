@@ -11,7 +11,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.5.2
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847
 	github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6
-	github.com/celo-org/celo-bls-go v0.1.2
+	github.com/celo-org/celo-bls-go v0.1.3
 	github.com/cespare/cp v0.1.0
 	github.com/cloudflare/cloudflare-go v0.10.2-0.20190916151808-a80f83b9add9
 	github.com/davecgh/go-spew v1.1.1
