@@ -94,6 +94,12 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
+	// TODO(mrsmkl): Change this
+	if c.current.Proposal() == nil {
+		logger.Warn("No current proposal")
+		return
+	}
+
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {
