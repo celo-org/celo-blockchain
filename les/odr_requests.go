@@ -129,16 +129,21 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 }
 
 //TODO(lucas): Comments
+// BlockRequest is the ODR request type for block headers
 type HeaderRequest light.HeaderRequest
 
+// GetCost returns the cost of the given ODR request according to the serving
+// peer's cost table (implementation fo LesOdrRequest)
 func (r *HeaderRequest) GetCost(peer *peer) uint64 {
 	return peer.GetRequestCost(GetBlockHeadersMsg, 1)
 }
 
+// CanSend tells if a certain peer is suitable for serving the given request
 func (r *HeaderRequest) CanSend(peer *peer) bool {
 	return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
 }
 
+// Request sends an ODR request to the LES network (implementation of LesOdrRequest)
 func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
 	if r.Origin.Hash != (common.Hash{}) {
 		peer.Log().Debug("Requesting block header", "hash", r.Origin.Hash)
@@ -149,6 +154,9 @@ func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
 	}
 }
 
+// Validate processes an ODR request reply message from the LES network
+// returns true and stores results in memory if the message was a valid reply
+// to the request (implementation of LesOdrRequest)
 func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if msg.MsgType != MsgBlockHeaders {
 		log.Error("Bad message response", "type", msg.MsgType)

@@ -91,7 +91,6 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 		// Simulate `InsertHeaderChain` call that would be done in the real `odr`
 		rawdb.WriteHeader(odr.ldb, req.Header)
 		rawdb.WriteTd(odr.ldb, req.Header.Hash(), req.Header.Number.Uint64(), big.NewInt(int64(req.Header.Number.Uint64()+1)))
-		rawdb.WriteCanonicalHash(odr.ldb, req.Header.Hash(), req.Header.Number.Uint64())
 	case *ReceiptsRequest:
 		number := rawdb.ReadHeaderNumber(odr.sdb, req.Hash)
 		if number != nil {
@@ -401,6 +400,18 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 			eq := bytes.Equal(b1, b2)
 			if exp && !eq {
 				t.Errorf("ODR test output for tryHash %t block %d doesn't match full node", tryHash, i)
+			}
+
+			header := rawdb.ReadHeader(odr.ldb, bhash, i)
+			if exp {
+				if header == nil {
+					t.Errorf("ODR test for tryHash %t block %d did not properly receive/store header", tryHash, i)
+				}
+				headers := []*types.Header{header}
+
+				if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
+					t.Errorf("ODR test for tryHash %t block %d could not insert header to headerchain", tryHash, i)
+				}
 			}
 		}
 	}
