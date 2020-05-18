@@ -200,7 +200,7 @@ var (
 	defaultSyncMode = eth.DefaultConfig.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
 		Name:  "syncmode",
-		Usage: `Blockchain sync mode ("fast", "full", "light", or "lightest")`,
+		Usage: `Blockchain sync mode ("full", "light", or "lightest")`,
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -1563,6 +1563,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
+		if cfg.SyncMode == downloader.FastSync {
+			Fatalf("fast sync is not supported")
+		}
 	}
 	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
 		cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)

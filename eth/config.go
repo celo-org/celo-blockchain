@@ -30,7 +30,7 @@ import (
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
 var DefaultConfig = Config{
-	SyncMode:           downloader.FastSync,
+	SyncMode:           downloader.FullSync,
 	NetworkId:          1,
 	LightPeers:         99,
 	LightServ:          50,
