@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -248,59 +248,8 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 		return eciesKey.Decrypt(c, s1, s2)
 	}
 
-	signerFn := func(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
-		return crypto.Sign(data, testBankKey)
-	}
-
-	signHashBLSFn := func(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
-		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-
-		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-		defer privateKey.Destroy()
-
-		signature, err := privateKey.SignMessage(data, []byte{}, false)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-		defer signature.Destroy()
-		signatureBytes, err := signature.Serialize()
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-
-		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-	}
-
-	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-
-		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-		defer privateKey.Destroy()
-
-		signature, err := privateKey.SignMessage(msg, extraData, true)
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-		defer signature.Destroy()
-		signatureBytes, err := signature.Serialize()
-		if err != nil {
-			return blscrypto.SerializedSignature{}, err
-		}
-
-		return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-	}
+	signerFn := backend.SignFn(testBankKey)
+	signBLSFn := backend.SignBLSFn(testBankKey)
 
 	config := istanbul.DefaultConfig
 	config.RoundStateDBPath = ""
@@ -310,7 +259,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), &testBankKey.PublicKey, decryptFn, signerFn, signHashBLSFn, signMessageBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }
