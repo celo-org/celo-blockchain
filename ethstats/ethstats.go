@@ -133,10 +133,6 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 
 	backend := engine.(*istanbulBackend.Backend)
 
-	if len(name) == 0 {
-		name = backend.Address().String()
-	}
-
 	return &Service{
 		eth:           ethServ,
 		les:           lesServ,
@@ -398,7 +394,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		}
 	}
 	auth := &authMsg{
-		ID:      s.nodeName,
+		ID:      s.backend.Address().String(),
 		Address: etherBase,
 		Info: nodeInfo{
 			Name:     s.nodeName,
@@ -605,7 +601,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	start := time.Now()
 
 	ping := map[string]interface{}{
-		"id":         s.nodeName,
+		"id":         s.backend.Address().String(),
 		"clientTime": start.String(),
 	}
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
@@ -633,7 +629,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
 	stats := map[string]interface{}{
-		"id":      s.nodeName,
+		"id":      s.backend.Address().String(),
 		"latency": latency,
 	}
 	return s.sendStats(conn, actionLatency, stats)
@@ -762,7 +758,7 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	log.Trace("Sending new block to ethstats", "number", details.Number, "hash", details.Hash)
 
 	stats := map[string]interface{}{
-		"id":    s.nodeName,
+		"id":    s.backend.Address().String(),
 		"block": details,
 	}
 	return s.sendStats(conn, actionBlock, stats)
@@ -946,7 +942,7 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		log.Trace("No history to send to stats server")
 	}
 	stats := map[string]interface{}{
-		"id":      s.nodeName,
+		"id":      s.backend.Address().String(),
 		"history": history,
 	}
 	return s.sendStats(conn, actionHistory, stats)
@@ -971,7 +967,7 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 	log.Trace("Sending pending transactions to ethstats", "count", pending)
 
 	stats := map[string]interface{}{
-		"id": s.nodeName,
+		"id": s.backend.Address().String(),
 		"stats": &pendStats{
 			Pending: pending,
 		},
@@ -1035,7 +1031,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	log.Trace("Sending node details to ethstats")
 
 	stats := map[string]interface{}{
-		"id":      s.nodeName,
+		"id":      s.backend.Address().String(),
 		"address": etherBase,
 		"stats": &nodeStats{
 			Active:   true,
