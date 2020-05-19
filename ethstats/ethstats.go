@@ -96,14 +96,14 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server    *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth       *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les       *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine    consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend   *istanbulBackend.Backend // Istanbul consensus backend
-	etherBase common.Address
-	node      string // Name of the node to display on the monitoring page
-	host      string // Remote address of the monitoring service
+	server        *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth           *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les           *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine        consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend       *istanbulBackend.Backend // Istanbul consensus backend
+	etherBase     common.Address
+	nodeName      string // Name of the node to display on the monitoring page
+	celostatsHost string // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -121,9 +121,9 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	var (
 		engine    consensus.Engine
 		etherBase common.Address
-		id        string
+		name      string
 	)
-	id = parts[1]
+	name = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
 		etherBase, _ = ethServ.Etherbase()
@@ -133,16 +133,20 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 
 	backend := engine.(*istanbulBackend.Backend)
 
+	if len(name) == 0 {
+		name = backend.Address().String()
+	}
+
 	return &Service{
-		eth:       ethServ,
-		les:       lesServ,
-		engine:    engine,
-		backend:   backend,
-		etherBase: etherBase,
-		node:      id,
-		host:      parts[2],
-		pongCh:    make(chan struct{}),
-		histCh:    make(chan []uint64, 1),
+		eth:           ethServ,
+		les:           lesServ,
+		engine:        engine,
+		backend:       backend,
+		etherBase:     etherBase,
+		nodeName:      name,
+		celostatsHost: parts[2],
+		pongCh:        make(chan struct{}),
+		histCh:        make(chan []uint64, 1),
 	}, nil
 }
 
@@ -278,7 +282,7 @@ func (s *Service) loop() {
 
 			if status, _ := wallet.Status(); status == "Unlocked" {
 				// Resolve the URL, defaulting to TLS, but falling back to none too
-				path := fmt.Sprintf("%s/api", s.host)
+				path := fmt.Sprintf("%s/api", s.celostatsHost)
 				urls := []string{path}
 
 				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
@@ -394,10 +398,10 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		}
 	}
 	auth := &authMsg{
-		ID:      s.node,
+		ID:      s.nodeName,
 		Address: etherBase,
 		Info: nodeInfo{
-			Name:     s.node,
+			Name:     s.nodeName,
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
 			Network:  network,
@@ -601,7 +605,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	start := time.Now()
 
 	ping := map[string]interface{}{
-		"id":         s.node,
+		"id":         s.nodeName,
 		"clientTime": start.String(),
 	}
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
@@ -629,7 +633,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
 	stats := map[string]interface{}{
-		"id":      s.node,
+		"id":      s.nodeName,
 		"latency": latency,
 	}
 	return s.sendStats(conn, actionLatency, stats)
@@ -758,7 +762,7 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	log.Trace("Sending new block to ethstats", "number", details.Number, "hash", details.Hash)
 
 	stats := map[string]interface{}{
-		"id":    s.node,
+		"id":    s.nodeName,
 		"block": details,
 	}
 	return s.sendStats(conn, actionBlock, stats)
@@ -942,7 +946,7 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		log.Trace("No history to send to stats server")
 	}
 	stats := map[string]interface{}{
-		"id":      s.node,
+		"id":      s.nodeName,
 		"history": history,
 	}
 	return s.sendStats(conn, actionHistory, stats)
@@ -967,7 +971,7 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 	log.Trace("Sending pending transactions to ethstats", "count", pending)
 
 	stats := map[string]interface{}{
-		"id": s.node,
+		"id": s.nodeName,
 		"stats": &pendStats{
 			Pending: pending,
 		},
@@ -1031,7 +1035,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	log.Trace("Sending node details to ethstats")
 
 	stats := map[string]interface{}{
-		"id":      s.node,
+		"id":      s.nodeName,
 		"address": etherBase,
 		"stats": &nodeStats{
 			Active:   true,
