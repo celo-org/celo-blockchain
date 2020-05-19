@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
