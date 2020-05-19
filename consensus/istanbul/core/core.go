@@ -492,7 +492,8 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 		return nil
 	}
 
-	logger.Debug("Round Change: Waiting for desired round")
+	// logger.Debug("Round Change: Waiting for desired round")
+	logger.Info("Round Change: Waiting for desired round")
 
 	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
