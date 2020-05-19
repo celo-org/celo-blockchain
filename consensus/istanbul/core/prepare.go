@@ -207,7 +207,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
+			logger.Error("Failed to create and set prepared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
