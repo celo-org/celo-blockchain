@@ -170,9 +170,9 @@ func (c *core) handleMsg(payload []byte) error {
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
 	if (len(payload) < 1000) {
-		logger.Debug("Got new message", "code", msg.Code, "payload", hexutil.Encode(payload))
+		logger.Debug("Got new message", "payload", hexutil.Encode(payload))
 	} else {
-		logger.Debug("Got new message", "code", msg.Code, "len", len(payload))
+		logger.Debug("Got new message", "len", len(payload))
 	}
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
@@ -191,6 +191,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.newLogger("func", "handleCheckedMsg", "from", msg.Address)
+	logger.Debug("Hadling message", "code", msg.Code)
 
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
