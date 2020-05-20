@@ -76,7 +76,6 @@
           break;
 
         case 'SELFDESTRUCT':
-          this.callStack.push({ transfers: [] })
           this.handleDestruct(log, db);
           break;
 
