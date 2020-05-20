@@ -464,7 +464,7 @@ func (p *peer) ReplyTxStatus(reqID uint64, stats []light.TxStatus) *reply {
 }
 
 //ReplyGatewayFee creates reply with gateway fee that was requested
-func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeResps) *reply {
+func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply {
 	data, _ := rlp.EncodeToBytes(resp)
 	return &reply{p.rw, GatewayFeeMsg, reqID, data}
 }

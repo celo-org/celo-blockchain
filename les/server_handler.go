@@ -878,7 +878,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase})
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeInformation{GatewayFee: h.gatewayFee, Etherbase: h.etherbase})
 				sendResponse(req.ReqID, 1, reply, 10)
 			}()
 		}

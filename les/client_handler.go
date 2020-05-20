@@ -52,19 +52,19 @@ type clientHandler struct {
 }
 
 type gatewayFeeCache struct {
-	mutex           *sync.RWMutex
-	gatewayFeeMap map[string]*gatewayFeeInformation
+	mutex         *sync.RWMutex
+	gatewayFeeMap map[string]*GatewayFeeInformation
 }
 
 func newGatewayFeeCache() *gatewayFeeCache {
 	cache := &gatewayFeeCache{
-		mutex:           new(sync.RWMutex),
-		gatewayFeeMap: make(map[string]*gatewayFeeInformation),
+		mutex:         new(sync.RWMutex),
+		gatewayFeeMap: make(map[string]*GatewayFeeInformation),
 	}
 	return cache
 }
 
-func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeInformation) error {
+func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -388,7 +388,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 	case GatewayFeeMsg:
 		var resp struct {
 			ReqID, BV uint64
-			Data      GatewayFeeResps
+			Data      GatewayFeeInformation
 		}
 
 		if err := msg.Decode(&resp); err != nil {
@@ -396,12 +396,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		}
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-
-		currGatewayFee := big.NewInt(int64(resp.Data.GatewayFee))
-		currEtherbase := resp.Data.Etherbase
-		nodeID := p.id 
-
-		h.gatewayFeeCache.update(nodeID, &gatewayFeeInformation{currGatewayFee, currEtherbase})
+		h.gatewayFeeCache.update(p.id, &resp.Data)
 
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
@@ -423,15 +418,15 @@ func (h *clientHandler) removePeer(id string) {
 	h.backend.peers.Unregister(id)
 }
 
-func (h *clientHandler) MinPeerGatewayFee() (map[string]*gatewayFeeInformation, error) { 
+func (h *clientHandler) MinPeerGatewayFee() (map[string]*GatewayFeeInformation, error) {
 	h.gatewayFeeCache.mutex.Lock()
 	defer h.gatewayFeeCache.mutex.Unlock()
 	gatewayFeeMap := h.gatewayFeeCache.gatewayFeeMap
-	minMap := make(map[string]*gatewayFeeInformation)
+	minMap := make(map[string]*GatewayFeeInformation)
 
 	if len(gatewayFeeMap) == 0 {
 		return minMap, nil
-	} 
+	}
 	minGwFee := big.NewInt(math.MaxInt64)
 	minEtherbase := common.ZeroAddress
 	minID := ""
@@ -444,7 +439,7 @@ func (h *clientHandler) MinPeerGatewayFee() (map[string]*gatewayFeeInformation, 
 		}
 	}
 
-	minMap[minID] = &gatewayFeeInformation{minGwFee, minEtherbase}
+	minMap[minID] = &GatewayFeeInformation{minGwFee, minEtherbase}
 	return minMap, nil
 }
 

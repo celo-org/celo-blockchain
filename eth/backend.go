@@ -257,7 +257,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
-	
+
 	return eth, nil
 }
 

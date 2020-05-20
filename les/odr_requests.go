@@ -308,12 +308,7 @@ type HelperTrieResps struct { // describes all responses, not just a single one
 	AuxData [][]byte
 }
 
-type GatewayFeeResps struct {
-	GatewayFee uint64
-	Etherbase  common.Address
-}
-
-type gatewayFeeInformation struct {
+type GatewayFeeInformation struct {
 	GatewayFee *big.Int
 	Etherbase  common.Address
 }

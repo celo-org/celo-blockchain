@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -33,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type LesServer struct {
@@ -304,8 +304,8 @@ func (s *LesServer) BroadcastGatewayFeeInfo() error {
 	}
 
 	for _, lightClientPeer := range lightClientPeerNodes {
-		currGatewayFeeResp := GatewayFeeResps{GatewayFee: s.handler.gatewayFee.Uint64(), Etherbase: s.handler.etherbase}
-		reply := lightClientPeer.ReplyGatewayFee(genReqID(), currGatewayFeeResp) 
+		currGatewayFeeResp := GatewayFeeInformation{GatewayFee: s.handler.gatewayFee, Etherbase: s.handler.etherbase}
+		reply := lightClientPeer.ReplyGatewayFee(genReqID(), currGatewayFeeResp)
 		if reply == nil {
 			continue
 		}
@@ -318,6 +318,6 @@ func (s *LesServer) BroadcastGatewayFeeInfo() error {
 			}
 		})
 	}
-	
+
 	return nil
 }
