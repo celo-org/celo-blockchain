@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -289,5 +290,5 @@ func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 
 func (b *LesApiBackend) GatewayFee() *big.Int {
 	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
-	return big.NewInt(23)
+	return eth.DefaultConfig.GatewayFee
 }

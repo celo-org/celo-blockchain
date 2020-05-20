@@ -45,7 +45,7 @@ var (
 		SendTxV2Msg:            {0, 450000},
 		GetTxStatusMsg:         {0, 250000},
 		GetEtherbaseMsg:        {10000, 1},
-		GetGatewayFeeMsg:       {10000, 1},
+		GetGatewayFeeMsg:       {0, 10000},
 	}
 	// maximum incoming message size estimates
 	reqMaxInSize = requestCostTable{

@@ -813,8 +813,8 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'pullPeerGatewayFees',
-			call: 'les_pullPeerGatewayFees',
+			name: 'requestPeerGatewayFees',
+			call: 'les_requestPeerGatewayFees',
 			params: 0
 		}),
 		new web3._extend.Method({
@@ -843,16 +843,16 @@ web3._extend({
 			getter: 'les_gatewayFee'
 		}),
 		new web3._extend.Property({
-			name: 'minPeerGatewayFee',
-			getter: 'les_minPeerGatewayFee'
+			name: 'suggestGatewayFee',
+			getter: 'les_suggestGatewayFee'
+		}),
+		new web3._extend.Property({
+			name: 'gatewayFeeRecipient',
+			getter: 'les_gatewayFeeRecipient'
 		}),
 		new web3._extend.Property({
 			name: 'gatewayFeeCache',
 			getter: 'les_gatewayFeeCache'
-		}),
-		new web3._extend.Property({
-			name: 'nodeID',
-			getter: 'les_nodeID'
 		})
 	]
 });

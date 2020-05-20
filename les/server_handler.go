@@ -55,7 +55,7 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
-	MaxGatewayFee            = 1000000 //harcoded temp limit for now @rayyuan
+	MaxGatewayFee            = 1
 )
 
 var (
@@ -79,14 +79,11 @@ type serverHandler struct {
 	etherbase  common.Address
 	gatewayFee *big.Int
 
-	//@ray
-	nodeID string
-
 	// Testing fields
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int, nodeID string) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
@@ -96,7 +93,6 @@ func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb et
 		synced:     synced,
 		etherbase:  etherbase,
 		gatewayFee: gatewayFee,
-		nodeID:     nodeID,
 	}
 	return handler
 }
@@ -184,7 +180,6 @@ func (h *serverHandler) handle(p *peer) error {
 // peer. The remote connection is torn down upon returning any error.
 func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
-	p.Log().Info("Arrived in HandleMsg: Ray")
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
@@ -879,20 +874,17 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
-		if h == nil || h.gatewayFee == nil {
-			p.Log().Info("null handler or gatewayfee")
-		}
-
 		if accept(req.ReqID, 1, MaxGatewayFee) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase, NodeID: h.nodeID})
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeResps{GatewayFee: h.gatewayFee.Uint64(), Etherbase: h.etherbase})
 				sendResponse(req.ReqID, 1, reply, 10)
 			}()
 		}
 
 	default:
+		p.Log().Trace("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

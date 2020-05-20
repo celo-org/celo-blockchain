@@ -51,38 +51,25 @@ type clientHandler struct {
 	gatewayFeeCache *gatewayFeeCache
 }
 
-type gatewayFeeEtherbase struct {
-	GatewayFee *big.Int
-	Etherbase  common.Address
-}
-
-func newGatewayFeeEtherbase(gatewayFee *big.Int, etherbase common.Address) *gatewayFeeEtherbase {
-	ret := &gatewayFeeEtherbase{
-		GatewayFee: gatewayFee,
-		Etherbase:  etherbase,
-	}
-	return ret
-}
-
 type gatewayFeeCache struct {
-	mux           *sync.RWMutex
-	gatewayFeeMap map[string]*gatewayFeeEtherbase
+	mutex           *sync.RWMutex
+	gatewayFeeMap map[string]*gatewayFeeInformation
 }
 
 func newGatewayFeeCache() *gatewayFeeCache {
 	cache := &gatewayFeeCache{
-		mux:           new(sync.RWMutex),
-		gatewayFeeMap: make(map[string]*gatewayFeeEtherbase),
+		mutex:           new(sync.RWMutex),
+		gatewayFeeMap: make(map[string]*gatewayFeeInformation),
 	}
 	return cache
 }
 
-func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeEtherbase) error {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+func (c *gatewayFeeCache) update(nodeID string, val *gatewayFeeInformation) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if val.Etherbase == common.ZeroAddress || val.GatewayFee.Cmp(big.NewInt(0)) < 0 {
-		return errors.New("Invalid gatewayFeeEtherbase object")
+		return errors.New("invalid gatewayFeeInformation object")
 	}
 	c.gatewayFeeMap[nodeID] = val
 
@@ -220,7 +207,6 @@ func (h *clientHandler) handle(p *peer) error {
 // peer. The remote connection is torn down upon returning any error.
 func (h *clientHandler) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
-	p.Log().Info("CLIENT HandleMsg: Ray")
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
 		return err
@@ -413,9 +399,9 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 		currGatewayFee := big.NewInt(int64(resp.Data.GatewayFee))
 		currEtherbase := resp.Data.Etherbase
-		nodeID := resp.Data.NodeID
+		nodeID := p.id 
 
-		h.gatewayFeeCache.update(nodeID, &gatewayFeeEtherbase{currGatewayFee, currEtherbase})
+		h.gatewayFeeCache.update(nodeID, &gatewayFeeInformation{currGatewayFee, currEtherbase})
 
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
@@ -435,6 +421,31 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 func (h *clientHandler) removePeer(id string) {
 	h.backend.peers.Unregister(id)
+}
+
+func (h *clientHandler) MinPeerGatewayFee() (map[string]*gatewayFeeInformation, error) { 
+	h.gatewayFeeCache.mutex.Lock()
+	defer h.gatewayFeeCache.mutex.Unlock()
+	gatewayFeeMap := h.gatewayFeeCache.gatewayFeeMap
+	minMap := make(map[string]*gatewayFeeInformation)
+
+	if len(gatewayFeeMap) == 0 {
+		return minMap, nil
+	} 
+	minGwFee := big.NewInt(math.MaxInt64)
+	minEtherbase := common.ZeroAddress
+	minID := ""
+
+	for id, gwFeeEtherbase := range gatewayFeeMap {
+		if gwFeeEtherbase.GatewayFee.Cmp(minGwFee) < 0 {
+			minGwFee = gwFeeEtherbase.GatewayFee
+			minEtherbase = gwFeeEtherbase.Etherbase
+			minID = id
+		}
+	}
+
+	minMap[minID] = &gatewayFeeInformation{minGwFee, minEtherbase}
+	return minMap, nil
 }
 
 type peerConnection struct {
