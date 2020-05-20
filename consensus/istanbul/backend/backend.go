@@ -172,6 +172,7 @@ type Backend struct {
 	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
 	signMessageBLSFn istanbul.BLSMessageSignerFn // Signer function to authorize messages using BLS with
 	signFnMu         sync.RWMutex                // Protects the signer fields
+	signBLSFnMu      sync.RWMutex                // Protects the BLS signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -315,6 +316,9 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
+
+	sb.signBLSFnMu.Lock()
+	defer sb.signBLSFnMu.Unlock()
 
 	sb.address = address
 	sb.publicKey = publicKey
@@ -713,8 +717,8 @@ func (sb *Backend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, 
 	if sb.signHashBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
+	sb.signBLSFnMu.RLock()
+	defer sb.signBLSFnMu.RUnlock()
 	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
 }
 
@@ -722,8 +726,8 @@ func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSi
 	if sb.signMessageBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
+	sb.signBLSFnMu.RLock()
+	defer sb.signBLSFnMu.RUnlock()
 	// Currently, ExtraData is unused. In the future, it could include data that could be used to introduce
 	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need,
 	// such as the block number, which can be used by a hardware wallet to see that the block number
