@@ -91,9 +91,10 @@ type peer struct {
 
 	id string
 
-	headInfo  *announceData
-	etherbase *common.Address
-	lock      sync.RWMutex
+	headInfo   *announceData
+	etherbase  *common.Address
+	gatewayFee *big.Int
+	lock       sync.RWMutex
 
 	sendQueue *execQueue
 
@@ -290,6 +291,22 @@ func (p *peer) SetEtherbase(etherbase common.Address) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.etherbase = &etherbase
+}
+
+func (p *peer) GatewayFee() *big.Int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.gatewayFee
+}
+
+func (p *peer) HasGatewayFee() bool {
+	return p.GatewayFee() != nil
+}
+
+func (p *peer) SetGatewayFee(gatewayFee *big.Int) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.gatewayFee = gatewayFee
 }
 
 // waitBefore implements distPeer interface
@@ -760,6 +777,36 @@ func (p *peer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis 
 	return nil
 }
 
+// Returns nil if the peer has indicated it is willing to transmit the given
+// transaction to the network. Returns an error otherwise. It may be the case
+// that this client expects a node to relay a transaction, but the server
+// decides not to.
+func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
+	// DO NOT MERGE(nategraf): Move errors out of this function.
+	if p.onlyAnnounce {
+		return errors.New("peer is not configured to relay transactions")
+	}
+
+	// Retreive the Etherbase known for this peer.
+	var etherbase common.Address
+	if ptr := p.Etherbase(); ptr != nil {
+		etherbase = *ptr
+	} else {
+		return errors.New("peer etherbase is unknown")
+	}
+
+	// Check that the transaction meets the peer's gateway fee requirements.
+	if etherbase != (common.Address{}) {
+		if gateway := tx.GatewayFeeRecipient(); gateway != nil && *gateway != etherbase {
+			return errors.New("transaction does not send funds to peer")
+		}
+		if fee := tx.GatewayFee(); fee != nil && fee.Cmp(p.GatewayFee()) < 0 {
+			return errors.New("transaction contains insufficient gateway fee")
+		}
+	}
+	return nil
+}
+
 // updateFlowControl updates the flow control parameters belonging to the server
 // node if the announced key/value set contains relevant fields
 func (p *peer) updateFlowControl(update keyValueMap) {
@@ -852,6 +899,7 @@ func (ps *peerSet) Register(p *peer) error {
 	return nil
 }
 
+// DO NOT MERGE(nategraf) Remove this function.
 func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
@@ -865,30 +913,6 @@ func (ps *peerSet) randomPeerEtherbase() common.Address {
 		}
 	}
 	return r
-}
-
-func (ps *peerSet) getPeerWithEtherbase(etherbase *common.Address) (*peer, error) {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	if etherbase == nil {
-		// if no etherbase defined, return a random peer
-		for _, peer := range ps.peers {
-			if peer.HasEtherbase() {
-				return peer, nil
-			}
-		}
-	} else {
-		// find peer with given etherbase
-		for _, peer := range ps.peers {
-			if *etherbase == *peer.Etherbase() {
-				return peer, nil
-			}
-		}
-	}
-
-	log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", *etherbase)
-	return nil, errNoPeerWithEtherbaseFound
 }
 
 // Unregister removes a remote peer from the active set, disabling any further

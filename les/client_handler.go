@@ -42,17 +42,21 @@ type clientHandler struct {
 	backend    *LightEthereum
 	syncMode   downloader.SyncMode
 
+	// TODO(nategraf) Remove this field once gateway fees can be retreived.
+	gatewayFee *big.Int
+
 	closeCh  chan struct{}
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
 }
 
-func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
+func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, gatewayFee *big.Int) *clientHandler {
 	handler := &clientHandler{
 		checkpoint: checkpoint,
 		backend:    backend,
 		closeCh:    make(chan struct{}),
 		syncMode:   syncMode,
+		gatewayFee: gatewayFee,
 	}
 	if ulcServers != nil {
 		ulc, err := newULC(ulcServers, ulcFraction)
@@ -121,6 +125,10 @@ func (h *clientHandler) handle(p *peer) error {
 		p.Log().Debug("Light Ethereum handshake failed", "err", err)
 		return err
 	}
+
+	// TODO(nategraf) The local gateway fee is temporarily being used as the peer gateway fee.
+	p.SetGatewayFee(h.gatewayFee)
+
 	// Register the peer locally
 	if err := h.backend.peers.Register(p); err != nil {
 		p.Log().Error("Light Ethereum peer registration failed", "err", err)

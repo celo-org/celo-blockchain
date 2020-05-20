@@ -74,7 +74,7 @@ type serverHandler struct {
 	wg      sync.WaitGroup // WaitGroup used to track all background routines of handler.
 	synced  func() bool    // Callback function used to determine whether local node is synced.
 
-	// CELO Specific
+	// Celo Specific
 	etherbase  common.Address
 	gatewayFee *big.Int
 
