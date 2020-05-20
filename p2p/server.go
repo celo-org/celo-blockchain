@@ -472,11 +472,6 @@ func (srv *Server) Self() *enode.Node {
 	return ln.Node()
 }
 
-// Gets unique identifier id of node.
-func (srv *Server) NodeID() string {
-	return enode.PubkeyToIDV4(&srv.PrivateKey.PublicKey).String()
-}
-
 // DiscoverTableInfo gets information on all the buckets in the
 // discover table
 func (srv *Server) DiscoverTableInfo() *discover.TableInfo {
