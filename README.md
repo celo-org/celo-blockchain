@@ -8,7 +8,7 @@ Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are 
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
-Most functionality of this client is simmilar to Geth, from which it was forked, if you do not find your question answered by Celo-specific documentation, try searching the [Geth wiki](https://github.com/ethereum/go-ethereum/wiki).
+Most functionality of this client is simmilar to `geth`, from which it was forked, if you do not find your question answered by Celo-specific documentation, try searching the [geth wiki](https://github.com/ethereum/go-ethereum/wiki).
 
 ## Building the source
 
