@@ -153,7 +153,7 @@ func Setup(ctx *cli.Context, logdir string) error {
 
 	ostream := CreateStreamHandler(consoleFormat, consoleOutputMode)
 	glogger = log.NewGlogHandler(ostream)
-	logdir = "logs"
+	// logdir = "logs"
 
 	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
 	if logdir != "" {

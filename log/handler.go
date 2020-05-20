@@ -90,6 +90,9 @@ func (w *countingWriter) Write(p []byte) (n int, err error) {
 
 // Close implements the WriteCloser interface.
 func (w *countingWriter) Close() error {
+	if w.w == nil {
+		return fmt.Errorf("No writer to close")
+	}
 	return w.w.Close()
 }
 
