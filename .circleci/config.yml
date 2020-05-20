@@ -135,13 +135,12 @@ jobs:
       - run:
           name: Setup celo-monorepo
           command: |
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b alexbharley/celotool-missing-dependency
             cd celo-monorepo
             yarn install || yarn install
-            # separate build to avoid ENOMEM in CI :(
-            yarn build --scope @celo/utils
-            yarn build --scope @celo/protocol
-            yarn build --ignore @celo/protocol --ignore docs --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
+            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(x) for x in obj["celotool"][::-1])')            
+            for i in `echo $PACKAGES`; do yarn --cwd packages/$i build; done
+            yarn --cwd packages/celotool build
       - run:
           name: Setup Go language
           command: |
