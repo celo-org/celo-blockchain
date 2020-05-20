@@ -28,7 +28,7 @@ import (
 // handleProxyEnodeCertificateShareMsg is invoked by the proxy
 // It will set it's enode certificate used during the connection handshakes to
 // prove that it's enode is the proxied validator's.
-func (p *proxy) handleProxyEnodeCertificateShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
+func (p *proxyEngine) handleProxyEnodeCertificateShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleProxyEnodeCertificateShareMsg")
 
 	logger.Debug("Handling an Istanbul ProxyEnodeCertificate message")

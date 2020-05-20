@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (p *proxy) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
+func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
 	logger := p.logger.New("func", "SendForwardMsg")
 	if p.proxyNode.peer == nil {
 		logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
@@ -54,7 +54,7 @@ func (p *proxy) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode u
 	return nil
 }
 
-func (p *proxy) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
+func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "HandleForwardMsg")
 
 	// Verify that it's coming from the proxied peer

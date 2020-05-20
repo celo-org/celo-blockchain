@@ -74,7 +74,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// 2) FwdMsg
 			// 3) ConsensusMsg
 			// 4) EnodeCertificateMsg
-			handled, error := sb.proxyHandler.HandleMsg(peer, msg.Code, data)
+			handled, error := sb.proxyEngine.HandleMsg(peer, msg.Code, data)
 			if handled {
 				return handled, error
 			}
@@ -259,9 +259,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 	// Check to see if this connecting peer if a proxied validator
 	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyHandler.RegisterProxiedValidator(peer)
+		sb.proxyEngine.RegisterProxiedValidator(peer)
 	} else if sb.IsProxiedValidator() {
-		if err := sb.proxyHandler.RegisterProxy(peer); err != nil {
+		if err := sb.proxyEngine.RegisterProxy(peer); err != nil {
 			return err
 		}
 	}
@@ -275,9 +275,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyHandler.UnregisterProxiedValidator(peer)
+		sb.proxyEngine.UnregisterProxiedValidator(peer)
 	} else if sb.IsProxiedValidator() {
-		sb.proxyHandler.UnregisterProxy(peer)
+		sb.proxyEngine.UnregisterProxy(peer)
 	}
 }
 
@@ -422,7 +422,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	// to its val enode table, which occurs if the proxied validator sends back
 	// the enode certificate to this proxy.
 	if sb.IsProxy() {
-		sb.proxyHandler.SendEnodeCertificateMsgToProxiedValidator(&msg)
+		sb.proxyEngine.SendEnodeCertificateMsgToProxiedValidator(&msg)
 		return false, nil
 	}
 

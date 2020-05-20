@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -51,7 +52,7 @@ var (
 	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
 )
 
-type Proxy interface {
+type ProxyEngine interface {
 	Start() error
 	Stop() error
 	GetProxyExternalNode() *enode.Node
@@ -69,11 +70,41 @@ type Proxy interface {
 	SendDelegateSignMsgToProxiedValidator(msg []byte) error
 }
 
-// Information about the proxy for a proxied validator
-type proxyInfo struct {
+// ==============================================
+//
+// define the proxy object
+
+type proxy struct {
 	node         *enode.Node    // Enode for the internal network interface
 	externalNode *enode.Node    // Enode for the external network interface
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
+	disconnectTS time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
+}
+
+// ProxyInfo is used to provide info on a proxy that can be given via an RPC
+type ProxyInfo struct {
+	InternalNode *enode.Node      `json:"internalEnodeUrl"`
+	ExternalNode *enode.Node      `json:"externalEnodeUrl"`
+	IsPeered     bool             `json:"isPeered"`
+	Validators   []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
+	DisconnectTS int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
+}
+
+func (p proxy) ID() enode.ID {
+	return p.node.ID()
+}
+
+func (p proxy) Info() ProxyInfo {
+	return ProxyInfo{
+		InternalNode: p.node,
+		ExternalNode: p.externalNode,
+		IsPeered:     p.peer != nil,
+		DisconnectTS: p.disconnectTS.Unix(),
+	}
+}
+
+func (p proxy) String() string {
+	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
 }
 
 // ==============================================

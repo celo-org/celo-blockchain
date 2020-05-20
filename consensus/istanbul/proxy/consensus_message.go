@@ -23,7 +23,7 @@ import (
 
 // handleConsensusMsg is invoked by the proxy to forward valid consensus messages to
 // it's proxied validator
-func (p *proxy) handleConsensusMsg(peer consensus.Peer, payload []byte) (bool, error) {
+func (p *proxyEngine) handleConsensusMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleConsensusMsg")
 
 	// Verify that this message is not from the proxied validator

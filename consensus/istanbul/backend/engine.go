@@ -652,35 +652,35 @@ func (sb *Backend) StopAnnouncing() error {
 
 // StartProxyHandler implements consensus.Istanbul.StartProxyHandler
 func (sb *Backend) StartProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+	sb.proxyEngineMu.Lock()
+	defer sb.proxyEngineMu.Unlock()
 
-	if sb.proxyHandlerRunning {
+	if sb.proxyEngineRunning {
 		return istanbul.ErrStartedProxyHandler
 	}
 
 	if !sb.config.Proxied {
-	        return istanbul.ErrValidatorNotProxied
+		return istanbul.ErrValidatorNotProxied
 	}
 
-	sb.proxyHandler.Start()
-	sb.proxyHandlerRunning = true
-	
+	sb.proxyEngine.Start()
+	sb.proxyEngineRunning = true
+
 	return nil
 }
 
 // StopProxyHandler implements consensus.Istanbul.StopProxyHandler
 func (sb *Backend) StopProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+	sb.proxyEngineMu.Lock()
+	defer sb.proxyEngineMu.Unlock()
 
-	if !sb.proxyHandlerRunning {
+	if !sb.proxyEngineRunning {
 		return istanbul.ErrStoppedProxyHandler
 	}
 
-	sb.proxyHandler.Stop()
-	sb.proxyHandlerRunning = false
-	
+	sb.proxyEngine.Stop()
+	sb.proxyEngineRunning = false
+
 	return nil
 }
 

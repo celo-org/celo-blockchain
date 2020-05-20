@@ -146,4 +146,10 @@ type Backend interface {
 	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
 	// validator connection set and that the message's address field matches the message's signature's signer
 	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
+
+	// RetrieveValidatorConnSet will retrieve the validator connection set.
+	// The parameter `retrieveCachedVersion` will specify if the function should retrieve the
+	// set directly from making an EVM call (which is relatively expensive), or from the cached
+	// version (which will be no more than one minute old).
+	RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error)
 }

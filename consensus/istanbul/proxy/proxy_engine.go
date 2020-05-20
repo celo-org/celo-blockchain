@@ -27,14 +27,14 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-type proxy struct {
+type proxyEngine struct {
 	config  *istanbul.Config
 	address common.Address
 	logger  log.Logger
 	backend istanbul.Backend
 
 	// Proxied validator's proxy
-	proxyNode *proxyInfo
+	proxyNode *proxy
 
 	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
@@ -46,9 +46,10 @@ type proxy struct {
 	sendValEnodesShareMsgCh chan struct{}
 }
 
-// New creates an Istanbul consensus core
-func New(backend istanbul.Backend, config *istanbul.Config) Proxy {
-	p := &proxy{
+// New creates a new proxy engine.  This is used by both
+// proxies and proxied validators
+func New(backend istanbul.Backend, config *istanbul.Config) ProxyEngine {
+	p := &proxyEngine{
 		config:    config,
 		address:   backend.Address(),
 		logger:    log.New(),
@@ -62,7 +63,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Proxy {
 	return p
 }
 
-func (p *proxy) Start() error {
+func (p *proxyEngine) Start() error {
 	if p.backend.IsProxiedValidator() {
 		if p.config.ProxyInternalFacingNode != nil && p.config.ProxyExternalFacingNode != nil {
 			if err := p.AddProxy(p.config.ProxyInternalFacingNode, p.config.ProxyExternalFacingNode); err != nil {
@@ -77,7 +78,7 @@ func (p *proxy) Start() error {
 	return nil
 }
 
-func (p *proxy) Stop() error {
+func (p *proxyEngine) Stop() error {
 	if p.backend.IsProxiedValidator() {
 		p.valEnodesShareQuit <- struct{}{}
 		p.valEnodesShareWg.Wait()
@@ -90,28 +91,28 @@ func (p *proxy) Stop() error {
 	return nil
 }
 
-func (p *proxy) GetProxyExternalNode() *enode.Node {
+func (p *proxyEngine) GetProxyExternalNode() *enode.Node {
 	return p.config.ProxyExternalFacingNode
 }
 
-func (p *proxy) AddProxy(node, externalNode *enode.Node) error {
+func (p *proxyEngine) AddProxy(node, externalNode *enode.Node) error {
 	if p.proxyNode != nil {
 		return errProxyAlreadySet
 	}
-	p.proxyNode = &proxyInfo{node: node, externalNode: externalNode}
+	p.proxyNode = &proxy{node: node, externalNode: externalNode}
 	p.backend.UpdateAnnounceVersion()
 	p.backend.AddPeer(node, p2p.ProxyPurpose)
 	return nil
 }
 
-func (p *proxy) RemoveProxy(node *enode.Node) {
+func (p *proxyEngine) RemoveProxy(node *enode.Node) {
 	if p.proxyNode != nil && p.proxyNode.node.ID() == node.ID() {
 		p.backend.RemovePeer(node, p2p.ProxyPurpose)
 		p.proxyNode = nil
 	}
 }
 
-func (p *proxy) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error) {
+func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error) {
 	if msgCode == istanbul.ValEnodesShareMsg {
 		// For now, handle this in a goroutine
 		go p.handleValEnodesShareMsg(peer, payload)
@@ -128,12 +129,12 @@ func (p *proxy) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (
 	return false, nil
 }
 
-func (p *proxy) RegisterProxiedValidator(proxiedValidatorPeer consensus.Peer) {
+func (p *proxyEngine) RegisterProxiedValidator(proxiedValidatorPeer consensus.Peer) {
 	// TODO: Does this need a lock?
 	p.proxiedValidator = proxiedValidatorPeer
 }
 
-func (p *proxy) RegisterProxy(proxyPeer consensus.Peer) error {
+func (p *proxyEngine) RegisterProxy(proxyPeer consensus.Peer) error {
 	logger := p.logger.New("func", "RegisterProxy")
 	if p.proxyNode != nil && proxyPeer.Node().ID() == p.proxyNode.node.ID() {
 		p.proxyNode.peer = proxyPeer
@@ -163,13 +164,13 @@ func (p *proxy) RegisterProxy(proxyPeer consensus.Peer) error {
 	return nil
 }
 
-func (p *proxy) UnregisterProxiedValidator(proxiedValidatorPeer consensus.Peer) {
+func (p *proxyEngine) UnregisterProxiedValidator(proxiedValidatorPeer consensus.Peer) {
 	if p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
 		p.proxiedValidator = nil
 	}
 }
 
-func (p *proxy) UnregisterProxy(proxyPeer consensus.Peer) {
+func (p *proxyEngine) UnregisterProxy(proxyPeer consensus.Peer) {
 	if p.proxyNode != nil && proxyPeer.Node().ID() == p.proxyNode.node.ID() {
 		p.proxyNode.peer = nil
 	}

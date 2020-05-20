@@ -24,7 +24,7 @@ import (
 // handleEnodeCertificateMsg is invoked by the proxy
 // It will verify that the message is from a validator that is within the
 // validator connection set and then forward it to the proxied validator.
-func (p *proxy) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) (bool, error) {
+func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleEnodeCertificateMsg")
 
 	// Verify that this message is not from the proxied validator
@@ -56,7 +56,7 @@ func (p *proxy) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) (
 
 // SendEnodeCertificateMsgToProxiedValidator will send the enode certificate message to
 // the proxied validator.
-func (p *proxy) SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error {
+func (p *proxyEngine) SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error {
 	logger := p.logger.New("func", "SendEnodeCertificateMsgToProxiedValidator")
 	if p.proxiedValidator != nil {
 		payload, err := msg.Payload()

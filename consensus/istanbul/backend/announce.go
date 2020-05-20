@@ -1074,7 +1074,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 
 func (sb *Backend) getEnodeURL() (string, error) {
 	if sb.IsProxiedValidator() {
-		if proxyExternalNode := sb.proxyHandler.GetProxyExternalNode(); proxyExternalNode != nil {
+		if proxyExternalNode := sb.proxyEngine.GetProxyExternalNode(); proxyExternalNode != nil {
 			return proxyExternalNode.URLv4(), nil
 		} else {
 			return "", errNoProxyConnection
@@ -1196,7 +1196,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 
 	if sb.IsProxiedValidator() {
 		// Send a valEnodesShare message to the proxy
-		sb.proxyHandler.SendValEnodesShareMsg()
+		sb.proxyEngine.SendValEnodesShareMsg()
 	}
 
 	return nil

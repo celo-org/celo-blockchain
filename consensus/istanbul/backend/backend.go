@@ -136,7 +136,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// If this node is a proxy or is a proxied validator, then create a proxy handler object
 	if backend.IsProxiedValidator() || backend.IsProxy() {
-		backend.proxyHandler = proxy.New(backend, backend.config)
+		backend.proxyEngine = proxy.New(backend, backend.config)
 	}
 
 	return backend
@@ -251,9 +251,9 @@ type Backend struct {
 
 	// Handler for proxy related functionality.  Note that BOTH the proxy
 	// and the proxied validator will create and use this handler.
-	proxyHandler        proxy.Proxy
-	proxyHandlerRunning bool
-	proxyHandlerMu      sync.RWMutex
+	proxyEngine        proxy.ProxyEngine
+	proxyEngineRunning bool
+	proxyEngineMu      sync.RWMutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -282,7 +282,7 @@ func (sb *Backend) IsValidator() bool {
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 	if sb.IsProxiedValidator() {
-		return sb.proxyHandler.SendDelegateSignMsgToProxy(msg)
+		return sb.proxyEngine.SendDelegateSignMsgToProxy(msg)
 	} else {
 		return errors.New("No Proxy found")
 	}
@@ -292,7 +292,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if sb.IsProxy() {
-		return sb.proxyHandler.SendDelegateSignMsgToProxiedValidator(msg)
+		return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
 	} else {
 		return errors.New("No Proxied Validator found")
 	}
@@ -843,12 +843,20 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	return validatorsSet, nil
 }
 
+func (sb *Backend) RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error) {
+     if retrieveCachedVersion {
+     	return sb.retrieveValidatorConnSet()
+     } else {
+       return sb.retrieveUncachedValidatorConnSet()
+     }
+}
+
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
-	return sb.proxyHandler.AddProxy(node, externalNode)
+	return sb.proxyEngine.AddProxy(node, externalNode)
 }
 
 func (sb *Backend) RemoveProxy(node *enode.Node) {
-	sb.proxyHandler.RemoveProxy(node)
+	sb.proxyEngine.RemoveProxy(node)
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible

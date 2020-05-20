@@ -28,7 +28,7 @@ import (
 
 // This function is meant to be run as a goroutine.  It will periodically send validator enode share messages
 // to this node's proxies so that proxies know the enodes of validators
-func (p *proxy) sendValEnodesShareMsgEventLoop() {
+func (p *proxyEngine) sendValEnodesShareMsgEventLoop() {
 	p.valEnodesShareWg.Add(1)
 	defer p.valEnodesShareWg.Done()
 
@@ -51,11 +51,11 @@ func (p *proxy) sendValEnodesShareMsgEventLoop() {
 	}
 }
 
-func (p *proxy) SendValEnodesShareMsg() {
+func (p *proxyEngine) SendValEnodesShareMsg() {
 	p.sendValEnodesShareMsgCh <- struct{}{}
 }
 
-func (p *proxy) generateValEnodesShareMsg() (*istanbul.Message, error) {
+func (p *proxyEngine) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	vetEntries, err := p.backend.GetAllValEnodeTableEntries()
 
 	if err != nil {
@@ -97,7 +97,7 @@ func (p *proxy) generateValEnodesShareMsg() (*istanbul.Message, error) {
 	return msg, nil
 }
 
-func (p *proxy) sendValEnodesShareMsg() error {
+func (p *proxyEngine) sendValEnodesShareMsg() error {
 	logger := p.logger.New("func", "sendValEnodesShareMsg")
 	if p.proxyNode == nil || p.proxyNode.peer == nil {
 		logger.Warn("No proxy peers, cannot send Istanbul Validator Enodes Share message")
@@ -132,7 +132,7 @@ func (p *proxy) sendValEnodesShareMsg() error {
 	return nil
 }
 
-func (p *proxy) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
+func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleValEnodesShareMsg")
 
 	logger.Debug("Handling an Istanbul Validator Enodes Share message")
