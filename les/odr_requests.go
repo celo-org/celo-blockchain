@@ -307,10 +307,6 @@ type HelperTrieResps struct { // describes all responses, not just a single one
 	AuxData [][]byte
 }
 
-// type GatewayFeeInformation struct {
-// 	GatewayFee *big.Int
-// 	Etherbase  common.Address
-// }
 
 // ODR request type for requesting headers by Canonical Hash Trie, see LesOdrRequest interface
 type ChtRequest light.ChtRequest
