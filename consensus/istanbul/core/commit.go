@@ -88,6 +88,8 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.newLogger("func", "broadcastCommit")
 
+	logger.Info("Here")
+
 	committedSeal, err := c.generateCommittedSeal(sub)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)

@@ -54,6 +54,8 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	seen := make(map[common.Address]bool)
 
+	hash := preparedCertificate.Proposal.Hash()
+
 	commits := 0
 	prepares := 0
 
@@ -133,7 +135,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		// Verify message for the proper proposal.
-		if subject.Digest != preparedCertificate.Proposal.Hash() {
+		if subject.Digest != hash {
 			return nil, errInvalidPreparedCertificateDigestMismatch
 		}
 
@@ -146,7 +148,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 	}
-	logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
+	// logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
 	return view, nil
 }
 
