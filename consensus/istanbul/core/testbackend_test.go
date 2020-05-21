@@ -501,7 +501,8 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 		if i%2 == 0 {
 			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
+			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
+			// msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)
