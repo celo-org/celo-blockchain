@@ -530,7 +530,6 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
 }
 
-//@rayyuan
 // RequestGatewayFee gets gateway fee of remote node
 func (p *peer) RequestGatewayFee(reqID, cost uint64) error {
 	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)

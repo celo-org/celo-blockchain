@@ -75,9 +75,8 @@ const (
 	GetEtherbaseMsg = 0x16
 	EtherbaseMsg    = 0x17
 	// Protocol messages introduced in LPV3
-	StopMsg   = 0x18
-	ResumeMsg = 0x19
-	
+	StopMsg          = 0x18
+	ResumeMsg        = 0x19
 	GetGatewayFeeMsg = 0x1A
 	GatewayFeeMsg    = 0x1B
 )

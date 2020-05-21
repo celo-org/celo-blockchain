@@ -50,14 +50,13 @@ type clientHandler struct {
 	gatewayFeeCache *gatewayFeeCache
 }
 
-
 type GatewayFeeInformation struct {
 	GatewayFee *big.Int
 	Etherbase  common.Address
 }
 
 type FullGatewayFeeInformation struct {
-	NodeID string
+	NodeID         string
 	GatewayFeeInfo *GatewayFeeInformation
 }
 
@@ -78,10 +77,10 @@ func (c *gatewayFeeCache) getMap() map[string]*GatewayFeeInformation {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	mapCopy := make(map[string]*GatewayFeeInformation)          
-    for k, v := range c.gatewayFeeMap {        
-         mapCopy[k] = v
-    }
+	mapCopy := make(map[string]*GatewayFeeInformation)
+	for k, v := range c.gatewayFeeMap {
+		mapCopy[k] = v
+	}
 
 	return mapCopy
 }
@@ -102,9 +101,9 @@ func (c *gatewayFeeCache) MinPeerGatewayFee() (*FullGatewayFeeInformation, error
 	gatewayFeeMap := c.getMap()
 
 	if len(gatewayFeeMap) == 0 {
-		return nil, nil 
+		return nil, nil
 	}
-	
+
 	minGwFee := big.NewInt(math.MaxInt64)
 	minEtherbase := common.ZeroAddress
 	minID := ""
