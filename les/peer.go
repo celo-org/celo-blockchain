@@ -44,9 +44,6 @@ var (
 	errAlreadyRegistered        = errors.New("peer is already registered")
 	errNotRegistered            = errors.New("peer is not registered")
 	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
-	errNonRelayPeer             = errors.New("peer is not configured to relay transactions")
-	errNoEtherbase              = errors.New("peer etherbase is unknown")
-	errInsufficientGatewayFee   = errors.New("transaction contains insufficient gateway fee")
 )
 
 const (
@@ -778,13 +775,12 @@ func (p *peer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis 
 	return nil
 }
 
-// Returns nil if the peer has indicated it is willing to transmit the given
-// transaction to the network. Returns an error otherwise. It may be the case
-// that this client expects a node to relay a transaction, but the server
-// decides not to.
-func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
+// Returns true if the peer has indicated it is willing to transmit the given
+// transaction to the network. It may be the case that this client expects a
+// node to relay a transaction, but the server decides not to.
+func (p *peer) WillAcceptTransaction(tx *types.Transaction) bool {
 	if p.onlyAnnounce {
-		return errNonRelayPeer
+		return false
 	}
 
 	// Retreive the gateway fee information known for this peer.
@@ -798,13 +794,13 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
 	// Treat nil (i.e. unknown) peer gateway fee information as possibly free relay.
 	if etherbase != (common.Address{}) && gatewayFee != nil && gatewayFee.Cmp(common.Big0) > 0 {
 		if txGateway := tx.GatewayFeeRecipient(); txGateway == nil || *txGateway != etherbase {
-			return errInsufficientGatewayFee
+			return false
 		}
 		if txFee := tx.GatewayFee(); txFee == nil || txFee.Cmp(gatewayFee) < 0 {
-			return errInsufficientGatewayFee
+			return false
 		}
 	}
-	return nil
+	return false
 }
 
 // updateFlowControl updates the flow control parameters belonging to the server
