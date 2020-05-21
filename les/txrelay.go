@@ -28,10 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var (
-	errGatewayFeeTooLow = errors.New("gateway fee too low to broadcast to peers")
-)
-
 type lesTxRelay struct {
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}

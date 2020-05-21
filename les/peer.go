@@ -46,6 +46,9 @@ var (
 	errAlreadyRegistered        = errors.New("peer is already registered")
 	errNotRegistered            = errors.New("peer is not registered")
 	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
+	errNonRelayPeer             = errors.New("peer is not configured to relay transactions")
+	errNoEtherbase              = errors.New("peer etherbase is unknown")
+	errInsufficientGatewayFee   = errors.New("transaction contains insufficient gateway fee")
 )
 
 const (
@@ -782,9 +785,8 @@ func (p *peer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis 
 // that this client expects a node to relay a transaction, but the server
 // decides not to.
 func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
-	// DO NOT MERGE(nategraf): Move errors out of this function.
 	if p.onlyAnnounce {
-		return errors.New("peer is not configured to relay transactions")
+		return errNonRelayPeer
 	}
 
 	// Retreive the Etherbase known for this peer.
@@ -792,16 +794,16 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
 	if ptr := p.Etherbase(); ptr != nil {
 		etherbase = *ptr
 	} else {
-		return errors.New("peer etherbase is unknown")
+		return errNoEtherbase
 	}
 
 	// Check that the transaction meets the peer's gateway fee requirements.
 	if etherbase != (common.Address{}) {
 		if gateway := tx.GatewayFeeRecipient(); gateway != nil && *gateway != etherbase {
-			return errors.New("transaction does not send funds to peer")
+			return errInsufficientGatewayFee
 		}
 		if fee := tx.GatewayFee(); fee != nil && fee.Cmp(p.GatewayFee()) < 0 {
-			return errors.New("transaction contains insufficient gateway fee")
+			return errInsufficientGatewayFee
 		}
 	}
 	return nil
@@ -899,7 +901,7 @@ func (ps *peerSet) Register(p *peer) error {
 	return nil
 }
 
-// DO NOT MERGE(nategraf) Remove this function.
+// TODO(nategraf) Remove this function when better method for choosing a peer is available.
 func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
