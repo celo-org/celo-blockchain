@@ -19,15 +19,20 @@ package les
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -38,10 +43,20 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var (
+	nodeKeys   = make([]*ecdsa.PrivateKey, 3)
+	validators = make([]istanbul.ValidatorData, 3)
+	blockchain *core.BlockChain
+	engine     *istanbulBackend.Backend
+)
+
 type odrTestFn func(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte
+type odrTestFnNum func(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *light.LightChain, origin light.BlockHashOrNumber) ([]byte, error)
 
 func TestOdrGetBlockLes2(t *testing.T) { testOdr(t, 2, 1, true, odrGetBlock) }
 func TestOdrGetBlockLes3(t *testing.T) { testOdr(t, 3, 1, true, odrGetBlock) }
+
+func TestOdrGetBlockLightest(t *testing.T) { testLightestChainOdr(t, 3, odrGetBlockHashOrNumber) }
 
 func odrGetBlock(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	var block *types.Block
@@ -55,6 +70,32 @@ func odrGetBlock(ctx context.Context, db ethdb.Database, config *params.ChainCon
 	}
 	rlp, _ := rlp.EncodeToBytes(block)
 	return rlp
+}
+
+func odrGetBlockHashOrNumber(ctx context.Context, db ethdb.Database, bc *core.BlockChain, lc *light.LightChain, origin light.BlockHashOrNumber) ([]byte, error) {
+	var block *types.Block
+	var err error
+	if bc != nil {
+		if origin.Hash != (common.Hash{}) {
+			block = bc.GetBlockByHash(origin.Hash)
+		} else {
+			block = bc.GetBlockByNumber(*origin.Number)
+		}
+	} else {
+		if origin.Hash != (common.Hash{}) {
+			block, err = lc.GetBlockByHash(ctx, origin.Hash)
+		} else {
+			block, err = lc.GetBlockByNumber(ctx, *origin.Number)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	if block == nil {
+		return nil, nil
+	}
+	rlp, _ := rlp.EncodeToBytes(block)
+	return rlp, nil
 }
 
 func TestOdrGetReceiptsLes2(t *testing.T) { testOdr(t, 2, 1, true, odrGetReceipts) }
@@ -185,7 +226,7 @@ func odrTxStatus(ctx context.Context, db ethdb.Database, config *params.ChainCon
 // testOdr tests odr requests whose validation guaranteed by block headers.
 func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn odrTestFn) {
 	// Assemble the test environment
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true)
+	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true, false)
 	defer tearDown()
 
 	client.handler.synchronise(client.peer.peer)
@@ -242,4 +283,108 @@ func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn od
 		time.Sleep(time.Millisecond * 10) // ensure that all peerSetNotify callbacks are executed
 		test(5)
 	}
+}
+
+func testLightChainGen(i int, block *core.BlockGen) {
+	madeBlock, _ := istanbulBackend.MakeBlock(nodeKeys, blockchain, engine, block.PrevBlock(-1))
+	block.SetHeader(madeBlock.Header())
+}
+
+func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
+	var (
+		sdb     = rawdb.NewMemoryDatabase()
+		ldb     = rawdb.NewMemoryDatabase()
+		genesis = core.DefaultGenesisBlock()
+	)
+	for i := 0; i < 3; i++ {
+		var addr common.Address
+		nodeKeys[i], _ = crypto.GenerateKey()
+		addr = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(nodeKeys[i])
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		validators[i] = istanbul.ValidatorData{
+			Address:      addr,
+			BLSPublicKey: blsPublicKey,
+		}
+	}
+
+	istanbulBackend.AppendValidatorsToGenesisBlock(genesis, validators)
+	genesis.MustCommit(sdb)
+	genesis.MustCommit(ldb)
+	engine = istanbulBackend.New(istanbul.DefaultConfig, sdb).(*istanbulBackend.Backend)
+	engine.Authorize(validators[0].Address, &nodeKeys[0].PublicKey, nil, istanbulBackend.SignFn(nodeKeys[0]), istanbulBackend.SignBLSFn(nodeKeys[0]))
+	blockchain, _ = core.NewBlockChain(sdb, nil, params.DefaultChainConfig, engine, vm.Config{}, nil)
+	gchain, _ := core.GenerateChain(params.DefaultChainConfig, genesis.ToBlock(sdb), engine, sdb, 4, testLightChainGen)
+	if _, err := blockchain.InsertChain(gchain); err != nil {
+		t.Fatal(err)
+	}
+
+	databases := []ethdb.Database{sdb, ldb}
+	_, client, tearDown := NewIstanbulClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true, databases, genesis, engine, nodeKeys)
+	// odr := &testOdr{sdb: sdb, ldb: ldb, indexerConfig: TestClientIndexerConfig}
+	defer tearDown()
+	odr := client.GetOdr()
+	lightchain, err := light.NewLightChain(odr, params.DefaultChainConfig, engine, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test := func(expFail int, tryHash bool) {
+		for i := uint64(0); i <= blockchain.CurrentHeader().Number.Uint64(); i++ {
+			bhash := rawdb.ReadCanonicalHash(sdb, i)
+			var origin light.BlockHashOrNumber
+			if tryHash {
+				origin = light.BlockHashOrNumber{Hash: bhash}
+			} else {
+				origin = light.BlockHashOrNumber{Number: &i}
+			}
+			b1, err := fn(light.NoOdr, sdb, blockchain, nil, origin)
+			if err != nil {
+				t.Fatalf("error in full-node test for block %d: %v", i, err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+
+			exp := i < uint64(expFail)
+			b2, err := fn(ctx, ldb, nil, lightchain, origin)
+			if err != nil && exp {
+				t.Errorf("error in ODR test for block %d: %v", i, err)
+			}
+
+			eq := bytes.Equal(b1, b2)
+			if exp && !eq {
+				t.Errorf("ODR test output for tryHash %t block %d doesn't match full node", tryHash, i)
+			}
+
+			header := rawdb.ReadHeader(odr.Database(), bhash, i)
+			if exp {
+				if header == nil {
+					t.Errorf("ODR test for tryHash %t block %d did not properly receive/store header", tryHash, i)
+				}
+				headers := []*types.Header{header}
+
+				if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
+					t.Errorf("ODR test for tryHash %t block %d could not insert header to headerchain", tryHash, i)
+				}
+			}
+		}
+	}
+	// expect retrievals to fail (except genesis block) without a les peer
+	t.Log("checking without ODR")
+	// odr.disable = true
+	test(1, true)
+	test(1, false)
+
+	// expect all retrievals to pass with ODR enabled
+	// t.Log("checking with ODR")
+	// odr.disable = false
+	// test(len(gchain), true)
+	// test(len(gchain), false)
+
+	// // still expect all retrievals to pass, now data should be cached locally
+	// t.Log("checking without ODR, should be cached")
+	// odr.disable = true
+	// test(len(gchain), true)
+	// test(len(gchain), false)
 }

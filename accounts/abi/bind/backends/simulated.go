@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -63,6 +64,18 @@ type SimulatedBackend struct {
 	events *filters.EventSystem // Event system for filtering log events live
 
 	config *params.ChainConfig
+}
+
+func NewSimulatedIstanbulBackendWithDatabase(database ethdb.Database, engine *istanbulBackend.Backend) *SimulatedBackend {
+	blockchain, _ := core.NewBlockChain(database, nil, params.DefaultChainConfig, engine, vm.Config{}, nil)
+	backend := &SimulatedBackend{
+		database:   database,
+		blockchain: blockchain,
+		config:     params.DefaultChainConfig,
+		events:     filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false),
+	}
+	backend.rollback()
+	return backend
 }
 
 // NewSimulatedBackendWithDatabase creates a new binding backend based on the given database
@@ -112,6 +125,10 @@ func (b *SimulatedBackend) Rollback() {
 	defer b.mu.Unlock()
 
 	b.rollback()
+}
+
+func (b *SimulatedBackend) SetBlock(block *types.Block) {
+	b.pendingBlock = block
 }
 
 func (b *SimulatedBackend) rollback() {

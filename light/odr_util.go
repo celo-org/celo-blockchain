@@ -61,7 +61,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 		}
 	} else {
 		// If `ChtIndexer` is `nil` then we are effectively in `lightest` mode
-		r := &HeaderRequest{Origin: blockHashOrNumber{Number: &number}}
+		r := &HeaderRequest{Origin: BlockHashOrNumber{Number: &number}}
 		if err := odr.Retrieve(ctx, r); err != nil {
 			log.Error("Error after retrieve", "Err", err)
 			return nil, err
@@ -79,7 +79,7 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 }
 
 func GetHeaderByHash(ctx context.Context, odr OdrBackend, hash common.Hash) (*types.Header, error) {
-	r := &HeaderRequest{Origin: blockHashOrNumber{Hash: hash}}
+	r := &HeaderRequest{Origin: BlockHashOrNumber{Hash: hash}}
 	if err := odr.Retrieve(ctx, r); err != nil {
 		log.Error("Error after retrieve", "Err", err)
 		return nil, err

@@ -21,6 +21,7 @@ package les
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"math/big"
 	"testing"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/contracts/checkpointoracle/contract"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -99,6 +101,11 @@ contract test {
 }
 */
 
+func prepareIstanbul(n int, backend *backends.SimulatedBackend, nodeKeys []*ecdsa.PrivateKey) {
+	aggregatedSeal := istanbulBackend.SignBlock(nodeKeys, backend.Blockchain().CurrentBlock())
+	backend.SetBlock(madeBlock)
+}
+
 // prepare pre-commits specified number customized blocks into chain.
 func prepare(n int, backend *backends.SimulatedBackend) {
 	var (
@@ -166,6 +173,56 @@ func testIndexers(db ethdb.Database, odr light.OdrBackend, config *light.Indexer
 	return indexers[:]
 }
 
+// NewIstanbulTestClientHandler .
+func newIstanbulTestClientHandler(syncMode downloader.SyncMode, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, ulcServers []string, ulcFraction int, gspec *core.Genesis, engine *istanbulBackend.Backend) *clientHandler {
+	var (
+		evmux  = new(event.TypeMux)
+		oracle *checkpointOracle
+	)
+	genesis := gspec.MustCommit(db)
+	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
+	if indexers != nil {
+		checkpointConfig := &params.CheckpointOracleConfig{
+			Address:   crypto.CreateAddress(bankAddr, 0),
+			Signers:   []common.Address{signerAddr},
+			Threshold: 1,
+		}
+		getLocal := func(index uint64) params.TrustedCheckpoint {
+			// chtIndexer := indexers[0]
+			sectionHead := common.Hash{} //chtIndexer.SectionHead(index)
+			return params.TrustedCheckpoint{
+				SectionIndex: index,
+				SectionHead:  sectionHead,
+				CHTRoot:      light.GetChtRoot(db, index, sectionHead),
+				BloomRoot:    light.GetBloomTrieRoot(db, index, sectionHead),
+			}
+		}
+		oracle = newCheckpointOracle(checkpointConfig, getLocal)
+	}
+	client := &LightEthereum{
+		lesCommons: lesCommons{
+			genesis:     genesis.Hash(),
+			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
+			chainConfig: params.DefaultChainConfig,
+			iConfig:     light.TestClientIndexerConfig,
+			chainDb:     db,
+			oracle:      oracle,
+			chainReader: chain,
+			peers:       peers,
+			closeCh:     make(chan struct{}),
+		},
+		reqDist:    odr.retriever.dist,
+		retriever:  odr.retriever,
+		odr:        odr,
+		engine:     engine,
+		blockchain: chain,
+		eventMux:   evmux,
+	}
+	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client)
+
+	return client.handler
+}
+
 func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.SimulatedBackend, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, ulcServers []string, ulcFraction int) *clientHandler {
 	var (
 		evmux  = new(event.TypeMux)
@@ -185,8 +242,8 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 			Threshold: 1,
 		}
 		getLocal := func(index uint64) params.TrustedCheckpoint {
-			chtIndexer := indexers[0]
-			sectionHead := chtIndexer.SectionHead(index)
+			// chtIndexer := indexers[0]
+			sectionHead := common.Hash{} //chtIndexer.SectionHead(index)
 			return params.TrustedCheckpoint{
 				SectionIndex: index,
 				SectionHead:  sectionHead,
@@ -223,19 +280,26 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 	return client.handler
 }
 
-func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
+func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock, simulateIstanbul bool, engine *istanbulBackend.Backend, nodeKeys []*ecdsa.PrivateKey) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
 			Config: params.DefaultChainConfig,
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
-		oracle *checkpointOracle
+		oracle     *checkpointOracle
+		simulation *backends.SimulatedBackend
 	)
 	genesis := gspec.MustCommit(db)
 
 	// create a simulation backend and pre-commit several customized block to the database.
-	simulation := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc)
-	prepare(blocks, simulation)
+	if simulateIstanbul {
+		simulation = backends.NewSimulatedIstanbulBackendWithDatabase(db, engine)
+		prepareIstanbul(blocks, simulation, nodeKeys)
+	} else {
+		simulation = backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc)
+		prepare(blocks, simulation)
+	}
+	// madeBlock, _ := istanbulBackend.MakeBlock()
 
 	txpoolConfig := core.DefaultTxPoolConfig
 	txpoolConfig.Journal = ""
@@ -422,6 +486,10 @@ type testClient struct {
 	bloomTrieIndexer *core.ChainIndexer
 }
 
+func (c *testClient) GetOdr() *LesOdr {
+	return c.handler.backend.odr
+}
+
 // testServer represents a server for testing with necessary auxiliary fields.
 type testServer struct {
 	clock   mclock.Clock
@@ -443,7 +511,8 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 	if simClock {
 		clock = &mclock.Simulated{}
 	}
-	handler, b := newTestServerHandler(blocks, indexers, db, newPeerSet(), clock)
+	simulateIstanbul := false
+	handler, b := newTestServerHandler(blocks, indexers, db, newPeerSet(), clock, simulateIstanbul, nil)
 
 	var peer *testPeer
 	if newPeer {
@@ -479,8 +548,8 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 	return server, teardown
 }
 
-func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, protocol int, callback indexerCallback, ulcServers []string, ulcFraction int, simClock bool, connect bool) (*testServer, *testClient, func()) {
-	sdb, cdb := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
+func NewIstanbulClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, protocol int, callback indexerCallback, ulcServers []string, ulcFraction int, simClock bool, connect bool, databases []ethdb.Database, genesis *core.Genesis, engine *istanbulBackend.Backend, nodeKeys []*ecdsa.PrivateKey) (*testServer, *testClient, func()) {
+	sdb, cdb := databases[0], databases[1]
 	speers, cPeers := newPeerSet(), newPeerSet()
 
 	var clock mclock.Clock = &mclock.System{}
@@ -496,14 +565,19 @@ func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, 
 
 	scIndexer, sbIndexer, sbtIndexer := sindexers[0], sindexers[1], sindexers[2]
 	ccIndexer, cbIndexer, cbtIndexer := cIndexers[0], cIndexers[1], cIndexers[2]
+	if syncMode == downloader.LightestSync {
+		ccIndexer = nil
+	}
 	odr.SetIndexers(ccIndexer, cbIndexer, cbtIndexer)
 
-	server, b := newTestServerHandler(blocks, sindexers, sdb, speers, clock)
-	client := newTestClientHandler(syncMode, b, odr, cIndexers, cdb, cPeers, ulcServers, ulcFraction)
+	server, b := newTestServerHandler(blocks, sindexers, sdb, speers, clock, true, engine)
+	client := newIstanbulTestClientHandler(syncMode, odr, cIndexers, cdb, cPeers, ulcServers, ulcFraction, genesis, engine)
 
 	scIndexer.Start(server.blockchain)
 	sbIndexer.Start(server.blockchain)
-	ccIndexer.Start(client.backend.blockchain)
+	if ccIndexer != nil {
+		ccIndexer.Start(client.backend.blockchain)
+	}
 	cbIndexer.Start(client.backend.blockchain)
 
 	if callback != nil {
@@ -547,7 +621,91 @@ func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, 
 			speer.close()
 			cpeer.close()
 		}
-		ccIndexer.Close()
+		if ccIndexer != nil {
+			ccIndexer.Close()
+		}
+		cbIndexer.Close()
+		scIndexer.Close()
+		sbIndexer.Close()
+		b.Close()
+	}
+	return s, c, teardown
+}
+
+func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, protocol int, callback indexerCallback, ulcServers []string, ulcFraction int, simClock bool, connect bool, simulateIstanbul bool) (*testServer, *testClient, func()) {
+	sdb, cdb := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
+	speers, cPeers := newPeerSet(), newPeerSet()
+
+	var clock mclock.Clock = &mclock.System{}
+	if simClock {
+		clock = &mclock.Simulated{}
+	}
+	dist := newRequestDistributor(cPeers, clock)
+	rm := newRetrieveManager(cPeers, dist, nil)
+	odr := NewLesOdr(cdb, light.TestClientIndexerConfig, rm)
+
+	sindexers := testIndexers(sdb, nil, light.TestServerIndexerConfig)
+	cIndexers := testIndexers(cdb, odr, light.TestClientIndexerConfig)
+
+	scIndexer, sbIndexer, sbtIndexer := sindexers[0], sindexers[1], sindexers[2]
+	ccIndexer, cbIndexer, cbtIndexer := cIndexers[0], cIndexers[1], cIndexers[2]
+	if syncMode == downloader.LightestSync {
+		ccIndexer = nil
+	}
+	odr.SetIndexers(ccIndexer, cbIndexer, cbtIndexer)
+
+	server, b := newTestServerHandler(blocks, sindexers, sdb, speers, clock, simulateIstanbul, nil)
+	client := newTestClientHandler(syncMode, b, odr, cIndexers, cdb, cPeers, ulcServers, ulcFraction)
+
+	scIndexer.Start(server.blockchain)
+	sbIndexer.Start(server.blockchain)
+	if ccIndexer != nil {
+		ccIndexer.Start(client.backend.blockchain)
+	}
+	cbIndexer.Start(client.backend.blockchain)
+
+	if callback != nil {
+		callback(scIndexer, sbIndexer, sbtIndexer)
+	}
+	var (
+		speer, cpeer *testPeer
+		err1, err2   <-chan error
+	)
+	if connect {
+		cpeer, err1, speer, err2 = newTestPeerPair("peer", protocol, server, client)
+		select {
+		case <-time.After(time.Millisecond * 300):
+		case err := <-err1:
+			t.Fatalf("peer 1 handshake error: %v", err)
+		case err := <-err2:
+			t.Fatalf("peer 2 handshake error: %v", err)
+		}
+	}
+	s := &testServer{
+		clock:            clock,
+		backend:          b,
+		db:               sdb,
+		peer:             cpeer,
+		handler:          server,
+		chtIndexer:       scIndexer,
+		bloomIndexer:     sbIndexer,
+		bloomTrieIndexer: sbtIndexer,
+	}
+	c := &testClient{
+		clock:            clock,
+		db:               cdb,
+		peer:             speer,
+		handler:          client,
+		chtIndexer:       ccIndexer,
+		bloomIndexer:     cbIndexer,
+		bloomTrieIndexer: cbtIndexer,
+	}
+	teardown := func() {
+		if connect {
+			speer.close()
+			cpeer.close()
+		}
+		// ccIndexer.Close()
 		cbIndexer.Close()
 		scIndexer.Close()
 		sbIndexer.Close()

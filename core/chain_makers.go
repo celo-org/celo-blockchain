@@ -64,6 +64,10 @@ func (b *BlockGen) SetCoinbase(addr common.Address) {
 	b.gasPool = new(GasPool).AddGas(CalcGasLimit(b.parent, b.statedb)) //TODO: fix this
 }
 
+func (b *BlockGen) SetHeader(header *types.Header) {
+	b.header = header
+}
+
 // SetExtra sets the extra data field of the generated block.
 func (b *BlockGen) SetExtra(data []byte) {
 	b.header.Extra = data
