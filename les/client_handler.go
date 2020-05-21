@@ -233,8 +233,23 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
 		} else {
-			if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
-				log.Debug("Failed to deliver headers", "err", err)
+			h.backend.retriever.lock.RLock()
+			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
+			h.backend.retriever.lock.RUnlock()
+			if headerRequested != nil {
+				contiguousHeaders := h.syncMode != downloader.LightestSync
+				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
+					return err
+				}
+				deliverMsg = &Msg{
+					MsgType: MsgBlockHeaders,
+					ReqID:   resp.ReqID,
+					Obj:     resp.Headers,
+				}
+			} else {
+				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
+					log.Error("Failed to deliver headers", "err", err)
+				}
 			}
 		}
 	case BlockBodiesMsg:

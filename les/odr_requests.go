@@ -33,15 +33,16 @@ import (
 )
 
 var (
-	errInvalidMessageType  = errors.New("invalid message type")
-	errInvalidEntryCount   = errors.New("invalid number of response entries")
-	errHeaderUnavailable   = errors.New("header unavailable")
-	errTxHashMismatch      = errors.New("transaction hash mismatch")
-	errReceiptHashMismatch = errors.New("receipt hash mismatch")
-	errDataHashMismatch    = errors.New("data hash mismatch")
-	errCHTHashMismatch     = errors.New("cht hash mismatch")
-	errCHTNumberMismatch   = errors.New("cht number mismatch")
-	errUselessNodes        = errors.New("useless nodes in merkle proof nodeset")
+	errInvalidMessageType      = errors.New("invalid message type")
+	errInvalidEntryCount       = errors.New("invalid number of response entries")
+	errHeaderUnavailable       = errors.New("header unavailable")
+	errTxHashMismatch          = errors.New("transaction hash mismatch")
+	errReceiptHashMismatch     = errors.New("receipt hash mismatch")
+	errDataHashMismatch        = errors.New("data hash mismatch")
+	errCHTHashMismatch         = errors.New("cht hash mismatch")
+	errCHTNumberMismatch       = errors.New("cht number mismatch")
+	errUselessNodes            = errors.New("useless nodes in merkle proof nodeset")
+	errRequestResponseMismatch = errors.New("header and request mismatch")
 )
 
 type LesOdrRequest interface {
@@ -55,6 +56,8 @@ func LesRequest(req light.OdrRequest) LesOdrRequest {
 	switch r := req.(type) {
 	case *light.BlockRequest:
 		return (*BlockRequest)(r)
+	case *light.HeaderRequest:
+		return (*HeaderRequest)(r)
 	case *light.ReceiptsRequest:
 		return (*ReceiptsRequest)(r)
 	case *light.TrieRequest:
@@ -83,7 +86,7 @@ func (r *BlockRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *BlockRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Hash, r.Number, false)
+	return peer.HasBlock(r.Hash, &r.Number, false)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -125,6 +128,52 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	return nil
 }
 
+// BlockRequest is the ODR request type for block headers
+type HeaderRequest light.HeaderRequest
+
+// GetCost returns the cost of the given ODR request according to the serving
+// peer's cost table (implementation fo LesOdrRequest)
+func (r *HeaderRequest) GetCost(peer *peer) uint64 {
+	return peer.GetRequestCost(GetBlockHeadersMsg, 1)
+}
+
+// CanSend tells if a certain peer is suitable for serving the given request
+func (r *HeaderRequest) CanSend(peer *peer) bool {
+	return peer.HasBlock(r.Origin.Hash, r.Origin.Number, false)
+}
+
+// Request sends an ODR request to the LES network (implementation of LesOdrRequest)
+func (r *HeaderRequest) Request(reqId uint64, peer *peer) error {
+	if r.Origin.Hash != (common.Hash{}) {
+		peer.Log().Debug("Requesting block header", "hash", r.Origin.Hash)
+		return peer.RequestHeadersByHash(reqId, r.GetCost(peer), r.Origin.Hash, 1, 0, false)
+	} else {
+		peer.Log().Debug("Requesting block header", "number", r.Origin.Number)
+		return peer.RequestHeadersByNumber(reqId, r.GetCost(peer), *r.Origin.Number, 1, 0, false)
+	}
+}
+
+// Validate processes an ODR request reply message from the LES network
+// returns true and stores results in memory if the message was a valid reply
+// to the request (implementation of LesOdrRequest)
+func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
+	if msg.MsgType != MsgBlockHeaders {
+		log.Error("Bad message response", "type", msg.MsgType)
+		return errInvalidMessageType
+	}
+	headers := msg.Obj.([]*types.Header)
+	if len(headers) != 1 {
+		return errInvalidEntryCount
+	}
+	if r.Origin.Hash != (common.Hash{}) && headers[0].Hash() != r.Origin.Hash {
+		return errRequestResponseMismatch
+	} else if r.Origin.Hash == (common.Hash{}) && headers[0].Number.Uint64() != *r.Origin.Number {
+		return errRequestResponseMismatch
+	}
+	r.Header = headers[0]
+	return nil
+}
+
 // ReceiptsRequest is the ODR request type for block receipts by block hash
 type ReceiptsRequest light.ReceiptsRequest
 
@@ -136,7 +185,7 @@ func (r *ReceiptsRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *ReceiptsRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Hash, r.Number, false)
+	return peer.HasBlock(r.Hash, &r.Number, false)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -193,7 +242,7 @@ func (r *TrieRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *TrieRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Id.BlockHash, r.Id.BlockNumber, true)
+	return peer.HasBlock(r.Id.BlockHash, &r.Id.BlockNumber, true)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -247,7 +296,7 @@ func (r *CodeRequest) GetCost(peer *peer) uint64 {
 
 // CanSend tells if a certain peer is suitable for serving the given request
 func (r *CodeRequest) CanSend(peer *peer) bool {
-	return peer.HasBlock(r.Id.BlockHash, r.Id.BlockNumber, true)
+	return peer.HasBlock(r.Id.BlockHash, &r.Id.BlockNumber, true)
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
