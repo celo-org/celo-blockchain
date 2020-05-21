@@ -74,8 +74,8 @@ func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 	return nil
 }
 
-// SetEtherbase sets the etherbase of the full node
-func (api *PrivateLightServerAPI) SetEtherbase(etherbase common.Address) error {
+// SetGatewayFeeRecipient sets the etherbase of the Gateway Fee Recipient
+func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Address) error {
 	if api.server.handler.etherbase != etherbase {
 		api.server.handler.etherbase = etherbase
 		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
@@ -400,7 +400,7 @@ func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
 }
 
 func (api *LightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
-	return api.le.handler.gatewayFeeCache.gatewayFeeMap
+	return api.le.handler.gatewayFeeCache.getMap()
 }
 
 // RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
@@ -410,15 +410,15 @@ func (api *LightClientAPI) RequestPeerGatewayFees() error {
 		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
 		err := peerNode.RequestGatewayFee(genReqID(), cost)
 		if err != nil {
-			continue
+			return err
 		}
 	}
 	return nil
 }
 
 // SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
-func (api *LightClientAPI) SuggestGatewayFee() (map[string]*GatewayFeeInformation, error) {
-	bestGatewayFeeInfo, err := api.le.handler.MinPeerGatewayFee()
+func (api *LightClientAPI) SuggestGatewayFee() (*FullGatewayFeeInformation, error) {
+	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
 	if err != nil {
 		return nil, err
 	}

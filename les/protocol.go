@@ -77,7 +77,7 @@ const (
 	// Protocol messages introduced in LPV3
 	StopMsg   = 0x18
 	ResumeMsg = 0x19
-	//@rayyuan gateway fee msgs
+	
 	GetGatewayFeeMsg = 0x1A
 	GatewayFeeMsg    = 0x1B
 )

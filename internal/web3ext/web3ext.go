@@ -808,8 +808,8 @@ web3._extend({
 			params: 3
 		}),
 		new web3._extend.Method({
-			name: 'setEtherbase',
-			call: 'les_setEtherbase',
+			name: 'setGatewayFeeRecipient',
+			call: 'les_setGatewayFeeRecipient',
 			params: 1
 		}),
 		new web3._extend.Method({
@@ -818,11 +818,15 @@ web3._extend({
 			params: 0
 		}),
 		new web3._extend.Method({
+			name: 'suggestGatewayFee',
+			call: 'les_suggestGatewayFee',
+			params: 0
+		}),
+		new web3._extend.Method({
 			name: 'setGatewayFee',
 			call: 'les_setGatewayFee',
 			params: 1
 		})
-
 	],
 	properties:
 	[
@@ -841,10 +845,6 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFee',
 			getter: 'les_gatewayFee'
-		}),
-		new web3._extend.Property({
-			name: 'suggestGatewayFee',
-			getter: 'les_suggestGatewayFee'
 		}),
 		new web3._extend.Property({
 			name: 'gatewayFeeRecipient',

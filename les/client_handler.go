@@ -47,8 +47,18 @@ type clientHandler struct {
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
 
-	//@rayyuan
 	gatewayFeeCache *gatewayFeeCache
+}
+
+
+type GatewayFeeInformation struct {
+	GatewayFee *big.Int
+	Etherbase  common.Address
+}
+
+type FullGatewayFeeInformation struct {
+	NodeID string
+	GatewayFeeInfo *GatewayFeeInformation
 }
 
 type gatewayFeeCache struct {
@@ -64,6 +74,18 @@ func newGatewayFeeCache() *gatewayFeeCache {
 	return cache
 }
 
+func (c *gatewayFeeCache) getMap() map[string]*GatewayFeeInformation {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	mapCopy := make(map[string]*GatewayFeeInformation)          
+    for k, v := range c.gatewayFeeMap {        
+         mapCopy[k] = v
+    }
+
+	return mapCopy
+}
+
 func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -74,6 +96,29 @@ func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) erro
 	c.gatewayFeeMap[nodeID] = val
 
 	return nil
+}
+
+func (c *gatewayFeeCache) MinPeerGatewayFee() (*FullGatewayFeeInformation, error) {
+	gatewayFeeMap := c.getMap()
+
+	if len(gatewayFeeMap) == 0 {
+		return nil, nil 
+	}
+	
+	minGwFee := big.NewInt(math.MaxInt64)
+	minEtherbase := common.ZeroAddress
+	minID := ""
+	for id, gwFeeInformation := range gatewayFeeMap {
+		if gwFeeInformation.GatewayFee.Cmp(minGwFee) < 0 {
+			minGwFee = gwFeeInformation.GatewayFee
+			minEtherbase = gwFeeInformation.Etherbase
+			minID = id
+		}
+	}
+
+	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
+	minFullGatewayFeeInformation := &FullGatewayFeeInformation{minID, minGatewayFeeInformation}
+	return minFullGatewayFeeInformation, nil
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
@@ -416,31 +461,6 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 func (h *clientHandler) removePeer(id string) {
 	h.backend.peers.Unregister(id)
-}
-
-func (h *clientHandler) MinPeerGatewayFee() (map[string]*GatewayFeeInformation, error) {
-	h.gatewayFeeCache.mutex.Lock()
-	defer h.gatewayFeeCache.mutex.Unlock()
-	gatewayFeeMap := h.gatewayFeeCache.gatewayFeeMap
-	minMap := make(map[string]*GatewayFeeInformation)
-
-	if len(gatewayFeeMap) == 0 {
-		return minMap, nil
-	}
-	minGwFee := big.NewInt(math.MaxInt64)
-	minEtherbase := common.ZeroAddress
-	minID := ""
-
-	for id, gwFeeEtherbase := range gatewayFeeMap {
-		if gwFeeEtherbase.GatewayFee.Cmp(minGwFee) < 0 {
-			minGwFee = gwFeeEtherbase.GatewayFee
-			minEtherbase = gwFeeEtherbase.Etherbase
-			minID = id
-		}
-	}
-
-	minMap[minID] = &GatewayFeeInformation{minGwFee, minEtherbase}
-	return minMap, nil
 }
 
 type peerConnection struct {

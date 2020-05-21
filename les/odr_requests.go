@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -308,10 +307,10 @@ type HelperTrieResps struct { // describes all responses, not just a single one
 	AuxData [][]byte
 }
 
-type GatewayFeeInformation struct {
-	GatewayFee *big.Int
-	Etherbase  common.Address
-}
+// type GatewayFeeInformation struct {
+// 	GatewayFee *big.Int
+// 	Etherbase  common.Address
+// }
 
 // ODR request type for requesting headers by Canonical Hash Trie, see LesOdrRequest interface
 type ChtRequest light.ChtRequest

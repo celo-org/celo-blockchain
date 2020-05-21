@@ -992,24 +992,14 @@ func (ps *peerSet) AllPeers() []*peer {
 	return list
 }
 
-//Ray: Get all peers that only support les and have no other caps.
+//Get all peers that only support les and have no other caps
 func (ps *peerSet) AllLightClientPeers() []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	peerNodes := ps.AllPeers()
 	lightClientPeers := make([]*peer, 0)
-
-	for _, peerNode := range peerNodes { //essentailly a filter func. Could abstract this out later
-		currPeerProtocols := peerNode.Caps() //this is in p2p/peer.go
-		nonLes := 0
-		for _, cap := range currPeerProtocols {
-			if cap.Name != "les" {
-				nonLes++
-				break
-			}
-		}
-		if nonLes == 0 {
+	for _, peerNode := range ps.AllPeers() { //essentailly a filter func. Could abstract this out later
+		if peerNode.fcClient != nil {
 			lightClientPeers = append(lightClientPeers, peerNode)
 		}
 	}
