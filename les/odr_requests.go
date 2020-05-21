@@ -128,7 +128,6 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	return nil
 }
 
-//TODO(lucas): Comments
 // BlockRequest is the ODR request type for block headers
 type HeaderRequest light.HeaderRequest
 
