@@ -71,6 +71,9 @@ type Wallet interface {
 	// resources (especially important when working with hardware wallets).
 	Open(passphrase string) error
 
+	// ConfirmAddress shows the address of the given path on the wallet's display.
+	ConfirmAddress(path DerivationPath) (common.Address, error)
+
 	// Close releases any resources held by an open wallet instance.
 	Close() error
 
@@ -148,8 +151,9 @@ type Wallet interface {
 	// SignTextWithPassphrase is identical to Signtext, but also takes a password
 	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, error)
 
-	SignHashBLS(account Account, hash []byte) (blscrypto.SerializedSignature, error)
-	SignMessageBLS(account Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error)
+	// SignBLS generates a BLS signature over the provided data with a direct or composite hasher
+	SignBLS(account Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error)
+
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)
 	GetPublicKey(account Account) (*ecdsa.PublicKey, error)

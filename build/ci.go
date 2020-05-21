@@ -80,6 +80,7 @@ var (
 		executablePath("rlpdump"),
 		executablePath("wnode"),
 		executablePath("clef"),
+		executablePath("blspopchecker"),
 	}
 
 	// A debian package is created for all executables listed here.
@@ -111,6 +112,10 @@ var (
 		{
 			BinaryName:  "clef",
 			Description: "Ethereum account management tool.",
+		},
+		{
+			BinaryName:  "blspopchecker",
+			Description: "Developer utility tool checks BLS PoP signatures in genesis.",
 		},
 	}
 
@@ -271,6 +276,9 @@ func doInstall(cmdline []string) {
 
 func buildFlags(env build.Environment) (flags []string) {
 	var ld []string
+	if env.IsMusl {
+		flags = append(flags, []string{"-tags", "musl"}...)
+	}
 	if env.Commit != "" {
 		ld = append(ld, "-X", "main.gitCommit="+env.Commit)
 		ld = append(ld, "-X", "main.gitDate="+env.Date)
@@ -285,6 +293,7 @@ func buildFlags(env build.Environment) (flags []string) {
 	if len(ld) > 0 {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
 	}
+
 	return flags
 }
 

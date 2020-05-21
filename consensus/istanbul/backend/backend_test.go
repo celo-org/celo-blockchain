@@ -17,21 +17,15 @@
 package backend
 
 import (
-	"crypto/ecdsa"
+	"fmt"
 	"math/big"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go/bls"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 func TestSign(t *testing.T) {
@@ -106,8 +100,9 @@ func TestCheckValidatorSignature(t *testing.T) {
 
 	// CheckValidatorSignature should return ErrUnauthorizedAddress
 	addr, err := istanbul.CheckValidatorSignature(vset, data, sig)
-	if err != istanbul.ErrUnauthorizedAddress {
-		t.Errorf("error mismatch: have %v, want %v", err, istanbul.ErrUnauthorizedAddress)
+	expectedErr := fmt.Errorf("not an elected validator %s", crypto.PubkeyToAddress(key.PublicKey).Hex())
+	if err.Error() != expectedErr.Error() {
+		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
 	}
 	emptyAddr := common.Address{}
 	if addr != emptyAddr {
@@ -157,7 +152,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Signature: nil}); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -178,134 +173,15 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
-	block := makeBlock(chain, engine, chain.Genesis())
+	numValidators := 1
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
+
+	block, _ := makeBlock(nodeKeys, chain, engine, chain.Genesis())
 	chain.InsertChain(types.Blocks{block})
 	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()
 	if actual != expected {
 		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
 	}
-}
-
-/**
- * SimpleBackend
- * Private key: bb047e5940b6d83354d9432db7c449ac8fca2248008aaa7271369880f9f11cc1
- * Public key: 04a2bfb0f7da9e1b9c0c64e14f87e8fb82eb0144e97c25fe3a977a921041a50976984d18257d2495e7bfd3d4b280220217f429287d25ecdf2b0d7c0f7aae9aa624
- * Address: 0x70524d664ffe731100208a0154e556f9bb679ae6
- */
-func getAddress() common.Address {
-	return common.HexToAddress("0x70524d664ffe731100208a0154e556f9bb679ae6")
-}
-
-func getInvalidAddress() common.Address {
-	return common.HexToAddress("0xc63597005f0da07a9ea85b5052a77c3b0261bdca")
-}
-
-func generatePrivateKey() (*ecdsa.PrivateKey, error) {
-	key := "bb047e5940b6d83354d9432db7c449ac8fca2248008aaa7271369880f9f11cc1"
-	return crypto.HexToECDSA(key)
-}
-
-func newTestValidatorSet(n int) (istanbul.ValidatorSet, []*ecdsa.PrivateKey) {
-	// generate validators
-	keys := make(Keys, n)
-	validators := make([]istanbul.ValidatorData, n)
-	for i := 0; i < n; i++ {
-		privateKey, _ := crypto.GenerateKey()
-		blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
-		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
-		keys[i] = privateKey
-		validators[i] = istanbul.ValidatorData{
-			Address:      crypto.PubkeyToAddress(privateKey.PublicKey),
-			BLSPublicKey: blsPublicKey,
-		}
-	}
-	vset := validator.NewSet(validators)
-	return vset, keys
-}
-
-type Keys []*ecdsa.PrivateKey
-
-func (slice Keys) Len() int {
-	return len(slice)
-}
-
-func (slice Keys) Less(i, j int) bool {
-	return strings.Compare(crypto.PubkeyToAddress(slice[i].PublicKey).String(), crypto.PubkeyToAddress(slice[j].PublicKey).String()) < 0
-}
-
-func (slice Keys) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
-func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	ecdsaKey, _ := generatePrivateKey()
-	eciesKey := ecies.ImportECDSA(ecdsaKey)
-	return eciesKey.Decrypt(c, s1, s2)
-}
-
-func signerFn(_ accounts.Account, mimeType string, data []byte) ([]byte, error) {
-	key, _ := generatePrivateKey()
-	return crypto.Sign(crypto.Keccak256(data), key)
-}
-
-func signerBLSHashFn(_ accounts.Account, data []byte) (blscrypto.SerializedSignature, error) {
-	key, _ := generatePrivateKey()
-	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-
-	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	defer privateKey.Destroy()
-
-	signature, err := privateKey.SignMessage(data, []byte{}, false)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	defer signature.Destroy()
-	signatureBytes, err := signature.Serialize()
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-}
-
-func signerBLSMessageFn(_ accounts.Account, data []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-	key, _ := generatePrivateKey()
-	privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-
-	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	defer privateKey.Destroy()
-
-	signature, err := privateKey.SignMessage(data, extraData, true)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	defer signature.Destroy()
-	signatureBytes, err := signature.Serialize()
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-}
-
-func newBackend() (b *Backend) {
-	_, b = newBlockChain(4, true)
-
-	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), &key.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
-	return
 }

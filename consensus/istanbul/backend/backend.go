@@ -120,7 +120,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksElectedMeter:                 metrics.NewRegisteredMeter("consensus/istanbul/blocks/elected", nil),
 		blocksElectedAndSignedMeter:        metrics.NewRegisteredMeter("consensus/istanbul/blocks/signedbyus", nil),
 		blocksElectedButNotSignedMeter:     metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedbyus", nil),
+		blocksElectedAndProposedMeter:      metrics.NewRegisteredMeter("consensus/istanbul/blocks/proposedbyus", nil),
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
+		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
@@ -163,13 +165,12 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address          common.Address              // Ethereum address of the signing key
-	publicKey        *ecdsa.PublicKey            // The signer public key
-	decryptFn        istanbul.DecryptFn          // Decrypt function to decrypt ECIES ciphertext
-	signFn           istanbul.SignerFn           // Signer function to authorize hashes with
-	signHashBLSFn    istanbul.BLSSignerFn        // Signer function to authorize hashes using BLS with
-	signMessageBLSFn istanbul.BLSMessageSignerFn // Signer function to authorize messages using BLS with
-	signFnMu         sync.RWMutex                // Protects the signer fields
+	address   common.Address       // Ethereum address of the signing key
+	publicKey *ecdsa.PublicKey     // The signer public key
+	decryptFn istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
+	signFn    istanbul.SignerFn    // Signer function to authorize hashes with
+	signBLSFn istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	signFnMu  sync.RWMutex         // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -246,13 +247,17 @@ type Backend struct {
 	rewardDistributionTimer metrics.Timer
 
 	// Meters for number of blocks seen for which the current validator signer has been elected,
-	// for which it was elected and has signed, and elected but not signed.
+	// for which it was elected and has signed, elected but not signed, and both elected and proposed.
 	blocksElectedMeter             metrics.Meter
 	blocksElectedAndSignedMeter    metrics.Meter
 	blocksElectedButNotSignedMeter metrics.Meter
+	blocksElectedAndProposedMeter  metrics.Meter
 
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
+
+	// Gauge for validator set size of grandparent of last received block (maximum value for blocksTotalSigsGauge)
+	blocksValSetSizeGauge metrics.Gauge
 
 	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
 	blocksTotalMissedRoundsMeter metrics.Meter
@@ -273,18 +278,20 @@ type Backend struct {
 	vph *validatorPeerHandler
 }
 
+// IsProxy returns if instance has proxy flag
 func (sb *Backend) IsProxy() bool {
-	return sb.proxiedPeer != nil
+	return sb.config.Proxy
 }
 
+// IsProxiedValidator returns if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.proxyNode != nil && sb.proxyNode.peer != nil
+	return sb.config.Proxied
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
-	if !sb.IsProxiedValidator() {
+	if !sb.IsProxiedValidator() || sb.proxyNode == nil || sb.proxyNode.peer == nil {
 		err := errors.New("No Proxy found")
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
@@ -295,7 +302,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
-	if !sb.IsProxy() {
+	if !sb.IsProxy() || sb.proxiedPeer == nil {
 		err := errors.New("No Proxied Validator found")
 		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
 		return err
@@ -304,7 +311,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
+func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -312,8 +319,7 @@ func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey,
 	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
-	sb.signHashBLSFn = signHashBLSFn
-	sb.signMessageBLSFn = signMessageBLSFn
+	sb.signBLSFn = signBLSFn
 	sb.core.SetAddress(address)
 }
 
@@ -534,6 +540,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// update block's header
 	block = block.WithSeal(h)
 	block = block.WithEpochSnarkData(&types.EpochSnarkData{
+		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 
@@ -700,26 +707,14 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, data)
 }
 
-func (sb *Backend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
-	if sb.signHashBLSFn == nil {
+// Sign implements istanbul.Backend.SignBLS
+func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+	if sb.signBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
-}
-
-func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
-	if sb.signMessageBLSFn == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	// Currently, ExtraData is unused. In the future, it could include data that could be used to introduce
-	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need,
-	// such as the block number, which can be used by a hardware wallet to see that the block number
-	// is incrementing, without having to perform the two-level hashing, just one-level fast hashing.
-	return sb.signMessageBLSFn(accounts.Account{Address: sb.address}, data, []byte{})
+	return sb.signBLSFn(accounts.Account{Address: sb.address}, data, extra, useComposite)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

@@ -155,7 +155,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return istanbul.CheckValidatorSignature(valSet, data, sig)
 		}
 		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
-			sb.logger.Error("Got a consensus message signed by a non validator.")
+			sb.logger.Error("Got a consensus message signed by a non validator.", "err", err)
 			return errNonValidatorMessage
 		}
 
@@ -243,17 +243,16 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// Determine if this validator signed the parent of the supplied block:
-// First check the grandparent's validator set. If not elected, it didn't.
-// Then, check the parent seal on the supplied block.
+// Maintain metrics around the *parent* of the supplied block.
+// To figure out if this validator signed the parent block:
+// * First check the grandparent's validator set. If not elected, it didn't.
+// * Then, check the parent seal on the supplied (child) block.
 // We cannot determine any specific info from the validators in the seal of
 // the parent block, because different nodes circulate different versions.
-// It only becomes canonical when the child block is proposed.
-func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
+// The bitmap of signed validators only becomes canonical when the child block is proposed.
+func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-
-	countInParentSeal = -1
 
 	// Check the parent is not the genesis block.
 	number := child.Number().Uint64()
@@ -267,7 +266,6 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
 	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
-	elected = gpValSetIndex >= 0
 
 	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
@@ -275,16 +273,45 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 		return
 	}
 
-	if elected {
-		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
-	}
+	// total possible signatures
+	valSetSize := gpValSet.Size()
+	sb.blocksValSetSizeGauge.Update(int64(valSetSize))
 
-	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
-	countInParentSeal = 0
+	// signatures present
+	countInParentSeal := 0
 	for i := 0; i < gpValSet.Size(); i++ {
 		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
 	}
-	return
+	sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+
+	// cumulative count of rounds missed (i.e sequences not agreed on round=0)
+	missedRounds := childExtra.ParentAggregatedSeal.Round.Int64()
+	if missedRounds > 0 {
+		sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+	}
+
+	// elected?
+	elected := gpValSetIndex >= 0
+	if !elected {
+		return
+	}
+	sb.blocksElectedMeter.Mark(1)
+
+	// The following metrics are only tracked if the validator is elected.
+
+	// proposed?
+	if parentHeader.Coinbase == sb.ValidatorAddress() {
+		sb.blocksElectedAndProposedMeter.Mark(1)
+	}
+
+	// signed, or missed?
+	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
+	if inParentSeal {
+		sb.blocksElectedAndSignedMeter.Mark(1)
+	} else {
+		sb.blocksElectedButNotSignedMeter.Mark(1)
+		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+	}
 }
 
 // Actions triggered by a new block being added to the chain.
@@ -293,21 +320,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
-	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
-	if countInParentSeal >= 0 {
-		if elected {
-			sb.blocksElectedMeter.Mark(1)
-			if inChildsParentSeal {
-				sb.blocksElectedAndSignedMeter.Mark(1)
-			} else {
-				sb.blocksElectedButNotSignedMeter.Mark(1)
-			}
-		}
-		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
-		if missedRounds > 0 {
-			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
-		}
-	}
+	sb.UpdateMetricsForParentOfBlock(newBlock)
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.

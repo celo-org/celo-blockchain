@@ -62,7 +62,7 @@ var DefaultConfig = &Config{
 	TimeoutBackoffFactor:           1000,
 	MinResendRoundChangeTimeout:    15 * 1000,
 	MaxResendRoundChangeTimeout:    2 * 60 * 1000,
-	BlockPeriod:                    1,
+	BlockPeriod:                    5,
 	ProposerPolicy:                 ShuffledRoundRobin,
 	Epoch:                          30000,
 	LookbackWindow:                 12,
