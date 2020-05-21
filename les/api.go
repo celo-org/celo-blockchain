@@ -74,7 +74,7 @@ func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
 	return nil
 }
 
-// SetGatewayFeeRecipient sets the etherbase of the Gateway Fee Recipient
+// SetGatewayFeeRecipient sets the etherbase of the gateway fee recipient
 func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Address) error {
 	if api.server.handler.etherbase != etherbase {
 		api.server.handler.etherbase = etherbase
