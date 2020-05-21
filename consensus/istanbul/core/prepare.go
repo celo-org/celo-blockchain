@@ -54,6 +54,9 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	seen := make(map[common.Address]bool)
 
+	commits := 0
+	prepares := 0
+
 	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
@@ -84,6 +87,9 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		var subject *istanbul.Subject
 
 		if message.Code == istanbul.MsgCommit {
+
+			commits = commits+1
+
 			var committedSubject *istanbul.CommittedSubject
 			err := message.Decode(&committedSubject)
 			if err != nil {
@@ -111,6 +117,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 			subject = committedSubject.Subject
 		} else {
+			prepares = prepares+1
 			if err := message.Decode(&subject); err != nil {
 				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
 				return nil, err
@@ -139,6 +146,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 	}
+	logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
 	return view, nil
 }
 

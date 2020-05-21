@@ -694,7 +694,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
-		logger.Trace("verification status cache miss")
+		logger.Info("verification status cache miss")
 
 		duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
