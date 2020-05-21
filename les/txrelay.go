@@ -76,7 +76,7 @@ func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 	defer self.lock.Unlock()
 
 	for _, p := range self.peerList {
-		if p.WillAcceptTransaction(tx) {
+		if p.WillAcceptTransaction(tx) == nil {
 			return true
 		}
 	}
@@ -108,7 +108,7 @@ func (self *lesTxRelay) send(txs types.Transactions) {
 				return dp.(*peer).GetTxRelayCost(len(list), len(enc))
 			},
 			canSend: func(dp distPeer) bool {
-				return dp.(*peer).WillAcceptTransaction(tx)
+				return dp.(*peer).WillAcceptTransaction(tx) == nil
 			},
 			request: func(dp distPeer) func() {
 				peer := dp.(*peer)

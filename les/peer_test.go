@@ -17,6 +17,7 @@
 package les
 
 import (
+	"fmt"
 	"math/big"
 	"net"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
@@ -245,6 +247,23 @@ func TestPeerHandshakeClientReturnErrorOnUselessPeer(t *testing.T) {
 	err := p.Handshake(td, hash, headNum, genesis, nil)
 	if err == nil {
 		t.FailNow()
+	}
+}
+
+func TestWillAcceptTransaction(t *testing.T) {
+	cases := []struct {
+		tx     *types.Transaction
+		p      *peer
+		accept bool
+	}{
+		//DO NOT MERGE: Include test cases here
+	}
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			if err := c.p.WillAcceptTransaction(c.tx); (err == nil) != c.accept {
+				t.Errorf("got err %v; want err == %v", err, !c.accept)
+			}
+		})
 	}
 }
 

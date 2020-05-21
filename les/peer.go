@@ -26,8 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core"
@@ -789,20 +787,20 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) error {
 		return errNonRelayPeer
 	}
 
-	// Retreive the Etherbase known for this peer.
+	// Retreive the gateway fee information known for this peer.
+	gatewayFee := p.GatewayFee()
 	var etherbase common.Address
 	if ptr := p.Etherbase(); ptr != nil {
 		etherbase = *ptr
-	} else {
-		return errNoEtherbase
 	}
 
 	// Check that the transaction meets the peer's gateway fee requirements.
-	if etherbase != (common.Address{}) {
-		if gateway := tx.GatewayFeeRecipient(); gateway != nil && *gateway != etherbase {
+	// Treat nil (i.e. unknown) peer gateway fee information as possibly free relay.
+	if etherbase != (common.Address{}) && gatewayFee != nil && gatewayFee.Cmp(common.Big0) > 0 {
+		if txGateway := tx.GatewayFeeRecipient(); txGateway == nil || *txGateway != etherbase {
 			return errInsufficientGatewayFee
 		}
-		if fee := tx.GatewayFee(); fee != nil && fee.Cmp(p.GatewayFee()) < 0 {
+		if txFee := tx.GatewayFee(); txFee == nil || txFee.Cmp(gatewayFee) < 0 {
 			return errInsufficientGatewayFee
 		}
 	}
