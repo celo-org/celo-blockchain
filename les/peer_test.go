@@ -251,12 +251,109 @@ func TestPeerHandshakeClientReturnErrorOnUselessPeer(t *testing.T) {
 }
 
 func TestWillAcceptTransaction(t *testing.T) {
+	tx := func(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) *types.Transaction {
+		return types.NewTransaction(0, common.Address{}, nil, 0, nil, nil, gatewayFeeRecipient, gatewayFee, nil)
+	}
+	peerEtherbase := common.HexToAddress("deadbeef")
+	wrongEtherbase := common.HexToAddress("badfo00")
 	cases := []struct {
 		tx     *types.Transaction
 		p      *peer
 		accept bool
 	}{
-		//DO NOT MERGE: Include test cases here
+		{
+			tx:     tx(nil, nil),
+			p:      &peer{},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase:  &common.Address{},
+				gatewayFee: big.NewInt(0),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase: &peerEtherbase,
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &common.Address{},
+				gatewayFee: big.NewInt(0),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(200)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(50)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&wrongEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				onlyAnnounce: true,
+				etherbase:    &common.Address{},
+				gatewayFee:   big.NewInt(0),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				onlyAnnounce: true,
+				etherbase:    &peerEtherbase,
+				gatewayFee:   big.NewInt(100),
+			},
+			accept: false,
+		},
 	}
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
