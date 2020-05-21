@@ -146,7 +146,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 	}
-	logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
+	// logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
 	return view, nil
 }
 

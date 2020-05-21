@@ -52,6 +52,8 @@ type core struct {
 	resendRoundChangeMessageTimer *time.Timer
 	roundChangeTimer              *time.Timer
 
+	cache map[string]common.Address
+
 	validateFn func([]byte, []byte) (common.Address, error)
 
 	backlog MsgBacklog
@@ -685,13 +687,24 @@ func (c *core) resendRoundChangeMessage() {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
+
+	log.Trace("????")
+	if res, ok := c.cache[common.ToHex(sig)]; ok {
+		log.Trace("cache hit")
+		return res, nil
+	}
+
+	res, err := istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
+	if err != nil {
+		c.cache[common.ToHex(sig)] = res
+	}
+	return res, err
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
 	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
 	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
-		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
+		// logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
 		logger.Info("verification status cache miss")

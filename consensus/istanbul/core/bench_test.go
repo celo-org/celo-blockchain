@@ -25,7 +25,7 @@ import (
 )
 
 func TestHandlePreprepareBench(t *testing.T) {
-	N := uint64(100) // replica 0 is the proposer, it will send messages to others
+	N := uint64(200) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests
 
 	getRoundState := func(c *core) *roundStateImpl {
