@@ -357,8 +357,8 @@ func TestWillAcceptTransaction(t *testing.T) {
 	}
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			if err := c.p.WillAcceptTransaction(c.tx); (err == nil) != c.accept {
-				t.Errorf("got err %v; want err == %v", err, !c.accept)
+			if got := c.p.WillAcceptTransaction(c.tx); got != c.accept {
+				t.Errorf("got p.WillAcceptTransaction(...) = %v; want %v", got, c.accept)
 			}
 		})
 	}

@@ -800,7 +800,7 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) bool {
 			return false
 		}
 	}
-	return false
+	return true
 }
 
 // updateFlowControl updates the flow control parameters belonging to the server
