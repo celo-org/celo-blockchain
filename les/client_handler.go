@@ -55,11 +55,6 @@ type GatewayFeeInformation struct {
 	Etherbase  common.Address
 }
 
-type FullGatewayFeeInformation struct {
-	NodeID         string
-	GatewayFeeInfo *GatewayFeeInformation
-}
-
 type gatewayFeeCache struct {
 	mutex         *sync.RWMutex
 	gatewayFeeMap map[string]*GatewayFeeInformation
@@ -97,7 +92,7 @@ func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) erro
 	return nil
 }
 
-func (c *gatewayFeeCache) MinPeerGatewayFee() (*FullGatewayFeeInformation, error) {
+func (c *gatewayFeeCache) MinPeerGatewayFee() (*GatewayFeeInformation, error) {
 	gatewayFeeMap := c.getMap()
 
 	if len(gatewayFeeMap) == 0 {
@@ -106,18 +101,15 @@ func (c *gatewayFeeCache) MinPeerGatewayFee() (*FullGatewayFeeInformation, error
 
 	minGwFee := big.NewInt(math.MaxInt64)
 	minEtherbase := common.ZeroAddress
-	minID := ""
-	for id, gwFeeInformation := range gatewayFeeMap {
+	for _, gwFeeInformation := range gatewayFeeMap {
 		if gwFeeInformation.GatewayFee.Cmp(minGwFee) < 0 {
 			minGwFee = gwFeeInformation.GatewayFee
 			minEtherbase = gwFeeInformation.Etherbase
-			minID = id
 		}
 	}
 
 	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
-	minFullGatewayFeeInformation := &FullGatewayFeeInformation{minID, minGatewayFeeInformation}
-	return minFullGatewayFeeInformation, nil
+	return minGatewayFeeInformation, nil
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {

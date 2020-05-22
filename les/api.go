@@ -417,7 +417,7 @@ func (api *LightClientAPI) RequestPeerGatewayFees() error {
 }
 
 // SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
-func (api *LightClientAPI) SuggestGatewayFee() (*FullGatewayFeeInformation, error) {
+func (api *LightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
 	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
 	if err != nil {
 		return nil, err

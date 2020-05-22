@@ -843,6 +843,10 @@ web3._extend({
 			getter: 'les_serverInfo'
 		}),
 		new web3._extend.Property({
+			name: 'gatewayFee',
+			getter: 'les_gatewayFee'
+		}),
+		new web3._extend.Property({
 			name: 'gatewayFeeRecipient',
 			getter: 'les_gatewayFeeRecipient'
 		}),
