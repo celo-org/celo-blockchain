@@ -97,6 +97,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 		commitCh:           make(chan istanbul.Subject, 100),
 		quitCommitCh:       make(chan struct{}),
+		cache:				make(map[string]common.Address),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -581,6 +582,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		headBlock := c.backend.GetCurrentHeadBlock()
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
+	c.cache = make(map[string]common.Address)
 	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 
 }
@@ -687,16 +689,17 @@ func (c *core) resendRoundChangeMessage() {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+	log.Debug("Here")
 
-	log.Trace("????")
-	if res, ok := c.cache[common.ToHex(sig)]; ok {
-		log.Trace("cache hit")
+	if res, ok := c.cache[fmt.Sprintf("%q%q", data, sig)]; ok {
+		log.Debug("Cache hit")
 		return res, nil
 	}
 
 	res, err := istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
-	if err != nil {
-		c.cache[common.ToHex(sig)] = res
+	if err == nil {
+		log.Debug("Logging")
+		c.cache[fmt.Sprintf("%q%q", data, sig)] = res
 	}
 	return res, err
 }
