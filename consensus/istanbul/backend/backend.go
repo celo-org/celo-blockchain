@@ -111,8 +111,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
-		valEnodesShareWg:                   new(sync.WaitGroup),
-		valEnodesShareQuit:                 make(chan struct{}),
+		valEnodesShareThreadWg:             new(sync.WaitGroup),
+		valEnodesShareThreadQuit:           make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -227,8 +227,8 @@ type Backend struct {
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMu      sync.RWMutex
 
-	valEnodesShareWg   *sync.WaitGroup
-	valEnodesShareQuit chan struct{}
+	valEnodesShareThreadWg   *sync.WaitGroup
+	valEnodesShareThreadQuit chan struct{}
 
 	// Validator's proxy
 	proxyNode *proxyInfo
@@ -875,7 +875,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 }
 
 func (sb *Backend) sendForwardMsgToProxy(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
-	logger := sb.logger.New("func", "SendForwardMsg")
+	logger := sb.logger.New("func", "sendForwardMsgToProxy")
 	if sb.proxyNode.peer == nil {
 		logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
 		return errNoProxyConnection

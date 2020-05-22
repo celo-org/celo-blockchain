@@ -81,9 +81,9 @@ func (sd *valEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 
 // This function is meant to be run as a goroutine.  It will periodically send validator enode share messages
 // to this node's proxies so that proxies know the enodes of validators
-func (sb *Backend) sendValEnodesShareMsgs() {
-	sb.valEnodesShareWg.Add(1)
-	defer sb.valEnodesShareWg.Done()
+func (sb *Backend) valEnodesShareThread() {
+	sb.valEnodesShareThreadWg.Add(1)
+	defer sb.valEnodesShareThreadWg.Done()
 
 	ticker := time.NewTicker(time.Minute)
 
@@ -94,7 +94,7 @@ func (sb *Backend) sendValEnodesShareMsgs() {
 			log.Trace("ValidatorEnodeTable dump", "ValidatorEnodeTable", sb.valEnodeTable.String())
 			go sb.sendValEnodesShareMsg()
 
-		case <-sb.valEnodesShareQuit:
+		case <-sb.valEnodesShareThreadQuit:
 			ticker.Stop()
 			return
 		}

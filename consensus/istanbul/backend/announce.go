@@ -549,12 +549,12 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 
 	msg := new(istanbul.Message)
 
-	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markPeerGossipCache(addr, payload)
-	if sb.checkSelfGossipCache(payload) {
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.markSelfGossipCache(payload)
+	defer sb.markMessageProcessedBySelf(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -896,12 +896,12 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
 
-	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markPeerGossipCache(addr, payload)
-	if sb.checkSelfGossipCache(payload) {
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.markSelfGossipCache(payload)
+	defer sb.markMessageProcessedBySelf(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {

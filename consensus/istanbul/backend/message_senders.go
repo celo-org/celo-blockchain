@@ -49,9 +49,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	var err error
 
 	if sb.IsProxiedValidator() {
-		if err := sb.sendForwardMsgToProxy(destAddresses, ethMsgCode, payload); err != nil {
-			return err
-		}
+		err = sb.sendForwardMsgToProxy(destAddresses, ethMsgCode, payload)
 	} else {
 		destPeers := sb.getPeersFromDestAddresses(destAddresses)
 		if len(destPeers) > 0 {
@@ -79,20 +77,20 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 	// Get all connected peers
 	peersToSendMsg := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
 
-	// Mark that this node gossiped this message, so that it will ignore it if
+	// Mark that this node gossiped/processed this message, so that it will ignore it if
 	// one of it's peers sends the message to it.
-	sb.markSelfGossipCache(payload)
+	sb.markMessageProcessedBySelf(payload)
 
 	// Filter out peers that already sent us this gossip message
 	for nodeID, peer := range peersToSendMsg {
 		nodePubKey := peer.Node().Pubkey()
 		nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
-		if sb.checkPeerGossipCache(nodeAddr, payload) {
+		if sb.checkIfMessageProcessedByPeer(nodeAddr, payload) {
 			delete(peersToSendMsg, nodeID)
 			logger.Trace("Peer already gossiped this message.  Not sending message to it", "peer", peer)
 			continue
 		} else {
-			sb.markPeerGossipCache(nodeAddr, payload)
+			sb.markMessageProcessedByPeer(nodeAddr, payload)
 		}
 	}
 
@@ -100,8 +98,7 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 }
 
 // sendMsg will send the eth message (with the message's payload and msgCode field set to the params
-// payload and ethMsgCode respectively) to either the nodes with the signing address in the destAddresses param,
-// or to all the connected peers with this node (if gossip parameter set to true).
+// payload and ethMsgCode respectively) to all the nodes destPeers param.
 func (sb *Backend) sendMsg(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "multicast")
 

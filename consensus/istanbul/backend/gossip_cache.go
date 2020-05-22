@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
-func (sb *Backend) markPeerGossipCache(peerNodeAddr common.Address, payload []byte) {
+func (sb *Backend) markMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) {
 	ms, ok := sb.peerRecentMessages.Get(peerNodeAddr)
 	var m *lru.ARCCache
 	if ok {
@@ -36,7 +36,7 @@ func (sb *Backend) markPeerGossipCache(peerNodeAddr common.Address, payload []by
 	m.Add(payloadHash, true)
 }
 
-func (sb *Backend) checkPeerGossipCache(peerNodeAddr common.Address, payload []byte) bool {
+func (sb *Backend) checkIfMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) bool {
 	ms, ok := sb.peerRecentMessages.Get(peerNodeAddr)
 	var m *lru.ARCCache
 	if ok {
@@ -49,12 +49,12 @@ func (sb *Backend) checkPeerGossipCache(peerNodeAddr common.Address, payload []b
 	return false
 }
 
-func (sb *Backend) markSelfGossipCache(payload []byte) {
+func (sb *Backend) markMessageProcessedBySelf(payload []byte) {
 	payloadHash := istanbul.RLPHash(payload)
 	sb.selfRecentMessages.Add(payloadHash, true)
 }
 
-func (sb *Backend) checkSelfGossipCache(payload []byte) bool {
+func (sb *Backend) checkIfMessageProcessedBySelf(payload []byte) bool {
 	payloadHash := istanbul.RLPHash(payload)
 	_, ok := sb.selfRecentMessages.Get(payloadHash)
 	return ok

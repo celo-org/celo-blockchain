@@ -670,7 +670,7 @@ func (sb *Backend) StartProxyHandler() error {
 				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
 			}
 		}
-		go sb.sendValEnodesShareMsgs()
+		go sb.valEnodesShareThread()
 	}
 
 	sb.proxyHandlerRunning = true
@@ -688,8 +688,8 @@ func (sb *Backend) StopProxyHandler() error {
 	}
 
 	if sb.IsProxiedValidator() {
-		sb.valEnodesShareQuit <- struct{}{}
-		sb.valEnodesShareWg.Wait()
+		sb.valEnodesShareThreadQuit <- struct{}{}
+		sb.valEnodesShareThreadWg.Wait()
 
 		if sb.proxyNode != nil {
 			sb.removeProxy(sb.proxyNode.node)
