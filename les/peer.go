@@ -468,6 +468,12 @@ func (p *peer) ReplyTxStatus(reqID uint64, stats []light.TxStatus) *reply {
 	return &reply{p.rw, TxStatusMsg, reqID, data}
 }
 
+//ReplyGatewayFee creates reply with gateway fee that was requested
+func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply {
+	data, _ := rlp.EncodeToBytes(resp)
+	return &reply{p.rw, GatewayFeeMsg, reqID, data}
+}
+
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
 // specified header query, based on the hash of an origin block.
 func (p *peer) RequestHeadersByHash(reqID, cost uint64, origin common.Hash, amount int, skip int, reverse bool) error {
@@ -527,6 +533,15 @@ func (p *peer) RequestEtherbase(reqID, cost uint64) error {
 		ReqID uint64
 	}
 	return p2p.Send(p.rw, GetEtherbaseMsg, req{reqID})
+}
+
+// RequestGatewayFee gets gateway fee of remote node
+func (p *peer) RequestGatewayFee(reqID, cost uint64) error {
+	p.Log().Debug("Requesting gatewayFee for peer", "enode", p.id)
+	type req struct {
+		ReqID uint64
+	}
+	return p2p.Send(p.rw, GetGatewayFeeMsg, req{reqID})
 }
 
 // SendTxStatus creates a reply with a batch of transactions to be added to the remote transaction pool.
@@ -979,6 +994,20 @@ func (ps *peerSet) AllPeers() []*peer {
 		i++
 	}
 	return list
+}
+
+//Get all peers that only support les and have no other caps
+func (ps *peerSet) AllLightClientPeers() []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	lightClientPeers := make([]*peer, 0)
+	for _, peerNode := range ps.AllPeers() { //essentailly a filter func. Could abstract this out later
+		if peerNode.fcClient != nil {
+			lightClientPeers = append(lightClientPeers, peerNode)
+		}
+	}
+	return lightClientPeers
 }
 
 // Close disconnects all peers.

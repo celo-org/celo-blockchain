@@ -230,6 +230,11 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Service:   downloader.NewPublicDownloaderAPI(s.handler.downloader, s.eventMux),
 			Public:    true,
 		}, {
+			Namespace: "les",
+			Version:   "1.0",
+			Service:   NewLightClientAPI(s),
+			Public:    true,
+		}, {
 			Namespace: "eth",
 			Version:   "1.0",
 			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
