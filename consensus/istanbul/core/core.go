@@ -689,16 +689,12 @@ func (c *core) resendRoundChangeMessage() {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	log.Debug("Here")
-
 	if res, ok := c.cache[fmt.Sprintf("%q%q", data, sig)]; ok {
-		log.Debug("Cache hit")
 		return res, nil
 	}
 
 	res, err := istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
 	if err == nil {
-		log.Debug("Logging")
 		c.cache[fmt.Sprintf("%q%q", data, sig)] = res
 	}
 	return res, err

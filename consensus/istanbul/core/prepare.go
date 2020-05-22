@@ -91,6 +91,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		if message.Code == istanbul.MsgCommit {
 
 			commits = commits+1
+			logger.Info("Commit message in prepared certificate")
 
 			var committedSubject *istanbul.CommittedSubject
 			err := message.Decode(&committedSubject)
