@@ -40,10 +40,9 @@ import (
 )
 
 var (
-	errClosed                   = errors.New("peer set is closed")
-	errAlreadyRegistered        = errors.New("peer is already registered")
-	errNotRegistered            = errors.New("peer is not registered")
-	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
+	errClosed            = errors.New("peer set is closed")
+	errAlreadyRegistered = errors.New("peer is already registered")
+	errNotRegistered     = errors.New("peer is not registered")
 )
 
 const (
@@ -783,7 +782,7 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) bool {
 		return false
 	}
 
-	// Retreive the gateway fee information known for this peer.
+	// Retrieve the gateway fee information known for this peer.
 	gatewayFee := p.GatewayFee()
 	var etherbase common.Address
 	if ptr := p.Etherbase(); ptr != nil {
