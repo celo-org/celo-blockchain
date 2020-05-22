@@ -213,6 +213,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
+	logger.Trace("Verified seal")
 
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {

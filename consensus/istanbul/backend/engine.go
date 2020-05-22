@@ -695,11 +695,14 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 	// Note that block 0 (the genesis block) is one of those headers.  It contains the initial set of validators in the
 	// 'addedValidators' field in the header.
 
+	cached := false
+
 	// Retrieve the most recent cached or on disk snapshot.
 	for ; ; numberIter = numberIter - sb.config.Epoch {
 		// If an in-memory snapshot was found, use that
 		if s, ok := sb.recentSnapshots.Get(numberIter); ok {
 			snap = s.(*Snapshot)
+			cached = true
 			break
 		}
 
@@ -806,6 +809,11 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 			return nil, err
 		}
 
+		sb.recentSnapshots.Add(numberIter, snap)
+	}
+
+	if !cached && numberIter == 0 {
+		log.Debug("Caching epoch block")
 		sb.recentSnapshots.Add(numberIter, snap)
 	}
 	// Make a copy of the snapshot to return, since a few fields will be modified.
