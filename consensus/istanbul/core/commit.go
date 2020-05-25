@@ -31,6 +31,13 @@ func (c *core) sendCommit() {
 	c.commitCh <- *sub
 }
 
+func (c *core) submitForSigning() {
+	logger := c.newLogger("func", "submitForSigning")
+	logger.Trace("Sending signature request")
+	sub := c.current.Subject()
+	c.signerCh <- *sub
+}
+
 func (c *core) commitHandler() {
 	logger := c.newLogger("func", "commitHandler")
 	logger.Trace("Starting commit handler")
@@ -41,39 +48,15 @@ func (c *core) commitHandler() {
 
 	c.handlerWg.Add(1)
 
-	for {
-		select {
-		case sub := <-c.commitCh:
-		loop:
-			for {
-				select {
-				case sub = <-c.commitCh:
-				default:
-					break loop
-				}
-			}
-			c.broadcastCommit(&sub)
-		case <-c.quitCommitCh:
-			return
-		}
-	}
-}
+	sealCache := make(map[string]blscrypto.SerializedSignature)
+	commitCache := make(map[string]bool)
 
-// Get subjects to sign
-func (c *core) signerHandler() {
-	logger := c.newLogger("func", "signerHandler")
-	logger.Trace("Starting signer handler")
-	// Clear state
-	defer func() {
-		c.handlerWg.Done()
-	}()
-
-	c.handlerWg.Add(1)
+	// Or perhaps we have new channels?
 
 	for {
 		select {
 		case sub := <-c.signerCh:
-		loop:
+			loop:
 			for {
 				select {
 				case sub = <-c.signerCh:
@@ -82,26 +65,38 @@ func (c *core) signerHandler() {
 				}
 			}
 			if committedSeal, err := c.generateCommittedSeal(&sub); err != nil {
-				logger.Debug("Cannot generate seal", err)
+				logger.Error("Cannot generate seal", err)
 			} else {
-				c.commitSealCh <- committed{committedSeal: committedSeal, subject: &sub}
+				if res, ok := commitCache[sub.View.String()]; !ok && !res {
+					sealCache[sub.View.String()] = committedSeal
+				} else {
+					c.broadcastCommit(&sub, committedSeal)
+				}
 			}
-		case <-c.quitSignerCh:
+
+		case sub := <-c.commitCh:
+			loop2:
+			for {
+				select {
+				case sub = <-c.commitCh:
+				default:
+					break loop2
+				}
+			}
+			// Need to check if we have the signature here
+			if seal, ok := sealCache[sub.View.String()]; !ok {
+				commitCache[sub.View.String()] = true
+			} else {
+				c.broadcastCommit(&sub, seal)
+			}
+
+		case <-c.quitCommitCh:
 			return
 		}
 	}
 }
 
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
-	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBlockHeader(seal)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	return committedSeal, nil
-}
-
-func (c *core) getGenerateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBlockHeader(seal)
 	if err != nil {
@@ -127,16 +122,10 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 	return epochData, nil
 }
 
-func (c *core) broadcastCommit(sub *istanbul.Subject) {
+func (c *core) broadcastCommit(sub *istanbul.Subject, committedSeal blscrypto.SerializedSignature) {
 	logger := c.newLogger("func", "broadcastCommit")
 
 	logger.Info("Here")
-
-	committedSeal, err := c.generateCommittedSeal(sub)
-	if err != nil {
-		logger.Error("Failed to commit seal", "err", err)
-		return
-	}
 
 	// TODO(mrsmkl): Change this
 	if c.current.Proposal() == nil {

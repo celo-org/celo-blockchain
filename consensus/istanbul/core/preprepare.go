@@ -156,6 +156,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
+		c.submitForSigning()
 		c.sendPrepare()
 	}
 
