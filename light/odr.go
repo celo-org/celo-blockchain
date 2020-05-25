@@ -119,6 +119,25 @@ func (req *BlockRequest) StoreResult(db ethdb.Database) {
 	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
 }
 
+type blockHashOrNumber struct {
+	Hash   common.Hash
+	Number *uint64
+}
+
+type HeaderRequest struct {
+	OdrRequest
+	Origin blockHashOrNumber
+	Header *types.Header
+}
+
+// StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
+// This occurs if the total difficulty of the requested header is less than the current known TD.
+func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
+		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
+	}
+}
+
 // ReceiptsRequest is the ODR request type for retrieving block bodies
 type ReceiptsRequest struct {
 	OdrRequest

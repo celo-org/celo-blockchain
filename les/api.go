@@ -20,8 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -33,6 +35,7 @@ var (
 	errUnknownBenchmarkType = errors.New("unknown benchmark type")
 	errBalanceOverflow      = errors.New("balance overflow")
 	errNoPriority           = errors.New("priority too low to raise capacity")
+	errInvalidGatewayFee    = errors.New("invalid gateway fee")
 )
 
 const maxBalance = math.MaxInt64
@@ -50,6 +53,40 @@ func NewPrivateLightServerAPI(server *LesServer) *PrivateLightServerAPI {
 		defaultPosFactors: server.clientPool.defaultPosFactors,
 		defaultNegFactors: server.clientPool.defaultNegFactors,
 	}
+}
+
+//GatewayFee returns the current gateway fee of this light server
+func (api *PrivateLightServerAPI) GatewayFee() (gf *big.Int, err error) {
+	return api.server.handler.gatewayFee, nil
+}
+
+//SetGatewayFee allows this light server node to set a gateway fee
+func (api *PrivateLightServerAPI) SetGatewayFee(gf *big.Int) error {
+	if gf.Cmp(common.Big0) < 0 {
+		return errInvalidGatewayFee
+	}
+	if api.server.handler.gatewayFee != gf {
+		api.server.handler.gatewayFee = gf
+		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SetGatewayFeeRecipient sets the etherbase of the gateway fee recipient
+func (api *PrivateLightServerAPI) SetGatewayFeeRecipient(etherbase common.Address) error {
+	if api.server.handler.etherbase != etherbase {
+		api.server.handler.etherbase = etherbase
+		if err := api.server.BroadcastGatewayFeeInfo(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (api *PrivateLightServerAPI) GatewayFeeRecipient() (eb common.Address, err error) {
+	return api.server.handler.etherbase, nil
 }
 
 // ServerInfo returns global server parameters
@@ -351,4 +388,39 @@ func (api *PrivateLightAPI) GetCheckpointContractAddress() (string, error) {
 		return "", errNotActivated
 	}
 	return api.backend.oracle.config.Address.Hex(), nil
+}
+
+//API should be for light clients of les protocol
+type LightClientAPI struct {
+	le *LightEthereum
+}
+
+func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
+	return &LightClientAPI{le}
+}
+
+func (api *LightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
+	return api.le.handler.gatewayFeeCache.getMap()
+}
+
+// RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
+func (api *LightClientAPI) RequestPeerGatewayFees() error {
+	peerNodes := api.le.peers.AllPeers()
+	for _, peerNode := range peerNodes {
+		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
+		err := peerNode.RequestGatewayFee(genReqID(), cost)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
+func (api *LightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
+	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
+	if err != nil {
+		return nil, err
+	}
+	return bestGatewayFeeInfo, nil
 }
