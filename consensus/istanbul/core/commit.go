@@ -68,6 +68,7 @@ func (c *core) commitHandler() {
 				logger.Error("Cannot generate seal", err)
 			} else {
 				if res, ok := commitCache[sub.View.String()]; !ok && !res {
+					logger.Info("Caching seal", "view", sub.View.String())
 					sealCache[sub.View.String()] = committedSeal
 				} else {
 					c.broadcastCommit(&sub, committedSeal)
@@ -85,6 +86,7 @@ func (c *core) commitHandler() {
 			}
 			// Need to check if we have the signature here
 			if seal, ok := sealCache[sub.View.String()]; !ok {
+				logger.Info("Caching commit", "view", sub.View.String())
 				commitCache[sub.View.String()] = true
 			} else {
 				c.broadcastCommit(&sub, seal)

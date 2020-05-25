@@ -91,7 +91,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		if message.Code == istanbul.MsgCommit {
 
 			commits = commits+1
-			logger.Info("Commit message in prepared certificate")
+			logger.Trace("Commit message in prepared certificate")
 
 			var committedSubject *istanbul.CommittedSubject
 			err := message.Decode(&committedSubject)
@@ -127,8 +127,8 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 
-		// msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
-		// msgLogger.Trace("Decoded message in prepared certificate", "code", message.Code)
+		msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
+		msgLogger.Trace("Decoded message in prepared certificate", "code", message.Code)
 
 		// Verify message for the proper sequence.
 		if subject.View.Sequence.Cmp(c.current.Sequence()) != 0 {
