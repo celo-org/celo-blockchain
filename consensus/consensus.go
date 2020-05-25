@@ -102,11 +102,6 @@ type Engine interface {
 	// SealHash returns the hash of a block prior to it being sealed.
 	SealHash(header *types.Header) common.Hash
 
-	// GetValidators returns the list of current validators.
-	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
-
-	EpochSize() uint64
-
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainReader) []rpc.API
 
@@ -165,6 +160,11 @@ type PoW interface {
 // Istanbul is a consensus engine to avoid byzantine failure
 type Istanbul interface {
 	Engine
+
+	EpochSize() uint64
+
+	// GetValidators returns the list of current validators.
+	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))

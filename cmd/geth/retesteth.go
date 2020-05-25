@@ -189,6 +189,7 @@ type SRItem struct {
 
 type NoRewardEngine struct {
 	inner     consensus.Engine
+	istanbul  consensus.Istanbul
 	rewardsOn bool
 }
 
@@ -248,11 +249,11 @@ func (e *NoRewardEngine) SealHash(header *types.Header) common.Hash {
 }
 
 func (e *NoRewardEngine) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
-	return e.inner.GetValidators(blockNumber, headerHash)
+	return e.istanbul.GetValidators(blockNumber, headerHash)
 }
 
 func (e *NoRewardEngine) EpochSize() uint64 {
-	return e.inner.EpochSize()
+	return e.istanbul.EpochSize()
 }
 
 func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {
