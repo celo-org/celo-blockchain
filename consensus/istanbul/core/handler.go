@@ -48,6 +48,7 @@ func (c *core) Start() error {
 	// be able to call in test.
 	c.subscribeEvents()
 	go c.commitHandler()
+	go c.signerHandler()
 	go c.handleEvents()
 
 	return nil
@@ -58,6 +59,7 @@ func (c *core) Stop() error {
 	c.stopAllTimers()
 	c.unsubscribeEvents()
 	c.quitCommitCh <- struct{}{}
+	c.quitSignerCh <- struct{}{}
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()

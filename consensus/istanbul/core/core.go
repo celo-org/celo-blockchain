@@ -37,6 +37,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+type committed struct {
+	committedSeal	blscrypto.SerializedSignature
+	subject 		*istanbul.Subject
+}
+
 type core struct {
 	config         *istanbul.Config
 	address        common.Address
@@ -72,8 +77,12 @@ type core struct {
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 
-	commitCh     chan istanbul.Subject
-	quitCommitCh chan struct{}
+	commitCh      chan istanbul.Subject
+	commitSealCh  chan committed
+	signerCh 	  chan istanbul.Subject
+
+	quitCommitCh  chan struct{}
+	quitSignerCh  chan struct{}
 }
 
 // New creates an Istanbul consensus core
@@ -96,7 +105,10 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
 		commitCh:           make(chan istanbul.Subject, 100),
+		commitSealCh:       make(chan committed, 100),
+		signerCh:           make(chan istanbul.Subject, 100),
 		quitCommitCh:       make(chan struct{}),
+		quitSignerCh:       make(chan struct{}),
 		cache:				make(map[string]common.Address),
 	}
 	msgBacklog := newMsgBacklog(

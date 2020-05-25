@@ -59,7 +59,49 @@ func (c *core) commitHandler() {
 	}
 }
 
+// Get subjects to sign
+func (c *core) signerHandler() {
+	logger := c.newLogger("func", "signerHandler")
+	logger.Trace("Starting signer handler")
+	// Clear state
+	defer func() {
+		c.handlerWg.Done()
+	}()
+
+	c.handlerWg.Add(1)
+
+	for {
+		select {
+		case sub := <-c.signerCh:
+		loop:
+			for {
+				select {
+				case sub = <-c.signerCh:
+				default:
+					break loop
+				}
+			}
+			if committedSeal, err := c.generateCommittedSeal(&sub); err != nil {
+				logger.Debug("Cannot generate seal", err)
+			} else {
+				c.commitSealCh <- committed{committedSeal: committedSeal, subject: &sub}
+			}
+		case <-c.quitSignerCh:
+			return
+		}
+	}
+}
+
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
+	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
+	committedSeal, err := c.backend.SignBlockHeader(seal)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	return committedSeal, nil
+}
+
+func (c *core) getGenerateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBlockHeader(seal)
 	if err != nil {
