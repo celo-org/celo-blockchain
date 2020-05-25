@@ -97,8 +97,7 @@ type Ethereum struct {
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
-
-	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+	lock          sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -312,13 +311,9 @@ func (s *Ethereum) APIs() []rpc.API {
 	if s.lesServer != nil {
 		apis = append(apis, s.lesServer.APIs()...)
 	}
+
 	// Append any APIs exposed explicitly by the consensus engine
 	apis = append(apis, s.engine.APIs(s.BlockChain())...)
-
-	// Append any APIs exposed explicitly by the les server
-	if s.lesServer != nil {
-		apis = append(apis, s.lesServer.APIs()...)
-	}
 
 	// Append all the local APIs and return
 	return append(apis, []rpc.API{
