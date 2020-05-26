@@ -43,7 +43,7 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
 
 Going through all the possible command line flags is out of scope here, please consult `geth --help` for more complete information.
-We've enumerated a few common parameter combos to get you up to speed quicklyon how you can run your own Celo blockchain client instance.
+We've enumerated a few common parameter combos to get you up to speed quickly on how you can run your own Celo blockchain client instance.
 
 ### Full node on the main Celo network
 
