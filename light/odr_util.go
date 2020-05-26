@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -58,12 +59,29 @@ func GetHeaderByNumber(ctx context.Context, odr OdrBackend, number uint64) (*typ
 				canonicalHash = rawdb.ReadCanonicalHash(db, sectionHeadNum)
 			}
 		}
+	} else {
+		// If `ChtIndexer` is `nil` then we are effectively in `lightest` mode
+		r := &HeaderRequest{Origin: blockHashOrNumber{Number: &number}}
+		if err := odr.Retrieve(ctx, r); err != nil {
+			log.Error("Error after retrieve", "Err", err)
+			return nil, err
+		}
+		return r.Header, nil
 	}
 	if number >= chtCount*odr.IndexerConfig().ChtSize {
 		return nil, errNoTrustedCht
 	}
 	r := &ChtRequest{ChtRoot: GetChtRoot(db, chtCount-1, sectionHead), ChtNum: chtCount - 1, BlockNum: number, Config: odr.IndexerConfig()}
 	if err := odr.Retrieve(ctx, r); err != nil {
+		return nil, err
+	}
+	return r.Header, nil
+}
+
+func GetHeaderByHash(ctx context.Context, odr OdrBackend, hash common.Hash) (*types.Header, error) {
+	r := &HeaderRequest{Origin: blockHashOrNumber{Hash: hash}}
+	if err := odr.Retrieve(ctx, r); err != nil {
+		log.Error("Error after retrieve", "Err", err)
 		return nil, err
 	}
 	return r.Header, nil
