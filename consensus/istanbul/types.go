@@ -209,14 +209,13 @@ type PreparedCertificateSummary struct {
 
 func EmptyPreparedCertificate() PreparedCertificate {
 	emptyHeader := &types.Header{
-		Difficulty: big.NewInt(0),
-		Number:     big.NewInt(0),
-		GasLimit:   0,
-		GasUsed:    0,
-		Time:       big.NewInt(0),
+		Number:  big.NewInt(0),
+		GasUsed: 0,
+		Time:    0,
 	}
 	block := &types.Block{}
 	block = block.WithRandomness(&types.EmptyRandomness)
+	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
 		Proposal:                block.WithSeal(emptyHeader),
@@ -314,13 +313,15 @@ func (s *Subject) String() string {
 // ## CommittedSubject #################################################################
 
 type CommittedSubject struct {
-	Subject       *Subject
-	CommittedSeal []byte
+	Subject               *Subject
+	CommittedSeal         []byte
+	EpochValidatorSetSeal []byte
 }
 
 // ## ForwardMessage #################################################################
 
 type ForwardMessage struct {
+	Code          uint64
 	Msg           []byte
 	DestAddresses []common.Address
 }
@@ -398,6 +399,15 @@ func (m *Message) Decode(val interface{}) error {
 
 func (m *Message) String() string {
 	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
+}
+
+func (m *Message) Copy() *Message {
+	return &Message{
+		Code:      m.Code,
+		Msg:       append(m.Msg[:0:0], m.Msg...),
+		Address:   m.Address,
+		Signature: append(m.Signature[:0:0], m.Signature...),
+	}
 }
 
 // MapMessagesToSenders map a list of Messages to the list of the sender addresses

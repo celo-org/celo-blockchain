@@ -21,7 +21,6 @@ package main
 import (
 	"io"
 	"sort"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/internal/debug"
@@ -32,7 +31,7 @@ import (
 var AppHelpTemplate = `NAME:
    {{.App.Name}} - {{.App.Usage}}
 
-   Copyright 2013-2018 The go-ethereum Authors
+   Copyright 2013-2019 The go-ethereum Authors
 
 USAGE:
    {{.App.HelpName}} [options]{{if .App.Commands}} command [command options]{{end}} {{if .App.ArgsUsage}}{{.App.ArgsUsage}}{{else}}[arguments...]{{end}}
@@ -68,23 +67,35 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			configFileFlag,
 			utils.DataDirFlag,
+			utils.AncientFlag,
 			utils.KeyStoreDirFlag,
 			utils.NoUSBFlag,
+			utils.SmartCardDaemonPathFlag,
 			utils.NetworkIdFlag,
-			utils.TestnetFlag,
-			utils.RinkebyFlag,
-			utils.GoerliFlag,
-			utils.OttomanFlag,
+			utils.BaklavaFlag,
+			utils.AlfajoresFlag,
 			utils.SyncModeFlag,
+			utils.ExitWhenSyncedFlag,
 			utils.GCModeFlag,
 			utils.EthStatsURLFlag,
 			utils.IdentityFlag,
-			utils.LightServFlag,
-			utils.LightPeersFlag,
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
 			utils.ValidatorFlag,
 			utils.TxFeeRecipientFlag,
+		},
+	},
+	{
+		Name: "LIGHT CLIENT",
+		Flags: []cli.Flag{
+			utils.LightServeFlag,
+			utils.LightIngressFlag,
+			utils.LightEgressFlag,
+			utils.LightMaxPeersFlag,
+			utils.LightGatewayFeeFlag,
+			utils.UltraLightServersFlag,
+			utils.UltraLightFractionFlag,
+			utils.UltraLightOnlyAnnounceFlag,
 		},
 	},
 	{
@@ -94,27 +105,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.DeveloperPeriodFlag,
 		},
 	},
-	{
-		Name: "ETHASH",
-		Flags: []cli.Flag{
-			utils.EthashCacheDirFlag,
-			utils.EthashCachesInMemoryFlag,
-			utils.EthashCachesOnDiskFlag,
-			utils.EthashDatasetDirFlag,
-			utils.EthashDatasetsInMemoryFlag,
-			utils.EthashDatasetsOnDiskFlag,
-		},
-	},
-	//{
-	//	Name: "DASHBOARD",
-	//	Flags: []cli.Flag{
-	//		utils.DashboardEnabledFlag,
-	//		utils.DashboardAddrFlag,
-	//		utils.DashboardPortFlag,
-	//		utils.DashboardRefreshFlag,
-	//		utils.DashboardAssetsFlag,
-	//	},
-	//},
 	{
 		Name: "TRANSACTION POOL",
 		Flags: []cli.Flag{
@@ -138,7 +128,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.CacheDatabaseFlag,
 			utils.CacheTrieFlag,
 			utils.CacheGCFlag,
-			utils.TrieCacheGenFlag,
+			utils.CacheNoPrefetchFlag,
 		},
 	},
 	{
@@ -146,24 +136,32 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.UnlockedAccountFlag,
 			utils.PasswordFileFlag,
+			utils.ExternalSignerFlag,
+			utils.InsecureUnlockAllowedFlag,
 		},
 	},
 	{
 		Name: "API AND CONSOLE",
 		Flags: []cli.Flag{
+			utils.IPCDisabledFlag,
+			utils.IPCPathFlag,
 			utils.RPCEnabledFlag,
 			utils.RPCListenAddrFlag,
 			utils.RPCPortFlag,
 			utils.RPCApiFlag,
+			utils.RPCGlobalGasCap,
+			utils.RPCCORSDomainFlag,
+			utils.RPCVirtualHostsFlag,
 			utils.WSEnabledFlag,
 			utils.WSListenAddrFlag,
 			utils.WSPortFlag,
 			utils.WSApiFlag,
 			utils.WSAllowedOriginsFlag,
-			utils.IPCDisabledFlag,
-			utils.IPCPathFlag,
-			utils.RPCCORSDomainFlag,
-			utils.RPCVirtualHostsFlag,
+			utils.GraphQLEnabledFlag,
+			utils.GraphQLListenAddrFlag,
+			utils.GraphQLPortFlag,
+			utils.GraphQLCORSDomainFlag,
+			utils.GraphQLVirtualHostsFlag,
 			utils.JSpathFlag,
 			utils.ExecFlag,
 			utils.PreloadJSFlag,
@@ -218,16 +216,8 @@ var AppHelpFlagGroups = []flagGroup{
 		}, debug.Flags...),
 	},
 	{
-		Name: "METRICS AND STATS",
-		Flags: []cli.Flag{
-			utils.MetricsEnabledFlag,
-			utils.MetricsEnableInfluxDBFlag,
-			utils.MetricsInfluxDBEndpointFlag,
-			utils.MetricsInfluxDBDatabaseFlag,
-			utils.MetricsInfluxDBUsernameFlag,
-			utils.MetricsInfluxDBPasswordFlag,
-			utils.MetricsInfluxDBTagsFlag,
-		},
+		Name:  "METRICS AND STATS",
+		Flags: metricsFlags,
 	},
 	{
 		Name:  "WHISPER (EXPERIMENTAL)",
@@ -243,6 +233,13 @@ var AppHelpFlagGroups = []flagGroup{
 		},
 	},
 	{
+		Name: "ANNOUNCE",
+		Flags: []cli.Flag{
+			utils.AnnounceQueryEnodeGossipPeriodFlag,
+			utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
+		},
+	},
+	{
 		Name: "PROXY",
 		Flags: []cli.Flag{
 			utils.ProxyFlag,
@@ -250,6 +247,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.ProxiedValidatorAddressFlag,
 			utils.ProxiedFlag,
 			utils.ProxyEnodeURLPairFlag,
+			utils.ProxyAllowPrivateIPFlag,
 		},
 	},
 	{
@@ -324,12 +322,9 @@ func init() {
 					categorized[flag.String()] = struct{}{}
 				}
 			}
-			uncategorized := []cli.Flag{}
+			var uncategorized []cli.Flag
 			for _, flag := range data.(*cli.App).Flags {
 				if _, ok := categorized[flag.String()]; !ok {
-					if strings.HasPrefix(flag.GetName(), "dashboard") {
-						continue
-					}
 					uncategorized = append(uncategorized, flag)
 				}
 			}

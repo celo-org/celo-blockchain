@@ -22,10 +22,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -33,7 +33,6 @@ import (
 // the EVM.
 type Config struct {
 	ChainConfig *params.ChainConfig
-	Difficulty  *big.Int
 	Origin      common.Address
 	Coinbase    common.Address
 	BlockNumber *big.Int
@@ -60,10 +59,6 @@ func setDefaults(cfg *Config) {
 			EIP155Block:    new(big.Int),
 			EIP158Block:    new(big.Int),
 		}
-	}
-
-	if cfg.Difficulty == nil {
-		cfg.Difficulty = new(big.Int)
 	}
 	if cfg.Time == nil {
 		cfg.Time = big.NewInt(time.Now().Unix())
@@ -99,7 +94,7 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 	setDefaults(cfg)
 
 	if cfg.State == nil {
-		cfg.State, _ = state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
+		cfg.State, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	}
 	var (
 		address = common.BytesToAddress([]byte("contract"))
@@ -129,7 +124,7 @@ func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 	setDefaults(cfg)
 
 	if cfg.State == nil {
-		cfg.State, _ = state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
+		cfg.State, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	}
 	var (
 		vmenv  = NewEnv(cfg)

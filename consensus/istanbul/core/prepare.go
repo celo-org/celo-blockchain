@@ -60,7 +60,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		if err != nil {
 			return nil, err
 		}
-
 		// Verify message signed by a validator
 		signer, err := c.validateFn(data, message.Signature)
 		if err != nil {
@@ -97,6 +96,16 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			err = c.verifyCommittedSeal(committedSubject, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
+				return nil, err
+			}
+
+			newValSet, err := c.backend.NextBlockValidators(preparedCertificate.Proposal)
+			if err != nil {
+				return nil, err
+			}
+			err = c.verifyEpochValidatorSetSeal(committedSubject, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
+			if err != nil {
+				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
 				return nil, err
 			}
 
@@ -188,7 +197,8 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
-	logger.Trace("Accepted prepare", "Number of prepares or commits", preparesAndCommits)
+	logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
+	logger.Trace("Accepted prepare")
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
@@ -200,13 +210,12 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 			logger.Error("Failed to create and set preprared certificate", "err", err)
 			return err
 		}
-		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 
 		c.sendCommit()
-
 	}
 
 	return nil

@@ -17,36 +17,48 @@
 package miner
 
 import (
+	"fmt"
 	"math/big"
+	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	bls "github.com/celo-org/bls-zexe/go"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 )
 
+const (
+	// testCode is the testing contract binary code which will initialises some
+	// variables in constructor
+	testCode = "0x60806040527fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0060005534801561003457600080fd5b5060fc806100436000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80630c4dae8814603757806398a213cf146053575b600080fd5b603d607e565b6040518082815260200191505060405180910390f35b607c60048036036020811015606757600080fd5b81019080803590602001909291905050506084565b005b60005481565b806000819055507fe9e44f9f7da8c559de847a3232b57364adc0354f15a2cd8dc636d54396f9587a6000546040518082815260200191505060405180910390a15056fea265627a7a723058208ae31d9424f2d0bc2a3da1a5dd659db2d71ec322a17db8f87e19e209e3a1ff4a64736f6c634300050a0032"
+
+	// testGas is the gas required for contract deployment.
+	testGas = 144109
+)
+
 var (
 	// Test chain configurations
 	testTxPoolConfig    core.TxPoolConfig
-	ethashChainConfig   *params.ChainConfig
-	cliqueChainConfig   *params.ChainConfig
 	istanbulChainConfig *params.ChainConfig
 
 	// Test accounts
@@ -60,18 +72,18 @@ var (
 	// Test transactions
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
+
+	testConfig = &Config{
+		Recommit: time.Second,
+		GasFloor: 0,
+		GasCeil:  0,
+	}
 )
 
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	ethashChainConfig = params.TestChainConfig
-	cliqueChainConfig = params.TestChainConfig
-	cliqueChainConfig.Clique = &params.CliqueConfig{
-		Period: 10,
-		Epoch:  30000,
-	}
-	istanbulChainConfig = params.TestChainConfig
+	istanbulChainConfig = params.DefaultChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
@@ -81,6 +93,7 @@ func init() {
 	pendingTxs = append(pendingTxs, tx1)
 	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	newTxs = append(newTxs, tx2)
+	rand.Seed(time.Now().UnixNano())
 }
 
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
@@ -89,25 +102,17 @@ type testWorkerBackend struct {
 	db             ethdb.Database
 	txPool         *core.TxPool
 	chain          *core.BlockChain
-	testTxFeed     event.Feed
-	uncleBlock     *types.Block
+	genesis        *core.Genesis
 }
 
-func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
-	var (
-		db    = ethdb.NewMemDatabase()
-		gspec = core.Genesis{
-			Config: chainConfig,
-			Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
-		}
-	)
+func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, db ethdb.Database, n int) *testWorkerBackend {
+	var gspec = core.Genesis{
+		Config: chainConfig,
+		Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+	}
 
 	switch engine.(type) {
-	case *clique.Clique:
-		gspec.ExtraData = make([]byte, 52+common.AddressLength+65)
-		copy(gspec.ExtraData[52:], testBankAddress[:])
-		copy(gspec.ExtraData[52:], testBankAddress[:])
-	case *ethash.Ethash:
+	case *consensustest.MockEngine:
 	case *istanbulBackend.Backend:
 		blsPrivateKey, _ := blscrypto.ECDSAToBLS(testBankKey)
 		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
@@ -117,25 +122,25 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				BLSPublicKey: blsPublicKey,
 			},
 		})
-
-		gspec.Mixhash = types.IstanbulDigest
-		gspec.Difficulty = big.NewInt(1)
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}
 	genesis := gspec.MustCommit(db)
 
-	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil)
 	contract_comm.SetInternalEVMHandler(chain)
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
 	// If istanbul engine used, set the objects in that engine
 	if istanbul, ok := engine.(consensus.Istanbul); ok {
-		istanbul.SetChain(chain, chain.CurrentBlock)
+		istanbul.SetChain(chain, chain.CurrentBlock, func(parentHash common.Hash) (*state.StateDB, error) {
+			parentStateRoot := chain.GetHeaderByHash(parentHash).Root
+			return chain.StateAt(parentStateRoot)
+		})
 	}
 
-	// Generate a small n-block chain and an uncle block for it
+	// Generate a small n-block chain.
 	if n > 0 {
 		blocks, _ := core.GenerateChain(chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
 			gen.SetCoinbase(testBankAddress)
@@ -144,22 +149,16 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 			t.Fatalf("failed to insert origin chain: %v", err)
 		}
 	}
-	parent := genesis
-	if n > 0 {
-		parent = chain.GetBlockByHash(chain.CurrentBlock().ParentHash())
-	}
-	blocks, _ := core.GenerateChain(chainConfig, parent, engine, db, 1, func(i int, gen *core.BlockGen) {
-		gen.SetCoinbase(testUserAddress)
-	})
+
 	var backends []accounts.Backend
-	accountManager := accounts.NewManager(backends...)
+	accountManager := accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: true}, backends...)
 
 	return &testWorkerBackend{
 		accountManager: accountManager,
 		db:             db,
 		chain:          chain,
 		txPool:         txpool,
-		uncleBlock:     blocks[0],
+		genesis:        &gspec,
 	}
 }
 
@@ -170,128 +169,99 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 
-func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
-	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
+func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
+	var tx *types.Transaction
+	if creation {
+		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, nil, nil, nil, nil, common.FromHex(testCode)), types.HomesteadSigner{}, testBankKey)
+	} else {
+		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+	}
+	return tx
+}
+
+func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, db ethdb.Database, blocks int, shouldAddPendingTxs bool) (*worker, *testWorkerBackend) {
+	backend := newTestWorkerBackend(t, chainConfig, engine, db, blocks)
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(chainConfig, engine, backend, new(event.TypeMux), time.Second, params.DefaultGasLimit, params.DefaultGasLimit, nil, &backend.db)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
 
-func TestPendingStateAndBlockEthash(t *testing.T) {
-	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker())
-}
-func TestPendingStateAndBlockClique(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
+func TestGenerateBlockAndImport(t *testing.T) {
+	var (
+		engine      consensus.Engine
+		chainConfig *params.ChainConfig
+		db          = rawdb.NewMemoryDatabase()
+	)
+	chainConfig = params.DefaultChainConfig
+	engine = mockEngine.NewFaker()
+
+	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
+	defer w.close()
+
+	db2 := rawdb.NewMemoryDatabase()
+	b.genesis.MustCommit(db2)
+	chain, _ := core.NewBlockChain(db2, nil, b.chain.Config(), engine, vm.Config{}, nil)
+	defer chain.Stop()
+
+	loopErr := make(chan error)
+	newBlock := make(chan struct{})
+	listenNewBlock := func() {
+		sub := w.mux.Subscribe(core.NewMinedBlockEvent{})
+		defer sub.Unsubscribe()
+
+		for item := range sub.Chan() {
+			block := item.Data.(core.NewMinedBlockEvent).Block
+			_, err := chain.InsertChain([]*types.Block{block})
+			if err != nil {
+				loopErr <- fmt.Errorf("failed to insert new mined block:%d, error:%v", block.NumberU64(), err)
+			}
+			newBlock <- struct{}{}
+		}
+	}
+	// Ignore empty commit here for less noise
+	w.skipSealHook = func(task *task) bool {
+		return len(task.receipts) == 0
+	}
+	w.start() // Start mining!
+	go listenNewBlock()
+
+	for i := 0; i < 5; i++ {
+		b.txPool.AddLocal(b.newRandomTx(true))
+		b.txPool.AddLocal(b.newRandomTx(false))
+		select {
+		case e := <-loopErr:
+			t.Fatal(e)
+		case <-newBlock:
+		case <-time.NewTimer(3 * time.Second).C: // Worker needs 1s to include new changes.
+			t.Fatalf("timeout")
+		}
+	}
 }
 
 func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
-	signerFn := func(_ accounts.Account, data []byte) ([]byte, error) {
-		return crypto.Sign(data, testBankKey)
+	decryptFn := func(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+		eciesKey := ecies.ImportECDSA(testBankKey)
+		return eciesKey.Decrypt(c, s1, s2)
 	}
 
-	signHashBLSFn := func(_ accounts.Account, data []byte) ([]byte, error) {
-		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
-		if err != nil {
-			return nil, err
-		}
-
-		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-		if err != nil {
-			return nil, err
-		}
-		defer privateKey.Destroy()
-
-		signature, err := privateKey.SignMessage(data, []byte{}, false)
-		if err != nil {
-			return nil, err
-		}
-		defer signature.Destroy()
-		signatureBytes, err := signature.Serialize()
-		if err != nil {
-			return nil, err
-		}
-
-		return signatureBytes, nil
-	}
-
-	signMessageBLSFn := func(_ accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-		privateKeyBytes, err := blscrypto.ECDSAToBLS(testBankKey)
-		if err != nil {
-			return nil, err
-		}
-
-		privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-		if err != nil {
-			return nil, err
-		}
-		defer privateKey.Destroy()
-
-		signature, err := privateKey.SignMessage(msg, extraData, true)
-		if err != nil {
-			return nil, err
-		}
-		defer signature.Destroy()
-		signatureBytes, err := signature.Serialize()
-		if err != nil {
-			return nil, err
-		}
-
-		return signatureBytes, nil
-	}
+	signerFn := backend.SignFn(testBankKey)
+	signBLSFn := backend.SignBLSFn(testBankKey)
 
 	config := istanbul.DefaultConfig
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
+	config.VersionCertificateDBPath = ""
 
-	engine := istanbulBackend.New(istanbul.DefaultConfig, ethdb.NewMemDatabase())
+	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), signerFn, signHashBLSFn, signMessageBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
+	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
-}
-
-func TestPendingStateAndBlockIstanbul(t *testing.T) {
-	testPendingStateAndBlock(t, cliqueChainConfig, getAuthorizedIstanbulEngine())
-}
-
-func testPendingStateAndBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
-	defer engine.Close()
-
-	w, b := newTestWorker(t, chainConfig, engine, 0, true)
-	defer w.close()
-
-	// Ensure snapshot has been updated.
-	time.Sleep(100 * time.Millisecond)
-	block, state := w.pending()
-	if block.NumberU64() != 1 {
-		t.Errorf("block number mismatch: have %d, want %d", block.NumberU64(), 1)
-	}
-	if balance := state.GetBalance(testUserAddress); balance.Cmp(big.NewInt(1000)) != 0 {
-		t.Errorf("account balance mismatch: have %d, want %d", balance, 1000)
-	}
-	b.txPool.AddLocals(newTxs)
-
-	// Ensure the new tx events has been processed
-	time.Sleep(100 * time.Millisecond)
-	block, state = w.pending()
-	if balance := state.GetBalance(testUserAddress); balance.Cmp(big.NewInt(2000)) != 0 {
-		t.Errorf("account balance mismatch: have %d, want %d", balance, 2000)
-	}
-}
-
-func TestEmptyWorkEthash(t *testing.T) {
-	// TODO(nambrot): Fix this
-	t.Skip("Disabled due to flakyness")
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, true)
-	testEmptyWork(t, ethashChainConfig, ethash.NewFaker(), true, false)
-}
-func TestEmptyWorkClique(t *testing.T) {
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, true)
-	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), true, false)
 }
 
 func TestEmptyWorkIstanbul(t *testing.T) {
@@ -304,33 +274,30 @@ func TestEmptyWorkIstanbul(t *testing.T) {
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, expectEmptyBlock bool, shouldAddPendingTxs bool) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0, shouldAddPendingTxs)
+	w, _ := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, shouldAddPendingTxs)
 	defer w.close()
 
 	var (
-		taskCh    = make(chan struct{}, 2)
 		taskIndex int
+		taskCh    = make(chan struct{}, 2)
 	)
-
 	checkEqual := func(t *testing.T, task *task, index int) {
+		// The first empty work without any txs included
 		receiptLen, balance := 0, big.NewInt(0)
 
-		if !expectEmptyBlock && len(task.block.Body().Transactions) == 0 {
-			t.Errorf("Should have not received an empty block")
-		}
-
-		if !expectEmptyBlock || (index == 1 && shouldAddPendingTxs) {
+		// if !expectEmptyBlock || (index == 1 && shouldAddPendingTxs) {
+		if index == 1 {
+			// The second full work with 1 tx included
 			receiptLen, balance = 1, big.NewInt(1000)
 		}
 
 		if len(task.receipts) != receiptLen {
-			t.Errorf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
+			t.Fatalf("receipt number mismatch: have %d, want %d", len(task.receipts), receiptLen)
 		}
 		if task.state.GetBalance(testUserAddress).Cmp(balance) != 0 {
-			t.Errorf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
+			t.Fatalf("account balance mismatch: have %d, want %d", task.state.GetBalance(testUserAddress), balance)
 		}
 	}
-
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 1 {
 			checkEqual(t, task, taskIndex)
@@ -338,18 +305,13 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 			taskCh <- struct{}{}
 		}
 	}
+	w.skipSealHook = func(task *task) bool { return true }
 	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
+		// Aarch64 unit tests are running in a VM on travis, they must
+		// be given more time to execute.
+		time.Sleep(time.Second)
 	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-
-	w.start()
+	w.start() // Start mining!
 	expectedTasksLen := 1
 	if shouldAddPendingTxs && expectEmptyBlock {
 		expectedTasksLen = 2
@@ -357,7 +319,7 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	for i := 0; i < expectedTasksLen; i += 1 {
 		select {
 		case <-taskCh:
-		case <-time.NewTimer(time.Second).C:
+		case <-time.NewTimer(3 * time.Second).C:
 			t.Error("new task timeout")
 		}
 	}
@@ -369,70 +331,6 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 }
 
-func TestStreamUncleBlock(t *testing.T) {
-	ethash := ethash.NewFaker()
-	defer ethash.Close()
-
-	w, b := newTestWorker(t, ethashChainConfig, ethash, 1, true)
-	defer w.close()
-
-	var taskCh = make(chan struct{})
-
-	taskIndex := 0
-	w.newTaskHook = func(task *task) {
-		if task.block.NumberU64() == 2 {
-			if taskIndex == 2 {
-				have := task.block.Header().UncleHash
-				want := types.CalcUncleHash([]*types.Header{b.uncleBlock.Header()})
-				if have != want {
-					t.Errorf("uncle hash mismatch: have %s, want %s", have.Hex(), want.Hex())
-				}
-			}
-			taskCh <- struct{}{}
-			taskIndex += 1
-		}
-	}
-	w.skipSealHook = func(task *task) bool {
-		return true
-	}
-	w.fullTaskHook = func() {
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 2 {
-			break
-		}
-	}
-	w.start()
-
-	// Ignore the first two works
-	for i := 0; i < 2; i += 1 {
-		select {
-		case <-taskCh:
-		case <-time.NewTimer(time.Second).C:
-			t.Error("new task timeout")
-		}
-	}
-	b.PostChainEvents([]interface{}{core.ChainSideEvent{Block: b.uncleBlock}})
-
-	select {
-	case <-taskCh:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("new task timeout")
-	}
-}
-
-func TestRegenerateMiningBlockEthash(t *testing.T) {
-	testRegenerateMiningBlock(t, ethashChainConfig, ethash.NewFaker())
-}
-
-func TestRegenerateMiningBlockClique(t *testing.T) {
-	testRegenerateMiningBlock(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
-}
-
 // For Ethhash and Clique, it is safe and even desired to start another seal process in the presence of new transactions
 // that potentially increase the fee revenue for the sealer. In Istanbul, that is not possible and even counter productive
 // as proposing another block after having already done so is clearly byzantine behavior.
@@ -442,7 +340,7 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0, true)
+	w, b := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -467,13 +365,6 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
 	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
 
 	w.start()
 	// expect one work
@@ -493,10 +384,11 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	}
 }
 
+// nolint: unused
 func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, b := newTestWorker(t, chainConfig, engine, 0, true)
+	w, b := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
 	defer w.close()
 
 	var taskCh = make(chan struct{})
@@ -504,6 +396,8 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	taskIndex := 0
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 1 {
+			// The first task is an empty task, the second
+			// one has 1 pending tx, the third one has 2 txs
 			if taskIndex == 2 {
 				receiptLen, balance := 2, big.NewInt(2000)
 				if len(task.receipts) != receiptLen {
@@ -522,13 +416,6 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	}
 	w.fullTaskHook = func() {
 		time.Sleep(100 * time.Millisecond)
-	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
 	}
 
 	w.start()
@@ -550,18 +437,11 @@ func testRegenerateMiningBlock(t *testing.T, chainConfig *params.ChainConfig, en
 	}
 }
 
-func TestAdjustIntervalEthash(t *testing.T) {
-	testAdjustInterval(t, ethashChainConfig, ethash.NewFaker())
-}
-
-func TestAdjustIntervalClique(t *testing.T) {
-	testAdjustInterval(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()))
-}
-
+// nolint: unused
 func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
-	w, _ := newTestWorker(t, chainConfig, engine, 0, true)
+	w, _ := newTestWorker(t, chainConfig, engine, rawdb.NewMemoryDatabase(), 0, true)
 	defer w.close()
 
 	w.skipSealHook = func(task *task) bool {
@@ -574,11 +454,11 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 		progress = make(chan struct{}, 10)
 		result   = make([]float64, 0, 10)
 		index    = 0
-		start    = false
+		start    uint32
 	)
 	w.resubmitHook = func(minInterval time.Duration, recommitInterval time.Duration) {
 		// Short circuit if interval checking hasn't started.
-		if !start {
+		if atomic.LoadUint32(&start) == 0 {
 			return
 		}
 		var wantMinInterval, wantRecommitInterval time.Duration
@@ -610,19 +490,11 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 		index += 1
 		progress <- struct{}{}
 	}
-	// Ensure worker has finished initialization
-	for {
-		b := w.pendingBlock()
-		if b != nil && b.NumberU64() == 1 {
-			break
-		}
-	}
-
 	w.start()
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second) // Ensure two tasks have been summitted due to start opt
+	atomic.StoreUint32(&start, 1)
 
-	start = true
 	w.setRecommitInterval(3 * time.Second)
 	select {
 	case <-progress:

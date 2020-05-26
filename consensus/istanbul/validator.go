@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"math/big"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -31,7 +33,7 @@ var (
 
 type ValidatorData struct {
 	Address      common.Address
-	BLSPublicKey []byte
+	BLSPublicKey blscrypto.SerializedPublicKey
 }
 
 type Validator interface {
@@ -40,7 +42,7 @@ type Validator interface {
 	// Address returns address
 	Address() common.Address
 
-	BLSPublicKey() []byte
+	BLSPublicKey() blscrypto.SerializedPublicKey
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -74,6 +76,8 @@ func (a ValidatorsDataByAddress) Less(i, j int) bool {
 // ----------------------------------------------------------------------------
 
 type ValidatorSet interface {
+	fmt.Stringer
+
 	// Sets the randomness for use in the proposer policy.
 	// This is injected into the ValidatorSet when we call `getOrderedValidators`
 	SetRandomness(seed common.Hash)
@@ -122,7 +126,7 @@ type ProposerSelector func(validatorSet ValidatorSet, lastBlockProposer common.A
 
 // ----------------------------------------------------------------------------
 
-func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [][]byte) ([]ValidatorData, error) {
+func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys []blscrypto.SerializedPublicKey) ([]ValidatorData, error) {
 	if len(addrs) != len(blsPublicKeys) {
 		return nil, errInvalidValidatorSetDiffSize
 	}
@@ -137,9 +141,9 @@ func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [
 	return validators, nil
 }
 
-func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, [][]byte) {
+func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]common.Address, []blscrypto.SerializedPublicKey) {
 	addrs := []common.Address{}
-	pubKeys := [][]byte{}
+	pubKeys := []blscrypto.SerializedPublicKey{}
 	for i := range validators {
 		addrs = append(addrs, validators[i].Address)
 		pubKeys = append(pubKeys, validators[i].BLSPublicKey)

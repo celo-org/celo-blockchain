@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -116,15 +117,15 @@ func (c *core) handleEvents() {
 					c.storeRequestMsg(r)
 				}
 			case istanbul.MessageEvent:
-				if err := c.handleMsg(ev.Payload); err != nil {
-					logger.Debug("Error in handling istanbul message", "err", err)
+				if err := c.handleMsg(ev.Payload); err != nil && err != errFutureMessage && err != errOldMessage {
+					logger.Info("Error in handling istanbul message", "err", err)
 				}
 			case backlogEvent:
 				if payload, err := ev.msg.Payload(); err != nil {
 					logger.Error("Error in retrieving payload from istanbul message that was sent from a backlog event", "err", err)
 				} else {
-					if err := c.handleMsg(payload); err != nil {
-						logger.Debug("Error in handling istanbul message that was sent from a backlog event", "err", err)
+					if err := c.handleMsg(payload); err != nil && err != errFutureMessage && err != errOldMessage {
+						logger.Info("Error in handling istanbul message that was sent from a backlog event", "err", err)
 					}
 				}
 			}
@@ -166,6 +167,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
+	logger.Debug("Got new message", "payload", hexutil.Encode(payload))
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
 		return err

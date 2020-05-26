@@ -27,7 +27,7 @@ import (
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -85,7 +85,7 @@ func (b *testBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*type
 
 func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
 	if number := rawdb.ReadHeaderNumber(b.db, hash); number != nil {
-		return rawdb.ReadReceipts(b.db, hash, *number), nil
+		return rawdb.ReadReceipts(b.db, hash, *number, params.DefaultChainConfig), nil
 	}
 	return nil, nil
 }
@@ -95,7 +95,7 @@ func (b *testBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types
 	if number == nil {
 		return nil, nil
 	}
-	receipts := rawdb.ReadReceipts(b.db, hash, *number)
+	receipts := rawdb.ReadReceipts(b.db, hash, *number, params.DefaultChainConfig)
 
 	logs := make([][]*types.Log, len(receipts))
 	for i, receipt := range receipts {
@@ -161,7 +161,7 @@ func TestBlockSubscription(t *testing.T) {
 
 	var (
 		mux         = new(event.TypeMux)
-		db          = ethdb.NewMemDatabase()
+		db          = rawdb.NewMemoryDatabase()
 		txFeed      = new(event.Feed)
 		rmLogsFeed  = new(event.Feed)
 		logsFeed    = new(event.Feed)
@@ -169,7 +169,7 @@ func TestBlockSubscription(t *testing.T) {
 		backend     = &testBackend{mux, db, 0, txFeed, rmLogsFeed, logsFeed, chainFeed}
 		api         = NewPublicFilterAPI(backend, false)
 		genesis     = new(core.Genesis).MustCommit(db)
-		chain, _    = core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {})
+		chain, _    = core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {})
 		chainEvents = []core.ChainEvent{}
 	)
 
@@ -218,7 +218,7 @@ func TestPendingTxFilter(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -278,7 +278,7 @@ func TestPendingTxFilter(t *testing.T) {
 func TestLogFilterCreation(t *testing.T) {
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -327,7 +327,7 @@ func TestInvalidLogFilterCreation(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -354,7 +354,7 @@ func TestInvalidLogFilterCreation(t *testing.T) {
 func TestInvalidGetLogsRequest(t *testing.T) {
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -384,7 +384,7 @@ func TestLogFilter(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)
@@ -503,7 +503,7 @@ func TestPendingLogsSubscription(t *testing.T) {
 
 	var (
 		mux        = new(event.TypeMux)
-		db         = ethdb.NewMemDatabase()
+		db         = rawdb.NewMemoryDatabase()
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
 		logsFeed   = new(event.Feed)

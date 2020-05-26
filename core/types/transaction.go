@@ -67,8 +67,8 @@ type txdataMarshaling struct {
 	AccountNonce        hexutil.Uint64
 	Price               *hexutil.Big
 	GasLimit            hexutil.Uint64
-	FeeCurrency         *hexutil.Big
-	GatewayFeeRecipient *hexutil.Big
+	FeeCurrency         *common.Address
+	GatewayFeeRecipient *common.Address
 	GatewayFee          *hexutil.Big
 	Amount              *hexutil.Big
 	Payload             hexutil.Bytes
@@ -271,7 +271,9 @@ func (tx *Transaction) Cost() *big.Int {
 	return total
 }
 
-func (tx *Transaction) RawSignatureValues() (*big.Int, *big.Int, *big.Int) {
+// RawSignatureValues returns the V, R, S signature values of the transaction.
+// The return values should not be modified by the caller.
+func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 	return tx.data.V, tx.data.R, tx.data.S
 }
 

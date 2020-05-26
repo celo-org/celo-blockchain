@@ -77,9 +77,10 @@ JavaScript API. See https://github.com/ethereum/go-ethereum/wiki/JavaScript-Cons
 // same time.
 func localConsole(ctx *cli.Context) error {
 	// Create and start the node based on the CLI flags
+	prepare(ctx)
 	node := makeFullNode(ctx)
 	startNode(ctx, node)
-	defer node.Stop()
+	defer node.Close()
 
 	// Attach to the newly started node and start the JavaScript console
 	client, err := node.Attach()
@@ -122,10 +123,10 @@ func remoteConsole(ctx *cli.Context) error {
 			path = ctx.GlobalString(utils.DataDirFlag.Name)
 		}
 		if path != "" {
-			if ctx.GlobalBool(utils.TestnetFlag.Name) {
-				path = filepath.Join(path, "testnet")
-			} else if ctx.GlobalBool(utils.RinkebyFlag.Name) {
-				path = filepath.Join(path, "rinkeby")
+			if ctx.GlobalBool(utils.BaklavaFlag.Name) {
+				path = filepath.Join(path, "baklava")
+			} else if ctx.GlobalBool(utils.AlfajoresFlag.Name) {
+				path = filepath.Join(path, "alfajores")
 			}
 		}
 		endpoint = fmt.Sprintf("%s/geth.ipc", path)
@@ -180,7 +181,7 @@ func ephemeralConsole(ctx *cli.Context) error {
 	// Create and start the node based on the CLI flags
 	node := makeFullNode(ctx)
 	startNode(ctx, node)
-	defer node.Stop()
+	defer node.Close()
 
 	// Attach to the newly started node and start the JavaScript console
 	client, err := node.Attach()

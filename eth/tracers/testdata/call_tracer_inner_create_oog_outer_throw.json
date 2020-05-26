@@ -1,7 +1,5 @@
 {
   "context": {
-    "difficulty": "3451177886",
-    "gasLimit": "4709286",
     "miner": "0x1585936b53834b021f68cc13eeefdec2efc8e724",
     "number": "2290744",
     "timestamp": "1513616439"
@@ -37,15 +35,11 @@
       "eip150Hash": "0x41941023680923e0fe4d74a34bdac8141f2540e3ae90623718e47d66d1ca4a2d",
       "eip155Block": 10,
       "eip158Block": 10,
-      "ethash": {},
       "homesteadBlock": 0
     },
-    "difficulty": "3451177886",
     "extraData": "0x4554482e45544846414e532e4f52472d4641313738394444",
-    "gasLimit": "4713874",
     "hash": "0x5d52a672417cd1269bf4f7095e25dcbf837747bba908cd5ef809dc1bd06144b5",
     "miner": "0xbbf5029fd710d227630c8b7d338051b8e76d50b3",
-    "mixHash": "0x01a12845ed546b94a038a7a03e8df8d7952024ed41ccb3db7a7ade4abc290ce1",
     "nonce": "0x28c446f1cb9748c1",
     "number": "2290743",
     "stateRoot": "0x4898aceede76739daef76448a367d10015a2c022c9e7909b99a10fbf6fb16708",
@@ -65,7 +59,7 @@
         "value": "0x0"
       }
     ],
-    "error": "invalid jump destination (PUSH1) 0",
+    "error": "evm: invalid jump destination",
     "from": "0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B",
     "gas": "0x435c8",
     "gasUsed": "0x435c8",

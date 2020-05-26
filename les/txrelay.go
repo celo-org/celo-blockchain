@@ -17,11 +17,19 @@
 package les
 
 import (
+	"context"
+	"errors"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
+)
+
+var (
+	errGatewayFeeTooLow = errors.New("gateway fee too low to broadcast to peers")
 )
 
 type ltrInfo struct {
@@ -29,54 +37,83 @@ type ltrInfo struct {
 	sentTo map[*peer]struct{}
 }
 
-type LesTxRelay struct {
+type lesTxRelay struct {
 	txSent    map[common.Hash]*ltrInfo
 	txPending map[common.Hash]struct{}
 	ps        *peerSet
 	peerList  []*peer
 	lock      sync.RWMutex
+	stop      chan struct{}
 
-	reqDist *requestDistributor
+	retriever *retrieveManager
+
+	// TODO(nategraf) Replace this field with the ability to query peers for gateway fee.
+	gatewayFee *big.Int
 }
 
-func NewLesTxRelay(ps *peerSet, reqDist *requestDistributor) *LesTxRelay {
-	r := &LesTxRelay{
-		txSent:    make(map[common.Hash]*ltrInfo),
-		txPending: make(map[common.Hash]struct{}),
-		ps:        ps,
-		reqDist:   reqDist,
+func newLesTxRelay(ps *peerSet, retriever *retrieveManager, gatewayFee *big.Int) *lesTxRelay {
+	r := &lesTxRelay{
+		txSent:     make(map[common.Hash]*ltrInfo),
+		txPending:  make(map[common.Hash]struct{}),
+		ps:         ps,
+		retriever:  retriever,
+		stop:       make(chan struct{}),
+		gatewayFee: gatewayFee,
 	}
 	ps.notify(r)
 	return r
 }
 
-func (self *LesTxRelay) registerPeer(p *peer) {
+func (self *lesTxRelay) Stop() {
+	close(self.stop)
+}
+
+func (self *lesTxRelay) registerPeer(p *peer) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
 	self.peerList = self.ps.AllPeers()
 }
 
-func (self *LesTxRelay) unregisterPeer(p *peer) {
+func (self *lesTxRelay) unregisterPeer(p *peer) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
 	self.peerList = self.ps.AllPeers()
 }
 
-func (self *LesTxRelay) HasPeerWithEtherbase(etherbase *common.Address) error {
+func (self *lesTxRelay) HasPeerWithEtherbase(etherbase *common.Address) error {
 	_, err := self.ps.getPeerWithEtherbase(etherbase)
 	return err
 }
 
+func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) error {
+	// TODO(nategraf) self.gatewayFee is used in place of the minimum gateway fee among peers.
+	// When it is possible to query peers for their gateway fee, this should be replaced.
+
+	// Check if there we have peer accepting transactions without a gateway fee.
+	if self.gatewayFee.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+
+	// Should have a peer that will accept and broadcast our transaction.
+	if err := self.HasPeerWithEtherbase(tx.GatewayFeeRecipient()); err != nil {
+		return err
+	}
+	if tx.GatewayFee().Cmp(self.gatewayFee) < 0 {
+		return errGatewayFeeTooLow
+	}
+	return nil
+}
+
 // send sends a list of transactions to at most a given number of peers at
 // once, never resending any particular transaction to the same peer twice
-func (self *LesTxRelay) send(txs types.Transactions) {
+func (self *lesTxRelay) send(txs types.Transactions) {
 	sendTo := make(map[*peer]types.Transactions)
 
 	for _, tx := range txs {
 		hash := tx.Hash()
-		ltr, ok := self.txSent[hash]
+		_, ok := self.txSent[hash]
 		if !ok {
 			p, err := self.ps.getPeerWithEtherbase(tx.GatewayFeeRecipient())
 			// TODO(asa): When this happens, the nonce is still incremented, preventing future txs from being added.
@@ -87,7 +124,7 @@ func (self *LesTxRelay) send(txs types.Transactions) {
 				continue
 			}
 			sendTo[p] = append(sendTo[p], tx)
-			ltr = &ltrInfo{
+			ltr := &ltrInfo{
 				tx:     tx,
 				sentTo: make(map[*peer]struct{}),
 			}
@@ -99,35 +136,36 @@ func (self *LesTxRelay) send(txs types.Transactions) {
 	for p, list := range sendTo {
 		pp := p
 		ll := list
+		enc, _ := rlp.EncodeToBytes(ll)
 
 		reqID := genReqID()
 		rq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*peer)
-				return peer.GetRequestCost(SendTxMsg, len(ll))
+				return peer.GetTxRelayCost(len(ll), len(enc))
 			},
 			canSend: func(dp distPeer) bool {
-				return dp.(*peer) == pp
+				return !dp.(*peer).onlyAnnounce && dp.(*peer) == pp
 			},
 			request: func(dp distPeer) func() {
 				peer := dp.(*peer)
-				cost := peer.GetRequestCost(SendTxMsg, len(ll))
-				peer.fcServer.QueueRequest(reqID, cost)
-				return func() { peer.SendTxs(reqID, cost, ll) }
+				cost := peer.GetTxRelayCost(len(ll), len(enc))
+				peer.fcServer.QueuedRequest(reqID, cost)
+				return func() { peer.SendTxs(reqID, cost, enc) }
 			},
 		}
-		self.reqDist.queue(rq)
+		go self.retriever.retrieve(context.Background(), reqID, rq, func(p distPeer, msg *Msg) error { return nil }, self.stop)
 	}
 }
 
-func (self *LesTxRelay) Send(txs types.Transactions) {
+func (self *lesTxRelay) Send(txs types.Transactions) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
 	self.send(txs)
 }
 
-func (self *LesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash) {
+func (self *lesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
@@ -150,7 +188,7 @@ func (self *LesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback 
 	}
 }
 
-func (self *LesTxRelay) Discard(hashes []common.Hash) {
+func (self *lesTxRelay) Discard(hashes []common.Hash) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 

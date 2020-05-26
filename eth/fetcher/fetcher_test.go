@@ -25,42 +25,38 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
-	testdb       = ethdb.NewMemDatabase()
+	testdb       = rawdb.NewMemoryDatabase()
 	testKey, _   = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	testAddress  = crypto.PubkeyToAddress(testKey.PublicKey)
 	genesis      = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000))
-	unknownBlock = types.NewBlock(&types.Header{GasLimit: params.DefaultGasLimit}, nil, nil, nil, nil)
+	unknownBlock = types.NewBlock(&types.Header{}, nil, nil, nil)
 )
 
 // makeChain creates a chain of n blocks starting at and including parent.
 // the returned hash chain is ordered head->parent. In addition, every 3rd block
-// contains a transaction and every 5th an uncle to allow testing correct block
+// contains a transaction to test correct block
 // reassembly.
 func makeChain(n int, seed byte, parent *types.Block) ([]common.Hash, map[common.Hash]*types.Block) {
-	blocks, _ := core.GenerateChain(params.TestChainConfig, parent, ethash.NewFaker(), testdb, n, func(i int, block *core.BlockGen) {
+	blocks, _ := core.GenerateChain(params.DefaultChainConfig, parent, mockEngine.NewFaker(), testdb, n, func(i int, block *core.BlockGen) {
 		block.SetCoinbase(common.Address{seed})
 
 		// If the block number is multiple of 3, send a bonus transaction to the miner
 		if parent == genesis && i%3 == 0 {
-			signer := types.MakeSigner(params.TestChainConfig, block.Number())
+			signer := types.MakeSigner(params.DefaultChainConfig, block.Number())
 			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
 			if err != nil {
 				panic(err)
 			}
 			block.AddTx(tx)
-		}
-		// If the block number is a multiple of 5, add a bonus uncle to the block
-		if i%5 == 0 {
-			block.AddUncle(&types.Header{ParentHash: block.PrevBlock(i - 1).Hash(), Number: big.NewInt(int64(i - 1))})
 		}
 	})
 	hashes := make([]common.Hash, n+1)
@@ -182,55 +178,23 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 	// Create a function that returns blocks from the closure
 	return func(hashes []common.Hash) error {
 		// Gather the block bodies to return
+		blockHashes := make([]common.Hash, 0, len(hashes))
 		transactions := make([][]*types.Transaction, 0, len(hashes))
-		uncles := make([][]*types.Header, 0, len(hashes))
 		randomness := make([]*types.Randomness, 0, len(hashes))
+		epochSnarkData := make([]*types.EpochSnarkData, 0, len(hashes))
 
 		for _, hash := range hashes {
 			if block, ok := closure[hash]; ok {
+				blockHashes = append(blockHashes, hash)
 				transactions = append(transactions, block.Transactions())
-				uncles = append(uncles, block.Uncles())
 				randomness = append(randomness, block.Randomness())
+				epochSnarkData = append(epochSnarkData, block.EpochSnarkData())
 			}
 		}
 		// Return on a new thread
-		go f.fetcher.FilterBodies(peer, transactions, uncles, randomness, time.Now().Add(drift))
+		go f.fetcher.FilterBodies(peer, blockHashes, transactions, randomness, epochSnarkData, time.Now().Add(drift))
 
 		return nil
-	}
-}
-
-// verifyFetchingEvent verifies that one single event arrive on a fetching channel.
-func verifyFetchingEvent(t *testing.T, fetching chan []common.Hash, arrive bool) {
-	if arrive {
-		select {
-		case <-fetching:
-		case <-time.After(time.Second):
-			t.Fatalf("fetching timeout")
-		}
-	} else {
-		select {
-		case <-fetching:
-			t.Fatalf("fetching invoked")
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-}
-
-// verifyCompletingEvent verifies that one single event arrive on an completing channel.
-func verifyCompletingEvent(t *testing.T, completing chan []common.Hash, arrive bool) {
-	if arrive {
-		select {
-		case <-completing:
-		case <-time.After(time.Second):
-			t.Fatalf("completing timeout")
-		}
-	} else {
-		select {
-		case <-completing:
-			t.Fatalf("completing invoked")
-		case <-time.After(10 * time.Millisecond):
-		}
 	}
 }
 
@@ -246,7 +210,7 @@ func verifyImportEvent(t *testing.T, imported chan *types.Block, arrive bool) {
 		select {
 		case <-imported:
 			t.Fatalf("import invoked")
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(20 * time.Millisecond):
 		}
 	}
 }
@@ -275,9 +239,8 @@ func verifyImportDone(t *testing.T, imported chan *types.Block) {
 
 // Tests that a fetcher accepts block announcements and initiates retrievals for
 // them, successfully importing into the local chain.
-func TestSequentialAnnouncements62(t *testing.T) { testSequentialAnnouncements(t, 62) }
-func TestSequentialAnnouncements63(t *testing.T) { testSequentialAnnouncements(t, 63) }
 func TestSequentialAnnouncements64(t *testing.T) { testSequentialAnnouncements(t, 64) }
+func TestSequentialAnnouncements65(t *testing.T) { testSequentialAnnouncements(t, 65) }
 
 func testSequentialAnnouncements(t *testing.T, protocol int) {
 	// Create a chain of blocks to import
@@ -301,9 +264,8 @@ func testSequentialAnnouncements(t *testing.T, protocol int) {
 
 // Tests that if blocks are announced by multiple peers (or even the same buggy
 // peer), they will only get downloaded at most once.
-func TestConcurrentAnnouncements62(t *testing.T) { testConcurrentAnnouncements(t, 62) }
-func TestConcurrentAnnouncements63(t *testing.T) { testConcurrentAnnouncements(t, 63) }
 func TestConcurrentAnnouncements64(t *testing.T) { testConcurrentAnnouncements(t, 64) }
+func TestConcurrentAnnouncements65(t *testing.T) { testConcurrentAnnouncements(t, 65) }
 
 func testConcurrentAnnouncements(t *testing.T, protocol int) {
 	// Create a chain of blocks to import
@@ -346,9 +308,8 @@ func testConcurrentAnnouncements(t *testing.T, protocol int) {
 
 // Tests that announcements arriving while a previous is being fetched still
 // results in a valid import.
-func TestOverlappingAnnouncements62(t *testing.T) { testOverlappingAnnouncements(t, 62) }
-func TestOverlappingAnnouncements63(t *testing.T) { testOverlappingAnnouncements(t, 63) }
 func TestOverlappingAnnouncements64(t *testing.T) { testOverlappingAnnouncements(t, 64) }
+func TestOverlappingAnnouncements65(t *testing.T) { testOverlappingAnnouncements(t, 65) }
 
 func testOverlappingAnnouncements(t *testing.T, protocol int) {
 	// Create a chain of blocks to import
@@ -380,9 +341,8 @@ func testOverlappingAnnouncements(t *testing.T, protocol int) {
 }
 
 // Tests that announces already being retrieved will not be duplicated.
-func TestPendingDeduplication62(t *testing.T) { testPendingDeduplication(t, 62) }
-func TestPendingDeduplication63(t *testing.T) { testPendingDeduplication(t, 63) }
 func TestPendingDeduplication64(t *testing.T) { testPendingDeduplication(t, 64) }
+func TestPendingDeduplication65(t *testing.T) { testPendingDeduplication(t, 64) }
 
 func testPendingDeduplication(t *testing.T, protocol int) {
 	// Create a hash and corresponding block
@@ -423,9 +383,8 @@ func testPendingDeduplication(t *testing.T, protocol int) {
 
 // Tests that announcements retrieved in a random order are cached and eventually
 // imported when all the gaps are filled in.
-func TestRandomArrivalImport62(t *testing.T) { testRandomArrivalImport(t, 62) }
-func TestRandomArrivalImport63(t *testing.T) { testRandomArrivalImport(t, 63) }
 func TestRandomArrivalImport64(t *testing.T) { testRandomArrivalImport(t, 64) }
+func TestRandomArrivalImport65(t *testing.T) { testRandomArrivalImport(t, 65) }
 
 func testRandomArrivalImport(t *testing.T, protocol int) {
 	// Create a chain of blocks to import, and choose one to delay
@@ -454,9 +413,8 @@ func testRandomArrivalImport(t *testing.T, protocol int) {
 
 // Tests that direct block enqueues (due to block propagation vs. hash announce)
 // are correctly schedule, filling and import queue gaps.
-func TestQueueGapFill62(t *testing.T) { testQueueGapFill(t, 62) }
-func TestQueueGapFill63(t *testing.T) { testQueueGapFill(t, 63) }
 func TestQueueGapFill64(t *testing.T) { testQueueGapFill(t, 64) }
+func TestQueueGapFill65(t *testing.T) { testQueueGapFill(t, 65) }
 
 func testQueueGapFill(t *testing.T, protocol int) {
 	// Create a chain of blocks to import, and choose one to not announce at all
@@ -485,9 +443,8 @@ func testQueueGapFill(t *testing.T, protocol int) {
 
 // Tests that blocks arriving from various sources (multiple propagations, hash
 // announces, etc) do not get scheduled for import multiple times.
-func TestImportDeduplication62(t *testing.T) { testImportDeduplication(t, 62) }
-func TestImportDeduplication63(t *testing.T) { testImportDeduplication(t, 63) }
 func TestImportDeduplication64(t *testing.T) { testImportDeduplication(t, 64) }
+func TestImportDeduplication65(t *testing.T) { testImportDeduplication(t, 65) }
 
 func testImportDeduplication(t *testing.T, protocol int) {
 	// Create two blocks to import (one for duplication, the other for stalling)
@@ -560,9 +517,8 @@ func TestDistantPropagationDiscarding(t *testing.T) {
 // Tests that announcements with numbers much lower or higher than out current
 // head get discarded to prevent wasting resources on useless blocks from faulty
 // peers.
-func TestDistantAnnouncementDiscarding62(t *testing.T) { testDistantAnnouncementDiscarding(t, 62) }
-func TestDistantAnnouncementDiscarding63(t *testing.T) { testDistantAnnouncementDiscarding(t, 63) }
 func TestDistantAnnouncementDiscarding64(t *testing.T) { testDistantAnnouncementDiscarding(t, 64) }
+func TestDistantAnnouncementDiscarding65(t *testing.T) { testDistantAnnouncementDiscarding(t, 65) }
 
 func testDistantAnnouncementDiscarding(t *testing.T, protocol int) {
 	// Create a long chain to import and define the discard boundaries
@@ -603,9 +559,8 @@ func testDistantAnnouncementDiscarding(t *testing.T, protocol int) {
 
 // Tests that peers announcing blocks with invalid numbers (i.e. not matching
 // the headers provided afterwards) get dropped as malicious.
-func TestInvalidNumberAnnouncement62(t *testing.T) { testInvalidNumberAnnouncement(t, 62) }
-func TestInvalidNumberAnnouncement63(t *testing.T) { testInvalidNumberAnnouncement(t, 63) }
 func TestInvalidNumberAnnouncement64(t *testing.T) { testInvalidNumberAnnouncement(t, 64) }
+func TestInvalidNumberAnnouncement65(t *testing.T) { testInvalidNumberAnnouncement(t, 65) }
 
 func testInvalidNumberAnnouncement(t *testing.T, protocol int) {
 	// Create a single block to import and check numbers against
@@ -649,9 +604,8 @@ func testInvalidNumberAnnouncement(t *testing.T, protocol int) {
 // Tests that a peer is unable to use unbounded memory with sending infinite
 // block announcements to a node, but that even in the face of such an attack,
 // the fetcher remains operational.
-func TestHashMemoryExhaustionAttack62(t *testing.T) { testHashMemoryExhaustionAttack(t, 62) }
-func TestHashMemoryExhaustionAttack63(t *testing.T) { testHashMemoryExhaustionAttack(t, 63) }
 func TestHashMemoryExhaustionAttack64(t *testing.T) { testHashMemoryExhaustionAttack(t, 64) }
+func TestHashMemoryExhaustionAttack65(t *testing.T) { testHashMemoryExhaustionAttack(t, 65) }
 
 func testHashMemoryExhaustionAttack(t *testing.T, protocol int) {
 	// Create a tester with instrumented import hooks

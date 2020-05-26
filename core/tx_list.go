@@ -289,6 +289,9 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
 func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
+	if costLimit == nil {
+		costLimit = l.costcap
+	}
 	// If all transactions are below the threshold, short circuit
 	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
 		return nil, nil
@@ -445,9 +448,9 @@ func (l *txPricedList) Put(tx *types.Transaction) {
 // Removed notifies the prices transaction list that an old transaction dropped
 // from the pool. The list will just keep a counter of stale objects and update
 // the heap if a large enough ratio of transactions go stale.
-func (l *txPricedList) Removed() {
+func (l *txPricedList) Removed(count int) {
 	// Bump the stale counter, but exit if still too low (< 25%)
-	l.stales++
+	l.stales += count
 	if l.stales <= l.Len()/4 {
 		return
 	}

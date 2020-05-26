@@ -76,7 +76,9 @@ func main() {
 		if err = crypto.SaveECDSA(*genKey, nodeKey); err != nil {
 			utils.Fatalf("%v", err)
 		}
-		return
+		if !*writeAddr {
+			return
+		}
 	case *nodeKeyFile == "" && *nodeKeyHex == "":
 		utils.Fatalf("Use -nodekey or -nodekeyhex to specify a private key")
 	case *nodeKeyFile != "" && *nodeKeyHex != "":
@@ -122,11 +124,12 @@ func main() {
 		if !realaddr.IP.IsLoopback() {
 			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
 		}
-		// TODO: react to external IP changes over time.
 		if ext, err := natm.ExternalIP(); err == nil {
 			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
 		}
 	}
+
+	printNotice(&nodeKey.PublicKey, *realaddr)
 
 	// If v4 and v5 are both enabled, a packet is first tried as v4
 	// and then v5 if v4 decoding fails, following the same pattern as full
@@ -137,7 +140,7 @@ func main() {
 	if *runv4 {
 		if *runv5 {
 			unhandled = make(chan discover.ReadPacket, 100)
-			sconn = &p2p.SharedUDPConn{conn, unhandled}
+			sconn = &p2p.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}
 		}
 		db, _ := enode.OpenDB("")
 		ln := enode.NewLocalNode(db, nodeKey, *networkId)
@@ -165,4 +168,14 @@ func main() {
 	}
 
 	select {}
+}
+
+func printNotice(nodeKey *ecdsa.PublicKey, addr net.UDPAddr) {
+	if addr.IP.IsUnspecified() {
+		addr.IP = net.IP{127, 0, 0, 1}
+	}
+	n := enode.NewV4(nodeKey, addr.IP, 0, addr.Port)
+	fmt.Println(n.URLv4())
+	fmt.Println("Note: you're using cmd/bootnode, a developer tool.")
+	fmt.Println("We recommend using a regular node as bootstrap node for production deployments.")
 }

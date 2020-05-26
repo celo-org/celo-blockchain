@@ -19,6 +19,7 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -30,13 +31,30 @@ func (c *core) sendCommit() {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
+func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBlockHeader(seal)
+	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false)
+	if err != nil {
+		return blscrypto.SerializedSignature{}, err
+	}
+	return committedSeal, nil
+}
+
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
+	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
+		return nil, errNotLastBlockInEpoch
+	}
+	blsPubKeys := []blscrypto.SerializedPublicKey{}
+	for _, v := range newValSet.List() {
+		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
+	}
+	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
+	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
 	if err != nil {
 		return nil, err
 	}
-	return committedSeal, nil
+
+	return epochData, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -48,9 +66,30 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		return
 	}
 
+	currentBlockNumber := c.current.Proposal().Number().Uint64()
+	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+	if err != nil {
+		logger.Error("Failed to get next block's validators", "err", err)
+		return
+	}
+	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
+	if err != nil && err != errNotLastBlockInEpoch {
+		logger.Error("Failed to create epoch validator set data", "err", err)
+		return
+	}
+	var epochValidatorSetSeal blscrypto.SerializedSignature
+	if err == nil {
+		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData[:], []byte{}, true)
+		if err != nil {
+			logger.Error("Failed to sign epoch validator set seal", "err", err)
+			return
+		}
+	}
+
 	committedSub := &istanbul.CommittedSubject{
-		Subject:       sub,
-		CommittedSeal: committedSeal,
+		Subject:               sub,
+		CommittedSeal:         committedSeal[:],
+		EpochValidatorSetSeal: epochValidatorSetSeal[:],
 	}
 	encodedCommittedSubject, err := Encode(committedSub)
 	if err != nil {
@@ -83,6 +122,9 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 			return err
 		} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
 			return errOldMessage
+		} else if lastSubject.View.Sequence.Cmp(common.Big0) == 0 {
+			// Don't handle commits for the genesis block, will cause underflows
+			return errOldMessage
 		}
 		return c.handleCheckedCommitForPreviousSequence(msg, commit)
 	} else if err != nil {
@@ -105,6 +147,12 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
+	if headBlock.Number().Uint64() > 0 {
+		if err := c.verifyEpochValidatorSetSeal(commit, headBlock.Number().Uint64(), c.current.ValidatorSet(), validator); err != nil {
+			return errInvalidEpochValidatorSetSeal
+		}
+	}
+
 	// Ensure that the commit's digest (ie the received proposal's hash) matches the head block's hash
 	if headBlock.Number().Uint64() > 0 && commit.Subject.Digest != headBlock.Hash() {
 		logger.Debug("Received a commit message for the previous sequence with an unexpected hash", "expected", headBlock.Hash().String(), "received", commit.Subject.Digest.String())
@@ -128,6 +176,15 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
+	}
+
+	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+	if err != nil {
+		return err
+	}
+
+	if err := c.verifyEpochValidatorSetSeal(commit, c.current.Proposal().Number().Uint64(), newValSet, validator); err != nil {
+		return errInvalidEpochValidatorSetSeal
 	}
 
 	// ensure that the commit is in the current proposal
@@ -190,4 +247,19 @@ func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
 	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
 	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false)
+}
+
+// verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
+func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
+	if blockNumber == 0 {
+		return nil
+	}
+	epochData, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
+	if err != nil {
+		if err == errNotLastBlockInEpoch {
+			return nil
+		}
+		return err
+	}
+	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData[:], []byte{}, comSub.EpochValidatorSetSeal, true)
 }

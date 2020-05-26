@@ -90,18 +90,15 @@ func dummySubject() *Subject {
 
 func dummyBlock(number int64) *types.Block {
 	header := &types.Header{
-		Difficulty: big.NewInt(5),
-		Number:     big.NewInt(number),
-		GasLimit:   1002121,
-		GasUsed:    123213,
-		Time:       big.NewInt(100),
-		Extra:      []byte{01, 02},
+		Number:  big.NewInt(number),
+		GasUsed: 123213,
+		Time:    100,
+		Extra:   []byte{01, 02},
 	}
 	feeCurrencyAddr := common.HexToAddress("02")
 	gatewayFeeRecipientAddr := common.HexToAddress("03")
 	tx := types.NewTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, &gatewayFeeRecipientAddr, big.NewInt(34), []byte{04})
-	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil, nil)
-
+	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
 }
 func dummyMessage(code uint64) *Message {
 	return &Message{
@@ -268,8 +265,9 @@ func TestSubjectRLPEncoding(t *testing.T) {
 func TestCommittedSubjectRLPEncoding(t *testing.T) {
 	var result, original *CommittedSubject
 	original = &CommittedSubject{
-		Subject:       dummySubject(),
-		CommittedSeal: []byte{12, 13, 23},
+		Subject:               dummySubject(),
+		CommittedSeal:         []byte{12, 13, 23},
+		EpochValidatorSetSeal: []byte{1, 5, 50},
 	}
 
 	rawVal, err := rlp.EncodeToBytes(original)
@@ -289,6 +287,7 @@ func TestCommittedSubjectRLPEncoding(t *testing.T) {
 func TestForwardMessageRLPEncoding(t *testing.T) {
 	var result, original *ForwardMessage
 	original = &ForwardMessage{
+		Code:          0x11, // istanbulConsensusMsg, but doesn't matter what it is
 		DestAddresses: []common.Address{common.HexToAddress("123123")},
 		Msg:           []byte{23, 23, 12, 3},
 	}

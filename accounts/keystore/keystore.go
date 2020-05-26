@@ -33,13 +33,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go"
+	//nolint:goimports
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,7 +49,7 @@ import (
 var (
 	ErrLocked  = accounts.NewAuthNeededError("password or unlock")
 	ErrNoMatch = errors.New("no key for given address or file")
-	ErrDecrypt = errors.New("could not decrypt key with given passphrase")
+	ErrDecrypt = errors.New("could not decrypt key with given password")
 )
 
 // KeyStoreType is the reflect type of a keystore backend.
@@ -142,8 +143,10 @@ func (ks *KeyStore) refreshWallets() {
 	accs := ks.cache.accounts()
 
 	// Transform the current list of wallets into the new one
-	wallets := make([]accounts.Wallet, 0, len(accs))
-	events := []accounts.WalletEvent{}
+	var (
+		wallets = make([]accounts.Wallet, 0, len(accs))
+		events  []accounts.WalletEvent
+	)
 
 	for _, account := range accs {
 		// Drop wallets while they were in front of the next account
@@ -287,72 +290,38 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
 }
 
-func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) ([]byte, error) {
+func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return blscrypto.SerializedSignature{}, ErrLocked
 	}
 
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(hash, []byte{}, false)
+	signature, err := privateKey.SignMessage(msg, extraData, useComposite)
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 	defer signature.Destroy()
 	signatureBytes, err := signature.Serialize()
 	if err != nil {
-		return nil, err
+		return blscrypto.SerializedSignature{}, err
 	}
 
-	return signatureBytes, nil
-}
-
-func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) ([]byte, error) {
-	// Look up the key to sign with and abort if it cannot be found
-	ks.mu.RLock()
-	defer ks.mu.RUnlock()
-
-	unlockedKey, found := ks.unlocked[a.Address]
-	if !found {
-		return nil, ErrLocked
-	}
-
-	privateKeyBytes, err := blscrypto.ECDSAToBLS(unlockedKey.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer privateKey.Destroy()
-
-	signature, err := privateKey.SignMessage(msg, extraData, true)
-	if err != nil {
-		return nil, err
-	}
-	defer signature.Destroy()
-	signatureBytes, err := signature.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	return signatureBytes, nil
+	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
 func (ks *KeyStore) GenerateProofOfPossession(a accounts.Account, address common.Address) ([]byte, []byte, error) {

@@ -23,32 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// Constants to match up protocol versions and messages
-const (
-	Eth62 = 62
-	Eth63 = 63
-)
-
-var (
-	EthProtocol = Protocol{
-		Name:     "eth",
-		Versions: []uint{Eth62, Eth63},
-		Lengths:  []uint64{17, 8},
-	}
-)
-
-// Protocol defines the protocol of the consensus
-type Protocol struct {
-	// Official short name of the protocol used during capability negotiation.
-	Name string
-	// Supported versions of the eth protocol (first is primary).
-	Versions []uint
-	// Number of implemented message corresponding to different protocol versions.
-	Lengths []uint64
-	// Whether this should be the primary form of communication between nodes that support this protocol.
-	Primary bool
-}
-
 // Broadcaster defines the interface to enqueue blocks to fetcher, find peer
 type Broadcaster interface {
 	// Enqueue add a block into fetcher queue
@@ -57,7 +31,7 @@ type Broadcaster interface {
 	FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]Peer
 }
 
-// Server defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
+// P2PServer defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
 type P2PServer interface {
 	// Gets this node's enode
 	Self() *enode.Node
@@ -75,6 +49,15 @@ type P2PServer interface {
 type Peer interface {
 	// Send sends the message to this peer
 	Send(msgcode uint64, data interface{}) error
-	// Returns the peer's enode
+	// Node returns the peer's enode
 	Node() *enode.Node
+	// Version returns the peer's version
+	Version() int
+	// Blocks until a message is read directly from the peer.
+	// This should only be used during a handshake.
+	ReadMsg() (p2p.Msg, error)
+	// Inbound returns if the peer connection is inbound
+	Inbound() bool
+	// PurposeIsSet returns if the peer has a purpose set
+	PurposeIsSet(purpose p2p.PurposeFlag) bool
 }

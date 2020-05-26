@@ -110,17 +110,15 @@ func TestRecipientEmpty(t *testing.T) {
 	tx.data.Recipient = nil
 	tx, err := decodeTx(signAndEncodeTx(tx))
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if addr != from {
-		t.Error("derived address doesn't match")
+		t.Fatal("derived address doesn't match")
 	}
 }
 
@@ -129,18 +127,15 @@ func TestRecipientNormal(t *testing.T) {
 
 	tx, err := decodeTx(signAndEncodeTx(rightvrsTx))
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
-
 	if addr != from {
-		t.Error("derived address doesn't match")
+		t.Fatal("derived address doesn't match")
 	}
 }
 

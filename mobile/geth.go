@@ -46,9 +46,9 @@ const SyncModeFastSync = 2
 const SyncModeLightSync = 3
 
 // Deprecated: This used to be SyncModeCeloLatestSync. Geth will panic if started in this mode.
-// Use UltraLightSync instead.
-const DeprecatedSyncMode = 4
-const UltraLightSync = 5
+// Use LightestSync instead.
+const SyncModeDeprecatedSync = 4
+const LightestSync = 5
 
 // NodeConfig represents the collection of configuration values to fine tune the Geth
 // node embedded into a mobile process. The available values are a subset of the
@@ -161,6 +161,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			MaxPeers:         config.MaxPeers,
 		},
 	}
+
 	rawStack, err := node.New(nodeConf)
 	if err != nil {
 		return nil, err
@@ -176,10 +177,15 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			return nil, fmt.Errorf("invalid genesis spec: %v", err)
 		}
 		// If we have the testnet, hard code the chain configs too
-		if config.EthereumGenesis == TestnetGenesis() {
-			genesis.Config = params.TestnetChainConfig
+		if config.EthereumGenesis == AlfajoresGenesis() {
+			genesis.Config = params.AlfajoresChainConfig
 			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = 3
+				config.EthereumNetworkID = int64(params.AlfajoresNetworkId)
+			}
+		} else if config.EthereumGenesis == BaklavaGenesis() {
+			genesis.Config = params.BaklavaChainConfig
+			if config.EthereumNetworkID == 1 {
+				config.EthereumNetworkID = int64(params.BaklavaNetworkId)
 			}
 		}
 	}
@@ -193,6 +199,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		// Use an in memory DB for validatorEnode table
 		ethConf.Istanbul.ValidatorEnodeDBPath = ""
+		ethConf.Istanbul.VersionCertificateDBPath = ""
 		// Use an in memory DB for roundState table
 		ethConf.Istanbul.RoundStateDBPath = ""
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
@@ -235,13 +242,19 @@ func getSyncMode(syncMode int) downloader.SyncMode {
 		// This maintains backward compatibility.
 	case SyncModeLightSync:
 		return downloader.LightSync
-	case DeprecatedSyncMode:
-		panic("CeloLatestSync mode is no longer supported. Use UltraLightSync instead")
-	case UltraLightSync:
-		return downloader.UltraLightSync
+	case SyncModeDeprecatedSync:
+		panic("'celolatest' mode is no longer supported. Use 'lightest' instead")
+	case LightestSync:
+		return downloader.LightestSync
 	default:
 		panic(fmt.Sprintf("Unexpected sync mode value: %d", syncMode))
 	}
+}
+
+// Close terminates a running node along with all it's services, tearing internal
+// state doen too. It's not possible to restart a closed node.
+func (n *Node) Close() error {
+	return n.node.Close()
 }
 
 // Start creates a live P2P node and starts running it.

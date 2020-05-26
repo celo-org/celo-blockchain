@@ -23,7 +23,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -35,17 +35,21 @@ func TestDefaultGenesisBlock(t *testing.T) {
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash().Hex(), params.MainnetGenesisHash.Hex())
 	}
-	block = DefaultTestnetGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.TestnetGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.TestnetGenesisHash.Hex())
+	block = DefaultBaklavaGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.BaklavaGenesisHash {
+		t.Errorf("wrong baklava testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.BaklavaGenesisHash.Hex())
+	}
+	block = DefaultAlfajoresGenesisBlock().ToBlock(nil)
+	if block.Hash() != params.AlfajoresGenesisHash {
+		t.Errorf("wrong alfajores testnet genesis hash, got %v, want %v", block.Hash().Hex(), params.AlfajoresGenesisHash.Hex())
 	}
 }
 
 func TestSetupGenesis(t *testing.T) {
 	var (
-		customghash = common.HexToHash("0x603e4119abc46d60fb1d5116bd810c207e6639053517f0632c9cebad854ee0c0")
+		customghash = common.HexToHash("0xcffd352e3277fc3fed34ac56e5fb1ab866a55a3da52e87549e05be5500a9f01c")
 		customg     = Genesis{
-			Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3)},
+			Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3), Istanbul: &params.IstanbulConfig{}},
 			Alloc: GenesisAlloc{
 				{1}: {Balance: big.NewInt(1), Storage: map[common.Hash]common.Hash{{1}: {1}}},
 			},
@@ -66,7 +70,7 @@ func TestSetupGenesis(t *testing.T) {
 				return SetupGenesisBlock(db, new(Genesis))
 			},
 			wantErr:    errGenesisNoConfig,
-			wantConfig: params.AllEthashProtocolChanges,
+			wantConfig: params.DefaultChainConfig,
 		},
 		{
 			name: "no block in DB, genesis == nil",
@@ -95,14 +99,24 @@ func TestSetupGenesis(t *testing.T) {
 			wantConfig: customg.Config,
 		},
 		{
-			name: "custom block in DB, genesis == testnet",
+			name: "custom block in DB, genesis == baklava",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				customg.MustCommit(db)
-				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock())
+				return SetupGenesisBlock(db, DefaultBaklavaGenesisBlock())
 			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestnetGenesisHash},
-			wantHash:   params.TestnetGenesisHash,
-			wantConfig: params.TestnetChainConfig,
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.BaklavaGenesisHash},
+			wantHash:   params.BaklavaGenesisHash,
+			wantConfig: params.BaklavaChainConfig,
+		},
+		{
+			name: "custom block in DB, genesis == alfajores",
+			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
+				customg.MustCommit(db)
+				return SetupGenesisBlock(db, DefaultAlfajoresGenesisBlock())
+			},
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.AlfajoresGenesisHash},
+			wantHash:   params.AlfajoresGenesisHash,
+			wantConfig: params.AlfajoresChainConfig,
 		},
 		{
 			name: "compatible config in DB",
@@ -120,10 +134,10 @@ func TestSetupGenesis(t *testing.T) {
 				// Advance to block #4, past the homestead transition block of customg.
 				genesis := oldcustomg.MustCommit(db)
 
-				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, ethash.NewFullFaker(), vm.Config{}, nil)
+				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, mockEngine.NewFullFaker(), vm.Config{}, nil)
 				defer bc.Stop()
 
-				blocks, _ := GenerateChain(oldcustomg.Config, genesis, ethash.NewFaker(), db, 4, nil)
+				blocks, _ := GenerateChain(oldcustomg.Config, genesis, mockEngine.NewFaker(), db, 4, nil)
 				bc.InsertChain(blocks)
 				bc.CurrentBlock()
 				// This should return a compatibility error.
@@ -141,7 +155,7 @@ func TestSetupGenesis(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db := ethdb.NewMemDatabase()
+		db := rawdb.NewMemoryDatabase()
 		config, hash, err := test.fn(db)
 		// Check the return values.
 		if !reflect.DeepEqual(err, test.wantErr) {

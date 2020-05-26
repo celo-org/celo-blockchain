@@ -1,15 +1,13 @@
-# celohq/android-client
+# celohq/circleci:android-v2
 
 FROM circleci/android:api-28-alpha
-
-USER root
 
 # NDK see also: https://github.com/CircleCI-Public/circleci-dockerfiles/blob/cb8bda793023d3e919ea5553e2f2c04b71f53c49/android/images/api-28-ndk/Dockerfile#L181
 
 ARG ndk_version=android-ndk-r19c
 ARG android_ndk_home=/opt/android/${ndk_version}
 
-# install NDK
+# Install NDK
 RUN curl --silent --show-error --location --fail --retry 3 --output /tmp/${ndk_version}.zip \
         https://dl.google.com/android/repository/${ndk_version}-linux-x86_64.zip && \
     sudo unzip -q /tmp/${ndk_version}.zip -d /opt/android && \
@@ -19,20 +17,22 @@ RUN curl --silent --show-error --location --fail --retry 3 --output /tmp/${ndk_v
 ENV ANDROID_NDK_HOME ${android_ndk_home}
 ENV ANDROID_NDK ${android_ndk_home}
 
-RUN curl https://dl.google.com/go/go1.11.linux-amd64.tar.gz | tar -xz
-ENV PATH=/go/bin:$PATH
-ENV GOROOT=/go
-ENV GOPATH=$HOME/go
+# Install rust
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
 ENV PATH=$PATH:$HOME/.cargo/bin
-RUN rustup install 1.37.0
-RUN rustup default 1.37.0
 RUN rustup target add aarch64-linux-android
 RUN rustup target add armv7-linux-androideabi
 RUN rustup target add i686-linux-android
 RUN rustup target add x86_64-linux-android
 
+# go and node installations command expect to run as root
+USER root
+
+RUN curl https://dl.google.com/go/go1.13.5.linux-amd64.tar.gz | tar -xz
+ENV PATH=/go/bin:$PATH
+ENV GOROOT=/go
+ENV GOPATH=$HOME/go
 
 ## Using node installation from https://raw.githubusercontent.com/nodejs/docker-node/170ed2092d4925971f9cd3ad5dfc416e820f90fd/10/stretch/Dockerfile
 
@@ -100,3 +100,5 @@ RUN set -ex \
 
 # Basic smoke test
 RUN node --version
+
+USER circleci

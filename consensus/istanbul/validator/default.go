@@ -18,19 +18,22 @@ package validator
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
 	address      common.Address
-	blsPublicKey []byte
+	blsPublicKey blscrypto.SerializedPublicKey
 }
 
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
@@ -47,9 +50,9 @@ func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	}
 }
 
-func (val *defaultValidator) Address() common.Address { return val.address }
-func (val *defaultValidator) BLSPublicKey() []byte    { return val.blsPublicKey }
-func (val *defaultValidator) String() string          { return val.Address().String() }
+func (val *defaultValidator) Address() common.Address                     { return val.address }
+func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { return val.blsPublicKey }
+func (val *defaultValidator) String() string                              { return val.Address().String() }
 
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
@@ -120,6 +123,27 @@ func (valSet *defaultSet) MinQuorumSize() int { return int(math.Ceil(float64(2*v
 
 func (valSet *defaultSet) SetRandomness(seed common.Hash) { valSet.randomness = seed }
 func (valSet *defaultSet) GetRandomness() common.Hash     { return valSet.randomness }
+
+func (valSet *defaultSet) String() string {
+	var buf strings.Builder
+	if _, err := buf.WriteString("["); err != nil {
+		return fmt.Sprintf("String()  error: %s", err)
+	}
+	for _, v := range valSet.List() {
+		if _, err := buf.WriteString(v.String()); err != nil {
+			return fmt.Sprintf("String()  error: %s", err)
+		}
+		if _, err := buf.WriteString(" "); err != nil {
+			return fmt.Sprintf("String()  error: %s", err)
+		}
+
+	}
+	if _, err := buf.WriteString("]"); err != nil {
+		return fmt.Sprintf("String()  error: %s", err)
+	}
+
+	return fmt.Sprintf("{randomness: %s, validators: %s}", valSet.randomness.String(), buf.String())
+}
 
 func (valSet *defaultSet) Size() int {
 	valSet.validatorMu.RLock()
@@ -213,7 +237,7 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	newValSet := NewSet(mapValidatorsToData(valSet.validators))
+	newValSet := NewSet(MapValidatorsToData(valSet.validators))
 	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
 }
@@ -222,7 +246,7 @@ func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 	return &istanbul.ValidatorSetData{
-		Validators: mapValidatorsToData(valSet.validators),
+		Validators: MapValidatorsToData(valSet.validators),
 		Randomness: valSet.randomness,
 	}
 }
@@ -259,7 +283,7 @@ func (val *defaultSet) Serialize() ([]byte, error) { return rlp.EncodeToBytes(va
 
 // Utility Functions
 
-func mapValidatorsToData(validators []istanbul.Validator) []istanbul.ValidatorData {
+func MapValidatorsToData(validators []istanbul.Validator) []istanbul.ValidatorData {
 	validatorsData := make([]istanbul.ValidatorData, len(validators))
 	for i, v := range validators {
 		validatorsData[i] = *v.AsData()

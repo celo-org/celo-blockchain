@@ -4,7 +4,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/celo-org/bls-zexe/go"
+	//nolint:goimports
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 

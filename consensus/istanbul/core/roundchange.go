@@ -292,9 +292,7 @@ func (rcs *roundChangeSet) Clear(round *big.Int) {
 	for k, rms := range rcs.msgsForRound {
 		if rms.Size() == 0 || k < round.Uint64() {
 			for _, msg := range rms.Values() {
-				if _, ok := rcs.latestRoundForVal[msg.Address]; ok {
-					delete(rcs.latestRoundForVal, msg.Address)
-				}
+				delete(rcs.latestRoundForVal, msg.Address) // no need to check if msg.Address is present
 			}
 			delete(rcs.msgsForRound, k)
 		}
@@ -367,11 +365,6 @@ func (rcs *roundChangeSet) String() string {
 			modeRoundSize = rms.Size()
 		}
 		msgsForRoundStr = append(msgsForRoundStr, fmt.Sprintf("%v: %v", r, rms.String()))
-	}
-
-	latestRoundForValStr := make([]string, 0, len(rcs.latestRoundForVal))
-	for addr, r := range rcs.latestRoundForVal {
-		latestRoundForValStr = append(latestRoundForValStr, fmt.Sprintf("%v: %v", addr.String(), r))
 	}
 
 	return fmt.Sprintf("RCS len=%v mode_round=%v mode_round_len=%v unique_rounds=%v %v",

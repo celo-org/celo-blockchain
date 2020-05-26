@@ -31,7 +31,7 @@ import (
 )
 
 // ChainReader defines a small collection of methods needed to access the local
-// blockchain during header and/or uncle verification.
+// blockchain during header verification.
 type ChainReader interface {
 	// Config retrieves the blockchain's chain configuration.
 	Config() *params.ChainConfig
@@ -70,10 +70,6 @@ type Engine interface {
 	// the input slice).
 	VerifyHeaders(chain ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error)
 
-	// VerifyUncles verifies that the given block's uncles conform to the consensus
-	// rules of a given engine.
-	VerifyUncles(chain ChainReader, block *types.Block) error
-
 	// VerifySeal checks whether the crypto seal on a header is valid according to
 	// the consensus rules of the given engine.
 	VerifySeal(chain ChainReader, header *types.Header) error
@@ -83,11 +79,18 @@ type Engine interface {
 	Prepare(chain ChainReader, header *types.Header) error
 
 	// Finalize runs any post-transaction state modifications (e.g. block rewards)
-	// and assembles the final block.
+	// but does not assemble the block.
+	//
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
-	Finalize(chain ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-		uncles []*types.Header, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error)
+	Finalize(chain ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction)
+
+	// FinalizeAndAssemble runs any post-transaction state modifications (e.g. block
+	// rewards) and assembles the final block.
+	//
+	// Note: The block header and state database might be updated to reflect any
+	// consensus rules that happen at finalization (e.g. block rewards).
+	FinalizeAndAssemble(chain ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error)
 
 	// Seal generates a new sealing request for the given input block and pushes
 	// the result into the given channel.
@@ -99,10 +102,6 @@ type Engine interface {
 	// SealHash returns the hash of a block prior to it being sealed.
 	SealHash(header *types.Header) common.Hash
 
-	// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-	// that a new block should have.
-	CalcDifficulty(chain ChainReader, time uint64, parent *types.Header) *big.Int
-
 	// GetValidators returns the list of current validators.
 	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 
@@ -113,8 +112,6 @@ type Engine interface {
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
-	// Protocol returns the protocol for this consensus
-	Protocol() Protocol
 }
 
 type Genesis interface {
@@ -152,8 +149,9 @@ type Handler interface {
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
 	UnregisterPeer(peer Peer, fromProxiedNode bool)
 
-	// ConnectToVals
-	ConnectToVals()
+	// Handshake will begin a handshake with a new peer. It returns if the peer
+	// has identified itself as a validator and should bypass any max peer checks.
+	Handshake(peer Peer) (bool, error)
 }
 
 // PoW is a consensus engine based on proof-of-work.
@@ -168,15 +166,22 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
-	SetChain(chain ChainReader, currentBlock func() *types.Block)
+	// SetChain injects the blockchain and related functions to the istanbul consensus engine
+	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
-	// Start starts the engine
-	Start(hasBadBlock func(common.Hash) bool,
-		stateAt func(common.Hash) (*state.StateDB, error), processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	// StartValidating starts the validating engine
+	StartValidating(hasBadBlock func(common.Hash) bool,
+		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
 
-	// Stop stops the engine
-	Stop() error
+	// StopValidating stops the validating engine
+	StopValidating() error
+
+	// StartAnnouncing starts the announcing
+	StartAnnouncing() error
+
+	// StopAnnouncing stops the announcing
+	StopAnnouncing() error
 
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.

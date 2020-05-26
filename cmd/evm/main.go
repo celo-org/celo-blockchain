@@ -27,9 +27,10 @@ import (
 )
 
 var gitCommit = "" // Git SHA1 commit hash of the release (set via linker flags)
+var gitDate = ""
 
 var (
-	app = utils.NewApp(gitCommit, "the evm command line interface")
+	app = utils.NewApp(gitCommit, gitDate, "the evm command line interface")
 
 	DebugFlag = cli.BoolFlag{
 		Name:  "debug",
@@ -78,6 +79,10 @@ var (
 		Name:  "input",
 		Usage: "input for the EVM",
 	}
+	InputFileFlag = cli.StringFlag{
+		Name:  "inputfile",
+		Usage: "file containing input for the EVM",
+	}
 	VerbosityFlag = cli.IntFlag{
 		Name:  "verbosity",
 		Usage: "sets the verbosity level",
@@ -110,6 +115,11 @@ var (
 		Name:  "nostack",
 		Usage: "disable stack output",
 	}
+	EVMInterpreterFlag = cli.StringFlag{
+		Name:  "vm.evm",
+		Usage: "External EVM configuration (default = built-in interpreter)",
+		Value: "",
+	}
 )
 
 func init() {
@@ -124,6 +134,7 @@ func init() {
 		ValueFlag,
 		DumpFlag,
 		InputFlag,
+		InputFileFlag,
 		MemProfileFlag,
 		CPUProfileFlag,
 		StatDumpFlag,
@@ -133,6 +144,7 @@ func init() {
 		ReceiverFlag,
 		DisableMemoryFlag,
 		DisableStackFlag,
+		EVMInterpreterFlag,
 	}
 	app.Commands = []cli.Command{
 		compileCommand,

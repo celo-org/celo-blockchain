@@ -85,6 +85,7 @@ func TestStoreRequestMsg(t *testing.T) {
 	}
 	valSet := newTestValidatorSet(4)
 	c := &core{
+		config:  istanbul.DefaultConfig,
 		logger:  log.New("backend", "test", "id", 0),
 		backend: backend,
 		current: newRoundState(&istanbul.View{

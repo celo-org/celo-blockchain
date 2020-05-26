@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// Package light implements on-demand retrieval capable state and chain objects
-// for the Ethereum Light Client.
 package light
 
 import (
@@ -121,22 +119,47 @@ func (req *BlockRequest) StoreResult(db ethdb.Database) {
 	rawdb.WriteBodyRLP(db, req.Hash, req.Number, req.Rlp)
 }
 
+type blockHashOrNumber struct {
+	Hash   common.Hash
+	Number *uint64
+}
+
+type HeaderRequest struct {
+	OdrRequest
+	Origin blockHashOrNumber
+	Header *types.Header
+}
+
+// StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
+// This occurs if the total difficulty of the requested header is less than the current known TD.
+func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
+		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
+	}
+}
+
 // ReceiptsRequest is the ODR request type for retrieving block bodies
 type ReceiptsRequest struct {
 	OdrRequest
-	Hash     common.Hash
-	Number   uint64
-	Receipts types.Receipts
+	Untrusted bool // Indicator whether the result retrieved is trusted or not
+	Hash      common.Hash
+	Number    uint64
+	Header    *types.Header
+	Receipts  types.Receipts
 }
 
 // StoreResult stores the retrieved data in local database
 func (req *ReceiptsRequest) StoreResult(db ethdb.Database) {
-	rawdb.WriteReceipts(db, req.Hash, req.Number, req.Receipts)
+	if !req.Untrusted {
+		rawdb.WriteReceipts(db, req.Hash, req.Number, req.Receipts)
+	}
 }
 
 // ChtRequest is the ODR request type for state/storage trie entries
 type ChtRequest struct {
 	OdrRequest
+	Untrusted        bool   // Indicator whether the result retrieved is trusted or not
+	PeerId           string // The specified peer id from which to retrieve data.
 	Config           *IndexerConfig
 	ChtNum, BlockNum uint64
 	ChtRoot          common.Hash
@@ -149,9 +172,11 @@ type ChtRequest struct {
 func (req *ChtRequest) StoreResult(db ethdb.Database) {
 	hash, num := req.Header.Hash(), req.Header.Number.Uint64()
 
-	rawdb.WriteHeader(db, req.Header)
-	rawdb.WriteTd(db, hash, num, req.Td)
-	rawdb.WriteCanonicalHash(db, hash, num)
+	if !req.Untrusted {
+		rawdb.WriteHeader(db, req.Header)
+		rawdb.WriteTd(db, hash, num, big.NewInt(int64(req.BlockNum+1)))
+		rawdb.WriteCanonicalHash(db, hash, num)
+	}
 }
 
 // BloomRequest is the ODR request type for retrieving bloom filters from a CHT structure
@@ -177,3 +202,20 @@ func (req *BloomRequest) StoreResult(db ethdb.Database) {
 		rawdb.WriteBloomBits(db, req.BitIdx, sectionIdx, sectionHead, req.BloomBits[i])
 	}
 }
+
+// TxStatus describes the status of a transaction
+type TxStatus struct {
+	Status core.TxStatus
+	Lookup *rawdb.LegacyTxLookupEntry `rlp:"nil"`
+	Error  string
+}
+
+// TxStatusRequest is the ODR request type for retrieving transaction status
+type TxStatusRequest struct {
+	OdrRequest
+	Hashes []common.Hash
+	Status []TxStatus
+}
+
+// StoreResult stores the retrieved data in local database
+func (req *TxStatusRequest) StoreResult(db ethdb.Database) {}

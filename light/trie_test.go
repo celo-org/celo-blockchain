@@ -23,25 +23,25 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 func TestNodeIterator(t *testing.T) {
 	var (
-		fulldb  = ethdb.NewMemDatabase()
-		lightdb = ethdb.NewMemDatabase()
+		fulldb  = rawdb.NewMemoryDatabase()
+		lightdb = rawdb.NewMemoryDatabase()
 		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
 		genesis = gspec.MustCommit(fulldb)
 	)
 	gspec.MustCommit(lightdb)
-	blockchain, _ := core.NewBlockChain(fulldb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil)
-	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGen)
+	blockchain, _ := core.NewBlockChain(fulldb, nil, params.DefaultChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
+	gchain, _ := core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), fulldb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		panic(err)
 	}

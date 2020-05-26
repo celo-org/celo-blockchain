@@ -23,11 +23,11 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -100,6 +100,11 @@ type roundStateImpl struct {
 
 	mu     *sync.RWMutex
 	logger log.Logger
+
+	// Gauges for current round, desiredRound, and sequence
+	roundGauge        metrics.Gauge
+	desiredRoundGauge metrics.Gauge
+	sequenceGauge     metrics.Gauge
 }
 
 type RoundStateSummary struct {
@@ -141,6 +146,10 @@ func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, prop
 
 		mu:     new(sync.RWMutex),
 		logger: log.New(),
+
+		roundGauge:        metrics.NewRegisteredGauge("consensus/istanbul/core/round", nil),
+		desiredRoundGauge: metrics.NewRegisteredGauge("consensus/istanbul/core/desiredround", nil),
+		sequenceGauge:     metrics.NewRegisteredGauge("consensus/istanbul/core/sequence", nil),
 	}
 }
 
@@ -255,6 +264,10 @@ func (rs *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.
 	rs.round = nextRound
 	rs.desiredRound = nextRound
 
+	// Update gauges
+	rs.roundGauge.Update(nextRound.Int64())
+	rs.desiredRoundGauge.Update(nextRound.Int64())
+
 	// TODO MC use old valset
 	rs.prepares = newMessageSet(validatorSet)
 	rs.commits = newMessageSet(validatorSet)
@@ -288,6 +301,9 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 	rs.parentCommits = parentCommits
 	rs.proposalVerificationStatus = nil
 
+	// Update sequence gauge
+	rs.sequenceGauge.Update(nextSequence.Int64())
+
 	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
 	return nil
 }
@@ -309,13 +325,20 @@ func (rs *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepar
 	return nil
 }
 
-func (rs *roundStateImpl) TransitionToWaitingForNewRound(r *big.Int, nextProposer istanbul.Validator) error {
+func (rs *roundStateImpl) TransitionToWaitingForNewRound(desiredRound *big.Int, nextProposer istanbul.Validator) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	rs.desiredRound = new(big.Int).Set(r)
+	if rs.round.Cmp(desiredRound) > 0 {
+		return errInvalidState
+	}
+	rs.desiredRound = new(big.Int).Set(desiredRound)
 	rs.proposer = nextProposer
 	rs.state = StateWaitingForNewRound
+
+	// Update gauge
+	rs.desiredRoundGauge.Update(desiredRound.Int64())
+
 	return nil
 }
 
@@ -571,6 +594,9 @@ func (rs *roundStateImpl) DecodeRLP(stream *rlp.Stream) error {
 
 	rs.logger = log.New()
 	rs.mu = new(sync.RWMutex)
+	rs.roundGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/round", nil)
+	rs.desiredRoundGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/desiredround", nil)
+	rs.sequenceGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/sequence", nil)
 	rs.state = data.State
 	rs.round = data.Round
 	rs.desiredRound = data.DesiredRound

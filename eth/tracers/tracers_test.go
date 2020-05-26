@@ -24,12 +24,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/tests"
 )
@@ -49,11 +48,9 @@ var makeTest = function(tx, rewind) {
   delete genesis.logsBloom;
   delete genesis.parentHash;
   delete genesis.receiptsRoot;
-  delete genesis.sha3Uncles;
   delete genesis.size;
   delete genesis.transactions;
   delete genesis.transactionsRoot;
-  delete genesis.uncles;
 
   genesis.gasLimit  = genesis.gasLimit.toString();
   genesis.number    = genesis.number.toString();
@@ -73,7 +70,6 @@ var makeTest = function(tx, rewind) {
     genesis: genesis,
     context: {
       number:     block.number.toString(),
-      difficulty: block.difficulty,
       timestamp:  block.timestamp.toString(),
       gasLimit:   block.gasLimit.toString(),
       miner:      block.miner,
@@ -84,46 +80,15 @@ var makeTest = function(tx, rewind) {
 }
 */
 
-// callTrace is the result of a callTracer run.
-type callTrace struct {
-	Type    string          `json:"type"`
-	From    common.Address  `json:"from"`
-	To      common.Address  `json:"to"`
-	Input   hexutil.Bytes   `json:"input"`
-	Output  hexutil.Bytes   `json:"output"`
-	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
-	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
-	Value   *hexutil.Big    `json:"value,omitempty"`
-	Error   string          `json:"error,omitempty"`
-	Calls   []callTrace     `json:"calls,omitempty"`
-}
-
-type callContext struct {
-	Number     math.HexOrDecimal64   `json:"number"`
-	Difficulty *math.HexOrDecimal256 `json:"difficulty"`
-	Time       math.HexOrDecimal64   `json:"timestamp"`
-	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
-	Miner      common.Address        `json:"miner"`
-}
-
-// callTracerTest defines a single test to check the call tracer against.
-type callTracerTest struct {
-	Genesis *core.Genesis `json:"genesis"`
-	Context *callContext  `json:"context"`
-	Input   string        `json:"input"`
-	Result  *callTrace    `json:"result"`
-}
-
 func TestPrestateTracerCreate2(t *testing.T) {
-	unsigned_tx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"),
-		new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
+	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"), new(big.Int), 5000000, big.NewInt(1), nil, nil, nil, []byte{})
 
 	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
 	signer := types.NewEIP155Signer(big.NewInt(1))
-	tx, err := types.SignTx(unsigned_tx, signer, privateKeyECDSA)
+	tx, err := types.SignTx(unsignedTx, signer, privateKeyECDSA)
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
@@ -144,11 +109,10 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
 		Time:        new(big.Int).SetUint64(5),
-		Difficulty:  big.NewInt(0x30000),
-		GasLimit:    uint64(6000000),
 		GasPrice:    big.NewInt(1),
 	}
 	alloc := core.GenesisAlloc{}
+
 	// The code pushes 'deadbeef' into memory, then the other params, and calls CREATE2, then returns
 	// the address
 	alloc[common.HexToAddress("0x00000000000000000000000000000000deadbeef")] = core.GenesisAccount{
@@ -161,7 +125,8 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		Code:    []byte{},
 		Balance: big.NewInt(500000000000000),
 	}
-	statedb := tests.MakePreState(ethdb.NewMemDatabase(), alloc)
+	statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc)
+
 	// Create the tracer, the EVM environment and run it
 	tracer, err := New("prestateTracer")
 	if err != nil {
@@ -234,11 +199,10 @@ func TestCallTracer(t *testing.T) {
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
-				Difficulty:  (*big.Int)(test.Context.Difficulty),
 				GasLimit:    uint64(test.Context.GasLimit),
 				GasPrice:    tx.GasPrice(),
 			}
-			statedb := tests.MakePreState(ethdb.NewMemDatabase(), test.Genesis.Alloc)
+			statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc)
 
 			// Create the tracer, the EVM environment and run it
 			tracer, err := New("callTracer")

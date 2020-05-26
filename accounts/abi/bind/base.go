@@ -116,6 +116,11 @@ func DeployContract(opts *TransactOpts, abi abi.ABI, bytecode []byte, backend Co
 	return c.address, tx, c, nil
 }
 
+// ABI returns the bound contract parsed ABI
+func (c *BoundContract) ABI() abi.ABI {
+	return c.abi
+}
+
 // Call invokes the (constant) contract method with params as input values and
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
@@ -235,7 +240,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 			}
 		}
 		// If the contract surely has code (or code is not needed), estimate the transaction
-		msg := ethereum.CallMsg{From: opts.From, To: contract, Value: value, Data: input}
+		msg := ethereum.CallMsg{From: opts.From, To: contract, GasPrice: gasPrice, Value: value, Data: input}
 		gasLimit, err = c.transactor.EstimateGas(ensureContext(opts.Context), msg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
@@ -261,6 +266,19 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	return signedTx, nil
 }
 
+// LogEventName will verify the log belongs to the contract and return the eventName for it
+func (c *BoundContract) LogEventName(log types.Log) (eventName string, ok bool, err error) {
+	if log.Address != c.address || len(log.Topics) < 1 {
+		return "", false, err
+	}
+
+	event, err := c.abi.EventByID(log.Topics[0])
+	if err != nil {
+		return "", false, err
+	}
+	return event.Name, true, nil
+}
+
 // FilterLogs filters contract logs for past blocks, returning the necessary
 // channels to construct a strongly typed bound iterator on top of them.
 func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]interface{}) (chan types.Log, event.Subscription, error) {
@@ -269,7 +287,7 @@ func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]int
 		opts = new(FilterOpts)
 	}
 	// Append the event selector to the query parameters and construct the topic set
-	query = append([][]interface{}{{c.abi.Events[name].Id()}}, query...)
+	query = append([][]interface{}{{c.abi.Events[name].ID()}}, query...)
 
 	topics, err := makeTopics(query...)
 	if err != nil {
@@ -318,7 +336,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 		opts = new(WatchOpts)
 	}
 	// Append the event selector to the query parameters and construct the topic set
-	query = append([][]interface{}{{c.abi.Events[name].Id()}}, query...)
+	query = append([][]interface{}{{c.abi.Events[name].ID()}}, query...)
 
 	topics, err := makeTopics(query...)
 	if err != nil {
@@ -355,6 +373,22 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 		}
 	}
 	return parseTopics(out, indexed, log.Topics[1:])
+}
+
+// UnpackLogIntoMap unpacks a retrieved log into the provided map.
+func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event string, log types.Log) error {
+	if len(log.Data) > 0 {
+		if err := c.abi.UnpackIntoMap(out, event, log.Data); err != nil {
+			return err
+		}
+	}
+	var indexed abi.Arguments
+	for _, arg := range c.abi.Events[event].Inputs {
+		if arg.Indexed {
+			indexed = append(indexed, arg)
+		}
+	}
+	return parseTopicsIntoMap(out, indexed, log.Topics[1:])
 }
 
 // ensureContext is a helper method to ensure a context is not nil, even if the

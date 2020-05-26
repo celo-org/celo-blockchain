@@ -24,12 +24,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -51,7 +50,7 @@ func BenchmarkFilters(b *testing.B) {
 	defer os.RemoveAll(dir)
 
 	var (
-		db, _      = ethdb.NewLDBDatabase(dir, 0, 0)
+		db, _      = rawdb.NewLevelDBDatabase(dir, 0, 0, "")
 		mux        = new(event.TypeMux)
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
@@ -67,7 +66,7 @@ func BenchmarkFilters(b *testing.B) {
 	defer db.Close()
 
 	genesis := core.GenesisBlockForTesting(db, addr1, big.NewInt(1000000))
-	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 100010, func(i int, gen *core.BlockGen) {
+	chain, receipts := core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 100010, func(i int, gen *core.BlockGen) {
 		switch i {
 		case 2403:
 			receipt := makeReceipt(addr1)
@@ -110,7 +109,7 @@ func TestFilters(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	var (
-		db, _      = ethdb.NewLDBDatabase(dir, 0, 0)
+		db, _      = rawdb.NewLevelDBDatabase(dir, 0, 0, "")
 		mux        = new(event.TypeMux)
 		txFeed     = new(event.Feed)
 		rmLogsFeed = new(event.Feed)
@@ -128,7 +127,7 @@ func TestFilters(t *testing.T) {
 	defer db.Close()
 
 	genesis := core.GenesisBlockForTesting(db, addr, big.NewInt(1000000))
-	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1000, func(i int, gen *core.BlockGen) {
+	chain, receipts := core.GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 1000, func(i int, gen *core.BlockGen) {
 		switch i {
 		case 1:
 			receipt := types.NewReceipt(nil, false, 0)
@@ -139,6 +138,7 @@ func TestFilters(t *testing.T) {
 				},
 			}
 			gen.AddUncheckedReceipt(receipt)
+			gen.AddUncheckedTx(types.NewTransaction(1, common.HexToAddress("0x1"), big.NewInt(1), 1, big.NewInt(1), nil, nil, nil, nil))
 		case 2:
 			receipt := types.NewReceipt(nil, false, 0)
 			receipt.Logs = []*types.Log{
@@ -148,6 +148,8 @@ func TestFilters(t *testing.T) {
 				},
 			}
 			gen.AddUncheckedReceipt(receipt)
+			gen.AddUncheckedTx(types.NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil, nil, nil, nil))
+
 		case 998:
 			receipt := types.NewReceipt(nil, false, 0)
 			receipt.Logs = []*types.Log{
@@ -157,6 +159,7 @@ func TestFilters(t *testing.T) {
 				},
 			}
 			gen.AddUncheckedReceipt(receipt)
+			gen.AddUncheckedTx(types.NewTransaction(998, common.HexToAddress("0x998"), big.NewInt(998), 998, big.NewInt(998), nil, nil, nil, nil))
 		case 999:
 			receipt := types.NewReceipt(nil, false, 0)
 			receipt.Logs = []*types.Log{
@@ -166,6 +169,7 @@ func TestFilters(t *testing.T) {
 				},
 			}
 			gen.AddUncheckedReceipt(receipt)
+			gen.AddUncheckedTx(types.NewTransaction(999, common.HexToAddress("0x999"), big.NewInt(999), 999, big.NewInt(999), nil, nil, nil, nil))
 		}
 	})
 	for i, block := range chain {

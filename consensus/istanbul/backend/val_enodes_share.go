@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,9 +36,9 @@ import (
 // define the validator enode share message
 
 type sharedValidatorEnode struct {
-	Address   common.Address
-	EnodeURL  string
-	Timestamp uint
+	Address  common.Address
+	EnodeURL string
+	Version  uint
 }
 
 type valEnodesShareData struct {
@@ -45,7 +46,7 @@ type valEnodesShareData struct {
 }
 
 func (sve *sharedValidatorEnode) String() string {
-	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Timestamp: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Timestamp)
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Version: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Version)
 }
 
 func (sd *valEnodesShareData) String() string {
@@ -110,10 +111,13 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 
 	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
+		if vetEntry.Node == nil {
+			continue
+		}
 		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
-			Address:   address,
-			EnodeURL:  vetEntry.Node.String(),
-			Timestamp: vetEntry.Timestamp,
+			Address:  address,
+			EnodeURL: vetEntry.Node.String(),
+			Version:  vetEntry.Version,
 		})
 	}
 
@@ -140,36 +144,41 @@ func (sb *Backend) generateValEnodesShareMsg() (*istanbul.Message, error) {
 }
 
 func (sb *Backend) sendValEnodesShareMsg() error {
+	logger := sb.logger.New("func", "sendValEnodesShareMsg")
 	if sb.proxyNode == nil || sb.proxyNode.peer == nil {
-		sb.logger.Error("No proxy peers, cannot send Istanbul Validator Enodes Share message")
+		logger.Warn("No proxy peers, cannot send Istanbul Validator Enodes Share message")
 		return nil
 	}
 
 	msg, err := sb.generateValEnodesShareMsg()
 	if err != nil {
+		logger.Error("Error generating Istanbul ValEnodesShare Message", "err", err)
 		return err
 	}
 
 	// Sign the validator enode share message
 	if err := msg.Sign(sb.Sign); err != nil {
-		sb.logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
+		logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
 
 	// Convert to payload
 	payload, err := msg.Payload()
 	if err != nil {
-		sb.logger.Error("Error in converting Istanbul ValEnodesShare Message to payload", "ValEnodesShareMsg", msg.String(), "err", err)
+		logger.Error("Error in converting Istanbul ValEnodesShare Message to payload", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
 
-	sb.logger.Debug("Sending Istanbul Validator Enodes Share payload to proxy peer")
-	go sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload)
+	logger.Trace("Sending Istanbul Validator Enodes Share payload to proxy peer")
+	if err := sb.proxyNode.peer.Send(istanbulValEnodesShareMsg, payload); err != nil {
+		logger.Error("Error sending Istanbul ValEnodesShare Message to proxy", "err", err)
+		return err
+	}
 
 	return nil
 }
 
-func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
+func (sb *Backend) handleValEnodesShareMsg(_ consensus.Peer, payload []byte) error {
 	sb.logger.Debug("Handling an Istanbul Validator Enodes Share message")
 
 	msg := new(istanbul.Message)
@@ -195,18 +204,22 @@ func (sb *Backend) handleValEnodesShareMsg(payload []byte) error {
 
 	sb.logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
-	upsertBatch := make(map[common.Address]*vet.AddressEntry)
+	var upsertBatch []*vet.AddressEntry
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
 			sb.logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			upsertBatch[sharedValidatorEnode.Address] = &vet.AddressEntry{Node: node, Timestamp: sharedValidatorEnode.Timestamp}
+			upsertBatch = append(upsertBatch, &vet.AddressEntry{
+				Address: sharedValidatorEnode.Address,
+				Node:    node,
+				Version: sharedValidatorEnode.Version,
+			})
 		}
 	}
 
 	if len(upsertBatch) > 0 {
-		if err := sb.valEnodeTable.Upsert(upsertBatch); err != nil {
+		if err := sb.valEnodeTable.UpsertVersionAndEnode(upsertBatch); err != nil {
 			sb.logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "UpsertBatch", upsertBatch, "error", err)
 		}
 	}

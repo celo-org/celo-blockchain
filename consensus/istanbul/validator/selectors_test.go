@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 var testAddresses = []string{
@@ -39,10 +40,10 @@ func TestStickyProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -96,10 +97,10 @@ func TestRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
@@ -153,16 +154,17 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 	for _, strAddr := range testAddresses {
 		addr := common.HexToAddress(strAddr)
 		addrs = append(addrs, addr)
-		validators = append(validators, New(addr, nil))
+		validators = append(validators, New(addr, blscrypto.SerializedPublicKey{}))
 	}
 
-	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([][]byte, len(addrs)))
+	v, err := istanbul.CombineIstanbulExtraToValidatorData(addrs, make([]blscrypto.SerializedPublicKey, len(addrs)))
 	if err != nil {
 		t.Fatalf("CombineIstanbulExtraToValidatorData(...): %v", err)
 	}
 	valSet := newDefaultSet(v)
 	selector := GetProposerSelector(istanbul.ShuffledRoundRobin)
 
+	// Verify a number of explicit cases with expected output.
 	testSeed := common.HexToHash("f36aa9716b892ec8")
 	cases := []struct {
 		lastProposer common.Address
@@ -170,44 +172,53 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 		seed         common.Hash
 		want         istanbul.Validator
 	}{{
-		lastProposer: addrs[0],
+		lastProposer: common.Address{},
 		round:        0,
-		want:         validators[1],
-	}, {
-		lastProposer: addrs[0],
-		round:        1,
-		want:         validators[4],
-	}, {
-		lastProposer: addrs[0],
-		round:        2,
-		want:         validators[2],
-	}, {
-		lastProposer: addrs[2],
-		round:        2,
-		want:         validators[1],
-	}, {
-		lastProposer: addrs[2],
-		round:        3,
-		want:         validators[4],
-	}, {
-		lastProposer: addrs[0],
-		round:        0,
-		seed:         testSeed,
-		want:         validators[4],
-	}, {
-		lastProposer: addrs[0],
-		round:        1,
-		seed:         testSeed,
-		want:         validators[2],
-	}, {
-		lastProposer: addrs[0],
-		round:        2,
-		seed:         testSeed,
-		want:         validators[1],
+		want:         validators[0],
 	}, {
 		lastProposer: common.Address{},
 		round:        3,
-		want:         validators[0],
+		want:         validators[2],
+	}, {
+		lastProposer: addrs[0],
+		round:        0,
+		want:         validators[4],
+	}, {
+		lastProposer: addrs[0],
+		round:        1,
+		want:         validators[3],
+	}, {
+		lastProposer: addrs[0],
+		round:        2,
+		want:         validators[2],
+	}, {
+		lastProposer: addrs[2],
+		round:        2,
+		want:         validators[4],
+	}, {
+		lastProposer: addrs[2],
+		round:        3,
+		want:         validators[3],
+	}, {
+		lastProposer: common.Address{},
+		round:        0,
+		seed:         testSeed,
+		want:         validators[1],
+	}, {
+		lastProposer: addrs[0],
+		round:        0,
+		seed:         testSeed,
+		want:         validators[2],
+	}, {
+		lastProposer: addrs[0],
+		round:        1,
+		seed:         testSeed,
+		want:         validators[1],
+	}, {
+		lastProposer: addrs[0],
+		round:        2,
+		seed:         testSeed,
+		want:         validators[4],
 	}}
 
 	for i, c := range cases {
@@ -221,4 +232,39 @@ func TestShuffledRoundRobinProposer(t *testing.T) {
 			}
 		})
 	}
+
+	// Verify that the ordering is a stable round robin during round changes.
+	valSet.SetRandomness(testSeed)
+	t.Run("round changes", func(t *testing.T) {
+		var lastProposer common.Address
+		order := make([]common.Address, len(validators))
+		for round := uint64(0); round < 100; round++ {
+			proposer := selector(valSet, lastProposer, round)
+			index := round % uint64(len(validators))
+			if want := order[index]; want != (common.Address{}) {
+				if proposer.Address() != want {
+					t.Errorf("proposer mismatch on round %d: have %v, want %v", round, proposer.Address(), want)
+				}
+			} else {
+				order[index] = proposer.Address()
+			}
+		}
+	})
+
+	// Verify that the ordering is a stable round robin during sequence advancement.
+	t.Run("sequence advancement", func(t *testing.T) {
+		var lastProposer common.Address
+		order := make([]common.Address, len(validators))
+		for seq := 0; seq < 100; seq++ {
+			proposer := selector(valSet, lastProposer, 0)
+			index := seq % len(validators)
+			if want := order[index]; want != (common.Address{}) {
+				if proposer.Address() != want {
+					t.Errorf("proposer mismatch on sequence %d: have %v, want %v", seq, proposer.Address(), want)
+				}
+			} else {
+				order[index] = proposer.Address()
+			}
+		}
+	})
 }

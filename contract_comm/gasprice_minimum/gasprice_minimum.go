@@ -23,10 +23,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -101,11 +101,9 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 			return FallbackGasPriceMinimum, nil
 		}
 		if err == errors.ErrNoInternalEvmHandlerSingleton {
-			log.Error(err.Error())
 			return FallbackGasPriceMinimum, nil
 		}
 		if err != nil {
-			log.Error(err.Error())
 			return FallbackGasPriceMinimum, err
 		}
 	} else {
@@ -124,6 +122,12 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 		state,
 	)
 
+	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+		return FallbackGasPriceMinimum, nil
+	}
+	if err == errors.ErrNoInternalEvmHandlerSingleton {
+		return FallbackGasPriceMinimum, nil
+	}
 	if err != nil {
 		return FallbackGasPriceMinimum, err
 	}
@@ -134,12 +138,15 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
+	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by contract_comm
+	gasLimit, _ := blockchain_parameters.GetBlockGasLimit(header, state)
+
 	_, err := contract_comm.MakeCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
 		[]interface{}{big.NewInt(int64(header.GasUsed)),
-			big.NewInt(int64(header.GasLimit))},
+			big.NewInt(int64(gasLimit))},
 		&updatedGasPriceMinimum,
 		params.MaxGasForUpdateGasPriceMinimum,
 		big.NewInt(0),

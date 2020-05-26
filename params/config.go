@@ -17,49 +17,64 @@
 package params
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
-	TestnetGenesisHash = common.HexToHash("0x41941023680923e0fe4d74a34bdac8141f2540e3ae90623718e47d66d1ca4a2d")
-	RinkebyGenesisHash = common.HexToHash("0x44db5b83538f4433990eb49a12c20f498851db46bf88e3140c1c802e355d0bcc")
+	MainnetGenesisHash   = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
+	AlfajoresGenesisHash = common.HexToHash("0xcdfbb05debfdbf4cb2f58c5a2e3915983898728188014f94728c4f72864652fc")
+	BaklavaGenesisHash   = common.HexToHash("0x09bb180829b78343cc752e110c2ece86dad46904ffad9a5791b3440f140f1d7f")
 )
+
+var (
+	MainnetNetworkId   = uint64(42220)
+	BaklavaNetworkId   = uint64(40120)
+	AlfajoresNetworkId = uint64(44786)
+)
+
+var NetworkIdHelp = fmt.Sprintf("Mainnet=%v, Baklava=%v, Alfajores=%v", MainnetNetworkId, BaklavaNetworkId, AlfajoresNetworkId)
+
+// TrustedCheckpoints associates each known checkpoint with the genesis hash of
+// the chain it belongs to.
+var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{}
+
+// CheckpointOracles associates each known checkpoint oracles with the genesis hash of
+// the chain it belongs to.
+var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{}
 
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(1),
-		HomesteadBlock:      big.NewInt(1150000),
-		DAOForkBlock:        big.NewInt(1920000),
+		ChainID:             big.NewInt(int64(MainnetNetworkId)),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(2463000),
-		EIP150Hash:          common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
-		EIP155Block:         big.NewInt(2675000),
-		EIP158Block:         big.NewInt(2675000),
-		ByzantiumBlock:      big.NewInt(4370000),
-		ConstantinopleBlock: big.NewInt(7280000),
-		PetersburgBlock:     big.NewInt(7280000),
-		Ethash:              new(EthashConfig),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
+		},
+		NoMintGold:   false,
+		UseOldFormat: false,
 	}
 
-	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
-	MainnetTrustedCheckpoint = &TrustedCheckpoint{
-		Name:         "mainnet",
-		SectionIndex: 216,
-		SectionHead:  common.HexToHash("0xae3e551c8d60d06fd411a8e6008e90625d3bb0cbbf664b65d5ed90b318553541"),
-		CHTRoot:      common.HexToHash("0xeea7d2ab3545a37deecc66fc43c9556ae337c3ea1c6893e401428207bdb8e434"),
-		BloomRoot:    common.HexToHash("0xb0d4176d160d67b99a9f963281e52bce0583a566b74b4497fe3ed24ae04004ff"),
-	}
-
-	// TestnetChainConfig contains the chain parameters to run a node on the Ropsten test network.
+	// TestnetChainConfig is left here until Baklava or Alfajores are up to date with the mainnet
 	TestnetChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(3),
+		ChainID:             big.NewInt(321),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -70,49 +85,16 @@ var (
 		ByzantiumBlock:      big.NewInt(1700000),
 		ConstantinopleBlock: big.NewInt(4230000),
 		PetersburgBlock:     big.NewInt(4939394),
-		Ethash:              new(EthashConfig),
-	}
-
-	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
-	TestnetTrustedCheckpoint = &TrustedCheckpoint{
-		Name:         "testnet",
-		SectionIndex: 148,
-		SectionHead:  common.HexToHash("0x4d3181bedb6aa96a6f3efa866c71f7802400d0fb4a6906946c453630d850efc0"),
-		CHTRoot:      common.HexToHash("0x25df2f9d63a5f84b2852988f0f0f7af5a7877da061c11b85c812780b5a27a5ec"),
-		BloomRoot:    common.HexToHash("0x0584834e5222471a06c669d210e302ca602780eaaddd04634fd65471c2a91419"),
-	}
-
-	// RinkebyChainConfig contains the chain parameters to run a node on the Rinkeby test network.
-	RinkebyChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(4),
-		HomesteadBlock:      big.NewInt(1),
-		DAOForkBlock:        nil,
-		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(2),
-		EIP150Hash:          common.HexToHash("0x9b095b36c15eaf13044373aef8ee0bd3a382a5abb92e402afa44b8249c3a90e9"),
-		EIP155Block:         big.NewInt(3),
-		EIP158Block:         big.NewInt(3),
-		ByzantiumBlock:      big.NewInt(1035301),
-		ConstantinopleBlock: big.NewInt(3660663),
-		PetersburgBlock:     big.NewInt(9999999), //TODO! Insert Rinkeby block number
-		Clique: &CliqueConfig{
-			Period: 15,
-			Epoch:  30000,
+		IstanbulBlock:       big.NewInt(6485846),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 0,
 		},
 	}
 
-	// RinkebyTrustedCheckpoint contains the light client trusted checkpoint for the Rinkeby test network.
-	RinkebyTrustedCheckpoint = &TrustedCheckpoint{
-		Name:         "rinkeby",
-		SectionIndex: 113,
-		SectionHead:  common.HexToHash("0xb812f3095af3af1cb2de7d7c2086ee807736a7315992c461b0986699185daf77"),
-		CHTRoot:      common.HexToHash("0x5416d0924925eb835987ad3d1f059ecc66778c51959c8246a7a35b22ec5f3109"),
-		BloomRoot:    common.HexToHash("0xcf74ca2c14e843b366561dab4fc64237bf6bb335119cbc97d723f3b501863470"),
-	}
-
-	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
-	GoerliChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(5),
+	// BaklavaChainConfig contains the chain parameters to run a node on the Baklava test network.
+	BaklavaChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(int64(BaklavaNetworkId)),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -122,57 +104,48 @@ var (
 		ByzantiumBlock:      big.NewInt(0),
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
-		Clique: &CliqueConfig{
-			Period: 15,
-			Epoch:  30000,
+		IstanbulBlock:       big.NewInt(0),
+		Istanbul: &IstanbulConfig{
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
 		},
+		NoMintGold:   true,
+		UseOldFormat: true,
 	}
 
-	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
-	GoerliTrustedCheckpoint = &TrustedCheckpoint{
-		Name:         "goerli",
-		SectionIndex: 0,
-		SectionHead:  common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
-		CHTRoot:      common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
-		BloomRoot:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
-	}
-
-	// OttomanChainConfig contains the chain parameters to run a node on the Ottoman test network.
-	OttomanChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(5),
-		HomesteadBlock:      big.NewInt(1),
+	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
+	AlfajoresChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(int64(AlfajoresNetworkId)),
+		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(2),
-		EIP150Hash:          common.HexToHash("0x9b095b36c15eaf13044373aef8ee0bd3a382a5abb92e402afa44b8249c3a90e9"),
-		EIP155Block:         big.NewInt(3),
-		EIP158Block:         big.NewInt(3),
-		ByzantiumBlock:      big.NewInt(math.MaxInt64), // Don't enable yet
-		ConstantinopleBlock: big.NewInt(math.MaxInt64), // Don't enable yet
-		PetersburgBlock:     big.NewInt(math.MaxInt64), // Don't enable yet
-
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(math.MaxInt64),
 		Istanbul: &IstanbulConfig{
-			Epoch:          30000,
-			ProposerPolicy: 0,
+			Epoch:          17280,
+			ProposerPolicy: 2,
+			LookbackWindow: 12,
 		},
+		NoMintGold:   false,
+		UseOldFormat: true,
 	}
 
-	// AllEthashProtocolChanges contains every protocol change (EIPs) introduced
-	// and accepted by the Ethereum core developers into the Ethash consensus.
-	//
-	// This configuration is intentionally not using keyed fields to force anyone
-	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, new(EthashConfig), nil, nil, true}
+	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+		Epoch:          30000,
+		ProposerPolicy: 0,
+	}, true, false, false, false}
 
-	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
-	// and accepted by the Ethereum core developers into the Clique consensus.
-	//
-	// This configuration is intentionally not using keyed fields to force anyone
-	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, true}
-
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, new(EthashConfig), nil, nil, true}
-	TestRules       = TestChainConfig.Rules(new(big.Int))
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+		Epoch:          30000,
+		ProposerPolicy: 0,
+	}, true, true, false, false}
+	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -180,11 +153,41 @@ var (
 // used to start light syncing from this checkpoint and avoid downloading the
 // entire header chain while still being able to securely access old headers/logs.
 type TrustedCheckpoint struct {
-	Name         string      `json:"-"`
 	SectionIndex uint64      `json:"sectionIndex"`
 	SectionHead  common.Hash `json:"sectionHead"`
 	CHTRoot      common.Hash `json:"chtRoot"`
 	BloomRoot    common.Hash `json:"bloomRoot"`
+}
+
+// HashEqual returns an indicator comparing the itself hash with given one.
+func (c *TrustedCheckpoint) HashEqual(hash common.Hash) bool {
+	if c.Empty() {
+		return hash == common.Hash{}
+	}
+	return c.Hash() == hash
+}
+
+// Hash returns the hash of checkpoint's four key fields(index, sectionHead, chtRoot and bloomTrieRoot).
+func (c *TrustedCheckpoint) Hash() common.Hash {
+	buf := make([]byte, 8+3*common.HashLength)
+	binary.BigEndian.PutUint64(buf, c.SectionIndex)
+	copy(buf[8:], c.SectionHead.Bytes())
+	copy(buf[8+common.HashLength:], c.CHTRoot.Bytes())
+	copy(buf[8+2*common.HashLength:], c.BloomRoot.Bytes())
+	return crypto.Keccak256Hash(buf)
+}
+
+// Empty returns an indicator whether the checkpoint is regarded as empty.
+func (c *TrustedCheckpoint) Empty() bool {
+	return c.SectionHead == (common.Hash{}) || c.CHTRoot == (common.Hash{}) || c.BloomRoot == (common.Hash{})
+}
+
+// CheckpointOracleConfig represents a set of checkpoint contract(which acts as an oracle)
+// config which used for light client checkpoint syncing.
+type CheckpointOracleConfig struct {
+	Address   common.Address   `json:"address"`
+	Signers   []common.Address `json:"signers"`
+	Threshold uint64           `json:"threshold"`
 }
 
 // ChainConfig is the core config which determines the blockchain settings.
@@ -192,6 +195,8 @@ type TrustedCheckpoint struct {
 // ChainConfig is stored in the database on a per block basis. This means
 // that any network, identified by its genesis block, can have its own
 // set of configuration options.
+// This configuration is intentionally not using keyed fields to force anyone
+// adding flags to the config to also have to set these fields.
 type ChainConfig struct {
 	ChainID *big.Int `json:"chainId"` // chainId identifies the current chain and is used for replay protection
 
@@ -210,34 +215,20 @@ type ChainConfig struct {
 	ByzantiumBlock      *big.Int `json:"byzantiumBlock,omitempty"`      // Byzantium switch block (nil = no fork, 0 = already on byzantium)
 	ConstantinopleBlock *big.Int `json:"constantinopleBlock,omitempty"` // Constantinople switch block (nil = no fork, 0 = already activated)
 	PetersburgBlock     *big.Int `json:"petersburgBlock,omitempty"`     // Petersburg switch block (nil = same as Constantinople)
+	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
 
-	// Various consensus engines
-	Ethash   *EthashConfig   `json:"ethash,omitempty"`
-	Clique   *CliqueConfig   `json:"clique,omitempty"`
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
+
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
-	FullHeaderChainAvailable bool // False for ultralight Sync mode, true otherwise
-}
+	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
 
-// EthashConfig is the consensus engine configs for proof-of-work based sealing.
-type EthashConfig struct{}
+	// Requests mock engine if true
+	Faker bool `json:"faker,omitempty"`
 
-// String implements the stringer interface, returning the consensus engine details.
-func (c *EthashConfig) String() string {
-	return "ethash"
-}
-
-// CliqueConfig is the consensus engine configs for proof-of-authority based sealing.
-type CliqueConfig struct {
-	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
-	Epoch  uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
-}
-
-// String implements the stringer interface, returning the consensus engine details.
-func (c *CliqueConfig) String() string {
-	return "clique"
+	NoMintGold   bool `json:"noMintGold,omitempty"`
+	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
@@ -255,17 +246,16 @@ func (c *IstanbulConfig) String() string {
 // String implements the fmt.Stringer interface.
 func (c *ChainConfig) String() string {
 	var engine interface{}
-	switch {
-	case c.Ethash != nil:
-		engine = c.Ethash
-	case c.Clique != nil:
-		engine = c.Clique
-	case c.Istanbul != nil:
-		engine = c.Istanbul
-	default:
-		engine = "unknown"
+	if !c.Faker {
+		if c.Istanbul != nil {
+			engine = c.Istanbul
+		} else {
+			engine = "unknown"
+		}
+	} else {
+		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v  ConstantinopleFix: %v Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -276,6 +266,7 @@ func (c *ChainConfig) String() string {
 		c.ByzantiumBlock,
 		c.ConstantinopleBlock,
 		c.PetersburgBlock,
+		c.IstanbulBlock,
 		engine,
 	)
 }
@@ -322,28 +313,14 @@ func (c *ChainConfig) IsPetersburg(num *big.Int) bool {
 	return isForked(c.PetersburgBlock, num) || c.PetersburgBlock == nil && isForked(c.ConstantinopleBlock, num)
 }
 
+// IsIstanbul returns whether num is either equal to the Istanbul fork block or greater.
+func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
+	return isForked(c.IstanbulBlock, num)
+}
+
 // IsEWASM returns whether num represents a block number after the EWASM fork
 func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 	return isForked(c.EWASMBlock, num)
-}
-
-// GasTable returns the gas table corresponding to the current phase (homestead or homestead reprice).
-//
-// The returned GasTable's fields shouldn't, under any circumstances, be changed.
-func (c *ChainConfig) GasTable(num *big.Int) GasTable {
-	if num == nil {
-		return GasTableHomestead
-	}
-	switch {
-	case c.IsConstantinople(num):
-		return GasTableConstantinople
-	case c.IsEIP158(num):
-		return GasTableEIP158
-	case c.IsEIP150(num):
-		return GasTableEIP150
-	default:
-		return GasTableHomestead
-	}
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -362,6 +339,42 @@ func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *Confi
 		bhead.SetUint64(err.RewindTo)
 	}
 	return lasterr
+}
+
+// CheckConfigForkOrder checks that we don't "skip" any forks, geth isn't pluggable enough
+// to guarantee that forks can be implemented in a different order than on official networks
+func (c *ChainConfig) CheckConfigForkOrder() error {
+	type fork struct {
+		name  string
+		block *big.Int
+	}
+	var lastFork fork
+	for _, cur := range []fork{
+		{"homesteadBlock", c.HomesteadBlock},
+		{"eip150Block", c.EIP150Block},
+		{"eip155Block", c.EIP155Block},
+		{"eip158Block", c.EIP158Block},
+		{"byzantiumBlock", c.ByzantiumBlock},
+		{"constantinopleBlock", c.ConstantinopleBlock},
+		{"petersburgBlock", c.PetersburgBlock},
+		{"istanbulBlock", c.IstanbulBlock},
+	} {
+		if lastFork.name != "" {
+			// Next one must be higher number
+			if lastFork.block == nil && cur.block != nil {
+				return fmt.Errorf("unsupported fork ordering: %v not enabled, but %v enabled at %v",
+					lastFork.name, cur.name, cur.block)
+			}
+			if lastFork.block != nil && cur.block != nil {
+				if lastFork.block.Cmp(cur.block) > 0 {
+					return fmt.Errorf("unsupported fork ordering: %v enabled at %v, but %v enabled at %v",
+						lastFork.name, lastFork.block, cur.name, cur.block)
+				}
+			}
+		}
+		lastFork = cur
+	}
+	return nil
 }
 
 func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *ConfigCompatError {
@@ -393,7 +406,10 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 		return newCompatError("Constantinople fork block", c.ConstantinopleBlock, newcfg.ConstantinopleBlock)
 	}
 	if isForkIncompatible(c.PetersburgBlock, newcfg.PetersburgBlock, head) {
-		return newCompatError("ConstantinopleFix fork block", c.PetersburgBlock, newcfg.PetersburgBlock)
+		return newCompatError("Petersburg fork block", c.PetersburgBlock, newcfg.PetersburgBlock)
+	}
+	if isForkIncompatible(c.IstanbulBlock, newcfg.IstanbulBlock, head) {
+		return newCompatError("Istanbul fork block", c.IstanbulBlock, newcfg.IstanbulBlock)
 	}
 	if isForkIncompatible(c.EWASMBlock, newcfg.EWASMBlock, head) {
 		return newCompatError("ewasm fork block", c.EWASMBlock, newcfg.EWASMBlock)
@@ -462,9 +478,9 @@ func (err *ConfigCompatError) Error() string {
 // Rules is a one time interface meaning that it shouldn't be used in between transition
 // phases.
 type Rules struct {
-	ChainID                                     *big.Int
-	IsHomestead, IsEIP150, IsEIP155, IsEIP158   bool
-	IsByzantium, IsConstantinople, IsPetersburg bool
+	ChainID                                                 *big.Int
+	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
+	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -482,5 +498,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsByzantium:      c.IsByzantium(num),
 		IsConstantinople: c.IsConstantinople(num),
 		IsPetersburg:     c.IsPetersburg(num),
+		IsIstanbul:       c.IsIstanbul(num),
 	}
 }

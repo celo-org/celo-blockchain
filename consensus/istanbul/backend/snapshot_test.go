@@ -24,16 +24,14 @@ import (
 	"sort"
 	"testing"
 
-	bls "github.com/celo-org/bls-zexe/go"
-	ethAccounts "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -63,7 +61,7 @@ func (ap *testerAccountPool) sign(header *types.Header, validator string) {
 		ap.accounts[validator], _ = crypto.GenerateKey()
 	}
 	// Sign the header and embed the signature in extra data
-	hashData := crypto.Keccak256([]byte(sigHash(header).Bytes()))
+	hashData := crypto.Keccak256(sigHash(header).Bytes())
 	sig, _ := crypto.Sign(hashData, ap.accounts[validator])
 
 	writeSeal(header, sig)
@@ -79,15 +77,6 @@ func (ap *testerAccountPool) address(account string) common.Address {
 	}
 	// Resolve and return the Ethereum address
 	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
-}
-
-func indexOf(element string, data []string) int {
-	for k, v := range data {
-		if element == v {
-			return k
-		}
-	}
-	return -1 //not found.
 }
 
 func convertValNamesToRemovedValidators(accounts *testerAccountPool, oldVals []istanbul.ValidatorData, valNames []string) *big.Int {
@@ -118,8 +107,8 @@ func convertValNamesToValidatorsData(accounts *testerAccountPool, valNames []str
 
 	for i, valName := range valNames {
 		returnArray[i] = istanbul.ValidatorData{
-			accounts.address(valName),
-			nil,
+			Address:      accounts.address(valName),
+			BLSPublicKey: blscrypto.SerializedPublicKey{},
 		}
 	}
 
@@ -232,16 +221,14 @@ func TestValSetChange(t *testing.T) {
 		validators := make([]istanbul.ValidatorData, len(tt.validators))
 		for j, validator := range tt.validators {
 			validators[j] = istanbul.ValidatorData{
-				accounts.address(validator),
-				nil,
+				Address:      accounts.address(validator),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			}
 		}
 
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
-			Difficulty: defaultDifficulty,
-			Mixhash:    types.IstanbulDigest,
-			Config:     params.TestChainConfig,
+			Config: params.DefaultChainConfig,
 		}
 		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
 		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
@@ -252,7 +239,7 @@ func TestValSetChange(t *testing.T) {
 			t.Errorf("Could not update genesis validator set, got err: %v", err)
 		}
 		genesis.ExtraData = h.Extra
-		db := ethdb.NewMemDatabase()
+		db := rawdb.NewMemoryDatabase()
 
 		config := istanbul.DefaultConfig
 		if tt.epoch != 0 {
@@ -267,63 +254,8 @@ func TestValSetChange(t *testing.T) {
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		signerFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
-			return crypto.Sign(data, privateKey)
-		}
 
-		signerBLSHashFn := func(_ ethAccounts.Account, data []byte) ([]byte, error) {
-			key := privateKey
-			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-			if err != nil {
-				return nil, err
-			}
-
-			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-			if err != nil {
-				return nil, err
-			}
-			defer privateKey.Destroy()
-
-			signature, err := privateKey.SignMessage(data, []byte{}, false)
-			if err != nil {
-				return nil, err
-			}
-			defer signature.Destroy()
-			signatureBytes, err := signature.Serialize()
-			if err != nil {
-				return nil, err
-			}
-
-			return signatureBytes, nil
-		}
-
-		signerBLSMessageFn := func(_ ethAccounts.Account, data []byte, extraData []byte) ([]byte, error) {
-			key := privateKey
-			privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
-			if err != nil {
-				return nil, err
-			}
-
-			privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
-			if err != nil {
-				return nil, err
-			}
-			defer privateKey.Destroy()
-
-			signature, err := privateKey.SignMessage(data, extraData, true)
-			if err != nil {
-				return nil, err
-			}
-			defer signature.Destroy()
-			signatureBytes, err := signature.Serialize()
-			if err != nil {
-				return nil, err
-			}
-
-			return signatureBytes, nil
-		}
-
-		engine.Authorize(address, signerFn, signerBLSHashFn, signerBLSMessageFn)
+		engine.Authorize(address, &privateKey.PublicKey, decryptFn, SignFn(privateKey), SignBLSFn(privateKey))
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 
@@ -333,10 +265,8 @@ func TestValSetChange(t *testing.T) {
 		var snap *Snapshot
 		for j, valsetdiff := range tt.valsetdiffs {
 			header := &types.Header{
-				Number:     big.NewInt(int64(j) + 1),
-				Time:       big.NewInt(int64(j) * int64(config.BlockPeriod)),
-				Difficulty: defaultDifficulty,
-				MixDigest:  types.IstanbulDigest,
+				Number: big.NewInt(int64(j) + 1),
+				Time:   uint64(j) * config.BlockPeriod,
 			}
 
 			var buf bytes.Buffer
@@ -352,11 +282,10 @@ func TestValSetChange(t *testing.T) {
 
 			ist := &types.IstanbulExtra{
 				AddedValidators:           convertValNames(accounts, valsetdiff.addedValidators),
-				AddedValidatorsPublicKeys: make([][]byte, len(valsetdiff.addedValidators)),
+				AddedValidatorsPublicKeys: make([]blscrypto.SerializedPublicKey, len(valsetdiff.addedValidators)),
 				RemovedValidators:         convertValNamesToRemovedValidators(accounts, oldVals, valsetdiff.removedValidators),
 				AggregatedSeal:            types.IstanbulAggregatedSeal{},
 				ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
-				EpochData:                 []byte{},
 			}
 
 			payload, err := rlp.EncodeToBytes(&ist)
@@ -393,8 +322,8 @@ func TestValSetChange(t *testing.T) {
 		validators = make([]istanbul.ValidatorData, len(tt.results))
 		for j, validator := range tt.results {
 			validators[j] = istanbul.ValidatorData{
-				accounts.address(validator),
-				nil,
+				Address:      accounts.address(validator),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			}
 		}
 		result := snap.validators()
@@ -420,16 +349,16 @@ func TestSaveAndLoad(t *testing.T) {
 		Hash:   common.HexToHash("1234567890"),
 		ValSet: validator.NewSet([]istanbul.ValidatorData{
 			{
-				common.BytesToAddress([]byte("1234567894")),
-				nil,
+				Address:      common.BytesToAddress([]byte("1234567894")),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 			{
-				common.BytesToAddress([]byte("1234567895")),
-				nil,
+				Address:      common.BytesToAddress([]byte("1234567895")),
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		}),
 	}
-	db := ethdb.NewMemDatabase()
+	db := rawdb.NewMemoryDatabase()
 	err := snap.store(db)
 	if err != nil {
 		t.Errorf("store snapshot failed: %v", err)

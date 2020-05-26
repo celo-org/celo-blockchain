@@ -23,19 +23,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 func TestDefaults(t *testing.T) {
 	cfg := new(Config)
 	setDefaults(cfg)
-
-	if cfg.Difficulty == nil {
-		t.Error("expected difficulty to be non nil")
-	}
 
 	if cfg.Time == nil {
 		t.Error("expected time to be non nil")
@@ -65,9 +61,7 @@ func TestEVM(t *testing.T) {
 	}()
 
 	Execute([]byte{
-		byte(vm.DIFFICULTY),
 		byte(vm.TIMESTAMP),
-		byte(vm.GASLIMIT),
 		byte(vm.PUSH1),
 		byte(vm.ORIGIN),
 		byte(vm.BLOCKHASH),
@@ -95,7 +89,7 @@ func TestExecute(t *testing.T) {
 }
 
 func TestCall(t *testing.T) {
-	state, _ := state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
+	state, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	address := common.HexToAddress("0x0a")
 	state.SetCode(address, []byte{
 		byte(vm.PUSH1), 10,
@@ -151,7 +145,7 @@ func BenchmarkCall(b *testing.B) {
 }
 func benchmarkEVM_Create(bench *testing.B, code string) {
 	var (
-		statedb, _ = state.New(common.Hash{}, state.NewDatabase(ethdb.NewMemDatabase()))
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 		sender     = common.BytesToAddress([]byte("sender"))
 		receiver   = common.BytesToAddress([]byte("receiver"))
 	)
@@ -162,7 +156,6 @@ func benchmarkEVM_Create(bench *testing.B, code string) {
 		Origin:      sender,
 		State:       statedb,
 		GasLimit:    10000000,
-		Difficulty:  big.NewInt(0x200000),
 		Time:        new(big.Int).SetUint64(0),
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(1),

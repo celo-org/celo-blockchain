@@ -48,8 +48,7 @@ func NewStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consen
 }
 
 // Process processes the state changes according to the Ethereum rules by running
-// the transaction messages using the statedb and applying any rewards to both
-// the processor (coinbase) and any included uncles.
+// the transaction messages using the statedb and applying any rewards to the processor (coinbase).
 //
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
@@ -60,7 +59,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		usedGas  = new(uint64)
 		header   = block.Header()
 		allLogs  []*types.Log
-		gp       = new(GasPool).AddGas(block.GasLimit())
+		gp       = new(GasPool).AddGas(CalcGasLimit(block, statedb))
 	)
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -72,11 +71,13 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			return nil, nil, 0, err
 		}
+		// always true (EIP158)
+		statedb.IntermediateRoot(true)
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, _, err := ApplyTransaction(p.config, p.bc, nil, gp, header, statedb, tx, usedGas, cfg)
+		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -85,7 +86,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	statedb.Prepare(common.Hash{}, block.Hash(), len(block.Transactions()))
-	p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), receipts, block.Randomness())
+	p.engine.Finalize(p.bc, header, statedb, block.Transactions())
 
 	if len(statedb.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
@@ -105,10 +106,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *common.Address, gp *GasPool, header *types.Header, statedb *state.StateDB, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, uint64, error) {
+func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	// Create a new context to be used in the EVM environment
@@ -120,7 +121,7 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *co
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	// Update the state with pending changes
 	var root []byte
@@ -143,5 +144,9 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *co
 	// Set the receipt logs and create a bloom for filtering
 	receipt.Logs = statedb.GetLogs(tx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-	return receipt, gas, err
+	receipt.BlockHash = statedb.BlockHash()
+	receipt.BlockNumber = header.Number
+	receipt.TransactionIndex = uint(statedb.TxIndex())
+
+	return receipt, err
 }

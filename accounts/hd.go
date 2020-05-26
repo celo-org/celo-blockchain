@@ -17,6 +17,7 @@
 package accounts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -25,19 +26,19 @@ import (
 )
 
 // DefaultRootDerivationPath is the root path to which custom derivation endpoints
-// are appended. As such, the first account will be at m/44'/60'/0'/0, the second
-// at m/44'/60'/0'/1, etc.
-var DefaultRootDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 60, 0x80000000 + 0, 0}
+// are appended. As such, the first account will be at m/44'/52752'/0'/0, the second
+// at m/44'/52752'/0'/1, etc.
+var DefaultRootDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 52752, 0x80000000 + 0, 0}
 
 // DefaultBaseDerivationPath is the base path from which custom derivation endpoints
-// are incremented. As such, the first account will be at m/44'/60'/0'/0/0, the second
-// at m/44'/60'/0'/0/1, etc.
-var DefaultBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 60, 0x80000000 + 0, 0, 0}
+// are incremented. As such, the first account will be at m/44'/52752'/0'/0/0, the second
+// at m/44'/52752'/0'/0/1, etc.
+var DefaultBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 52752, 0x80000000 + 0, 0, 0}
 
-// DefaultLedgerBaseDerivationPath is the base path from which custom derivation endpoints
-// are incremented. As such, the first account will be at m/44'/60'/0'/0, the second
-// at m/44'/60'/0'/1, etc.
-var DefaultLedgerBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 60, 0x80000000 + 0, 0}
+// LegacyLedgerBaseDerivationPath is the legacy base path from which custom derivation
+// endpoints are incremented. As such, the first account will be at m/44'/52752'/0'/0, the
+// second at m/44'/52752'/0'/1, etc.
+var LegacyLedgerBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 + 52752, 0x80000000 + 0, 0}
 
 // DerivationPath represents the computer friendly version of a hierarchical
 // deterministic wallet account derivaion path.
@@ -50,9 +51,9 @@ var DefaultLedgerBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000
 // The BIP-44 spec https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
 // defines that the `purpose` be 44' (or 0x8000002C) for crypto currencies, and
 // SLIP-44 https://github.com/satoshilabs/slips/blob/master/slip-0044.md assigns
-// the `coin_type` 60' (or 0x8000003C) to Ethereum.
+// the `coin_type` 52752' (or 0x8000003C) to Celo.
 //
-// The root path for Ethereum is m/44'/60'/0'/0 according to the specification
+// The root path for Celo is m/44'/52752'/0'/0 according to the specification
 // from https://github.com/ethereum/EIPs/issues/84, albeit it's not set in stone
 // yet whether accounts should increment the last component or the children of
 // that. We will go with the simpler approach of incrementing the last component.
@@ -132,4 +133,20 @@ func (path DerivationPath) String() string {
 		}
 	}
 	return result
+}
+
+// MarshalJSON turns a derivation path into its json-serialized string
+func (path DerivationPath) MarshalJSON() ([]byte, error) {
+	return json.Marshal(path.String())
+}
+
+// UnmarshalJSON a json-serialized string back into a derivation path
+func (path *DerivationPath) UnmarshalJSON(b []byte) error {
+	var dp string
+	var err error
+	if err = json.Unmarshal(b, &dp); err != nil {
+		return err
+	}
+	*path, err = ParseDerivationPath(dp)
+	return err
 }

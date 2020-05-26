@@ -88,14 +88,15 @@ type headerFilterTask struct {
 	time    time.Time       // Arrival time of the headers
 }
 
-// bodyFilterTask represents a batch of block bodies (transactions and uncles)
+// bodyFilterTask represents a batch of block bodies
 // needing fetcher filtering.
 type bodyFilterTask struct {
-	peer         string                 // The source peer of block bodies
-	transactions [][]*types.Transaction // Collection of transactions per block bodies
-	uncles       [][]*types.Header      // Collection of uncles per block bodies
-	randomness   []*types.Randomness
-	time         time.Time // Arrival time of the blocks' contents
+	peer           string // The source peer of block bodies
+	blockHashes    []common.Hash
+	transactions   [][]*types.Transaction // Collection of transactions per block bodies
+	randomness     []*types.Randomness
+	epochSnarkData []*types.EpochSnarkData
+	time           time.Time // Arrival time of the blocks' contents
 }
 
 // inject represents a schedules import operation.
@@ -111,7 +112,6 @@ type Fetcher struct {
 	notify chan *announce
 	inject chan *inject
 
-	blockFilter  chan chan []*types.Block
 	headerFilter chan chan *headerFilterTask
 	bodyFilter   chan chan *bodyFilterTask
 
@@ -151,7 +151,6 @@ func New(getBlock blockRetrievalFn, verifyHeader headerVerifierFn, broadcastBloc
 	return &Fetcher{
 		notify:         make(chan *announce),
 		inject:         make(chan *inject),
-		blockFilter:    make(chan chan []*types.Block),
 		headerFilter:   make(chan chan *headerFilterTask),
 		bodyFilter:     make(chan chan *bodyFilterTask),
 		done:           make(chan common.Hash),
@@ -249,8 +248,8 @@ func (f *Fetcher) FilterHeaders(peer string, headers []*types.Header, time time.
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, randomness []*types.Randomness, time time.Time) ([][]*types.Transaction, [][]*types.Header, []*types.Randomness) {
-	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions), "uncles", len(uncles))
+func (f *Fetcher) FilterBodies(peer string, blockHashes []common.Hash, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData, time time.Time) ([]common.Hash, [][]*types.Transaction, []*types.Randomness, []*types.EpochSnarkData) {
+	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *bodyFilterTask)
@@ -258,20 +257,20 @@ func (f *Fetcher) FilterBodies(peer string, transactions [][]*types.Transaction,
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, randomness: randomness, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, blockHashes: blockHashes, transactions: transactions, randomness: randomness, epochSnarkData: epochSnarkData, time: time}:
 	case <-f.quit:
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.transactions, task.uncles, task.randomness
+		return task.blockHashes, task.transactions, task.randomness, task.epochSnarkData
 	case <-f.quit:
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 }
 
@@ -506,21 +505,18 @@ func (f *Fetcher) loop() {
 			bodyFilterInMeter.Mark(int64(len(task.transactions)))
 
 			blocks := []*types.Block{}
-			for i := 0; i < len(task.transactions) && i < len(task.uncles) && i < len(task.randomness); i++ {
+			for i := 0; i < len(task.blockHashes) && i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
 				// Match up a body to any possible completion request
 				matched := false
 
 				for hash, announce := range f.completing {
 					if f.queued[hash] == nil {
-						txnHash := types.DeriveSha(types.Transactions(task.transactions[i]))
-						uncleHash := types.CalcUncleHash(task.uncles[i])
-
-						if txnHash == announce.header.TxHash && uncleHash == announce.header.UncleHash && announce.origin == task.peer {
+						if task.blockHashes[i] == announce.header.Hash() && announce.origin == task.peer {
 							// Mark the body matched, reassemble if still unknown
 							matched = true
 
 							if f.getBlock(hash) == nil {
-								block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.uncles[i], task.randomness[i])
+								block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.randomness[i], task.epochSnarkData[i])
 								block.ReceivedAt = task.time
 
 								blocks = append(blocks, block)
@@ -531,9 +527,10 @@ func (f *Fetcher) loop() {
 					}
 				}
 				if matched {
+					task.blockHashes = append(task.blockHashes[:i], task.blockHashes[i+1:]...)
 					task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
-					task.uncles = append(task.uncles[:i], task.uncles[i+1:]...)
 					task.randomness = append(task.randomness[:i], task.randomness[i+1:]...)
+					task.epochSnarkData = append(task.epochSnarkData[:i], task.epochSnarkData[i+1:]...)
 					i--
 					continue
 				}
@@ -595,7 +592,7 @@ func (f *Fetcher) enqueue(peer string, block *types.Block) {
 	// Ensure the peer isn't DOSing us
 	count := f.queues[peer] + 1
 	if count > blockLimit {
-		log.Debug("Discarded propagated block, exceeded allowance", "peer", peer, "number", block.Number(), "hash", hash, "limit", blockLimit)
+		log.Info("Discarded propagated block, exceeded allowance", "peer", peer, "number", block.Number(), "hash", hash, "limit", blockLimit)
 		propBroadcastDOSMeter.Mark(1)
 		f.forgetHash(hash)
 		return
@@ -678,7 +675,7 @@ func (f *Fetcher) forgetHash(hash common.Hash) {
 	// Remove all pending announces and decrement DOS counters
 	for _, announce := range f.announced[hash] {
 		f.announces[announce.origin]--
-		if f.announces[announce.origin] == 0 {
+		if f.announces[announce.origin] <= 0 {
 			delete(f.announces, announce.origin)
 		}
 	}
@@ -689,7 +686,7 @@ func (f *Fetcher) forgetHash(hash common.Hash) {
 	// Remove any pending fetches and decrement the DOS counters
 	if announce := f.fetching[hash]; announce != nil {
 		f.announces[announce.origin]--
-		if f.announces[announce.origin] == 0 {
+		if f.announces[announce.origin] <= 0 {
 			delete(f.announces, announce.origin)
 		}
 		delete(f.fetching, hash)
@@ -698,7 +695,7 @@ func (f *Fetcher) forgetHash(hash common.Hash) {
 	// Remove any pending completion requests and decrement the DOS counters
 	for _, announce := range f.fetched[hash] {
 		f.announces[announce.origin]--
-		if f.announces[announce.origin] == 0 {
+		if f.announces[announce.origin] <= 0 {
 			delete(f.announces, announce.origin)
 		}
 	}
@@ -707,7 +704,7 @@ func (f *Fetcher) forgetHash(hash common.Hash) {
 	// Remove any pending completions and decrement the DOS counters
 	if announce := f.completing[hash]; announce != nil {
 		f.announces[announce.origin]--
-		if f.announces[announce.origin] == 0 {
+		if f.announces[announce.origin] <= 0 {
 			delete(f.announces, announce.origin)
 		}
 		delete(f.completing, hash)

@@ -8,14 +8,18 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/celo-org/bls-zexe/go"
+	//nolint:goimports
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var (
+const (
 	PUBLICKEYBYTES = bls.PUBLICKEYBYTES
 	SIGNATUREBYTES = bls.SIGNATUREBYTES
 )
+
+type SerializedPublicKey [PUBLICKEYBYTES]byte
+type SerializedSignature [SIGNATUREBYTES]byte
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	for i := 0; i < 256; i++ {
@@ -70,31 +74,34 @@ func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	return nil, errors.New("couldn't derive a BLS key from an ECDSA key")
 }
 
-func PrivateToPublic(privateKeyBytes []byte) ([]byte, error) {
+func PrivateToPublic(privateKeyBytes []byte) (SerializedPublicKey, error) {
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 	defer privateKey.Destroy()
 
 	publicKey, err := privateKey.ToPublic()
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 	defer publicKey.Destroy()
 
 	pubKeyBytes, err := publicKey.Serialize()
 	if err != nil {
-		return nil, err
+		return SerializedPublicKey{}, err
 	}
 
-	return pubKeyBytes, nil
+	pubKeyBytesFixed := SerializedPublicKey{}
+	copy(pubKeyBytesFixed[:], pubKeyBytes)
+
+	return pubKeyBytesFixed, nil
 }
 
-func VerifyAggregatedSignature(publicKeys [][]byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
-		publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+		publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 		if err != nil {
 			return err
 		}
@@ -142,8 +149,8 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	return asigBytes, nil
 }
 
-func VerifySignature(publicKey []byte, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
-	publicKeyObj, err := bls.DeserializePublicKey(publicKey)
+func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+	publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 	if err != nil {
 		return err
 	}
@@ -157,4 +164,28 @@ func VerifySignature(publicKey []byte, message []byte, extraData []byte, signatu
 
 	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
 	return err
+}
+
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16) ([]byte, error) {
+	pubKeys := []*bls.PublicKey{}
+	for _, pubKey := range newValSet {
+		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
+		if err != nil {
+			return nil, err
+		}
+		defer publicKeyObj.Destroy()
+
+		pubKeys = append(pubKeys, publicKeyObj)
+	}
+
+	return bls.EncodeEpochToBytes(epochIndex, maximumNonSigners, pubKeys)
+}
+
+func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignature, error) {
+	if len(serializedSignature) != SIGNATUREBYTES {
+		return SerializedSignature{}, fmt.Errorf("wrong length for serialized signature: expected %d, got %d", SIGNATUREBYTES, len(serializedSignature))
+	}
+	signatureBytesFixed := SerializedSignature{}
+	copy(signatureBytesFixed[:], serializedSignature)
+	return signatureBytesFixed, nil
 }

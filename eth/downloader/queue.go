@@ -57,11 +57,11 @@ type fetchResult struct {
 	Pending int         // Number of data fetches still pending
 	Hash    common.Hash // Hash of the header to prevent recalculating
 
-	Header       *types.Header
-	Uncles       []*types.Header
-	Transactions types.Transactions
-	Receipts     types.Receipts
-	Randomness   *types.Randomness
+	Header         *types.Header
+	Transactions   types.Transactions
+	Receipts       types.Receipts
+	Randomness     *types.Randomness
+	EpochSnarkData *types.EpochSnarkData
 }
 
 // queue represents hashes that are either need fetching or are being fetched
@@ -387,9 +387,6 @@ func (q *queue) Results(block bool) []*fetchResult {
 		// Recalculate the result item weights to prevent memory exhaustion
 		for _, result := range results {
 			size := result.Header.Size()
-			for _, uncle := range result.Uncles {
-				size += uncle.Size()
-			}
 			for _, receipt := range result.Receipts {
 				size += receipt.Size()
 			}
@@ -766,17 +763,17 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 // DeliverBodies injects a block body retrieval response into the results queue.
 // The method returns the number of blocks bodies accepted from the delivery and
 // also wakes any threads waiting for data delivery.
-func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, uncleLists [][]*types.Header, randomnessList []*types.Randomness) (int, error) {
+func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomnessList []*types.Randomness, epochSnarkDataList []*types.EpochSnarkData) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
 	reconstruct := func(header *types.Header, index int, result *fetchResult) error {
-		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash || types.CalcUncleHash(uncleLists[index]) != header.UncleHash {
+		if types.DeriveSha(types.Transactions(txLists[index])) != header.TxHash {
 			return errInvalidBody
 		}
 		result.Transactions = txLists[index]
-		result.Uncles = uncleLists[index]
 		result.Randomness = randomnessList[index]
+		result.EpochSnarkData = epochSnarkDataList[index]
 		return nil
 	}
 	return q.deliver(id, q.blockTaskPool, q.blockTaskQueue, q.blockPendPool, q.blockDonePool, bodyReqTimer, len(txLists), reconstruct)

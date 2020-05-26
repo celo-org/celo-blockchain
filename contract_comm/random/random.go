@@ -1,6 +1,7 @@
 package random
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -101,6 +102,28 @@ const (
       "type": "function"
     }
 ]`
+
+	historicRandomAbi = `[
+    {
+      "constant": true,
+      "inputs": [
+		{
+			"name": "blockNumber",
+			"type": "uint256"
+		}
+	  ],
+      "name": "getBlockRandomness",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+]`
 )
 
 var (
@@ -108,6 +131,7 @@ var (
 	commitmentsFuncABI, _       = abi.JSON(strings.NewReader(commitmentsAbi))
 	computeCommitmentFuncABI, _ = abi.JSON(strings.NewReader(computeCommitmentAbi))
 	randomFuncABI, _            = abi.JSON(strings.NewReader(randomAbi))
+	historicRandomFuncABI, _    = abi.JSON(strings.NewReader(historicRandomAbi))
 	zeroValue                   = common.Big0
 	dbRandomnessPrefix          = []byte("db-randomness-prefix")
 )
@@ -150,7 +174,7 @@ func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *type
 
 	parentBlockHashBytes, err := (*db).Get(commitmentDbLocation(lastCommitment))
 	if err != nil {
-		log.Error("Failed to get last block proposed from database", "commitment", lastCommitment.Hex(), "err", err)
+		log.Warn("Failed to get last block proposed from database", "commitment", lastCommitment.Hex(), "err", err)
 		parentBlockHash := header.ParentHash
 		for {
 			blockHeader := chain.GetHeaderByHash(parentBlockHash)
@@ -171,6 +195,11 @@ func GenerateNewRandomnessAndCommitment(header *types.Header, state vm.StateDB, 
 	randomness := crypto.Keccak256Hash(append(seed, header.ParentHash.Bytes()...))
 	// TODO(asa): Make an issue to not have to do this via StaticCall
 	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment, header, state)
+	if err != nil {
+		log.Error("Failed to call computeCommitment()", "err", err)
+		return common.Hash{}, err
+	}
+
 	err = (*db).Put(commitmentDbLocation(commitment), header.ParentHash.Bytes())
 	if err != nil {
 		log.Error("Failed to save last block parentHash to the database", "err", err)
@@ -191,6 +220,12 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 // Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.
 func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
 	randomness := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForComputeCommitment, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForBlockRandomness, header, state)
+	return randomness, err
+}
+
+func BlockRandomness(header *types.Header, state vm.StateDB, blockNumber uint64) (common.Hash, error) {
+	randomness := common.Hash{}
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, historicRandomFuncABI, "getBlockRandomness", []interface{}{big.NewInt(int64(blockNumber))}, &randomness, params.MaxGasForBlockRandomness, header, state)
 	return randomness, err
 }
