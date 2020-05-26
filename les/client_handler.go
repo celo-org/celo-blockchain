@@ -17,6 +17,7 @@
 package les
 
 import (
+	"errors"
 	"math"
 	"math/big"
 	"sync"
@@ -48,6 +49,70 @@ type clientHandler struct {
 	closeCh  chan struct{}
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
+
+	gatewayFeeCache *gatewayFeeCache
+}
+
+type GatewayFeeInformation struct {
+	GatewayFee *big.Int
+	Etherbase  common.Address
+}
+
+type gatewayFeeCache struct {
+	mutex         *sync.RWMutex
+	gatewayFeeMap map[string]*GatewayFeeInformation
+}
+
+func newGatewayFeeCache() *gatewayFeeCache {
+	cache := &gatewayFeeCache{
+		mutex:         new(sync.RWMutex),
+		gatewayFeeMap: make(map[string]*GatewayFeeInformation),
+	}
+	return cache
+}
+
+func (c *gatewayFeeCache) getMap() map[string]*GatewayFeeInformation {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	mapCopy := make(map[string]*GatewayFeeInformation)
+	for k, v := range c.gatewayFeeMap {
+		mapCopy[k] = v
+	}
+
+	return mapCopy
+}
+
+func (c *gatewayFeeCache) update(nodeID string, val *GatewayFeeInformation) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if val.Etherbase == common.ZeroAddress || val.GatewayFee.Cmp(big.NewInt(0)) < 0 {
+		return errors.New("invalid gatewayFeeInformation object")
+	}
+	c.gatewayFeeMap[nodeID] = val
+
+	return nil
+}
+
+func (c *gatewayFeeCache) MinPeerGatewayFee() (*GatewayFeeInformation, error) {
+	gatewayFeeMap := c.getMap()
+
+	if len(gatewayFeeMap) == 0 {
+		return nil, nil
+	}
+
+	minGwFee := big.NewInt(math.MaxInt64)
+	minEtherbase := common.ZeroAddress
+	for _, gwFeeInformation := range gatewayFeeMap {
+		if gwFeeInformation.GatewayFee.Cmp(minGwFee) < 0 {
+			minGwFee = gwFeeInformation.GatewayFee
+			minEtherbase = gwFeeInformation.Etherbase
+		}
+	}
+
+	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
+	return minGatewayFeeInformation, nil
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, gatewayFee *big.Int) *clientHandler {
@@ -74,6 +139,8 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
+
+	handler.gatewayFeeCache = newGatewayFeeCache()
 	return handler
 }
 
@@ -241,8 +308,23 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
 		} else {
-			if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
-				log.Debug("Failed to deliver headers", "err", err)
+			h.backend.retriever.lock.RLock()
+			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
+			h.backend.retriever.lock.RUnlock()
+			if headerRequested != nil {
+				contiguousHeaders := h.syncMode != downloader.LightestSync
+				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
+					return err
+				}
+				deliverMsg = &Msg{
+					MsgType: MsgBlockHeaders,
+					ReqID:   resp.ReqID,
+					Obj:     resp.Headers,
+				}
+			} else {
+				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
+					log.Error("Failed to deliver headers", "err", err)
+				}
 			}
 		}
 	case BlockBodiesMsg:
@@ -361,6 +443,20 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.Log().Trace("Setting peer etherbase", "etherbase", resp.Etherbase, "Peer ID", p.ID)
 		p.SetEtherbase(resp.Etherbase)
+
+	case GatewayFeeMsg:
+		var resp struct {
+			ReqID, BV uint64
+			Data      GatewayFeeInformation
+		}
+
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		h.gatewayFeeCache.update(p.id, &resp.Data)
+
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

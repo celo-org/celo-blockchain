@@ -55,6 +55,7 @@ const (
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
 	MaxEtherbase             = 1
+	MaxGatewayFee            = 1
 )
 
 var (
@@ -235,7 +236,6 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	sendResponse := func(reqID, amount uint64, reply *reply, servingTime uint64) {
 		p.responseLock.Lock()
 		defer p.responseLock.Unlock()
-
 		// Short circuit if the client is already frozen.
 		if p.isFrozen() {
 			realCost := h.server.costTracker.realCost(servingTime, msg.Size, 0)
@@ -863,6 +863,23 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					miscOutEtherbasePacketsMeter.Mark(1)
 					miscOutEtherbaseTrafficMeter.Mark(int64(reply.size()))
 				}
+			}()
+		}
+	case GetGatewayFeeMsg:
+		p.Log().Trace("Received gatewayFee request")
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		if accept(req.ReqID, 1, MaxGatewayFee) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeInformation{GatewayFee: h.gatewayFee, Etherbase: h.etherbase})
+				sendResponse(req.ReqID, 1, reply, 10)
 			}()
 		}
 
