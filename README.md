@@ -2,17 +2,17 @@
 
 Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
 
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/6yWMkgM)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
 Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for a guide to the Celo networks and how to get started.
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
-Most functionality of this client is simmilar to `geth`, from which it was forked, if you do not find your question answered by Celo-specific documentation, try searching the [geth wiki](https://github.com/ethereum/go-ethereum/wiki).
+Most functionality of this client is similar to `go-ethereum`, also known as `geth`, from which it was forked. If you do not find your question answered by Celo-specific documentation, try searching the [geth wiki](https://github.com/ethereum/go-ethereum/wiki).
 
 ## Building the source
 
-Building `geth` requires both a Go (version 1.13 or later) and a C compiler.
+Building `geth` requires both a Go (version 1.13) and a C compiler.
 You can install them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
