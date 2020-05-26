@@ -12,7 +12,7 @@ Most functionality of this client is similar to `go-ethereum`, also known as `ge
 
 ## Building the source
 
-Building `geth` requires both a Go (version 1.13 or later) and a C compiler and the latest Rust toolchain.
+Building `geth` requires both a Go (version 1.13) and a C compiler and the latest Rust toolchain.
 You can install them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
