@@ -119,10 +119,10 @@ func (self *lesTxRelay) send(txs types.Transactions) {
 		}
 
 		// Check the response to see if the transaction was successfully added to the peer pool or mined.
-		// If an error is returned, the retreiver will retry with any remaining suitable peers.
+		// If an error is returned, the retriever will retry with any remaining suitable peers.
 		checkTxStatus := func(p distPeer, msg *Msg) error {
 			if msg.MsgType != MsgTxStatus {
-				return errors.New("received unexpected messgae code")
+				return errors.New("received unexpected message code")
 			}
 			statuses, ok := msg.Obj.([]light.TxStatus)
 			if !ok {
