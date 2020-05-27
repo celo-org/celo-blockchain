@@ -274,14 +274,13 @@ func (p *peer) Td() *big.Int {
 	return new(big.Int).Set(p.headInfo.Td)
 }
 
-func (p *peer) Etherbase() *common.Address {
+func (p *peer) Etherbase() (etherbase common.Address, ok bool) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	return p.etherbase
-}
-
-func (p *peer) HasEtherbase() bool {
-	return p.Etherbase() != nil
+	if p.etherbase != nil {
+		return *p.etherbase, true
+	}
+	return common.Address{}, false
 }
 
 func (p *peer) SetEtherbase(etherbase common.Address) {
@@ -290,14 +289,10 @@ func (p *peer) SetEtherbase(etherbase common.Address) {
 	p.etherbase = &etherbase
 }
 
-func (p *peer) GatewayFee() *big.Int {
+func (p *peer) GatewayFee() (fee *big.Int, ok bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	return p.gatewayFee
-}
-
-func (p *peer) HasGatewayFee() bool {
-	return p.GatewayFee() != nil
+	return p.gatewayFee, p.gatewayFee != nil
 }
 
 func (p *peer) SetGatewayFee(gatewayFee *big.Int) {
@@ -803,15 +798,18 @@ func (p *peer) WillAcceptTransaction(tx *types.Transaction) bool {
 	}
 
 	// Retrieve the gateway fee information known for this peer.
-	gatewayFee := p.GatewayFee()
-	var etherbase common.Address
-	if ptr := p.Etherbase(); ptr != nil {
-		etherbase = *ptr
+	// Treat unknown gateway fee or etherbase as potentially free relay.
+	gatewayFee, ok := p.GatewayFee()
+	if !ok {
+		return true
+	}
+	etherbase, ok := p.Etherbase()
+	if !ok {
+		return true
 	}
 
 	// Check that the transaction meets the peer's gateway fee requirements.
-	// Treat nil (i.e. unknown) peer gateway fee information as possibly free relay.
-	if etherbase != (common.Address{}) && gatewayFee != nil && gatewayFee.Cmp(common.Big0) > 0 {
+	if etherbase != (common.Address{}) && gatewayFee.Cmp(common.Big0) > 0 {
 		if txGateway := tx.GatewayFeeRecipient(); txGateway == nil || *txGateway != etherbase {
 			return false
 		}
@@ -919,15 +917,13 @@ func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	r := common.Address{}
 	// Rely on golang's random map iteration order.
 	for _, p := range ps.peers {
-		if p.HasEtherbase() {
-			r = *p.Etherbase()
-			break
+		if etherbase, ok := p.Etherbase(); ok {
+			return etherbase
 		}
 	}
-	return r
+	return common.Address{}
 }
 
 // Unregister removes a remote peer from the active set, disabling any further

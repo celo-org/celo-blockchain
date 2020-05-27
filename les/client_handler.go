@@ -231,7 +231,7 @@ func (h *clientHandler) handle(p *peer) error {
 			}
 
 			time.Sleep(time.Duration(math.Pow(2, float64(requests))/2) * time.Second)
-			if p.HasEtherbase() {
+			if _, ok := p.Etherbase(); ok {
 				return
 			}
 		}
