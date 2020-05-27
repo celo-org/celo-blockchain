@@ -216,6 +216,11 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
+	EtherbaseFlag = cli.StringFlag{
+		Name:  "etherbase",
+		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account, deprecated, use --tx-fee-recipient and --validator instead)",
+		Value: "0",
+	}
 	ValidatorFlag = cli.StringFlag{
 		Name:  "validator",
 		Usage: "Public address for participation in consensus (default = first account)",
