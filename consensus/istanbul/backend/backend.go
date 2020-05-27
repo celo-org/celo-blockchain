@@ -124,6 +124,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
+		announceMetrics:                    newAnnounceMetrics("consensus/istanbul/announce/", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -137,7 +138,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	)
 
 	backend.vph = newVPH(backend)
-	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
+	vdbListener := backend.announceMetrics.GetValidatorEnodeChangeListener()
+	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph, vdbListener)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -261,6 +263,9 @@ type Backend struct {
 
 	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
 	blocksTotalMissedRoundsMeter metrics.Meter
+
+	// Metrics handles for the announce protocol
+	announceMetrics *announceMetrics
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 

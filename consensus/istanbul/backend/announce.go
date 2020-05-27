@@ -33,6 +33,7 @@ import (
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -1291,4 +1292,49 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 	sb.enodeCertificateMsgMu.RLock()
 	defer sb.enodeCertificateMsgMu.RUnlock()
 	return sb.enodeCertificateMsgVersion
+}
+
+// announceMetrics holds all the announce protocol metric handles
+type announceMetrics struct {
+	// valenodetable_size: current size of the val_enode_table
+	valEnodeTableSizeGauge metrics.Gauge
+	// valenodetable_num_stale_entries: number of entries in the val_enode_table where it's version number is less than the known highest version number
+	valEnodeTableNumStaleEntriesGauge metrics.Gauge
+	// intendedvalconnections_size: current number of intended validator connections
+	intendedValConnectionsSizeGauge metrics.Gauge
+	// valconnections_size: current number of validator connections
+	valConnectionsSizeGauge metrics.Gauge
+	// selfenodeurl_update_count: count of number of self enodeURL version updates
+	selfEnodeURLUpdateCountCounter metrics.Counter
+	// remoteenodeurl_update_count: count of number of remote query enodeURL updates
+	remoteEnodeURLUpdateCountCounter metrics.Counter
+	// unanswered_queryenoderequest_count: # of queryEnodeURL requests that have not been responded to within 5 minute
+	unansweredQueryEnodeRequestCountMeter metrics.Meter
+}
+
+func newAnnounceMetrics(prefix string, r metrics.Registry) *announceMetrics {
+	return &announceMetrics{
+		valEnodeTableSizeGauge:                metrics.NewRegisteredGauge(prefix+"valenodetable_size", r),
+		valEnodeTableNumStaleEntriesGauge:     metrics.NewRegisteredGauge(prefix+"valenodetable_num_stale_entries", r),
+		intendedValConnectionsSizeGauge:       metrics.NewRegisteredGauge(prefix+"intendedvalconnections_size", r),
+		valConnectionsSizeGauge:               metrics.NewRegisteredGauge(prefix+"valconnections_size", r),
+		selfEnodeURLUpdateCountCounter:        metrics.NewRegisteredCounter(prefix+"selfenodeurl_update_count", r),
+		remoteEnodeURLUpdateCountCounter:      metrics.NewRegisteredCounter(prefix+"remoteenodeurl_update_count", r),
+		unansweredQueryEnodeRequestCountMeter: metrics.NewRegisteredMeter(prefix+"unanswered_queryenoderequest_count", r),
+	}
+}
+
+func (am *announceMetrics) GetValidatorEnodeChangeListener() vet.ValidatorEnodeChangeListener {
+	return &valEnodeAnnounceMetricsListener{announceMetrics: am}
+}
+
+type valEnodeAnnounceMetricsListener struct {
+	announceMetrics *announceMetrics
+}
+
+func (vem *valEnodeAnnounceMetricsListener) OnChange(vdb *vet.ValidatorEnodeDB) {
+	all, _ := vdb.GetAllValEnodes()
+	stale, _ := vdb.GetAllStaleValEnodes()
+	vem.announceMetrics.valEnodeTableSizeGauge.Update(int64(len(all)))
+	vem.announceMetrics.valEnodeTableNumStaleEntriesGauge.Update(int64(len(stale)))
 }

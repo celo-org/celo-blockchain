@@ -55,6 +55,11 @@ type ValidatorEnodeHandler interface {
 	ClearValidatorPeers()
 }
 
+// ValidatorEnodeChangeListener is notified when a change in the Enode db occurs.
+type ValidatorEnodeChangeListener interface {
+	OnChange(*ValidatorEnodeDB)
+}
+
 // AddressEntry is an entry for the valEnodeTable.
 type AddressEntry struct {
 	Address                      common.Address
@@ -163,15 +168,16 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	gdb     *genericDB
-	lock    sync.RWMutex
-	handler ValidatorEnodeHandler
-	logger  log.Logger
+	gdb      *genericDB
+	lock     sync.RWMutex
+	handler  ValidatorEnodeHandler
+	listener ValidatorEnodeChangeListener
+	logger   log.Logger
 }
 
 // OpenValidatorEnodeDB opens a validator enode database for storing and retrieving infos about validator
 // enodes. If no path is given an in-memory, temporary database is constructed.
-func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
+func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler, listener ValidatorEnodeChangeListener) (*ValidatorEnodeDB, error) {
 	logger := log.New("db", "ValidatorEnodeDB")
 
 	gdb, err := newGenericDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
@@ -180,10 +186,15 @@ func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*Validato
 		return nil, err
 	}
 
+	if listener == nil {
+		listener = &nilListener{}
+	}
+
 	return &ValidatorEnodeDB{
-		gdb:     gdb,
-		handler: handler,
-		logger:  logger,
+		gdb:      gdb,
+		handler:  handler,
+		listener: listener,
+		logger:   logger,
 	}, nil
 }
 
@@ -258,17 +269,34 @@ func (vet *ValidatorEnodeDB) GetHighestKnownVersionFromAddress(address common.Ad
 
 // GetAllValEnodes will return all entries in the valEnodeDB
 func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
+	return vet.getEnodes(func(*AddressEntry) bool {
+		return true
+	})
+}
+
+// GetAllStaleValEnodes will return all entries in the valEnodeDB whose HighestKnownVersion is higher than
+// their current version in the db
+func (vet *ValidatorEnodeDB) GetAllStaleValEnodes() (map[common.Address]*AddressEntry, error) {
+	return vet.getEnodes(func(entry *AddressEntry) bool {
+		return entry.HighestKnownVersion > entry.Version
+	})
+}
+
+// getEnodes returns only entries whose evaluation by predicate is true
+func (vet *ValidatorEnodeDB) getEnodes(predicate func(*AddressEntry) bool) (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var entries = make(map[common.Address]*AddressEntry)
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-		entries[address] = entry
+		if predicate(entry) {
+			entries[address] = entry
+		}
 		return nil
 	})
 
 	if err != nil {
-		vet.logger.Error("ValidatorEnodeDB.GetAllAddressEntries error", "err", err)
+		vet.logger.Error("ValidatorEnodeDB.getEnodes", "err", err)
 		return nil, err
 	}
 
@@ -476,6 +504,7 @@ func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error) error {
 	logger := vet.logger.New("func", "Upsert")
 	vet.lock.Lock()
+	defer vet.listener.OnChange(vet) // Listener call outside of write lock
 	defer vet.lock.Unlock()
 
 	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
@@ -502,6 +531,7 @@ func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
 // RemoveEntry will remove an entry from the table
 func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
 	vet.lock.Lock()
+	defer vet.listener.OnChange(vet) // Listener call outside of write lock
 	defer vet.lock.Unlock()
 	batch := new(leveldb.Batch)
 	err := vet.addDeleteToBatch(batch, address)
@@ -514,6 +544,7 @@ func (vet *ValidatorEnodeDB) RemoveEntry(address common.Address) error {
 // PruneEntries will remove entries for all address not present in addressesToKeep
 func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]bool) error {
 	vet.lock.Lock()
+	defer vet.listener.OnChange(vet) // Listener call outside of write lock
 	defer vet.lock.Unlock()
 	batch := new(leveldb.Batch)
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
@@ -650,3 +681,7 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 
 	return valEnodeTableInfo, err
 }
+
+type nilListener struct{}
+
+func (n *nilListener) OnChange(ved *ValidatorEnodeDB) {}
