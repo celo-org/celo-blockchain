@@ -214,7 +214,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 		if feeCurrency == nil {
 			gasPrice, err = c.transactor.SuggestGasPrice(ensureContext(opts.Context))
 		} else {
-			gasPrice, err = c.transactor.SuggestGasPriceFromCurrency(ensureContext(opts.Context), *feeCurrency)
+			gasPrice, err = c.transactor.SuggestGasPriceInCurrency(ensureContext(opts.Context), *feeCurrency)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to suggest gas price: %v", err)

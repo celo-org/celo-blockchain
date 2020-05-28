@@ -298,10 +298,10 @@ func (ec *EthereumClient) SuggestGasPrice(ctx *Context) (price *BigInt, _ error)
 	return &BigInt{rawPrice}, err
 }
 
-// SuggestGasPriceFromCurrency retrieves the currently suggested gas price to allow
+// SuggestGasPriceInCurrency retrieves the currently suggested gas price to allow
 // a timely execution of a transaction for an specific currency
-func (ec *EthereumClient) SuggestGasPriceFromCurrency(ctx *Context, account Address) (price *BigInt, _ error) {
-	rawPrice, err := ec.client.SuggestGasPriceFromCurrency(ctx.context, account.address)
+func (ec *EthereumClient) SuggestGasPriceInCurrency(ctx *Context, account Address) (price *BigInt, _ error) {
+	rawPrice, err := ec.client.SuggestGasPriceInCurrency(ctx.context, account.address)
 	return &BigInt{rawPrice}, err
 }
 

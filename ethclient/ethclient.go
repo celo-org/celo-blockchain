@@ -519,11 +519,11 @@ func (ec *Client) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 	return (*big.Int)(&hex), nil
 }
 
-// SuggestGasPriceFromCurrency retrieves the currently suggested gas price to allow a timely
+// SuggestGasPriceInCurrency retrieves the currently suggested gas price to allow a timely
 // execution of a transaction for an specific currency
-func (ec *Client) SuggestGasPriceFromCurrency(ctx context.Context, account common.Address) (*big.Int, error) {
+func (ec *Client) SuggestGasPriceInCurrency(ctx context.Context, account common.Address) (*big.Int, error) {
 	var hex hexutil.Big
-	if err := ec.c.CallContext(ctx, &hex, "eth_gasPrice", account); err != nil {
+	if err := ec.c.CallContext(ctx, &hex, "eth_gasPriceInCurrency", account); err != nil {
 		return nil, err
 	}
 	return (*big.Int)(&hex), nil
