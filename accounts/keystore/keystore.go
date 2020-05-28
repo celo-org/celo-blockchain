@@ -291,7 +291,9 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 }
 
 func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
-	time.Sleep(2 * time.Second)
+	if a.Address[0] < 127 {
+		time.Sleep(2 * time.Second)
+	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -326,7 +328,9 @@ func (ks *KeyStore) SignHashBLS(a accounts.Account, hash []byte) (blscrypto.Seri
 }
 
 func (ks *KeyStore) SignMessageBLS(a accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
-	time.Sleep(2 * time.Second)
+	if a.Address[0] < 127 {
+		time.Sleep(2 * time.Second)
+	}
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
