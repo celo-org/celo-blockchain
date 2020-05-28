@@ -18,11 +18,11 @@ package params
 
 // MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ethereum network.
-var MainnetBootnodes = []string{"enode://5c9a3afb564b48cc2fa2e06b76d0c5d8f6910e1930ea7d0930213a0cbc20450434cd442f6483688eff436ad14dc29cb90c9592cc5c1d27ca62f28d4d8475d932@34.82.79.155:30301"}
+var MainnetBootnodes = []string{"enode://5c9a3afb564b48cc2fa2e06b76d0c5d8f6910e1930ea7d0930213a0cbc20450434cd442f6483688eff436ad14dc29cb90c9592cc5c1d27ca62f28d4d8475d932@34.82.79.155:30301", "enode://f65013f1ac6827e275c2d2737ce13357f620d4364124d02227a19321c57f8fbf9214a9411de49d49f180b085b031d9d23211a6ead4499fc5f9d3592b55322123@50.17.60.161:30303"}
 
 // BaklavaBootnodes are the enode URLs of the P2P bootstrap nodes running on the
 // Baklava test network.
-var BaklavaBootnodes = []string{"enode://5aaf10664b12431c250597e980aacd7d5373cae00f128be5b00364344bb96bce7555b50973664bddebd1cb7a6d3fb927bec81527f80e22a26fa373c375fcdefc@35.247.75.229:30301"}
+var BaklavaBootnodes = []string{"enode://5aaf10664b12431c250597e980aacd7d5373cae00f128be5b00364344bb96bce7555b50973664bddebd1cb7a6d3fb927bec81527f80e22a26fa373c375fcdefc@35.247.75.229:30301", "enode://7c34cb0b3b9924b21e3c99134a5d46ca8242f4ecc9f722aa548ff80861be246268f1f7d8de815583a970993a7157bb37b3b5478b219c44e05888a659cb22675f@34.193.36.54:30303"}
 
 // AlfajoresBootnodes are the enode URLs of the P2P bootstrap nodes running on the
 // Alfajores test network.
