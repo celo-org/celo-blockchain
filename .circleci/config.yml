@@ -139,9 +139,7 @@ jobs:
             cd celo-monorepo
             yarn install || yarn install
             # separate build to avoid ENOMEM in CI :(
-            yarn build --scope @celo/utils
             yarn build --scope @celo/protocol
-            yarn build --scope docs
             yarn build --ignore @celo/protocol --ignore docs --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
       - run:
           name: Setup Go language
