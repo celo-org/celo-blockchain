@@ -77,7 +77,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
+		// TODO(lucas): REMOVE, this is just to prove the issue.
+		// How to grab this dynamically?
+		author := common.HexToAddress("0x4f5f8a3f45d179553e7b95119ce296010f50f6f1")
+		receipt, err := ApplyTransaction(p.config, p.bc, &author, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
 			return nil, nil, 0, err
 		}

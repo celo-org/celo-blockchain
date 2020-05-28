@@ -158,9 +158,10 @@ type worker struct {
 	current     *environment       // An environment for current running cycle.
 	unconfirmed *unconfirmedBlocks // A set of locally mined blocks pending canonicalness confirmations.
 
-	mu       sync.RWMutex // The lock used to protect the coinbase and extra fields
-	coinbase common.Address
-	extra    []byte
+	mu             sync.RWMutex // The lock used to protect the coinbase and extra fields
+	coinbase       common.Address
+	txFeeRecipient common.Address
+	extra          []byte
 
 	pendingMu    sync.RWMutex
 	pendingTasks map[common.Hash]*task
@@ -239,6 +240,12 @@ func (w *worker) setEtherbase(addr common.Address) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.coinbase = addr
+}
+
+func (w *worker) setTxFeeRecipient(addr common.Address) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.txFeeRecipient = addr
 }
 
 // setExtra sets the content used to initialize the block extra field.
@@ -660,7 +667,8 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	feeRecipient := w.txFeeRecipient
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &feeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err

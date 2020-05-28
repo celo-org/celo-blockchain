@@ -59,12 +59,13 @@ type Config struct {
 
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
-	mux      *event.TypeMux
-	worker   *worker
-	coinbase common.Address
-	eth      Backend
-	engine   consensus.Engine
-	exitCh   chan struct{}
+	mux            *event.TypeMux
+	worker         *worker
+	txFeeRecipient common.Address
+	coinbase       common.Address
+	eth            Backend
+	engine         consensus.Engine
+	exitCh         chan struct{}
 
 	canStart    int32 // can start indicates whether we can start the mining operation
 	shouldStart int32 // should start indicates whether we should start after sync
@@ -112,7 +113,7 @@ func (miner *Miner) update() {
 				atomic.StoreInt32(&miner.canStart, 1)
 				atomic.StoreInt32(&miner.shouldStart, 0)
 				if shouldStart {
-					miner.Start(miner.coinbase)
+					miner.Start(miner.coinbase, miner.txFeeRecipient)
 				}
 				// stop immediately and ignore all further pending events
 				return
@@ -123,9 +124,14 @@ func (miner *Miner) update() {
 	}
 }
 
-func (miner *Miner) Start(coinbase common.Address) {
+func (miner *Miner) Start(coinbase common.Address, txFeeRecipient common.Address) {
 	atomic.StoreInt32(&miner.shouldStart, 1)
 	miner.SetEtherbase(coinbase)
+	if txFeeRecipient != (common.Address{}) {
+		miner.SetTxFeeRecipient(txFeeRecipient)
+	} else {
+		miner.SetTxFeeRecipient(coinbase)
+	}
 
 	if atomic.LoadInt32(&miner.canStart) == 0 {
 		log.Info("Network syncing, will start miner afterwards")
@@ -185,4 +191,9 @@ func (miner *Miner) PendingBlock() *types.Block {
 func (miner *Miner) SetEtherbase(addr common.Address) {
 	miner.coinbase = addr
 	miner.worker.setEtherbase(addr)
+}
+
+func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
+	miner.txFeeRecipient = addr
+	miner.worker.setTxFeeRecipient(addr)
 }
