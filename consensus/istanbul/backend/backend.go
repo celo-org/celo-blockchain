@@ -138,7 +138,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	)
 
 	backend.vph = newVPH(backend)
-	vdbListener := backend.announceMetrics.GetValidatorEnodeChangeListener()
+	// We use ValidatorAddress as the self address for metric purposes
+	vdbListener := backend.announceMetrics.GetValidatorEnodeChangeListener(backend.ValidatorAddress)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph, vdbListener)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)

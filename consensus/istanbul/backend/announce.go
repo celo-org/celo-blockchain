@@ -1324,12 +1324,19 @@ func newAnnounceMetrics(prefix string, r metrics.Registry) *announceMetrics {
 	}
 }
 
-func (am *announceMetrics) GetValidatorEnodeChangeListener() vet.ValidatorEnodeChangeListener {
-	return &valEnodeAnnounceMetricsListener{announceMetrics: am}
+// GetValidatorEnodeChangeListener creates and returns a new ValidatorEnodeChangeListener which updates this
+// announceMetrics stats.
+func (am *announceMetrics) GetValidatorEnodeChangeListener(selfAddressProvider func() common.Address) vet.ValidatorEnodeChangeListener {
+	return &valEnodeAnnounceMetricsListener{
+		announceMetrics:     am,
+		selfAddressProvider: selfAddressProvider,
+	}
 }
 
+// valEnodeAnnounceMetricsListener implements vet.VersionUpdateEvent
 type valEnodeAnnounceMetricsListener struct {
-	announceMetrics *announceMetrics
+	announceMetrics     *announceMetrics
+	selfAddressProvider func() common.Address
 }
 
 func (vem *valEnodeAnnounceMetricsListener) OnChange(vdb *vet.ValidatorEnodeDB) {
@@ -1337,4 +1344,12 @@ func (vem *valEnodeAnnounceMetricsListener) OnChange(vdb *vet.ValidatorEnodeDB) 
 	stale, _ := vdb.GetAllStaleValEnodes()
 	vem.announceMetrics.valEnodeTableSizeGauge.Update(int64(len(all)))
 	vem.announceMetrics.valEnodeTableNumStaleEntriesGauge.Update(int64(len(stale)))
+}
+
+func (vem *valEnodeAnnounceMetricsListener) OnVersionUpdated(ev *vet.VersionUpdateEvent) {
+	if vem.selfAddressProvider() == ev.Address {
+		vem.announceMetrics.selfEnodeURLUpdateCountCounter.Count()
+	} else {
+		vem.announceMetrics.remoteEnodeURLUpdateCountCounter.Count()
+	}
 }

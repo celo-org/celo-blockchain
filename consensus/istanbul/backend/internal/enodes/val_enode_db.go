@@ -55,9 +55,23 @@ type ValidatorEnodeHandler interface {
 	ClearValidatorPeers()
 }
 
+// VersionUpdateEvent represents a change event in an entry's version
+type VersionUpdateEvent struct {
+	Address    common.Address
+	OldVersion uint
+	NewVersion uint
+}
+
 // ValidatorEnodeChangeListener is notified when a change in the Enode db occurs.
 type ValidatorEnodeChangeListener interface {
+	// OnChange is called after a change is made in the ValidatorEnodeDB. This call
+	// occurs outside of the ValidatorEnodeDB's own internal write lock, so
+	// modifying the db is safe in this method.
 	OnChange(*ValidatorEnodeDB)
+
+	// OnVersionUpdated is called when an entry's version is modified. This call
+	// occurs outside of the ValidatorEnodeDB's own internal write lock.
+	OnVersionUpdated(*VersionUpdateEvent)
 }
 
 // AddressEntry is an entry for the valEnodeTable.
@@ -77,6 +91,19 @@ func addressEntryFromGenericEntry(entry genericEntry) (*AddressEntry, error) {
 		return nil, errIncorrectEntryType
 	}
 	return addressEntry, nil
+}
+
+// addressEntryFromGenericEntry2 calls sequentially addressEntryFromGenericEntry for each input value
+func addressEntryFromGenericEntry2(entry1, entry2 genericEntry) (*AddressEntry, *AddressEntry, error) {
+	address1, err := addressEntryFromGenericEntry(entry1)
+	if err != nil {
+		return nil, nil, err
+	}
+	address2, err := addressEntryFromGenericEntry(entry2)
+	if err != nil {
+		return nil, nil, err
+	}
+	return address1, address2, nil
 }
 
 func (ae *AddressEntry) String() string {
@@ -326,15 +353,10 @@ func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*Addres
 	}
 
 	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
-		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
+		existingAddressEntry, newAddressEntry, err := addressEntryFromGenericEntry2(existingEntry, newEntry)
 		if err != nil {
 			return err
 		}
-		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
-		if err != nil {
-			return err
-		}
-
 		if newAddressEntry.HighestKnownVersion < existingAddressEntry.HighestKnownVersion {
 			logger.Trace("Skipping entry whose HighestKnownVersion is less than the existing entry's", "existing HighestKnownVersion", existingAddressEntry.HighestKnownVersion, "new version", newAddressEntry.HighestKnownVersion)
 			return nil
@@ -387,11 +409,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEnt
 	}
 
 	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
-		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
-		if err != nil {
-			return err
-		}
-		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
+		existingAddressEntry, newAddressEntry, err := addressEntryFromGenericEntry2(existingEntry, newEntry)
 		if err != nil {
 			return err
 		}
@@ -461,11 +479,7 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*AddressEnt
 	}
 
 	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
-		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
-		if err != nil {
-			return err
-		}
-		newAddressEntry, err := addressEntryFromGenericEntry(newEntry)
+		existingAddressEntry, newAddressEntry, err := addressEntryFromGenericEntry2(existingEntry, newEntry)
 		if err != nil {
 			return err
 		}
@@ -494,6 +508,13 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*AddressEnt
 	return nil
 }
 
+// fireUpdatedVersionEvents calls listener.OnVersionUpdated for each value of the events map
+func (vet *ValidatorEnodeDB) fireUpdatedVersionEvents(events map[common.Address]*VersionUpdateEvent) {
+	for _, ev := range events {
+		vet.listener.OnVersionUpdated(ev)
+	}
+}
+
 // upsert will update or insert a validator enode entry given that the existing entry
 // is older (determined by the version) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
@@ -504,7 +525,12 @@ func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error) error {
 	logger := vet.logger.New("func", "Upsert")
 	vet.lock.Lock()
-	defer vet.listener.OnChange(vet) // Listener call outside of write lock
+
+	// Listener calls outside of write lock
+	defer vet.listener.OnChange(vet)
+	updatedVersionEvents := make(map[common.Address]*VersionUpdateEvent, len(valEnodeEntries))
+	defer vet.fireUpdatedVersionEvents(updatedVersionEvents)
+
 	defer vet.lock.Unlock()
 
 	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
@@ -520,7 +546,27 @@ func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
 		entries[i] = genericEntry(valEnodeEntry)
 	}
 
-	if err := vet.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
+	// Wrap onUpdatedEntry to fire updated events
+	eventDecoratedOnUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+		err := onUpdatedEntry(batch, existingEntry, newEntry)
+		if err != nil {
+			return err
+		}
+		e1, e2, err := addressEntryFromGenericEntry2(existingEntry, newEntry)
+		if err != nil {
+			return err
+		}
+		if e2.Version > e1.Version {
+			updatedVersionEvents[e1.Address] = &VersionUpdateEvent{
+				Address:    e1.Address,
+				OldVersion: e1.Version,
+				NewVersion: e2.Version,
+			}
+		}
+		return nil
+	}
+
+	if err := vet.gdb.Upsert(entries, getExistingEntry, eventDecoratedOnUpdatedEntry, onNewEntry); err != nil {
 		logger.Warn("Error upserting entries", "err", err)
 		return err
 	}
@@ -684,4 +730,5 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 
 type nilListener struct{}
 
-func (n *nilListener) OnChange(ved *ValidatorEnodeDB) {}
+func (n *nilListener) OnChange(*ValidatorEnodeDB)           {}
+func (n *nilListener) OnVersionUpdated(*VersionUpdateEvent) {}
