@@ -37,6 +37,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+type commit_info struct {
+	sub      istanbul.Subject
+	proposal istanbul.Proposal
+}
+
 type core struct {
 	config         *istanbul.Config
 	address        common.Address
@@ -72,7 +77,7 @@ type core struct {
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
 
-	commitCh      chan istanbul.Subject
+	commitCh      chan commit_info
 	signerCh 	  chan istanbul.Subject
 
 	quitCommitCh  chan struct{}
@@ -98,7 +103,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
-		commitCh:           make(chan istanbul.Subject, 100),
+		commitCh:           make(chan commit_info, 100),
 		signerCh:           make(chan istanbul.Subject, 100),
 		quitCommitCh:       make(chan struct{}),
 		quitSignerCh:       make(chan struct{}),

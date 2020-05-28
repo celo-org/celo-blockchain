@@ -28,7 +28,8 @@ func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
-	c.commitCh <- *sub
+	proposal := c.current.Proposal()
+	c.commitCh <- commit_info{sub: *sub, proposal: proposal}
 }
 
 func (c *core) submitForSigning() {
@@ -49,7 +50,7 @@ func (c *core) commitHandler() {
 	c.handlerWg.Add(1)
 
 	sealCache := make(map[string]blscrypto.SerializedSignature)
-	commitCache := make(map[string]bool)
+	commitCache := make(map[string]istanbul.Proposal)
 
 	for {
 		select {
@@ -66,15 +67,15 @@ func (c *core) commitHandler() {
 			if committedSeal, err := c.generateCommittedSeal(&sub); err != nil {
 				logger.Error("Cannot generate seal", err)
 			} else {
-				if res, ok := commitCache[sub.View.String()]; !ok && !res {
+				if res, ok := commitCache[sub.View.String()]; !ok || res == nil {
 					logger.Info("Caching seal", "view", sub.View.String())
 					sealCache[sub.View.String()] = committedSeal
 				} else {
-					c.broadcastCommit(&sub, committedSeal)
+					c.broadcastCommit(&sub, committedSeal, res)
 				}
 			}
 
-		case sub := <-c.commitCh:
+		case info := <-c.commitCh:
 			/*
 			loop2:
 			for {
@@ -85,11 +86,11 @@ func (c *core) commitHandler() {
 				}
 			}*/
 			// Need to check if we have the signature here
-			if seal, ok := sealCache[sub.View.String()]; !ok {
-				logger.Info("Caching commit", "view", sub.View.String())
-				commitCache[sub.View.String()] = true
+			if seal, ok := sealCache[info.sub.View.String()]; !ok {
+				logger.Info("Caching commit", "view", info.sub.View.String())
+				commitCache[info.sub.View.String()] = info.proposal
 			} else {
-				c.broadcastCommit(&sub, seal)
+				c.broadcastCommit(&info.sub, seal, info.proposal)
 			}
 
 		case <-c.quitCommitCh:
@@ -124,19 +125,18 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 	return epochData, nil
 }
 
-func (c *core) broadcastCommit(sub *istanbul.Subject, committedSeal blscrypto.SerializedSignature) {
+func (c *core) broadcastCommit(sub *istanbul.Subject, committedSeal blscrypto.SerializedSignature, proposal istanbul.Proposal) {
 	logger := c.newLogger("func", "broadcastCommit")
 
 	logger.Info("Here")
 
-	// TODO(mrsmkl): Change this
-	if c.current.Proposal() == nil {
+	if proposal == nil {
 		logger.Warn("No current proposal")
 		return
 	}
 
-	currentBlockNumber := c.current.Proposal().Number().Uint64()
-	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+	currentBlockNumber := proposal.Number().Uint64()
+	newValSet, err := c.backend.NextBlockValidators(proposal)
 	if err != nil {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
