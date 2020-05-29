@@ -457,7 +457,7 @@ web3._extend({
 			inputFormatter: [web3._extend.formatters.inputAddressFormatter, null, web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
-			name: 'gasPriceInCurrency',
+			name: 'getGasPriceInCurrency',
 			call: 'eth_gasPriceInCurrency',
 			params: 1,
 			inputFormatter: [web3._extend.formatters.inputAddressFormatter]
