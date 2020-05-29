@@ -424,6 +424,14 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return err
 		}
 
+		// Add the amount of queryEnode messages to metrics
+		// TODO: since Multicast does not return the amount of messages actually sent,
+		// we estimate it by getting the same recipient list that multicast uses.
+		// However, a better solution would be for Multicast to provide this information,
+		// but being an implementation of the istanbul.Backend.Multicast method, the
+		// signature cannot be changed without careful consideration on the implications.
+		sb.announceMetrics.MarkSentQueryEnodeMsgs(len(sb.getPeersForMessage(nil)))
+
 		if err := sb.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
 			return err
 		}
@@ -609,6 +617,8 @@ func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) erro
 				logger.Warn("Error parsing enodeURL", "enodeUrl", enodeURL)
 				return err
 			}
+
+			sb.announceMetrics.MarkReceivedQueryEnodeResponse()
 
 			// queryEnode messages should only be processed once because selfRecentMessages
 			// will cache seen queryEnode messages, so it's safe to answer without any throttling
@@ -1333,7 +1343,17 @@ func (am *announceMetrics) GetValidatorEnodeChangeListener(selfAddressProvider f
 	}
 }
 
-// valEnodeAnnounceMetricsListener implements vet.VersionUpdateEvent
+// MarkReceivedQueryEnodeResponse registers a response received event in metrics.
+func (am *announceMetrics) MarkReceivedQueryEnodeResponse() {
+	am.unansweredQueryEnodeRequestCountMeter.Mark(-1)
+}
+
+// MarkSentQueryEnodeMsgs registers in metrics that amount query enode msgs were just sent.
+func (am *announceMetrics) MarkSentQueryEnodeMsgs(amount int) {
+	am.unansweredQueryEnodeRequestCountMeter.Mark(int64(amount))
+}
+
+// valEnodeAnnounceMetricsListener implements vet.VersionUpdateEvent.
 type valEnodeAnnounceMetricsListener struct {
 	announceMetrics     *announceMetrics
 	selfAddressProvider func() common.Address
