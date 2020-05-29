@@ -63,6 +63,16 @@ func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) 
 	return (*hexutil.Big)(price), err
 }
 
+// GasPriceInCurrency returns a suggestion for a gas price.
+func (s *PublicEthereumAPI) GasPriceInCurrency(ctx context.Context, feeCurrency common.Address) (*hexutil.Big, error) {
+	state, header, err := s.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	price, err := s.b.SuggestPriceInCurrency(ctx, &feeCurrency, header, state)
+	return (*hexutil.Big)(price), err
+}
+
 // ProtocolVersion returns the current Ethereum protocol version this node supports
 func (s *PublicEthereumAPI) ProtocolVersion() hexutil.Uint {
 	return hexutil.Uint(s.b.ProtocolVersion())
@@ -789,10 +799,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		gasPrice = args.GasPrice.ToInt()
 	}
 
-	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
-	// which will always be in Gold. This allows the default price to be set for the proper currency.
-	// TODO(asa): Remove this once this is handled in the Provider.
-	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
+	if gasPrice == nil {
 		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
 		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
@@ -1386,10 +1393,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			}
 		}
 	}
-	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
-	// which will always be in Gold. This allows the default price to be set for the proper currency.
-	// TODO(asa): Remove this once this is handled in the Provider.
-	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+	if args.GasPrice == nil {
 		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 		if err != nil {
 			return err
