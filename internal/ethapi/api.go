@@ -799,9 +799,14 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		gasPrice = args.GasPrice.ToInt()
 	}
 
+	feeCurrency := args.FeeCurrency
 	if gasPrice == nil {
-		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
-		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		if feeCurrency == nil {
+			gasPrice, err = b.SuggestPrice(ctx)
+		} else {
+			// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
+			gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		}
 		if err != nil {
 			log.Error("Error suggesting gas price", "block", blockNrOrHash, "err", err)
 			return nil, 0, false, err
