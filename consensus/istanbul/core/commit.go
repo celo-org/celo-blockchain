@@ -56,14 +56,14 @@ func (c *core) commitHandler() {
 		select {
 		case sub := <-c.signerCh:
 			/*
-			loop:
-			for {
-				select {
-				case sub = <-c.signerCh:
-				default:
-					break loop
-				}
-			}*/
+				loop:
+				for {
+					select {
+					case sub = <-c.signerCh:
+					default:
+						break loop
+					}
+				}*/
 			if committedSeal, err := c.generateCommittedSeal(&sub); err != nil {
 				logger.Error("Cannot generate seal", err)
 			} else {
@@ -77,14 +77,14 @@ func (c *core) commitHandler() {
 
 		case info := <-c.commitCh:
 			/*
-			loop2:
-			for {
-				select {
-				case sub = <-c.commitCh:
-				default:
-					break loop2
-				}
-			}*/
+				loop2:
+				for {
+					select {
+					case sub = <-c.commitCh:
+					default:
+						break loop2
+					}
+				}*/
 			// Need to check if we have the signature here
 			if seal, ok := sealCache[info.sub.View.String()]; !ok {
 				logger.Info("Caching commit", "view", info.sub.View.String())

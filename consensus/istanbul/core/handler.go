@@ -169,7 +169,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
-	if (len(payload) < 1000) {
+	if len(payload) < 1000 {
 		logger.Debug("Got new message", "payload", hexutil.Encode(payload))
 	} else {
 		logger.Debug("Got new message", "len", len(payload))
