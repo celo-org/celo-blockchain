@@ -53,8 +53,6 @@ type testSystemBackend struct {
 	committedMsgs []testCommittedMsgs
 	sentMsgs      [][]byte // store the message when Send is called by core
 
-	cache 	map[string]common.Address
-
 	key     ecdsa.PrivateKey
 	blsKey  []byte
 	address common.Address
@@ -188,16 +186,7 @@ func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) er
 }
 
 func (self *testSystemBackend) CheckValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	res, err := istanbul.CheckValidatorSignature(self.peers, data, sig)
-	/*
-	if res, ok := self.cache[common.ToHex(sig)]; ok {
-		return res, nil
-	}
-
-	if err == nil {
-		self.cache[common.ToHex(sig)] = res
-	}*/
-	return res, err
+	return istanbul.CheckValidatorSignature(self.peers, data, sig)
 }
 
 func (self *testSystemBackend) Hash(b interface{}) common.Hash {
@@ -421,7 +410,6 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 		core := New(backend, &config).(*core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
-		// core.validateFn = core.checkValidatorSignature
 
 		backend.engine = core
 	}
@@ -479,14 +467,12 @@ func (t *testSystem) Stop(core bool) {
 }
 
 func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
-	testLogger.Info("New backend")
 	// assume always success
 	backend := &testSystemBackend{
 		id:     id,
 		sys:    t,
 		events: new(event.TypeMux),
 		db:     rawdb.NewMemoryDatabase(),
-		cache: 	make(map[string]common.Address),
 	}
 
 	t.backends[id] = backend
@@ -515,8 +501,7 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 		if i%2 == 0 {
 			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
 		} else {
-			msg, err = backend.getPrepareMessage(views[i%len(views)], proposal.Hash())
-			// msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
+			msg, err = backend.getCommitMessage(views[i%len(views)], proposal)
 		}
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)
