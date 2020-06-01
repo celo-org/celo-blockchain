@@ -135,7 +135,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		if roundChange.HasPreparedCertificate() {
-			msgLogger.Info("Round change message has prepared certificate")
+			msgLogger.Trace("Round change message has prepared certificate")
 			preparedView, err := c.verifyPreparedCertificate(roundChange.PreparedCertificate)
 			if err != nil {
 				return err
