@@ -187,8 +187,6 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 			headHeader = hc.GetHeader(headHash, headNumber)
 		)
 		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
-			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
-
 			// In some sync modes we do not have all headers.
 			if !hc.config.FullHeaderChainAvailable {
 				if headHeader == nil {
@@ -196,6 +194,8 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 					break
 				}
 			}
+
+			rawdb.WriteCanonicalHash(hc.chainDb, headHash, headNumber)
 
 			headHash = headHeader.ParentHash
 			headNumber = headHeader.Number.Uint64() - 1
