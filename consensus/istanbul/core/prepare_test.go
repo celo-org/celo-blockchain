@@ -178,7 +178,7 @@ func TestHandlePrepare(t *testing.T) {
 						},
 						backend.peers,
 					)
-
+					c.submitForSigning()
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
@@ -213,7 +213,7 @@ func TestHandlePrepare(t *testing.T) {
 						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
-
+					c.submitForSigning()
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
@@ -248,6 +248,7 @@ func TestHandlePrepare(t *testing.T) {
 						backend.peers,
 					)
 					c.current.(*roundStateImpl).preparedCertificate = preparedCert
+					c.submitForSigning()
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -282,6 +283,7 @@ func TestHandlePrepare(t *testing.T) {
 							backend.peers,
 						)
 					}
+					c.submitForSigning()
 				}
 				return sys
 			}(),
@@ -311,6 +313,7 @@ func TestHandlePrepare(t *testing.T) {
 							backend.peers,
 						)
 					}
+					c.submitForSigning()
 				}
 				return sys
 			}(),
@@ -339,6 +342,7 @@ func TestHandlePrepare(t *testing.T) {
 							backend.peers,
 						)
 					}
+					c.submitForSigning()
 				}
 				return sys
 			}(),
@@ -359,6 +363,7 @@ func TestHandlePrepare(t *testing.T) {
 						expectedSubject.View,
 						backend.peers,
 					)
+					c.submitForSigning()
 
 					if i == 0 {
 						// replica 0 is the proposer
