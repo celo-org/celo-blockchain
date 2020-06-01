@@ -135,7 +135,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		}
 
 		if roundChange.HasPreparedCertificate() {
-			// msgLogger.Info("Round change message has prepared certificate")
+			msgLogger.Info("Round change message has prepared certificate")
 			preparedView, err := c.verifyPreparedCertificate(roundChange.PreparedCertificate)
 			if err != nil {
 				return err
@@ -146,11 +146,11 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			// to be the next pre-prepare. That (higher view) prepared cert should override older perpared certs for
 			// blocks that were not committed.
 			// Also reject round change messages where the prepared view is greater than the round change view.
-			// msgLogger = msgLogger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
+			msgLogger = msgLogger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
 			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
 				return errInvalidRoundChangeViewMismatch
 			} else if preparedView.Round.Cmp(maxRound) > 0 {
-				// msgLogger.Trace("Prepared certificate is latest in round change certificate")
+				msgLogger.Trace("Prepared certificate is latest in round change certificate")
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
 			}

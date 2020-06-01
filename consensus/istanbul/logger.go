@@ -19,7 +19,7 @@ package istanbul
 import (
 	"math/big"
 
-//	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -40,24 +40,22 @@ func (l *istLogger) New(ctx ...interface{}) log.Logger {
 
 func (l *istLogger) Trace(msg string, ctx ...interface{}) {
 	l.logger.Trace(msg, ctx...)
-	/*
 	// If the current round > 1, then upgrade this message to Info
 	if l.round != nil && l.round() != nil && l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
 		l.logger.Trace(msg, ctx...)
-	}*/
+	}
 }
 
 func (l *istLogger) Debug(msg string, ctx ...interface{}) {
 	l.logger.Debug(msg, ctx...)
-	/*
 	// If the current round > 1, then upgrade this message to Info
 	if l.round != nil && l.round() != nil && l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
 		l.logger.Debug(msg, ctx...)
-	}*/
+	}
 }
 
 func (l *istLogger) Info(msg string, ctx ...interface{}) {

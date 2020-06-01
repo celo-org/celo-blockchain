@@ -505,8 +505,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 		return nil
 	}
 
-	// logger.Debug("Round Change: Waiting for desired round")
-	logger.Info("Round Change: Waiting for desired round")
+	logger.Debug("Round Change: Waiting for desired round")
 
 	// Perform all of the updates
 	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
@@ -713,10 +712,9 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
 	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
 	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
-		// logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
+		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
-		logger.Info("verification status cache miss")
 
 		duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)

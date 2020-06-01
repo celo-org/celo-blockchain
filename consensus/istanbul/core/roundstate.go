@@ -282,7 +282,7 @@ func (rs *roundStateImpl) StartNewRound(nextRound *big.Int, validatorSet istanbu
 	defer rs.mu.Unlock()
 	logger := rs.newLogger()
 	rs.changeRound(nextRound, validatorSet, nextProposer)
-	logger.Info("Starting new round", "next_round", nextRound, "next_proposer", nextProposer.Address().Hex())
+	logger.Debug("Starting new round", "next_round", nextRound, "next_proposer", nextProposer.Address().Hex())
 	return nil
 }
 
@@ -304,7 +304,7 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 	// Update sequence gauge
 	rs.sequenceGauge.Update(nextSequence.Int64())
 
-	logger.Info("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
+	logger.Debug("Starting new sequence", "next_sequence", nextSequence, "next_proposer", nextProposer.Address().Hex())
 	return nil
 }
 

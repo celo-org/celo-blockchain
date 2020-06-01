@@ -128,8 +128,6 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 func (c *core) broadcastCommit(sub *istanbul.Subject, committedSeal blscrypto.SerializedSignature, proposal istanbul.Proposal) {
 	logger := c.newLogger("func", "broadcastCommit")
 
-	logger.Info("Here")
-
 	if proposal == nil {
 		logger.Warn("No current proposal")
 		return
@@ -246,7 +244,6 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	if err := c.verifyCommittedSeal(commit, validator); err != nil {
 		return errInvalidCommittedSeal
 	}
-	logger.Trace("Verified seal")
 
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {

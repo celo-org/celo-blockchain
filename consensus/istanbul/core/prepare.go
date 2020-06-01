@@ -56,9 +56,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	hash := preparedCertificate.Proposal.Hash()
 
-	commits := 0
-	prepares := 0
-
 	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
@@ -90,7 +87,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 		if message.Code == istanbul.MsgCommit {
 
-			commits = commits+1
 			logger.Trace("Commit message in prepared certificate")
 
 			var committedSubject *istanbul.CommittedSubject
@@ -120,7 +116,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 			subject = committedSubject.Subject
 		} else {
-			prepares = prepares+1
 			if err := message.Decode(&subject); err != nil {
 				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
 				return nil, err
@@ -149,7 +144,6 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			}
 		}
 	}
-	// logger.Info("Round change certificate had", "commits", commits, "prepares", prepares)
 	return view, nil
 }
 

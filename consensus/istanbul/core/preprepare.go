@@ -51,6 +51,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
+	logger.Info("Got preprepare message", "m", msg)
 
 	// Decode PREPREPARE
 	var preprepare *istanbul.Preprepare
@@ -60,8 +61,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	}
 
 	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
-
-	logger.Info("Got preprepare message", "m", msg)
 
 	// Verify that the proposal is for the sequence number of the view we verified.
 	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
@@ -89,10 +88,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		logger.Info("Message checked", "m", msg)
-	}
-
 	// Check proposer is valid for the message's view (this may be a subsequent round)
 	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
 	if headBlock == nil {
@@ -107,8 +102,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		logger.Info("Message checked", "m", msg)
-
 		if !preprepare.HasRoundChangeCertificate() {
 			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
 			return errMissingRoundChangeCertificate
@@ -151,8 +144,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		if err != nil {
 			return err
 		}
-
-		logger.Info("Processing backlog")
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
