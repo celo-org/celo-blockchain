@@ -664,14 +664,16 @@ func (sb *Backend) StartProxyHandler() error {
 
 	if !sb.IsProxiedValidator() {
 		return istanbul.ErrValidatorNotProxied
-	} else {
-		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-			}
-		}
-		go sb.valEnodesShareThread()
 	}
+
+	// At this point, we can be sure that this node is a proxied validator.
+	if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
+		if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
+			sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
+		}
+	}
+
+	go sb.valEnodesShareThread()
 
 	sb.proxyHandlerRunning = true
 

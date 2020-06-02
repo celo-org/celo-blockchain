@@ -100,7 +100,7 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 // sendMsg will send the eth message (with the message's payload and msgCode field set to the params
 // payload and ethMsgCode respectively) to all the nodes destPeers param.
 func (sb *Backend) sendMsg(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
-	logger := sb.logger.New("func", "multicast")
+	logger := sb.logger.New("func", "sendMsg")
 
 	logger.Trace("Going to send a message", "peers", destPeers, "ethMsgCode", ethMsgCode)
 
