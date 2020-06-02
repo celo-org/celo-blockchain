@@ -70,7 +70,7 @@ func TestIstanbulMessage(t *testing.T) {
 
 	// generate one msg
 	data := []byte("data1")
-	msg := makeMsg(istanbulQueryEnodeMsg, data)
+	msg := makeMsg(istanbul.QueryEnodeMsg, data)
 	addr := common.BytesToAddress([]byte("address"))
 
 	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
@@ -86,31 +86,31 @@ func TestRecentMessageCaches(t *testing.T) {
 		shouldCache bool
 	}{
 		{
-			ethMsgCode:  istanbulConsensusMsg,
+			ethMsgCode:  istanbul.ConsensusMsg,
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulQueryEnodeMsg,
+			ethMsgCode:  istanbul.QueryEnodeMsg,
 			shouldCache: true,
 		},
 		{
-			ethMsgCode:  istanbulValEnodesShareMsg,
+			ethMsgCode:  istanbul.ValEnodesShareMsg,
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulFwdMsg,
+			ethMsgCode:  istanbul.FwdMsg,
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulVersionCertificatesMsg,
+			ethMsgCode:  istanbul.VersionCertificatesMsg,
 			shouldCache: true,
 		},
 		{
-			ethMsgCode:  istanbulEnodeCertificateMsg,
+			ethMsgCode:  istanbul.EnodeCertificateMsg,
 			shouldCache: false,
 		},
 		{
-			ethMsgCode:  istanbulValidatorHandshakeMsg,
+			ethMsgCode:  istanbul.ValidatorHandshakeMsg,
 			shouldCache: false,
 		},
 	}
@@ -141,6 +141,9 @@ func TestRecentMessageCaches(t *testing.T) {
 			t.Fatalf("handle message failed: %v", err)
 		}
 
+		// Sleep for a bit, since some of the messages are handled in a different thread
+		time.Sleep(10 * time.Second)
+
 		// for peers
 		if ms, ok := backend.peerRecentMessages.Get(addr); tt.shouldCache != ok {
 			t.Fatalf("the cache of messages for this peer should be nil")
@@ -170,7 +173,7 @@ func TestProxyConsensusForwarding(t *testing.T) {
 	}
 
 	msg := &istanbul.Message{
-		Code:      istanbulConsensusMsg,
+		Code:      istanbul.ConsensusMsg,
 		Msg:       bytes,
 		Address:   backend.Address(),
 		Signature: []byte{},
@@ -209,7 +212,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting payload of empty msg %v", err)
 	}
-	peer.Messages <- makeMsg(istanbulValidatorHandshakeMsg, emptyMsgPayload)
+	peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, emptyMsgPayload)
 	isValidator, err := backend.readValidatorHandshakeMessage(peer)
 	if err != nil {
 		t.Errorf("Error from readValidatorHandshakeMessage %v", err)
@@ -239,7 +242,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting payload of valid msg %v", err)
 	}
-	peer.Messages <- makeMsg(istanbulValidatorHandshakeMsg, validMsgPayload)
+	peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, validMsgPayload)
 
 	block := backend.currentBlock()
 	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
