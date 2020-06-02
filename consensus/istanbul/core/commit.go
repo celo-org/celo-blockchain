@@ -52,6 +52,9 @@ func (c *core) commitHandler() {
 	sealCache := make(map[string]blscrypto.SerializedSignature)
 	commitCache := make(map[string]istanbul.Proposal)
 
+	buffer := make([]string, 100)
+	bufferIdx := 0
+
 	for {
 		select {
 		case sub := <-c.signerCh:
@@ -70,6 +73,14 @@ func (c *core) commitHandler() {
 				if res, ok := commitCache[sub.View.String()]; !ok || res == nil {
 					logger.Debug("Caching seal", "view", sub.View.String())
 					sealCache[sub.View.String()] = committedSeal
+
+					// Add it to buffer, remove old one
+					if prev := buffer[bufferIdx]; prev != "" {
+						delete(sealCache, prev)
+						delete(commitCache, prev)
+					}
+					buffer[bufferIdx] = sub.View.String()
+					bufferIdx = (bufferIdx + 1) % 100
 				} else {
 					c.broadcastCommit(&sub, committedSeal, res)
 				}
@@ -89,6 +100,13 @@ func (c *core) commitHandler() {
 			if seal, ok := sealCache[info.sub.View.String()]; !ok {
 				logger.Debug("Caching commit", "view", info.sub.View.String())
 				commitCache[info.sub.View.String()] = info.proposal
+				// Add it to buffer, remove old one
+				if prev := buffer[bufferIdx]; prev != "" {
+					delete(sealCache, prev)
+					delete(commitCache, prev)
+				}
+				buffer[bufferIdx] = info.sub.View.String()
+				bufferIdx = (bufferIdx + 1) % 100
 			} else {
 				c.broadcastCommit(&info.sub, seal, info.proposal)
 			}
