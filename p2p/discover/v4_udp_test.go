@@ -21,7 +21,6 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"io"
 	"math/rand"
@@ -31,23 +30,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/internal/testlog"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover/v4wire"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // shared test variables
 var (
 	futureExp          = uint64(time.Now().Add(10 * time.Hour).Unix())
-	testTarget         = encPubkey{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}
-	testRemote         = rpcEndpoint{IP: net.ParseIP("1.1.1.1").To4(), UDP: 1, TCP: 2}
-	testLocalAnnounced = rpcEndpoint{IP: net.ParseIP("2.2.2.2").To4(), UDP: 3, TCP: 4}
-	testLocal          = rpcEndpoint{IP: net.ParseIP("3.3.3.3").To4(), UDP: 5, TCP: 6}
+	testTarget         = v4wire.Pubkey{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}
+	testRemote         = v4wire.Endpoint{IP: net.ParseIP("1.1.1.1").To4(), UDP: 1, TCP: 2}
+	testLocalAnnounced = v4wire.Endpoint{IP: net.ParseIP("2.2.2.2").To4(), UDP: 3, TCP: 4}
+	testLocal          = v4wire.Endpoint{IP: net.ParseIP("3.3.3.3").To4(), UDP: 5, TCP: 6}
 	testNetworkId      = uint64(1)
 )
 
@@ -89,19 +85,19 @@ func (test *udpTest) close() {
 }
 
 // handles a packet as if it had been sent to the transport.
-func (test *udpTest) packetIn(wantError error, data packetV4) {
+func (test *udpTest) packetIn(wantError error, data v4wire.Packet) {
 	test.t.Helper()
 
 	test.packetInFrom(wantError, test.remotekey, test.remoteaddr, data)
 }
 
 // handles a packet as if it had been sent to the transport by the key/endpoint.
-func (test *udpTest) packetInFrom(wantError error, key *ecdsa.PrivateKey, addr *net.UDPAddr, data packetV4) {
+func (test *udpTest) packetInFrom(wantError error, key *ecdsa.PrivateKey, addr *net.UDPAddr, data v4wire.Packet) {
 	test.t.Helper()
 
-	enc, _, err := test.udp.encode(key, data)
+	enc, _, err := v4wire.Encode(key, data)
 	if err != nil {
-		test.t.Errorf("%s encode error: %v", data.name(), err)
+		test.t.Errorf("%s encode error: %v", data.Name(), err)
 	}
 	test.sent = append(test.sent, enc)
 	if err = test.udp.handlePacket(addr, enc); err != wantError {
@@ -121,7 +117,7 @@ func (test *udpTest) waitPacketOut(validate interface{}) (closed bool) {
 		test.t.Error("packet receive error:", err)
 		return false
 	}
-	p, _, hash, err := decodeV4(dgram.data)
+	p, _, hash, err := v4wire.Decode(dgram.data)
 	if err != nil {
 		test.t.Errorf("sent packet decode error: %v", err)
 		return false
@@ -140,11 +136,11 @@ func TestUDPv4_packetErrors(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.close()
 
-	test.packetIn(errExpired, &pingV4{From: testRemote, To: testLocalAnnounced, Version: 4, NetworkId: testNetworkId})
-	test.packetIn(errUnsolicitedReply, &pongV4{ReplyTok: []byte{}, Expiration: futureExp})
-	test.packetIn(errUnknownNode, &findnodeV4{Expiration: futureExp})
-	test.packetIn(errUnsolicitedReply, &neighborsV4{Expiration: futureExp})
-	test.packetIn(errBadNetworkId, &pingV4{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId + 1})
+	test.packetIn(errExpired, &v4wire.Ping{From: testRemote, To: testLocalAnnounced, Version: 4, NetworkId: testNetworkId})
+	test.packetIn(errUnsolicitedReply, &v4wire.Pong{ReplyTok: []byte{}, Expiration: futureExp})
+	test.packetIn(errUnknownNode, &v4wire.Findnode{Expiration: futureExp})
+	test.packetIn(errUnsolicitedReply, &v4wire.Neighbors{Expiration: futureExp})
+	test.packetIn(errBadNetworkId, &v4wire.Ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId + 1})
 }
 
 func TestUDPv4_pingTimeout(t *testing.T) {
@@ -162,13 +158,8 @@ func TestUDPv4_pingTimeout(t *testing.T) {
 
 type testPacket byte
 
-func (req testPacket) kind() byte   { return byte(req) }
-func (req testPacket) name() string { return "" }
-func (req testPacket) preverify(*UDPv4, *net.UDPAddr, enode.ID, encPubkey) error {
-	return nil
-}
-func (req testPacket) handle(*UDPv4, *net.UDPAddr, enode.ID, []byte) {
-}
+func (req testPacket) Kind() byte   { return byte(req) }
+func (req testPacket) Name() string { return "" }
 
 func TestUDPv4_responseTimeouts(t *testing.T) {
 	t.Parallel()
@@ -193,7 +184,7 @@ func TestUDPv4_responseTimeouts(t *testing.T) {
 		// within the timeout window.
 		p := &replyMatcher{
 			ptype:    byte(rand.Intn(255)),
-			callback: func(interface{}) (bool, bool) { return true, true },
+			callback: func(v4wire.Packet) (bool, bool) { return true, true },
 		}
 		binary.BigEndian.PutUint64(p.from[:], uint64(i))
 		if p.ptype <= 128 {
@@ -249,7 +240,7 @@ func TestUDPv4_findnodeTimeout(t *testing.T) {
 
 	toaddr := &net.UDPAddr{IP: net.ParseIP("1.2.3.4"), Port: 2222}
 	toid := enode.ID{1, 2, 3, 4}
-	target := encPubkey{4, 5, 6, 7}
+	target := v4wire.Pubkey{4, 5, 6, 7}
 	result, err := test.udp.findnode(toid, toaddr, target)
 	if err != errTimeout {
 		t.Error("expected timeout error, got", err)
@@ -266,7 +257,7 @@ func TestUDPv4_findnode(t *testing.T) {
 	// put a few nodes into the table. their exact
 	// distribution shouldn't matter much, although we need to
 	// take care not to overflow any bucket.
-	nodes := &nodesByDistance{target: testTarget.id()}
+	nodes := &nodesByDistance{target: testTarget.ID()}
 	live := make(map[enode.ID]bool)
 	numCandidates := 2 * bucketSize
 	for i := 0; i < numCandidates; i++ {
@@ -284,32 +275,32 @@ func TestUDPv4_findnode(t *testing.T) {
 
 	// ensure there's a bond with the test node,
 	// findnode won't be accepted otherwise.
-	remoteID := encodePubkey(&test.remotekey.PublicKey).id()
+	remoteID := v4wire.EncodePubkey(&test.remotekey.PublicKey).ID()
 	test.table.db.UpdateLastPongReceived(remoteID, test.remoteaddr.IP, time.Now())
 
 	// check that closest neighbors are returned.
-	expected := test.table.closest(testTarget.id(), bucketSize, true)
-	test.packetIn(nil, &findnodeV4{Target: testTarget, Expiration: futureExp})
+	expected := test.table.closest(testTarget.ID(), bucketSize, true)
+	test.packetIn(nil, &v4wire.Findnode{Target: testTarget, Expiration: futureExp})
 	waitNeighbors := func(want []*node) {
-		test.waitPacketOut(func(p *neighborsV4, to *net.UDPAddr, hash []byte) {
+		test.waitPacketOut(func(p *v4wire.Neighbors, to *net.UDPAddr, hash []byte) {
 			if len(p.Nodes) != len(want) {
 				t.Errorf("wrong number of results: got %d, want %d", len(p.Nodes), bucketSize)
 			}
 			for i, n := range p.Nodes {
-				if n.ID.id() != want[i].ID() {
+				if n.ID.ID() != want[i].ID() {
 					t.Errorf("result mismatch at %d:\n  got:  %v\n  want: %v", i, n, expected.entries[i])
 				}
-				if !live[n.ID.id()] {
-					t.Errorf("result includes dead node %v", n.ID.id())
+				if !live[n.ID.ID()] {
+					t.Errorf("result includes dead node %v", n.ID.ID())
 				}
 			}
 		})
 	}
 	// Receive replies.
 	want := expected.entries
-	if len(want) > maxNeighbors {
-		waitNeighbors(want[:maxNeighbors])
-		want = want[maxNeighbors:]
+	if len(want) > v4wire.MaxNeighbors {
+		waitNeighbors(want[:v4wire.MaxNeighbors])
+		want = want[v4wire.MaxNeighbors:]
 	}
 	waitNeighbors(want)
 }
@@ -335,7 +326,7 @@ func TestUDPv4_findnodeMultiReply(t *testing.T) {
 
 	// wait for the findnode to be sent.
 	// after it is sent, the transport is waiting for a reply
-	test.waitPacketOut(func(p *findnodeV4, to *net.UDPAddr, hash []byte) {
+	test.waitPacketOut(func(p *v4wire.Findnode, to *net.UDPAddr, hash []byte) {
 		if p.Target != testTarget {
 			t.Errorf("wrong target: got %v, want %v", p.Target, testTarget)
 		}
@@ -348,12 +339,12 @@ func TestUDPv4_findnodeMultiReply(t *testing.T) {
 		wrapNode(enode.MustParse("enode://9bffefd833d53fac8e652415f4973bee289e8b1a5c6c4cbe70abf817ce8a64cee11b823b66a987f51aaa9fba0d6a91b3e6bf0d5a5d1042de8e9eeea057b217f8@10.0.1.36:30301?discport=17")),
 		wrapNode(enode.MustParse("enode://1b5b4aa662d7cb44a7221bfba67302590b643028197a7d5214790f3bac7aaa4a3241be9e83c09cf1f6c69d007c634faae3dc1b1221793e8446c0b3a09de65960@10.0.1.16:30303")),
 	}
-	rpclist := make([]rpcNode, len(list))
+	rpclist := make([]v4wire.Node, len(list))
 	for i := range list {
 		rpclist[i] = nodeToRPC(list[i])
 	}
-	test.packetIn(nil, &neighborsV4{Expiration: futureExp, Nodes: rpclist[:2]})
-	test.packetIn(nil, &neighborsV4{Expiration: futureExp, Nodes: rpclist[2:]})
+	test.packetIn(nil, &v4wire.Neighbors{Expiration: futureExp, Nodes: rpclist[:2]})
+	test.packetIn(nil, &v4wire.Neighbors{Expiration: futureExp, Nodes: rpclist[2:]})
 
 	// check that the sent neighbors are all returned by findnode
 	select {
@@ -377,10 +368,10 @@ func TestUDPv4_pingMatch(t *testing.T) {
 	randToken := make([]byte, 32)
 	crand.Read(randToken)
 
-	test.packetIn(nil, &pingV4{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
-	test.waitPacketOut(func(*pongV4, *net.UDPAddr, []byte) {})
-	test.waitPacketOut(func(*pingV4, *net.UDPAddr, []byte) {})
-	test.packetIn(errUnsolicitedReply, &pongV4{ReplyTok: randToken, To: testLocalAnnounced, Expiration: futureExp})
+	test.packetIn(nil, &v4wire.Ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
+	test.waitPacketOut(func(*v4wire.Pong, *net.UDPAddr, []byte) {})
+	test.waitPacketOut(func(*v4wire.Ping, *net.UDPAddr, []byte) {})
+	test.packetIn(errUnsolicitedReply, &v4wire.Pong{ReplyTok: randToken, To: testLocalAnnounced, Expiration: futureExp})
 }
 
 // This test checks that reply matching of pong verifies the sender IP address.
@@ -388,12 +379,12 @@ func TestUDPv4_pingMatchIP(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.close()
 
-	test.packetIn(nil, &pingV4{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
-	test.waitPacketOut(func(*pongV4, *net.UDPAddr, []byte) {})
+	test.packetIn(nil, &v4wire.Ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
+	test.waitPacketOut(func(*v4wire.Pong, *net.UDPAddr, []byte) {})
 
-	test.waitPacketOut(func(p *pingV4, to *net.UDPAddr, hash []byte) {
+	test.waitPacketOut(func(p *v4wire.Ping, to *net.UDPAddr, hash []byte) {
 		wrongAddr := &net.UDPAddr{IP: net.IP{33, 44, 1, 2}, Port: 30000}
-		test.packetInFrom(errUnsolicitedReply, test.remotekey, wrongAddr, &pongV4{
+		test.packetInFrom(errUnsolicitedReply, test.remotekey, wrongAddr, &v4wire.Pong{
 			ReplyTok:   hash,
 			To:         testLocalAnnounced,
 			Expiration: futureExp,
@@ -408,15 +399,15 @@ func TestUDPv4_successfulPing(t *testing.T) {
 	defer test.close()
 
 	// The remote side sends a ping packet to initiate the exchange.
-	go test.packetIn(nil, &pingV4{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
+	go test.packetIn(nil, &v4wire.Ping{From: testRemote, To: testLocalAnnounced, Version: 4, Expiration: futureExp, NetworkId: testNetworkId})
 
 	// The ping is replied to.
-	test.waitPacketOut(func(p *pongV4, to *net.UDPAddr, hash []byte) {
-		pinghash := test.sent[0][:macSize]
+	test.waitPacketOut(func(p *v4wire.Pong, to *net.UDPAddr, hash []byte) {
+		pinghash := test.sent[0][:32]
 		if !bytes.Equal(p.ReplyTok, pinghash) {
 			t.Errorf("got pong.ReplyTok %x, want %x", p.ReplyTok, pinghash)
 		}
-		wantTo := rpcEndpoint{
+		wantTo := v4wire.Endpoint{
 			// The mirrored UDP address is the UDP packet sender
 			IP: test.remoteaddr.IP, UDP: uint16(test.remoteaddr.Port),
 			// The mirrored TCP port is the one from the ping packet
@@ -428,11 +419,11 @@ func TestUDPv4_successfulPing(t *testing.T) {
 	})
 
 	// Remote is unknown, the table pings back.
-	test.waitPacketOut(func(p *pingV4, to *net.UDPAddr, hash []byte) {
+	test.waitPacketOut(func(p *v4wire.Ping, to *net.UDPAddr, hash []byte) {
 		if !reflect.DeepEqual(p.From, test.udp.ourEndpoint()) {
 			t.Errorf("got ping.From %#v, want %#v", p.From, test.udp.ourEndpoint())
 		}
-		wantTo := rpcEndpoint{
+		wantTo := v4wire.Endpoint{
 			// The mirrored UDP address is the UDP packet sender.
 			IP:  test.remoteaddr.IP,
 			UDP: uint16(test.remoteaddr.Port),
@@ -441,7 +432,7 @@ func TestUDPv4_successfulPing(t *testing.T) {
 		if !reflect.DeepEqual(p.To, wantTo) {
 			t.Errorf("got ping.To %v, want %v", p.To, wantTo)
 		}
-		test.packetIn(nil, &pongV4{ReplyTok: hash, Expiration: futureExp})
+		test.packetIn(nil, &v4wire.Pong{ReplyTok: hash, Expiration: futureExp})
 	})
 
 	// The node should be added to the table shortly after getting the
@@ -475,25 +466,25 @@ func TestUDPv4_EIP868(t *testing.T) {
 	wantNode := test.udp.localNode.Node()
 
 	// ENR requests aren't allowed before endpoint proof.
-	test.packetIn(errUnknownNode, &enrRequestV4{Expiration: futureExp})
+	test.packetIn(errUnknownNode, &v4wire.ENRRequest{Expiration: futureExp})
 
 	// Perform endpoint proof and check for sequence number in packet tail.
-	test.packetIn(nil, &pingV4{Expiration: futureExp, NetworkId: testNetworkId})
-	test.waitPacketOut(func(p *pongV4, addr *net.UDPAddr, hash []byte) {
-		if seq := seqFromTail(p.Rest); seq != wantNode.Seq() {
-			t.Errorf("wrong sequence number in pong: %d, want %d", seq, wantNode.Seq())
+	test.packetIn(nil, &v4wire.Ping{Expiration: futureExp, NetworkId: testNetworkId})
+	test.waitPacketOut(func(p *v4wire.Pong, addr *net.UDPAddr, hash []byte) {
+		if p.ENRSeq() != wantNode.Seq() {
+			t.Errorf("wrong sequence number in pong: %d, want %d", p.ENRSeq(), wantNode.Seq())
 		}
 	})
-	test.waitPacketOut(func(p *pingV4, addr *net.UDPAddr, hash []byte) {
-		if seq := seqFromTail(p.Rest); seq != wantNode.Seq() {
-			t.Errorf("wrong sequence number in ping: %d, want %d", seq, wantNode.Seq())
+	test.waitPacketOut(func(p *v4wire.Ping, addr *net.UDPAddr, hash []byte) {
+		if p.ENRSeq() != wantNode.Seq() {
+			t.Errorf("wrong sequence number in ping: %d, want %d", p.ENRSeq(), wantNode.Seq())
 		}
-		test.packetIn(nil, &pongV4{Expiration: futureExp, ReplyTok: hash})
+		test.packetIn(nil, &v4wire.Pong{Expiration: futureExp, ReplyTok: hash})
 	})
 
 	// Request should work now.
-	test.packetIn(nil, &enrRequestV4{Expiration: futureExp})
-	test.waitPacketOut(func(p *enrResponseV4, addr *net.UDPAddr, hash []byte) {
+	test.packetIn(nil, &v4wire.ENRRequest{Expiration: futureExp})
+	test.waitPacketOut(func(p *v4wire.ENRResponse, addr *net.UDPAddr, hash []byte) {
 		n, err := enode.New(enode.ValidSchemes, &p.Record)
 		if err != nil {
 			t.Fatalf("invalid record: %v", err)
@@ -502,119 +493,6 @@ func TestUDPv4_EIP868(t *testing.T) {
 			t.Fatalf("wrong node in enrResponse: %v", n)
 		}
 	})
-}
-
-// EIP-8 test vectors.
-var testPackets = []struct {
-	input      string
-	wantPacket interface{}
-}{
-	{
-		input: "5f76a8dbcc2cfb869e84ed53a0c511642bcf4b4725ac09f4bbb05758519b4a0c820b24a50e9a92ab6b54c29ec27415e4b1fb2e7221ae54df539e24eb7b0708ec5cd65263edbf18c639658308a5fb6cbe273b11231dc6db1eb8f0e91ebcd52e740101eb04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a35501",
-		wantPacket: &pingV4{
-			Version:    4,
-			From:       rpcEndpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
-			To:         rpcEndpoint{net.ParseIP("::1"), 2222, 3333},
-			Expiration: 1136239445,
-			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{},
-		},
-	},
-	{
-		input: "c552fb8e82b033d29aa9a0d8a419430ccb60ccbd850c772c2b566b6f5648567563ece5c430d9583ce11f1ef5cf2eaba463d3b0b3dcb48d2989803052eca8189173a60da7d08d5c756d0aad6fc05cecdfa7ab4149be85e4c1e9ee32e34457ca050101ed04cb847f000001820cfa8215a8d790000000000000000000000000000000018208ae820d058443b9a355010102",
-		wantPacket: &pingV4{
-			Version:    4,
-			From:       rpcEndpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
-			To:         rpcEndpoint{net.ParseIP("::1"), 2222, 3333},
-			Expiration: 1136239445,
-			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{{0x01}, {0x02}},
-		},
-	},
-	{
-		input: "756eea192b2715cf03ba03d69b0bd9e0f9d1bc9b1fab7a79f1e09291e94d88a780480dcfd0ef9b5c82ec6ce99588be5a4d34adf61c6d0baaa31a4336a44b1b9214bfe9e095459073a494529b9b5fbbdf5eac1e5ec8c7017b80cc8d8da0f07c560101f83f82022bd79020010db83c4d001500000000abcdef12820cfa8215a8d79020010db885a308d313198a2e037073488208ae82823a8443b9a35501c50102030405",
-		wantPacket: &pingV4{
-			Version:    555,
-			From:       rpcEndpoint{net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 3322, 5544},
-			To:         rpcEndpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
-			Expiration: 1136239445,
-			NetworkId:  testNetworkId,
-			Rest:       []rlp.RawValue{{0xC5, 0x01, 0x02, 0x03, 0x04, 0x05}},
-		},
-	},
-	{
-		input: "393771faaa6d2ec01c45c1c476e564e29aef48b65a480e7a3aee77c05b43c7c12f80cc9ae69d463552cf47c9fd3b468003f30cf198561d6fc76ef838dae25d2209c41dd7eb554cdd311a01d8dc628cd60ff761a484b858cea3b852f5f59d5a560102f846d79020010db885a308d313198a2e037073488208ae82823aa0fbc914b16819237dcd8801d7e53f69e9719adecb3cc0e790c57e91ca4461c9548443b9a355c6010203c2040506",
-		wantPacket: &pongV4{
-			To:         rpcEndpoint{net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"), 2222, 33338},
-			ReplyTok:   common.Hex2Bytes("fbc914b16819237dcd8801d7e53f69e9719adecb3cc0e790c57e91ca4461c954"),
-			Expiration: 1136239445,
-			Rest:       []rlp.RawValue{{0xC6, 0x01, 0x02, 0x03, 0xC2, 0x04, 0x05}, {0x06}},
-		},
-	},
-	{
-		input: "b4ddc372344d2fea1d58c26edfc7cdb8f7359cb4f6858484cf48ec23feeeaff0fee71339958ee7859a936d61e6e4e43f74f5dc119fffcd6b424df1929f55197b159aaef76f9bac9fed4f35677e85b049a618cdb62d5cdb70a3b238439c79bce30103f84eb840ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd31387574077f301b421bc84df7266c44e9e6d569fc56be00812904767bf5ccd1fc7f8443b9a35582999983999999",
-		wantPacket: &findnodeV4{
-			Target:     hexEncPubkey("ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd31387574077f301b421bc84df7266c44e9e6d569fc56be00812904767bf5ccd1fc7f"),
-			Expiration: 1136239445,
-			Rest:       []rlp.RawValue{{0x82, 0x99, 0x99}, {0x83, 0x99, 0x99, 0x99}},
-		},
-	},
-	{
-		input: "46742cb11a565879175e92ca349eaf9f9ce0380ac4d8976c8ea01f6c2620475c56b8409b9176e182b36ebc0715d6197a69b0eb806d6a7b7aa8615677891e15705c4cf3849f0ff477db229126dc4c0715e11f3ee9172659726dbb3eff8a64a1590004f9015bf90150f84d846321163782115c82115db8403155e1427f85f10a5c9a7755877748041af1bcd8d474ec065eb33df57a97babf54bfd2103575fa829115d224c523596b401065a97f74010610fce76382c0bf32f84984010203040101b840312c55512422cf9b8a4097e9a6ad79402e87a15ae909a4bfefa22398f03d20951933beea1e4dfa6f968212385e829f04c2d314fc2d4e255e0d3bc08792b069dbf8599020010db83c4d001500000000abcdef12820d05820d05b84038643200b172dcfef857492156971f0e6aa2c538d8b74010f8e140811d53b98c765dd2d96126051913f44582e8c199ad7c6d6819e9a56483f637feaac9448aacf8599020010db885a308d313198a2e037073488203e78203e8b8408dcab8618c3253b558d459da53bd8fa68935a719aff8b811197101a4b2b47dd2d47295286fc00cc081bb542d760717d1bdd6bec2c37cd72eca367d6dd3b9df738443b9a355010203",
-		wantPacket: &neighborsV4{
-			Nodes: []rpcNode{
-				{
-					ID:  hexEncPubkey("3155e1427f85f10a5c9a7755877748041af1bcd8d474ec065eb33df57a97babf54bfd2103575fa829115d224c523596b401065a97f74010610fce76382c0bf32"),
-					IP:  net.ParseIP("99.33.22.55").To4(),
-					UDP: 4444,
-					TCP: 4445,
-				},
-				{
-					ID:  hexEncPubkey("312c55512422cf9b8a4097e9a6ad79402e87a15ae909a4bfefa22398f03d20951933beea1e4dfa6f968212385e829f04c2d314fc2d4e255e0d3bc08792b069db"),
-					IP:  net.ParseIP("1.2.3.4").To4(),
-					UDP: 1,
-					TCP: 1,
-				},
-				{
-					ID:  hexEncPubkey("38643200b172dcfef857492156971f0e6aa2c538d8b74010f8e140811d53b98c765dd2d96126051913f44582e8c199ad7c6d6819e9a56483f637feaac9448aac"),
-					IP:  net.ParseIP("2001:db8:3c4d:15::abcd:ef12"),
-					UDP: 3333,
-					TCP: 3333,
-				},
-				{
-					ID:  hexEncPubkey("8dcab8618c3253b558d459da53bd8fa68935a719aff8b811197101a4b2b47dd2d47295286fc00cc081bb542d760717d1bdd6bec2c37cd72eca367d6dd3b9df73"),
-					IP:  net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7348"),
-					UDP: 999,
-					TCP: 1000,
-				},
-			},
-			Expiration: 1136239445,
-			Rest:       []rlp.RawValue{{0x01}, {0x02}, {0x03}},
-		},
-	},
-}
-
-func TestUDPv4_forwardCompatibility(t *testing.T) {
-	testkey, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	wantNodeKey := encodePubkey(&testkey.PublicKey)
-
-	for _, test := range testPackets {
-		input, err := hex.DecodeString(test.input)
-		if err != nil {
-			t.Fatalf("invalid hex: %s", test.input)
-		}
-		packet, nodekey, _, err := decodeV4(input)
-		if err != nil {
-			t.Errorf("did not accept packet %s\n%v", test.input, err)
-			continue
-		}
-		if !reflect.DeepEqual(packet, test.wantPacket) {
-			t.Errorf("got %s\nwant %s", spew.Sdump(packet), spew.Sdump(test.wantPacket))
-		}
-		if nodekey != wantNodeKey {
-			t.Errorf("got id %v\nwant id %v", nodekey, wantNodeKey)
-		}
-	}
 }
 
 // dgramPipe is a fake UDP socket. It queues all sent datagrams.
