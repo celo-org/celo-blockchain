@@ -138,7 +138,7 @@ jobs:
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
-            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(x) for x in obj["celotool"][::-1])')
+            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(obj[x]["location"]) for x in obj["@celo/celotool"]["dependencies"][::-1])')
             for i in `echo $PACKAGES`; do yarn --cwd packages/$i build; done
             yarn --cwd packages/celotool build
       - run:
