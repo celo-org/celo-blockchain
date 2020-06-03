@@ -799,14 +799,12 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		gasPrice = args.GasPrice.ToInt()
 	}
 
-	feeCurrency := args.FeeCurrency
-	if gasPrice == nil {
-		if feeCurrency == nil {
-			gasPrice, err = b.SuggestPrice(ctx)
-		} else {
-			// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
-			gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
-		}
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
+		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
 			log.Error("Error suggesting gas price", "block", blockNrOrHash, "err", err)
 			return nil, 0, false, err
@@ -1398,7 +1396,11 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 			}
 		}
 	}
-	if args.GasPrice == nil {
+
+	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
+	// which will always be in Gold. This allows the default price to be set for the proper currency.
+	// TODO(asa): Remove this once this is handled in the Provider.
+	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
 		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 		if err != nil {
 			return err
