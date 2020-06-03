@@ -278,7 +278,7 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 	}
 
 	// Send payload to the specified addresses
-	if err := c.backend.BroadcastConsensusMsg(addresses, payload); err != nil {
+	if err := c.backend.Multicast(addresses, payload, istanbul.ConsensusMsg, true); err != nil {
 		logger.Error("Failed to send message", "m", msg, "err", err)
 		return
 	}

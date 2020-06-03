@@ -357,13 +357,13 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		network  string
 		protocol string
 	)
-	if info := infos.Protocols[eth.ProtocolName]; info != nil {
+	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
 			return errors.New("Could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
+		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {

@@ -105,7 +105,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
+func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64, sendToSelf bool) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	send := func() {
@@ -117,7 +117,7 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	return nil
 }
 
-func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64) error {
+func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return nil
 }
 
