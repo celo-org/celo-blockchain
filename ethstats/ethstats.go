@@ -66,8 +66,8 @@ const (
 
 	// connectionTimeout waits for the websocket connection to be established
 	connectionTimeout = 10
-	// delegateSendTimeout waits for the proxy to sign a message
-	delegateSendTimeout = 5
+	// delegateSignTimeout waits for the proxy to sign a message
+	delegateSignTimeout = 5
 	// statusUpdateInterval is the frequency of sending full node reports
 	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
@@ -96,12 +96,11 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server        *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth           *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les           *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine        consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend       *istanbulBackend.Backend // Istanbul consensus backend
-	etherBase     common.Address
+	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend *istanbulBackend.Backend // Istanbul consensus backend
 	nodeName      string // Name of the node to display on the monitoring page
 	celostatsHost string // Remote address of the monitoring service
 
@@ -119,14 +118,12 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	}
 	// Assemble and return the stats service
 	var (
-		engine    consensus.Engine
-		etherBase common.Address
-		name      string
+		engine consensus.Engine
+		name     string
 	)
 	name = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
-		etherBase, _ = ethServ.Etherbase()
 	} else {
 		engine = lesServ.Engine()
 	}
@@ -138,7 +135,6 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		les:           lesServ,
 		engine:        engine,
 		backend:       backend,
-		etherBase:     etherBase,
 		nodeName:      name,
 		celostatsHost: parts[2],
 		pongCh:        make(chan struct{}),
@@ -169,6 +165,7 @@ func (s *Service) Stop() error {
 	return nil
 }
 
+// StatsPayload todo: document this
 type StatsPayload struct {
 	Action string      `json:"action"`
 	Stats  interface{} `json:"stats"`
@@ -271,88 +268,81 @@ func (s *Service) loop() {
 				log.Warn("Delegate sign failed", "err", err)
 			}
 		} else {
-			wallet, err := s.eth.AccountManager().Find(accounts.Account{Address: s.etherBase})
+			// Resolve the URL, defaulting to TLS, but falling back to none too
+			path := fmt.Sprintf("%s/api", s.host)
+			urls := []string{path}
+
+			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+			if !strings.Contains(path, "://") {
+				urls = []string{"wss://" + path, "ws://" + path}
+			}
+			// Establish a websocket connection to the server on any supported URL
+			var (
+				conn *websocket.Conn
+				err  error
+			)
+			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+			header := make(http.Header)
+			for _, url := range urls {
+				conn, _, err = dialer.Dial(url, header)
+				if err == nil {
+					break
+				}
+			}
+
 			if err != nil {
-				break
+				log.Warn("Stats server unreachable", "err", err)
+				time.Sleep(connectionTimeout * time.Second)
+				continue
 			}
-
-			if status, _ := wallet.Status(); status == "Unlocked" {
-				// Resolve the URL, defaulting to TLS, but falling back to none too
-				path := fmt.Sprintf("%s/api", s.celostatsHost)
-				urls := []string{path}
-
-				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-				if !strings.Contains(path, "://") {
-					urls = []string{"wss://" + path, "ws://" + path}
-				}
-				// Establish a websocket connection to the server on any supported URL
-				var (
-					conn *websocket.Conn
-					err  error
-				)
-				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-				header := make(http.Header)
-				for _, url := range urls {
-					conn, _, err = dialer.Dial(url, header)
-					if err == nil {
-						break
-					}
-				}
-
-				if err != nil {
-					log.Warn("Stats server unreachable", "err", err)
-					time.Sleep(connectionTimeout * time.Second)
-					continue
-				}
-				// Authenticate the client with the server
-				if err = s.login(conn, sendCh); err != nil {
-					log.Warn("Stats login failed", "err", err)
-					conn.Close()
-					time.Sleep(connectionTimeout * time.Second)
-					continue
-				}
-				go s.readLoop(conn)
-
-				// Send the initial stats so our node looks decent from the get go
-				if err = s.report(conn, sendCh); err != nil {
-					log.Warn("Initial stats report failed", "err", err)
-					conn.Close()
-					continue
-				}
-				// Keep sending status updates until the connection breaks
-				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
-
-				for err == nil {
-					select {
-					case <-quitCh:
-						conn.Close()
-						return
-
-					case <-fullReport.C:
-						if err = s.report(conn, sendCh); err != nil {
-							log.Warn("Full stats report failed", "err", err)
-						}
-					case list := <-s.histCh:
-						if err = s.reportHistory(conn, list); err != nil {
-							log.Warn("Requested history report failed", "err", err)
-						}
-					case head := <-headCh:
-						if err = s.reportBlock(conn, head); err != nil {
-							log.Warn("Block stats report failed", "err", err)
-						}
-					case <-txCh:
-						if err = s.reportPending(conn); err != nil {
-							log.Warn("Transaction stats report failed", "err", err)
-						}
-					case signedMessage := <-sendCh:
-						if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-							log.Warn("Delegate send failed", "err", err)
-						}
-					}
-				}
-				// Make sure the connection is closed
+			// Authenticate the client with the server
+			if err = s.login(conn, sendCh); err != nil {
+				log.Warn("Stats login failed", "err", err)
 				conn.Close()
+				time.Sleep(connectionTimeout * time.Second)
+				continue
 			}
+			go s.readLoop(conn)
+
+			// Send the initial stats so our node looks decent from the get go
+			if err = s.report(conn, sendCh); err != nil {
+				log.Warn("Initial stats report failed", "err", err)
+				conn.Close()
+				continue
+			}
+			// Keep sending status updates until the connection breaks
+			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+
+			for err == nil {
+				select {
+				case <-quitCh:
+					conn.Close()
+					return
+
+				case <-fullReport.C:
+					if err = s.report(conn, sendCh); err != nil {
+						log.Warn("Full stats report failed", "err", err)
+					}
+				case list := <-s.histCh:
+					if err = s.reportHistory(conn, list); err != nil {
+						log.Warn("Requested history report failed", "err", err)
+					}
+				case head := <-headCh:
+					if err = s.reportBlock(conn, head); err != nil {
+						log.Warn("Block stats report failed", "err", err)
+					}
+				case <-txCh:
+					if err = s.reportPending(conn); err != nil {
+						log.Warn("Transaction stats report failed", "err", err)
+					}
+				case signedMessage := <-sendCh:
+					if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+						log.Warn("Delegate send failed", "err", err)
+					}
+				}
+			}
+			// Make sure the connection is closed
+			conn.Close()
 		}
 	}
 }
@@ -363,18 +353,16 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	infos := s.server.NodeInfo()
 
 	var (
-		etherBase common.Address
-		network   string
-		protocol  string
-		err       error
+		network  string
+		protocol string
 	)
-	if info := infos.Protocols[eth.ProtocolName]; info != nil {
+	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
 			return errors.New("could not resolve node info")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", eth.ProtocolName, eth.ProtocolVersions[0])
+		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
@@ -387,15 +375,23 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
-	if s.eth != nil {
-		etherBase, err = s.eth.Etherbase()
-		if err != nil {
-			return err
+
+	if s.backend.IsProxy() {
+		// Proxy needs a delegate send here to get ACK
+		select {
+		case signedMessage := <-sendCh:
+			err := s.handleDelegateSend(conn, signedMessage)
+			if err != nil {
+				return err
+			}
+		case <-time.After(delegateSignTimeout * time.Second):
+			// Login timeout, abort
+			return errors.New("delegation of login timed out")
 		}
 	}
+
 	auth := &authMsg{
 		ID:      s.backend.Address().String(),
-		Address: etherBase,
 		Info: nodeInfo{
 			Name:     s.nodeName,
 			Node:     infos.Name,
@@ -409,36 +405,28 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 			History:  true,
 		},
 	}
+
 	if err := s.sendStats(conn, actionHello, auth); err != nil {
 		return err
 	}
 
-	// Proxy needs a delegate send here to get ACK
-	if s.backend.IsProxy() {
-		select {
-		case signedMessage := <-sendCh:
-			err := s.handleDelegateSend(conn, signedMessage)
-			if err != nil {
-				return err
-			}
-		case <-time.After(delegateSendTimeout * time.Second):
-			// Login timeout, abort
-			return errors.New("login timed out")
-		}
-	}
-
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
+
 	if err := conn.ReadJSON(&ack); err != nil {
 		return errors.New("unauthorized, try registering your validator to get whitelisted")
 	}
+
 	emit, ok := ack["emit"]
+
 	if !ok {
 		return errors.New("emit not in ack")
 	}
+
 	if len(emit) != 1 || emit[0] != "ready" {
 		return errors.New("unauthorized")
 	}
+
 	return nil
 }
 
@@ -569,9 +557,8 @@ type nodeInfo struct {
 
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
-	ID      string         `json:"id"`
-	Address common.Address `json:"address"`
-	Info    nodeInfo       `json:"info"`
+	ID   string   `json:"id"`
+	Info nodeInfo `json:"info"`
 }
 
 // report collects all possible data to report and send it to the stats server.

@@ -183,6 +183,12 @@ type Istanbul interface {
 	// StopAnnouncing stops the announcing
 	StopAnnouncing() error
 
+	// StartProxyHandler starts the proxy handler
+	StartProxyHandler() error
+
+	// StopProxyHandler stops the proxy handler
+	StopProxyHandler() error
+
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
 	// The changes are executed inline.
