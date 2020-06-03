@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/bls-zexe/go/bls"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -73,7 +73,7 @@ type testCommittedMsgs struct {
 //
 // define the functions that needs to be provided for Istanbul.
 
-func (self *testSystemBackend) Authorize(address common.Address, _ *ecdsa.PublicKey, _ istanbul.DecryptFn, _ istanbul.SignerFn, _ istanbul.BLSSignerFn, _ istanbul.BLSMessageSignerFn) {
+func (self *testSystemBackend) Authorize(address common.Address, _ *ecdsa.PublicKey, _ istanbul.DecryptFn, _ istanbul.SignerFn, _ istanbul.BLSSignerFn) {
 	self.address = address
 	self.engine.SetAddress(address)
 }
@@ -105,7 +105,7 @@ func (self *testSystemBackend) Send(message []byte, target common.Address) error
 	return nil
 }
 
-func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address, message []byte) error {
+func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64, sendToSelf bool) error {
 	testLogger.Info("enqueuing a message...", "address", self.Address())
 	self.sentMsgs = append(self.sentMsgs, message)
 	send := func() {
@@ -117,26 +117,15 @@ func (self *testSystemBackend) BroadcastConsensusMsg(validators []common.Address
 	return nil
 }
 
-func (self *testSystemBackend) Multicast(validators []common.Address, message []byte, msgCode uint64) error {
+func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return nil
 }
 
-func (self *testSystemBackend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, error) {
+func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
-	signature, _ := privateKey.SignMessage(data, []byte{}, false)
-	defer signature.Destroy()
-	signatureBytes, _ := signature.Serialize()
-
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
-}
-
-func (self *testSystemBackend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
-	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
-	defer privateKey.Destroy()
-
-	signature, _ := privateKey.SignMessage(data, []byte{}, true)
+	signature, _ := privateKey.SignMessage(data, extra, useComposite)
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 

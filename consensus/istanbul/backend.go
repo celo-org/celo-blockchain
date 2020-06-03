@@ -37,13 +37,9 @@ type DecryptFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
 // backing account.
 type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 
-// BLSSignerFn is a signer callback function to request a hash to be signed by a
-// backing account using BLS.
-type BLSSignerFn func(accounts.Account, []byte) (blscrypto.SerializedSignature, error)
-
-// BLSMessageSignerFn is a signer callback function to request a raw message to
-// be signed by a backing account.
-type BLSMessageSignerFn func(accounts.Account, []byte, []byte) (blscrypto.SerializedSignature, error)
+// BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
+// backing account using BLS with a direct or composite hasher
+type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
 // Backend provides application specific functions for Istanbul core
 type Backend interface {
@@ -57,13 +53,13 @@ type Backend interface {
 	// EventMux returns the event mux in backend
 	EventMux() *event.TypeMux
 
-	// BroadcastConsensusMsg sends a message to all validators (include self)
-	BroadcastConsensusMsg(validators []common.Address, payload []byte) error
+	// Gossip will send a message to all connnected peers
+	Gossip(payload []byte, ethMsgCode uint64) error
 
 	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
 	// is associated with those node's signing key)
-	// If that parameter is nil, then it will send the message to all it's connected peers.
-	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64) error
+	// If sendToSelf is set to true, then the function will send an event to self via a message event
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
@@ -75,8 +71,9 @@ type Backend interface {
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
-	SignBlockHeader([]byte) (blscrypto.SerializedSignature, error)
-	SignBLSWithCompositeHash([]byte) (blscrypto.SerializedSignature, error)
+
+	// Sign with the data with the BLS key, using either a direct or composite hasher
+	SignBLS([]byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator
@@ -104,5 +101,5 @@ type Backend interface {
 	RefreshValPeers() error
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signHashBLSFn BLSSignerFn, signMessageBLSFn BLSMessageSignerFn)
+	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signBLSFn BLSSignerFn)
 }

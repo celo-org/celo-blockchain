@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -30,12 +31,12 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 
-	b.Authorize(getAddress(), &privateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(getAddress(), &privateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
 
 	// Set the backend's proxied validator address to itself
 	b.config.ProxiedValidatorAddress = senderAddress
 
-	if err = b.handleValEnodesShareMsg(nil, payload); err != nil {
+	if err = b.handleValEnodesShareMsg(common.Address{}, nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 
@@ -76,7 +77,7 @@ func TestHandleValEnodeShareMsg(t *testing.T) {
 	b.valEnodeTable.RemoveEntry(testAddress)
 
 	b.config.ProxiedValidatorAddress = senderAddress
-	if err = b.handleValEnodesShareMsg(nil, newPayload); err != nil {
+	if err = b.handleValEnodesShareMsg(common.Address{}, nil, newPayload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

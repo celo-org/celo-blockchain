@@ -260,7 +260,7 @@ func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 		return false, err
 	}
 
-	return sb.coreStarted && validatorConnSet[sb.Address()], nil
+	return validatorConnSet[sb.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -419,7 +419,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return err
 		}
 
-		if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
+		if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 			return err
 		}
 
@@ -501,7 +501,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeDestAddresses [
 	}
 
 	msg := &istanbul.Message{
-		Code:      istanbulQueryEnodeMsg,
+		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
 		Address:   sb.Address(),
 		Signature: []byte{},
@@ -544,10 +544,17 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeURL string, queryEnodeDestAdd
 }
 
 // This function will handle a queryEnode message.
-func (sb *Backend) handleQueryEnodeMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleQueryEnodeMsg")
 
 	msg := new(istanbul.Message)
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
+		return nil
+	}
+	defer sb.markMessageProcessedBySelf(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -713,7 +720,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := sb.Multicast(nil, payload, istanbulQueryEnodeMsg); err != nil {
+	if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
@@ -835,7 +842,7 @@ func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCe
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code: istanbulVersionCertificatesMsg,
+		Code: istanbul.VersionCertificatesMsg,
 		Msg:  payload,
 	}
 	msgPayload, err := msg.Payload()
@@ -853,7 +860,7 @@ func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCe
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return sb.Multicast(nil, payload, istanbulVersionCertificatesMsg)
+	return sb.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
 func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
@@ -882,12 +889,19 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return peer.Send(istanbulVersionCertificatesMsg, payload)
+	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
-func (sb *Backend) handleVersionCertificatesMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
+		return nil
+	}
+	defer sb.markMessageProcessedBySelf(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
@@ -1043,7 +1057,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		destAddresses[i] = address
 		i++
 	}
-	err = sb.Multicast(destAddresses, payload, istanbulEnodeCertificateMsg)
+	err = sb.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false)
 	if err != nil {
 		return err
 	}
@@ -1139,7 +1153,7 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 		return nil, err
 	}
 	msg := &istanbul.Message{
-		Code:    istanbulEnodeCertificateMsg,
+		Code:    istanbul.EnodeCertificateMsg,
 		Address: sb.Address(),
 		Msg:     enodeCertificateBytes,
 	}
@@ -1159,7 +1173,7 @@ func (sb *Backend) generateEnodeCertificateMsg(version uint) (*istanbul.Message,
 // will send it back to this node.
 // If the proxied validator sends an enode certificate for itself to this node,
 // this node will set the enode certificate as its own for handshaking.
-func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleEnodeCertificateMsg(_ common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
@@ -1272,7 +1286,7 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 		logger.Error("Error getting payload of enode certificate message", "err", err)
 		return err
 	}
-	return peer.Send(istanbulEnodeCertificateMsg, payload)
+	return peer.Send(istanbul.EnodeCertificateMsg, payload)
 }
 
 func (sb *Backend) setEnodeCertificateMsg(msg *istanbul.Message) error {

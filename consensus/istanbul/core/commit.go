@@ -19,6 +19,7 @@ package core
 import (
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
@@ -32,7 +33,7 @@ func (c *core) sendCommit() {
 
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBlockHeader(seal)
+	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false)
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err
 	}
@@ -78,7 +79,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	}
 	var epochValidatorSetSeal blscrypto.SerializedSignature
 	if err == nil {
-		epochValidatorSetSeal, err = c.backend.SignBLSWithCompositeHash(epochValidatorSetData[:])
+		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData[:], []byte{}, true)
 		if err != nil {
 			logger.Error("Failed to sign epoch validator set seal", "err", err)
 			return
@@ -120,6 +121,9 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 		if err != nil {
 			return err
 		} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
+			return errOldMessage
+		} else if lastSubject.View.Sequence.Cmp(common.Big0) == 0 {
+			// Don't handle commits for the genesis block, will cause underflows
 			return errOldMessage
 		}
 		return c.handleCheckedCommitForPreviousSequence(msg, commit)

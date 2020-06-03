@@ -145,6 +145,10 @@ func (api *ExternalSigner) Derive(path accounts.DerivationPath, pin bool) (accou
 	return accounts.Account{}, fmt.Errorf("operation not supported on external signers")
 }
 
+func (api *ExternalSigner) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, fmt.Errorf("operation not supported on external signers")
+}
+
 func (api *ExternalSigner) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
 	log.Error("operation SelfDerive not supported on external signers")
 }
@@ -219,11 +223,7 @@ func (api *ExternalSigner) Decrypt(account accounts.Account, c, s1, s2 []byte) (
 	return nil, accounts.ErrNotSupported
 }
 
-func (api *ExternalSigner) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
-	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
-}
-
-func (api *ExternalSigner) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+func (api *ExternalSigner) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 
