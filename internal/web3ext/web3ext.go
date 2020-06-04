@@ -762,13 +762,7 @@ web3._extend({
 			getter: 'istanbul_getCurrentRoundState',
 		}),
 	],
-	properties:
-	[
-		new web3._extend.Property({
-			name: 'candidates',
-			getter: 'istanbul_candidates'
-		}),
-	]
+	properties: []
 });
 `
 

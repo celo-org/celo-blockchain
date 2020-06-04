@@ -40,7 +40,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -112,8 +111,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		updateAnnounceVersionCompleteCh:    make(chan struct{}),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
-		valEnodesShareWg:                   new(sync.WaitGroup),
-		valEnodesShareQuit:                 make(chan struct{}),
+		valEnodesShareThreadWg:             new(sync.WaitGroup),
+		valEnodesShareThreadQuit:           make(chan struct{}),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -151,10 +150,10 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// Set the handler functions for each istanbul message type
 	backend.istanbulAnnounceMsgHandlers = make(map[uint64]announceMsgHandler)
-	backend.istanbulAnnounceMsgHandlers[istanbulQueryEnodeMsg] = backend.handleQueryEnodeMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulValEnodesShareMsg] = backend.handleValEnodesShareMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulVersionCertificatesMsg] = backend.handleVersionCertificatesMsg
-	backend.istanbulAnnounceMsgHandlers[istanbulEnodeCertificateMsg] = backend.handleEnodeCertificateMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.QueryEnodeMsg] = backend.handleQueryEnodeMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.ValEnodesShareMsg] = backend.handleValEnodesShareMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.VersionCertificatesMsg] = backend.handleVersionCertificatesMsg
+	backend.istanbulAnnounceMsgHandlers[istanbul.EnodeCertificateMsg] = backend.handleEnodeCertificateMsg
 
 	return backend
 }
@@ -228,8 +227,8 @@ type Backend struct {
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMu      sync.RWMutex
 
-	valEnodesShareWg   *sync.WaitGroup
-	valEnodesShareQuit chan struct{}
+	valEnodesShareThreadWg   *sync.WaitGroup
+	valEnodesShareThreadQuit chan struct{}
 
 	// Validator's proxy
 	proxyNode *proxyInfo
@@ -276,6 +275,9 @@ type Backend struct {
 	updatingCachedValidatorConnSetCond *sync.Cond
 
 	vph *validatorPeerHandler
+
+	proxyHandlerRunning bool
+	proxyHandlerMu      sync.RWMutex
 }
 
 // IsProxy returns if instance has proxy flag
@@ -285,7 +287,12 @@ func (sb *Backend) IsProxy() bool {
 
 // IsProxiedValidator returns if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
-	return sb.config.Proxied
+	return sb.config.Proxied && sb.config.Validator
+}
+
+// IsValidator return if instance is a validator (either proxied or standalone)
+func (sb *Backend) IsValidator() bool {
+	return sb.config.Validator
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -296,7 +303,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 		sb.logger.Error("SendDelegateSignMsgToProxy failed", "err", err)
 		return err
 	}
-	return sb.proxyNode.peer.Send(istanbulDelegateSign, msg)
+	return sb.proxyNode.peer.Send(istanbul.DelegateSignMsg, msg)
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
@@ -307,7 +314,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 		sb.logger.Error("SendDelegateSignMsgToProxiedValidator failed", "err", err)
 		return err
 	}
-	return sb.proxiedPeer.Send(istanbulDelegateSign, msg)
+	return sb.proxiedPeer.Send(istanbul.DelegateSignMsg, msg)
 }
 
 // Authorize implements istanbul.Backend.Authorize
@@ -394,132 +401,6 @@ func (sb *Backend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.Val
 func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {
 	validatorSet := sb.getValidators(blockNumber.Uint64(), headerHash)
 	return validatorSet.List()
-}
-
-// This function will return the peers with the addresses in the "destAddresses" parameter.
-// If this is a proxied validator, then it will return the proxy.
-func (sb *Backend) getPeersForMessage(destAddresses []common.Address) map[enode.ID]consensus.Peer {
-	if sb.config.Proxied {
-		if sb.proxyNode != nil && sb.proxyNode.peer != nil {
-			returnMap := make(map[enode.ID]consensus.Peer)
-			returnMap[sb.proxyNode.peer.Node().ID()] = sb.proxyNode.peer
-
-			return returnMap
-		}
-		return nil
-	}
-
-	var targets map[enode.ID]bool
-	if destAddresses != nil {
-		targets = make(map[enode.ID]bool)
-		for _, addr := range destAddresses {
-			if valNode, err := sb.valEnodeTable.GetNodeFromAddress(addr); valNode != nil && err == nil {
-				targets[valNode.ID()] = true
-			}
-		}
-	}
-	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
-}
-
-// BroadcastConsensusMsg implements istanbul.Backend.BroadcastConsensusMsg
-// This function will wrap the consensus message in a fwdMessage if it's a proxied validator.  It will then
-// multicast the msg (the wrapped or original version) to the other validators and send it to itself.
-func (sb *Backend) BroadcastConsensusMsg(destAddresses []common.Address, payload []byte) error {
-	sb.logger.Trace("Broadcasting an istanbul message", "destAddresses", common.ConvertToStringSlice(destAddresses))
-
-	// Send to others
-	if err := sb.Multicast(destAddresses, payload, istanbulConsensusMsg); err != nil {
-		return err
-	}
-
-	// Send to self.  Note that it will never be a wrapped version of the consensus message.
-	msg := istanbul.MessageEvent{
-		Payload: payload,
-	}
-	go sb.istanbulEventMux.Post(msg)
-	return nil
-}
-
-// Multicast implements istanbul.Backend.Multicast
-// Multicast will send the eth message (with the message's payload and msgCode field set to the params
-// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
-// If this node is proxied and destAddresses is not nil, the message will be wrapped
-// in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
-// destAddresses.
-// If the destAddresses param is set to nil, then this function will send the message to all connected
-// peers.
-func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
-	logger := sb.logger.New("func", "Multicast")
-
-	if sb.config.Proxied && destAddresses != nil {
-		// Convert the message to a fwdMessage
-		fwdMessage := &istanbul.ForwardMessage{
-			Code:          ethMsgCode,
-			DestAddresses: destAddresses,
-			Msg:           payload,
-		}
-		fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-		if err != nil {
-			logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-			return err
-		}
-
-		// Note that we are not signing message.  The message that is being wrapped is already signed.
-		msg := istanbul.Message{Code: istanbulFwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
-		fwdMsgPayload, err := msg.Payload()
-		if err != nil {
-			return err
-		}
-
-		return sb.multicast(destAddresses, fwdMsgPayload, istanbulFwdMsg)
-	}
-	return sb.multicast(destAddresses, payload, ethMsgCode)
-}
-
-// multicast will send the eth message (with the message's payload and msgCode field set to the params
-// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
-// If the destAddresses param is set to nil, then this function will send the message to all connected peers.
-func (sb *Backend) multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64) error {
-	logger := sb.logger.New("func", "multicast")
-	// Get peers to send.
-	peers := sb.getPeersForMessage(destAddresses)
-
-	logger.Trace("Going to multicast a message", "peers", peers, "ethMsgCode", ethMsgCode)
-
-	// Only cache for the announceMsg, as that is the only message that is gossiped.
-	var hash common.Hash
-	if sb.isGossipedMsgCode(ethMsgCode) {
-		hash = istanbul.RLPHash(payload)
-		sb.selfRecentMessages.Add(hash, true)
-	}
-
-	if len(peers) > 0 {
-		for _, p := range peers {
-			if sb.isGossipedMsgCode(ethMsgCode) {
-				nodePubKey := p.Node().Pubkey()
-				nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
-				ms, ok := sb.peerRecentMessages.Get(nodeAddr)
-				var m *lru.ARCCache
-				if ok {
-					m, _ = ms.(*lru.ARCCache)
-					if _, k := m.Get(hash); k {
-						// This peer had this event, skip it
-						logger.Trace("Message already cached for peer.  Not sending it to peer", "peer", p)
-						continue
-					}
-				} else {
-					m, _ = lru.NewARC(inmemoryMessages)
-				}
-
-				m.Add(hash, true)
-				sb.peerRecentMessages.Add(nodeAddr, m)
-			}
-			logger.Trace("Sending istanbul message to peer", "peer", p)
-
-			go p.Send(ethMsgCode, payload)
-		}
-	}
-	return nil
 }
 
 // Commit implements istanbul.Backend.Commit
@@ -992,4 +873,35 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 
 	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
 	return validatorsSet, nil
+}
+
+func (sb *Backend) sendForwardMsgToProxy(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
+	logger := sb.logger.New("func", "sendForwardMsgToProxy")
+	if sb.proxyNode.peer == nil {
+		logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
+		return errNoProxyConnection
+	}
+
+	// Convert the message to a fwdMessage
+	fwdMessage := &istanbul.ForwardMessage{
+		Code:          ethMsgCode,
+		DestAddresses: finalDestAddresses,
+		Msg:           payload,
+	}
+	fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+	if err != nil {
+		logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+		return err
+	}
+
+	// Note that we are not signing message.  The message that is being wrapped is already signed.
+	msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: sb.Address()}
+	fwdMsgPayload, err := msg.Payload()
+	if err != nil {
+		return err
+	}
+
+	go sb.proxyNode.peer.Send(istanbul.FwdMsg, fwdMsgPayload)
+
+	return nil
 }

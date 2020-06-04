@@ -442,6 +442,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if err := ethereum.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
+		// Start the proxy handler if this is a node is proxied and "mining"
+		if ctx.GlobalBool(utils.ProxiedFlag.Name) {
+			if err := ethereum.StartProxyHandler(); err != nil {
+				utils.Fatalf("Failed to start the proxy handler: %v", err)
+			}
+		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
 		blockchain_parameters.SpawnCheck()

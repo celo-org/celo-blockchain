@@ -29,21 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// Constants to match up protocol versions and messages
-const (
-	celo64 = 64
-	celo65 = 65
-)
-
-// protocolName is the official short name of the protocol used during capability negotiation.
-const ProtocolName = "istanbul"
-
-// ProtocolVersions are the supported versions of the eth protocol (first is primary).
-var ProtocolVersions = []uint{celo65, celo64}
-
-// protocolLengths are the number of implemented message corresponding to different protocol versions.
-var protocolLengths = map[uint]uint64{celo64: 22, celo65: 27}
-
 const protocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message
 
 // eth protocol message codes
