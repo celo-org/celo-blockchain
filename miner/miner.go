@@ -46,7 +46,8 @@ type Backend interface {
 
 // Config is the configuration parameters of mining.
 type Config struct {
-	Etherbase           common.Address `toml:",omitempty"` // Public address for block mining rewards (default = first account)
+	Validator           common.Address `toml:",omitempty"` // Public address for block signing and randomness (default = first account)
+	TxFeeRecipient      common.Address `toml:",omitempty"` // Public address for block mining rewards (default = first account)
 	Notify              []string       `toml:",omitempty"` // HTTP URL list to be notified of new work packages(only useful in ethash).
 	ExtraData           hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
 	GasFloor            uint64         // Target gas floor for mined blocks.
@@ -61,8 +62,8 @@ type Config struct {
 type Miner struct {
 	mux            *event.TypeMux
 	worker         *worker
+	validator      common.Address
 	txFeeRecipient common.Address
-	coinbase       common.Address
 	eth            Backend
 	engine         consensus.Engine
 	exitCh         chan struct{}
@@ -113,7 +114,7 @@ func (miner *Miner) update() {
 				atomic.StoreInt32(&miner.canStart, 1)
 				atomic.StoreInt32(&miner.shouldStart, 0)
 				if shouldStart {
-					miner.Start(miner.coinbase, miner.txFeeRecipient)
+					miner.Start(miner.validator, miner.txFeeRecipient)
 				}
 				// stop immediately and ignore all further pending events
 				return
@@ -124,13 +125,13 @@ func (miner *Miner) update() {
 	}
 }
 
-func (miner *Miner) Start(coinbase common.Address, txFeeRecipient common.Address) {
+func (miner *Miner) Start(validator common.Address, txFeeRecipient common.Address) {
 	atomic.StoreInt32(&miner.shouldStart, 1)
-	miner.SetEtherbase(coinbase)
+	miner.SetValidator(validator)
 	if txFeeRecipient != (common.Address{}) {
 		miner.SetTxFeeRecipient(txFeeRecipient)
 	} else {
-		miner.SetTxFeeRecipient(coinbase)
+		miner.SetTxFeeRecipient(validator)
 	}
 
 	if atomic.LoadInt32(&miner.canStart) == 0 {
@@ -188,11 +189,13 @@ func (miner *Miner) PendingBlock() *types.Block {
 	return miner.worker.pendingBlock()
 }
 
-func (miner *Miner) SetEtherbase(addr common.Address) {
-	miner.coinbase = addr
-	miner.worker.setEtherbase(addr)
+// SetValidator sets the miner and worker's address for message and block signing
+func (miner *Miner) SetValidator(addr common.Address) {
+	miner.validator = addr
+	miner.worker.setValidator(addr)
 }
 
+// SetTxFeeRecipient sets the address where the miner and worker will receive fees
 func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
 	miner.txFeeRecipient = addr
 	miner.worker.setTxFeeRecipient(addr)

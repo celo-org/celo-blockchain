@@ -335,7 +335,9 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// unused fields, force to set to empty
-	header.Coinbase = sb.address
+	if header.Coinbase == (common.Address{}) {
+		header.Coinbase = sb.address
+	}
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()

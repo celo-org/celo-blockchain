@@ -56,14 +56,19 @@ func (api *PublicEthereumAPI) Validator() (common.Address, error) {
 	return api.e.Validator()
 }
 
-// Etherbase is the address that mining rewards will be send to
-func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
-	return api.e.Etherbase()
+// TxFeeRecipient is the address that mining rewards will be sent to
+func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
+	return api.e.TxFeeRecipient()
 }
 
-// Coinbase is the address that mining rewards will be send to (alias for Etherbase)
+// Etherbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
+func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
+	return api.TxFeeRecipient()
+}
+
+// Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
-	return api.Etherbase()
+	return api.TxFeeRecipient()
 }
 
 // Hashrate returns the POW hashrate
@@ -149,7 +154,8 @@ func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 
 // SetEtherbase sets the etherbase of the miner
 func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
-	api.e.SetEtherbase(etherbase)
+	api.e.SetValidator(etherbase)
+	api.e.SetTxFeeRecipient(etherbase)
 	return true
 }
 

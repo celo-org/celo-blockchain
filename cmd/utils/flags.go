@@ -1076,7 +1076,14 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 // command line flags or from the keystore if CLI indexed.
 // `Validator` is the address used to sign consensus messages.
 func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current validator, new flag overriding legacy etherbase
 	var validator string
+	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
+		validator = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
+		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	}
 	if ctx.GlobalIsSet(ValidatorFlag.Name) {
 		validator = ctx.GlobalString(ValidatorFlag.Name)
 	}
@@ -1086,37 +1093,32 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 		if err != nil {
 			Fatalf("Invalid validator: %v", err)
 		}
-		cfg.Validator = account.Address
+		cfg.Miner.Validator = account.Address
 	}
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `Etherbase` is the public address earned block transaction fees are sent to.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current txFeeRecipient, new flag overriding legacy etherbase
+	var txFeeRecipient string
 	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+		txFeeRecipient = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
-		etherbase = ctx.GlobalString(TxFeeRecipientFlag.Name)
+		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	// Convert the txFeeRecipient into an address and configure it
+	if txFeeRecipient != "" {
+		account, err := MakeAddress(ks, txFeeRecipient)
+		if err != nil {
+			Fatalf("Invalid txFeeRecipient: %v", err)
 		}
+		cfg.Miner.TxFeeRecipient = account.Address
 	}
 }
 
@@ -1585,7 +1587,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		ks = keystores[0].(*keystore.KeyStore)
 	}
 	setValidator(ctx, ks, cfg)
-	setEtherbase(ctx, ks, cfg)
+	setTxFeeRecipient(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setMiner(ctx, &cfg.Miner)
