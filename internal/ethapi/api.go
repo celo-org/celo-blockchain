@@ -802,7 +802,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
-	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
 		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
 		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
