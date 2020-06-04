@@ -96,13 +96,13 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend *istanbulBackend.Backend // Istanbul consensus backend
-	nodeName      string // Name of the node to display on the monitoring page
-	celostatsHost string // Remote address of the monitoring service
+	server        *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth           *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les           *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine        consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend       *istanbulBackend.Backend // Istanbul consensus backend
+	nodeName      string                   // Name of the node to display on the monitoring page
+	celostatsHost string                   // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -119,7 +119,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	// Assemble and return the stats service
 	var (
 		engine consensus.Engine
-		name     string
+		name   string
 	)
 	name = parts[1]
 	if ethServ != nil {
@@ -269,7 +269,7 @@ func (s *Service) loop() {
 			}
 		} else {
 			// Resolve the URL, defaulting to TLS, but falling back to none too
-			path := fmt.Sprintf("%s/api", s.host)
+			path := fmt.Sprintf("%s/api", s.celostatsHost)
 			urls := []string{path}
 
 			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
@@ -391,7 +391,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	}
 
 	auth := &authMsg{
-		ID:      s.backend.Address().String(),
+		ID: s.backend.Address().String(),
 		Info: nodeInfo{
 			Name:     s.nodeName,
 			Node:     infos.Name,
