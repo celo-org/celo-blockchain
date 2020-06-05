@@ -31,8 +31,8 @@ const (
 const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the eth protocol (first is primary).
-var ProtocolVersions = []uint{Celo65, Celo64}
-var ProxyConnectionProtocolVersions = []uint{Celo66}
+var ProtocolVersions = []uint{Celo65}
+var ProxyConnectionProtocolVersions = []uint{Celo65}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
 var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 28}

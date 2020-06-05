@@ -650,13 +650,13 @@ func (sb *Backend) StopAnnouncing() error {
 	return sb.vph.stopThread()
 }
 
-// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
-func (sb *Backend) StartProxyHandler() error {
+// StartProxyHandler implements consensus.Istanbul.StartProxyEngine
+func (sb *Backend) StartProxyEngine() error {
 	sb.proxyEngineMu.Lock()
 	defer sb.proxyEngineMu.Unlock()
 
 	if sb.proxyEngineRunning {
-		return istanbul.ErrStartedProxyHandler
+		return istanbul.ErrStartedProxyEngine
 	}
 
 	if !sb.config.Proxied {
@@ -669,13 +669,13 @@ func (sb *Backend) StartProxyHandler() error {
 	return nil
 }
 
-// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
-func (sb *Backend) StopProxyHandler() error {
+// StopProxyHandler implements consensus.Istanbul.StopProxyEngine
+func (sb *Backend) StopProxyEngine() error {
 	sb.proxyEngineMu.Lock()
 	defer sb.proxyEngineMu.Unlock()
 
 	if !sb.proxyEngineRunning {
-		return istanbul.ErrStoppedProxyHandler
+		return istanbul.ErrStoppedProxyEngine
 	}
 
 	sb.proxyEngine.Stop()

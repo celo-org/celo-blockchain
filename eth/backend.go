@@ -545,17 +545,17 @@ func (s *Ethereum) stopAnnounce() error {
 	return nil
 }
 
-func (s *Ethereum) StartProxyHandler() error {
+func (s *Ethereum) StartProxyEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StartProxyHandler()
+		return istanbul.StartProxyEngine()
 	}
 
 	return nil
 }
 
-func (s *Ethereum) StopProxyHandler() error {
+func (s *Ethereum) StopProxyEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StopProxyHandler()
+		return istanbul.StopProxyEngine()
 	}
 
 	return nil
@@ -654,6 +654,7 @@ func (s *Ethereum) Stop() error {
 	if s.lesServer != nil {
 		s.lesServer.Stop()
 	}
+	s.StopProxyEngine()
 	s.stopAnnounce()
 	s.txPool.Stop()
 	s.miner.Stop()

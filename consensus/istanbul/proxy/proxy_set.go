@@ -39,6 +39,7 @@ type proxySet struct {
 func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 	return &proxySet{
 		proxiesByID: make(map[enode.ID]*proxy),
+		valAssignments: newValAssignments(),
 		valAssigner: assignmentPolicy,
 	}
 }
@@ -65,24 +66,31 @@ func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
 	return ps.proxiesByID[proxyID]
 }
 
-// addProxy removes a proxy with ID proxyID from the proxySet and valAssigner
-func (ps *proxySet) removeProxy(proxyID enode.ID) {
+// addProxy removes a proxy with ID proxyID from the proxySet and valAssigner.
+// Will return true if any of the validators got reassigned to a different proxy.
+func (ps *proxySet) removeProxy(proxyID enode.ID) bool {
 	proxy := ps.getProxy(proxyID)
+	valsReassigned := false
 	if proxy != nil {
-		ps.valAssigner.removeProxy(proxy, ps.valAssignments)
+		valsReassigned = ps.valAssigner.removeProxy(proxy, ps.valAssignments)
 		delete(ps.proxiesByID, proxyID)
 	}
+
+	return valsReassigned
 }
 
 // setProxyPeer sets the peer for a proxy with enode ID proxyID.
 // Since this proxy is now connected tto the proxied validator, it
 // can now be assigned remote validators.
-func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) {
+func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) bool {
 	proxy := ps.proxiesByID[proxyID]
+	valsReassigned := false
 	if proxy != nil {
 		proxy.peer = peer
-		ps.valAssigner.assignProxy(proxy, ps.valAssignments)
+		valsReassigned = ps.valAssigner.assignProxy(proxy, ps.valAssignments)
 	}
+
+	return valsReassigned
 }
 
 // removeProxyPeer sets the peer for a proxy with ID proxyID to nil.
@@ -95,54 +103,83 @@ func (ps *proxySet) removeProxyPeer(proxyID enode.ID) {
 }
 
 // addRemoteValidators adds remote validators to be assigned by the valAssigner
-func (ps *proxySet) addRemoteValidators(validators []common.Address) {
-	ps.valAssigner.assignRemoteValidators(validators, ps.valAssignments)
+func (ps *proxySet) addRemoteValidators(validators []common.Address) bool {
+	return ps.valAssigner.assignRemoteValidators(validators, ps.valAssignments)
 }
 
 // removeRemoteValidators removes remote validators from the validator assignments
-func (ps *proxySet) removeRemoteValidators(validators []common.Address) {
-	ps.valAssigner.removeRemoteValidators(validators, ps.valAssignments)
+func (ps *proxySet) removeRemoteValidators(validators []common.Address) bool {
+	return ps.valAssigner.removeRemoteValidators(validators, ps.valAssignments)
 }
 
-// getValidatorAssignments returns the validator assignments for the given set of validators.
-// If the "validators" parameter is nil, then all the validator assignments are returned.
-func (ps *proxySet) getValidatorAssignments(validators []common.Address) map[common.Address]*proxy {
-	proxies := make(map[common.Address]*proxy)
+// getValidatorAssignments returns the validator assignments for the given set of validators filtered on
+// the parameters `validators` AND `proxies`.  If either or both of them or nil, then that means that there is no
+// filter for that respective dimension.
+func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyIDs []enode.ID) map[common.Address]*proxy {
+	// First get temp set based on proxies filter
+	var tempValAssignmentsFromProxies map[common.Address]*enode.ID
 
-	if validators == nil {
-		for val, proxyID := range ps.valAssignments.valToProxy {
-			if proxyID != nil {
-				proxy := ps.getProxy(*proxyID)
-				if proxy.peer != nil {
-					proxies[val] = proxy
+	if proxyIDs != nil {
+		tempValAssignmentsFromProxies = make(map[common.Address]*enode.ID)
+		for _, proxyID := range proxyIDs {
+			if proxyValSet, ok := ps.valAssignments.proxyToVals[proxyID]; ok {
+				for valAddress := range proxyValSet {
+					tempValAssignmentsFromProxies[valAddress] = &proxyID
 				}
 			}
 		}
 	} else {
-		for _, val := range validators {
-			proxyID := ps.valAssignments.valToProxy[val]
-			if proxyID != nil {
-				proxy := ps.getProxy(*proxyID)
-				if proxy.peer != nil {
-					proxies[val] = proxy
-				}
+		tempValAssignmentsFromProxies = ps.valAssignments.valToProxy
+	}
+
+	// Now get temp set based on validators filter
+	var tempValAssignmentsFromValidators map[common.Address]*enode.ID
+
+	if validators != nil {
+		tempValAssignmentsFromValidators = make(map[common.Address]*enode.ID)
+		for _, valAddress := range validators {
+			if enodeID, ok := ps.valAssignments.valToProxy[valAddress]; ok && enodeID != nil {
+				tempValAssignmentsFromValidators[valAddress] = enodeID
+			}
+		}
+	} else {
+		tempValAssignmentsFromValidators = ps.valAssignments.valToProxy
+	}
+
+	// Now do an intersection between the two temporary maps.
+	// TODO:  An optimization that can be done is to loop over the temporary map
+	//        that is smaller.
+	valAssignments := make(map[common.Address]*proxy)
+
+	for outerValAddress := range tempValAssignmentsFromProxies {
+		if enodeID, ok := tempValAssignmentsFromValidators[outerValAddress]; ok {
+			proxy := ps.getProxy(*enodeID)
+			if proxy.peer != nil {
+				valAssignments[outerValAddress] = proxy
 			}
 		}
 	}
 
-	return proxies
+	return valAssignments
 }
 
 // unassignDisconnectedProxies unassigns proxies that have been disconnected for
 // at least minAge ago
-func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) {
+func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) bool {
+        valsReassigned := false
 	for proxyID := range ps.valAssignments.proxyToVals {
 		proxy := ps.getProxy(proxyID)
 		if proxy != nil && proxy.peer == nil && time.Since(proxy.disconnectTS) >= minAge {
 			log.Debug("Unassigning disconnected proxy", "proxy", proxy.String(), "func", "unassignDisconnectedProxies")
-			ps.valAssigner.removeProxy(proxy, ps.valAssignments)
+			reassigned := ps.valAssigner.removeProxy(proxy, ps.valAssignments)
+
+			if !valsReassigned && reassigned {
+			   valsReassigned = true
+			}
 		}
 	}
+
+	return valsReassigned
 }
 
 // getValidators returns all validators that are known by the proxy set

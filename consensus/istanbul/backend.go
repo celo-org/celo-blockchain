@@ -124,11 +124,12 @@ type Backend interface {
 	// NewValEnodeTableEntry will create a new ValEnodeTableEntry object (but will NOT save it into the valEnodeTable)
 	NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) ValEnodeTableEntry
 
-	// GetAllValEnodeTableEntries rerieves all the entries in the valEnodeTable
-	GetAllValEnodeTableEntries() (map[common.Address]ValEnodeTableEntry, error)
+	// GetValEnodeTableEntries rerieves the entries in the valEnodeTable filtered on the "validators" parameter.
+	// If the parameter is nil, then no filter will be applied.
+	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]ValEnodeTableEntry, error)
 
-	// UpsertValEnodeTableEntries will upsert an array of valEnodeTableEntries into the valEnodeTable
-	UpsertValEnodeTableEntries(entries []ValEnodeTableEntry) error
+	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries" rows.
+	RewriteValEnodeTableEntries(entries []ValEnodeTableEntry) error
 
 	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
 	UpdateAnnounceVersion()

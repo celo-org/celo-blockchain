@@ -219,9 +219,6 @@ func (sb *Backend) announceThread() {
 
 		case <-sb.updateAnnounceVersionCh:
 			updateAnnounceVersionFunc()
-			// Show that the announce update has been completed so we can rely on
-			// it synchronously
-			sb.updateAnnounceVersionCompleteCh <- struct{}{}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -432,7 +429,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 
 func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*vet.AddressEntry, error) {
 	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
-	valEnodeEntries, err := sb.valEnodeTable.GetAllValEnodes()
+	valEnodeEntries, err := sb.valEnodeTable.GetValEnodes(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -551,15 +548,9 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	if sb.checkSelfGossipCache(payload) {
 		return nil
 	}
+	defer sb.markSelfGossipCache(payload)
 
 	msg := new(istanbul.Message)
-
-	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markPeerGossipCache(addr, payload)
-	if sb.checkSelfGossipCache(payload) {
-		return nil
-	}
-	defer sb.markSelfGossipCache(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -1016,7 +1007,6 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 // a deadlock.
 func (sb *Backend) UpdateAnnounceVersion() {
 	sb.updateAnnounceVersionCh <- struct{}{}
-	<-sb.updateAnnounceVersionCompleteCh
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
@@ -1074,11 +1064,11 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 
 func (sb *Backend) getEnodeURL() (string, error) {
 	if sb.IsProxiedValidator() {
-		if proxyExternalNode := sb.proxyEngine.GetProxyExternalNode(); proxyExternalNode != nil {
+		/* if proxyExternalNode := sb.proxyEngine.GetProxyExternalNode(); proxyExternalNode != nil {
 			return proxyExternalNode.URLv4(), nil
 		} else {
 			return "", errNoProxyConnection
-		}
+		} */
 	}
 	return sb.p2pserver.Self().URLv4(), nil
 }
@@ -1196,7 +1186,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 
 	if sb.IsProxiedValidator() {
 		// Send a valEnodesShare message to the proxy
-		sb.proxyEngine.SendValEnodesShareMsg()
+		sb.proxyEngine.SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil
@@ -1246,8 +1236,8 @@ func (sb *Backend) NewValEnodeTableEntry(address common.Address, node *enode.Nod
 	}
 }
 
-func (sb *Backend) GetAllValEnodeTableEntries() (map[common.Address]istanbul.ValEnodeTableEntry, error) {
-	addressEntries, err := sb.valEnodeTable.GetAllValEnodes()
+func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]istanbul.ValEnodeTableEntry, error) {
+	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
 
 	if err != nil {
 		return nil, err
@@ -1272,4 +1262,21 @@ func (sb *Backend) UpsertValEnodeTableEntries(entries []istanbul.ValEnodeTableEn
 	}
 
 	return sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
+}
+
+func (sb *Backend) RewriteValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
+     addressesToKeep := make(map[common.Address]bool)
+     addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
+
+     for i, entry := range entries {
+     	 addressesToKeep[entry.GetAddress()] = true
+	 // This is a bit of a hack, but it currently works since vet.AddressEntry is currently
+	 // the only implementation of the istanbul.ValEnodeTableEntry interface	 
+	 addressEntries[i] = entry.(*vet.AddressEntry)
+     }
+
+     sb.valEnodeTable.PruneEntries(addressesToKeep)
+     sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
+
+     return nil
 }

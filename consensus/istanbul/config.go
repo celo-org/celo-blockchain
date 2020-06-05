@@ -49,8 +49,7 @@ type Config struct {
 
 	// Proxied Validator Configs
 	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
-	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages

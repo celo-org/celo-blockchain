@@ -170,6 +170,11 @@ func (ae *AddressEntry) GetVersion() uint {
      return ae.Version
 }
 
+// GetAddess returns the addess entry's address
+func (ae *AddressEntry) GetAddress() common.Address {
+     return ae.Address
+}
+
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
@@ -266,14 +271,30 @@ func (vet *ValidatorEnodeDB) GetHighestKnownVersionFromAddress(address common.Ad
 	return entry.HighestKnownVersion, nil
 }
 
-// GetAllValEnodes will return all entries in the valEnodeDB
-func (vet *ValidatorEnodeDB) GetAllValEnodes() (map[common.Address]*AddressEntry, error) {
+// GetValEnodes will return entries in the valEnodeDB filtered on the valAddresses parameter.
+// If it's set to nil, then no filter will be applied.
+func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[common.Address]*AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	var entries = make(map[common.Address]*AddressEntry)
+	var valAddressesMap map[common.Address]struct{}
+
+	if valAddresses != nil {
+	   valAddressesMap := make(map[common.Address]struct{})
+	   for _, address := range valAddresses {
+	       valAddressesMap[address] = struct{}{}
+	   }
+	}
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-		entries[address] = entry
+	        if valAddressesMap != nil {
+		   if _, ok := valAddressesMap[address]; ok {
+		      entries[address ] = entry
+		   }
+		} else {
+		      entries[address] = entry
+		}
+		
 		return nil
 	})
 
@@ -635,7 +656,7 @@ func (vet *ValidatorEnodeDB) ValEnodeTableInfo() (map[string]*ValEnodeEntryInfo,
 
 	valEnodeTableInfo := make(map[string]*ValEnodeEntryInfo)
 
-	valEnodeTable, err := vet.GetAllValEnodes()
+	valEnodeTable, err := vet.GetValEnodes(nil)
 	if err == nil {
 		for address, valEnodeEntry := range valEnodeTable {
 			entryInfo := &ValEnodeEntryInfo{

@@ -30,16 +30,12 @@ import (
 )
 
 var (
-	// errProxyAlreadySet is returned if a user tries to add a proxy that is already set.
-	// TODO - When we support multiple sentries per validator, this error will become irrelevant.
-	errProxyAlreadySet = errors.New("proxy already set")
-
 	// errUnauthorizedMessageFromProxiedValidator is returned when the received message expected to be signed
 	// by the proxied validator, but signed from another key
 	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
 
-	// errNoConnectedProxy is returned when there is no connected proxy
-	errNoConnectedProxy = errors.New("no connected proxy")
+	// errNoAssignedProxies is returned when there is no assigned proxy
+	errNoAssignedProxies = errors.New("no assigned proxies")
 
 	// errNoConnectedProxiedValidator is returned when there is no connected proxied validator
 	errNoConnectedProxiedValidator = errors.New("no connected proxied validator")
@@ -50,24 +46,36 @@ var (
 	// errUnauthorizedProxiedValidator is returned if the peer connecting is not the
 	// authorized proxied validator
 	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
+
+	// ErrStoppedProxyHandler is returned if proxy handler is stopped
+	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
+	
+	// ErrStartedProxyHandler is returned if proxy handler is already started
+	ErrStartedProxyHandler = errors.New("started proxy handler")
+
+	// ErrNodeNotProxiedValidator is returned if this node is not a proxied validator
+	ErrNodeNotProxiedValidator = errors.New("node not a proxied validator")
+
+	// ErrNodeNotProxy is returned if this node is not a proxy
+	ErrNodeNotProxy = errors.New("node not a proxy")
 )
 
 type ProxyEngine interface {
 	Start() error
 	Stop() error
-	GetProxyExternalNode() *enode.Node
+	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)	
 	AddProxy(node, externalNode *enode.Node) error
-	RemoveProxy(node *enode.Node)
-	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
-	SendValEnodesShareMsg()
-	RegisterProxiedValidator(proxiedValidatorPeer consensus.Peer)
-	RegisterProxy(proxyPeer consensus.Peer) error
-	UnregisterProxiedValidator(proxiedValidatorPeer consensus.Peer)
-	UnregisterProxy(proxyPeer consensus.Peer)
+	RemoveProxy(node *enode.Node) error
+	RegisterProxyPeer(proxyPeer consensus.Peer) error
+	UnregisterProxyPeer(proxyPeer consensus.Peer)
+	RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
+	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
 	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
 	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
-	SendDelegateSignMsgToProxy(msg []byte) error
-	SendDelegateSignMsgToProxiedValidator(msg []byte) error
+	// SendDelegateSignMsgToProxy(msg []byte) error
+	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
+	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
+	SendValEnodesShareMsgToAllProxies()
 }
 
 // ==============================================

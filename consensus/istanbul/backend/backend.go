@@ -268,8 +268,8 @@ func (sb *Backend) IsProxiedValidator() bool {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
 	return sb.coreStarted
 }
 
@@ -282,7 +282,8 @@ func (sb *Backend) IsValidator() bool {
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 	if sb.IsProxiedValidator() {
-		return sb.proxyEngine.SendDelegateSignMsgToProxy(msg)
+		// return sb.proxyEngine.SendDelegateSignMsgToProxy(msg)
+		return nil
 	} else {
 		return errors.New("No Proxy found")
 	}
@@ -292,7 +293,8 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if sb.IsProxy() {
-		return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
+		// return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
+		return nil
 	} else {
 		return errors.New("No Proxied Validator found")
 	}

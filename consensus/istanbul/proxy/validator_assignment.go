@@ -99,10 +99,10 @@ func (va *valAssignments) getValidators() []common.Address {
 // assignmentPolicy is intended to allow multiple implementations of validator assignment
 // policies
 type assignmentPolicy interface {
-	assignProxy(proxy *proxy, valAssignments *valAssignments)
-	removeProxy(proxy *proxy, valAssignments *valAssignments)
-	assignRemoteValidators(validators []common.Address, valAssignments *valAssignments)
-	removeRemoteValidators(validators []common.Address, valAssignments *valAssignments)
+	assignProxy(proxy *proxy, valAssignments *valAssignments) bool
+	removeProxy(proxy *proxy, valAssignments *valAssignments) bool
+	assignRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
+	removeRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
 }
 
 // ==============================================
@@ -151,41 +151,51 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 }
 
 // assignProxy adds a proxy to the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) assignProxy(proxy *proxy, valAssignments *valAssignments) {
+func (ch *consistentHashingPolicy) assignProxy(proxy *proxy, valAssignments *valAssignments) bool {
 	ch.c.Add(proxy.ID())
-	ch.reassignValidators(valAssignments)
+	return ch.reassignValidators(valAssignments)
 }
 
 // removeProxy removes a proxy from the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) removeProxy(proxy *proxy, valAssignments *valAssignments) {
+func (ch *consistentHashingPolicy) removeProxy(proxy *proxy, valAssignments *valAssignments) bool {
 	ch.c.Remove(proxy.ID().String())
-	ch.reassignValidators(valAssignments)
+	return ch.reassignValidators(valAssignments)
 }
 
 // assignRemoteValidators adds remote validators to the valAssignments struct and recalculates
 // all validator assignments
-func (ch *consistentHashingPolicy) assignRemoteValidators(vals []common.Address, valAssignments *valAssignments) {
+func (ch *consistentHashingPolicy) assignRemoteValidators(vals []common.Address, valAssignments *valAssignments) bool {
 	valAssignments.addValidators(vals)
-	ch.reassignValidators(valAssignments)
+	return ch.reassignValidators(valAssignments)
 }
 
 // removeRemoteValidators removes remote validators from the valAssignments struct and recalculates
 // all validator assignments
-func (ch *consistentHashingPolicy) removeRemoteValidators(vals []common.Address, valAssignments *valAssignments) {
+func (ch *consistentHashingPolicy) removeRemoteValidators(vals []common.Address, valAssignments *valAssignments) bool {
 	valAssignments.removeValidators(vals)
-	ch.reassignValidators(valAssignments)
+	return ch.reassignValidators(valAssignments)
 }
 
 // reassignValidators recalculates all validator <-> proxy pairings
-func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignments) {
+func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignments) bool {
+        anyAssignmentsChanged := false
 	for val, proxyID := range valAssignments.valToProxy {
 		newProxyID := ch.c.LocateKey(val.Bytes())
 
+		valReassigned := false
 		if newProxyID == nil {
 			valAssignments.unassignValidator(val)
+			valReassigned = true
 		} else if proxyID == nil || newProxyID.String() != proxyID.String() {
 			valAssignments.unassignValidator(val)
 			valAssignments.assignValidator(val, enode.HexID(newProxyID.String()))
+			valReassigned = true
+		}
+
+		if !anyAssignmentsChanged && valReassigned {
+		   anyAssignmentsChanged = true
 		}
 	}
+
+	return anyAssignmentsChanged
 }

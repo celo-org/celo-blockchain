@@ -374,7 +374,7 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 		if err != nil {
 			return err
 		}
-		if signed_val_addr != m.Address {
+		 if signed_val_addr != m.Address {
 			return ErrInvalidSigner
 		}
 	}
@@ -426,6 +426,7 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 type ValEnodeTableEntry interface {
 	GetNode() *enode.Node
 	GetVersion() uint
+	GetAddress() common.Address
 }
 
 // ## EnodeCertificate ######################################################################

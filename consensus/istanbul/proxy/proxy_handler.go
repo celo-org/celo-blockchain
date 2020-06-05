@@ -17,7 +17,6 @@
 package proxy
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -33,14 +32,14 @@ import (
 // from the peerHandler event loop
 type validatorProxyPeersRequest struct {
 	validators []common.Address
-	resultCh   chan map[enode.ID]consensus.Peer
+	resultCh   chan map[common.Address]consensus.Peer
 }
 
 // This struct is used for requesting proxies for particular validators
 // from the peerHandler event loop
-type validatorProxiesRequest struct {
-	validators map[common.Address]bool
-	resultCh   chan map[common.Address]*proxy
+type validatorProxyExternalNodesRequest struct {
+	validators []common.Address
+	resultCh   chan map[common.Address]*enode.Node
 }
 
 // This struct is used for requesting the peer of a proxy with ID peerID
@@ -52,7 +51,7 @@ type proxyPeerRequest struct {
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
-	lock    sync.Mutex // protects "running" and "p2pserver"
+	lock    sync.RWMutex // protects "running" and "p2pserver"
 	running bool       // indicates if `run` is currently being run in a goroutine
 
 	loopWG sync.WaitGroup
@@ -61,12 +60,14 @@ type proxyHandler struct {
 	addProxies    chan []*istanbul.ProxyConfig // This channel is for adding new proxies specified via command line or rpc api
 	removeProxies chan []*enode.Node           // This channel is for removing proxies specified via rpc api
 
-	addProxyPeer chan consensus.Peer // This channel is for newly peered proxies
-	delProxyPeer chan consensus.Peer // This channel is for newly disconnected peers
+	addProxyPeer    chan consensus.Peer // This channel is for newly peered proxies
+	removeProxyPeer chan consensus.Peer // This channel is for newly disconnected peers
 
-	getValidatorProxyPeers chan *validatorProxyPeersRequest // This channel is for getting the peers of proxies for a set of validators
-	getValidatorProxies    chan *validatorProxiesRequest    // This channel is for getting the proxies for a set of validators
-	getProxyPeer           chan *proxyPeerRequest           // This channel is for getting the peers of a proxy with a specific ID
+	getValidatorProxyPeers        chan *validatorProxyPeersRequest         // This channel is for getting the peers of proxies for a set of validators
+	getValidatorProxyExternalNode chan *validatorProxyExternalNodesRequest // This channel is for getting the external nodes of proxies for a set of validators
+	getProxyPeer                  chan *proxyPeerRequest                   // This channel is for getting the peers of a proxy with a specific ID
+
+	sendValEnodeShareMsgsCh         chan struct{}                            // This channel is to tell the proxy_handler to send a val_enode_share message to all the proxies
 
 	getProxyInfo chan chan []ProxyInfo // This channel is for getting info on the proxies in proxySet
 
@@ -91,11 +92,13 @@ func newProxyHandler(sb istanbul.Backend, pe ProxyEngine) *proxyHandler {
 	ph.addProxies = make(chan []*istanbul.ProxyConfig)
 	ph.removeProxies = make(chan []*enode.Node)
 	ph.addProxyPeer = make(chan consensus.Peer)
-	ph.delProxyPeer = make(chan consensus.Peer)
+	ph.removeProxyPeer = make(chan consensus.Peer)
 
 	ph.getValidatorProxyPeers = make(chan *validatorProxyPeersRequest)
-	ph.getValidatorProxies = make(chan *validatorProxiesRequest)
+	ph.getValidatorProxyExternalNode = make(chan *validatorProxyExternalNodesRequest)
 	ph.getProxyPeer = make(chan *proxyPeerRequest)
+
+	ph.sendValEnodeShareMsgsCh = make(chan struct{})
 
 	ph.getProxyInfo = make(chan chan []ProxyInfo)
 
@@ -114,32 +117,37 @@ func (ph *proxyHandler) Start() error {
 	defer ph.lock.Unlock()
 
 	if ph.running {
-		return errors.New("proxyHandler already running")
+		return ErrStartedProxyHandler
 	}
 	ph.running = true
 
 	ph.loopWG.Add(1)
 	go ph.run()
+
+        log.Info("Proxy handler started")
 	return nil
 }
 
 // Stop stops the goroutine `run` if it is currently running
-func (ph *proxyHandler) Stop() {
+func (ph *proxyHandler) Stop() error {
 	ph.lock.Lock()
 	defer ph.lock.Unlock()
 
 	if !ph.running {
-		return
+		return ErrStoppedProxyHandler
 	}
 	ph.running = false
 	ph.quit <- struct{}{}
 	ph.loopWG.Wait()
+
+	log.Info("Proxy handler stopped")
+	return nil
 }
 
 // isRunning returns if `run` is currently running in a goroutine
 func (ph *proxyHandler) isRunning() bool {
-	ph.lock.Lock()
-	defer ph.lock.Unlock()
+	ph.lock.RLock()
+	defer ph.lock.RUnlock()
 
 	return ph.running
 }
@@ -172,7 +180,7 @@ loop:
 					logger.Debug("Proxy is already in the proxy set", "proxyNode", proxyNode, "proxyID", proxyID, "chan", "addProxies")
 					continue
 				}
-				log.Debug("Adding proxy node", "proxyNode", proxyNode, "proxyID", proxyID)
+				log.Info("Adding proxy node", "proxyNode", proxyNode, "proxyID", proxyID)
 				ph.ps.addProxy(proxyNode)
 				ph.sb.AddPeer(proxyNode.InternalNode, p2p.ProxyPurpose)
 			}
@@ -188,12 +196,12 @@ loop:
 					continue
 				}
 
-				logger.Debug("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
+				logger.Info("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
 
-				ph.ps.removeProxy(proxyID)
-				// This will most likely result in validator reassignments, send
-				// val enode share messages
-				ph.sendValEnodeShareMsgs()
+				if valsReassigned := ph.ps.removeProxy(proxyID); valsReassigned {
+					ph.sendValEnodeShareMsgs()
+					ph.sb.UpdateAnnounceVersion()
+				}
 				ph.sb.RemovePeer(proxy.node, p2p.ProxyPurpose)
 			}
 
@@ -205,25 +213,57 @@ loop:
 			proxy := ph.ps.getProxy(peerID)
 			if proxy != nil {
 				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
-				ph.ps.setProxyPeer(peerID, connectedPeer)
-				// This may result in validator reassignments, send
-				// val enode share messages regardless
-				ph.sendValEnodeShareMsgs()
+				if valsReassigned := ph.ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
+					ph.sendValEnodeShareMsgs()
+					ph.sb.UpdateAnnounceVersion()
+				}
+
+				// Share this node's enodeCertificate for the proxy to use for handshakes
+				/* proxyEnodeCertificateMsg, err := ph.sb.GenerateEnodeCertificateMsg(proxy.externalNode.URLv4())
+				if err != nil {
+					logger.Warn("Error generating enode certificate message", "err", err)
+				} else {
+					payload, err := proxyEnodeCertificateMsg.Payload()
+					if err != nil {
+						logger.Error("Error getting payload of enode certificate message", "err", err)
+					}
+					if err := proxy.peer.Send(istanbul.ProxyEnodeCertificateShareMsg, payload); err != nil {
+						logger.Error("Error in sending ProxyEnodeCertificateShare message to proxy", "err", err)
+					}
+				} */
 			}
 
-		case disconnectedPeer := <-ph.delProxyPeer:
+		case disconnectedPeer := <-ph.removeProxyPeer:
 			// Proxied peer just disconnected.
 			peerID := disconnectedPeer.Node().ID()
 			if ph.ps.getProxy(peerID) != nil {
-				logger.Debug("Disconnected proxy peer", "peerID", peerID, "chan", "delProxyPeer")
+				logger.Debug("Disconnected proxy peer", "peerID", peerID, "chan", "removeProxyPeer")
 				ph.ps.removeProxyPeer(peerID)
 			}
 
 		case request := <-ph.getValidatorProxyPeers:
-			request.resultCh <- ph.ps.getValidatorProxyPeers(request.validators)
+			valAssignments := ph.ps.getValidatorAssignments(request.validators, nil)
+			returnMap := make(map[common.Address]consensus.Peer)
 
-		case request := <-ph.getValidatorProxies:
-			request.resultCh <- ph.ps.getValidatorProxies(request.validators)
+			for address, proxy := range valAssignments {
+				if proxy.peer != nil {
+					returnMap[address] = proxy.peer
+				}
+			}
+
+			request.resultCh <- returnMap
+
+		case request := <-ph.getValidatorProxyExternalNode:
+			valAssignments := ph.ps.getValidatorAssignments(request.validators, nil)
+			returnMap := make(map[common.Address]*enode.Node)
+
+			for address, proxy := range valAssignments {
+				if proxy.peer != nil {
+					returnMap[address] = proxy.externalNode
+				}
+			}
+
+			request.resultCh <- returnMap
 
 		case request := <-ph.getProxyPeer:
 			proxy := ph.ps.getProxy(request.peerID)
@@ -238,8 +278,14 @@ loop:
 
 		case <-ph.newBlockchainEpoch:
 			// New blockchain epoch. Update the validators in the proxySet
-			ph.updateValidators()
-			ph.sendValEnodeShareMsgs()
+			valsReassigned, error := ph.updateValidators()
+			if error != nil {
+			   logger.Warn("Error in updating validator assignments on new epoch", "error", error)
+			}
+			if valsReassigned {
+				ph.sendValEnodeShareMsgs()
+				ph.sb.UpdateAnnounceVersion()
+			}
 
 		case <-phEpochTicker.C:
 			// At every proxy handler epoch, do the following:
@@ -248,12 +294,18 @@ loop:
 			//    in the duration of the epoch are not assigned to any validators.
 			//    This can happen if the peer was previously connected, was assigned
 			//    validators, but was later disconnected at the p2p level.
-			ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength)
+			if valsReassigned := ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength); valsReassigned {
+				ph.sb.UpdateAnnounceVersion()
+			}
 
-			// 2. Send out a val enode share message to the proxies
+			// 2. Send out a val enode share message to the proxies. Do this regardless if validators got reassigned,
+			//    just to ensure that proxies will get the val enode table
 			ph.sendValEnodeShareMsgs()
 
 			// 3. TODO - Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
+
+		case <-ph.sendValEnodeShareMsgsCh:
+		     ph.sendValEnodeShareMsgs()
 		}
 	}
 }
@@ -261,21 +313,27 @@ loop:
 func (ph *proxyHandler) sendValEnodeShareMsgs() {
 	for _, proxy := range ph.ps.proxiesByID {
 		if proxy.peer != nil {
-			assignedValidators := ph.ps.getProxyValidators(proxy.ID())
-			go ph.pe.SendValEnodesShareMsg(proxy.peer, proxy.externalNode, assignedValidators)
+			assignedValidators := ph.ps.getValidatorAssignments(nil, []enode.ID{proxy.ID()})
+			valAddresses := make([]common.Address, len(assignedValidators))
+			for valAddress := range assignedValidators {
+				valAddresses = append(valAddresses, valAddress)
+			}
+			go ph.pe.SendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
 }
 
-func (ph *proxyHandler) updateValidators() error {
+func (ph *proxyHandler) updateValidators() (bool, error) {
 	newVals, rmVals, err := ph.getValidatorConnSetDiff(ph.ps.getValidators())
 	log.Trace("Proxy Handler updating validators", "newVals", newVals, "rmVals", rmVals, "err", err, "func", "updateValiadtors")
 	if err != nil {
-		return err
+		return false, err
 	}
-	ph.ps.addRemoteValidators(newVals)
-	ph.ps.removeRemoteValidators(rmVals)
-	return nil
+
+	valsReassigned := false
+	valsReassigned = ph.ps.addRemoteValidators(newVals)
+	valsReassigned = ph.ps.removeRemoteValidators(rmVals)
+	return valsReassigned, nil
 }
 
 // This function will return a diff between the current Validator Connection set and the `validators` parameter.

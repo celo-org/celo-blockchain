@@ -44,8 +44,6 @@ const (
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
 	logger := sb.logger.New("func", "HandleMsg")
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
 
 	if istanbul.IsIstanbulMsg(msg) {
 		// Only a running validator or proxy should handle consensus messages
@@ -259,9 +257,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 	// Check to see if this connecting peer if a proxied validator
 	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyEngine.RegisterProxiedValidator(peer)
+		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		if err := sb.proxyEngine.RegisterProxy(peer); err != nil {
+		if err := sb.proxyEngine.RegisterProxyPeer(peer); err != nil {
 			return err
 		}
 	}
@@ -275,9 +273,9 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.IsProxy() && isProxiedPeer {
-		sb.proxyEngine.UnregisterProxiedValidator(peer)
+		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		sb.proxyEngine.UnregisterProxy(peer)
+		sb.proxyEngine.UnregisterProxyPeer(peer)
 	}
 }
 

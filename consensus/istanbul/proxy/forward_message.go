@@ -25,31 +25,54 @@ import (
 
 func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
 	logger := p.logger.New("func", "SendForwardMsg")
-	if p.proxyNode.peer == nil {
-		logger.Warn("No connected proxy for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-		return errNoConnectedProxy
-	}
+	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
+	if p.backend.IsProxiedValidator() {
+		resultCh := make(chan map[common.Address]consensus.Peer)
+		p.ph.getValidatorProxyPeers <- &validatorProxyPeersRequest{validators: finalDestAddresses, resultCh: resultCh}
+		proxyPeers := <-resultCh
 
-	// Convert the message to a fwdMessage
-	fwdMessage := &istanbul.ForwardMessage{
-		Code:          ethMsgCode,
-		DestAddresses: finalDestAddresses,
-		Msg:           payload,
-	}
-	fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-	if err != nil {
-		logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-		return err
-	}
+		if len(proxyPeers) == 0 {
+			logger.Warn("No proxy assigned to the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
+			// return errNoAssignedProxies
+			return nil
+		}
 
-	// Note that we are not signing message.  The message that is being wrapped is already signed.
-	msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.address}
-	fwdMsgPayload, err := msg.Payload()
-	if err != nil {
-		return err
-	}
+		// Create proxy -> set of validator addresses map
+		proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
+		for valAddress, proxyPeer := range proxyPeers {
+			if proxyToAddressesMap[proxyPeer] == nil {
+				proxyToAddressesMap[proxyPeer] = make([]common.Address, 1)
+			}
 
-	go p.proxyNode.peer.Send(istanbul.FwdMsg, fwdMsgPayload)
+			proxyToAddressesMap[proxyPeer] = append(proxyToAddressesMap[proxyPeer], valAddress)
+		}
+
+		// Send the forward messages to the proxies
+		for proxyPeer, valAddresses := range proxyToAddressesMap {
+			// Convert the message to a fwdMessage
+			fwdMessage := &istanbul.ForwardMessage{
+				Code:          ethMsgCode,
+				DestAddresses: valAddresses,
+				Msg:           payload,
+			}
+			fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+			if err != nil {
+				logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+				return err
+			}
+
+			// Note that we are not signing message.  The message that is being wrapped is already signed.
+			msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.address}
+			fwdMsgPayload, err := msg.Payload()
+			if err != nil {
+				return err
+			}
+
+			go proxyPeer.Send(istanbul.FwdMsg, fwdMsgPayload)
+		}
+	} else {
+		return ErrNodeNotProxiedValidator
+	}
 
 	return nil
 }
@@ -57,29 +80,33 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "HandleForwardMsg")
 
-	// Verify that it's coming from the proxied peer
-	if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {
-		logger.Warn("Got a forward consensus message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
-		return false, nil
+	if p.backend.IsProxy() {
+		// Verify that it's coming from the proxied validator
+		if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {
+			logger.Warn("Got a forward consensus message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
+			return false, nil
+		}
+
+		istMsg := new(istanbul.Message)
+
+		// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
+		// the wrapped message is already signed by the proxied validator.
+		if err := istMsg.FromPayload(payload, nil); err != nil {
+			logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
+			return true, err
+		}
+
+		var fwdMsg *istanbul.ForwardMessage
+		err := istMsg.Decode(&fwdMsg)
+		if err != nil {
+			logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
+			return true, err
+		}
+
+		logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
+		go p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
+		return true, nil
+	} else {
+		return true, ErrNodeNotProxy
 	}
-
-	istMsg := new(istanbul.Message)
-
-	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
-	// the wrapped message is already signed by the proxied validator.
-	if err := istMsg.FromPayload(payload, nil); err != nil {
-		logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
-		return true, err
-	}
-
-	var fwdMsg *istanbul.ForwardMessage
-	err := istMsg.Decode(&fwdMsg)
-	if err != nil {
-		logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
-		return true, err
-	}
-
-	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	go p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
-	return true, nil
 }

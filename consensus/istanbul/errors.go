@@ -32,10 +32,10 @@ var (
 	ErrStoppedAnnounce = errors.New("stopped announce")
 	// ErrStartedAnnounce is returned if announce is already started
 	ErrStartedAnnounce = errors.New("started announce")
-	// ErrStoppedAnnounce is returned if proxy handler is stopped
-	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
-	// ErrStartedProxyHandler is returned if proxy handler is already started
-	ErrStartedProxyHandler = errors.New("started proxy handler")	
+	// ErrStoppedProxyEngine is returned if proxy engine is stopped
+	ErrStoppedProxyEngine = errors.New("stopped proxy engine")
+	// ErrStartedProxyEngine is returned if proxy engine is already started
+	ErrStartedProxyEngine = errors.New("started proxy engine")	
 	// ErrStoppedVPHThread is returned if validator peer handler thread is stopped
 	ErrStoppedVPHThread = errors.New("stopped validator peer handler thread")
 	// ErrStartedVPHThread is returned if validator peer handler thread is already started
