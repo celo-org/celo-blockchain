@@ -218,6 +218,16 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.updateAnnounceVersionCh:
+			// Drain this channel, as the update version action will address all requests
+		drainLoop:
+			for {
+				select {
+				case <-sb.updateAnnounceVersionCh:
+				default:
+					break drainLoop
+				}
+			}
+
 			updateAnnounceVersionFunc()
 
 		case <-pruneAnnounceDataStructuresTicker.C:
@@ -1265,18 +1275,18 @@ func (sb *Backend) UpsertValEnodeTableEntries(entries []istanbul.ValEnodeTableEn
 }
 
 func (sb *Backend) RewriteValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
-     addressesToKeep := make(map[common.Address]bool)
-     addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
+	addressesToKeep := make(map[common.Address]bool)
+	addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
 
-     for i, entry := range entries {
-     	 addressesToKeep[entry.GetAddress()] = true
-	 // This is a bit of a hack, but it currently works since vet.AddressEntry is currently
-	 // the only implementation of the istanbul.ValEnodeTableEntry interface	 
-	 addressEntries[i] = entry.(*vet.AddressEntry)
-     }
+	for i, entry := range entries {
+		addressesToKeep[entry.GetAddress()] = true
+		// This is a bit of a hack, but it currently works since vet.AddressEntry is currently
+		// the only implementation of the istanbul.ValEnodeTableEntry interface
+		addressEntries[i] = entry.(*vet.AddressEntry)
+	}
 
-     sb.valEnodeTable.PruneEntries(addressesToKeep)
-     sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
+	sb.valEnodeTable.PruneEntries(addressesToKeep)
+	sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
 
-     return nil
+	return nil
 }

@@ -82,21 +82,24 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                             config,
-		istanbulEventMux:                   new(event.TypeMux),
-		logger:                             logger,
-		db:                                 db,
-		commitCh:                           make(chan *types.Block, 1),
-		recentSnapshots:                    recentSnapshots,
-		coreStarted:                        false,
-		announceRunning:                    false,
-		peerRecentMessages:                 peerRecentMessages,
-		selfRecentMessages:                 selfRecentMessages,
-		announceThreadWg:                   new(sync.WaitGroup),
-		announceThreadQuit:                 make(chan struct{}),
-		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
-		updateAnnounceVersionCh:            make(chan struct{}),
-		updateAnnounceVersionCompleteCh:    make(chan struct{}),
+		config:                        config,
+		istanbulEventMux:              new(event.TypeMux),
+		logger:                        logger,
+		db:                            db,
+		commitCh:                      make(chan *types.Block, 1),
+		recentSnapshots:               recentSnapshots,
+		coreStarted:                   false,
+		announceRunning:               false,
+		peerRecentMessages:            peerRecentMessages,
+		selfRecentMessages:            selfRecentMessages,
+		announceThreadWg:              new(sync.WaitGroup),
+		announceThreadQuit:            make(chan struct{}),
+		generateAndGossipQueryEnodeCh: make(chan struct{}, 1),
+
+		// Ideally, the updateAnnounceVersionCh should be an unbounded non blocking channel, but
+		// golang doesn't natively support that.  Here's a suggested implementation:
+		// https://medium.com/capital-one-tech/building-an-unbounded-channel-in-go-789e175cd2cd
+		updateAnnounceVersionCh:            make(chan struct{}, 100),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
@@ -200,8 +203,7 @@ type Backend struct {
 	announceThreadQuit            chan struct{}
 	generateAndGossipQueryEnodeCh chan struct{}
 
-	updateAnnounceVersionCh         chan struct{}
-	updateAnnounceVersionCompleteCh chan struct{}
+	updateAnnounceVersionCh chan struct{}
 
 	// The enode certificate message most recently generated if this is a validator
 	// or received by a proxied validator if this is a proxy.
@@ -846,11 +848,11 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 }
 
 func (sb *Backend) RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error) {
-     if retrieveCachedVersion {
-     	return sb.retrieveValidatorConnSet()
-     } else {
-       return sb.retrieveUncachedValidatorConnSet()
-     }
+	if retrieveCachedVersion {
+		return sb.retrieveValidatorConnSet()
+	} else {
+		return sb.retrieveUncachedValidatorConnSet()
+	}
 }
 
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
