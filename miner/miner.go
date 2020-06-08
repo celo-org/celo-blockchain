@@ -128,11 +128,7 @@ func (miner *Miner) update() {
 func (miner *Miner) Start(validator common.Address, txFeeRecipient common.Address) {
 	atomic.StoreInt32(&miner.shouldStart, 1)
 	miner.SetValidator(validator)
-	if txFeeRecipient != (common.Address{}) {
-		miner.SetTxFeeRecipient(txFeeRecipient)
-	} else {
-		miner.SetTxFeeRecipient(validator)
-	}
+	miner.SetTxFeeRecipient(txFeeRecipient)
 
 	if atomic.LoadInt32(&miner.canStart) == 0 {
 		log.Info("Network syncing, will start miner afterwards")
