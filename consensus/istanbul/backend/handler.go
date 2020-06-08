@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 var (
@@ -43,28 +42,10 @@ var (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg = 0x11
-	// TODO:  Support sending multiple announce messages withone one message
-	istanbulQueryEnodeMsg          = 0x12
-	istanbulValEnodesShareMsg      = 0x13
-	istanbulFwdMsg                 = 0x14
-	istanbulDelegateSign           = 0x15
-	istanbulVersionCertificatesMsg = 0x16
-	istanbulEnodeCertificateMsg    = 0x17
-	istanbulValidatorHandshakeMsg  = 0x18
-
 	handshakeTimeout = 5 * time.Second
 )
 
-func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
-}
-
-func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
-	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
-}
-
-type announceMsgHandler func(consensus.Peer, []byte) error
+type announceMsgHandler func(common.Address, consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
@@ -72,8 +53,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if sb.isIstanbulMsg(msg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
+	if istanbul.IsIstanbulMsg(msg) {
+		if (!sb.coreStarted && !sb.IsProxy()) && (msg.Code == istanbul.ConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -83,7 +64,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errDecodeFailed
 		}
 
-		if msg.Code == istanbulDelegateSign {
+		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign() {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				return true, nil
@@ -92,39 +73,16 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for messages
-		// that are gossiped
-		if sb.isGossipedMsgCode(msg.Code) {
-			hash := istanbul.RLPHash(data)
-
-			// Mark peer's message
-			ms, ok := sb.peerRecentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
-				sb.peerRecentMessages.Add(addr, m)
-			}
-			m.Add(hash, true)
-
-			// Mark self known message
-			if _, ok := sb.selfRecentMessages.Get(hash); ok {
-				return true, nil
-			}
-			sb.selfRecentMessages.Add(hash, true)
-		}
-
-		if msg.Code == istanbulConsensusMsg {
+		if msg.Code == istanbul.ConsensusMsg {
 			err := sb.handleConsensusMsg(peer, data)
 			return true, err
-		} else if msg.Code == istanbulFwdMsg {
+		} else if msg.Code == istanbul.FwdMsg {
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
-			go announceHandlerFunc(peer, data)
+			go announceHandlerFunc(addr, peer, data)
 			return true, nil
-		} else if msg.Code == istanbulValidatorHandshakeMsg {
+		} else if msg.Code == istanbul.ValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		}
@@ -162,7 +120,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		// Need to forward the message to the proxied validator
 		sb.logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
 		if sb.proxiedPeer != nil {
-			go sb.proxiedPeer.Send(istanbulConsensusMsg, payload)
+			go sb.proxiedPeer.Send(istanbul.ConsensusMsg, payload)
 		}
 	} else { // The case when this node is a validator
 		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
@@ -204,7 +162,7 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	}
 
 	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
 	return nil
 }
 
@@ -421,7 +379,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			errCh <- err
 			return
 		}
-		err = peer.Send(istanbulValidatorHandshakeMsg, msgBytes)
+		err = peer.Send(istanbul.ValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
 		}
@@ -463,7 +421,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	if err != nil {
 		return false, err
 	}
-	if peerMsg.Code != istanbulValidatorHandshakeMsg {
+	if peerMsg.Code != istanbul.ValidatorHandshakeMsg {
 		logger.Warn("Read incorrect message code", "code", peerMsg.Code)
 		return false, errors.New("Incorrect message code")
 	}

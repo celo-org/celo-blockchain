@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -495,7 +496,7 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 	defer pm.Stop()
 
 	// Connect a new peer and check that we receive the checkpoint challenge
-	peer, _ := newTestPeer("peer", celo64, pm, true)
+	peer, _ := newTestPeer("peer", istanbul.Celo64, pm, true)
 	defer peer.close()
 
 	if checkpoint {
@@ -582,7 +583,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	defer pm.Stop()
 	var peers []*testPeer
 	for i := 0; i < totalPeers; i++ {
-		peer, _ := newTestPeer(fmt.Sprintf("peer %d", i), celo64, pm, true)
+		peer, _ := newTestPeer(fmt.Sprintf("peer %d", i), istanbul.Celo64, pm, true)
 		defer peer.close()
 		peers = append(peers, peer)
 	}
