@@ -37,6 +37,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+type commit_info struct {
+	sub      istanbul.Subject
+	proposal istanbul.Proposal
+}
+
 type core struct {
 	config         *istanbul.Config
 	address        common.Address
@@ -51,6 +56,8 @@ type core struct {
 	futurePreprepareTimer         *time.Timer
 	resendRoundChangeMessageTimer *time.Timer
 	roundChangeTimer              *time.Timer
+
+	cache map[string]common.Address
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
@@ -69,6 +76,12 @@ type core struct {
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	commitCh chan commit_info
+	signerCh chan istanbul.Subject
+
+	quitCommitCh chan struct{}
+	quitSignerCh chan struct{}
 }
 
 // New creates an Istanbul consensus core
@@ -90,6 +103,11 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		commitCh:           make(chan commit_info, 100),
+		signerCh:           make(chan istanbul.Subject, 100),
+		quitCommitCh:       make(chan struct{}),
+		quitSignerCh:       make(chan struct{}),
+		cache:              make(map[string]common.Address),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -573,6 +591,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		headBlock := c.backend.GetCurrentHeadBlock()
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
+	c.cache = make(map[string]common.Address)
 	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 
 }
@@ -679,7 +698,15 @@ func (c *core) resendRoundChangeMessage() {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
+	if res, ok := c.cache[fmt.Sprintf("%q%q", data, sig)]; ok {
+		return res, nil
+	}
+
+	res, err := istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
+	if err == nil {
+		c.cache[fmt.Sprintf("%q%q", data, sig)] = res
+	}
+	return res, err
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
@@ -688,7 +715,6 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)
 		return 0, verificationStatus
 	} else {
-		logger.Trace("verification status cache miss")
 
 		duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)

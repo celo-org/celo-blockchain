@@ -47,6 +47,7 @@ func (c *core) Start() error {
 	// Tests will handle events itself, so we have to make subscribeEvents()
 	// be able to call in test.
 	c.subscribeEvents()
+	go c.commitHandler()
 	go c.handleEvents()
 
 	return nil
@@ -56,6 +57,7 @@ func (c *core) Start() error {
 func (c *core) Stop() error {
 	c.stopAllTimers()
 	c.unsubscribeEvents()
+	c.quitCommitCh <- struct{}{}
 
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
@@ -167,7 +169,11 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// Decode message and check its signature
 	msg := new(istanbul.Message)
-	logger.Debug("Got new message", "payload", hexutil.Encode(payload))
+	if len(payload) < 1000 {
+		logger.Debug("Got new message", "payload", hexutil.Encode(payload))
+	} else {
+		logger.Debug("Got new message", "len", len(payload))
+	}
 	if err := msg.FromPayload(payload, c.validateFn); err != nil {
 		logger.Debug("Failed to decode message from payload", "err", err)
 		return err
@@ -185,6 +191,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.newLogger("func", "handleCheckedMsg", "from", msg.Address)
+	logger.Debug("Handling message", "code", msg.Code)
 
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {

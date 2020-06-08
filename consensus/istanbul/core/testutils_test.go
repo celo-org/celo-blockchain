@@ -28,6 +28,13 @@ func newView(seq, round uint64) *istanbul.View {
 	return &istanbul.View{Round: new(big.Int).SetUint64(round), Sequence: new(big.Int).SetUint64(seq)}
 }
 
+func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
+	return &istanbul.Preprepare{
+		View:     v,
+		Proposal: newTestProposal(),
+	}
+}
+
 func newTestRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet) RoundState {
 	current := newRoundState(view, validatorSet, validatorSet.GetByIndex(0))
 	current.(*roundStateImpl).preprepare = newTestPreprepare(view)

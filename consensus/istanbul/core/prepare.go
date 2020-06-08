@@ -54,6 +54,8 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 	seen := make(map[common.Address]bool)
 
+	hash := preparedCertificate.Proposal.Hash()
+
 	var view *istanbul.View
 	for _, message := range preparedCertificate.PrepareOrCommitMessages {
 		data, err := message.PayloadNoSig()
@@ -84,6 +86,9 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		var subject *istanbul.Subject
 
 		if message.Code == istanbul.MsgCommit {
+
+			logger.Trace("Commit message in prepared certificate")
+
 			var committedSubject *istanbul.CommittedSubject
 			err := message.Decode(&committedSubject)
 			if err != nil {
@@ -126,7 +131,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		}
 
 		// Verify message for the proper proposal.
-		if subject.Digest != preparedCertificate.Proposal.Hash() {
+		if subject.Digest != hash {
 			return nil, errInvalidPreparedCertificateDigestMismatch
 		}
 
@@ -207,7 +212,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
+			logger.Error("Failed to create and set prepared certificate", "err", err)
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")

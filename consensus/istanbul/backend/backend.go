@@ -164,12 +164,13 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address   common.Address       // Ethereum address of the signing key
-	publicKey *ecdsa.PublicKey     // The signer public key
-	decryptFn istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn    istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu  sync.RWMutex         // Protects the signer fields
+	address     common.Address       // Ethereum address of the signing key
+	publicKey   *ecdsa.PublicKey     // The signer public key
+	decryptFn   istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
+	signFn      istanbul.SignerFn    // Signer function to authorize hashes with
+	signBLSFn   istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	signFnMu    sync.RWMutex         // Protects the signer fields
+	signBLSFnMu sync.RWMutex         // Protects the BLS signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -321,6 +322,9 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
+
+	sb.signBLSFnMu.Lock()
+	defer sb.signBLSFnMu.Unlock()
 
 	sb.address = address
 	sb.publicKey = publicKey
@@ -593,8 +597,8 @@ func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscry
 	if sb.signBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
+	sb.signBLSFnMu.RLock()
+	defer sb.signBLSFnMu.RUnlock()
 	return sb.signBLSFn(accounts.Account{Address: sb.address}, data, extra, useComposite)
 }
 
