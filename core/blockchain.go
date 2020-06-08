@@ -569,10 +569,16 @@ func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
 // This method only rolls back the current block. The current header and current
 // fast block are left intact.
 func (bc *BlockChain) repair(head **types.Block) error {
+	batch := bc.db.NewBatch()
+
 	for {
 		// Abort if we've rewound to a head block that does have associated state
 		if _, err := state.New((*head).Root(), bc.stateCache); err == nil {
 			log.Info("Rewound blockchain to past state", "number", (*head).Number(), "hash", (*head).Hash())
+			if err := batch.Write(); err != nil {
+				log.Error("Error when removing sidechain", "err", err)
+			}
+			bc.purge()
 			return nil
 		}
 		// Otherwise rewind one block and recheck state availability there
@@ -580,6 +586,8 @@ func (bc *BlockChain) repair(head **types.Block) error {
 		if block == nil {
 			return fmt.Errorf("missing block %d [%x]", (*head).NumberU64()-1, (*head).ParentHash())
 		}
+		// It's safest to remove these blocks
+		rawdb.DeleteBlock(batch, (*head).Hash(), (*head).NumberU64())
 		*head = block
 	}
 }
@@ -922,17 +930,7 @@ func (bc *BlockChain) truncateAncient(head uint64) error {
 	if err := bc.db.TruncateAncients(head + 1); err != nil {
 		return err
 	}
-	// Clear out any stale content from the caches
-	bc.hc.headerCache.Purge()
-	bc.hc.tdCache.Purge()
-	bc.hc.numberCache.Purge()
-	// Clear out any stale content from the caches
-	bc.bodyCache.Purge()
-	bc.bodyRLPCache.Purge()
-	bc.receiptsCache.Purge()
-	bc.blockCache.Purge()
-	bc.txLookupCache.Purge()
-	bc.futureBlocks.Purge()
+	bc.purge()
 
 	log.Info("Rewind ancient data", "number", head)
 	return nil
@@ -1906,6 +1904,20 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 		parent = bc.GetHeader(parent.ParentHash, parent.Number.Uint64()-1)
 	}
 	if parent == nil {
+		log.Info("Found orphaned sidechain, removing", "length", len(hashes))
+		batch := bc.db.NewBatch()
+
+		for i := 0; i < len(hashes); i++ {
+			rawdb.DeleteBlock(batch, hashes[i], numbers[i])
+		}
+
+		if err := batch.Write(); err != nil {
+			log.Error("Error when removing sidechain", "err", err)
+		}
+
+		// Clear out any stale content from the caches
+		bc.purge()
+
 		return it.index, nil, nil, errors.New("missing parent")
 	}
 	// Import all the pruned blocks to make the state available
@@ -1942,6 +1954,20 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 		return bc.insertChain(blocks, false)
 	}
 	return 0, nil, nil, nil
+}
+
+func (bc *BlockChain) purge() {
+	// Clear out any stale content from the caches
+	bc.hc.headerCache.Purge()
+	bc.hc.tdCache.Purge()
+	bc.hc.numberCache.Purge()
+	// Clear out any stale content from the caches
+	bc.bodyCache.Purge()
+	bc.bodyRLPCache.Purge()
+	bc.receiptsCache.Purge()
+	bc.blockCache.Purge()
+	bc.txLookupCache.Purge()
+	bc.futureBlocks.Purge()
 }
 
 // reorg takes two blocks, an old chain and a new chain and will reconstruct the
