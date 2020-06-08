@@ -542,20 +542,37 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 
 		if err == nil {
 			ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-			if err != nil {
-				log.Trace("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err)
-			}
-
-			// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-			// each of which is equivalent to 32 bytes
-			if err == nil && binary.Size(ret) == 64 {
+			parseTobinTax := func(ret []byte) (*big.Int, *big.Int, error) {
+				// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
+				// each of which is equivalent to 32 bytes
+				if binary.Size(ret) != 64 {
+					return nil, nil, errors.New("Length of tobin tax not equal to 64 bytes")
+				}
 				numerator := new(big.Int).SetBytes(ret[0:32])
 				denominator := new(big.Int).SetBytes(ret[32:64])
-				tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+				if big.NewInt(0).Cmp(denominator) == 0 {
+					return nil, nil, errors.New("Tobin tax denominator equal to zero")
+				}
+				if numerator.Cmp(denominator) == 1 {
+					return nil, nil, errors.New("Tobin tax numerator greater than denominator")
+				}
+				return numerator, denominator, nil
+			}
 
-				evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-				evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-				return gas, nil
+			if err != nil {
+				// Errors are expected before contract deployment.
+				log.Trace("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err)
+			} else {
+				numerator, denominator, err := parseTobinTax(ret)
+				if err != nil {
+					// The Tobin Tax should always be parsable.
+					log.Error("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err, "ret", ret)
+				} else {
+					tobinTax = new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+					evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+					evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
+					return gas, nil
+				}
 			}
 		}
 	}
