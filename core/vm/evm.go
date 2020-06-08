@@ -18,6 +18,7 @@ package vm
 
 import (
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -26,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/contract_comm/errors"
+	contract_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -536,7 +537,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
 		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-		if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
+		if err != nil && err != contract_errors.ErrSmartContractNotDeployed && err != contract_errors.ErrRegistryContractNotDeployed {
 			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
 		}
 
@@ -568,7 +569,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 					// The Tobin Tax should always be parsable.
 					log.Error("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err, "ret", ret)
 				} else {
-					tobinTax = new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+					tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 					evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
 					evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
 					return gas, nil
