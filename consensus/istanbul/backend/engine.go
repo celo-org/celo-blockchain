@@ -642,7 +642,7 @@ func (sb *Backend) StopAnnouncing() error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
-	sb.announceThreadQuit <- struct{}{}
+	close(sb.announceThreadQuit)
 	sb.announceThreadWg.Wait()
 
 	sb.announceRunning = false

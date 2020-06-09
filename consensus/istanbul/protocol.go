@@ -24,7 +24,6 @@ import (
 const (
 	Celo64 = 64
 	Celo65 = 65
-	Celo66 = 66
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
@@ -35,25 +34,24 @@ var ProtocolVersions = []uint{Celo65}
 var ProxyConnectionProtocolVersions = []uint{Celo65}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 28}
+var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size
 // and update the IsIstanbulMsg function below!
 const (
-	ConsensusMsg                  = 0x11
-	QueryEnodeMsg                 = 0x12
-	ValEnodesShareMsg             = 0x13
-	FwdMsg                        = 0x14
-	DelegateSignMsg               = 0x15
-	VersionCertificatesMsg        = 0x16
-	EnodeCertificateMsg           = 0x17
-	ValidatorHandshakeMsg         = 0x18
-	ProxyEnodeCertificateShareMsg = 0x19
+	ConsensusMsg           = 0x11
+	QueryEnodeMsg          = 0x12
+	ValEnodesShareMsg      = 0x13
+	FwdMsg                 = 0x14
+	DelegateSignMsg        = 0x15
+	VersionCertificatesMsg = 0x16
+	EnodeCertificateMsg    = 0x17
+	ValidatorHandshakeMsg  = 0x18
 )
 
 func IsIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= ConsensusMsg && msg.Code <= ProxyEnodeCertificateShareMsg
+	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
 }
 
 // IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).

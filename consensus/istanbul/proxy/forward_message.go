@@ -20,20 +20,35 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
+func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
 	logger := p.logger.New("func", "SendForwardMsg")
 	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 	if p.backend.IsProxiedValidator() {
-		resultCh := make(chan map[common.Address]consensus.Peer)
-		p.ph.getValidatorProxyPeers <- &validatorProxyPeersRequest{validators: finalDestAddresses, resultCh: resultCh}
-		proxyPeers := <-resultCh
+		proxyPeers := make(map[common.Address]consensus.Peer)
+
+		select {
+		case p.ph.proxyHandlerOpCh <- func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy) {
+			valAssignments := getValidatorAssignements(finalDestAddresses, nil)
+
+			for address, proxy := range valAssignments {
+				if proxy.peer != nil {
+					proxyPeers[address] = proxy.peer
+				}
+			}
+		}:
+			<-p.ph.proxyHandlerOpDoneCh
+
+		case <-p.ph.quit:
+			return ErrStoppedProxyHandler
+
+		}
 
 		if len(proxyPeers) == 0 {
 			logger.Warn("No proxy assigned to the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-			// return errNoAssignedProxies
 			return nil
 		}
 
@@ -50,25 +65,34 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 		// Send the forward messages to the proxies
 		for proxyPeer, valAddresses := range proxyToAddressesMap {
 			// Convert the message to a fwdMessage
-			fwdMessage := &istanbul.ForwardMessage{
-				Code:          ethMsgCode,
-				DestAddresses: valAddresses,
-				Msg:           payload,
-			}
-			fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-			if err != nil {
-				logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-				return err
+
+			msgToForward := payload
+
+			if proxySpecificPayload, ok := proxySpecificPayloads[proxyPeer.Node().ID()]; ok {
+				msgToForward = proxySpecificPayload
 			}
 
-			// Note that we are not signing message.  The message that is being wrapped is already signed.
-			msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.address}
-			fwdMsgPayload, err := msg.Payload()
-			if err != nil {
-				return err
-			}
+			if msgToForward != nil {
+				fwdMessage := &istanbul.ForwardMessage{
+					Code:          ethMsgCode,
+					DestAddresses: valAddresses,
+					Msg:           msgToForward,
+				}
+				fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
+				if err != nil {
+					logger.Error("Failed to encode", "fwdMessage", fwdMessage)
+					return err
+				}
 
-			go proxyPeer.Send(istanbul.FwdMsg, fwdMsgPayload)
+				// Note that we are not signing message.  The message that is being wrapped is already signed.
+				msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.address}
+				fwdMsgPayload, err := msg.Payload()
+				if err != nil {
+					return err
+				}
+
+				go proxyPeer.Send(istanbul.FwdMsg, fwdMsgPayload)
+			}
 		}
 	} else {
 		return ErrNodeNotProxiedValidator
@@ -103,8 +127,15 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 			return true, err
 		}
 
+		// If this is a EnodeCertificateMsg, then do additional handling
+		if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.Msg); err != nil {
+			logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
+			return true, err
+		}
+
 		logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
 		go p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
+
 		return true, nil
 	} else {
 		return true, ErrNodeNotProxy

@@ -28,31 +28,11 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// This struct is used for requesting proxy peers for particular validators
-// from the peerHandler event loop
-type validatorProxyPeersRequest struct {
-	validators []common.Address
-	resultCh   chan map[common.Address]consensus.Peer
-}
-
-// This struct is used for requesting proxies for particular validators
-// from the peerHandler event loop
-type validatorProxyExternalNodesRequest struct {
-	validators []common.Address
-	resultCh   chan map[common.Address]*enode.Node
-}
-
-// This struct is used for requesting the peer of a proxy with ID peerID
-type proxyPeerRequest struct {
-	peerID   enode.ID
-	resultCh chan consensus.Peer
-}
-
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
 	lock    sync.RWMutex // protects "running" and "p2pserver"
-	running bool       // indicates if `run` is currently being run in a goroutine
+	running bool         // indicates if `run` is currently being run in a goroutine
 
 	loopWG sync.WaitGroup
 	quit   chan struct{}
@@ -63,13 +43,10 @@ type proxyHandler struct {
 	addProxyPeer    chan consensus.Peer // This channel is for newly peered proxies
 	removeProxyPeer chan consensus.Peer // This channel is for newly disconnected peers
 
-	getValidatorProxyPeers        chan *validatorProxyPeersRequest         // This channel is for getting the peers of proxies for a set of validators
-	getValidatorProxyExternalNode chan *validatorProxyExternalNodesRequest // This channel is for getting the external nodes of proxies for a set of validators
-	getProxyPeer                  chan *proxyPeerRequest                   // This channel is for getting the peers of a proxy with a specific ID
+	proxyHandlerOpCh chan proxyHandlerOpFunc
+	proxyHandlerOpDoneCh chan struct{}
 
-	sendValEnodeShareMsgsCh         chan struct{}                            // This channel is to tell the proxy_handler to send a val_enode_share message to all the proxies
-
-	getProxyInfo chan chan []ProxyInfo // This channel is for getting info on the proxies in proxySet
+	sendValEnodeShareMsgsCh chan struct{} // This channel is to tell the proxy_handler to send a val_enode_share message to all the proxies
 
 	newBlockchainEpoch chan struct{} // This channel is when a new blockchain epoch has started and we need to check if any validators are removed or added
 
@@ -79,6 +56,8 @@ type proxyHandler struct {
 	pe ProxyEngine
 	ps *proxySet // Used to keep track of proxies & validators the proxies are associated with
 }
+
+type proxyHandlerOpFunc func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy)
 
 func newProxyHandler(sb istanbul.Backend, pe ProxyEngine) *proxyHandler {
 	ph := &proxyHandler{
@@ -94,16 +73,12 @@ func newProxyHandler(sb istanbul.Backend, pe ProxyEngine) *proxyHandler {
 	ph.addProxyPeer = make(chan consensus.Peer)
 	ph.removeProxyPeer = make(chan consensus.Peer)
 
-	ph.getValidatorProxyPeers = make(chan *validatorProxyPeersRequest)
-	ph.getValidatorProxyExternalNode = make(chan *validatorProxyExternalNodesRequest)
-	ph.getProxyPeer = make(chan *proxyPeerRequest)
+	ph.proxyHandlerOpCh = make(chan proxyHandlerOpFunc)
+	ph.proxyHandlerOpDoneCh = make(chan struct{})
 
 	ph.sendValEnodeShareMsgsCh = make(chan struct{})
-
-	ph.getProxyInfo = make(chan chan []ProxyInfo)
-
 	ph.newBlockchainEpoch = make(chan struct{})
-
+	
 	ph.proxyHandlerEpochLength = time.Minute
 
 	ph.ps = newProxySet(newConsistentHashingPolicy())
@@ -124,7 +99,7 @@ func (ph *proxyHandler) Start() error {
 	ph.loopWG.Add(1)
 	go ph.run()
 
-        log.Info("Proxy handler started")
+	log.Info("Proxy handler started")
 	return nil
 }
 
@@ -137,7 +112,7 @@ func (ph *proxyHandler) Stop() error {
 		return ErrStoppedProxyHandler
 	}
 	ph.running = false
-	ph.quit <- struct{}{}
+	close(ph.quit)
 	ph.loopWG.Wait()
 
 	log.Info("Proxy handler stopped")
@@ -218,19 +193,32 @@ loop:
 					ph.sb.UpdateAnnounceVersion()
 				}
 
-				// Share this node's enodeCertificate for the proxy to use for handshakes
-				/* proxyEnodeCertificateMsg, err := ph.sb.GenerateEnodeCertificateMsg(proxy.externalNode.URLv4())
+				// Share this node's enodeCertificate for the proxy to use for handshakes via a forward message
+				proxyEnodeCertificateMsg, err := ph.sb.GenerateEnodeCertificateMsg(proxy.externalNode.URLv4())
 				if err != nil {
 					logger.Warn("Error generating enode certificate message", "err", err)
 				} else {
 					payload, err := proxyEnodeCertificateMsg.Payload()
 					if err != nil {
 						logger.Error("Error getting payload of enode certificate message", "err", err)
+					} else {
+						validatorAssignments := ph.ps.getValidatorAssignments(nil, []enode.ID{peerID})
+
+						destAddresses := make([]common.Address, len(validatorAssignments))
+						for valAddress := range validatorAssignments {
+							destAddresses = append(destAddresses, valAddress)
+						}
+
+						// The forward message is being sent within a goroutine, since SendForwardMsg will query the proxy handler thread
+						// (which we are already in).  If this command is done inline, then it will result in a deadlock.
+						// TODO: Figure out a way to run this command inline.
+						go func() {
+							if err := ph.pe.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, map[enode.ID][]byte{peerID: payload}); err != nil {
+								logger.Error("Error in forwarding a enodeCertificateMsg to proxy", "proxy", peerNode, "error", err)
+							}
+						}()
 					}
-					if err := proxy.peer.Send(istanbul.ProxyEnodeCertificateShareMsg, payload); err != nil {
-						logger.Error("Error in sending ProxyEnodeCertificateShare message to proxy", "err", err)
-					}
-				} */
+				}
 			}
 
 		case disconnectedPeer := <-ph.removeProxyPeer:
@@ -241,46 +229,15 @@ loop:
 				ph.ps.removeProxyPeer(peerID)
 			}
 
-		case request := <-ph.getValidatorProxyPeers:
-			valAssignments := ph.ps.getValidatorAssignments(request.validators, nil)
-			returnMap := make(map[common.Address]consensus.Peer)
-
-			for address, proxy := range valAssignments {
-				if proxy.peer != nil {
-					returnMap[address] = proxy.peer
-				}
-			}
-
-			request.resultCh <- returnMap
-
-		case request := <-ph.getValidatorProxyExternalNode:
-			valAssignments := ph.ps.getValidatorAssignments(request.validators, nil)
-			returnMap := make(map[common.Address]*enode.Node)
-
-			for address, proxy := range valAssignments {
-				if proxy.peer != nil {
-					returnMap[address] = proxy.externalNode
-				}
-			}
-
-			request.resultCh <- returnMap
-
-		case request := <-ph.getProxyPeer:
-			proxy := ph.ps.getProxy(request.peerID)
-			if proxy == nil {
-				request.resultCh <- nil
-			} else {
-				request.resultCh <- proxy.peer
-			}
-
-		case resultCh := <-ph.getProxyInfo:
-			resultCh <- ph.ps.getProxyInfo()
+		case proxyHandlerOp := <- ph.proxyHandlerOpCh:
+		       proxyHandlerOp(ph.ps.getValidatorAssignments)
+		       ph.proxyHandlerOpDoneCh <- struct{}{}
 
 		case <-ph.newBlockchainEpoch:
 			// New blockchain epoch. Update the validators in the proxySet
 			valsReassigned, error := ph.updateValidators()
 			if error != nil {
-			   logger.Warn("Error in updating validator assignments on new epoch", "error", error)
+				logger.Warn("Error in updating validator assignments on new epoch", "error", error)
 			}
 			if valsReassigned {
 				ph.sendValEnodeShareMsgs()
@@ -305,7 +262,7 @@ loop:
 			// 3. TODO - Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 
 		case <-ph.sendValEnodeShareMsgsCh:
-		     ph.sendValEnodeShareMsgs()
+			ph.sendValEnodeShareMsgs()
 		}
 	}
 }

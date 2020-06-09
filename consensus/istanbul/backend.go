@@ -153,4 +153,6 @@ type Backend interface {
 	// set directly from making an EVM call (which is relatively expensive), or from the cached
 	// version (which will be no more than one minute old).
 	RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error)
+
+	GenerateEnodeCertificateMsg(externalEnodeURL string) (*Message, error)
 }

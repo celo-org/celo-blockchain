@@ -49,7 +49,7 @@ var (
 
 	// ErrStoppedProxyHandler is returned if proxy handler is stopped
 	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
-	
+
 	// ErrStartedProxyHandler is returned if proxy handler is already started
 	ErrStartedProxyHandler = errors.New("started proxy handler")
 
@@ -63,7 +63,7 @@ var (
 type ProxyEngine interface {
 	Start() error
 	Stop() error
-	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)	
+	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
 	AddProxy(node, externalNode *enode.Node) error
 	RemoveProxy(node *enode.Node) error
 	RegisterProxyPeer(proxyPeer consensus.Peer) error
@@ -71,11 +71,12 @@ type ProxyEngine interface {
 	RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
 	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
 	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
-	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
+	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
 	// SendDelegateSignMsgToProxy(msg []byte) error
 	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
 	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
 	SendValEnodesShareMsgToAllProxies()
+	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
 }
 
 // ==============================================

@@ -49,7 +49,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	var err error
 
 	if sb.IsProxiedValidator() {
-		if err := sb.proxyEngine.SendForwardMsg(destAddresses, ethMsgCode, payload); err != nil {
+		if err := sb.proxyEngine.SendForwardMsg(destAddresses, ethMsgCode, payload, nil); err != nil {
 			return err
 		}
 	} else {

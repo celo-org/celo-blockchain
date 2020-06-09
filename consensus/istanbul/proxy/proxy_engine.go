@@ -69,7 +69,7 @@ func (p *proxyEngine) Start() error {
 
 	}
 
- 	p.logger.Info("Proxy engine started")
+	p.logger.Info("Proxy engine started")
 	return nil
 }
 
@@ -80,7 +80,7 @@ func (p *proxyEngine) Stop() error {
 		}
 	}
 
- 	p.logger.Info("Proxy engine stopped")
+	p.logger.Info("Proxy engine stopped")
 	return nil
 }
 
@@ -153,4 +153,25 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 	if p.backend.IsProxy() && p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
 		p.proxiedValidator = nil
 	}
+}
+
+func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error) {
+	valProxyAssignments := make(map[common.Address]*enode.Node)
+
+	select {
+	case p.ph.proxyHandlerOpCh <- func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy) {
+		valAssignments := getValidatorAssignements(nil, nil)
+
+		for address, proxy := range valAssignments {
+			valProxyAssignments[address] = proxy.externalNode
+		}
+	}:
+		<-p.ph.proxyHandlerOpDoneCh
+
+	case <-p.ph.quit:
+		return nil, ErrStoppedProxyHandler
+
+	}
+
+	return valProxyAssignments, nil
 }

@@ -201,6 +201,8 @@ type Backend struct {
 	announceMu                    sync.RWMutex
 	announceThreadWg              *sync.WaitGroup
 	announceThreadQuit            chan struct{}
+	announceVersion               uint
+	announceVersionMu             sync.RWMutex
 	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh chan struct{}
