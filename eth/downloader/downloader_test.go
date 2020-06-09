@@ -154,7 +154,12 @@ func (dl *downloadTester) HasFastBlock(hash common.Hash, number uint64) bool {
 func (dl *downloadTester) GetHeaderByHash(hash common.Hash) *types.Header {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
+	return dl.getHeaderByHash(hash)
+}
 
+// getHeaderByHash returns the header if found either within ancients or own blocks)
+// This method assumes that the caller holds at least the read-lock (dl.lock)
+func (dl *downloadTester) getHeaderByHash(hash common.Hash) *types.Header {
 	header := dl.ancientHeaders[hash]
 	if header != nil {
 		return header
@@ -242,6 +247,13 @@ func (dl *downloadTester) GetTd(hash common.Hash, number uint64) *big.Int {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
 
+	return dl.getTd(hash)
+}
+
+// getTd retrieves the block's total difficulty if found either within
+// ancients or own blocks).
+// This method assumes that the caller holds at least the read-lock (dl.lock)
+func (dl *downloadTester) getTd(hash common.Hash) *big.Int {
 	if td := dl.ancientChainTd[hash]; td != nil {
 		return td
 	}
@@ -253,8 +265,8 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 	// Do a quick check, as the blockchain.InsertHeaderChain doesn't insert anything in case of errors
-	if _, ok := dl.ownHeaders[headers[0].ParentHash]; !ok {
-		return 0, errors.New("InsertHeaderChain: unknown parent at first position")
+	if dl.getHeaderByHash(headers[0].ParentHash) == nil {
+		return 0, fmt.Errorf("InsertHeaderChain: unknown parent at first position, parent of number %d", headers[0].Number)
 	}
 	var hashes []common.Hash
 	for i := 1; i < len(headers); i++ {
@@ -268,15 +280,17 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 	// Do a full insert if pre-checks passed
 	for i, header := range headers {
 		hash := hashes[i]
-		if _, ok := dl.ownHeaders[hash]; ok {
+		if dl.getHeaderByHash(hash) != nil {
 			continue
 		}
-		if _, ok := dl.ownHeaders[header.ParentHash]; !ok {
+		if dl.getHeaderByHash(header.ParentHash) == nil {
 			// This _should_ be impossible, due to precheck and induction
 			return i, fmt.Errorf("InsertHeaderChain: unknown parent at position %d", i)
 		}
 		dl.ownHashes = append(dl.ownHashes, hash)
 		dl.ownHeaders[hash] = header
+
+		td := dl.getTd(header.ParentHash)
 		dl.ownChainTd[hash] = new(big.Int).Add(header.Number, big.NewInt(1))
 	}
 	return len(headers), nil
@@ -286,7 +300,6 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 func (dl *downloadTester) InsertChain(blocks types.Blocks) (i int, err error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
-
 	for i, block := range blocks {
 		if parent, ok := dl.ownBlocks[block.ParentHash()]; !ok {
 			return i, fmt.Errorf("InsertChain: unknown parent at position %d / %d", i, len(blocks))
