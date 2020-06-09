@@ -128,9 +128,11 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 		}
 
 		// If this is a EnodeCertificateMsg, then do additional handling
-		if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.Msg); err != nil {
-			logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
-			return true, err
+		if fwdMsg.Code == istanbul.EnodeCertificateMsg {
+			if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.Msg); err != nil {
+				logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
+				return true, err
+			}
 		}
 
 		logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
