@@ -62,6 +62,8 @@ var (
 	errUnauthorized = errors.New("not an elected validator")
 	// errInvalidExtraDataFormat is returned when the extra data format is incorrect
 	errInvalidExtraDataFormat = errors.New("invalid extra data format")
+	// errCoinbase is returned if a block's coinbase is invalid
+	errInvalidCoinbase = errors.New("invalid coinbase")
 	// errInvalidTimestamp is returned if the timestamp of a block is lower than the previous block's timestamp + the minimum block period.
 	errInvalidTimestamp = errors.New("invalid timestamp")
 	// errInvalidVotingChain is returned if an authorization list is attempted to

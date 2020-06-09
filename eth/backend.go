@@ -160,7 +160,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		networkID:      config.NetworkId,
 		gasPrice:       config.Miner.GasPrice,
 		validator:      config.Miner.Validator,
-		txFeeRecipient: config.Miner.TxFeeRecipient,
+		txFeeRecipient: config.TxFeeRecipient,
 		gatewayFee:     config.GatewayFee,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
@@ -259,7 +259,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
-
 	return eth, nil
 }
 

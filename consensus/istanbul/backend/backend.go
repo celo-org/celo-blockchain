@@ -24,7 +24,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -468,8 +471,27 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	if txnHash != block.Header().TxHash {
 		return 0, errMismatchTxhashes
 	}
+	minVersion := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
+	version, err := blockchain_parameters.GetMinimumVersion(nil, nil)
+	if err != nil {
+		if err != comm_errors.ErrRegistryContractNotDeployed && err != comm_errors.ErrSmartContractNotDeployed {
+			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+			return 0, err
+		}
+	} else {
+		if version.Cmp(minVersion) <= 0 {
+			addr, err := sb.Author(block.Header())
+			if err != nil {
+				sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
+				return 0, errInvalidProposal
+			} else if addr != block.Header().Coinbase {
+				sb.logger.Error("Support for differing validator and txFeeRecipient is forthcoming")
+				return 0, errInvalidCoinbase
+			}
+		}
+	}
 
-	err := sb.VerifyHeader(sb.chain, block.Header(), false)
+	err = sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {

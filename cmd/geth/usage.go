@@ -82,7 +82,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
 			utils.EtherbaseFlag,
-			utils.ValidatorFlag,
+			utils.MinerValidatorFlag,
 			utils.TxFeeRecipientFlag,
 		},
 	},

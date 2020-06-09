@@ -95,7 +95,7 @@ var (
 		utils.UltraLightOnlyAnnounceFlag,
 		utils.WhitelistFlag,
 		utils.EtherbaseFlag,
-		utils.ValidatorFlag,
+		utils.MinerValidatorFlag,
 		utils.TxFeeRecipientFlag,
 		utils.BLSbaseFlag,
 		utils.CacheFlag,

@@ -221,8 +221,8 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account, deprecated, use --tx-fee-recipient and --validator instead)",
 		Value: "0",
 	}
-	ValidatorFlag = cli.StringFlag{
-		Name:  "validator",
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
 		Usage: "Public address for participation in consensus (default = first account)",
 		Value: "0",
 	}
@@ -1084,8 +1084,11 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	if ctx.GlobalIsSet(ValidatorFlag.Name) {
-		validator = ctx.GlobalString(ValidatorFlag.Name)
+	if validator != "" && ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		Fatalf("`etherbase` and `validator` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+	}
+	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		validator = ctx.GlobalString(MinerValidatorFlag.Name)
 	}
 	// Convert the validator into an address and configure it
 	if validator != "" {
@@ -1109,6 +1112,9 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
+	if txFeeRecipient != "" && ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		Fatalf("`etherbase` and `txFeeRecipient` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+	}
 	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
 		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
 	}
@@ -1118,13 +1124,13 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 		if err != nil {
 			Fatalf("Invalid txFeeRecipient: %v", err)
 		}
-		cfg.Miner.TxFeeRecipient = account.Address
+		cfg.TxFeeRecipient = account.Address
 	}
 }
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `BLSbase` is the public address used for block finalization in consensus.
+// `BLSbase` is the address derived from the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
