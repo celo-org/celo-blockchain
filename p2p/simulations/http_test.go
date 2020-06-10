@@ -92,7 +92,7 @@ func (t *testService) peer(id enode.ID) *testPeer {
 	return peer
 }
 
-func (t *testService) Protocols(_ bool) []p2p.Protocol {
+func (t *testService) Protocols() []p2p.Protocol {
 	return []p2p.Protocol{
 		{
 			Name:    "test",

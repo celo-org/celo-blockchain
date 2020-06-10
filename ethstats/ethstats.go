@@ -145,7 +145,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 
 // Protocols implements node.Service, returning the P2P network protocols used
 // by the stats service (nil as it doesn't use the devp2p overlay network).
-func (s *Service) Protocols(_ bool) []p2p.Protocol { return nil }
+func (s *Service) Protocols() []p2p.Protocol { return nil }
 
 // APIs implements node.Service, returning the RPC API endpoints provided by the
 // stats service (nil as it doesn't provide any user callable APIs).

@@ -115,7 +115,7 @@ type ServiceConstructor func(ctx *ServiceContext) (Service, error)
 // every time a service is started.
 type Service interface {
 	// Protocols retrieves the P2P protocols the service wishes to start.
-	Protocols(forProxyInterface bool) []p2p.Protocol
+	Protocols() []p2p.Protocol
 
 	// APIs retrieves the list of RPC descriptors the service provides
 	APIs() []rpc.API

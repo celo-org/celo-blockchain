@@ -505,7 +505,7 @@ func (s *snapshotService) APIs() []rpc.API {
 	}}
 }
 
-func (s *snapshotService) Protocols(_ bool) []p2p.Protocol {
+func (s *snapshotService) Protocols() []p2p.Protocol {
 	return nil
 }
 

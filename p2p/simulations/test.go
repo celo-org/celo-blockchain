@@ -37,7 +37,7 @@ func NewNoopService(ackC map[enode.ID]chan struct{}) *NoopService {
 	}
 }
 
-func (t *NoopService) Protocols(_ bool) []p2p.Protocol {
+func (t *NoopService) Protocols() []p2p.Protocol {
 	return []p2p.Protocol{
 		{
 			Name:    "noop",

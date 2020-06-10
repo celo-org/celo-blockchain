@@ -241,9 +241,9 @@ func (n *Node) Start() error {
 	}
 	// Gather the protocols and start the freshly assembled P2P server
 	for _, service := range services {
-		running.Protocols = append(running.Protocols, service.Protocols(false)...)
+		running.Protocols = append(running.Protocols, service.Protocols()...)
 		if proxyRunning != nil {
-			proxyRunning.Protocols = append(proxyRunning.Protocols, service.Protocols(true)...)
+			proxyRunning.Protocols = append(proxyRunning.Protocols, service.Protocols()...)
 		}
 	}
 	if err := running.Start(); err != nil {
