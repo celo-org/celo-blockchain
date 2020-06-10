@@ -26,8 +26,15 @@ import (
 
 func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
 	logger := p.logger.New("func", "SendForwardMsg")
-	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
+
 	if p.backend.IsProxiedValidator() {
+		// Check if the final destination address parameter is empty
+		if len(finalDestAddresses) == 0 {
+			return nil
+		}
+
+		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
+
 		proxyPeers := make(map[common.Address]consensus.Peer)
 
 		select {

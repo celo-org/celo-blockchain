@@ -316,6 +316,9 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 		return nil, nil, err
 	}
 
+	// Don't add this validator's address to the returned new validator set
+	delete(newValConnSet, ph.sb.Address())
+
 	outputNewValConnSet := make([]common.Address, 0, len(newValConnSet))
 	for newVal := range newValConnSet {
 		outputNewValConnSet = append(outputNewValConnSet, newVal)
