@@ -182,8 +182,8 @@ func TestProxyConsensusForwarding(t *testing.T) {
 	// Test sending a message with no validator signature.
 	// Should fail because proxy expects consensus messages from validators.
 	payloadNoSig, _ := msg.Payload()
-	err = backend.handleConsensusMsg(&MockPeer{}, payloadNoSig)
-	if err != errNonValidatorMessage {
+	handled, err := backend.proxyEngine.HandleMsg(&MockPeer{}, istanbul.ConsensusMsg, payloadNoSig)
+	if !handled || err != istanbul.ErrUnauthorizedAddress {
 		t.Errorf("Expected error sending message from non validator")
 	}
 
@@ -191,7 +191,7 @@ func TestProxyConsensusForwarding(t *testing.T) {
 	// Should succeed now.
 	msg.Sign(backend.Sign)
 	payloadWithSig, _ := msg.Payload()
-	if err = backend.handleConsensusMsg(&MockPeer{}, payloadWithSig); err != nil {
+	if _, err := backend.proxyEngine.HandleMsg(&MockPeer{}, istanbul.ConsensusMsg, payloadWithSig); err != nil {
 		t.Errorf("error %v", err)
 	}
 	// Set back to false for other tests
@@ -225,7 +225,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	// The enodeCertificate is not set synchronously. Wait until it's been set
 	for i := 0; i < 10; i++ {
 		// Test a legitimate message being sent
-		validMsg, err = backend.retrieveEnodeCertificateMsg()
+		validMsg, err = backend.RetrieveEnodeCertificateMsg()
 		if err != nil {
 			t.Errorf("Error from retrieveEnodeCertificateMsg %v", err)
 		}

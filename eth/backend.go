@@ -566,8 +566,8 @@ func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
-func (s *Ethereum) IsListening() bool                   { return true }                              // Always listening
-func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) } // Proxies will return the external facing eth protocol version
+func (s *Ethereum) IsListening() bool                   { return true } // Always listening
+func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) }
 func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
 func (s *Ethereum) Downloader() *downloader.Downloader  { return s.protocolManager.downloader }
 func (s *Ethereum) GatewayFeeRecipient() common.Address { return common.Address{} } // Full-nodes do not make use of gateway fee.
