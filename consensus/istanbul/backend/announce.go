@@ -1074,7 +1074,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		return err
 	}
 
-	destAddresses := make([]common.Address, len(validatorConnSet))
+	destAddresses := make([]common.Address, 0, len(validatorConnSet))
 	for address := range validatorConnSet {
 		destAddresses = append(destAddresses, address)
 	}

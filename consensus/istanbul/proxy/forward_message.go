@@ -56,7 +56,7 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 		proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
 		for valAddress, proxyPeer := range proxyPeers {
 			if proxyToAddressesMap[proxyPeer] == nil {
-				proxyToAddressesMap[proxyPeer] = make([]common.Address, 1)
+				proxyToAddressesMap[proxyPeer] = make([]common.Address, 0)
 			}
 
 			proxyToAddressesMap[proxyPeer] = append(proxyToAddressesMap[proxyPeer], valAddress)
