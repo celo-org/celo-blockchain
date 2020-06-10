@@ -575,13 +575,20 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger := sb.logger.New("func", "handleQueryEnodeMsg")
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markPeerGossipCache(addr, payload)
-	if sb.checkSelfGossipCache(payload) {
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.markSelfGossipCache(payload)
+	defer sb.markMessageProcessedBySelf(payload)
 
 	msg := new(istanbul.Message)
+
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
+		return nil
+	}
+	defer sb.markMessageProcessedBySelf(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -923,12 +930,12 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
 
-	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markPeerGossipCache(addr, payload)
-	if sb.checkSelfGossipCache(payload) {
+	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
+	sb.markMessageProcessedByPeer(addr, payload)
+	if sb.checkIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.markSelfGossipCache(payload)
+	defer sb.markMessageProcessedBySelf(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
@@ -1222,7 +1229,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 // will send it back to this node.
 // If the proxied validator sends an enode certificate for itself to this node,
 // this node will set the enode certificate as its own for handshaking.
-func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
+func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message

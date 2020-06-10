@@ -43,7 +43,7 @@ var (
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 28}
 
 const (
 	NetworkId          = 1
@@ -75,8 +75,10 @@ const (
 	GetEtherbaseMsg = 0x16
 	EtherbaseMsg    = 0x17
 	// Protocol messages introduced in LPV3
-	StopMsg   = 0x18
-	ResumeMsg = 0x19
+	StopMsg          = 0x18
+	ResumeMsg        = 0x19
+	GetGatewayFeeMsg = 0x1A
+	GatewayFeeMsg    = 0x1B
 )
 
 type requestInfo struct {
@@ -94,6 +96,7 @@ var requests = map[uint64]requestInfo{
 	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
 	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
 	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
+	GetGatewayFeeMsg:       {"GetGatewayFee", MaxGatewayFee},
 }
 
 type errCode int

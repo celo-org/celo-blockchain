@@ -12,33 +12,11 @@ executors:
       GO_VERSION: "1.13.7"
       CELO_MONOREPO_BRANCH_TO_TEST: master
 jobs:
-  build-bls-zexe:
-    docker:
-      - image: circleci/rust:1.41.0
-    working_directory: ~/repos/geth
-    steps:
-      - checkout
-      - run:
-          name: Setup Rust language
-          command: |
-            rustup install 1.41.0
-            rustup default 1.41.0
-      - run:
-          name: Compile bls-zexe
-          command: |
-            export PATH=$PATH:$HOME/.cargo/bin
-            make bls-zexe
-
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth
   build-geth:
     executor: golang
     resource_class: medium+
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - checkout
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -134,16 +112,12 @@ jobs:
               exit 1
             fi
       - run:
-          name: Setup Rust language
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
-      - run:
           name: Compile ios client
           command: make ios
       - persist_to_workspace:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
-            - geth/vendor/github.com/celo-org/bls-zexe/target/universal/release/libepoch_snark.a
 
   publish-mobile-client:
     docker:
@@ -167,7 +141,6 @@ jobs:
             # separate build to avoid ENOMEM in CI :(
             yarn build --scope @celo/utils
             yarn build --scope @celo/protocol
-            yarn build --scope docs
             yarn build --ignore @celo/protocol --ignore docs --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
       - run:
           name: Setup Go language
@@ -263,11 +236,8 @@ workflows:
   version: 2
   build:
     jobs:
-      - build-bls-zexe
       - checkout-monorepo
-      - build-geth:
-          requires:
-            - build-bls-zexe
+      - build-geth
       - lint:
           requires:
             - build-geth
