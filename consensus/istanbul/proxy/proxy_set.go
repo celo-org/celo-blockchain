@@ -34,13 +34,15 @@ type proxySet struct {
 	proxiesByID    map[enode.ID]*proxy // all proxies known by this node, whether or not they are peered
 	valAssignments *valAssignments     // the mappings of proxy<->remote validators
 	valAssigner    assignmentPolicy    // used for assigning peered proxies with remote validators
+	logger         log.Logger
 }
 
 func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 	return &proxySet{
-		proxiesByID: make(map[enode.ID]*proxy),
+		proxiesByID:    make(map[enode.ID]*proxy),
 		valAssignments: newValAssignments(),
-		valAssigner: assignmentPolicy,
+		valAssigner:    assignmentPolicy,
+		logger:         log.New(),
 	}
 }
 
@@ -48,6 +50,8 @@ func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 // The valAssigner is not made aware of the proxy until after the proxy
 // is peered with.
 func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
+	logger := ps.logger.New("func", "addProxy")
+	logger.Trace("Adding proxy to the proxy set", "new proxy internal ID", newProxy.InternalNode.ID(), "new proxy external ID", newProxy.ExternalNode.ID())
 	internalID := newProxy.InternalNode.ID()
 	if ps.proxiesByID[internalID] == nil {
 		ps.proxiesByID[internalID] = &proxy{
@@ -57,7 +61,7 @@ func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 			disconnectTS: time.Now(),
 		}
 	} else {
-		log.Warn("Cannot add proxy, since a proxy with the same internal enode ID exists already", "func", "addProxy")
+		logger.Warn("Cannot add proxy, since a proxy with the same internal enode ID exists already")
 	}
 }
 
@@ -83,10 +87,13 @@ func (ps *proxySet) removeProxy(proxyID enode.ID) bool {
 // Since this proxy is now connected tto the proxied validator, it
 // can now be assigned remote validators.
 func (ps *proxySet) setProxyPeer(proxyID enode.ID, peer consensus.Peer) bool {
+	logger := ps.logger.New("func", "setProxyPeer")
+	logger.Trace("Setting proxy peer for proxy set", "proxyID", proxyID)
 	proxy := ps.proxiesByID[proxyID]
 	valsReassigned := false
 	if proxy != nil {
 		proxy.peer = peer
+		logger.Trace("Assigning validators to proxy", "proxyID", proxyID)
 		valsReassigned = ps.valAssigner.assignProxy(proxy, ps.valAssignments)
 	}
 
@@ -104,11 +111,13 @@ func (ps *proxySet) removeProxyPeer(proxyID enode.ID) {
 
 // addRemoteValidators adds remote validators to be assigned by the valAssigner
 func (ps *proxySet) addRemoteValidators(validators []common.Address) bool {
+	ps.logger.Trace("adding remote validators to the proxy set", "validators", common.ConvertToStringSlice(validators))
 	return ps.valAssigner.assignRemoteValidators(validators, ps.valAssignments)
 }
 
 // removeRemoteValidators removes remote validators from the validator assignments
 func (ps *proxySet) removeRemoteValidators(validators []common.Address) bool {
+	ps.logger.Trace("removing remote validators from the proxy set", "validators", common.ConvertToStringSlice(validators))
 	return ps.valAssigner.removeRemoteValidators(validators, ps.valAssignments)
 }
 
@@ -166,15 +175,16 @@ func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyID
 // unassignDisconnectedProxies unassigns proxies that have been disconnected for
 // at least minAge ago
 func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) bool {
-        valsReassigned := false
+	logger := ps.logger.New("func", "unassignDisconnectedProxies")
+	valsReassigned := false
 	for proxyID := range ps.valAssignments.proxyToVals {
 		proxy := ps.getProxy(proxyID)
 		if proxy != nil && proxy.peer == nil && time.Since(proxy.disconnectTS) >= minAge {
-			log.Debug("Unassigning disconnected proxy", "proxy", proxy.String(), "func", "unassignDisconnectedProxies")
+			logger.Debug("Unassigning disconnected proxy", "proxy", proxy.String())
 			reassigned := ps.valAssigner.removeProxy(proxy, ps.valAssignments)
 
 			if !valsReassigned && reassigned {
-			   valsReassigned = true
+				valsReassigned = true
 			}
 		}
 	}

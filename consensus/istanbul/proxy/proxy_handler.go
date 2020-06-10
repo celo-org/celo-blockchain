@@ -43,7 +43,7 @@ type proxyHandler struct {
 	addProxyPeer    chan consensus.Peer // This channel is for newly peered proxies
 	removeProxyPeer chan consensus.Peer // This channel is for newly disconnected peers
 
-	proxyHandlerOpCh chan proxyHandlerOpFunc
+	proxyHandlerOpCh     chan proxyHandlerOpFunc
 	proxyHandlerOpDoneCh chan struct{}
 
 	sendValEnodeShareMsgsCh chan struct{} // This channel is to tell the proxy_handler to send a val_enode_share message to all the proxies
@@ -52,9 +52,10 @@ type proxyHandler struct {
 
 	proxyHandlerEpochLength time.Duration // The duration of time between proxy handler epochs, which are occasional check-ins to ensure proxy/validator assignments are as intended
 
-	sb istanbul.Backend
-	pe ProxyEngine
-	ps *proxySet // Used to keep track of proxies & validators the proxies are associated with
+	sb     istanbul.Backend
+	pe     ProxyEngine
+	ps     *proxySet // Used to keep track of proxies & validators the proxies are associated with
+	logger log.Logger
 }
 
 type proxyHandlerOpFunc func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy)
@@ -78,10 +79,12 @@ func newProxyHandler(sb istanbul.Backend, pe ProxyEngine) *proxyHandler {
 
 	ph.sendValEnodeShareMsgsCh = make(chan struct{})
 	ph.newBlockchainEpoch = make(chan struct{})
-	
+
 	ph.proxyHandlerEpochLength = time.Minute
 
 	ph.ps = newProxySet(newConsistentHashingPolicy())
+
+	ph.logger = log.New()
 
 	return ph
 }
@@ -135,7 +138,7 @@ func (ph *proxyHandler) run() {
 	phEpochTicker := time.NewTicker(ph.proxyHandlerEpochLength)
 	defer phEpochTicker.Stop()
 
-	logger := log.New("func", "run")
+	logger := ph.logger.New("func", "run")
 
 	ph.updateValidators()
 
@@ -189,6 +192,7 @@ loop:
 			if proxy != nil {
 				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
 				if valsReassigned := ph.ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
+					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
 					ph.sendValEnodeShareMsgs()
 					ph.sb.UpdateAnnounceVersion()
 				}
@@ -204,7 +208,7 @@ loop:
 					} else {
 						validatorAssignments := ph.ps.getValidatorAssignments(nil, []enode.ID{peerID})
 
-						destAddresses := make([]common.Address, len(validatorAssignments))
+						destAddresses := make([]common.Address, 0, len(validatorAssignments))
 						for valAddress := range validatorAssignments {
 							destAddresses = append(destAddresses, valAddress)
 						}
@@ -229,9 +233,9 @@ loop:
 				ph.ps.removeProxyPeer(peerID)
 			}
 
-		case proxyHandlerOp := <- ph.proxyHandlerOpCh:
-		       proxyHandlerOp(ph.ps.getValidatorAssignments)
-		       ph.proxyHandlerOpDoneCh <- struct{}{}
+		case proxyHandlerOp := <-ph.proxyHandlerOpCh:
+			proxyHandlerOp(ph.ps.getValidatorAssignments)
+			ph.proxyHandlerOpDoneCh <- struct{}{}
 
 		case <-ph.newBlockchainEpoch:
 			// New blockchain epoch. Update the validators in the proxySet
@@ -271,7 +275,7 @@ func (ph *proxyHandler) sendValEnodeShareMsgs() {
 	for _, proxy := range ph.ps.proxiesByID {
 		if proxy.peer != nil {
 			assignedValidators := ph.ps.getValidatorAssignments(nil, []enode.ID{proxy.ID()})
-			valAddresses := make([]common.Address, len(assignedValidators))
+			valAddresses := make([]common.Address, 0, len(assignedValidators))
 			for valAddress := range assignedValidators {
 				valAddresses = append(valAddresses, valAddress)
 			}
@@ -282,25 +286,41 @@ func (ph *proxyHandler) sendValEnodeShareMsgs() {
 
 func (ph *proxyHandler) updateValidators() (bool, error) {
 	newVals, rmVals, err := ph.getValidatorConnSetDiff(ph.ps.getValidators())
-	log.Trace("Proxy Handler updating validators", "newVals", newVals, "rmVals", rmVals, "err", err, "func", "updateValiadtors")
+	log.Trace("Proxy Handler updating validators", "newVals", common.ConvertToStringSlice(newVals), "rmVals", common.ConvertToStringSlice(rmVals), "err", err, "func", "updateValiadtors")
 	if err != nil {
 		return false, err
 	}
 
 	valsReassigned := false
-	valsReassigned = ph.ps.addRemoteValidators(newVals)
-	valsReassigned = ph.ps.removeRemoteValidators(rmVals)
+	if len(newVals) > 0 {
+		valsReassigned = ph.ps.addRemoteValidators(newVals)
+	}
+
+	if len(rmVals) > 0 {
+		valsReassigned = ph.ps.removeRemoteValidators(rmVals)
+	}
+
 	return valsReassigned, nil
 }
 
 // This function will return a diff between the current Validator Connection set and the `validators` parameter.
 func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (newVals []common.Address, rmVals []common.Address, err error) {
+	logger := ph.logger.New("func", "getValidatorConnSetDiff")
+
+	logger.Trace("Proxy handler retrieving validator connection set diff", "validators", common.ConvertToStringSlice(validators))
+
 	// Get the set of active and registered validators
 	newValConnSet, err := ph.sb.RetrieveValidatorConnSet(false)
 	if err != nil {
-		log.Warn("Proxy Handler couldn't get the validator connection set", "err", err, "func", "getValidatorConnSetDiff")
+		logger.Warn("Proxy Handler couldn't get the validator connection set", "err", err, "func", "getValidatorConnSetDiff")
 		return nil, nil, err
 	}
+
+	outputNewValConnSet := make([]common.Address, 0, len(newValConnSet))
+	for newVal := range newValConnSet {
+		outputNewValConnSet = append(outputNewValConnSet, newVal)
+	}
+	logger.Trace("retrieved validator connset", "valConnSet", common.ConvertToStringSlice(outputNewValConnSet))
 
 	rmVals = make([]common.Address, 0) // There is a good chance that there will be no diff, so set size to 0
 
@@ -315,10 +335,12 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 	}
 
 	// Whatever is remaining in the newValConnSet is the new validator set.
-	newVals = make([]common.Address, len(newValConnSet))
+	newVals = make([]common.Address, 0, len(newValConnSet))
 	for newVal := range newValConnSet {
 		newVals = append(newVals, newVal)
 	}
+
+	logger.Trace("returned diff", "newVals", common.ConvertToStringSlice(newVals), "rmVals", common.ConvertToStringSlice(rmVals))
 
 	return newVals, rmVals, nil
 }

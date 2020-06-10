@@ -21,6 +21,7 @@ import (
 	"github.com/cespare/xxhash"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -33,17 +34,21 @@ import (
 type valAssignments struct {
 	valToProxy  map[common.Address]*enode.ID             // map of validator address -> proxy assignment ID
 	proxyToVals map[enode.ID]map[common.Address]struct{} // map of proxy ID to set of validator addresses
+	logger      log.Logger
 }
 
 func newValAssignments() *valAssignments {
 	return &valAssignments{
 		valToProxy:  make(map[common.Address]*enode.ID),
 		proxyToVals: make(map[enode.ID]map[common.Address]struct{}),
+		logger:      log.New(),
 	}
 }
 
 // addValidators adds validators to valToProxy without an assigned proxy
 func (va *valAssignments) addValidators(vals []common.Address) {
+	logger := va.logger.New("func", "addValidators")
+	logger.Info("adding validators to val assignments", "new vals", common.ConvertToStringSlice(vals))
 	for _, val := range vals {
 		va.valToProxy[val] = nil
 	}
@@ -52,6 +57,8 @@ func (va *valAssignments) addValidators(vals []common.Address) {
 // removeValidators removes validators from any proxy assignments and deletes
 // them from valToProxy
 func (va *valAssignments) removeValidators(vals []common.Address) {
+	logger := va.logger.New("func", "removeValidators")
+	logger.Info("removing validators from val assignments", "removed vals", common.ConvertToStringSlice(vals))
 	for _, val := range vals {
 		va.unassignValidator(val)
 		delete(va.valToProxy, val)
@@ -88,7 +95,7 @@ func (va *valAssignments) unassignValidator(valAddress common.Address) {
 // getValidators returns all validator addresses that are found in valToProxy.
 // Note that it will also return both assigned and unassigne validators.
 func (va *valAssignments) getValidators() []common.Address {
-	vals := make([]common.Address, len(va.valToProxy), len(va.valToProxy))
+	vals := make([]common.Address, 0, len(va.valToProxy))
 
 	for val := range va.valToProxy {
 		vals = append(vals, val)
@@ -121,7 +128,8 @@ func (h hasher) Sum64(data []byte) uint64 {
 // WARNING:  None of this object's functions are threadsafe, so it's
 //           the user's responsibility to ensure that.
 type consistentHashingPolicy struct {
-	c *consistent.Consistent // used for consistent hashing
+	c      *consistent.Consistent // used for consistent hashing
+	logger log.Logger
 }
 
 func newConsistentHashingPolicy() *consistentHashingPolicy {
@@ -146,7 +154,8 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 	}
 
 	return &consistentHashingPolicy{
-		c: consistent.New(nil, cfg),
+		c:      consistent.New(nil, cfg),
+		logger: log.New(),
 	}
 }
 
@@ -178,23 +187,46 @@ func (ch *consistentHashingPolicy) removeRemoteValidators(vals []common.Address,
 
 // reassignValidators recalculates all validator <-> proxy pairings
 func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignments) bool {
-        anyAssignmentsChanged := false
+	logger := ch.logger.New("func", "reassignValidators")
+	anyAssignmentsChanged := false
 	for val, proxyID := range valAssignments.valToProxy {
 		newProxyID := ch.c.LocateKey(val.Bytes())
 
 		valReassigned := false
 		if newProxyID == nil {
+			logger.Trace("Unassigning validator", "validator", val)
 			valAssignments.unassignValidator(val)
 			valReassigned = true
 		} else if proxyID == nil || newProxyID.String() != proxyID.String() {
+			proxyIDStr := "nil"
+			if proxyID != nil {
+				proxyIDStr = proxyID.String()
+			}
+			logger.Trace("Reassigning validator", "validator", val, "original proxy", proxyIDStr, "new proxy", newProxyID.String())
+
 			valAssignments.unassignValidator(val)
 			valAssignments.assignValidator(val, enode.HexID(newProxyID.String()))
 			valReassigned = true
 		}
 
 		if !anyAssignmentsChanged && valReassigned {
-		   anyAssignmentsChanged = true
+			anyAssignmentsChanged = true
 		}
+	}
+
+	if anyAssignmentsChanged {
+		outputMap := make(map[enode.ID][]string)
+
+		for proxyID, validatorSet := range valAssignments.proxyToVals {
+			validatorSlice := make([]common.Address, 0, len(validatorSet))
+
+			for valAddress, _ := range validatorSet {
+				validatorSlice = append(validatorSlice, valAddress)
+			}
+
+			outputMap[proxyID] = common.ConvertToStringSlice(validatorSlice)
+		}
+		logger.Info("remote validator to proxy assignment has changed", "new assignment", outputMap)
 	}
 
 	return anyAssignmentsChanged
