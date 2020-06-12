@@ -1016,6 +1016,10 @@ func setLes(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(UltraLightOnlyAnnounceFlag.Name) {
 		cfg.UltraLightOnlyAnnounce = ctx.GlobalBool(UltraLightOnlyAnnounceFlag.Name)
 	}
+	if ctx.GlobalBool(DeveloperFlag.Name) {
+		// --dev mode can't use p2p networking.
+		cfg.LightPeers = 0
+	}
 }
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
