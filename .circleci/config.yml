@@ -139,7 +139,7 @@ jobs:
             cd celo-monorepo
             yarn install || yarn install
             PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(obj[x]["location"]) for x in obj["@celo/celotool"]["dependencies"][::-1])')
-            for i in `echo $PACKAGES`; do yarn --cwd packages/$i build; done
+            for i in $PACKAGES; do yarn --cwd $i build; done
             yarn --cwd packages/celotool build
       - run:
           name: Setup Go language
