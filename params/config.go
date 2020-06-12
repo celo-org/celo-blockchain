@@ -140,7 +140,7 @@ var (
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
-		BlockPeriod: 	1,
+		BlockPeriod:    1,
 	}, true, false, false, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
