@@ -129,7 +129,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		engine:      engine,
 		server:      server,
 		proxyServer: proxyServer,
-		mode:		 mode,
+		mode:        mode,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {

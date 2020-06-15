@@ -76,9 +76,9 @@ var (
 
 	MainnetTrustedCheckpoint = &TrustedCheckpoint{
 		BloomRoot:    common.HexToHash("0xa8c333364915383dbeb1a88ddc0c96a313d8ab2a3974e849f3893042959bdff8"),
-        CHTRoot:      common.HexToHash("0x455c605f1e69a455fe59f210286acf9fdabf4a5df90404028de57c6f71757da3"),
-        SectionHead:  common.HexToHash("0x256de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4"),
-        SectionIndex: 27,
+		CHTRoot:      common.HexToHash("0x455c605f1e69a455fe59f210286acf9fdabf4a5df90404028de57c6f71757da3"),
+		SectionHead:  common.HexToHash("0x256de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4"),
+		SectionIndex: 27,
 	}
 
 	// TestnetChainConfig is left here until Baklava or Alfajores are up to date with the mainnet
