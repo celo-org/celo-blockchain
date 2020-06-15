@@ -137,6 +137,8 @@ func (pm *ProtocolManager) syncer() {
 	defer pm.fetcher.Stop()
 	defer pm.downloader.Terminate()
 
+	pm.checkCheckpoint()
+
 	// Wait for different events to fire synchronisation operations
 	forceSync := time.NewTicker(forceSyncCycle)
 	defer forceSync.Stop()

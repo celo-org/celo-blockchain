@@ -43,7 +43,9 @@ var NetworkIdHelp = fmt.Sprintf("Mainnet=%v, Baklava=%v, Alfajores=%v", MainnetN
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
 // the chain it belongs to.
-var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{}
+var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{
+	MainnetGenesisHash: MainnetTrustedCheckpoint,
+}
 
 // CheckpointOracles associates each known checkpoint oracles with the genesis hash of
 // the chain it belongs to.
@@ -70,6 +72,14 @@ var (
 		},
 		NoMintGold:   false,
 		UseOldFormat: false,
+	}
+
+	MainnetTrustedCheckpoint = &TrustedCheckpoint{
+		BloomRoot:    common.HexToHash("0xa8c333364915383dbeb1a88ddc0c96a313d8ab2a3974e849f3893042959bdff8"),
+        CHTRoot:      common.HexToHash("0x455c605f1e69a455fe59f210286acf9fdabf4a5df90404028de57c6f71757da3"),
+        SectionHead:  common.HexToHash("0x256de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4"),
+        // SectionHead:  common.HexToHash("0x444de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4"),
+        SectionIndex: 27,
 	}
 
 	// TestnetChainConfig is left here until Baklava or Alfajores are up to date with the mainnet

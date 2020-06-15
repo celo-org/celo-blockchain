@@ -104,6 +104,8 @@ type ProtocolManager struct {
 
 	server      *p2p.Server
 	proxyServer *p2p.Server
+
+	mode downloader.SyncMode
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -127,6 +129,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		engine:      engine,
 		server:      server,
 		proxyServer: proxyServer,
+		mode:		 mode,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -160,6 +163,8 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	if checkpoint != nil {
 		manager.checkpointNumber = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 		manager.checkpointHash = checkpoint.SectionHead
+
+		manager.checkCheckpoint()
 	}
 
 	// Construct the downloader (long sync) and its backing state bloom if fast
@@ -207,6 +212,23 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
 
 	return manager, nil
+}
+
+func (pm *ProtocolManager) checkCheckpoint() {
+	if (pm.mode == downloader.FullSync || pm.mode == downloader.FastSync) && pm.checkpointNumber > 0{
+		fullBlock := pm.blockchain.CurrentBlock()
+
+		if fullBlock.NumberU64() >= pm.checkpointNumber {
+			// hash := pm.checkpointHash
+			hash := common.HexToHash("0x444de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4")
+			block := pm.blockchain.GetBlockByHash(hash)
+			if block == nil {
+				log.Crit("Cannot find checkpoint")
+			} else if block.NumberU64() != pm.checkpointNumber {
+				log.Crit("Checkpoint mismatch", "expected", pm.checkpointNumber, "number", block.Number())
+			}
+		}
+	}
 }
 
 func (pm *ProtocolManager) makeProtocol(version uint, primary bool) p2p.Protocol {
