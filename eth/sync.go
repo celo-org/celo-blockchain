@@ -137,8 +137,6 @@ func (pm *ProtocolManager) syncer() {
 	defer pm.fetcher.Stop()
 	defer pm.downloader.Terminate()
 
-	pm.checkCheckpoint()
-
 	// Wait for different events to fire synchronisation operations
 	forceSync := time.NewTicker(forceSyncCycle)
 	defer forceSync.Stop()
@@ -154,6 +152,8 @@ func (pm *ProtocolManager) syncer() {
 
 		case <-forceSync.C:
 			// Force a sync even if not enough peers are present
+			pm.checkCheckpoint()
+
 			go pm.synchronise(pm.peers.BestPeer())
 
 		case <-pm.noMorePeers:

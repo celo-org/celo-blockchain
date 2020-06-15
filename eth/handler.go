@@ -215,15 +215,14 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 }
 
 func (pm *ProtocolManager) checkCheckpoint() {
-	if (pm.mode == downloader.FullSync || pm.mode == downloader.FastSync) && pm.checkpointNumber > 0{
+	if (pm.mode == downloader.FullSync || pm.mode == downloader.FastSync) && pm.checkpointNumber > 0 {
 		fullBlock := pm.blockchain.CurrentBlock()
 
 		if fullBlock.NumberU64() >= pm.checkpointNumber {
-			// hash := pm.checkpointHash
-			hash := common.HexToHash("0x444de7e0b2f1aa585e50079fa812b7e1a2686e00011367fd79b08dd49ab262f4")
+			hash := pm.checkpointHash
 			block := pm.blockchain.GetBlockByHash(hash)
 			if block == nil {
-				log.Crit("Cannot find checkpoint")
+				log.Crit("Cannot find checkpoint", "number", pm.checkpointNumber, "hash", hash)
 			} else if block.NumberU64() != pm.checkpointNumber {
 				log.Crit("Checkpoint mismatch", "expected", pm.checkpointNumber, "number", block.Number())
 			}
