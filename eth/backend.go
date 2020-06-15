@@ -289,6 +289,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
 		}
+		if chainConfig.Istanbul.RequestTimeout != 0 {
+			config.Istanbul.RequestTimeout = chainConfig.Istanbul.RequestTimeout
+		}
+		if chainConfig.Istanbul.BlockPeriod != 0 {
+			config.Istanbul.BlockPeriod = chainConfig.Istanbul.BlockPeriod
+		}
 		if chainConfig.Istanbul.LookbackWindow != 0 {
 			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
 		}

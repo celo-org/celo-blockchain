@@ -1131,7 +1131,6 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	log.Info("Setting it here")
 	cfg.NetworkId = getNetworkId(ctx)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
