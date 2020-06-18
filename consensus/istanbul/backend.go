@@ -43,19 +43,10 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 // backing account using BLS with a direct or composite hasher
 type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
-// Backend provides application specific functions for Istanbul core
-type Backend interface {
+// BackendForCore provides the Istanbul backend application specific functions for Istanbul core
+type BackendForCore interface {
 	// Address returns the owner's address
 	Address() common.Address
-
-	// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
-	SelfNode() *enode.Node
-
-	// IsProxiedValidator returns true if this node is a proxied validator
-	IsProxiedValidator() bool
-
-	// IsProxy returns true if this node is a proxy
-	IsProxy() bool
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet
@@ -108,17 +99,31 @@ type Backend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal Proposal) ValidatorSet
 
-	// RefreshValPeers will connect with all the validators in the validator connection set and disconnect validator peers that are not in the set
-	RefreshValPeers() error
-
 	// Authorize injects a private key into the consensus engine.
 	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signBLSFn BLSSignerFn)
+}
 
-	// AddPeer will add a static peer
-	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)
+// BackendForProxy provides the Istanbul backend application specific functions for Istanbul proxy
+type BackendForProxy interface {
+	// Address returns the owner's address
+	Address() common.Address
 
-	// RemovePeer will remove a static peer
-	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
+	// IsProxiedValidator returns true if this node is a proxied validator
+	IsProxiedValidator() bool
+
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
+
+	// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+	SelfNode() *enode.Node
+
+	// Sign signs input data with the backend's private key
+	Sign([]byte) ([]byte, error)
+
+	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
+	// is associated with those node's signing key)
+	// If sendToSelf is set to true, then the function will send an event to self via a message event
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 
 	// ValEnodeTable related functions
 	// NewValEnodeTableEntry will create a new ValEnodeTableEntry object (but will NOT save it into the valEnodeTable)
@@ -155,4 +160,10 @@ type Backend interface {
 	RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error)
 
 	GenerateEnodeCertificateMsg(externalEnodeURL string) (*Message, error)
+
+	// AddPeer will add a static peer
+	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)
+
+	// RemovePeer will remove a static peer
+	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
 }

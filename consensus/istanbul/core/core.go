@@ -43,7 +43,7 @@ type core struct {
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
-	backend           istanbul.Backend
+	backend           istanbul.BackendForCore
 	events            *event.TypeMuxSubscription
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
@@ -72,7 +72,7 @@ type core struct {
 }
 
 // New creates an Istanbul consensus core
-func New(backend istanbul.Backend, config *istanbul.Config) Engine {
+func New(backend istanbul.BackendForCore, config *istanbul.Config) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)

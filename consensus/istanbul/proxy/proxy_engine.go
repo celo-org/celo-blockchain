@@ -29,7 +29,7 @@ type proxyEngine struct {
 	config  *istanbul.Config
 	address common.Address
 	logger  log.Logger
-	backend istanbul.Backend
+	backend istanbul.BackendForProxy
 
 	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
@@ -42,7 +42,7 @@ type proxyEngine struct {
 
 // New creates a new proxy engine.  This is used by both
 // proxies and proxied validators
-func New(backend istanbul.Backend, config *istanbul.Config) ProxyEngine {
+func New(backend istanbul.BackendForProxy, config *istanbul.Config) ProxyEngine {
 	p := &proxyEngine{
 		config:  config,
 		address: backend.Address(),
