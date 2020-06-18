@@ -69,6 +69,8 @@ const (
 	connectionTimeout = 10
 	// delegateSignTimeout waits for the proxy to sign a message
 	delegateSignTimeout = 5
+	// wait longer if there are difficulties with login
+	loginTimeout = 50
 	// statusUpdateInterval is the frequency of sending full node reports
 	statusUpdateInterval = 13
 	// valSetInterval is the frequency in blocks to send the validator set
@@ -303,7 +305,7 @@ func (s *Service) loop() {
 				time.Sleep(connectionTimeout * time.Second)
 				continue
 			}
-			log.Info("Starting read loop")
+			log.Debug("Login success")
 			go s.readLoop(conn)
 
 			// Send the initial stats so our node looks decent from the get go
@@ -393,7 +395,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		},
 	}
 
-	log.Info("Trying to login")
+	log.Debug("Logging in to celostats")
 
 	if err := s.sendStats(conn, actionHello, auth); err != nil {
 		return err
@@ -413,16 +415,24 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		}
 	}
 
-	log.Info("Did it send?")
-
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 
-	if err := conn.ReadJSON(&ack); err != nil {
-		return errors.New("unauthorized, try registering your validator to get whitelisted")
-	}
+	signalCh := make(chan error)
 
-	log.Info("didn't get stuck now?")
+	go func() {
+		signalCh <- conn.ReadJSON(&ack)
+	}()
+
+	select {
+	case <-time.After(loginTimeout * time.Second):
+		// Login timeout, abort
+		return errors.New("delegation of login timed out")
+	case err := <- signalCh:
+		if err != nil {
+			return errors.New("unauthorized, try registering your validator to get whitelisted")
+		}
+	}
 
 	emit, ok := ack["emit"]
 
