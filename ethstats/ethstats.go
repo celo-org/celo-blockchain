@@ -236,6 +236,7 @@ func (s *Service) loop() {
 			case <-headSub.Err():
 				break HandleLoop
 			case delegateSignMsg := <-istDelegateSignCh:
+				log.Info("Got delegated message, handling", "msg", delegateSignMsg)
 				var statsPayload StatsPayload
 				err := json.Unmarshal(delegateSignMsg.Payload, &statsPayload)
 				if err != nil {
@@ -264,7 +265,9 @@ func (s *Service) loop() {
 	// Loop reporting until termination
 	for {
 		if s.backend.IsProxiedValidator() {
+			log.Info("I'm a proxied validator, handling")
 			messageToSign := <-signCh
+			log.Info("Got message", "msg", messageToSign)
 			if err := s.handleDelegateSign(messageToSign); err != nil {
 				log.Warn("Delegate sign failed", "err", err)
 			}
@@ -303,6 +306,7 @@ func (s *Service) loop() {
 				time.Sleep(connectionTimeout * time.Second)
 				continue
 			}
+			log.Info("Starting read loop")
 			go s.readLoop(conn)
 
 			// Send the initial stats so our node looks decent from the get go
@@ -315,12 +319,14 @@ func (s *Service) loop() {
 			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
 			for err == nil {
+				log.Info("Doing something")
 				select {
 				case <-quitCh:
 					conn.Close()
 					return
 
 				case <-fullReport.C:
+					log.Info("Full report")
 					if err = s.report(conn, sendCh); err != nil {
 						log.Warn("Full stats report failed", "err", err)
 					}
@@ -376,7 +382,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
-
+/*
 	if s.backend.IsProxy() {
 		// Proxy needs a delegate send here to get ACK
 		select {
@@ -390,7 +396,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 			return errors.New("delegation of login timed out")
 		}
 	}
-
+*/
 	auth := &authMsg{
 		ID: s.node,
 		Info: nodeInfo{
@@ -413,6 +419,8 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
+
+	log.Info("Perhaps it won't work???")
 
 	if err := conn.ReadJSON(&ack); err != nil {
 		return errors.New("unauthorized, try registering your validator to get whitelisted")
@@ -719,6 +727,7 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 		if err != nil {
 			return err
 		}
+		log.Info("I'm proxy, delegating stuff")
 		go s.backend.SendDelegateSignMsgToProxiedValidator(msg)
 		return nil
 	}

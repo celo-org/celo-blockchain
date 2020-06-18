@@ -15,26 +15,28 @@
 
 package proxy
 
-/* import (
+import (
+	"errors"
+	
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-) */
+)
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-/* func (p *proxyEngine) SendDelegateSignMsgToProxy(msg []byte) error {
+func (p *proxyEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 	if p.proxyNode != nil && p.proxyNode.peer != nil {
 		return p.proxyNode.peer.Send(istanbul.DelegateSignMsg, msg)
 	} else {
-		return errNoConnectedProxy
+		return errors.New("Not connected to proxy")
 	}
-} */
+}
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
-/* func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
+func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if p.proxiedValidator != nil {
 		return p.proxiedValidator.Send(istanbul.DelegateSignMsg, msg)
 	} else {
-		return errNoConnectedProxiedValidator
+		return errors.New("Not connected to proxied validator")
 	}
-} */
+}
