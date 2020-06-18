@@ -161,43 +161,6 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 }
 
-func TestProxyConsensusForwarding(t *testing.T) {
-	_, backend := newBlockChain(1, true)
-	backend.config.Proxy = true
-
-	// generate one msg
-	data := []byte("data1")
-	bytes, err := rlp.EncodeToBytes(data)
-	if err != nil {
-		t.Fatalf("Error encoding consensus message bytes: %v", err)
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbul.ConsensusMsg,
-		Msg:       bytes,
-		Address:   backend.Address(),
-		Signature: []byte{},
-	}
-
-	// Test sending a message with no validator signature.
-	// Should fail because proxy expects consensus messages from validators.
-	payloadNoSig, _ := msg.Payload()
-	handled, err := backend.proxyEngine.HandleMsg(&MockPeer{}, istanbul.ConsensusMsg, payloadNoSig)
-	if !handled || err != istanbul.ErrUnauthorizedAddress {
-		t.Errorf("Expected error sending message from non validator")
-	}
-
-	// Test sending a message with a legitimate validator signature.
-	// Should succeed now.
-	msg.Sign(backend.Sign)
-	payloadWithSig, _ := msg.Payload()
-	if _, err := backend.proxyEngine.HandleMsg(&MockPeer{}, istanbul.ConsensusMsg, payloadWithSig); err != nil {
-		t.Errorf("error %v", err)
-	}
-	// Set back to false for other tests
-	backend.config.Proxy = false
-}
-
 func TestReadValidatorHandshakeMessage(t *testing.T) {
 	_, backend := newBlockChain(2, true)
 

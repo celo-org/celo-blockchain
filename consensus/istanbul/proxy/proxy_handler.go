@@ -272,6 +272,8 @@ loop:
 }
 
 func (ph *proxyHandler) sendValEnodeShareMsgs() {
+	logger := ph.logger.New("func", "sendValEnodeShareMsgs")
+
 	for _, proxy := range ph.ps.proxiesByID {
 		if proxy.peer != nil {
 			assignedValidators := ph.ps.getValidatorAssignments(nil, []enode.ID{proxy.ID()})
@@ -279,6 +281,7 @@ func (ph *proxyHandler) sendValEnodeShareMsgs() {
 			for valAddress := range assignedValidators {
 				valAddresses = append(valAddresses, valAddress)
 			}
+			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
 			go ph.pe.SendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
