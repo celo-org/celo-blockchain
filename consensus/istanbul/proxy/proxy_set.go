@@ -162,9 +162,13 @@ func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyID
 
 	for outerValAddress := range tempValAssignmentsFromProxies {
 		if enodeID, ok := tempValAssignmentsFromValidators[outerValAddress]; ok {
-			proxy := ps.getProxy(*enodeID)
-			if proxy.peer != nil {
-				valAssignments[outerValAddress] = proxy
+			if enodeID != nil {
+				proxy := ps.getProxy(*enodeID)
+				if proxy.peer != nil {
+					valAssignments[outerValAddress] = proxy
+				}
+			} else {
+				valAssignments[outerValAddress] = nil
 			}
 		}
 	}

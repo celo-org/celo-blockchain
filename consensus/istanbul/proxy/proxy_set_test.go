@@ -311,8 +311,14 @@ func verifyValidatorAssignments(t *testing.T, opID int, ps *proxySet, expectedVa
 	// Test that all entries in the expected assignments is equal to the proxy set's assignments
 	for val, expectedProxy := range expectedValAssignments {
 		proxyFromPS := valAssignmentsFromPS[val]
-		if proxyFromPS == nil || proxyFromPS.node != expectedProxy.node || proxyFromPS.externalNode != expectedProxy.externalNode || proxyFromPS.peer != expectedProxy.peer {
-			t.Errorf("opID: %d - unexpected val assignment. Want: %s -> %s, Have: %s -> %s", opID, val, expectedProxy.node.ID(), val, proxyFromPS.node.ID())
+		if expectedProxy == nil {
+			if proxyFromPS != nil {
+				t.Errorf("opID: %d - unexpected val assignment.  Want: %s -> nil, Have: %s -> %s", opID, val, val, proxyFromPS.node.ID())
+			}
+		} else {
+			if proxyFromPS == nil || proxyFromPS.node != expectedProxy.node || proxyFromPS.externalNode != expectedProxy.externalNode || proxyFromPS.peer != expectedProxy.peer {
+				t.Errorf("opID: %d - unexpected val assignment. Want: %s -> %s, Have: %s -> %s", opID, val, expectedProxy.node.ID(), val, proxyFromPS.node.ID())
+			}
 		}
 	}
 }
