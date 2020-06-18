@@ -17,17 +17,29 @@ package proxy
 
 import (
 	"errors"
-	
+
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (p *proxyEngine) SendDelegateSignMsgToProxy(msg []byte) error {
-	if p.proxyNode != nil && p.proxyNode.peer != nil {
-		return p.proxyNode.peer.Send(istanbul.DelegateSignMsg, msg)
-	} else {
+	i := 0
+	for _, proxy := range p.ph.ps.proxiesByID {
+		if proxy.peer != nil {
+			err := proxy.peer.Send(istanbul.DelegateSignMsg, msg)
+			if err != nil {
+				log.Warn("Error sending to proxy", err)
+			} else {
+				i = i+1
+			}
+		}
+	}
+	if i == 0 {
 		return errors.New("Not connected to proxy")
+	} else {
+		return nil
 	}
 }
 

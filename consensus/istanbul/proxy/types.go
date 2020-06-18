@@ -72,8 +72,8 @@ type ProxyEngine interface {
 	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
 	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
 	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
-	// SendDelegateSignMsgToProxy(msg []byte) error
-	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
+	SendDelegateSignMsgToProxy(msg []byte) error
+	SendDelegateSignMsgToProxiedValidator(msg []byte) error
 	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
 	SendValEnodesShareMsgToAllProxies()
 	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
