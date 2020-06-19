@@ -26,12 +26,15 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-
 func (p *proxyEngine) generateValEnodesShareMsg(remoteValidators []common.Address) (*istanbul.Message, error) {
+	logger := p.logger.New("func", "generateValEnodesShareMsg")
+
+	logger.Trace("generateValEnodesShareMsg called", "remoteValidators", common.ConvertToStringSlice(remoteValidators))
 	vetEntries, err := p.backend.GetValEnodeTableEntries(remoteValidators)
+	logger.Trace("GetValEnodeTableEntries returned", "vetEntries", vetEntries)
 
 	if err != nil {
-		p.logger.Error("Error in retrieving all the entries from the ValEnodeTable", "err", err)
+		logger.Error("Error in retrieving all the entries from the ValEnodeTable", "err", err)
 		return nil, err
 	}
 
@@ -53,18 +56,18 @@ func (p *proxyEngine) generateValEnodesShareMsg(remoteValidators []common.Addres
 
 	valEnodesShareBytes, err := rlp.EncodeToBytes(valEnodesShareData)
 	if err != nil {
-		p.logger.Error("Error encoding Istanbul Validator Enodes Share message content", "ValEnodesShareData", valEnodesShareData.String(), "err", err)
+		logger.Error("Error encoding Istanbul Validator Enodes Share message content", "ValEnodesShareData", valEnodesShareData.String(), "err", err)
 		return nil, err
 	}
 
 	msg := &istanbul.Message{
 		Code:      istanbul.ValEnodesShareMsg,
 		Msg:       valEnodesShareBytes,
-		Address:   p.address,
+		Address:   p.backend.Address(),
 		Signature: []byte{},
 	}
 
-	p.logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
+	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
 	return msg, nil
 }
@@ -101,7 +104,7 @@ func (p *proxyEngine) SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteVali
 }
 
 func (p *proxyEngine) SendValEnodesShareMsgToAllProxies() {
-     p.ph.sendValEnodeShareMsgsCh <- struct{}{}
+	p.ph.sendValEnodeShareMsgsCh <- struct{}{}
 }
 
 func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
@@ -117,18 +120,17 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 
 	msg := new(istanbul.Message)
 	// Decode message
-	// err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
-	err := msg.FromPayload(payload, nil)
+	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
-		logger.Error("Error in decoding received Istanbul Validator Enode Share message", "err", err, "payload", hex.EncodeToString(payload))
+		logger.Error("Error in decoding received Istanbul Validator Enode Share message", "err", err, "payload", hex.EncodeToString(payload), "sender address", msg.Address)
 		return true, err
 	}
 
 	// Verify that the sender is from the proxied validator
-	/* if msg.Address != p.config.ProxiedValidatorAddress {
+	if msg.Address != p.config.ProxiedValidatorAddress {
 		logger.Error("Unauthorized valEnodesShare message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
 		return true, errUnauthorizedMessageFromProxiedValidator
-	} */
+	}
 
 	var valEnodesShareData valEnodesShareData
 	err = rlp.DecodeBytes(msg.Msg, &valEnodesShareData)
@@ -155,4 +157,3 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 
 	return true, nil
 }
-

@@ -27,7 +27,6 @@ import (
 
 type proxyEngine struct {
 	config  *istanbul.Config
-	address common.Address
 	logger  log.Logger
 	backend istanbul.BackendForProxy
 
@@ -45,7 +44,6 @@ type proxyEngine struct {
 func New(backend istanbul.BackendForProxy, config *istanbul.Config) ProxyEngine {
 	p := &proxyEngine{
 		config:  config,
-		address: backend.Address(),
 		logger:  log.New(),
 		backend: backend,
 	}

@@ -154,7 +154,7 @@ func TestProxySet(t *testing.T) {
 				remoteVal4Address: proxy0, remoteVal6Address: proxy1, remoteVal7Address: proxy0, remoteVal8Address: proxy1, remoteVal9Address: proxy0},
 		},
 
-		// Test with add a new peered proxy
+		// Test with adding a new peered proxy
 		{
 			addProxies:   []*istanbul.ProxyConfig{proxy2Config},
 			setProxyPeer: map[enode.ID]consensus.Peer{proxy2ID: proxy2Peer},

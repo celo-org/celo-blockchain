@@ -92,7 +92,7 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 				}
 
 				// Note that we are not signing message.  The message that is being wrapped is already signed.
-				msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.address}
+				msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.backend.Address()}
 				fwdMsgPayload, err := msg.Payload()
 				if err != nil {
 					return err

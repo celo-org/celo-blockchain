@@ -162,17 +162,17 @@ func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
 
 // GetNode returns the address entry's node
 func (ae *AddressEntry) GetNode() *enode.Node {
-     return ae.Node
+	return ae.Node
 }
 
 // GetVersion returns the addess entry's version
 func (ae *AddressEntry) GetVersion() uint {
-     return ae.Version
+	return ae.Version
 }
 
 // GetAddess returns the addess entry's address
 func (ae *AddressEntry) GetAddress() common.Address {
-     return ae.Address
+	return ae.Address
 }
 
 // ValidatorEnodeDB represents a Map that can be accessed either
@@ -280,21 +280,21 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 	var valAddressesMap map[common.Address]struct{}
 
 	if valAddresses != nil {
-	   valAddressesMap := make(map[common.Address]struct{})
-	   for _, address := range valAddresses {
-	       valAddressesMap[address] = struct{}{}
-	   }
+		valAddressesMap := make(map[common.Address]struct{})
+		for _, address := range valAddresses {
+			valAddressesMap[address] = struct{}{}
+		}
 	}
 
 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
-	        if valAddressesMap != nil {
-		   if _, ok := valAddressesMap[address]; ok {
-		      entries[address ] = entry
-		   }
+		if valAddressesMap != nil {
+			if _, ok := valAddressesMap[address]; ok {
+				entries[address] = entry
+			}
 		} else {
-		      entries[address] = entry
+			entries[address] = entry
 		}
-		
+
 		return nil
 	})
 
