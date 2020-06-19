@@ -280,7 +280,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 	var valAddressesMap map[common.Address]struct{}
 
 	if valAddresses != nil {
-		valAddressesMap := make(map[common.Address]struct{})
+		valAddressesMap = make(map[common.Address]struct{})
 		for _, address := range valAddresses {
 			valAddressesMap[address] = struct{}{}
 		}
