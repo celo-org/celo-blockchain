@@ -24,7 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	// "github.com/ethereum/go-ethereum/consensus/consensustest"
+	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -48,17 +48,17 @@ func createProxyConfig(randomSeed int64) *istanbul.ProxyConfig {
 }
 
 func TestProxySet(t *testing.T) {
-	/* proxy0Config := createProxyConfig(0)
+	proxy0Config := createProxyConfig(0)
 	proxy1Config := createProxyConfig(1)
-	proxy2Config := createProxyConfig(2)
+	//proxy2Config := createProxyConfig(2)
 
 	proxy0ID := proxy0Config.InternalNode.ID()
 	proxy1ID := proxy1Config.InternalNode.ID()
-	proxy2ID := proxy2Config.InternalNode.ID()
+	//proxy2ID := proxy2Config.InternalNode.ID()
 
 	proxy0Peer := consensustest.NewMockPeer(proxy0Config.InternalNode)
 	proxy1Peer := consensustest.NewMockPeer(proxy1Config.InternalNode)
-	proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode)
+	//proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode)
 
 	proxy0 := &proxy{node: proxy0Config.InternalNode,
 		externalNode: proxy0Config.ExternalNode,
@@ -68,14 +68,13 @@ func TestProxySet(t *testing.T) {
 		externalNode: proxy1Config.ExternalNode,
 		peer:         proxy1Peer}
 
-	proxy2 := &proxy{node: proxy2Config.InternalNode,
-		externalNode: proxy2Config.ExternalNode,
-		peer:         proxy2Peer}
-	*/
+	/* proxy2 := &proxy{node: proxy2Config.InternalNode,
+	externalNode: proxy2Config.ExternalNode,
+	peer:         proxy2Peer} */
 
-	remoteVal1Address := common.BytesToAddress([]byte("val0"))
-	remoteVal2Address := common.BytesToAddress([]byte("val1"))
-	remoteVal3Address := common.BytesToAddress([]byte("val2"))
+	remoteVal0Address := common.BytesToAddress([]byte("32526362351"))
+	remoteVal1Address := common.BytesToAddress([]byte("64362643436"))
+	remoteVal2Address := common.BytesToAddress([]byte("72436452463"))
 
 	proxySetOps := []struct {
 		addProxies                  []*istanbul.ProxyConfig     // Proxies to add to the proxy set
@@ -93,66 +92,58 @@ func TestProxySet(t *testing.T) {
 
 		// Test with 3 remote validator addresses. Emulate a proxied validator starting with initial valset at genesis block.
 		{
-			addRemoteValidators:         []common.Address{remoteVal1Address, remoteVal2Address, remoteVal3Address},
-			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal1Address: nil, remoteVal2Address: nil, remoteVal3Address: nil},
+			addRemoteValidators:         []common.Address{remoteVal0Address, remoteVal1Address, remoteVal2Address},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: nil, remoteVal1Address: nil, remoteVal2Address: nil},
+		},
+
+		// Test with adding 1 proxy.  Emulate when a proxied validator adds a proxy but that proxy hasn't peered yet.
+		{
+			addProxies:                  []*istanbul.ProxyConfig{proxy0Config},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: nil, remoteVal1Address: nil, remoteVal2Address: nil},
+		},
+
+		// Test with the proxy being peered.
+		{
+			setProxyPeer:                map[enode.ID]consensus.Peer{proxy0ID: proxy0Peer},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy0, remoteVal2Address: proxy0},
+		},
+
+		// Test with adding an additional proxy
+		{
+			addProxies:                  []*istanbul.ProxyConfig{proxy1Config},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy0, remoteVal2Address: proxy0},
+		},
+
+		// Test with additional proxy peered
+		{
+			setProxyPeer:                map[enode.ID]consensus.Peer{proxy1ID: proxy1Peer},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0},
+		},
+
+		// Test with one of the proxies getting unpeered.  Emulate when a proxy gets disconnected.
+		{
+			removeProxyPeer:             &proxy0ID,
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy1, remoteVal1Address: proxy1, remoteVal2Address: proxy1},
+		},
+
+		// Test the the unpeered proxy getting repeered
+		{
+			setProxyPeer:                map[enode.ID]consensus.Peer{proxy0ID: proxy0Peer},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0},
 		},
 
 		/*
-			  // Test with adding 1 proxy.  Emulate when a proxied validator adds a proxy but that proxy hasn't peered yet.
-			  {
-				addProxies: []*istanbul.ProxyConfig{proxy0Config},
-				expectedValProxyAssignments: map[common.Address]*enode.ID{remoteVal1Address: nil, remoteVal2Address: nil, remoteVal3Address: nil},
-			  },
+			// Test with one of the remote val addresses getting changed.
+			{},
 
-			  // Test with the proxy being peered.
-			  {
-				setProxyPeer: map[enode.ID]*consensus.Peer{proxy0ID: proxy0Peer}
-				expectedValProxyAssignments: map[common.Address]*enode.ID{remoteVal1Address: &proxy0ID, remoteVal2Address: &proxy0ID, remoteVal3Address: &proxy0ID},
-			  },
+			// Test with two remote validators removed and two added.  Emulate a change in valset at epoch transition
+			{},
 
-			  // Test with adding an additional proxy
-			  {
-				addProxies: []*istanbul.ProxyConfig{proxy1Config},
-				expectedValProxyAssignments: map[common.Address]*enode.ID{remoteVal1Address: &proxy0ID, remoteVal2Address: &proxy0ID, remoteVal3Address: &proxy0ID},
-			  },
+			// Test with removing a proxy
+			{},
 
-			  // Test with additional proxy peered
-			  {
-				setProxyPeer: map[enode.ID]*consensus.Peer{proxy1ID: proxy1Peer},
-				expectedValProxyAssignments: map[common.Address]*enode.ID{}, TODO
-			  },
-
-			  // Test with one of the proxies getting unpeered.  Emulate when a proxy gets disconnected.
-			  {
-				remoteProxyPeer: proxy0ID,
-				expectedValProxyAssignments: map[common.Address]*enode.ID{remoteVal1Address: &proxy1ID, remoteVal2Address: &proxy1ID, remoteVal3Address: &proxy1ID},
-			  },
-
-			  // Test the the unpeered proxy getting repeered
-			  {
-				setProxyPeer: map[enode.ID]*consensus.Peer{proxy0ID: proxy0Peer},
-				expectedValProxyAssignments: map[common.Address]*enode.ID{}, TODO
-			  },
-
-			  // Test with one of the remote val addresses getting changed.
-			  {
-
-			  },
-
-			  // Test with two remote validators removed and two added.  Emulate a change in valset at epoch transition
-			  {
-
-			  },
-
-			  // Test with removing a proxy
-			  {
-
-			  },
-
-			  // Test with add a new peered proxy
-			  {
-
-			  },
+			// Test with add a new peered proxy
+			{},
 		*/
 	}
 
@@ -199,6 +190,7 @@ func TestProxySet(t *testing.T) {
 		// Remove proxy peer
 		if proxySetOp.removeProxyPeer != nil {
 			ps.removeProxyPeer(*proxySetOp.removeProxyPeer)
+			ps.unassignDisconnectedProxies(0)
 			delete(proxiesPeered, *proxySetOp.removeProxyPeer)
 			proxiesNotPeered[*proxySetOp.removeProxyPeer] = struct{}{}
 		}
@@ -311,14 +303,30 @@ func verifyValidatorAssignments(t *testing.T, opID int, ps *proxySet, expectedVa
 	// Test that all entries in the expected assignments is equal to the proxy set's assignments
 	for val, expectedProxy := range expectedValAssignments {
 		proxyFromPS := valAssignmentsFromPS[val]
-		if expectedProxy == nil {
-			if proxyFromPS != nil {
-				t.Errorf("opID: %d - unexpected val assignment.  Want: %s -> nil, Have: %s -> %s", opID, val, val, proxyFromPS.node.ID())
-			}
-		} else {
-			if proxyFromPS == nil || proxyFromPS.node != expectedProxy.node || proxyFromPS.externalNode != expectedProxy.externalNode || proxyFromPS.peer != expectedProxy.peer {
-				t.Errorf("opID: %d - unexpected val assignment. Want: %s -> %s, Have: %s -> %s", opID, val, expectedProxy.node.ID(), val, proxyFromPS.node.ID())
-			}
+		if !proxyCompare(expectedProxy, proxyFromPS) {
+			t.Errorf("opID: %d - unexpected val assignement.  Want: %s -> %s, Have: %s -> %s", opID, val, proxyOutput(expectedProxy), val, proxyOutput(proxyFromPS))
 		}
+	}
+}
+
+func proxyCompare(p1 *proxy, p2 *proxy) bool {
+	if p1 == nil && p2 == nil {
+		return true
+	} else if p1 == nil && p2 != nil {
+		return false
+	} else if p1 != nil && p2 == nil {
+		return false
+	} else if p1.node != p2.node || p1.externalNode != p2.externalNode || p1.peer != p2.peer {
+		return false
+	} else {
+		return true
+	}
+}
+
+func proxyOutput(p *proxy) string {
+	if p == nil {
+		return "nil"
+	} else {
+		return p.node.ID().String()
 	}
 }

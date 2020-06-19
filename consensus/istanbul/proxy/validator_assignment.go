@@ -135,20 +135,20 @@ type consistentHashingPolicy struct {
 func newConsistentHashingPolicy() *consistentHashingPolicy {
 	// This sets up a consistent hasher with bounded loads:
 	// https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html
-	// Partitions are assigned to members (proxies in this case)
+	// Partitions are assigned to members (proxies in this case).
 	// using a hash ring.
-	// When locating a key's member using `LocateKey`, the key is assigned
-	// to a partition using hash(key) % PartitionCount in constant time.
+	// When locating a validator's proxy using `LocateKey`, the validator is assigned
+	// to a partition using hash(validator's address) % PartitionCount in constant time.
 	cfg := consistent.Config{
-		// Prime to distribute keys more uniformly.
+		// Prime to distribute validators more uniformly.
 		// Higher partition count generally gives a more even distribution
 		PartitionCount: 271,
-		// The number of replications of a member (proxy) on the hash ring
+		// The number of replications of a proxy on the hash ring
 		ReplicationFactor: 40,
-		// Used to enforce a max # of partitions assigned per member, which is
-		// (PartitionCount / len(members)) * Load. A load closer to 1 gives
+		// Used to enforce a max # of partitions assigned per proxy, which is
+		// (PartitionCount / len(proxies)) * Load. A load closer to 1 gives
 		// more uniformity in the # of partitions assigned to specific members,
-		// but a higher load results in less relocations when members are added/removed
+		// but a higher load results in less relocations when proxies are added/removed
 		Load:   1.2,
 		Hasher: hasher{},
 	}
