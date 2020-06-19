@@ -50,15 +50,15 @@ func createProxyConfig(randomSeed int64) *istanbul.ProxyConfig {
 func TestProxySet(t *testing.T) {
 	proxy0Config := createProxyConfig(0)
 	proxy1Config := createProxyConfig(1)
-	//proxy2Config := createProxyConfig(2)
+	proxy2Config := createProxyConfig(2)
 
 	proxy0ID := proxy0Config.InternalNode.ID()
 	proxy1ID := proxy1Config.InternalNode.ID()
-	//proxy2ID := proxy2Config.InternalNode.ID()
+	proxy2ID := proxy2Config.InternalNode.ID()
 
 	proxy0Peer := consensustest.NewMockPeer(proxy0Config.InternalNode)
 	proxy1Peer := consensustest.NewMockPeer(proxy1Config.InternalNode)
-	//proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode)
+	proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode)
 
 	proxy0 := &proxy{node: proxy0Config.InternalNode,
 		externalNode: proxy0Config.ExternalNode,
@@ -68,13 +68,20 @@ func TestProxySet(t *testing.T) {
 		externalNode: proxy1Config.ExternalNode,
 		peer:         proxy1Peer}
 
-	/* proxy2 := &proxy{node: proxy2Config.InternalNode,
-	externalNode: proxy2Config.ExternalNode,
-	peer:         proxy2Peer} */
+	proxy2 := &proxy{node: proxy2Config.InternalNode,
+		externalNode: proxy2Config.ExternalNode,
+		peer:         proxy2Peer}
 
 	remoteVal0Address := common.BytesToAddress([]byte("32526362351"))
 	remoteVal1Address := common.BytesToAddress([]byte("64362643436"))
 	remoteVal2Address := common.BytesToAddress([]byte("72436452463"))
+	remoteVal3Address := common.BytesToAddress([]byte("46346373463"))
+	remoteVal4Address := common.BytesToAddress([]byte("25364624352"))
+	remoteVal5Address := common.BytesToAddress([]byte("73576426242"))
+	remoteVal6Address := common.BytesToAddress([]byte("75375374457"))
+	remoteVal7Address := common.BytesToAddress([]byte("64262735373"))
+	remoteVal8Address := common.BytesToAddress([]byte("23575764262"))
+	remoteVal9Address := common.BytesToAddress([]byte("74364626427"))
 
 	proxySetOps := []struct {
 		addProxies                  []*istanbul.ProxyConfig     // Proxies to add to the proxy set
@@ -132,19 +139,28 @@ func TestProxySet(t *testing.T) {
 			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0},
 		},
 
-		/*
-			// Test with one of the remote val addresses getting changed.
-			{},
+		// Test with adding 5 more valiators
+		{
+			addRemoteValidators: []common.Address{remoteVal3Address, remoteVal4Address, remoteVal5Address, remoteVal6Address, remoteVal7Address},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0,
+				remoteVal3Address: proxy0, remoteVal4Address: proxy0, remoteVal5Address: proxy1, remoteVal6Address: proxy1, remoteVal7Address: proxy0},
+		},
 
-			// Test with two remote validators removed and two added.  Emulate a change in valset at epoch transition
-			{},
+		// Test with two remote validators removed and two added.  Emulate a change in valset at epoch transition
+		{
+			addRemoteValidators:    []common.Address{remoteVal8Address, remoteVal9Address},
+			removeRemoteValidators: []common.Address{remoteVal3Address, remoteVal5Address},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy0,
+				remoteVal4Address: proxy0, remoteVal6Address: proxy1, remoteVal7Address: proxy0, remoteVal8Address: proxy1, remoteVal9Address: proxy0},
+		},
 
-			// Test with removing a proxy
-			{},
-
-			// Test with add a new peered proxy
-			{},
-		*/
+		// Test with add a new peered proxy
+		{
+			addProxies:   []*istanbul.ProxyConfig{proxy2Config},
+			setProxyPeer: map[enode.ID]consensus.Peer{proxy2ID: proxy2Peer},
+			expectedValProxyAssignments: map[common.Address]*proxy{remoteVal0Address: proxy0, remoteVal1Address: proxy1, remoteVal2Address: proxy2,
+				remoteVal4Address: proxy0, remoteVal6Address: proxy1, remoteVal7Address: proxy0, remoteVal8Address: proxy1, remoteVal9Address: proxy0},
+		},
 	}
 
 	proxiesAdded := make(map[enode.ID]*istanbul.ProxyConfig)
