@@ -157,8 +157,8 @@ func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.
 	valProxyAssignments := make(map[common.Address]*enode.Node)
 
 	select {
-	case p.ph.proxyHandlerOpCh <- func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy) {
-		valAssignments := getValidatorAssignements(nil, nil)
+	case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		valAssignments := ps.getValidatorAssignments(nil, nil)
 
 		for address, proxy := range valAssignments {
 			valProxyAssignments[address] = proxy.externalNode
@@ -172,4 +172,21 @@ func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.
 	}
 
 	return valProxyAssignments, nil
+}
+
+func (p *proxyEngine) GetProxiesInfo() ([]ProxyInfo, error) {
+	var proxyInfo []ProxyInfo
+
+	select {
+	case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		proxyInfo = ps.getProxyInfo()
+	}:
+		<-p.ph.proxyHandlerOpDoneCh
+
+	case <-p.ph.quit:
+		return []ProxyInfo{}, ErrStoppedProxyHandler
+
+	}
+
+	return proxyInfo, nil
 }

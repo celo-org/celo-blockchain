@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -169,12 +170,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 	return true, nil
 }
 
-// TODO(kevjue) - implement this
-// ProxyInfo retrieves all the information we know about each individual proxy node
-/* func (api *PublicAdminAPI) ProxyInfo() ([]*p2p.PeerInfo, error) {
-	server := api.node.Server()
-	if server == nil {
-		return nil, ErrNodeStopped
-	}
-	return server.ProxyInfo(), nil
-} */
+// Proxies retrieves all the proxies' info
+func (api *API) GetProxiesInfo() ([]proxy.ProxyInfo, error) {
+	return api.istanbul.proxyEngine.GetProxiesInfo()
+}

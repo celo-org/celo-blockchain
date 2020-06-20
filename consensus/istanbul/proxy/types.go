@@ -77,6 +77,7 @@ type ProxyEngine interface {
 	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
 	SendValEnodesShareMsgToAllProxies()
 	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
+	GetProxiesInfo() ([]ProxyInfo, error)
 }
 
 // ==============================================
@@ -95,7 +96,7 @@ type ProxyInfo struct {
 	InternalNode *enode.Node      `json:"internalEnodeUrl"`
 	ExternalNode *enode.Node      `json:"externalEnodeUrl"`
 	IsPeered     bool             `json:"isPeered"`
-	Validators   []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
+	AssignedRemoteValidators   []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
 	DisconnectTS int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
 }
 

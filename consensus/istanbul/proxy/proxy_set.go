@@ -208,13 +208,13 @@ func (ps *proxySet) getProxyInfo() []ProxyInfo {
 	i := 0
 	for proxyID, proxy := range ps.proxiesByID {
 		proxies[i] = proxy.Info()
-		assignedVals := ps.valAssignments.proxyToVals[proxyID]
+		assignedVals := ps.getValidatorAssignments(nil, []enode.ID{proxyID})
 
-		if assignedVals != nil && len(assignedVals) > 0 {
-			proxies[i].Validators = make([]common.Address, len(assignedVals))
+		if len(assignedVals) > 0 {
+			proxies[i].AssignedRemoteValidators = make([]common.Address, 0, len(assignedVals))
 
 			for val := range assignedVals {
-				proxies[i].Validators = append(proxies[i].Validators, val)
+				proxies[i].AssignedRemoteValidators = append(proxies[i].AssignedRemoteValidators, val)
 			}
 		}
 

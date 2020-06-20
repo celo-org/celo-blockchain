@@ -38,8 +38,8 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 		proxyPeers := make(map[common.Address]consensus.Peer)
 
 		select {
-		case p.ph.proxyHandlerOpCh <- func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy) {
-			valAssignments := getValidatorAssignements(finalDestAddresses, nil)
+		case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
+			valAssignments := ps.getValidatorAssignments(finalDestAddresses, nil)
 
 			for address, proxy := range valAssignments {
 				if proxy.peer != nil {

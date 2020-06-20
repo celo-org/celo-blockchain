@@ -58,7 +58,7 @@ type proxyHandler struct {
 	logger log.Logger
 }
 
-type proxyHandlerOpFunc func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy)
+type proxyHandlerOpFunc func(ps *proxySet)
 
 func newProxyHandler(sb istanbul.BackendForProxy, pe ProxyEngine) *proxyHandler {
 	ph := &proxyHandler{
@@ -234,7 +234,7 @@ loop:
 			}
 
 		case proxyHandlerOp := <-ph.proxyHandlerOpCh:
-			proxyHandlerOp(ph.ps.getValidatorAssignments)
+			proxyHandlerOp(ph.ps)
 			ph.proxyHandlerOpDoneCh <- struct{}{}
 
 		case <-ph.newBlockchainEpoch:
