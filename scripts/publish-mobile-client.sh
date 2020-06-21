@@ -23,6 +23,7 @@ fi
 
 # TODO: Create an appropriate README for NPM
 rm README.md
+cp build/_workspace/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.4/libs/universal/libbls_snark_sys.a .
 
 npm -f --no-git-tag-version version "$new_version"
 npm publish --tag "$commit_sha_short" --access public -timeout=9999999
