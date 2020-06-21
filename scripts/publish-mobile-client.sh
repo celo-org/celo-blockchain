@@ -25,5 +25,5 @@ fi
 rm README.md
 
 npm -f --no-git-tag-version version "$new_version"
-npm publish --tag "$commit_sha_short" --access public
+npm publish --tag "$commit_sha_short" --access public -timeout=9999999
 npm dist-tag add "$package_name@$new_version" latest
