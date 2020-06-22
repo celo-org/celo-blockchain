@@ -523,6 +523,15 @@ var proofOfPossessionTests = []precompiledTest{
 	},
 }
 
+var bls12377MapG1Tests = []precompiledTest{
+	{
+		input:         "test",
+		expected:      "33668b53057a37a1681926b05d40441e92cdc4c227673d04f1f370d3a1d6af3096ec25497d8898c67c70b58313a8870035c5a52ed463fa2637e742dd42fc3cf1661018ff06ff21dd1a8992a217497c8f4245476de570bec10908b08302878a0100",
+		errorExpected: false,
+		name:          "generic test",
+	},
+}
+
 var hashHeaderTests = []precompiledTest{
 	{
 		input:         "",
@@ -956,5 +965,11 @@ func TestGetParentSealBitmap(t *testing.T) {
 func TestGetVerifiedSealBitmap(t *testing.T) {
 	for _, test := range getVerifiedSealBitmapTests {
 		testPrecompiled("f4", test, t)
+	}
+}
+
+func TestPrecompiledBls12377MapG1(t *testing.T) {
+	for _, test := range bls12377MapG1Tests {
+		testPrecompiled("f3", test, t)
 	}
 }

@@ -73,6 +73,7 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+	bls12377MapG1Address         = celoPrecompileAddress(12)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -98,6 +99,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	bls12377MapG1Address:         &bls12377MapG1{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
@@ -124,6 +126,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	bls12377MapG1Address:         &bls12377MapG1{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -1061,4 +1064,33 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	}
 
 	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
+}
+
+// var (
+// 	errBLS12377InvalidInputLength = errors.New("invalid input length")
+//  errBLS12377InvalidFieldElementTopBytes = errors.New("invalid field element top bytes")
+// 	errBLS12377G1PointSubgroup = errors.New("g1 point is not on correct subgroup")
+//  errBLS12377G2PointSubgroup             = errors.New("g2 point is not on correct subgroup")
+// )
+
+// bls12377MapG1 implements MapG1 precompile.
+// TODO (lucas): EIP reference?
+type bls12377MapG1 struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bls12377MapG1) RequiredGas(input []byte) uint64 {
+	return 7500
+}
+
+func (c *bls12377MapG1) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	hashDirect, err := bls.HashDirect(input, false)
+	if err != nil {
+		return nil, gas, err
+	}
+	return hashDirect, gas, nil
 }
