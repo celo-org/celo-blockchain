@@ -420,7 +420,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			if sb.IsProxiedValidator() {
-				if proxyNode, ok := valProxyAssignments[valEnodeEntry.Address]; ok {
+				if proxyNode, ok := valProxyAssignments[valEnodeEntry.Address]; ok && proxyNode != nil {
 					queryEnodeExternalEnodeURLs = append(queryEnodeExternalEnodeURLs, proxyNode.URLv4())
 				} else {
 					continue
@@ -1186,7 +1186,9 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 			return nil, err
 		} else {
 			for _, proxyNode := range valProxyAssignments {
-				externalEnodes[proxyNode.ID()] = proxyNode
+				if proxyNode != nil {
+					externalEnodes[proxyNode.ID()] = proxyNode
+				}
 			}
 		}
 	} else {
