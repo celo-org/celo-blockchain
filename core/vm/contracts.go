@@ -73,7 +73,14 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
-	bls12377MapG1Address         = celoPrecompileAddress(12)
+	bls12377G1AddAddress = celoPrecompileAddress(12)
+	bls12377G1MulAddress = celoPrecompileAddress(13)
+	bls12377G1MultiExpAddress = celoPrecompileAddress(14)
+	bls12377G2AddAddress = celoPrecompileAddress(15)
+	bls12377G2MulAddress = celoPrecompileAddress(16)
+	bls12377G2MultiExpAddress = celoPrecompileAddress(17)
+	bls12377PairingAddress = celoPrecompileAddress(18)
+	bls12377MapG1Address         = celoPrecompileAddress(19)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -99,6 +106,13 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	bls12377G1AddAddress: &bls12377G1Add{},
+	bls12377G1MulAddress: &bls12377G1Mul{},
+	bls12377G1MultiExpAddress: &bls12377G1MultiExp{},
+	bls12377G2AddAddress: &bls12377G2Add{},
+	bls12377G2MulAddress: &bls12377G2Mul{},
+	bls12377G2MultiExpAddress: &bls12377G2MultiExp{},
+	bls12377PairingAddress: &bls12377Pairing{},
 	bls12377MapG1Address:         &bls12377MapG1{},
 }
 
@@ -126,6 +140,13 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	bls12377G1AddAddress: &bls12377G1Add{},
+	bls12377G1MulAddress: &bls12377G1Mul{},
+	bls12377G1MultiExpAddress: &bls12377G1MultiExp{},
+	bls12377G2AddAddress: &bls12377G2Add{},
+	bls12377G2MulAddress: &bls12377G2Mul{},
+	bls12377G2MultiExpAddress: &bls12377G2MultiExp{},
+	bls12377PairingAddress: &bls12377Pairing{},
 	bls12377MapG1Address:         &bls12377MapG1{},
 }
 
@@ -1072,6 +1093,29 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 // 	errBLS12377G1PointSubgroup = errors.New("g1 point is not on correct subgroup")
 //  errBLS12377G2PointSubgroup             = errors.New("g2 point is not on correct subgroup")
 // )
+
+
+// bls12377G1Add implements G1Add precompile.
+// TODO (lucas): EIP reference?
+type bls12377G1Add struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bls12377G1Add) RequiredGas(input []byte) uint64 {
+	return params.Bls12377G1AddGas
+}
+
+func (c *bls12377MapG1) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	hashDirect, err := bls.HashDirect(input, false)
+	if err != nil {
+		return nil, gas, err
+	}
+	return hashDirect, gas, nil
+}
 
 // bls12377MapG1 implements MapG1 precompile.
 // TODO (lucas): EIP reference?
