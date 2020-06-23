@@ -1471,7 +1471,11 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 						Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
 					}
 				}
-				ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{InternalNode: proxyInternalNode, ExternalNode: proxyExternalNode}
+				ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
+					InternalNode: proxyInternalNode,
+					ExternalNode: proxyExternalNode,
+					StatsHandler: i == 0,
+				}
 			}
 		}
 

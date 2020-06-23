@@ -160,7 +160,11 @@ loop:
 				}
 				log.Info("Adding proxy node", "proxyNode", proxyNode, "proxyID", proxyID)
 				ph.ps.addProxy(proxyNode)
-				ph.sb.AddPeer(proxyNode.InternalNode, p2p.ProxyPurpose)
+				var purpose p2p.PurposeFlag = p2p.ProxyPurpose
+				if proxyNode.StatsHandler {
+					purpose |= p2p.StatsProxyPurpose
+				}
+				ph.sb.AddPeer(proxyNode.InternalNode, purpose)
 			}
 
 		case rmProxyNodes := <-ph.removeProxies:

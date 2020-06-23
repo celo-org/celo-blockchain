@@ -58,12 +58,13 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		}
 
 		if msg.Code == istanbul.DelegateSignMsg {
-			if sb.shouldHandleDelegateSign() {
+			if sb.shouldHandleDelegateSign(peer) {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				return true, nil
 			}
-
-			return true, errors.New("No proxy or proxied validator found")
+			logger.Warn("Bad delegate sign message", "peer", peer)
+			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
+			return true, nil
 		}
 
 		if sb.IsProxy() {
@@ -109,8 +110,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	return false, nil
 }
 
-func (sb *Backend) shouldHandleDelegateSign() bool {
-	return sb.IsProxy() || sb.IsProxiedValidator()
+func (sb *Backend) shouldHandleDelegateSign(peer consensus.Peer) bool {
+	return sb.IsProxy() || (sb.IsProxiedValidator() && peer.PurposeIsSet(p2p.StatsProxyPurpose))
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages

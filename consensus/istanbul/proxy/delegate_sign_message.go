@@ -20,6 +20,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -27,7 +28,7 @@ import (
 func (p *proxyEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 	i := 0
 	for _, proxy := range p.ph.ps.proxiesByID {
-		if proxy.peer != nil {
+		if proxy.peer != nil && proxy.peer.PurposeIsSet(p2p.StatsProxyPurpose) {
 			err := proxy.peer.Send(istanbul.DelegateSignMsg, msg)
 			if err != nil {
 				log.Warn("Error sending to proxy", err)
