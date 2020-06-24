@@ -202,3 +202,14 @@ func (p *proxyEngine) GetProxiesInfo() ([]ProxyInfo, error) {
 
 	return proxyInfo, nil
 }
+
+func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
+	if p.proxiedValidator != nil {
+		proxiedValidatorInfo := ProxiedValidatorInfo{Address: p.config.ProxiedValidatorAddress,
+			IsPeered: true,
+			Node:     p.proxiedValidator.Node()}
+		return []ProxiedValidatorInfo{proxiedValidatorInfo}, nil
+	} else {
+		return []ProxiedValidatorInfo{}, nil
+	}
+}

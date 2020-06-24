@@ -170,7 +170,15 @@ func (api *API) ForceRoundChange() (bool, error) {
 	return true, nil
 }
 
-// Proxies retrieves all the proxies' info
+// Proxies retrieves all the proxied validator's proxies' info
 func (api *API) GetProxiesInfo() ([]proxy.ProxyInfo, error) {
 	return api.istanbul.proxyEngine.GetProxiesInfo()
+}
+
+// ProxiedValidators retrieves all of the proxies connected proxied validators.
+// Note that we plan to support multiple proxies in the future, so this function
+// is plural and returns an array of proxied validators.  This is to prevent
+// future backwards compatibility issues.
+func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
+	return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
 }
