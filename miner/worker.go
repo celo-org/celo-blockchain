@@ -467,7 +467,7 @@ func (w *worker) mainLoop() {
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				tcount := w.current.tcount
 				w.commitTransactions(txset, coinbase, nil)
-				// Only update the snapshot if any new transactons were added
+				// Only update the snapshot if any new transactions were added
 				// to the pending block
 				if tcount != w.current.tcount {
 					w.updateSnapshot()
