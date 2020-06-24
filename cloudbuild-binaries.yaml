@@ -1,0 +1,27 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
+    '--build-arg', 'COMMIT_SHA=$COMMIT_SHA',
+    '.',
+    '-f', 'Dockerfile.binaries'
+  ]
+  waitFor: ["-"]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'run', '--rm',
+    '-v', '$(pwd):/out',
+    '--entrypoint', '/bin/sh',
+    'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
+    '-c', '"cp /build/* /out/build/bin"'
+  ]
+  waitFor: ["-"]
+- name: 'ubuntu'
+  args: ['bash', './script/prepare-release-binaries.sh']
+  env:
+    - 'BRANCH_NAME=$BRANCH_NAME'
+    - 'TAG_NAME=$TAG_NAME'
+images:
+- 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA'
+timeout: 2700s

@@ -1,0 +1,37 @@
+# How to test changes to this file
+# docker build -f Dockerfile -t gcr.io/celo-testnet/geth:$USER .
+# To locally run that image
+# docker rm geth_container ; docker run --name geth_container gcr.io/celo-testnet/geth:$USER
+# and connect to it with
+# docker exec -t -i geth_container /bin/sh
+#
+# Once you are satisfied, build the image using
+# export COMMIT_SHA=$(git rev-parse HEAD)
+# docker build -f Dockerfile --build-arg COMMIT_SHA=$COMMIT_SHA -t gcr.io/celo-testnet/geth:$COMMIT_SHA .
+#
+# push the image to the cloud
+# docker push gcr.io/celo-testnet/geth:$COMMIT_SHA
+#
+# To use this image for testing, modify GETH_NODE_DOCKER_IMAGE_TAG in celo-monorepo/.env file
+
+# Build Geth binaries in the xgo builder container
+FROM techknowlogick/xgo as xgobuilder
+
+# We need a newer version of mingw, backported to Bionic
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install -y  --no-install-recommends software-properties-common apt-utils
+RUN add-apt-repository -y ppa:mati865/mingw-w64
+RUN apt update && apt -y upgrade
+
+ADD . /go/src/github.com/ethereum/go-ethereum
+WORKDIR /go/src/github.com/ethereum/go-ethereum
+
+ENV GO=1.13
+ARG BUILD_TARGETS
+ARG COMMIT_SHA
+ARG ALLTOOLS
+ENV ALLTOOLS_COMMAND_SEGMENT=""
+RUN if [ "$ALLTOOLS" = "true" ]; then export ALLTOOLS_COMMAND_SEGMENT="--alltools"; fi
+
+RUN echo $COMMIT_SHA > /version.txt
+RUN go run build/ci.go xgo $ALLTOOLS_COMMAND_SEGMENT -- --go=$GO --targets=$BUILD_TARGETS -v ./cmd/geth
