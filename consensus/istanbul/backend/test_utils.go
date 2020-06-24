@@ -104,7 +104,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 
 	// generate genesis block
 	genesis := core.MainnetGenesisBlock()
-	genesis.Config = params.DefaultChainConfig
+	genesis.Config = params.IstanbulTestChainConfig
 	if !isFullChain {
 		genesis.Config.FullHeaderChainAvailable = false
 	}
