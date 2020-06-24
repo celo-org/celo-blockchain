@@ -215,7 +215,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		blockchain: chain,
 		eventMux:   evmux,
 	}
-	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client)
+	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client, nil)
 
 	if client.oracle != nil {
 		client.oracle.start(backend)

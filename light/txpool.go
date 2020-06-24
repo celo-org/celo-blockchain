@@ -86,7 +86,7 @@ type TxRelayBackend interface {
 	Send(txs types.Transactions)
 	NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash)
 	Discard(hashes []common.Hash)
-	CanRelayTransaction(txs *types.Transaction) error
+	CanRelayTransaction(txs *types.Transaction) bool
 }
 
 // NewTxPool creates a new light transaction pool
@@ -401,8 +401,8 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		}
 	}
 
-	if err := pool.relay.CanRelayTransaction(tx); err != nil {
-		return err
+	if !pool.relay.CanRelayTransaction(tx) {
+		return ErrNoPeers
 	}
 	return currentState.Error()
 }
@@ -413,7 +413,7 @@ func (pool *TxPool) add(ctx context.Context, tx *types.Transaction) error {
 	hash := tx.Hash()
 
 	if pool.pending[hash] != nil {
-		return fmt.Errorf("Known transaction (%x)", hash[:4])
+		return fmt.Errorf("known transaction (%x)", hash[:4])
 	}
 	err := pool.validateTx(ctx, tx)
 	if err != nil {

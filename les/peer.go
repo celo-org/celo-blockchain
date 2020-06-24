@@ -26,8 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core"
@@ -42,10 +40,9 @@ import (
 )
 
 var (
-	errClosed                   = errors.New("peer set is closed")
-	errAlreadyRegistered        = errors.New("peer is already registered")
-	errNotRegistered            = errors.New("peer is not registered")
-	errNoPeerWithEtherbaseFound = errors.New("no peer with etherbase found")
+	errClosed            = errors.New("peer set is closed")
+	errAlreadyRegistered = errors.New("peer is already registered")
+	errNotRegistered     = errors.New("peer is not registered")
 )
 
 const (
@@ -91,9 +88,10 @@ type peer struct {
 
 	id string
 
-	headInfo  *announceData
-	etherbase *common.Address
-	lock      sync.RWMutex
+	headInfo   *announceData
+	etherbase  *common.Address
+	gatewayFee *big.Int
+	lock       sync.RWMutex
 
 	sendQueue *execQueue
 
@@ -276,20 +274,31 @@ func (p *peer) Td() *big.Int {
 	return new(big.Int).Set(p.headInfo.Td)
 }
 
-func (p *peer) Etherbase() *common.Address {
+func (p *peer) Etherbase() (etherbase common.Address, ok bool) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	return p.etherbase
-}
-
-func (p *peer) HasEtherbase() bool {
-	return p.Etherbase() != nil
+	if p.etherbase != nil {
+		return *p.etherbase, true
+	}
+	return common.Address{}, false
 }
 
 func (p *peer) SetEtherbase(etherbase common.Address) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.etherbase = &etherbase
+}
+
+func (p *peer) GatewayFee() (fee *big.Int, ok bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.gatewayFee, p.gatewayFee != nil
+}
+
+func (p *peer) SetGatewayFee(gatewayFee *big.Int) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.gatewayFee = gatewayFee
 }
 
 // waitBefore implements distPeer interface
@@ -780,6 +789,37 @@ func (p *peer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis 
 	return nil
 }
 
+// Returns true if the peer has indicated it is willing to transmit the given
+// transaction to the network. It may be the case that this client expects a
+// node to relay a transaction, but the server decides not to.
+func (p *peer) WillAcceptTransaction(tx *types.Transaction) bool {
+	if p.onlyAnnounce {
+		return false
+	}
+
+	// Retrieve the gateway fee information known for this peer.
+	// Treat unknown gateway fee or etherbase as potentially free relay.
+	gatewayFee, ok := p.GatewayFee()
+	if !ok {
+		return true
+	}
+	etherbase, ok := p.Etherbase()
+	if !ok {
+		return true
+	}
+
+	// Check that the transaction meets the peer's gateway fee requirements.
+	if etherbase != (common.Address{}) && gatewayFee.Cmp(common.Big0) > 0 {
+		if txGateway := tx.GatewayFeeRecipient(); txGateway == nil || *txGateway != etherbase {
+			return false
+		}
+		if txFee := tx.GatewayFee(); txFee == nil || txFee.Cmp(gatewayFee) < 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // updateFlowControl updates the flow control parameters belonging to the server
 // node if the announced key/value set contains relevant fields
 func (p *peer) updateFlowControl(update keyValueMap) {
@@ -872,43 +912,18 @@ func (ps *peerSet) Register(p *peer) error {
 	return nil
 }
 
+// TODO(nategraf) Remove this function when better method for choosing a peer is available.
 func (ps *peerSet) randomPeerEtherbase() common.Address {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	r := common.Address{}
 	// Rely on golang's random map iteration order.
 	for _, p := range ps.peers {
-		if p.HasEtherbase() {
-			r = *p.Etherbase()
-			break
+		if etherbase, ok := p.Etherbase(); ok {
+			return etherbase
 		}
 	}
-	return r
-}
-
-func (ps *peerSet) getPeerWithEtherbase(etherbase *common.Address) (*peer, error) {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	if etherbase == nil {
-		// if no etherbase defined, return a random peer
-		for _, peer := range ps.peers {
-			if peer.HasEtherbase() {
-				return peer, nil
-			}
-		}
-	} else {
-		// find peer with given etherbase
-		for _, peer := range ps.peers {
-			if *etherbase == *peer.Etherbase() {
-				return peer, nil
-			}
-		}
-	}
-
-	log.Info(errNoPeerWithEtherbaseFound.Error(), "etherbase", *etherbase)
-	return nil, errNoPeerWithEtherbaseFound
+	return common.Address{}
 }
 
 // Unregister removes a remote peer from the active set, disabling any further
