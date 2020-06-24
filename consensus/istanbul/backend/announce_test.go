@@ -27,7 +27,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Set backend to val1
 	b.SetP2PServer(val1P2pServer)
-	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, signerFn, signerBLSHashFn, signerBLSMessageFn)
+	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
 
 	val2Address := valSet.GetByIndex(2).Address()
 
@@ -48,7 +48,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = val2Address
 
 	// Handle val1's announce message
-	if err = b.handleQueryEnodeMsg(nil, payload); err != nil {
+	if err = b.handleQueryEnodeMsg(common.Address{}, nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

@@ -17,6 +17,7 @@
 package les
 
 import (
+	"fmt"
 	"math/big"
 	"net"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
@@ -245,6 +247,120 @@ func TestPeerHandshakeClientReturnErrorOnUselessPeer(t *testing.T) {
 	err := p.Handshake(td, hash, headNum, genesis, nil)
 	if err == nil {
 		t.FailNow()
+	}
+}
+
+func TestWillAcceptTransaction(t *testing.T) {
+	tx := func(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) *types.Transaction {
+		return types.NewTransaction(0, common.Address{}, nil, 0, nil, nil, gatewayFeeRecipient, gatewayFee, nil)
+	}
+	peerEtherbase := common.HexToAddress("deadbeef")
+	wrongEtherbase := common.HexToAddress("badfo00")
+	cases := []struct {
+		tx     *types.Transaction
+		p      *peer
+		accept bool
+	}{
+		{
+			tx:     tx(nil, nil),
+			p:      &peer{},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase:  &common.Address{},
+				gatewayFee: big.NewInt(0),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase: &peerEtherbase,
+			},
+			accept: true,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &common.Address{},
+				gatewayFee: big.NewInt(0),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(200)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: true,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(50)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&wrongEtherbase, big.NewInt(100)),
+			p: &peer{
+				etherbase:  &peerEtherbase,
+				gatewayFee: big.NewInt(100),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(nil, nil),
+			p: &peer{
+				onlyAnnounce: true,
+				etherbase:    &common.Address{},
+				gatewayFee:   big.NewInt(0),
+			},
+			accept: false,
+		},
+		{
+			tx: tx(&peerEtherbase, big.NewInt(100)),
+			p: &peer{
+				onlyAnnounce: true,
+				etherbase:    &peerEtherbase,
+				gatewayFee:   big.NewInt(100),
+			},
+			accept: false,
+		},
+	}
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			if got := c.p.WillAcceptTransaction(c.tx); got != c.accept {
+				t.Errorf("got p.WillAcceptTransaction(...) = %v; want %v", got, c.accept)
+			}
+		})
 	}
 }
 
