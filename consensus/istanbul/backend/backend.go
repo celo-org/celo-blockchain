@@ -24,9 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -471,23 +469,20 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	if txnHash != block.Header().TxHash {
 		return 0, errMismatchTxhashes
 	}
-	minVersion := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
-	version, err := blockchain_parameters.GetMinimumVersion(nil, nil)
+
+	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
+	isSupported, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
 	if err != nil {
-		if err != comm_errors.ErrRegistryContractNotDeployed && err != comm_errors.ErrSmartContractNotDeployed {
-			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
-			return 0, err
-		}
-	} else {
-		if version.Cmp(minVersion) <= 0 {
-			addr, err := sb.Author(block.Header())
-			if err != nil {
-				sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-				return 0, errInvalidProposal
-			} else if addr != block.Header().Coinbase {
-				sb.logger.Error("Support for differing validator and txFeeRecipient is forthcoming")
-				return 0, errInvalidCoinbase
-			}
+		return 0, err
+	}
+	if !isSupported {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return 0, errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
+			return 0, errInvalidCoinbase
 		}
 	}
 

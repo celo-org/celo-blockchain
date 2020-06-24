@@ -1084,10 +1084,10 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	if validator != "" && ctx.GlobalIsSet(MinerValidatorFlag.Name) {
-		Fatalf("`etherbase` and `validator` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
-	}
 	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		if validator != "" {
+			Fatalf("`etherbase` and `validator` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+		}
 		validator = ctx.GlobalString(MinerValidatorFlag.Name)
 	}
 	// Convert the validator into an address and configure it
@@ -1112,10 +1112,10 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	if txFeeRecipient != "" && ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
-		Fatalf("`etherbase` and `txFeeRecipient` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
-	}
 	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if txFeeRecipient != "" {
+			Fatalf("`etherbase` and `txFeeRecipient` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+		}
 		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
 	}
 	// Convert the txFeeRecipient into an address and configure it

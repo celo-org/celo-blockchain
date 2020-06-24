@@ -114,6 +114,19 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 	return &params.VersionInfo{Major: version[0].Uint64(), Minor: version[1].Uint64(), Patch: version[2].Uint64()}, nil
 }
 
+func IsMinimumVersionAtLeast(major uint64, minor uint64, patch uint64) (bool, error) {
+	desiredVersion := &params.VersionInfo{Major: major, Minor: minor, Patch: patch}
+	minVersion, err := GetMinimumVersion(nil, nil)
+	if err != nil {
+		if err != errors.ErrRegistryContractNotDeployed && err != errors.ErrSmartContractNotDeployed {
+			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+			return false, err
+		}
+		return true, nil
+	}
+	return minVersion.Cmp(desiredVersion) >= 0, nil
+}
+
 func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
 	var gas *big.Int
 	var err error
