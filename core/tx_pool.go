@@ -316,11 +316,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	for _, addr := range params.PriorityAddresses {
-		log.Info("Setting new priority address", "address", addr)
-		pool.priority.add(addr)
-		pool.locals.add(addr)
-	}
 	pool.priced = newTxPricedList(pool.all)
 
 	pool.reset(nil, chain.CurrentBlock().Header())
@@ -330,7 +325,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	go pool.scheduleReorgLoop()
 
 	// If local transactions and journaling is enabled, load from disk
-	if !config.NoLocals && config.Journal != "" {
+	if !config.NoLocals && config.Journal != "" && config.PriorityJournal != "" {
 		pool.journal = newTxJournal(config.Journal, config.PriorityJournal)
 
 		if err := pool.journal.load(pool.AddLocals); err != nil {
@@ -644,6 +639,22 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 	return txs
 }
 
+func (pool *TxPool) isPriorityTx(tx *types.Transaction) bool {
+	// Make sure the transaction is signed properly
+	from, err := types.Sender(pool.signer, tx)
+	if err != nil {
+		return false
+	}
+
+	if sorted_oracles.GetAddress() != nil && tx.To() != nil && tx.Data() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
+		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
+		if token != nil && sorted_oracles.IsOracle(token, &from, nil, nil) {
+			return true
+		}
+	}
+	return false
+}
+
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
@@ -665,15 +676,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
-	}
-
-	if sorted_oracles.GetAddress() != nil && tx.To() != nil && tx.Data() != nil && sorted_oracles.GetAddress().Hex() == tx.To().Hex() {
-		token, _ := sorted_oracles.GetTokenFromTxData(tx.Data())
-		if token != nil && sorted_oracles.IsOracle(token, &from, nil, nil) {
-			log.Info("Adding priority transaction", "address", from, "tx", tx.Hash())
-			pool.all.SetImportant(tx)
-			local = true
-		}
 	}
 
 	// Ensure the fee currency is native or whitelisted.
@@ -757,19 +759,24 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		knownTxMeter.Mark(1)
 		return false, fmt.Errorf("known transaction: %x", hash)
 	}
-	// If the transaction fails basic validation, discard it
-	if err := pool.validateTx(tx, local); err != nil {
-		log.Debug("Discarding invalid transaction", "hash", hash, "err", err)
-		invalidTxMeter.Mark(1)
-		return false, err
+
+	from, _ := types.Sender(pool.signer, tx)
+	if err != nil {
+		return false, ErrInvalidSender
+	}
+
+	if pool.isPriorityTx(tx) {
+		log.Info("Adding priority transaction", "address", from, "tx", tx.Hash())
+		pool.all.SetImportant(tx)
 	}
 
 	priority := local || pool.all.Important(hash)
 
-	// Check if sender is priority account
-	from, _ := types.Sender(pool.signer, tx)
-	if err != nil {
-		return false, ErrInvalidSender
+	// If the transaction fails basic validation, discard it
+	if err := pool.validateTx(tx, priority); err != nil {
+		log.Debug("Discarding invalid transaction", "hash", hash, "err", err)
+		invalidTxMeter.Mark(1)
+		return false, err
 	}
 
 	// If the transaction pool is full, discard underpriced transactions

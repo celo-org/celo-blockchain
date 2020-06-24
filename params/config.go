@@ -49,8 +49,6 @@ var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{}
 // the chain it belongs to.
 var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{}
 
-var PriorityAddresses = []common.Address{}
-
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
