@@ -55,11 +55,13 @@ common-js:
     <hr/>
     <footer class="container">
       {%- capture gh_link -%}
-      https://github.com/celo-org/celo-blockchain/blob/gh-pages/
+      https://github.com/celo-org/celo-blockchain/blob/master/docs
       {%- if page.collection -%}{{ site.collections_dir }}/{%- endif -%}
       {{- page.path -}}
       {%- endcapture -%}
+
       <p>&copy; 2015–2020. The celo-blockchain Authors. <a href="{{ gh_link }}">Edit this page.</a></p>
+      <p>&copy; 2013–2019. The go-ethereum Authors.</p>p>
     </footer>
   </body>
 </html>

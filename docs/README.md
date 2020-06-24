@@ -1,9 +1,9 @@
 ### Docs
 
-Celo Blockchain docs are a superset of Geth docs with Celo protocol specific additions.
+The Celo blockchain client documentation is forked from the [go-ethereum](https://github.com/ethereum/go-ethereum) documentation, modified as needed to match changes made to the client.
+These are work in progress and might not always be accurate. Please [let us know](https://github.com/celo-org/celo-blockchain/issues/new) if there are any issues.
 
 Links:
-- [celo client docs](https://client-docs.celo.org)
 - [geth docs](https://geth.ethereum.org/)
 
 See also:
