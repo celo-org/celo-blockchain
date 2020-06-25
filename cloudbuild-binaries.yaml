@@ -3,25 +3,54 @@ steps:
   entrypoint: 'sh'
   args:
     - '-c'
-    - 'docker pull us.gcr.io/$PROJECT_ID/geth-binaries:latest || exit 0'
+    - 'docker pull us.gcr.io/$PROJECT_ID/geth-xgo-builder:latest || exit 0'
 - name: 'gcr.io/cloud-builders/docker'
   entrypoint: 'sh'
   args:
     - '-c'
     - 'docker build .
-        --build-arg __BUILD_TARGETS=linux/amd64,linux/386
-        --build-arg __COMMIT_SHA=$COMMIT_SHA
-        --build-arg __TAG_NAME=$TAG_NAME
-        --build-arg __REPO_NAME=$REPO_NAME
-        --build-arg __BRANCH_NAME=$BRANCH_NAME
-        --build-arg __COMMIT_TIMESTAMP=$(date +%s)
-        --build-arg __CLOUDBUILD=True
-        --build-arg __CI=True
-        --cache-from us.gcr.io/$PROJECT_ID/geth-binaries:latest
-        -t us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA
-        -t us.gcr.io/$PROJECT_ID/geth-binaries:latest
+        --cache-from us.gcr.io/$PROJECT_ID/geth-xgo-builder:latest
+        -t us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
+        -t us.gcr.io/$PROJECT_ID/geth-xgo-builder:latest
         -f Dockerfile.binaries'
-
+- name: 'gcr.io/cloud-builders/docker'
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - 'docker run --rm
+        -v $(pwd)/build/bin:/build
+        -v $(pwd)/build/archives:/archives
+        -v $(pwd):/go/src/github.com/ethereum/go-ethereum
+        --entrypoint /bin/sh
+        --env BUILD_TARGETS=$_BUILD_TARGETS
+        --env TAG_NAME=$TAG_NAME
+        --env BRANCH_NAME=$BRANCH_NAME
+        --env REPO_NAME=$REPO_NAME
+        --env COMMIT_SHA=$COMMIT_SHA
+        --env COMMIT_TIMESTAMP=$(date +%s)
+        --env CLOUDBUILD=True
+        --env CI=True
+        us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
+        -c "go run build/ci.go xgo --alltools -- -targets=$_BUILD_TARGETS -v -dest /build"'
+- name: 'gcr.io/cloud-builders/docker'
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - 'docker run --rm
+        -v $(pwd)/build/bin:/build
+        -v $(pwd)/build/archives:/archives
+        -v $(pwd):/go/src/github.com/ethereum/go-ethereum
+        --entrypoint /bin/sh
+        --env BUILD_TARGETS=$_BUILD_TARGETS
+        --env TAG_NAME=$TAG_NAME
+        --env BRANCH_NAME=$BRANCH_NAME
+        --env REPO_NAME=$REPO_NAME
+        --env COMMIT_SHA=$COMMIT_SHA
+        --env COMMIT_TIMESTAMP=$(date +%s)
+        --env CLOUDBUILD=True
+        --env CI=True
+        us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
+        -c "go run build/ci.go xgo-archive -targets=$_BUILD_TARGETS -in /build -out /archives"'
 - name: 'gcr.io/cloud-builders/docker'
   entrypoint: 'sh'
   args:
@@ -29,13 +58,13 @@ steps:
     - 'docker run --rm
         -v $(pwd)/build/archives:/out
         --entrypoint /bin/sh
-        us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA
+        us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
         -c "cp /archives/* /out"'
 artifacts:
   objects:
     location: 'gs://$_BUCKET/$BRANCH_NAME/'
     paths: ['./build/archives/*']
 images:
-- 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA'
-- 'us.gcr.io/$PROJECT_ID/geth-binaries:latest'
+- 'us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA'
+- 'us.gcr.io/$PROJECT_ID/geth-xgo-builder:latest'
 timeout: 2700s
