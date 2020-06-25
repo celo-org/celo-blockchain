@@ -1,27 +1,29 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'build',
-    '.',
-    '--build-arg', '__BUILD_TARGETS=linux/amd64,linux/386',
-    '--build-arg', '__COMMIT_SHA=$COMMIT_SHA',
-    '--build-arg', '__TAG_NAME=$TAG_NAME',
-    '--build-arg', '__REPO_NAME=$REPO_NAME',
-    '--build-arg', '__BRANCH_NAME=$BRANCH_NAME',
-    '--build-arg', '__COMMIT_TIMESTAMP=$(git show -s --format=%ct $COMMIT_SHA)',
-    '--build-arg', '__CLOUDBUILD=True',
-    '--build-arg', '__CI=True',
-    '-t', 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
-    '-f', 'Dockerfile.binaries'
-  ]
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - 'docker build .
+        --build-arg __BUILD_TARGETS=linux/amd64,linux/386
+        --build-arg __COMMIT_SHA=$COMMIT_SHA
+        --build-arg __TAG_NAME=$TAG_NAME
+        --build-arg __REPO_NAME=$REPO_NAME
+        --build-arg __BRANCH_NAME=$BRANCH_NAME
+        --build-arg __COMMIT_TIMESTAMP=$(date +%s)
+        --build-arg __CLOUDBUILD=True
+        --build-arg __CI=True
+        -t us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA
+        -f Dockerfile.binaries'
+
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'run', '--rm',
-    '-v', '$(pwd)/build/archives:/out',
-    '--entrypoint', '/bin/sh',
-    'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
-    '-c', '"cp /archives/* /out"'
-  ]
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - 'docker run --rm
+        -v $(pwd)/build/archives:/out
+        --entrypoint /bin/sh
+        us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA
+        -c "cp /archives/* /out"'
 artifacts:
   objects:
     location: 'gs://$_BUCKET/$TAG_NAME/'
