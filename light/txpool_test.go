@@ -51,8 +51,8 @@ func (self *testTxRelay) Discard(hashes []common.Hash) {
 	self.discard <- len(hashes)
 }
 
-func (self *testTxRelay) CanRelayTransaction(tx *types.Transaction) error {
-	return nil
+func (self *testTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
+	return true
 }
 
 const poolTestTxs = 1000
