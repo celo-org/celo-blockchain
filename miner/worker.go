@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -145,6 +146,8 @@ type worker struct {
 	chainHeadSub event.Subscription
 	chainSideCh  chan core.ChainSideEvent
 	chainSideSub event.Subscription
+	newViewCh    chan istanbulCore.NewViewEvent
+	newViewSub   event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -214,6 +217,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
+	worker.newViewSub = worker.engine.SubscribeNewViewEvent(worker.newViewCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
@@ -375,8 +379,11 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
+
+		case newView := <- w.newViewCh:
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
+		}
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -430,6 +437,7 @@ func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
 	defer w.chainSideSub.Unsubscribe()
+	defer w.newViewSub.Unsubscribe()
 
 	for {
 		select {
@@ -483,6 +491,8 @@ func (w *worker) mainLoop() {
 		case <-w.chainHeadSub.Err():
 			return
 		case <-w.chainSideSub.Err():
+			return
+		case <-w.newViewSub.Err():
 			return
 		}
 	}

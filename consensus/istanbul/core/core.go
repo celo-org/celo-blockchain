@@ -69,6 +69,8 @@ type core struct {
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	newViewFeed event.Feed
 }
 
 // New creates an Istanbul consensus core
@@ -218,6 +220,11 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
+}
+
+// GetNewViewFeed will return newViewFeed
+func (c *core) GetNewViewFeed() *event.Feed {
+	return &c.newViewFeed
 }
 
 // Appends the current view and state to the given context.
@@ -460,6 +467,10 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	if err != nil {
 		return err
+	}
+
+	if nextProposer.Address() == c.address {
+		c.newViewFeed.Send(NewViewEvent{newView})
 	}
 
 	// Process backlog

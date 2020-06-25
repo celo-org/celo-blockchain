@@ -30,3 +30,8 @@ type resendRoundChangeEvent struct {
 type timeoutAndMoveToNextRoundEvent struct {
 	view *istanbul.View
 }
+
+// NewViewEvent is posted when a new view has been created
+type NewViewEvent struct {
+	View *istanbul.View
+}

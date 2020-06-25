@@ -278,6 +278,13 @@ type Backend struct {
 
 	proxyHandlerRunning bool
 	proxyHandlerMu      sync.RWMutex
+
+	scope event.SubscriptionScope
+}
+
+// SubscribeNewViewEvent registers a subscription of NewViewEvent
+func (sb *Backend) SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription {
+	return sb.scope.Track(sb.core.GetNewViewFeed().Subscribe(ch))
 }
 
 // IsProxy returns if instance has proxy flag
