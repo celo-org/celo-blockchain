@@ -51,15 +51,6 @@ steps:
         --env CI=True
         us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
         -c "go run build/ci.go xgo-archive -targets=$_BUILD_TARGETS -in /build -out /archives"'
-- name: 'gcr.io/cloud-builders/docker'
-  entrypoint: 'sh'
-  args:
-    - '-c'
-    - 'docker run --rm
-        -v $(pwd)/build/archives:/out
-        --entrypoint /bin/sh
-        us.gcr.io/$PROJECT_ID/geth-xgo-builder:$COMMIT_SHA
-        -c "cp /archives/* /out"'
 artifacts:
   objects:
     location: 'gs://$_BUCKET/$BRANCH_NAME/'
