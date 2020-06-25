@@ -1161,14 +1161,14 @@ func doXgoArchive(cmdline []string) {
 	}
 }
 
-func xgoAllToolsArchiveFiles(target string, dir string) []string {
+func xgoGethArchiveFiles(target string, dir string) []string {
 	return []string{
 		"COPYING",
 		executableXgoPath("geth", target, dir),
 	}
 }
 
-func xgoGethArchiveFiles(target string, dir string) []string {
+func xgoAllToolsArchiveFiles(target string, dir string) []string {
 	return []string{
 		"COPYING",
 		executableXgoPath("abigen", target, dir),
