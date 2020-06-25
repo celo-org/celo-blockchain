@@ -27,11 +27,28 @@ ADD . /go/src/github.com/ethereum/go-ethereum
 WORKDIR /go/src/github.com/ethereum/go-ethereum
 
 ENV GO=1.13
-ARG BUILD_TARGETS
-ARG COMMIT_SHA
-ARG ALLTOOLS
-ENV ALLTOOLS_COMMAND_SEGMENT=""
-RUN if [ "$ALLTOOLS" = "true" ]; then export ALLTOOLS_COMMAND_SEGMENT="--alltools"; fi
 
-RUN echo $COMMIT_SHA > /version.txt
-RUN go run build/ci.go xgo $ALLTOOLS_COMMAND_SEGMENT -- --go=$GO --targets=$BUILD_TARGETS -v ./cmd/geth
+ARG __BUILD_TARGETS
+ENV BUILD_TARGETS=$__BUILD_TARGETS
+ARG __TAG_NAME
+ENV TAG_NAME=$__TAG_NAME
+ARG __REPO_NAME
+ENV REPO_NAME=$__REPO_NAME
+ARG __BRANCH_NAME
+ENV BRANCH_NAME=$__BRANCH_NAME
+ARG __TAG_NAME
+ENV TAG_NAME=$__TAG_NAME
+ARG __COMMIT_SHA
+ENV COMMIT_SHA=$__COMMIT_SHA
+ARG __PR_NUMBER
+ENV _PR_NUMBER=$__PR_NUMBER
+ARG __COMMIT_TIMESTAMP
+ENV COMMIT_TIMESTAMP=$__COMMIT_TIMESTAMP
+ARG __CLOUDBUILD
+ENV CLOUDBUILD=$__CLOUDBUILD
+ARG __CI
+ENV CI=$__CI
+
+RUN go run build/ci.go xgo --alltools -- --go=$GO -targets=$BUILD_TARGETS -v -dest /build
+RUN mkdir /archives
+RUN go run build/ci.go xgo-archive -targets=$BUILD_TARGETS -in /build -out /archives

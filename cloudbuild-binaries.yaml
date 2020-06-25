@@ -2,26 +2,30 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
-    '-t', 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
-    '--build-arg', 'COMMIT_SHA=$COMMIT_SHA',
     '.',
+    '--build-arg', '__BUILD_TARGETS=linux/amd64,linux/386',
+    '--build-arg', '__COMMIT_SHA=$COMMIT_SHA',
+    '--build-arg', '__TAG_NAME=$TAG_NAME',
+    '--build-arg', '__REPO_NAME=$REPO_NAME',
+    '--build-arg', '__BRANCH_NAME=$BRANCH_NAME',
+    '--build-arg', '__COMMIT_TIMESTAMP=$(git show -s --format=%ct $COMMIT_SHA)',
+    '--build-arg', '__CLOUDBUILD=True',
+    '--build-arg', '__CI=True',
+    '-t', 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
     '-f', 'Dockerfile.binaries'
   ]
-  waitFor: ["-"]
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'run', '--rm',
-    '-v', '$(pwd):/out',
+    '-v', '$(pwd)/build/archives:/out',
     '--entrypoint', '/bin/sh',
     'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA',
-    '-c', '"cp /build/* /out/build/bin"'
+    '-c', '"cp /archives/* /out"'
   ]
-  waitFor: ["-"]
-- name: 'ubuntu'
-  args: ['bash', './script/prepare-release-binaries.sh']
-  env:
-    - 'BRANCH_NAME=$BRANCH_NAME'
-    - 'TAG_NAME=$TAG_NAME'
+artifacts:
+  objects:
+    location: 'gs://$_BUCKET/$TAG_NAME/'
+    paths: ['./build/archives/*']
 images:
 - 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA'
 timeout: 2700s
