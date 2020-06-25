@@ -3,6 +3,11 @@ steps:
   entrypoint: 'sh'
   args:
     - '-c'
+    - 'docker pull us.gcr.io/$PROJECT_ID/geth-binaries:latest || exit 0'
+- name: 'gcr.io/cloud-builders/docker'
+  entrypoint: 'sh'
+  args:
+    - '-c'
     - 'docker build .
         --build-arg __BUILD_TARGETS=linux/amd64,linux/386
         --build-arg __COMMIT_SHA=$COMMIT_SHA
