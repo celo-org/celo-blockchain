@@ -28,7 +28,7 @@ steps:
         -c "cp /archives/* /out"'
 artifacts:
   objects:
-    location: 'gs://$_BUCKET/$TAG_NAME/'
+    location: 'gs://$_BUCKET/$BRANCH_NAME/'
     paths: ['./build/archives/*']
 images:
 - 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA'
