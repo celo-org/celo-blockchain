@@ -12,7 +12,9 @@ steps:
         --build-arg __COMMIT_TIMESTAMP=$(date +%s)
         --build-arg __CLOUDBUILD=True
         --build-arg __CI=True
+        --cache-from us.gcr.io/$PROJECT_ID/geth-binaries:latest
         -t us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA
+        -t us.gcr.io/$PROJECT_ID/geth-binaries:latest
         -f Dockerfile.binaries'
 
 - name: 'gcr.io/cloud-builders/docker'
@@ -30,4 +32,5 @@ artifacts:
     paths: ['./build/archives/*']
 images:
 - 'us.gcr.io/$PROJECT_ID/geth-binaries:$COMMIT_SHA'
+- 'us.gcr.io/$PROJECT_ID/geth-binaries:latest'
 timeout: 2700s
