@@ -501,8 +501,8 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping because this is a cron job")
 		os.Exit(0)
 	}
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping because branch %q, tag %q is not on the whitelist", env.Branch, env.Tag)
+	if env.Branch != "master" && !strings.HasPrefix(env.Branch, "release/") {
+		log.Printf("skipping because branch %q is not on the whitelist", env.Branch)
 		os.Exit(0)
 	}
 }

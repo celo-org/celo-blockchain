@@ -23,11 +23,7 @@ RUN apt update && apt install -y  --no-install-recommends software-properties-co
 RUN add-apt-repository -y ppa:mati865/mingw-w64
 RUN apt update && apt -y upgrade
 
-ADD . /go/src/github.com/ethereum/go-ethereum
-WORKDIR /go/src/github.com/ethereum/go-ethereum
-
 ENV GO=1.13
-
 ARG __BUILD_TARGETS
 ENV BUILD_TARGETS=$__BUILD_TARGETS
 ARG __TAG_NAME
@@ -48,6 +44,9 @@ ARG __CLOUDBUILD
 ENV CLOUDBUILD=$__CLOUDBUILD
 ARG __CI
 ENV CI=$__CI
+
+ADD . /go/src/github.com/ethereum/go-ethereum
+WORKDIR /go/src/github.com/ethereum/go-ethereum
 
 RUN go run build/ci.go xgo --alltools -- --go=$GO -targets=$BUILD_TARGETS -v -dest /build
 RUN mkdir /archives
