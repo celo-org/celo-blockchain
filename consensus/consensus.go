@@ -18,15 +18,15 @@
 package consensus
 
 import (
+	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
+	"github.com/ethereum/go-ethereum/event"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -112,10 +112,10 @@ type Engine interface {
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainReader) []rpc.API
 
-	SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription
-
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
+
+	SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription
 }
 
 type Genesis interface {
@@ -201,6 +201,4 @@ type Istanbul interface {
 	// This is only implemented for Istanbul.
 	// It will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
-
-	SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription
 }

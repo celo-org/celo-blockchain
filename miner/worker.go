@@ -380,10 +380,9 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
 
-		case newView := <- w.newViewCh:
+		case <-w.newViewCh:
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-		}
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
