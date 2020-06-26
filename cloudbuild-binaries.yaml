@@ -1,3 +1,4 @@
+# See ./Dockerfile.binaries for more information w.r.t this CI flow
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   entrypoint: 'sh'
