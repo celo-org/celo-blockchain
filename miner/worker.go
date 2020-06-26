@@ -375,7 +375,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			commit(false, commitInterruptNewHead)
 
 		case newView := <-w.newViewCh:
-			headNumber := newView.View.Sequence.Uint64() - 1
+			headNumber := newView.NewView.Sequence.Uint64() - 1
 			clearPending(headNumber)
 			if newView.Proposer.Address() == w.config.Etherbase {
 				timestamp = time.Now().Unix()

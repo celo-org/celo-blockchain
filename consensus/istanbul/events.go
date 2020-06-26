@@ -32,6 +32,6 @@ type FinalCommittedEvent struct {
 
 // NewViewEvent is posted when a new view has been created
 type NewViewEvent struct {
-	View *View
+	NewView  View
 	Proposer Validator
 }
