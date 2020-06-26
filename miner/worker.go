@@ -213,7 +213,9 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
-	worker.newViewSub = worker.engine.SubscribeNewViewEvent(worker.newViewCh)
+	if istanbulEngine, ok := worker.engine.(consensus.Istanbul); ok {
+		worker.newViewSub = istanbulEngine.SubscribeNewViewEvent(worker.newViewCh)
+	}
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit

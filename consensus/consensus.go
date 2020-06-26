@@ -113,8 +113,6 @@ type Engine interface {
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
-
-	SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription
 }
 
 type Genesis interface {
@@ -200,4 +198,6 @@ type Istanbul interface {
 	// This is only implemented for Istanbul.
 	// It will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
+
+	SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription
 }
