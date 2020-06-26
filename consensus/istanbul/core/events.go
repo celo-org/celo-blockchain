@@ -34,4 +34,5 @@ type timeoutAndMoveToNextRoundEvent struct {
 // NewViewEvent is posted when a new view has been created
 type NewViewEvent struct {
 	View *istanbul.View
+	Proposer istanbul.Validator
 }

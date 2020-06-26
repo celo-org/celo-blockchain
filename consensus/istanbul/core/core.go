@@ -469,9 +469,7 @@ func (c *core) startNewRound(round *big.Int) error {
 		return err
 	}
 
-	if nextProposer.Address() == c.address {
-		c.newViewFeed.Send(NewViewEvent{newView})
-	}
+	c.newViewFeed.Send(NewViewEvent{newView, nextProposer})
 
 	// Process backlog
 	c.processPendingRequests()
