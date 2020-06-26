@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -27,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -144,7 +144,7 @@ type worker struct {
 	txsSub       event.Subscription
 	chainSideCh  chan core.ChainSideEvent
 	chainSideSub event.Subscription
-	newViewCh    chan istanbulCore.NewViewEvent
+	newViewCh    chan istanbul.NewViewEvent
 	newViewSub   event.Subscription
 
 	// Channels

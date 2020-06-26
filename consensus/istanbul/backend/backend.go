@@ -283,7 +283,7 @@ type Backend struct {
 }
 
 // SubscribeNewViewEvent registers a subscription of NewViewEvent
-func (sb *Backend) SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription {
+func (sb *Backend) SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription {
 	return sb.scope.Track(sb.core.GetNewViewFeed().Subscribe(ch))
 }
 

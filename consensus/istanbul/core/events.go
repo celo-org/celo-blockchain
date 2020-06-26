@@ -27,12 +27,7 @@ type backlogEvent struct {
 type resendRoundChangeEvent struct {
 	view *istanbul.View
 }
+
 type timeoutAndMoveToNextRoundEvent struct {
 	view *istanbul.View
-}
-
-// NewViewEvent is posted when a new view has been created
-type NewViewEvent struct {
-	View *istanbul.View
-	Proposer istanbul.Validator
 }

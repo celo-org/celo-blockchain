@@ -18,7 +18,6 @@
 package consensus
 
 import (
-	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/event"
 	"math/big"
 
@@ -115,7 +114,7 @@ type Engine interface {
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
 
-	SubscribeNewViewEvent(ch chan<- istanbulCore.NewViewEvent) event.Subscription
+	SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription
 }
 
 type Genesis interface {
