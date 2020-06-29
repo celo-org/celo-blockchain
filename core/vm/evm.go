@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"math/big"
 	"sync/atomic"
+	"strings"
 	"time"
 
 	abipkg "github.com/ethereum/go-ethereum/accounts/abi"
@@ -581,6 +582,25 @@ func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, f
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
+const errorJSON = `[
+	{
+	"constant": false,
+     	"inputs": [{
+				"name": "",
+				"type": "string"
+		 }],
+      "name": "Error",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+	  }
+]`
+
+var (
+	errorABI, hmm = abipkg.JSON(strings.NewReader(errorJSON))
+)
+
 func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
@@ -591,12 +611,18 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
+		var msg *string
+		padded := common.RightPadBytes(ret, len(ret) + (32 - len(ret)%32))
+		err2 := errorABI.Unpack(&[]interface{}{&msg}, "Error", padded)
+		if err2 != nil {
+			log.Error("Error unpacking error", "err", err2, "err2", hmm, "len", len(ret))
+		}
 		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
 		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
 		if funcName == "getAddressFor" {
-			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
 		} else {
-			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
 		}
 		return leftoverGas, err
 	}
