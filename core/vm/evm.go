@@ -584,8 +584,8 @@ func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, f
 }
 
 var (
-	errorSig            = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
-	abiString, _        = abipkg.NewType("string", "", nil)
+	errorSig     = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
+	abiString, _ = abipkg.NewType("string", "", nil)
 )
 
 func unpackError(result []byte) (string, error) {
