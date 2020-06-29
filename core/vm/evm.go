@@ -17,10 +17,11 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/binary"
+	goerrors "errors"
 	"math/big"
 	"sync/atomic"
-	"strings"
 	"time"
 
 	abipkg "github.com/ethereum/go-ethereum/accounts/abi"
@@ -582,24 +583,21 @@ func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, f
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
-const errorJSON = `[
-	{
-	"constant": false,
-     	"inputs": [{
-				"name": "",
-				"type": "string"
-		 }],
-      "name": "Error",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-	  }
-]`
-
 var (
-	errorABI, hmm = abipkg.JSON(strings.NewReader(errorJSON))
+	errorSig            = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
+	abiString, _        = abipkg.NewType("string", "", nil)
 )
+
+func unpackError(result []byte) (string, error) {
+	if len(result) < 4 || !bytes.Equal(result[:4], errorSig) {
+		return "<tx result not Error(string)>", goerrors.New("TX result not of type Error(string)")
+	}
+	vs, err := abipkg.Arguments{{Type: abiString}}.UnpackValues(result[4:])
+	if err != nil {
+		return "<invalid tx result>", err
+	}
+	return vs[0].(string), nil
+}
 
 func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
@@ -611,12 +609,7 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
-		var msg *string
-		padded := common.RightPadBytes(ret, len(ret) + (32 - len(ret)%32))
-		err2 := errorABI.Unpack(&[]interface{}{&msg}, "Error", padded)
-		if err2 != nil {
-			log.Error("Error unpacking error", "err", err2, "err2", hmm, "len", len(ret))
-		}
+		msg, _ := unpackError(ret)
 		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
 		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
 		if funcName == "getAddressFor" {
