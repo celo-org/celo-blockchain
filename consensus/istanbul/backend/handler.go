@@ -251,6 +251,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	// elected?
 	elected := gpValSetIndex >= 0
 	if !elected {
+		sb.blocksElectedButNotSignedCounter.Clear()
 		return
 	}
 	sb.blocksElectedMeter.Mark(1)
@@ -266,9 +267,15 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
 	if inParentSeal {
 		sb.blocksElectedAndSignedMeter.Mark(1)
+		sb.blocksElectedButNotSignedCounter.Clear()
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
+		sb.blocksElectedButNotSignedCounter.Inc(1)
 		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+	}
+
+	if sb.blocksElectedButNotSignedCounter.Count() >= 12 {
+		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedCounter.Count(), "number", number-1, "address", sb.ValidatorAddress())
 	}
 
 	// missed round as proposer

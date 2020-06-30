@@ -124,6 +124,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
 		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
+		blocksElectedButNotSignedCounter:   metrics.NewRegisteredCounter("consensus/istanbul/blocks/missedbyusinarow", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -252,6 +253,9 @@ type Backend struct {
 	blocksElectedAndSignedMeter    metrics.Meter
 	blocksElectedButNotSignedMeter metrics.Meter
 	blocksElectedAndProposedMeter  metrics.Meter
+
+	// Counter for how many blocks that we missed while elected in a row
+	blocksElectedButNotSignedCounter metrics.Counter
 
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
