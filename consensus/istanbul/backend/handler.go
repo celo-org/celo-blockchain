@@ -270,14 +270,23 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		sb.blocksElectedButNotSignedCounter.Clear()
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
-		sb.blocksElectedButNotSignedCounter.Inc(1)
 		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+	}
+
+	// Ignore the first 11 blocks of the epoch for the downtime counter
+	if !inParentSeal && istanbul.GetNumberWithinEpoch(number-1, sb.config.Epoch) >= 12 {
+		sb.blocksElectedButNotSignedCounter.Inc(1)
 	}
 
 	// Report downtime events
 	if sb.blocksElectedButNotSignedCounter.Count() >= 12 {
 		sb.blocksDowntimeEventMeter.Mark(1)
 		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedCounter.Count(), "number", number-1, "address", sb.ValidatorAddress())
+	}
+
+	// Clear downtime counter on end of epoch.
+	if istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) {
+		sb.blocksElectedButNotSignedCounter.Clear()
 	}
 
 	// missed round as proposer
