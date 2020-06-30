@@ -274,7 +274,9 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
 	}
 
+	// Report downtime events
 	if sb.blocksElectedButNotSignedCounter.Count() >= 12 {
+		sb.blocksDowntimeEventMeter.Mark(1)
 		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedCounter.Count(), "number", number-1, "address", sb.ValidatorAddress())
 	}
 
