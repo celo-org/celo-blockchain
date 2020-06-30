@@ -280,7 +280,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	}
 
 	// Clear downtime counter on end of epoch.
-	if istanbul.IsLastBlockOfEpoch(number - 1, sb.config.Epoch) {
+	if istanbul.IsLastBlockOfEpoch(number-1, sb.config.Epoch) {
 		sb.blocksElectedButNotSignedCounter.Clear()
 	}
 
