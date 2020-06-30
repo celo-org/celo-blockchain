@@ -270,6 +270,11 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
 		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
 	}
+
+	// missed round as proposer
+	if missedRounds > 0 && parentHeader.Coinbase == sb.ValidatorAddress() {
+		sb.blocksMissedRoundsAsProposerMeter.Mark(missedRounds)
+	}
 }
 
 // Actions triggered by a new block being added to the chain.

@@ -123,6 +123,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
+		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -258,8 +259,10 @@ type Backend struct {
 	// Gauge for validator set size of grandparent of last received block (maximum value for blocksTotalSigsGauge)
 	blocksValSetSizeGauge metrics.Gauge
 
-	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
-	blocksTotalMissedRoundsMeter metrics.Meter
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed
+	// for all blocks & when are the proposer.
+	blocksTotalMissedRoundsMeter      metrics.Meter
+	blocksMissedRoundsAsProposerMeter metrics.Meter
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
