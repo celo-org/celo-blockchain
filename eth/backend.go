@@ -422,7 +422,7 @@ func (s *Ethereum) TxFeeRecipient() (common.Address, error) {
 }
 
 func (s *Ethereum) Etherbase() (common.Address, error) {
-	return s.Validator()
+	return s.TxFeeRecipient()
 }
 
 func (s *Ethereum) BLSbase() (eb common.Address, err error) {

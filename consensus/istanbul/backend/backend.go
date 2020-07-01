@@ -47,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -471,11 +472,14 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	}
 
 	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
-	isSupported, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
+	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
 	if err != nil {
 		return 0, err
 	}
-	if !isSupported {
+	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
+	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
+	// then fallback to checking our client's version.
+	if !isSupported || (!isOk && params.CurrentVersionInfo.Cmp(version) == -1) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")

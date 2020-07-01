@@ -216,19 +216,9 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
-	EtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account, deprecated, use --tx-fee-recipient and --validator instead)",
-		Value: "0",
-	}
-	MinerValidatorFlag = cli.StringFlag{
-		Name:  "miner.validator",
-		Usage: "Public address for participation in consensus (default = first account)",
-		Value: "0",
-	}
 	TxFeeRecipientFlag = cli.StringFlag{
 		Name:  "tx-fee-recipient",
-		Usage: "Public address for block transaction fees (default = first account)",
+		Usage: "Public address for block transaction fees and gateway fees (default = first account)",
 		Value: "0",
 	}
 	BLSbaseFlag = cli.StringFlag{
@@ -359,6 +349,11 @@ var (
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
 		Usage: "Enable mining",
+	}
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
+		Usage: "Public address for participation in consensus (default = first account)",
+		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
 		Name:  "miner.threads",
@@ -1086,7 +1081,7 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
 		if validator != "" {
-			Fatalf("`etherbase` and `validator` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		validator = ctx.GlobalString(MinerValidatorFlag.Name)
 	}
@@ -1114,7 +1109,7 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 	}
 	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
 		if txFeeRecipient != "" {
-			Fatalf("`etherbase` and `txFeeRecipient` flag should not be used together. `validator` and `txFeeRecipient` constitute both of `etherbase`' functions")
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
 	}
@@ -1130,7 +1125,8 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `BLSbase` is the address derived from the BLS private key used for block finalization in consensus.
+// `BLSbase` is the ethereum address which identifies an ECDSA key
+// from which the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string

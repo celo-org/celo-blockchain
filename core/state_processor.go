@@ -67,8 +67,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	if random.IsRunning() {
-		author, _ := p.bc.Engine().Author(header) // Ignore error, we're past header validation
-		err := random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, author, header, statedb)
+		author, err := p.bc.Engine().Author(header)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		err = random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, author, header, statedb)
 		if err != nil {
 			return nil, nil, 0, err
 		}
