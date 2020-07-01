@@ -492,7 +492,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	// Ensure our origin point is below any fast sync pivot point
 	pivot := d.calcPivot(height)
 	if d.Mode == FastSync && origin >= pivot {
-		origin = pivot-1
+		origin = pivot - 1
 	}
 	d.committed = 1
 	if d.Mode == FastSync && pivot != 0 {
@@ -1708,7 +1708,7 @@ func (d *Downloader) calcPivot(height uint64) uint64 {
 	var pivot uint64 = 1
 	if height > d.epoch {
 		pivot = height/d.epoch*d.epoch + 1
-		if pivot - height < uint64(fsMinFullBlocks) {
+		if pivot-height < uint64(fsMinFullBlocks) {
 			pivot = pivot - d.epoch
 		}
 	}
@@ -1764,7 +1764,7 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 		// Split around the pivot block and process the two sides via fast/full sync
 		if atomic.LoadInt32(&d.committed) == 0 {
 			latest = results[len(results)-1].Header
-			if height := latest.Number.Uint64(); height > pivot+2*uint64(d.minFullBlocks) {
+			if height := latest.Number.Uint64(); height > pivot+2*d.minFullBlocks {
 				newPivot := d.calcPivot(height)
 				log.Warn("Pivot became stale, moving", "old", pivot, "new", newPivot)
 				pivot = newPivot
