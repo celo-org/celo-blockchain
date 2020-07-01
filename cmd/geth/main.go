@@ -104,6 +104,8 @@ var (
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
+		utils.MinerEtherbaseFlag,
+		utils.MinerLegacyEtherbaseFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerValidatorFlag,
 		utils.MinerThreadsFlag,
