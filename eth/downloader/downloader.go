@@ -165,6 +165,8 @@ type Downloader struct {
 	bodyFetchHook    func([]*types.Header) // Method to call upon starting a block body fetch
 	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
 	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
+
+	minFullBlocks uint64
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -240,6 +242,11 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		panic(fmt.Sprintf("epoch is too big(%d), the code to fetch epoch headers casts epoch to an int to calculate value for skip variable", epoch))
 	}
 
+	minFullBlocks := epoch
+	if epoch < uint64(fsMinFullBlocks) {
+		minFullBlocks = uint64(fsMinFullBlocks)
+	}
+
 	dl := &Downloader{
 		stateDB:        stateDb,
 		stateBloom:     stateBloom,
@@ -267,6 +274,7 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		trackStateReq: make(chan *stateReq),
 		ibftConsensus: ibftConsensus,
 		epoch:         epoch,
+		minFullBlocks: minFullBlocks,
 	}
 	go dl.qosTuner()
 	go dl.stateFetcher()
@@ -482,16 +490,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	d.syncStatsLock.Unlock()
 
 	// Ensure our origin point is below any fast sync pivot point
-	pivot := uint64(0)
-	if d.Mode == FastSync {
-		if height <= uint64(fsMinFullBlocks) {
-			origin = 0
-		} else {
-			pivot = height - uint64(fsMinFullBlocks)
-			if pivot <= origin {
-				origin = pivot - 1
-			}
-		}
+	pivot := d.calcPivot(height)
+	if d.Mode == FastSync && origin >= pivot {
+		origin = pivot-1
 	}
 	d.committed = 1
 	if d.Mode == FastSync && pivot != 0 {
@@ -1703,6 +1704,21 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	return nil
 }
 
+func (d *Downloader) calcPivot(height uint64) uint64 {
+	return 172801
+	/*
+	var pivot uint64 = 1
+	if height > d.epoch {
+		pivot = height/d.epoch*d.epoch + 1
+		if pivot - height < uint64(fsMinFullBlocks) {
+			pivot = pivot - d.epoch
+		}
+	}
+	log.Info("calc pivot", "pivot", pivot, "height", height, "epochsize", d.epoch)
+	return pivot
+	*/
+}
+
 // processFastSyncContent takes fetch results from the queue and writes them to the
 // database. It also controls the synchronisation of state nodes of the pivot block.
 func (d *Downloader) processFastSyncContent(latest *types.Header) error {
@@ -1718,10 +1734,7 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 	go closeOnErr(sync)
 	// Figure out the ideal pivot block. Note, that this goalpost may move if the
 	// sync takes long enough for the chain head to move significantly.
-	pivot := uint64(0)
-	if height := latest.Number.Uint64(); height > uint64(fsMinFullBlocks) {
-		pivot = height - uint64(fsMinFullBlocks)
-	}
+	pivot := d.calcPivot(latest.Number.Uint64())
 	// To cater for moving pivot points, track the pivot block and subsequently
 	// accumulated download results separately.
 	var (
@@ -1754,9 +1767,10 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 		// Split around the pivot block and process the two sides via fast/full sync
 		if atomic.LoadInt32(&d.committed) == 0 {
 			latest = results[len(results)-1].Header
-			if height := latest.Number.Uint64(); height > pivot+2*uint64(fsMinFullBlocks) {
-				log.Warn("Pivot became stale, moving", "old", pivot, "new", height-uint64(fsMinFullBlocks))
-				pivot = height - uint64(fsMinFullBlocks)
+			if height := latest.Number.Uint64(); height > pivot+2*uint64(d.minFullBlocks) {
+				newPivot := d.calcPivot(height)
+				log.Warn("Pivot became stale, moving", "old", pivot, "new", newPivot)
+				pivot = newPivot
 			}
 		}
 		P, beforeP, afterP := splitAroundPivot(pivot, results)
