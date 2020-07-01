@@ -15,7 +15,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
-	github.com/elastic/gosigar v0.8.1-0.20180330100440-37f05ff46ffa
+	github.com/elastic/gosigar v0.10.5
 	github.com/fatih/color v1.3.0
 	github.com/fjl/memsize v0.0.0-20180418122429-ca190fb6ffbc
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff
@@ -64,6 +64,3 @@ require (
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
-
-// Use our fork which contains the fix to build on iOS
-replace github.com/elastic/gosigar => github.com/celo-org/gosigar v0.10.5-celo1

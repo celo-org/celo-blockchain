@@ -57,6 +57,8 @@ github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZm
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf h1:sh8rkQZavChcmakYiSlqu2425CHyFXLZZnvm7PDpU8M=
 github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/elastic/gosigar v0.10.5 h1:GzPQ+78RaAb4J63unidA/JavQRKrB6s8IOzN6Ib59jo=
+github.com/elastic/gosigar v0.10.5/go.mod h1:cdorVVzy1fhmEqmtgqkoE3bYtCfSCkVyjTyCIo22xvs=
 github.com/fatih/color v1.3.0 h1:YehCCcyeQ6Km0D6+IapqPinWBK6y+0eB5umvZXK9WPs=
 github.com/fatih/color v1.3.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.0-20180418122429-ca190fb6ffbc h1:jtW8jbpkO4YirRSyepBOH8E+2HEw6/hKkBvFPwhUN8c=
