@@ -1705,8 +1705,6 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 }
 
 func (d *Downloader) calcPivot(height uint64) uint64 {
-	return 172801
-	/*
 	var pivot uint64 = 1
 	if height > d.epoch {
 		pivot = height/d.epoch*d.epoch + 1
@@ -1714,9 +1712,8 @@ func (d *Downloader) calcPivot(height uint64) uint64 {
 			pivot = pivot - d.epoch
 		}
 	}
-	log.Info("calc pivot", "pivot", pivot, "height", height, "epochsize", d.epoch)
+	// log.Info("calc pivot", "pivot", pivot, "height", height, "epochsize", d.epoch)
 	return pivot
-	*/
 }
 
 // processFastSyncContent takes fetch results from the queue and writes them to the
