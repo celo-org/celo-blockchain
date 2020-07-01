@@ -40,11 +40,6 @@ import (
 )
 
 func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.StateDB) error {
-
-	if sb.chain.Config().NoMintGold {
-		return sb.distributeEpochRewardsNoMint(header, state)
-	}
-
 	start := time.Now()
 	defer sb.rewardDistributionTimer.UpdateSince(start)
 	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
