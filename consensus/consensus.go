@@ -199,5 +199,7 @@ type Istanbul interface {
 	// It will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
 
+	// This is only implemented for Istanbul
+	// It will subscribe to NewViewFeed in
 	SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription
 }

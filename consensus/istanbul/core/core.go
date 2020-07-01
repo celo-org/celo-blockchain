@@ -469,7 +469,8 @@ func (c *core) startNewRound(round *big.Int) error {
 		return err
 	}
 
-	newViewEvent := istanbul.NewViewEvent{NewView: newView, Proposer: nextProposer}
+	isProposer := nextProposer.Address() == c.address
+	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: isProposer}
 	c.newViewFeed.Send(newViewEvent)
 
 	// Process backlog
