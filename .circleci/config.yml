@@ -136,7 +136,7 @@ jobs:
       - run:
           name: Setup celo-monorepo
           command: |
-            set -e
+            set -ex
             mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
             ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep 'github.com RSA ${GITHUB_RSA_FINGERPRINT}'
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
