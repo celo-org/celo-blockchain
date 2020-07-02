@@ -917,7 +917,7 @@ func testInvalidHeaderRollback(t *testing.T, protocol int, mode SyncMode) {
 	defer tester.terminate()
 
 	// Create a small enough block chain to download
-	targetBlocks := 3*fsHeaderSafetyNet + 256 + fsMinFullBlocks
+	targetBlocks := 3*fsHeaderSafetyNet + 256 + int(fsMinFullBlocks)
 	chain := testChainBase.shorten(targetBlocks)
 
 	// Attempt to sync with an attacker that feeds junk during the fast sync phase.
@@ -1575,5 +1575,26 @@ func testCheckpointEnforcement(t *testing.T, protocol int, mode SyncMode) {
 		assertOwnChain(t, tester, 1)
 	} else {
 		assertOwnChain(t, tester, chain.len())
+	}
+}
+
+func TestPivot(t *testing.T) {
+	testCases := []struct {
+		height uint64
+		epoch uint64
+		expected uint64
+	}{
+		{0, 0, 0},
+		{172, 17280, 0},
+		{17280, 17280, 0},
+		{17280*10 + 1000, 17280, 17280*10 + 1},
+		{17280*10 + 10, 17280, 17280*9 + 1},
+		{17280*10, 17280, 17280*9 + 1},
+		{17280*10 - 1000, 17280, 17280*9 + 1},
+	}
+	for _, tt := range(testCases) {
+		if res := computePivot(tt.height, tt.epoch); res != tt.expected {
+			t.Errorf("Got %v expected %v for value %v", res, tt.expected, tt.height)
+		}
 	}
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -70,7 +71,7 @@ var (
 	fsHeaderSafetyNet      = 2048            // Number of headers to discard in case a chain violation is detected
 	fsHeaderForceVerify    = 24              // Number of headers to verify before and after the pivot to accept it
 	fsHeaderContCheck      = 3 * time.Second // Time interval to check for header continuations during state download
-	fsMinFullBlocks        = 64              // Number of blocks to retrieve fully even in fast sync
+	fsMinFullBlocks uint64 = 64              // Number of blocks to retrieve fully even in fast sync
 )
 
 var (
@@ -165,8 +166,6 @@ type Downloader struct {
 	bodyFetchHook    func([]*types.Header) // Method to call upon starting a block body fetch
 	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
 	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
-
-	minFullBlocks uint64
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -242,11 +241,6 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		panic(fmt.Sprintf("epoch is too big(%d), the code to fetch epoch headers casts epoch to an int to calculate value for skip variable", epoch))
 	}
 
-	minFullBlocks := epoch
-	if epoch < uint64(fsMinFullBlocks) {
-		minFullBlocks = uint64(fsMinFullBlocks)
-	}
-
 	dl := &Downloader{
 		stateDB:        stateDb,
 		stateBloom:     stateBloom,
@@ -274,7 +268,6 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		trackStateReq: make(chan *stateReq),
 		ibftConsensus: ibftConsensus,
 		epoch:         epoch,
-		minFullBlocks: minFullBlocks,
 	}
 	go dl.qosTuner()
 	go dl.stateFetcher()
@@ -490,12 +483,12 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	d.syncStatsLock.Unlock()
 
 	// Ensure our origin point is below any fast sync pivot point
-	pivot := d.calcPivot(height)
-	if d.Mode == FastSync && origin >= pivot {
-		origin = pivot - 1
-	}
 	d.committed = 1
+	pivot := d.calcPivot(height)
 	if d.Mode == FastSync && pivot != 0 {
+		if origin >= pivot {
+			origin = pivot - 1
+		}
 		d.committed = 0
 	}
 	if d.Mode == FastSync {
@@ -1704,16 +1697,38 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	return nil
 }
 
-func (d *Downloader) calcPivot(height uint64) uint64 {
-	var pivot uint64 = 1
-	if height > d.epoch {
-		pivot = height/d.epoch*d.epoch + 1
-		if pivot-height < uint64(fsMinFullBlocks) {
-			pivot = pivot - d.epoch
-		}
+func max(a uint64, b uint64) uint64 {
+	if a < b {
+		return b
 	}
-	// log.Info("calc pivot", "pivot", pivot, "height", height, "epochsize", d.epoch)
-	return pivot
+	return a
+}
+
+func computePivot(height uint64, epoch uint64) uint64 {
+	if height <= fsMinFullBlocks {
+		return 0
+	}
+	target := height - fsMinFullBlocks
+	if target > epoch {
+		curEpoch := istanbul.GetEpochNumber(target, epoch)
+		pivot, _ := istanbul.GetEpochFirstBlockNumber(curEpoch, epoch)
+		return pivot
+	}
+	return 0
+}
+
+func (d *Downloader) calcPivot(height uint64) uint64 {
+	if d.Mode != FastSync {
+		return 0
+	}
+	if d.epoch == 0 {
+		if fsMinFullBlocks > height {
+			return 0
+		}
+		return height - fsMinFullBlocks
+	}
+	// return 172801
+	return computePivot(height, d.epoch)
 }
 
 // processFastSyncContent takes fetch results from the queue and writes them to the
@@ -1764,7 +1779,7 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 		// Split around the pivot block and process the two sides via fast/full sync
 		if atomic.LoadInt32(&d.committed) == 0 {
 			latest = results[len(results)-1].Header
-			if height := latest.Number.Uint64(); height > pivot+2*d.minFullBlocks {
+			if height := latest.Number.Uint64(); height > pivot+2*max(d.epoch, fsMinFullBlocks) {
 				newPivot := d.calcPivot(height)
 				log.Warn("Pivot became stale, moving", "old", pivot, "new", newPivot)
 				pivot = newPivot
