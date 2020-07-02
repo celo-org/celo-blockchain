@@ -483,15 +483,17 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	d.syncStatsLock.Unlock()
 
 	// Ensure our origin point is below any fast sync pivot point
-	d.committed = 1
-	pivot := d.calcPivot(height)
-	if d.Mode == FastSync && pivot == 0 {
-		origin = 0
-	}
-	if d.Mode == FastSync && pivot != 0 {
-		if origin >= pivot {
+	pivot := uint64(0)
+	if d.Mode == FastSync {
+		pivot = d.calcPivot(height)
+		if pivot == 0 {
+			origin = 0
+		} else if pivot <= origin {
 			origin = pivot - 1
 		}
+	}
+	d.committed = 1
+	if d.Mode == FastSync && pivot != 0 {
 		d.committed = 0
 	}
 	if d.Mode == FastSync {
@@ -1707,30 +1709,32 @@ func max(a uint64, b uint64) uint64 {
 	return a
 }
 
-func computePivot(height uint64, epoch uint64) uint64 {
+func computePivot(height uint64, epochSize uint64) uint64 {
 	if height <= fsMinFullBlocks {
 		return 0
 	}
 	target := height - fsMinFullBlocks
-	if target > epoch {
-		curEpoch := istanbul.GetEpochNumber(target, epoch)
-		pivot, _ := istanbul.GetEpochFirstBlockNumber(curEpoch, epoch)
-		return pivot
+	targetEpoch := istanbul.GetEpochNumber(target, epochSize)
+
+	// if target is on first epoch start on genesis
+	if targetEpoch <= 1 {
+		return 0
 	}
-	return 0
+
+	// else start on first block of the epoch
+	pivot, _ := istanbul.GetEpochFirstBlockNumber(targetEpoch, epochSize)
+	return pivot
+
 }
 
 func (d *Downloader) calcPivot(height uint64) uint64 {
-	if d.Mode != FastSync {
-		return 0
-	}
+	// If epoch is not set (not IBFT) use old logic
 	if d.epoch == 0 {
 		if fsMinFullBlocks > height {
 			return 0
 		}
 		return height - fsMinFullBlocks
 	}
-	// return 172801
 	return computePivot(height, d.epoch)
 }
 
