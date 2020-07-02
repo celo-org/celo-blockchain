@@ -779,6 +779,10 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		genesis := chain.GetHeaderByNumber(0)
+		if genesis == nil {
+			log.Error("Cannot load genesis")
+			return nil, errors.New("Cannot load genesis")
+		}
 
 		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
 		if err != nil {
