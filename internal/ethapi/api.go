@@ -1047,6 +1047,15 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool) (map[string]i
 		"revealed":  hexutil.Bytes(block.Randomness().Revealed.Bytes()),
 		"committed": hexutil.Bytes(block.Randomness().Committed.Bytes()),
 	}
+	epochSnarkData := block.EpochSnarkData()
+	if epochSnarkData != nil {
+		fields["epochSnarkData"] = map[string]interface{}{
+			"bitmap":    hexutil.Bytes(block.EpochSnarkData().Bitmap.Bytes()),
+			"signature": hexutil.Bytes(block.EpochSnarkData().Signature),
+		}
+	} else {
+		fields["epochSnarkData"] = nil
+	}
 
 	if inclTx {
 		formatTx := func(tx *types.Transaction) (interface{}, error) {
