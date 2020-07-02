@@ -67,11 +67,11 @@ var (
 	reorgProtThreshold   = 48 // Threshold number of recent blocks to disable mini reorg protection
 	reorgProtHeaderDelay = 2  // Number of headers to delay delivering to cover mini reorgs
 
-	fsHeaderCheckFrequency = 100             // Verification frequency of the downloaded headers during fast sync
-	fsHeaderSafetyNet      = 2048            // Number of headers to discard in case a chain violation is detected
-	fsHeaderForceVerify    = 24              // Number of headers to verify before and after the pivot to accept it
-	fsHeaderContCheck      = 3 * time.Second // Time interval to check for header continuations during state download
-	fsMinFullBlocks uint64 = 64              // Number of blocks to retrieve fully even in fast sync
+	fsHeaderCheckFrequency        = 100             // Verification frequency of the downloaded headers during fast sync
+	fsHeaderSafetyNet             = 2048            // Number of headers to discard in case a chain violation is detected
+	fsHeaderForceVerify           = 24              // Number of headers to verify before and after the pivot to accept it
+	fsHeaderContCheck             = 3 * time.Second // Time interval to check for header continuations during state download
+	fsMinFullBlocks        uint64 = 64              // Number of blocks to retrieve fully even in fast sync
 )
 
 var (
@@ -485,6 +485,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	// Ensure our origin point is below any fast sync pivot point
 	d.committed = 1
 	pivot := d.calcPivot(height)
+	if d.Mode == FastSync && pivot == 0 {
+		origin = 0
+	}
 	if d.Mode == FastSync && pivot != 0 {
 		if origin >= pivot {
 			origin = pivot - 1
