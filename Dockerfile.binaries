@@ -1,0 +1,56 @@
+# Purpose:
+# -------
+# This docker image is used by the ./cloudbuild-binaries.yaml CI flow to
+# cross-compile geth for different platforms.
+# At the time of writing this is only linux-{386/amd64} but there are two
+# pending update that will add darwin-{386,amd64} and windows-amd64 support.
+#
+# How to test changes to this image locally:
+# -----------------------------------------
+# First build the image:
+# docker build -f Dockerfile.binaries -t gcr.io/celo-testnet/geth-xgo-builder:$USER .
+#
+# Running this image depends on a series of environment variables:
+#   BUILD_TARGETS       Comma separated list of platforms to build for,
+#                       passed as an arg to xgo. eg: "linux/386,linux/amd64"
+#   TAG_NAME            Name of the tag associated with the current commit
+#   BRANCH_NAME         Name of the branch
+#   REPO_NAME           Name of the repo
+#   COMMIT_SHA          Full SHA of the commit
+#   COMMIT_TIMESTAMP    Commit timestamp
+#                       TODO: currently this is not accurately passed see
+#                             discussion in PR celo-blockchain#<number>
+#   CLOUDBUILD          True/False
+#   CI                  True/False
+#                       These two are used to comply with how geth handles build
+#                       environments internal/build/env.go where we have added a
+#                       branch for Cloudbuild
+# You also need to mount:
+#    $(pwd)/build/bin:/build - where binaries will be written
+#    $(pwd)/build/archives:/archives - where the archives (final release artfeact) will be written
+#    $(pwd):/go/src/github.com/ethereum/go-ethereum - the source code
+#
+# With all of the above in place the container needs to execute two commands:
+# (see ./cloudbuild-binaries.yaml for example of the full command)
+# 1. Create the binaries:
+#    go run build/ci.go xgo --alltools -- -targets=$BUILD_TARGETS -v -dest /build
+# 2. Create release archives:
+#    go run build/ci.go xgo-archive -targets=$_BUILD_TARGETS -in /build -out /archives
+#
+# This will result in build archives stored in ./build/archives
+# In the CI flow these are then uploaded to cloud storage as artefacts.
+
+# Build Geth binaries in the xgo builder container
+FROM techknowlogick/xgo:go-1.13.x
+# techknowlogic/xgo is a fork of karalabe/xgo updated to ubunut-18, it is more maintained
+# by the community and allows us to backport mingw in order to build for windows
+# See discussion in PR celo-blockchain#<number> about downsides of this image
+
+# We need a newer version of mingw, backported to Bionic
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install -y  --no-install-recommends software-properties-common apt-utils
+RUN add-apt-repository -y ppa:mati865/mingw-w64
+RUN apt update && apt -y upgrade
+
+RUN mkdir -p /go/src/github.com/ethereum/go-ethereum
+WORKDIR /go/src/github.com/ethereum/go-ethereum
