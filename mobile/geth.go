@@ -133,9 +133,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config == nil {
 		config = NewNodeConfig()
 	}
-	if config.MaxPeers == 0 {
-		config.MaxPeers = defaultNodeConfig.MaxPeers
-	}
 	if config.BootstrapNodes == nil || config.BootstrapNodes.Size() == 0 {
 		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
 	}
