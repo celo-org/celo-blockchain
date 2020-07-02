@@ -251,7 +251,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	// elected?
 	elected := gpValSetIndex >= 0
 	if !elected {
-		sb.blocksElectedButNotSignedCounter.Clear()
+		sb.blocksElectedButNotSignedGauge.Update(0)
 		return
 	}
 	sb.blocksElectedMeter.Mark(1)
@@ -267,21 +267,22 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
 	if inParentSeal {
 		sb.blocksElectedAndSignedMeter.Mark(1)
-		sb.blocksElectedButNotSignedCounter.Clear()
+		sb.blocksElectedButNotSignedGauge.Update(0)
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
+		sb.blocksElectedButNotSignedGauge.Update(sb.blocksElectedButNotSignedGauge.Value() + 1)
 		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
 	}
 
 	// Report downtime events
-	if sb.blocksElectedButNotSignedCounter.Count() >= 12 {
+	if sb.blocksElectedButNotSignedGauge.Value() >= 12 {
 		sb.blocksDowntimeEventMeter.Mark(1)
-		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedCounter.Count(), "number", number-1, "address", sb.ValidatorAddress())
+		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
 	}
 
 	// Clear downtime counter on end of epoch.
 	if istanbul.IsLastBlockOfEpoch(number-1, sb.config.Epoch) {
-		sb.blocksElectedButNotSignedCounter.Clear()
+		sb.blocksElectedButNotSignedGauge.Update(0)
 	}
 
 	// missed round as proposer
