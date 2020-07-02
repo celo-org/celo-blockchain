@@ -6,11 +6,12 @@ executors:
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v2
+      - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"
       CELO_MONOREPO_BRANCH_TO_TEST: master
+      GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
     executor: golang
@@ -135,6 +136,9 @@ jobs:
       - run:
           name: Setup celo-monorepo
           command: |
+            set -e
+            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep 'github.com RSA ${GITHUB_RSA_FINGERPRINT}' && echo "Github key verification successful"
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
