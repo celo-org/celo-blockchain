@@ -757,8 +757,14 @@ var (
 	}
 	ProxyEnodeURLPairsFlag = cli.StringFlag{
 		Name:  "proxy.proxyenodeurlpairs",
-		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a comma. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
+
+	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs",
+	}
+
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -1438,11 +1444,19 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
 		} else {
-			proxyEnodeURLPairs := strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+			// Extract the proxy enode url pairs, new flag overriding legacy one
+			var proxyEnodeURLPairs []string
 
+			if ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
+				proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsLegacyFlag.Name), ",")
+			}
+
+			if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+				proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+			}
 			ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
 
 			for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
