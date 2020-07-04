@@ -129,7 +129,7 @@ type BackendForProxy interface {
 	// NewValEnodeTableEntry will create a new ValEnodeTableEntry object (but will NOT save it into the valEnodeTable)
 	NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) ValEnodeTableEntry
 
-	// GetValEnodeTableEntries rerieves the entries in the valEnodeTable filtered on the "validators" parameter.
+	// GetValEnodeTableEntries retrieves the entries in the valEnodeTable filtered on the "validators" parameter.
 	// If the parameter is nil, then no filter will be applied.
 	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]ValEnodeTableEntry, error)
 

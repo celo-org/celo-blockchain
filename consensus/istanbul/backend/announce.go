@@ -98,7 +98,7 @@ func (sb *Backend) announceThread() {
 
 	updateAnnounceVersionFunc := func() {
 		version := getTimestamp()
-		if version <= sb.announceVersion {
+		if version <= sb.GetAnnounceVersion() {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
 			return
 		}
@@ -215,7 +215,7 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if err := sb.generateAndGossipQueryEnode(sb.announceVersion, queryEnodeFrequencyState == LowFreqState); err != nil {
+				if err := sb.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}

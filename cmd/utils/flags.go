@@ -1460,8 +1460,6 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
 
 			for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
-				var err error
-
 				proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
 				if len(proxyEnodeURLPair) != 2 {
 					Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairsFlag.Name)
