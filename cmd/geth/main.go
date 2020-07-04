@@ -149,6 +149,7 @@ var (
 		utils.ProxiedValidatorAddressFlag,
 		utils.ProxiedFlag,
 		utils.ProxyEnodeURLPairsFlag,
+		utils.ProxyEnodeURLPairsLegacyFlag,
 		utils.ProxyAllowPrivateIPFlag,
 	}
 
