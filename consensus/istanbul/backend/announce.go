@@ -402,9 +402,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		return err
 	}
 
-	queryEnodeDestAddresses := make([]common.Address, 0)
-	queryEnodePublicKeys := make([]*ecdsa.PublicKey, 0)
-	queryEnodeExternalEnodeURLs := make([]string, 0)
+	queryEnodeEncryptedEnodeURLParams := make([]*genEncryptedEnodeURLParam, 0)
 
 	var valProxyAssignments map[common.Address]*enode.Node
 	var selfEnodeURL string
@@ -414,28 +412,30 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return err
 		}
 	} else {
-		selfEnodeURL = sb.p2pserver.Self().URLv4()
+		selfEnodeURL = sb.SelfNode().URLv4()
 	}
 
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
+			var queryEnodeExternalEnodeURL string
 			if sb.IsProxiedValidator() {
 				if proxyNode, ok := valProxyAssignments[valEnodeEntry.Address]; ok && proxyNode != nil {
-					queryEnodeExternalEnodeURLs = append(queryEnodeExternalEnodeURLs, proxyNode.URLv4())
+					queryEnodeExternalEnodeURL = proxyNode.URLv4()
 				} else {
 					continue
 				}
 			} else { // For the standalone validator case
-				queryEnodeExternalEnodeURLs = append(queryEnodeExternalEnodeURLs, selfEnodeURL)
+				queryEnodeExternalEnodeURL = selfEnodeURL
 			}
 
-			queryEnodeDestAddresses = append(queryEnodeDestAddresses, valEnodeEntry.Address)
-			queryEnodePublicKeys = append(queryEnodePublicKeys, valEnodeEntry.PublicKey)
+			queryEnodeEncryptedEnodeURLParams = append(queryEnodeEncryptedEnodeURLParams, &genEncryptedEnodeURLParam{destAddress: valEnodeEntry.Address,
+				publicKey: valEnodeEntry.PublicKey,
+				enodeURL:  queryEnodeExternalEnodeURL})
 		}
 	}
 
-	if len(queryEnodeDestAddresses) > 0 {
-		istMsg, err := sb.generateQueryEnodeMsg(version, queryEnodeDestAddresses, queryEnodePublicKeys, queryEnodeExternalEnodeURLs)
+	if len(queryEnodeEncryptedEnodeURLParams) > 0 {
+		istMsg, err := sb.generateQueryEnodeMsg(version, queryEnodeEncryptedEnodeURLParams)
 		if err != nil {
 			return err
 		}
@@ -503,10 +503,10 @@ func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*ve
 }
 
 // generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
-func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeDestAddresses []common.Address, queryEnodePublicKeys []*ecdsa.PublicKey, queryEnodeExternalEnodeURLs []string) (*istanbul.Message, error) {
+func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateQueryEnodeMsg")
 
-	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(queryEnodeDestAddresses, queryEnodePublicKeys, queryEnodeExternalEnodeURLs)
+	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams)
 	if err != nil {
 		logger.Warn("Error generating encrypted enodeURLs", "err", err)
 		return nil, err
@@ -545,24 +545,30 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeDestAddresses [
 	return msg, nil
 }
 
+type genEncryptedEnodeURLParam struct {
+	destAddress common.Address
+	publicKey   *ecdsa.PublicKey
+	enodeURL    string
+}
+
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
 // whose entries in the val enode table do not exist or are outdated when compared
 // to the version certificate table.
-func (sb *Backend) generateEncryptedEnodeURLs(queryEnodeDestAddresses []common.Address, queryEnodePublicKeys []*ecdsa.PublicKey, generateEncryptedEnodeURLs []string) ([]*encryptedEnodeURL, error) {
+func (sb *Backend) generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam) ([]*encryptedEnodeURL, error) {
 	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
 
 	var encryptedEnodeURLs []*encryptedEnodeURL
-	for i, destAddress := range queryEnodeDestAddresses {
-		logger.Info("encrypting enodeURL", "externalEnodeURL", generateEncryptedEnodeURLs[i], "publicKey", queryEnodePublicKeys[i])
-		publicKey := ecies.ImportECDSAPublic(queryEnodePublicKeys[i])
-		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(generateEncryptedEnodeURLs[i]), nil, nil)
+	for _, param := range queryEnodeEncryptedEnodeURLParams {
+		logger.Info("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.publicKey)
+		publicKey := ecies.ImportECDSAPublic(param.publicKey)
+		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
 		if err != nil {
-			logger.Error("Error in encrypting enodeURL", "enodeURL", generateEncryptedEnodeURLs[i], "publicKey", publicKey)
+			logger.Error("Error in encrypting enodeURL", "enodeURL", param.enodeURL, "publicKey", publicKey)
 			return nil, err
 		}
 
 		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
-			DestAddress:       destAddress,
+			DestAddress:       param.destAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
 	}
