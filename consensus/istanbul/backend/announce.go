@@ -1098,13 +1098,15 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			payload, err := enodeCertMsg.Payload()
 			if err != nil {
 				logger.Error("Error getting payload of enode certificate message", "err", err, "proxyID", proxyID)
+				return err
 			} else {
 				proxySpecificPayloads[proxyID] = payload
 			}
 		}
 
 		if err := sb.proxyEngine.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
-			logger.Warn("Error in sharing the enode certificate message to the proxies", "error", err)
+			logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
+			return err
 		}
 	} else {
 		var enodeCertMsg *istanbul.Message
