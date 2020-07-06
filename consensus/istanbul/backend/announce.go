@@ -1103,7 +1103,9 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			}
 		}
 
-		sb.proxyEngine.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads)
+		if err := sb.proxyEngine.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
+			logger.Warn("Error in sharing the enode certificate message to the proxies", "error", err)
+		}
 	} else {
 		var enodeCertMsg *istanbul.Message
 
@@ -1355,18 +1357,6 @@ func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[c
 	}
 
 	return returnMap, nil
-}
-
-func (sb *Backend) UpsertValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
-	addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
-
-	for idx, entry := range entries {
-		// This is a bit of a hack, but it currently works since vet.AddressEntry is currently
-		// the only implementation of the istanbul.ValEnodeTableEntry interface
-		addressEntries[idx] = entry.(*vet.AddressEntry)
-	}
-
-	return sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
 }
 
 func (sb *Backend) RewriteValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
