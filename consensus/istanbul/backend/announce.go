@@ -463,14 +463,14 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	return err
 }
 
-func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*vet.AddressEntry, error) {
+func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*istanbul.AddressEntry, error) {
 	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
 	valEnodeEntries, err := sb.valEnodeTable.GetValEnodes(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var queryEnodeValEnodeEntries []*vet.AddressEntry
+	var queryEnodeValEnodeEntries []*istanbul.AddressEntry
 	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
 		if address == sb.Address() {
@@ -695,7 +695,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// If the target is not a peer and should be a ValidatorPurpose peer, this
 	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
 	// during the istanbul handshake.
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
 		return err
 	}
 	return nil
@@ -1000,7 +1000,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	}
 	if shouldProcess {
 		// Update entries in val enode db
-		var valEnodeEntries []*vet.AddressEntry
+		var valEnodeEntries []*istanbul.AddressEntry
 		for _, entry := range entries {
 			// Don't add ourselves into the val enode table
 			if entry.Address == sb.Address() {
@@ -1010,7 +1010,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 			// only update this entry if the HighestKnownVersion is greater
 			// than the existing one.
 			// Also store the PublicKey for future encryption in queryEnode msgs
-			valEnodeEntries = append(valEnodeEntries, &vet.AddressEntry{
+			valEnodeEntries = append(valEnodeEntries, &istanbul.AddressEntry{
 				Address:             entry.Address,
 				PublicKey:           entry.PublicKey,
 				HighestKnownVersion: entry.Version,
@@ -1286,7 +1286,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
@@ -1335,22 +1335,14 @@ func (sb *Backend) getEnodeCertificateMsgVersion() uint {
 	return sb.enodeCertificateMsgVersion
 }
 
-func (sb *Backend) NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) istanbul.ValEnodeTableEntry {
-	return &vet.AddressEntry{
-		Address: address,
-		Node:    node,
-		Version: version,
-	}
-}
-
-func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]istanbul.ValEnodeTableEntry, error) {
+func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
 	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
 
 	if err != nil {
 		return nil, err
 	}
 
-	returnMap := make(map[common.Address]istanbul.ValEnodeTableEntry)
+	returnMap := make(map[common.Address]*istanbul.AddressEntry)
 
 	for address, addressEntry := range addressEntries {
 		returnMap[address] = addressEntry
@@ -1359,19 +1351,15 @@ func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[c
 	return returnMap, nil
 }
 
-func (sb *Backend) RewriteValEnodeTableEntries(entries []istanbul.ValEnodeTableEntry) error {
+func (sb *Backend) RewriteValEnodeTableEntries(entries []*istanbul.AddressEntry) error {
 	addressesToKeep := make(map[common.Address]bool)
-	addressEntries := make([]*vet.AddressEntry, len(entries), len(entries))
 
-	for i, entry := range entries {
+	for _, entry := range entries {
 		addressesToKeep[entry.GetAddress()] = true
-		// This is a bit of a hack, but it currently works since vet.AddressEntry is currently
-		// the only implementation of the istanbul.ValEnodeTableEntry interface
-		addressEntries[i] = entry.(*vet.AddressEntry)
 	}
 
 	sb.valEnodeTable.PruneEntries(addressesToKeep)
-	sb.valEnodeTable.UpsertVersionAndEnode(addressEntries)
+	sb.valEnodeTable.UpsertVersionAndEnode(entries)
 
 	return nil
 }

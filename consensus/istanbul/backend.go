@@ -125,16 +125,12 @@ type BackendForProxy interface {
 	// If sendToSelf is set to true, then the function will send an event to self via a message event
 	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 
-	// ValEnodeTable related functions
-	// NewValEnodeTableEntry will create a new ValEnodeTableEntry object (but will NOT save it into the valEnodeTable)
-	NewValEnodeTableEntry(address common.Address, node *enode.Node, version uint) ValEnodeTableEntry
-
 	// GetValEnodeTableEntries retrieves the entries in the valEnodeTable filtered on the "validators" parameter.
 	// If the parameter is nil, then no filter will be applied.
-	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]ValEnodeTableEntry, error)
+	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]*AddressEntry, error)
 
 	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries" rows.
-	RewriteValEnodeTableEntries(entries []ValEnodeTableEntry) error
+	RewriteValEnodeTableEntries(entries []*AddressEntry) error
 
 	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
 	UpdateAnnounceVersion()

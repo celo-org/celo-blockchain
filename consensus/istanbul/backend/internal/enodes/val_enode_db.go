@@ -17,9 +17,7 @@
 package enodes
 
 import (
-	"crypto/ecdsa"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -55,124 +54,12 @@ type ValidatorEnodeHandler interface {
 	ClearValidatorPeers()
 }
 
-// AddressEntry is an entry for the valEnodeTable.
-type AddressEntry struct {
-	Address                      common.Address
-	PublicKey                    *ecdsa.PublicKey
-	Node                         *enode.Node
-	Version                      uint
-	HighestKnownVersion          uint
-	NumQueryAttemptsForHKVersion uint
-	LastQueryTimestamp           *time.Time
-}
-
-func addressEntryFromGenericEntry(entry genericEntry) (*AddressEntry, error) {
-	addressEntry, ok := entry.(*AddressEntry)
+func addressEntryFromGenericEntry(entry genericEntry) (*istanbul.AddressEntry, error) {
+	addressEntry, ok := entry.(*istanbul.AddressEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
 	}
 	return addressEntry, nil
-}
-
-func (ae *AddressEntry) String() string {
-	var nodeString string
-	if ae.Node != nil {
-		nodeString = ae.Node.String()
-	}
-	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForHKVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForHKVersion, ae.LastQueryTimestamp)
-}
-
-// Implement RLP Encode/Decode interface
-type rlpEntry struct {
-	Address                      common.Address
-	CompressedPublicKey          []byte
-	EnodeURL                     string
-	Version                      uint
-	HighestKnownVersion          uint
-	NumQueryAttemptsForHKVersion uint
-	LastQueryTimestamp           []byte
-}
-
-// EncodeRLP serializes AddressEntry into the Ethereum RLP format.
-func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
-	var nodeString string
-	if ae.Node != nil {
-		nodeString = ae.Node.String()
-	}
-	var publicKeyBytes []byte
-	if ae.PublicKey != nil {
-		publicKeyBytes = crypto.CompressPubkey(ae.PublicKey)
-	}
-	var lastQueryTimestampBytes []byte
-	if ae.LastQueryTimestamp != nil {
-		var err error
-		lastQueryTimestampBytes, err = ae.LastQueryTimestamp.MarshalBinary()
-		if err != nil {
-			return err
-		}
-	}
-
-	return rlp.Encode(w, rlpEntry{Address: ae.Address,
-		CompressedPublicKey:          publicKeyBytes,
-		EnodeURL:                     nodeString,
-		Version:                      ae.Version,
-		HighestKnownVersion:          ae.HighestKnownVersion,
-		NumQueryAttemptsForHKVersion: ae.NumQueryAttemptsForHKVersion,
-		LastQueryTimestamp:           lastQueryTimestampBytes})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
-func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
-	var entry rlpEntry
-	var err error
-	if err := s.Decode(&entry); err != nil {
-		return err
-	}
-	var node *enode.Node
-	if len(entry.EnodeURL) > 0 {
-		node, err = enode.ParseV4(entry.EnodeURL)
-		if err != nil {
-			return err
-		}
-	}
-	var publicKey *ecdsa.PublicKey
-	if len(entry.CompressedPublicKey) > 0 {
-		publicKey, err = crypto.DecompressPubkey(entry.CompressedPublicKey)
-		if err != nil {
-			return err
-		}
-	}
-	lastQueryTimestamp := &time.Time{}
-	if len(entry.LastQueryTimestamp) > 0 {
-		err := lastQueryTimestamp.UnmarshalBinary(entry.LastQueryTimestamp)
-		if err != nil {
-			return err
-		}
-	}
-
-	*ae = AddressEntry{Address: entry.Address,
-		PublicKey:                    publicKey,
-		Node:                         node,
-		Version:                      entry.Version,
-		HighestKnownVersion:          entry.HighestKnownVersion,
-		NumQueryAttemptsForHKVersion: entry.NumQueryAttemptsForHKVersion,
-		LastQueryTimestamp:           lastQueryTimestamp}
-	return nil
-}
-
-// GetNode returns the address entry's node
-func (ae *AddressEntry) GetNode() *enode.Node {
-	return ae.Node
-}
-
-// GetVersion returns the addess entry's version
-func (ae *AddressEntry) GetVersion() uint {
-	return ae.Version
-}
-
-// GetAddess returns the addess entry's address
-func (ae *AddressEntry) GetAddress() common.Address {
-	return ae.Address
 }
 
 // ValidatorEnodeDB represents a Map that can be accessed either
@@ -213,7 +100,7 @@ func (vet *ValidatorEnodeDB) String() string {
 	var b strings.Builder
 	b.WriteString("ValEnodeTable:")
 
-	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
+	err := vet.iterateOverAddressEntries(func(address common.Address, entry *istanbul.AddressEntry) error {
 		fmt.Fprintf(&b, " [%s => %s]", address.String(), entry.String())
 		return nil
 	})
@@ -273,10 +160,10 @@ func (vet *ValidatorEnodeDB) GetHighestKnownVersionFromAddress(address common.Ad
 
 // GetValEnodes will return entries in the valEnodeDB filtered on the valAddresses parameter.
 // If it's set to nil, then no filter will be applied.
-func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[common.Address]*AddressEntry, error) {
+func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
-	var entries = make(map[common.Address]*AddressEntry)
+	var entries = make(map[common.Address]*istanbul.AddressEntry)
 	var valAddressesMap map[common.Address]struct{}
 
 	if valAddresses != nil {
@@ -286,7 +173,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 		}
 	}
 
-	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
+	err := vet.iterateOverAddressEntries(func(address common.Address, entry *istanbul.AddressEntry) error {
 		if valAddressesMap != nil {
 			if _, ok := valAddressesMap[address]; ok {
 				entries[address] = entry
@@ -309,7 +196,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 // UpsertHighestKnownVersion function will do the following
 // 1. Check if the updated HighestKnownVersion is higher than the existing HighestKnownVersion
 // 2. Update the fields HighestKnownVersion, NumQueryAttempsForHKVersion, and PublicKey
-func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*AddressEntry) error {
+func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*istanbul.AddressEntry) error {
 	logger := vet.logger.New("func", "UpsertHighestKnownVersion")
 
 	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
@@ -366,7 +253,7 @@ func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*Addres
 // 1. Check if the updated Version higher than the existing Version
 // 2. Update Node, Version, HighestKnownVersion (if it's less than the new Version)
 // 3. If the Node has been updated, establish new validator peer
-func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEntry) error {
+func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.AddressEntry) error {
 	logger := vet.logger.New("func", "UpsertVersionAndEnode")
 
 	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
@@ -444,7 +331,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*AddressEnt
 // UpdateQueryEnodeStats function will do the following
 // 1. Increment each entry's NumQueryAttemptsForHKVersion by 1 is existing HighestKnownVersion is the same
 // 2. Set each entry's LastQueryTimestamp to the current time
-func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*AddressEntry) error {
+func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.AddressEntry) error {
 	logger := vet.logger.New("func", "UpdateEnodeQueryStats")
 
 	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
@@ -502,7 +389,7 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*AddressEnt
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
-func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*AddressEntry,
+func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*istanbul.AddressEntry,
 	onNewEntry func(batch *leveldb.Batch, entry genericEntry) error,
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error) error {
 	logger := vet.logger.New("func", "Upsert")
@@ -547,7 +434,7 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
 	batch := new(leveldb.Batch)
-	err := vet.iterateOverAddressEntries(func(address common.Address, entry *AddressEntry) error {
+	err := vet.iterateOverAddressEntries(func(address common.Address, entry *istanbul.AddressEntry) error {
 		if !addressesToKeep[address] {
 			vet.logger.Trace("Deleting entry from valEnodeTable", "address", address)
 			return vet.addDeleteToBatch(batch, address)
@@ -602,8 +489,8 @@ func (vet *ValidatorEnodeDB) addDeleteToBatch(batch *leveldb.Batch, address comm
 	return nil
 }
 
-func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEntry, error) {
-	var entry AddressEntry
+func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*istanbul.AddressEntry, error) {
+	var entry istanbul.AddressEntry
 	entryBytes, err := vet.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
@@ -615,13 +502,13 @@ func (vet *ValidatorEnodeDB) getAddressEntry(address common.Address) (*AddressEn
 	return &entry, nil
 }
 
-func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Address, *AddressEntry) error) error {
+func (vet *ValidatorEnodeDB) iterateOverAddressEntries(onEntry func(common.Address, *istanbul.AddressEntry) error) error {
 	logger := vet.logger.New("func", "iterateOverAddressEntries")
 	// Only target address keys
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-		var entry AddressEntry
+		var entry istanbul.AddressEntry
 		if err := rlp.DecodeBytes(value, &entry); err != nil {
 			return err
 		}
