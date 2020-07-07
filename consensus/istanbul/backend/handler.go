@@ -309,6 +309,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		err = peer.Send(istanbul.ValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
+			return
 		}
 		isValidatorCh <- peerIsValidator
 	}
@@ -419,7 +420,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	// to its val enode table, which occurs if the proxied validator sends back
 	// the enode certificate to this proxy.
 	if sb.IsProxy() {
-		sb.proxyEngine.SendEnodeCertificateMsgToProxiedValidator(&msg)
+		go sb.proxyEngine.SendEnodeCertificateMsgToProxiedValidator(&msg)
 		return false, nil
 	}
 
