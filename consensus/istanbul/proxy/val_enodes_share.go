@@ -104,7 +104,7 @@ func (p *proxyEngine) SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteVali
 }
 
 func (p *proxyEngine) SendValEnodesShareMsgToAllProxies() {
-	p.ph.sendValEnodeShareMsgsCh <- struct{}{}
+	p.ph.SendValEnodeShareMsgs()
 }
 
 func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {

@@ -121,8 +121,54 @@ func (ph *proxyHandler) Stop() error {
 	return nil
 }
 
+func (ph *proxyHandler) SendValEnodeShareMsgs() {
+	ph.sendValEnodeShareMsgsCh <- struct{}{}
+}
+
+// This function will return the assigned proxies for the given remote validators.
+// If the "validators" parameter is nil, then this function will return all of the validator assignments.
+func (ph *proxyHandler) GetValidatorAssignments(validators []common.Address) (map[common.Address]*proxy, error) {
+	assignedProxies := make(map[common.Address]*proxy)
+
+	select {
+	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		valAssignments := ps.getValidatorAssignments(validators, nil)
+
+		for address, proxy := range valAssignments {
+			assignedProxies[address] = proxy
+		}
+	}:
+		<-ph.proxyHandlerOpDoneCh
+
+	case <-ph.quit:
+		return nil, ErrStoppedProxyHandler
+
+	}
+
+	return assignedProxies, nil
+}
+
+// This function will return all of the proxies' info.  It's used to display
+// that info via the RPC API.
+func (ph *proxyHandler) GetProxiesInfo() ([]*ProxyInfo, error) {
+	var proxyInfo []*ProxyInfo
+
+	select {
+	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		proxyInfo = ps.getProxyInfo()
+	}:
+		<-ph.proxyHandlerOpDoneCh
+
+	case <-ph.quit:
+		return nil, ErrStoppedProxyHandler
+
+	}
+
+	return proxyInfo, nil
+}
+
 // isRunning returns if `run` is currently running in a goroutine
-func (ph *proxyHandler) running() bool {
+func (ph *proxyHandler) Running() bool {
 	ph.lock.RLock()
 	defer ph.lock.RUnlock()
 
@@ -332,7 +378,7 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 
 	rmVals = make([]common.Address, 0) // There is a good chance that there will be no diff, so set size to 0
 
-	// First find all old val entries that are no in the newValConnSet (which will be the removed validator set),
+	// First find all old val entries that are not in the newValConnSet (which will be the removed validator set),
 	// and find all the same val entries and remove them from the newValConnSet.
 	for _, oldVal := range validators {
 		if !newValConnSet[oldVal] {
@@ -351,46 +397,4 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 	logger.Trace("returned diff", "newVals", common.ConvertToStringSlice(newVals), "rmVals", common.ConvertToStringSlice(rmVals))
 
 	return newVals, rmVals, nil
-}
-
-// This function will return the assigned proxies for the given remote validators.
-// If the "validators" parameter is nil, then this function will return all of the validator assignments.
-func (ph *proxyHandler) getValidatorAssignments(validators []common.Address) (map[common.Address]*proxy, error) {
-	assignedProxies := make(map[common.Address]*proxy)
-
-	select {
-	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
-		valAssignments := ps.getValidatorAssignments(validators, nil)
-
-		for address, proxy := range valAssignments {
-			assignedProxies[address] = proxy
-		}
-	}:
-		<-ph.proxyHandlerOpDoneCh
-
-	case <-ph.quit:
-		return nil, ErrStoppedProxyHandler
-
-	}
-
-	return assignedProxies, nil
-}
-
-// This function will return all of the proxies' info.  It's used to display
-// that info via the RPC API.
-func (ph *proxyHandler) getProxiesInfo() ([]*ProxyInfo, error) {
-	var proxyInfo []*ProxyInfo
-
-	select {
-	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
-		proxyInfo = ps.getProxyInfo()
-	}:
-		<-ph.proxyHandlerOpDoneCh
-
-	case <-ph.quit:
-		return nil, ErrStoppedProxyHandler
-
-	}
-
-	return proxyInfo, nil
 }

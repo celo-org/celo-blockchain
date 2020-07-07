@@ -30,7 +30,7 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 	if p.backend.IsProxiedValidator() {
 		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
-		valAssignments, err := p.ph.getValidatorAssignments(finalDestAddresses)
+		valAssignments, err := p.ph.GetValidatorAssignments(finalDestAddresses)
 		if err != nil {
 			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
 			return err

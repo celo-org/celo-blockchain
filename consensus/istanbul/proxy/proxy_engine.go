@@ -156,11 +156,11 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error) {
 	logger := p.logger.New("func", "GetValidatorProxyAssignments")
 	if p.backend.IsProxiedValidator() {
-		if !p.ph.running() {
+		if !p.ph.Running() {
 			return nil, ErrStoppedProxyHandler
 		}
 
-		valAssignments, err := p.ph.getValidatorAssignments(nil)
+		valAssignments, err := p.ph.GetValidatorAssignments(nil)
 		if err != nil {
 			logger.Warn("Error in retrieving all of the validator assignments", "err", err)
 			return nil, err
@@ -183,7 +183,7 @@ func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.
 }
 
 func (p *proxyEngine) GetProxiesInfo() ([]*ProxyInfo, error) {
-	return p.ph.getProxiesInfo()
+	return p.ph.GetProxiesInfo()
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
