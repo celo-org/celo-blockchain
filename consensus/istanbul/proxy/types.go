@@ -77,7 +77,7 @@ type ProxyEngine interface {
 	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
 	SendValEnodesShareMsgToAllProxies()
 	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
-	GetProxiesInfo() ([]ProxyInfo, error)
+	GetProxiesInfo() ([]*ProxyInfo, error)
 	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 }
 
@@ -92,6 +92,14 @@ type proxy struct {
 	disconnectTS time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
 }
 
+func (p proxy) ID() enode.ID {
+	return p.node.ID()
+}
+
+func (p proxy) String() string {
+	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
+}
+
 // ProxyInfo is used to provide info on a proxy that can be given via an RPC
 type ProxyInfo struct {
 	InternalNode             *enode.Node      `json:"internalEnodeUrl"`
@@ -99,23 +107,6 @@ type ProxyInfo struct {
 	IsPeered                 bool             `json:"isPeered"`
 	AssignedRemoteValidators []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
 	DisconnectTS             int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
-}
-
-func (p proxy) ID() enode.ID {
-	return p.node.ID()
-}
-
-func (p proxy) Info() ProxyInfo {
-	return ProxyInfo{
-		InternalNode: p.node,
-		ExternalNode: p.externalNode,
-		IsPeered:     p.peer != nil,
-		DisconnectTS: p.disconnectTS.Unix(),
-	}
-}
-
-func (p proxy) String() string {
-	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
 }
 
 // ==============================================

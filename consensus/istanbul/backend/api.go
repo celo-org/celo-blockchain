@@ -171,7 +171,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 }
 
 // Proxies retrieves all the proxied validator's proxies' info
-func (api *API) GetProxiesInfo() ([]proxy.ProxyInfo, error) {
+func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 	return api.istanbul.proxyEngine.GetProxiesInfo()
 }
 

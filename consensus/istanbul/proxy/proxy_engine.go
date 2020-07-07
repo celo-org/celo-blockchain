@@ -182,21 +182,8 @@ func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.
 	}
 }
 
-func (p *proxyEngine) GetProxiesInfo() ([]ProxyInfo, error) {
-	var proxyInfo []ProxyInfo
-
-	select {
-	case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
-		proxyInfo = ps.getProxyInfo()
-	}:
-		<-p.ph.proxyHandlerOpDoneCh
-
-	case <-p.ph.quit:
-		return []ProxyInfo{}, ErrStoppedProxyHandler
-
-	}
-
-	return proxyInfo, nil
+func (p *proxyEngine) GetProxiesInfo() ([]*ProxyInfo, error) {
+	return p.ph.getProxiesInfo()
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {

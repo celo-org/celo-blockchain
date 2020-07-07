@@ -375,3 +375,22 @@ func (ph *proxyHandler) getValidatorAssignments(validators []common.Address) (ma
 
 	return assignedProxies, nil
 }
+
+// This function will return all of the proxies' info.  It's used to display
+// that info via the RPC API.
+func (ph *proxyHandler) getProxiesInfo() ([]*ProxyInfo, error) {
+	var proxyInfo []*ProxyInfo
+
+	select {
+	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		proxyInfo = ps.getProxyInfo()
+	}:
+		<-ph.proxyHandlerOpDoneCh
+
+	case <-ph.quit:
+		return nil, ErrStoppedProxyHandler
+
+	}
+
+	return proxyInfo, nil
+}

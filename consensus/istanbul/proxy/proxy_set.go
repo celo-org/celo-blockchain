@@ -202,23 +202,24 @@ func (ps *proxySet) getValidators() []common.Address {
 }
 
 // getProxyInfo returns basic info on all the proxies in the proxySet
-func (ps *proxySet) getProxyInfo() []ProxyInfo {
-	proxies := make([]ProxyInfo, len(ps.proxiesByID))
+func (ps *proxySet) getProxyInfo() []*ProxyInfo {
+	proxies := make([]*ProxyInfo, 0, len(ps.proxiesByID))
 
-	i := 0
 	for proxyID, proxy := range ps.proxiesByID {
-		proxies[i] = proxy.Info()
 		assignedVals := ps.getValidatorAssignments(nil, []enode.ID{proxyID})
+		assignedValsArray := make([]common.Address, 0, len(assignedVals))
 
-		if len(assignedVals) > 0 {
-			proxies[i].AssignedRemoteValidators = make([]common.Address, 0, len(assignedVals))
-
-			for val := range assignedVals {
-				proxies[i].AssignedRemoteValidators = append(proxies[i].AssignedRemoteValidators, val)
-			}
+		for val := range assignedVals {
+			assignedValsArray = append(assignedValsArray, val)
 		}
 
-		i++
+		proxies = append(proxies, &ProxyInfo{
+			InternalNode:             proxy.node,
+			ExternalNode:             proxy.externalNode,
+			IsPeered:                 proxy.peer != nil,
+			DisconnectTS:             proxy.disconnectTS.Unix(),
+			AssignedRemoteValidators: assignedValsArray,
+		})
 	}
 	return proxies
 }
