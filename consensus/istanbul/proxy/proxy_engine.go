@@ -154,30 +154,26 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 }
 
 func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error) {
+	logger := p.logger.New("func", "GetValidatorProxyAssignments")
 	if p.backend.IsProxiedValidator() {
 		if !p.ph.running() {
 			return nil, ErrStoppedProxyHandler
 		}
 
+		valAssignments, err := p.ph.getValidatorAssignments(nil)
+		if err != nil {
+			logger.Warn("Error in retrieving all of the validator assignments", "err", err)
+			return nil, err
+		}
+
 		valProxyAssignments := make(map[common.Address]*enode.Node)
 
-		select {
-		case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
-			valAssignments := ps.getValidatorAssignments(nil, nil)
-
-			for address, proxy := range valAssignments {
-				if proxy != nil {
-					valProxyAssignments[address] = proxy.externalNode
-				} else {
-					valProxyAssignments[address] = nil
-				}
+		for address, proxy := range valAssignments {
+			if proxy != nil {
+				valProxyAssignments[address] = proxy.externalNode
+			} else {
+				valProxyAssignments[address] = nil
 			}
-		}:
-			<-p.ph.proxyHandlerOpDoneCh
-
-		case <-p.ph.quit:
-			return nil, ErrStoppedProxyHandler
-
 		}
 
 		return valProxyAssignments, nil

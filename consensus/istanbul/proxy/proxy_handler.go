@@ -352,3 +352,26 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 
 	return newVals, rmVals, nil
 }
+
+// This function will return the assigned proxies for the given remote validators.
+// If the "validators" parameter is nil, then this function will return all of the validator assignments.
+func (ph *proxyHandler) getValidatorAssignments(validators []common.Address) (map[common.Address]*proxy, error) {
+	assignedProxies := make(map[common.Address]*proxy)
+
+	select {
+	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
+		valAssignments := ps.getValidatorAssignments(validators, nil)
+
+		for address, proxy := range valAssignments {
+			assignedProxies[address] = proxy
+		}
+	}:
+		<-ph.proxyHandlerOpDoneCh
+
+	case <-ph.quit:
+		return nil, ErrStoppedProxyHandler
+
+	}
+
+	return assignedProxies, nil
+}

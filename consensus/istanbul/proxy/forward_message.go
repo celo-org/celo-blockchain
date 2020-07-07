@@ -30,38 +30,27 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 	if p.backend.IsProxiedValidator() {
 		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
-		proxyPeers := make(map[common.Address]consensus.Peer)
-
-		select {
-		case p.ph.proxyHandlerOpCh <- func(ps *proxySet) {
-			valAssignments := ps.getValidatorAssignments(finalDestAddresses, nil)
-
-			for address, proxy := range valAssignments {
-				if proxy.peer != nil {
-					proxyPeers[address] = proxy.peer
-				}
-			}
-		}:
-			<-p.ph.proxyHandlerOpDoneCh
-
-		case <-p.ph.quit:
-			return ErrStoppedProxyHandler
-
-		}
-
-		if len(proxyPeers) == 0 {
-			logger.Warn("No proxy assigned to the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-			return nil
+		valAssignments, err := p.ph.getValidatorAssignments(finalDestAddresses)
+		if err != nil {
+			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
+			return err
 		}
 
 		// Create proxy -> set of validator addresses map
 		proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
-		for valAddress, proxyPeer := range proxyPeers {
-			if proxyToAddressesMap[proxyPeer] == nil {
-				proxyToAddressesMap[proxyPeer] = make([]common.Address, 0)
-			}
+		for valAddress, proxy := range valAssignments {
+			if proxy != nil && proxy.peer != nil {
+				if proxyToAddressesMap[proxy.peer] == nil {
+					proxyToAddressesMap[proxy.peer] = make([]common.Address, 0)
+				}
 
-			proxyToAddressesMap[proxyPeer] = append(proxyToAddressesMap[proxyPeer], valAddress)
+				proxyToAddressesMap[proxy.peer] = append(proxyToAddressesMap[proxy.peer], valAddress)
+			}
+		}
+
+		if len(proxyToAddressesMap) == 0 {
+			logger.Warn("No proxy assigned to any of the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
+			return nil
 		}
 
 		// Send the forward messages to the proxies
