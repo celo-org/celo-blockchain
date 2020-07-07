@@ -67,7 +67,11 @@ func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 
 // getProxy returns the proxy in the proxySet with ID proxyID
 func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
-	return ps.proxiesByID[proxyID]
+proxy, ok := ps.proxiesByID[proxyID]
+if ok {
+  return proxy
+}
+return nil
 }
 
 // addProxy removes a proxy with ID proxyID from the proxySet and valAssigner.
