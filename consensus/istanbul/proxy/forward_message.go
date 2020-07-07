@@ -28,11 +28,6 @@ func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsg
 	logger := p.logger.New("func", "SendForwardMsg")
 
 	if p.backend.IsProxiedValidator() {
-		// Check if the final destination address parameter is empty
-		if len(finalDestAddresses) == 0 {
-			return nil
-		}
-
 		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
 		proxyPeers := make(map[common.Address]consensus.Peer)

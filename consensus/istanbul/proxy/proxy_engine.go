@@ -155,7 +155,7 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 
 func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error) {
 	if p.backend.IsProxiedValidator() {
-		if !p.ph.isRunning() {
+		if !p.ph.running() {
 			return nil, ErrStoppedProxyHandler
 		}
 

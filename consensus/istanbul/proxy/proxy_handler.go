@@ -31,8 +31,8 @@ import (
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
-	lock    sync.RWMutex // protects "running" and "p2pserver"
-	running bool         // indicates if `run` is currently being run in a goroutine
+	lock        sync.RWMutex // protects "runningFlag"
+	runningFlag bool         // indicates if `run` is currently being run in a goroutine
 
 	loopWG sync.WaitGroup
 	quit   chan struct{}
@@ -62,29 +62,28 @@ type proxyHandlerOpFunc func(ps *proxySet)
 
 func newProxyHandler(sb istanbul.BackendForProxy, pe ProxyEngine) *proxyHandler {
 	ph := &proxyHandler{
-		sb: sb,
-		pe: pe,
+		sb:          sb,
+		pe:          pe,
+		runningFlag: false,
+
+		quit:            make(chan struct{}),
+		addProxies:      make(chan []*istanbul.ProxyConfig),
+		removeProxies:   make(chan []*enode.Node),
+		addProxyPeer:    make(chan consensus.Peer),
+		removeProxyPeer: make(chan consensus.Peer),
+
+		proxyHandlerOpCh:     make(chan proxyHandlerOpFunc),
+		proxyHandlerOpDoneCh: make(chan struct{}),
+
+		sendValEnodeShareMsgsCh: make(chan struct{}),
+		newBlockchainEpoch:      make(chan struct{}),
+
+		proxyHandlerEpochLength: time.Minute,
+
+		ps: newProxySet(newConsistentHashingPolicy()),
+
+		logger: log.New(),
 	}
-
-	ph.running = false
-
-	ph.quit = make(chan struct{})
-	ph.addProxies = make(chan []*istanbul.ProxyConfig)
-	ph.removeProxies = make(chan []*enode.Node)
-	ph.addProxyPeer = make(chan consensus.Peer)
-	ph.removeProxyPeer = make(chan consensus.Peer)
-
-	ph.proxyHandlerOpCh = make(chan proxyHandlerOpFunc)
-	ph.proxyHandlerOpDoneCh = make(chan struct{})
-
-	ph.sendValEnodeShareMsgsCh = make(chan struct{})
-	ph.newBlockchainEpoch = make(chan struct{})
-
-	ph.proxyHandlerEpochLength = time.Minute
-
-	ph.ps = newProxySet(newConsistentHashingPolicy())
-
-	ph.logger = log.New()
 
 	return ph
 }
@@ -94,10 +93,10 @@ func (ph *proxyHandler) Start() error {
 	ph.lock.Lock()
 	defer ph.lock.Unlock()
 
-	if ph.running {
+	if ph.runningFlag {
 		return ErrStartedProxyHandler
 	}
-	ph.running = true
+	ph.runningFlag = true
 
 	ph.loopWG.Add(1)
 	go ph.run()
@@ -111,11 +110,11 @@ func (ph *proxyHandler) Stop() error {
 	ph.lock.Lock()
 	defer ph.lock.Unlock()
 
-	if !ph.running {
+	if !ph.runningFlag {
 		return ErrStoppedProxyHandler
 	}
-	ph.running = false
-	close(ph.quit)
+	ph.runningFlag = false
+	ph.quit <- struct{}{}
 	ph.loopWG.Wait()
 
 	log.Info("Proxy handler stopped")
@@ -123,11 +122,11 @@ func (ph *proxyHandler) Stop() error {
 }
 
 // isRunning returns if `run` is currently running in a goroutine
-func (ph *proxyHandler) isRunning() bool {
+func (ph *proxyHandler) running() bool {
 	ph.lock.RLock()
 	defer ph.lock.RUnlock()
 
-	return ph.running
+	return ph.runningFlag
 }
 
 // run handles changes to proxies, validators, and performs occasional check-ins
