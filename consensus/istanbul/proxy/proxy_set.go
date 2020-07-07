@@ -74,12 +74,11 @@ func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
 // Will return true if any of the validators got reassigned to a different proxy.
 func (ps *proxySet) removeProxy(proxyID enode.ID) bool {
 	proxy := ps.getProxy(proxyID)
-	valsReassigned := false
-	if proxy != nil {
-		valsReassigned = ps.valAssigner.removeProxy(proxy, ps.valAssignments)
-		delete(ps.proxiesByID, proxyID)
+	if proxy == nil {
+		return false
 	}
-
+	valsReassigned := ps.valAssigner.removeProxy(proxy, ps.valAssignments)
+	delete(ps.proxiesByID, proxyID)
 	return valsReassigned
 }
 
