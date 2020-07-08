@@ -178,6 +178,10 @@ func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{r.Bitmap, r.Signature})
 }
 
+func (r *EpochSnarkData) IsEmpty() bool {
+	return len(r.Signature) == 0
+}
+
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
