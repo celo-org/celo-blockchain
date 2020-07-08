@@ -275,9 +275,9 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	}
 
 	// Report downtime events
-	if sb.blocksElectedButNotSignedGauge.Value() >= 12 {
+	if sb.blocksElectedButNotSignedGauge.Value() >= int64(sb.config.LookbackWindow) {
 		sb.blocksDowntimeEventMeter.Mark(1)
-		sb.logger.Error("Elected but haven't signed >= 12 blocks in a row", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
+		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
 	}
 
 	// Clear downtime counter on end of epoch.
