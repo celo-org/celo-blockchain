@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/event"
+
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -257,6 +259,10 @@ func (e *NoRewardEngine) EpochSize() uint64 {
 
 func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {
 	return e.inner.APIs(chain)
+}
+
+func (e *NoRewardEngine) SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription {
+	return e.inner.SubscribeNewViewEvent(ch)
 }
 
 func (e *NoRewardEngine) Close() error {

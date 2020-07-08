@@ -49,8 +49,14 @@ const (
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
 
+	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
+	chainHeadChanSize = 10
+
 	// chainSideChanSize is the size of channel listening to ChainSideEvent.
 	chainSideChanSize = 10
+
+	// newViewChanSize is the size of channel listening to NewViewEvent.
+	newViewChanSize = 10
 
 	// resubmitAdjustChanSize is the size of resubmitting interval adjustment channel.
 	resubmitAdjustChanSize = 10
@@ -140,6 +146,8 @@ type worker struct {
 	mux          *event.TypeMux
 	txsCh        chan core.NewTxsEvent
 	txsSub       event.Subscription
+	chainHeadCh  chan core.ChainHeadEvent
+	chainHeadSub event.Subscription
 	chainSideCh  chan core.ChainSideEvent
 	chainSideSub event.Subscription
 	newViewCh    chan istanbul.NewViewEvent
@@ -197,7 +205,9 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newViewCh:          make(chan istanbul.NewViewEvent, newViewChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
 		resultCh:           make(chan *types.Block, resultQueueSize),
@@ -210,10 +220,9 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
+	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
-	if istanbulEngine, ok := worker.engine.(consensus.Istanbul); ok {
-		worker.newViewSub = istanbulEngine.SubscribeNewViewEvent(worker.newViewCh)
-	}
+	worker.newViewSub = engine.SubscribeNewViewEvent(worker.newViewCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
@@ -372,6 +381,11 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
+		case <-w.chainHeadCh:
+			if h, ok := w.engine.(consensus.Handler); ok {
+				h.NewWork()
+			}
+
 		case newView := <-w.newViewCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
@@ -441,9 +455,6 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewWork()
-			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.isProposer)
 
 		case ev := <-w.chainSideCh:
@@ -486,6 +497,8 @@ func (w *worker) mainLoop() {
 		case <-w.exitCh:
 			return
 		case <-w.txsSub.Err():
+			return
+		case <-w.chainHeadSub.Err():
 			return
 		case <-w.chainSideSub.Err():
 			return
@@ -607,6 +620,7 @@ func (w *worker) resultLoop() {
 			switch stat {
 			case core.CanonStatTy:
 				events = append(events, core.ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
+				events = append(events, core.ChainHeadEvent{Block: block})
 			case core.SideStatTy:
 				events = append(events, core.ChainSideEvent{Block: block})
 			}
