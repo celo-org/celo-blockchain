@@ -333,12 +333,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32) {
+	commit := func(noempty bool, s int32, isProposer bool) {
 		if interrupt != nil {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, isProposer: true}
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, isProposer: isProposer}
 		timer.Reset(recommit)
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -379,7 +379,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			commit(false, commitInterruptNewHead, true)
 
 		case <-w.chainHeadCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
@@ -387,17 +387,11 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			}
 
 		case newView := <-w.newViewCh:
-			clearPending(w.chain.CurrentBlock().NumberU64())
+			headNumber := newView.NewView.Sequence.Uint64() - 1
+			clearPending(headNumber)
 			timestamp = time.Now().Unix()
-			// sending newWorkReq with isProposer variable
-			if interrupt != nil {
-				atomic.StoreInt32(interrupt, commitInterruptNewHead)
-			}
-			interrupt = new(int32)
 			isProposer := newView.IsProposer
-			w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: false, timestamp: timestamp, isProposer: isProposer}
-			timer.Reset(recommit)
-			atomic.StoreInt32(&w.newTxs, 0)
+			commit(false, commitInterruptNewHead, isProposer)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -408,7 +402,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					timer.Reset(recommit)
 					continue
 				}
-				commit(true, commitInterruptResubmit)
+				commit(true, commitInterruptResubmit, true)
 			}
 
 		case interval := <-w.resubmitIntervalCh:
