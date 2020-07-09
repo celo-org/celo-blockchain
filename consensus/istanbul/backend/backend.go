@@ -163,7 +163,8 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address          common.Address              // Ethereum address of the signing key
+	address          common.Address              // Ethereum address of the ECDSA signing key
+	blsAddress       common.Address              // Ethereum address of the BLS signing key
 	publicKey        *ecdsa.PublicKey            // The signer public key
 	decryptFn        istanbul.DecryptFn          // Decrypt function to decrypt ECIES ciphertext
 	signFn           istanbul.SignerFn           // Signer function to authorize hashes with
@@ -306,17 +307,18 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signHashBLSFn istanbul.BLSSignerFn, signMessageBLSFn istanbul.BLSMessageSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
-	sb.address = address
+	sb.address = ecdsaAddress
+	sb.blsAddress = blsAddress
 	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signHashBLSFn = signHashBLSFn
 	sb.signMessageBLSFn = signMessageBLSFn
-	sb.core.SetAddress(address)
+	sb.core.SetAddress(ecdsaAddress)
 }
 
 // Address implements istanbul.Backend.Address
@@ -709,7 +711,7 @@ func (sb *Backend) SignBlockHeader(data []byte) (blscrypto.SerializedSignature, 
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signHashBLSFn(accounts.Account{Address: sb.address}, data)
+	return sb.signHashBLSFn(accounts.Account{Address: sb.blsAddress}, data)
 }
 
 func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSignature, error) {
@@ -722,7 +724,7 @@ func (sb *Backend) SignBLSWithCompositeHash(data []byte) (blscrypto.SerializedSi
 	// "firmware-level" protection. Such data could include data that the SNARK doesn't necessarily need,
 	// such as the block number, which can be used by a hardware wallet to see that the block number
 	// is incrementing, without having to perform the two-level hashing, just one-level fast hashing.
-	return sb.signMessageBLSFn(accounts.Account{Address: sb.address}, data, []byte{})
+	return sb.signMessageBLSFn(accounts.Account{Address: sb.blsAddress}, data, []byte{})
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
