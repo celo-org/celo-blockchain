@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -258,9 +259,21 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 
 	// The following metrics are only tracked if the validator is elected.
 
-	// proposed?
+	// proposed the block that was finalized?
 	if parentHeader.Coinbase == sb.ValidatorAddress() {
 		sb.blocksElectedAndProposedMeter.Mark(1)
+	} else {
+		// could have proposed a block that was not finalized?
+		// This is a could, not did because the consensus algo may have forced the proposer
+		// to re-propose an existing block, thus not placing it's own signature on it.
+		for i := int64(0); i < missedRounds; i++ {
+			gpAuthor := sb.AuthorForBlock(number - 2)
+			proposer := validator.GetProposerSelector(sb.config.ProposerPolicy)(gpValSet, gpAuthor, uint64(i))
+			if sb.ValidatorAddress() == proposer.Address() {
+				sb.blocksMissedRoundsAsProposerMeter.Mark(1)
+				break
+			}
+		}
 	}
 
 	// signed, or missed?
@@ -283,11 +296,6 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	// Clear downtime counter on end of epoch.
 	if istanbul.IsLastBlockOfEpoch(number-1, sb.config.Epoch) {
 		sb.blocksElectedButNotSignedGauge.Update(0)
-	}
-
-	// missed round as proposer
-	if missedRounds > 0 && parentHeader.Coinbase == sb.ValidatorAddress() {
-		sb.blocksMissedRoundsAsProposerMeter.Mark(missedRounds)
 	}
 }
 
