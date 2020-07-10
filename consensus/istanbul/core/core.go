@@ -469,10 +469,6 @@ func (c *core) startNewRound(round *big.Int) error {
 		return err
 	}
 
-	isProposer := nextProposer.Address() == c.address
-	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: isProposer}
-	c.newViewFeed.Send(newViewEvent)
-
 	// Process backlog
 	c.processPendingRequests()
 	c.backlog.updateState(c.current.View(), c.current.State())
@@ -481,6 +477,10 @@ func (c *core) startNewRound(round *big.Int) error {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.resetRoundChangeTimer()
+
+	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: c.isProposer()}
+	c.newViewFeed.Send(newViewEvent)
+	logger.Info("NewViewEvent sent")
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())

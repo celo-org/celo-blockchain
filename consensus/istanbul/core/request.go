@@ -44,6 +44,8 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
 	if c.current.State() == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
 		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
+	} else {
+		logger.Info("Tong Round > 0", "round", c.current.Round(), "state", c.current.State(), "is the proposer", c.isProposer())
 	}
 	return nil
 }

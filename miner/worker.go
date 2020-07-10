@@ -387,6 +387,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			}
 
 		case newView := <-w.newViewCh:
+			log.Info("Getting newViewEvent")
 			headNumber := newView.NewView.Sequence.Uint64() - 1
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
