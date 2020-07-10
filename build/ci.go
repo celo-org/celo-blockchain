@@ -23,17 +23,18 @@ Usage: go run build/ci.go <command> <command flags/arguments>
 
 Available commands are:
 
-   install    [ -arch architecture ] [ -cc compiler ] [ packages... ]                          -- builds packages and executables
-   test       [ -coverage ] [ packages... ]                                                    -- runs the tests
-   lint                                                                                        -- runs certain pre-selected linters
-   archive    [ -arch architecture ] [ -type zip|tar ] [ -signer key-envvar ] [ -upload dest ] -- archives build artifacts
-   importkeys                                                                                  -- imports signing keys from env
-   debsrc     [ -signer key-id ] [ -upload dest ]                                              -- creates a debian source package
-   nsis                                                                                        -- creates a Windows NSIS installer
-   aar        [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an Android archive
-   xcode      [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an iOS XCode framework
-   xgo        [ -alltools ] [ options ]                                                        -- cross builds according to options
-   purge      [ -store blobstore ] [ -days threshold ]                                         -- purges old archives from the blobstore
+   install     [ -arch architecture ] [ -cc compiler ] [ packages... ]                          -- builds packages and executables
+   test        [ -coverage ] [ packages... ]                                                    -- runs the tests
+   lint                                                                                         -- runs certain pre-selected linters
+   archive     [ -arch architecture ] [ -type zip|tar ] [ -signer key-envvar ] [ -upload dest ] -- archives build artifacts
+   importkeys                                                                                   -- imports signing keys from env
+   debsrc      [ -signer key-id ] [ -upload dest ]                                              -- creates a debian source package
+   nsis                                                                                         -- creates a Windows NSIS installer
+   aar         [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an Android archive
+   xcode       [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an iOS XCode framework
+   xgo         [ -alltools ] [ options ]                                                        -- cross builds according to options
+   xgo-archive [ -targets linux/amd64,linux/386... ][ -type zip|tar ][ -in dir ][ -out dir ]	-- archives build artifacts from cross-compilation
+   purge       [ -store blobstore ] [ -days threshold ]                                         -- purges old archives from the blobstore
 
 For all commands, -n prevents execution of external programs (dry run mode).
 
@@ -80,6 +81,7 @@ var (
 		executablePath("rlpdump"),
 		executablePath("wnode"),
 		executablePath("clef"),
+		executablePath("blspopchecker"),
 	}
 
 	// A debian package is created for all executables listed here.
@@ -111,6 +113,10 @@ var (
 		{
 			BinaryName:  "clef",
 			Description: "Ethereum account management tool.",
+		},
+		{
+			BinaryName:  "blspopchecker",
+			Description: "Developer utility tool checks BLS PoP signatures in genesis.",
 		},
 	}
 
@@ -187,6 +193,8 @@ func main() {
 		doXCodeFramework(os.Args[2:])
 	case "xgo":
 		doXgo(os.Args[2:])
+	case "xgo-archive":
+		doXgoArchive(os.Args[2:])
 	case "purge":
 		doPurge(os.Args[2:])
 	default:
@@ -271,6 +279,9 @@ func doInstall(cmdline []string) {
 
 func buildFlags(env build.Environment) (flags []string) {
 	var ld []string
+	if env.IsMusl {
+		flags = append(flags, []string{"-tags", "musl"}...)
+	}
 	if env.Commit != "" {
 		ld = append(ld, "-X", "main.gitCommit="+env.Commit)
 		ld = append(ld, "-X", "main.gitDate="+env.Date)
@@ -285,6 +296,7 @@ func buildFlags(env build.Environment) (flags []string) {
 	if len(ld) > 0 {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
 	}
+
 	return flags
 }
 
@@ -489,8 +501,8 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping because this is a cron job")
 		os.Exit(0)
 	}
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping because branch %q, tag %q is not on the whitelist", env.Branch, env.Tag)
+	if env.Branch != "master" && !strings.HasPrefix(env.Branch, "release/") {
+		log.Printf("skipping because branch %q is not on the whitelist", env.Branch)
 		os.Exit(0)
 	}
 }
@@ -1101,6 +1113,82 @@ func xgoTool(args []string) *exec.Cmd {
 		"GOBIN=" + GOBIN,
 	}...)
 	return cmd
+}
+
+// Archive cross compilation artifacts
+
+func doXgoArchive(cmdline []string) {
+	var (
+		targetsFlag = flag.String("targets", "", `List of targets int the same format as xgo`)
+		archiveType = flag.String("type", "tar", `Archive type tar|zip`)
+		inputDir = flag.String("in", "", `Directory with all build binaries`)
+		outputDir = flag.String("out", "", `Output directory`)
+		ext string
+	)
+
+	flag.CommandLine.Parse(cmdline)
+	targets := strings.Split(*targetsFlag, ",")
+	switch *archiveType {
+	case "zip":
+		ext = ".zip"
+	case "tar":
+		ext = ".tar.gz"
+	default:
+		log.Fatal("unknown archive type: ", archiveType)
+	}
+
+
+	var (
+		env = build.Env()
+	)
+	maybeSkipArchive(env)
+
+	for _, target := range targets {
+		// linux/amd64 => geth-linux-amd64
+		var (
+			targetBinSegment = strings.Replace(target, "/", "-", 1)
+			basegeth = targetBinSegment + "-" + params.ArchiveVersion(env.Commit)
+			geth     = filepath.Join(*outputDir, "geth-" + basegeth + ext)
+			alltools = filepath.Join(*outputDir, "geth-alltools-" + basegeth + ext)
+		)
+
+		if err := build.WriteArchive(geth, xgoGethArchiveFiles(targetBinSegment, *inputDir)); err != nil {
+			log.Fatal(err)
+		}
+		if err := build.WriteArchive(alltools, xgoAllToolsArchiveFiles(targetBinSegment, *inputDir)); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func xgoGethArchiveFiles(target string, dir string) []string {
+	return []string{
+		"COPYING",
+		executableXgoPath("geth", target, dir),
+	}
+}
+
+func xgoAllToolsArchiveFiles(target string, dir string) []string {
+	return []string{
+		"COPYING",
+		executableXgoPath("abigen", target, dir),
+		executableXgoPath("bootnode", target, dir),
+		executableXgoPath("evm", target, dir),
+		executableXgoPath("geth", target, dir),
+		executableXgoPath("rlpdump", target, dir),
+		executableXgoPath("wnode", target, dir),
+		executableXgoPath("clef", target, dir),
+		executableXgoPath("blspopchecker", target, dir),
+	}
+}
+
+func executableXgoPath(exec, target, dir string) string {
+	filename := exec + "-" + target
+	if strings.HasPrefix(target, "windows") {
+		filename = filename + ".exe"
+	}
+
+	return filepath.Join(dir, filename)
 }
 
 // Binary distribution cleanups

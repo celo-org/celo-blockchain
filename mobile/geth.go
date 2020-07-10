@@ -133,9 +133,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if config == nil {
 		config = NewNodeConfig()
 	}
-	if config.MaxPeers == 0 {
-		config.MaxPeers = defaultNodeConfig.MaxPeers
-	}
 	if config.BootstrapNodes == nil || config.BootstrapNodes.Size() == 0 {
 		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
 	}
@@ -177,10 +174,15 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			return nil, fmt.Errorf("invalid genesis spec: %v", err)
 		}
 		// If we have the testnet, hard code the chain configs too
-		if config.EthereumGenesis == TestnetGenesis() {
-			genesis.Config = params.TestnetChainConfig
+		if config.EthereumGenesis == AlfajoresGenesis() {
+			genesis.Config = params.AlfajoresChainConfig
 			if config.EthereumNetworkID == 1 {
-				config.EthereumNetworkID = 3
+				config.EthereumNetworkID = int64(params.AlfajoresNetworkId)
+			}
+		} else if config.EthereumGenesis == BaklavaGenesis() {
+			genesis.Config = params.BaklavaChainConfig
+			if config.EthereumNetworkID == 1 {
+				config.EthereumNetworkID = int64(params.BaklavaNetworkId)
 			}
 		}
 	}

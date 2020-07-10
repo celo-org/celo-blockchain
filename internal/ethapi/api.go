@@ -58,8 +58,17 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 }
 
 // GasPrice returns a suggestion for a gas price.
-func (s *PublicEthereumAPI) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	price, err := s.b.SuggestPrice(ctx)
+func (s *PublicEthereumAPI) GasPrice(ctx context.Context, feeCurrency *common.Address) (*hexutil.Big, error) {
+	if feeCurrency == nil {
+		price, err := s.b.SuggestPrice(ctx)
+		return (*hexutil.Big)(price), err
+	}
+
+	state, header, err := s.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	price, err := s.b.SuggestPriceInCurrency(ctx, feeCurrency, header, state)
 	return (*hexutil.Big)(price), err
 }
 
@@ -867,7 +876,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap(), false)
+	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 50*time.Second, s.b.RPCGasCap(), false)
 	return (hexutil.Bytes)(result), err
 }
 
@@ -1037,6 +1046,15 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool) (map[string]i
 	fields["randomness"] = map[string]interface{}{
 		"revealed":  hexutil.Bytes(block.Randomness().Revealed.Bytes()),
 		"committed": hexutil.Bytes(block.Randomness().Committed.Bytes()),
+	}
+	epochSnarkData := block.EpochSnarkData()
+	if epochSnarkData != nil && !epochSnarkData.IsEmpty() {
+		fields["epochSnarkData"] = map[string]interface{}{
+			"bitmap":    hexutil.Bytes(block.EpochSnarkData().Bitmap.Bytes()),
+			"signature": hexutil.Bytes(block.EpochSnarkData().Signature),
+		}
+	} else {
+		fields["epochSnarkData"] = nil
 	}
 
 	if inclTx {

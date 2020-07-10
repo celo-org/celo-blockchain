@@ -6,38 +6,18 @@ executors:
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v2
+      - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"
       CELO_MONOREPO_BRANCH_TO_TEST: master
+      GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
-  build-bls-zexe:
-    docker:
-      - image: circleci/rust:1.41.0
-    working_directory: ~/repos/geth
-    steps:
-      - checkout
-      - run:
-          name: Setup Rust language
-          command: |
-            rustup install 1.41.0
-            rustup default 1.41.0
-      - run:
-          name: Compile bls-zexe
-          command: |
-            export PATH=$PATH:$HOME/.cargo/bin
-            make bls-zexe
-
-      - persist_to_workspace:
-          root: ~/repos
-          paths:
-            - geth
   build-geth:
     executor: golang
+    resource_class: medium+
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - checkout
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -133,16 +113,12 @@ jobs:
               exit 1
             fi
       - run:
-          name: Setup Rust language
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.41.0
-      - run:
           name: Compile ios client
           command: make ios
       - persist_to_workspace:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
-            - geth/vendor/github.com/celo-org/bls-zexe/target/universal/release/libepoch_snark.a
 
   publish-mobile-client:
     docker:
@@ -160,14 +136,15 @@ jobs:
       - run:
           name: Setup celo-monorepo
           command: |
+            set -e
+            mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep "github.com RSA ${GITHUB_RSA_FINGERPRINT}"
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
-            # separate build to avoid ENOMEM in CI :(
-            yarn build --scope @celo/utils
-            yarn build --scope @celo/protocol
-            yarn build --scope docs
-            yarn build --ignore @celo/protocol --ignore docs --ignore @celo/web --ignore @celo/mobile --ignore @celo/react-components
+            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(obj[x]["location"]) for x in obj["@celo/celotool"]["dependencies"][::-1])')
+            for i in $PACKAGES; do yarn --cwd $i build; done
+            yarn --cwd packages/celotool build
       - run:
           name: Setup Go language
           command: |
@@ -262,11 +239,8 @@ workflows:
   version: 2
   build:
     jobs:
-      - build-bls-zexe
       - checkout-monorepo
-      - build-geth:
-          requires:
-            - build-bls-zexe
+      - build-geth
       - lint:
           requires:
             - build-geth

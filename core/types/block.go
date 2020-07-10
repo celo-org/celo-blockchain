@@ -36,6 +36,7 @@ var (
 	EmptyRootHash       = DeriveSha(Transactions{})
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
+	oldFormat           = false
 )
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
@@ -73,6 +74,10 @@ func (h *Header) Hash() common.Hash {
 		}
 	}
 	return rlpHash(h)
+}
+
+func SetOldFormat() {
+	oldFormat = true
 }
 
 var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
@@ -137,10 +142,23 @@ type EpochSnarkData struct {
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (r *EpochSnarkData) Size() common.StorageSize {
+	if oldFormat {
+		return common.StorageSize(blscrypto.SIGNATUREBYTES)
+	}
 	return common.StorageSize(blscrypto.SIGNATUREBYTES + (r.Bitmap.BitLen() / 8))
 }
 
 func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
+	if oldFormat {
+		var oldEpochSnarkData struct {
+			Signature []byte
+		}
+		if err := s.Decode(&oldEpochSnarkData); err != nil {
+			return err
+		}
+		r.Signature = oldEpochSnarkData.Signature
+		return nil
+	}
 	var epochSnarkData struct {
 		Bitmap    *big.Int
 		Signature []byte
@@ -154,7 +172,14 @@ func (r *EpochSnarkData) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
+	if oldFormat {
+		return rlp.Encode(w, []interface{}{r.Signature})
+	}
 	return rlp.Encode(w, []interface{}{r.Bitmap, r.Signature})
+}
+
+func (r *EpochSnarkData) IsEmpty() bool {
+	return len(r.Signature) == 0
 }
 
 // Body is a simple (mutable, non-safe) data container for storing and moving

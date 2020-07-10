@@ -174,7 +174,7 @@ func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *type
 
 	parentBlockHashBytes, err := (*db).Get(commitmentDbLocation(lastCommitment))
 	if err != nil {
-		log.Error("Failed to get last block proposed from database", "commitment", lastCommitment.Hex(), "err", err)
+		log.Warn("Failed to get last block proposed from database", "commitment", lastCommitment.Hex(), "err", err)
 		parentBlockHash := header.ParentHash
 		for {
 			blockHeader := chain.GetHeaderByHash(parentBlockHash)

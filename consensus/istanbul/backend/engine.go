@@ -334,8 +334,10 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	// unused fields, force to set to empty
-	header.Coinbase = sb.address
+	// If proposer has not set the `Coinbase` via the `tx-fee-recipient` flag, default to the backend address.
+	if header.Coinbase == (common.Address{}) {
+		header.Coinbase = sb.address
+	}
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
@@ -584,14 +586,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// Having coreStarted as false at this point guarantees that announce versions
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
-	if sb.config.Proxied {
-		if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-			if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-				sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-			}
-		}
-		go sb.sendValEnodesShareMsgs()
-	} else {
+	if !sb.IsProxiedValidator() {
 		sb.updateAnnounceVersion()
 	}
 
@@ -620,14 +615,6 @@ func (sb *Backend) StopValidating() error {
 	}
 	sb.coreStarted = false
 
-	if sb.config.Proxied {
-		sb.valEnodesShareQuit <- struct{}{}
-		sb.valEnodesShareWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
-	}
 	return nil
 }
 
@@ -666,6 +653,56 @@ func (sb *Backend) StopAnnouncing() error {
 	sb.announceRunning = false
 
 	return sb.vph.stopThread()
+}
+
+// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
+func (sb *Backend) StartProxyHandler() error {
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
+	if sb.proxyHandlerRunning {
+		return istanbul.ErrStartedProxyHandler
+	}
+
+	if !sb.IsProxiedValidator() {
+		return istanbul.ErrValidatorNotProxied
+	}
+
+	// At this point, we can be sure that this node is a proxied validator.
+	if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
+		if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
+			sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
+		}
+	}
+
+	go sb.valEnodesShareThread()
+
+	sb.proxyHandlerRunning = true
+
+	return nil
+}
+
+// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
+func (sb *Backend) StopProxyHandler() error {
+	sb.proxyHandlerMu.Lock()
+	defer sb.proxyHandlerMu.Unlock()
+
+	if !sb.proxyHandlerRunning {
+		return istanbul.ErrStoppedProxyHandler
+	}
+
+	if sb.IsProxiedValidator() {
+		sb.valEnodesShareThreadQuit <- struct{}{}
+		sb.valEnodesShareThreadWg.Wait()
+
+		if sb.proxyNode != nil {
+			sb.removeProxy(sb.proxyNode.node)
+		}
+	}
+
+	sb.proxyHandlerRunning = false
+
+	return nil
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -742,6 +779,10 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		genesis := chain.GetHeaderByNumber(0)
+		if genesis == nil {
+			log.Error("Cannot load genesis")
+			return nil, errors.New("Cannot load genesis")
+		}
 
 		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
 		if err != nil {

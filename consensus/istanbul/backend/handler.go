@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 var (
@@ -43,28 +42,10 @@ var (
 
 // If you want to add a code, you need to increment the Lengths Array size!
 const (
-	istanbulConsensusMsg = 0x11
-	// TODO:  Support sending multiple announce messages withone one message
-	istanbulQueryEnodeMsg          = 0x12
-	istanbulValEnodesShareMsg      = 0x13
-	istanbulFwdMsg                 = 0x14
-	istanbulDelegateSign           = 0x15
-	istanbulVersionCertificatesMsg = 0x16
-	istanbulEnodeCertificateMsg    = 0x17
-	istanbulValidatorHandshakeMsg  = 0x18
-
 	handshakeTimeout = 5 * time.Second
 )
 
-func (sb *Backend) isIstanbulMsg(msg p2p.Msg) bool {
-	return msg.Code >= istanbulConsensusMsg && msg.Code <= istanbulValidatorHandshakeMsg
-}
-
-func (sb *Backend) isGossipedMsgCode(msgCode uint64) bool {
-	return msgCode == istanbulQueryEnodeMsg || msgCode == istanbulVersionCertificatesMsg
-}
-
-type announceMsgHandler func(consensus.Peer, []byte) error
+type announceMsgHandler func(common.Address, consensus.Peer, []byte) error
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
@@ -72,8 +53,8 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 
-	if sb.isIstanbulMsg(msg) {
-		if (!sb.coreStarted && !sb.config.Proxy) && (msg.Code == istanbulConsensusMsg) {
+	if istanbul.IsIstanbulMsg(msg) {
+		if (!sb.coreStarted && !sb.IsProxy()) && (msg.Code == istanbul.ConsensusMsg) {
 			return true, istanbul.ErrStoppedEngine
 		}
 
@@ -83,7 +64,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errDecodeFailed
 		}
 
-		if msg.Code == istanbulDelegateSign {
+		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign() {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				return true, nil
@@ -92,39 +73,16 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, errors.New("No proxy or proxied validator found")
 		}
 
-		// Only use the recent messages and known messages cache for messages
-		// that are gossiped
-		if sb.isGossipedMsgCode(msg.Code) {
-			hash := istanbul.RLPHash(data)
-
-			// Mark peer's message
-			ms, ok := sb.peerRecentMessages.Get(addr)
-			var m *lru.ARCCache
-			if ok {
-				m, _ = ms.(*lru.ARCCache)
-			} else {
-				m, _ = lru.NewARC(inmemoryMessages)
-				sb.peerRecentMessages.Add(addr, m)
-			}
-			m.Add(hash, true)
-
-			// Mark self known message
-			if _, ok := sb.selfRecentMessages.Get(hash); ok {
-				return true, nil
-			}
-			sb.selfRecentMessages.Add(hash, true)
-		}
-
-		if msg.Code == istanbulConsensusMsg {
+		if msg.Code == istanbul.ConsensusMsg {
 			err := sb.handleConsensusMsg(peer, data)
 			return true, err
-		} else if msg.Code == istanbulFwdMsg {
+		} else if msg.Code == istanbul.FwdMsg {
 			err := sb.handleFwdMsg(peer, data)
 			return true, err
 		} else if announceHandlerFunc, ok := sb.istanbulAnnounceMsgHandlers[msg.Code]; ok { // Note that the valEnodeShare message is handled here as well
-			go announceHandlerFunc(peer, data)
+			go announceHandlerFunc(addr, peer, data)
 			return true, nil
-		} else if msg.Code == istanbulValidatorHandshakeMsg {
+		} else if msg.Code == istanbul.ValidatorHandshakeMsg {
 			logger.Warn("Received unexpected Istanbul validator handshake message")
 			return true, nil
 		}
@@ -155,14 +113,14 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return istanbul.CheckValidatorSignature(valSet, data, sig)
 		}
 		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
-			sb.logger.Error("Got a consensus message signed by a non validator.")
+			sb.logger.Error("Got a consensus message signed by a non validator.", "err", err)
 			return errNonValidatorMessage
 		}
 
 		// Need to forward the message to the proxied validator
 		sb.logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
 		if sb.proxiedPeer != nil {
-			go sb.proxiedPeer.Send(istanbulConsensusMsg, payload)
+			go sb.proxiedPeer.Send(istanbul.ConsensusMsg, payload)
 		}
 	} else { // The case when this node is a validator
 		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
@@ -204,7 +162,7 @@ func (sb *Backend) handleFwdMsg(peer consensus.Peer, payload []byte) error {
 	}
 
 	sb.logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code)
+	go sb.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
 	return nil
 }
 
@@ -243,17 +201,16 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// Determine if this validator signed the parent of the supplied block:
-// First check the grandparent's validator set. If not elected, it didn't.
-// Then, check the parent seal on the supplied block.
+// Maintain metrics around the *parent* of the supplied block.
+// To figure out if this validator signed the parent block:
+// * First check the grandparent's validator set. If not elected, it didn't.
+// * Then, check the parent seal on the supplied (child) block.
 // We cannot determine any specific info from the validators in the seal of
 // the parent block, because different nodes circulate different versions.
-// It only becomes canonical when the child block is proposed.
-func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (elected bool, inParentSeal bool, countInParentSeal int, missedRounds int64) {
+// The bitmap of signed validators only becomes canonical when the child block is proposed.
+func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-
-	countInParentSeal = -1
 
 	// Check the parent is not the genesis block.
 	number := child.Number().Uint64()
@@ -267,7 +224,6 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
 	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
-	elected = gpValSetIndex >= 0
 
 	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
@@ -275,16 +231,45 @@ func (sb *Backend) ValidatorElectedAndSignedParentBlock(child *types.Block) (ele
 		return
 	}
 
-	if elected {
-		inParentSeal = childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
-	}
+	// total possible signatures
+	valSetSize := gpValSet.Size()
+	sb.blocksValSetSizeGauge.Update(int64(valSetSize))
 
-	missedRounds = childExtra.ParentAggregatedSeal.Round.Int64()
-	countInParentSeal = 0
+	// signatures present
+	countInParentSeal := 0
 	for i := 0; i < gpValSet.Size(); i++ {
 		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
 	}
-	return
+	sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
+
+	// cumulative count of rounds missed (i.e sequences not agreed on round=0)
+	missedRounds := childExtra.ParentAggregatedSeal.Round.Int64()
+	if missedRounds > 0 {
+		sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
+	}
+
+	// elected?
+	elected := gpValSetIndex >= 0
+	if !elected {
+		return
+	}
+	sb.blocksElectedMeter.Mark(1)
+
+	// The following metrics are only tracked if the validator is elected.
+
+	// proposed?
+	if parentHeader.Coinbase == sb.ValidatorAddress() {
+		sb.blocksElectedAndProposedMeter.Mark(1)
+	}
+
+	// signed, or missed?
+	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
+	if inParentSeal {
+		sb.blocksElectedAndSignedMeter.Mark(1)
+	} else {
+		sb.blocksElectedButNotSignedMeter.Mark(1)
+		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+	}
 }
 
 // Actions triggered by a new block being added to the chain.
@@ -293,21 +278,7 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
-	elected, inChildsParentSeal, countInParentSeal, missedRounds := sb.ValidatorElectedAndSignedParentBlock(newBlock)
-	if countInParentSeal >= 0 {
-		if elected {
-			sb.blocksElectedMeter.Mark(1)
-			if inChildsParentSeal {
-				sb.blocksElectedAndSignedMeter.Mark(1)
-			} else {
-				sb.blocksElectedButNotSignedMeter.Mark(1)
-			}
-		}
-		sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
-		if missedRounds > 0 {
-			sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
-		}
-	}
+	sb.UpdateMetricsForParentOfBlock(newBlock)
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
@@ -408,7 +379,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			errCh <- err
 			return
 		}
-		err = peer.Send(istanbulValidatorHandshakeMsg, msgBytes)
+		err = peer.Send(istanbul.ValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
 		}
@@ -450,7 +421,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	if err != nil {
 		return false, err
 	}
-	if peerMsg.Code != istanbulValidatorHandshakeMsg {
+	if peerMsg.Code != istanbul.ValidatorHandshakeMsg {
 		logger.Warn("Read incorrect message code", "code", peerMsg.Code)
 		return false, errors.New("Incorrect message code")
 	}

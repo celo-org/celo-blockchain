@@ -291,7 +291,11 @@ func (lc *LightChain) GetBlock(ctx context.Context, hash common.Hash, number uin
 func (lc *LightChain) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
 	number := lc.hc.GetBlockNumber(hash)
 	if number == nil {
-		return nil, errors.New("unknown block")
+		header, err := GetHeaderByHash(ctx, lc.odr, hash)
+		if err != nil {
+			return nil, errors.New("unknown block")
+		}
+		return lc.GetBlock(ctx, hash, header.Number.Uint64())
 	}
 	return lc.GetBlock(ctx, hash, *number)
 }

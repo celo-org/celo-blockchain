@@ -149,28 +149,20 @@ var (
 	}
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
-		Usage: "Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby, 5=Ottoman)",
-		Value: node.DefaultConfig.P2P.NetworkId,
+		Usage: fmt.Sprintf("Network identifier (%s)", params.NetworkIdHelp),
+		Value: params.MainnetNetworkId,
 	}
-	TestnetFlag = cli.BoolFlag{
-		Name:  "testnet",
-		Usage: "Ropsten network: pre-configured proof-of-work test network",
+	AlfajoresFlag = cli.BoolFlag{
+		Name:  "alfajores",
+		Usage: "Alfajores network: pre-configured Celo test network",
 	}
-	RinkebyFlag = cli.BoolFlag{
-		Name:  "rinkeby",
-		Usage: "Rinkeby network: pre-configured proof-of-authority test network",
-	}
-	GoerliFlag = cli.BoolFlag{
-		Name:  "goerli",
-		Usage: "Görli network: pre-configured proof-of-authority test network",
+	BaklavaFlag = cli.BoolFlag{
+		Name:  "baklava",
+		Usage: "Baklava network: pre-configured Celo test network",
 	}
 	DeveloperFlag = cli.BoolFlag{
 		Name:  "dev",
 		Usage: "Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled",
-	}
-	OttomanFlag = cli.BoolFlag{
-		Name:  "ottoman",
-		Usage: "Ottoman network: pre-configured istanbul bft test network",
 	}
 	DeveloperPeriodFlag = cli.IntFlag{
 		Name:  "dev.period",
@@ -224,9 +216,9 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
-	EtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+	TxFeeRecipientFlag = cli.StringFlag{
+		Name:  "tx-fee-recipient",
+		Usage: "Public address for block transaction fees and gateway fees (default = first account)",
 		Value: "0",
 	}
 	BLSbaseFlag = cli.StringFlag{
@@ -357,6 +349,11 @@ var (
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
 		Usage: "Enable mining",
+	}
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
+		Usage: "Public address for participation in consensus (default = first account)",
+		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
 		Name:  "miner.threads",
@@ -778,17 +775,10 @@ var (
 // the a subdirectory of the specified datadir will be used.
 func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.GlobalString(DataDirFlag.Name); path != "" {
-		if ctx.GlobalBool(TestnetFlag.Name) {
-			return filepath.Join(path, "testnet")
-		}
-		if ctx.GlobalBool(RinkebyFlag.Name) {
-			return filepath.Join(path, "rinkeby")
-		}
-		if ctx.GlobalBool(GoerliFlag.Name) {
-			return filepath.Join(path, "goerli")
-		}
-		if ctx.GlobalBool(OttomanFlag.Name) {
-			return filepath.Join(path, "ottoman")
+		if ctx.GlobalBool(BaklavaFlag.Name) {
+			return filepath.Join(path, "baklava")
+		} else if ctx.GlobalBool(AlfajoresFlag.Name) {
+			return filepath.Join(path, "alfajores")
 		}
 		return path
 	}
@@ -829,9 +819,7 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
-// setBootstrapNodes creates a list of bootstrap nodes from the command line
-// flags, reverting to pre-configured ones if none have been specified.
-func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
+func GetBootstrapNodes(ctx *cli.Context) []string {
 	urls := params.MainnetBootnodes
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV4Flag.Name):
@@ -840,17 +828,21 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
-	case ctx.GlobalBool(TestnetFlag.Name):
-		urls = params.TestnetBootnodes
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
-	case ctx.GlobalBool(OttomanFlag.Name):
-		urls = params.OttomanBootnodes
-	case cfg.BootstrapNodes != nil:
-		return // already set, don't apply defaults.
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		urls = params.AlfajoresBootnodes
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		urls = params.BaklavaBootnodes
 	}
+	return urls
+}
+
+// setBootstrapNodes creates a list of bootstrap nodes from the command line
+// flags, reverting to pre-configured ones if none have been specified.
+func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
+	if cfg.BootstrapNodes != nil {
+		return
+	}
+	urls := GetBootstrapNodes(ctx)
 
 	cfg.BootstrapNodes = make([]*enode.Node, 0, len(urls))
 	for _, url := range urls {
@@ -876,10 +868,10 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		} else {
 			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
 		}
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		urls = params.AlfajoresBootnodes
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		urls = params.BaklavaBootnodes
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
 	}
@@ -1075,41 +1067,73 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
+// `Validator` is the address used to sign consensus messages.
+func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current validator, new flag overriding legacy etherbase
+	var validator string
 	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		if validator != "" {
+			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
+		validator = ctx.GlobalString(MinerValidatorFlag.Name)
+	}
+	// Convert the validator into an address and configure it
+	if validator != "" {
+		account, err := MakeAddress(ks, validator)
+		if err != nil {
+			Fatalf("Invalid validator: %v", err)
+		}
+		cfg.Miner.Validator = account.Address
+	}
+}
+
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current txFeeRecipient, new flag overriding legacy etherbase
+	var txFeeRecipient string
+	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
+		txFeeRecipient = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
+		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	}
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if txFeeRecipient != "" {
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
+		}
+		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
+	}
+	// Convert the txFeeRecipient into an address and configure it
+	if txFeeRecipient != "" {
+		account, err := MakeAddress(ks, txFeeRecipient)
+		if err != nil {
+			Fatalf("Invalid txFeeRecipient: %v", err)
+		}
+		cfg.TxFeeRecipient = account.Address
 	}
 }
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `BLSbase` is the ethereum address which identifies an ECDSA key
+// from which the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
+	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
 	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
 		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
+	// Convert the blsbase into an address and configure it
 	if blsbase != "" {
 		account, err := MakeAddress(ks, blsbase)
 		if err != nil {
@@ -1144,7 +1168,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setBootstrapNodes(ctx, cfg)
 	setBootstrapNodesV5(ctx, cfg)
 
-	cfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+	cfg.NetworkId = getNetworkId(ctx)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
@@ -1276,14 +1300,11 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = ctx.GlobalString(DataDirFlag.Name)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		cfg.DataDir = "" // unless explicitly requested, use memory databases
-	case ctx.GlobalBool(TestnetFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "testnet")
-	case ctx.GlobalBool(RinkebyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case ctx.GlobalBool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
-	case ctx.GlobalBool(OttomanFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ottoman")
+	case ctx.GlobalBool(BaklavaFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		log.Info("setting data dir")
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "baklava")
+	case ctx.GlobalBool(AlfajoresFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "alfajores")
 	}
 }
 
@@ -1402,6 +1423,7 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
+	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name)
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
@@ -1411,7 +1433,7 @@ func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
 		proxyCfg.ListenAddr = ctx.GlobalString(ProxyInternalFacingEndpointFlag.Name)
 	}
 
-	proxyCfg.NetworkId = ctx.GlobalUint64(NetworkIdFlag.Name)
+	proxyCfg.NetworkId = getNetworkId(ctx)
 }
 
 // Set all of the proxy related configurations.
@@ -1473,7 +1495,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			// Check that external IP is not a private IP address.
 			if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
 				if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
-					log.Warn("Proxy external facing enodeURL (%s) is private IP.", proxyEnodeURLPair[1])
+					log.Warn(fmt.Sprintf("Proxy external facing enodeURL (%s) is private IP.", proxyEnodeURLPair[1]))
 				} else {
 					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
 				}
@@ -1540,10 +1562,25 @@ func SetShhConfig(ctx *cli.Context, stack *node.Node, cfg *whisper.Config) {
 	}
 }
 
+func getNetworkId(ctx *cli.Context) uint64 {
+	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
+		return ctx.GlobalUint64(NetworkIdFlag.Name)
+	}
+	switch {
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		return params.BaklavaNetworkId
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		return params.AlfajoresNetworkId
+	case ctx.GlobalBool(DeveloperFlag.Name):
+		return 1337
+	}
+	return params.MainnetNetworkId
+}
+
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, DeveloperFlag, TestnetFlag, RinkebyFlag, GoerliFlag, OttomanFlag)
+	CheckExclusive(ctx, DeveloperFlag, BaklavaFlag, AlfajoresFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
@@ -1551,13 +1588,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {
 		ks = keystores[0].(*keystore.KeyStore)
 	}
-	setEtherbase(ctx, ks, cfg)
+	setValidator(ctx, ks, cfg)
+	setTxFeeRecipient(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setMiner(ctx, &cfg.Miner)
 	setWhitelist(ctx, cfg)
 	setIstanbul(ctx, stack, cfg)
 	setLes(ctx, cfg)
+
+	cfg.NetworkId = params.MainnetNetworkId
 
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
@@ -1610,21 +1650,17 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	// Override any default configs for hard coded networks.
 	switch {
-	case ctx.GlobalBool(TestnetFlag.Name):
+	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 3
+			log.Info("Setting baklava id")
+			cfg.NetworkId = params.BaklavaNetworkId
 		}
-		cfg.Genesis = core.DefaultTestnetGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
+		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
+	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 4
+			cfg.NetworkId = params.AlfajoresNetworkId
 		}
-		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultGoerliGenesisBlock()
+		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1651,11 +1687,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
-	case ctx.GlobalBool(OttomanFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultOttomanGenesisBlock()
 	}
 }
 
@@ -1788,16 +1819,12 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node) ethdb.Database {
 func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
-	case ctx.GlobalBool(TestnetFlag.Name):
-		genesis = core.DefaultTestnetGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		genesis = core.DefaultGoerliGenesisBlock()
+	case ctx.GlobalBool(BaklavaFlag.Name):
+		genesis = core.DefaultBaklavaGenesisBlock()
+	case ctx.GlobalBool(AlfajoresFlag.Name):
+		genesis = core.DefaultAlfajoresGenesisBlock()
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
-	case ctx.GlobalBool(OttomanFlag.Name):
-		genesis = core.DefaultOttomanGenesisBlock()
 	}
 	return genesis
 }

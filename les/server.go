@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -87,7 +88,8 @@ func NewLesServer(e *eth.Ethereum, config *eth.Config) (*LesServer, error) {
 		threadsBusy:  config.LightServ/100 + 1,
 		threadsIdle:  threads,
 	}
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), e.Synced, config.Etherbase, config.GatewayFee)
+
+	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), e.Synced, config.TxFeeRecipient, config.GatewayFee)
 	srv.costTracker, srv.minCapacity = newCostTracker(e.ChainDb(), config)
 	srv.freeCapacity = srv.minCapacity
 
@@ -292,4 +294,30 @@ func (s *LesServer) capacityManagement() {
 			return
 		}
 	}
+}
+
+//This sends messages to light client peers whenever this light server updates gateway fee.
+func (s *LesServer) BroadcastGatewayFeeInfo() error {
+	lightClientPeerNodes := s.peers.AllLightClientPeers()
+	if s.handler.gatewayFee.Cmp(common.Big0) < 0 {
+		return nil
+	}
+
+	for _, lightClientPeer := range lightClientPeerNodes {
+		currGatewayFeeResp := GatewayFeeInformation{GatewayFee: s.handler.gatewayFee, Etherbase: s.handler.etherbase}
+		reply := lightClientPeer.ReplyGatewayFee(genReqID(), currGatewayFeeResp)
+		if reply == nil {
+			continue
+		}
+		lightClientPeer.queueSend(func() {
+			if err := reply.send(1); err != nil {
+				select {
+				case lightClientPeer.errCh <- err:
+				default:
+				}
+			}
+		})
+	}
+
+	return nil
 }

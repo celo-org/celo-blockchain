@@ -410,6 +410,12 @@ func (w *Wallet) Open(passphrase string) error {
 	return nil
 }
 
+// ConfirmAddress implements accounts.Wallet, but is a noop for plain wallets since there
+// is no notion of address confirmation for smartcards.
+func (w *Wallet) ConfirmAddress(path accounts.DerivationPath) (common.Address, error) {
+	return common.Address{}, accounts.ErrNotSupported
+}
+
 // Close stops and closes the wallet, freeing any resources.
 func (w *Wallet) Close() error {
 	// Ensure the wallet was opened
@@ -608,11 +614,7 @@ func (w *Wallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, er
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *Wallet) SignHashBLS(account accounts.Account, hash []byte) (blscrypto.SerializedSignature, error) {
-	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
-}
-
-func (w *Wallet) SignMessageBLS(account accounts.Account, msg []byte, extraData []byte) (blscrypto.SerializedSignature, error) {
+func (w *Wallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 

@@ -122,10 +122,13 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		panic(msg)
 	}
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
-	leth.relay = newLesTxRelay(peers, leth.retriever, config.GatewayFee)
+	leth.relay = newLesTxRelay(peers, leth.retriever)
 
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
-	leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
+	// If the full chain is not available then indexing each block header isn't possible.
+	if fullChainAvailable {
+		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
+	}
 	leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
 	leth.odr.SetIndexers(leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer)
 
@@ -155,11 +158,13 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Note: AddChildIndexer starts the update process for the child
 	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
-	leth.chtIndexer.Start(leth.blockchain)
+	if leth.chtIndexer != nil {
+		leth.chtIndexer.Start(leth.blockchain)
+	}
 	leth.bloomIndexer.Start(leth.blockchain)
 
 	// TODO mcortesi (needs etherbase & gatewayFee?)
-	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth)
+	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
 	if leth.handler.ulc != nil {
 		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
 		leth.blockchain.DisableCheckFreq()
@@ -223,6 +228,11 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Namespace: "eth",
 			Version:   "1.0",
 			Service:   downloader.NewPublicDownloaderAPI(s.handler.downloader, s.eventMux),
+			Public:    true,
+		}, {
+			Namespace: "les",
+			Version:   "1.0",
+			Service:   NewLightClientAPI(s),
 			Public:    true,
 		}, {
 			Namespace: "eth",
@@ -295,7 +305,9 @@ func (s *LightEthereum) Stop() error {
 	s.odr.Stop()
 	s.relay.Stop()
 	s.bloomIndexer.Close()
-	s.chtIndexer.Close()
+	if s.chtIndexer != nil {
+		s.chtIndexer.Close()
+	}
 	s.blockchain.Stop()
 	s.handler.stop()
 	s.txPool.Stop()
