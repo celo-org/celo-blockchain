@@ -75,7 +75,7 @@ type serverHandler struct {
 	wg      sync.WaitGroup // WaitGroup used to track all background routines of handler.
 	synced  func() bool    // Callback function used to determine whether local node is synced.
 
-	// CELO Specific
+	// Celo Specific
 	etherbase  common.Address
 	gatewayFee *big.Int
 
@@ -879,7 +879,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			go func() {
 				defer wg.Done()
 				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeInformation{GatewayFee: h.gatewayFee, Etherbase: h.etherbase})
-				sendResponse(req.ReqID, 1, reply, 10)
+				sendResponse(req.ReqID, 1, reply, task.done())
 			}()
 		}
 

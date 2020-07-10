@@ -51,7 +51,7 @@ var LegacyLedgerBaseDerivationPath = DerivationPath{0x80000000 + 44, 0x80000000 
 // The BIP-44 spec https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
 // defines that the `purpose` be 44' (or 0x8000002C) for crypto currencies, and
 // SLIP-44 https://github.com/satoshilabs/slips/blob/master/slip-0044.md assigns
-// the `coin_type` 52752' (or 0x8000003C) to Celo.
+// the `coin_type` 52752' (or 0x8000CE10) to Celo.
 //
 // The root path for Celo is m/44'/52752'/0'/0 according to the specification
 // from https://github.com/ethereum/EIPs/issues/84, albeit it's not set in stone
