@@ -529,13 +529,13 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 func (evm *EVM) getTobinTax(sender common.Address) (*big.Int, *big.Int, *common.Address, error) {
 	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 	if err != nil {
-		if err != contract_errors.ErrSmartContractNotDeployed && err != contract_errors.ErrRegistryContractNotDeployed {
-			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
-		}
 		return nil, nil, nil, err
 	}
 
 	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
 	// each of which is equivalent to 32 bytes
