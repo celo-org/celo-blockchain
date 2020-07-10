@@ -526,6 +526,33 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
+func (evm *EVM) getTobinTax(sender common.Address) (*big.Int, *big.Int, *common.Address, error) {
+	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+	if err != nil {
+		if err != contract_errors.ErrSmartContractNotDeployed && err != contract_errors.ErrRegistryContractNotDeployed {
+			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
+		}
+		return nil, nil, nil, err
+	}
+
+	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+
+	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
+	// each of which is equivalent to 32 bytes
+	if binary.Size(ret) != 64 {
+		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
+	}
+	numerator := new(big.Int).SetBytes(ret[0:32])
+	denominator := new(big.Int).SetBytes(ret[32:64])
+	if denominator.Cmp(common.Big0) == 0 {
+		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
+	}
+	if numerator.Cmp(denominator) == 1 {
+		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
+	}
+	return numerator, denominator, reserveAddress, nil
+}
+
 // TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
@@ -537,45 +564,14 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-		if err != nil && err != contract_errors.ErrSmartContractNotDeployed && err != contract_errors.ErrRegistryContractNotDeployed {
-			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
-		}
-
+		numerator, denominator, reserveAddress, err := evm.getTobinTax(sender)
 		if err == nil {
-			ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-			parseTobinTax := func(ret []byte) (*big.Int, *big.Int, error) {
-				// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-				// each of which is equivalent to 32 bytes
-				if binary.Size(ret) != 64 {
-					return nil, nil, errors.New("Length of tobin tax not equal to 64 bytes")
-				}
-				numerator := new(big.Int).SetBytes(ret[0:32])
-				denominator := new(big.Int).SetBytes(ret[32:64])
-				if big.NewInt(0).Cmp(denominator) == 0 {
-					return nil, nil, errors.New("Tobin tax denominator equal to zero")
-				}
-				if numerator.Cmp(denominator) == 1 {
-					return nil, nil, errors.New("Tobin tax numerator greater than denominator")
-				}
-				return numerator, denominator, nil
-			}
-
-			if err != nil {
-				// Errors are expected before contract deployment.
-				log.Trace("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err)
-			} else {
-				numerator, denominator, err := parseTobinTax(ret)
-				if err != nil {
-					// The Tobin Tax should always be parsable.
-					log.Error("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err, "ret", ret)
-				} else {
-					tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-					evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-					evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-					return gas, nil
-				}
-			}
+			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
+			return gas, nil
+		} else {
+			log.Error("Failed to get tobin tax", "error", err)
 		}
 	}
 
