@@ -6,7 +6,7 @@
 
 /accounts/ @kobigurk
 /cmd/ @kevjue @mcortesi
-/consensus/ @kevjue @mcortesi
+/consensus/ @kevjue @mcortesi @trianglesphere
 /consensus/istanbul/backend/ @tkporter
 /contract_comm/ @kevjue
 /core/ @kevjue
