@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -46,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -476,14 +478,23 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// The author should be the first person to propose the block to ensure that randomness matches up.
-	addr, err := sb.Author(block.Header())
+	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
+	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
 	if err != nil {
-		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-		return 0, errInvalidProposal
-	} else if addr != block.Header().Coinbase {
-		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
-		return 0, errInvalidCoinbase
+		return 0, err
+	}
+	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
+	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
+	// then fallback to checking our client's version.
+	if !isSupported || (!isOk && params.CurrentVersionInfo.Cmp(version) == -1) {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return 0, errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
+			return 0, errInvalidCoinbase
+		}
 	}
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)

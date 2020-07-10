@@ -30,12 +30,12 @@ import (
 var (
 	MainnetGenesisHash   = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
 	AlfajoresGenesisHash = common.HexToHash("0xcdfbb05debfdbf4cb2f58c5a2e3915983898728188014f94728c4f72864652fc")
-	BaklavaGenesisHash   = common.HexToHash("0x09bb180829b78343cc752e110c2ece86dad46904ffad9a5791b3440f140f1d7f")
+	BaklavaGenesisHash   = common.HexToHash("0xbd1db1803638c0c151cdd10179c0117fedfffa4a3f0f88a8334708a4ea1a5fda")
 )
 
 var (
 	MainnetNetworkId   = uint64(42220)
-	BaklavaNetworkId   = uint64(40120)
+	BaklavaNetworkId   = uint64(62320)
 	AlfajoresNetworkId = uint64(44786)
 )
 
@@ -68,7 +68,6 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		NoMintGold:   false,
 		UseOldFormat: false,
 	}
 
@@ -110,8 +109,7 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		NoMintGold:   true,
-		UseOldFormat: true,
+		UseOldFormat: false,
 	}
 
 	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
@@ -132,19 +130,18 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		NoMintGold:   false,
 		UseOldFormat: true,
 	}
 
 	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, false, false, false}
+	}, true, false, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, true, false, false}
+	}, true, true, false}
 	TestRules = DefaultChainConfig.Rules(new(big.Int))
 )
 
@@ -227,7 +224,6 @@ type ChainConfig struct {
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
 
-	NoMintGold   bool `json:"noMintGold,omitempty"`
 	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 

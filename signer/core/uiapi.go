@@ -93,7 +93,7 @@ func (s *UIServerAPI) ListWallets() []rawWallet {
 // DeriveAccount requests a HD wallet to derive a new account, optionally pinning
 // it for later reuse.
 // Example call
-// {"jsonrpc":"2.0","method":"clef_deriveAccount","params":["ledger://","m/44'/60'/0'", false], "id":6}
+// {"jsonrpc":"2.0","method":"clef_deriveAccount","params":["ledger://","m/44'/52752'/0'", false], "id":6}
 func (s *UIServerAPI) DeriveAccount(url string, path string, pin *bool) (accounts.Account, error) {
 	wallet, err := s.am.Wallet(url)
 	if err != nil {
