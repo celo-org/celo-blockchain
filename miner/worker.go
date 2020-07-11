@@ -452,6 +452,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 // mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
 func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
+	defer w.chainHeadSub.Unsubscribe()
 	defer w.chainSideSub.Unsubscribe()
 	defer w.newViewSub.Unsubscribe()
 
