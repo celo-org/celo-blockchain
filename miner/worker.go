@@ -894,9 +894,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, 
 
 	// Short circuit if this validator is not the proposer of the round/view
 	if !isProposer {
+		log.Info("Tong: Is not a proposer, committing empty block")
 		istanbulEmptyBlockCommit()
 		return
 	}
+
+	log.Info("Tong: is a proposer")
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {

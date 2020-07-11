@@ -440,6 +440,7 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	valSet := c.current.ValidatorSet()
 	if roundChange {
+		logger.Info("Round changed")
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
