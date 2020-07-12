@@ -468,7 +468,6 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: c.isProposer()}
 	c.newViewFeed.Send(newViewEvent)
-	logger.Info("NewViewEvent sent")
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())

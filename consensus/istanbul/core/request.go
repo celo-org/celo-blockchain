@@ -57,9 +57,6 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 				c.sendPreprepare(request, roundChangeCertificate)
 			}
 		}
-		logger.Info("Tong Round > 0; preprepare sent", "round", c.current.Round(), "state", c.current.State(), "is the proposer", c.isProposer())
-	} else {
-		logger.Error("Tong Round > 0", "round", c.current.Round(), "state", c.current.State(), "is the proposer", c.isProposer())
 	}
 	return nil
 }
