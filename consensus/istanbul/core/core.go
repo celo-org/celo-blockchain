@@ -435,8 +435,6 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Generate next view and preprepare
 	var newView *istanbul.View
-	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var request *istanbul.Request
 
 	valSet := c.current.ValidatorSet()
 	if roundChange {
@@ -445,15 +443,7 @@ func (c *core) startNewRound(round *big.Int) error {
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
-
-		var err error
-		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
-		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return nil
-		}
 	} else {
-		request = c.current.PendingRequest()
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 			Round:    new(big.Int),
@@ -474,9 +464,6 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.processPendingRequests()
 	c.backlog.updateState(c.current.View(), c.current.State())
 
-	if roundChange && c.isProposer() && request != nil {
-		c.sendPreprepare(request, roundChangeCertificate)
-	}
 	c.resetRoundChangeTimer()
 
 	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: c.isProposer()}
