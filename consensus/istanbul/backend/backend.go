@@ -167,7 +167,7 @@ type Backend struct {
 	istanbulEventMux *event.TypeMux
 
 	address    common.Address       // Ethereum address of the ECDSA signing key
-  blsAddress common.Address       // Ethereum address of the BLS signing key
+	blsAddress common.Address       // Ethereum address of the BLS signing key
 	publicKey  *ecdsa.PublicKey     // The signer public key
 	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
 	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
