@@ -107,7 +107,11 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 
 	switch start {
 	case rpc.PendingBlockNumber:
-		fallthrough
+		if api.eth.IsMining() {
+			from = api.eth.blockchain.CurrentBlock()
+		} else {
+			from = api.eth.miner.PendingBlock()
+		}
 	case rpc.LatestBlockNumber:
 		from = api.eth.blockchain.CurrentBlock()
 	default:
@@ -115,7 +119,11 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 	}
 	switch end {
 	case rpc.PendingBlockNumber:
-		fallthrough
+		if api.eth.IsMining() {
+			to = api.eth.blockchain.CurrentBlock()
+		} else {
+			to = api.eth.miner.PendingBlock()
+		}
 	case rpc.LatestBlockNumber:
 		to = api.eth.blockchain.CurrentBlock()
 	default:
