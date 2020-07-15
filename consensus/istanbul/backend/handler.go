@@ -185,22 +185,6 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 
-// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
-func (sb *Backend) NewWork() error {
-	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
-
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
-
-	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
-
-	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
-	return nil
-}
-
 // Maintain metrics around the *parent* of the supplied block.
 // To figure out if this validator signed the parent block:
 // * First check the grandparent's validator set. If not elected, it didn't.
@@ -273,9 +257,19 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 }
 
 // Actions triggered by a new block being added to the chain.
-func (sb *Backend) NewChainHead(newBlock *types.Block) {
+func (sb *Backend) NewChainHead(newBlock *types.Block) error {
 
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
+
+	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+	if !sb.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
+
+	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
+	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
@@ -302,6 +296,8 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	}
 
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
+
+	return nil
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {

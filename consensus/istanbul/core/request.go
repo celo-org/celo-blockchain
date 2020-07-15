@@ -41,7 +41,8 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 		return err
 	}
 
-	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
+	// When Round == 0, send proposal with empty certificate
+	// When Round > 0, generate certificate and send proposal
 	if c.current.State() == StateAcceptRequest {
 		if c.current.Round().Cmp(common.Big0) == 0 {
 			c.sendPreprepare(request, istanbul.RoundChangeCertificate{})

@@ -133,9 +133,6 @@ type GenesisAccount interface {
 
 // Handler should be implemented if the consensus needs to handle and send peer messages
 type Handler interface {
-	// NewWork handles a new work event from the miner
-	NewWork() error
-
 	// NewChainHead handles a new head block
 	NewChainHead(*types.Block)
 

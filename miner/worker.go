@@ -389,9 +389,9 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-		case <-w.chainHeadCh:
+		case head := <-w.chainHeadCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewWork()
+				h.NewChainHead(head.Block)
 			}
 
 		case newView := <-w.newViewCh:
