@@ -466,8 +466,11 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	c.resetRoundChangeTimer()
 
-	newViewEvent := istanbul.NewViewEvent{NewView: newView, IsProposer: c.isProposer()}
-	c.newViewFeed.Send(newViewEvent)
+	// Send NewViewEvent to trigger proposal in worker
+	if c.isProposer() {
+		newViewEvent := istanbul.NewViewEvent{NewView: newView}
+		c.newViewFeed.Send(newViewEvent)
+	}
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())

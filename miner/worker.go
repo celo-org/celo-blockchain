@@ -341,12 +341,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32, isProposer bool) {
+	commit := func(noempty bool, s int32) {
 		if interrupt != nil {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, isProposer: isProposer}
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp}
 		timer.Reset(recommit)
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -387,7 +387,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead, true)
+			commit(false, commitInterruptNewHead)
 
 		case <-w.chainHeadCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
@@ -395,11 +395,11 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			}
 
 		case newView := <-w.newViewCh:
-			log.Info("Getting newViewEvent")
+			log.Info("Received newViewEvent")
 			headNumber := newView.NewView.Sequence.Uint64() - 1
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead, newView.IsProposer)
+			commit(false, commitInterruptNewHead)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -410,7 +410,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					timer.Reset(recommit)
 					continue
 				}
-				commit(true, commitInterruptResubmit, true)
+				commit(true, commitInterruptResubmit)
 			}
 
 		case interval := <-w.resubmitIntervalCh:
@@ -458,7 +458,7 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.isProposer)
+			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
 		case ev := <-w.chainSideCh:
 			// TOOO(nategraf): Remove this subcription, as there is no work to be done here.
@@ -817,7 +817,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, isProposer bool) {
+func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -891,12 +891,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, 
 	}
 
 	w.updateSnapshot()
-
-	// Short circuit if this validator is not the proposer of the round/view
-	if !isProposer {
-		istanbulEmptyBlockCommit()
-		return
-	}
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
