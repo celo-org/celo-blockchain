@@ -525,7 +525,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func (evm *EVM) getTobinTax(sender common.Address) (*big.Int, *big.Int, *common.Address, error) {
+func getTobinTax(evm *EVM, sender common.Address) (*big.Int, *big.Int, *common.Address, error) {
 	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 	if err != nil {
 		return nil, nil, nil, err
@@ -563,7 +563,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := evm.getTobinTax(sender)
+		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
 		if err == nil {
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
