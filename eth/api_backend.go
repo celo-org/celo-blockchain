@@ -59,11 +59,17 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 }
 
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	// Use latest block for validators, otherwise use pending block for full nodes
-	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
-		if !b.eth.IsMining() {
+	// If this is a validator, return the latest block if pending block is requested.  Non proposing validators for IBFT don't have a pending block.  TODO(kevjue) modify the miner so that the pending txns will build up the pending block (similar to what full nodes do).
+	if number == rpc.PendingBlockNumber {
+		if !b.eth.IsMining() { // This is a full node
 			return b.eth.miner.PendingBlock().Header(), nil
+		} else {
+			return b.eth.blockchain.CurrentBlock().Header(), nil
 		}
+	}
+
+	// Otherwise resolve and return the block
+	if number == rpc.LatestBlockNumber {
 		return b.eth.blockchain.CurrentBlock().Header(), nil
 	}
 	return b.eth.blockchain.GetHeaderByNumber(uint64(number)), nil
@@ -91,11 +97,17 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 }
 
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	// Use latest block for validators, otherwise use pending block for full nodes
-	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
-		if !b.eth.IsMining() {
+	// If this is a validator, return the latest block if pending block is requested.  Non proposing validators for IBFT don't have a pending block.
+	if number == rpc.PendingBlockNumber {
+		if !b.eth.IsMining() { // This is a full node
 			return b.eth.miner.PendingBlock(), nil
+		} else {
+			return b.eth.blockchain.CurrentBlock(), nil
 		}
+	}
+
+	// Otherwise resolve and return the block
+	if number == rpc.LatestBlockNumber {
 		return b.eth.blockchain.CurrentBlock(), nil
 	}
 	return b.eth.blockchain.GetBlockByNumber(uint64(number)), nil

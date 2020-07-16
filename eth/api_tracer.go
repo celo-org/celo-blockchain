@@ -107,20 +107,26 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 
 	// Use latest block for validators, otherwise use pending block for full nodes
 	switch start {
-	case rpc.PendingBlockNumber, rpc.LatestBlockNumber:
-		from = api.eth.blockchain.CurrentBlock()
-		if !api.eth.IsMining() {
+	case rpc.PendingBlockNumber:
+		if !api.eth.IsMining() { // This is a full node
 			from = api.eth.miner.PendingBlock()
+		} else {
+			from = api.eth.blockchain.CurrentBlock()
 		}
+	case rpc.LatestBlockNumber:
+		from = api.eth.blockchain.CurrentBlock()
 	default:
 		from = api.eth.blockchain.GetBlockByNumber(uint64(start))
 	}
 	switch end {
-	case rpc.PendingBlockNumber, rpc.LatestBlockNumber:
-		to = api.eth.blockchain.CurrentBlock()
-		if !api.eth.IsMining() {
+	case rpc.PendingBlockNumber:
+		if !api.eth.IsMining() { // This is a full node
 			to = api.eth.miner.PendingBlock()
+		} else {
+			to = api.eth.blockchain.CurrentBlock()
 		}
+	case rpc.LatestBlockNumber:
+		to = api.eth.blockchain.CurrentBlock()
 	default:
 		to = api.eth.blockchain.GetBlockByNumber(uint64(end))
 	}
