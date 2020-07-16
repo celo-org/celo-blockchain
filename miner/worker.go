@@ -145,8 +145,6 @@ type worker struct {
 	mux          *event.TypeMux
 	txsCh        chan core.NewTxsEvent
 	txsSub       event.Subscription
-	chainHeadCh  chan core.ChainHeadEvent
-	chainHeadSub event.Subscription
 	chainSideCh  chan core.ChainSideEvent
 	chainSideSub event.Subscription
 	newViewCh    chan istanbul.NewViewEvent
@@ -205,7 +203,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newViewCh:          make(chan istanbul.NewViewEvent, newViewChanSize),
 		newWorkCh:          make(chan *newWorkReq),
@@ -220,7 +217,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
-	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
 	worker.newViewSub = engine.SubscribeNewViewEvent(worker.newViewCh)
 
@@ -388,11 +384,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-		case head := <-w.chainHeadCh:
-			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewChainHead(head.Block)
-			}
-
 		case newView := <-w.newViewCh:
 			log.Info("Received newViewEvent")
 			headNumber := newView.NewView.Sequence.Uint64() - 1
@@ -450,7 +441,6 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 // mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
 func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
-	defer w.chainHeadSub.Unsubscribe()
 	defer w.chainSideSub.Unsubscribe()
 	defer w.newViewSub.Unsubscribe()
 
@@ -499,8 +489,6 @@ func (w *worker) mainLoop() {
 		case <-w.exitCh:
 			return
 		case <-w.txsSub.Err():
-			return
-		case <-w.chainHeadSub.Err():
 			return
 		case <-w.chainSideSub.Err():
 			return

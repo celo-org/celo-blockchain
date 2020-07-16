@@ -264,10 +264,10 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
-	        sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
-	        go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
-	}	
+	if sb.coreStarted {
+		sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
+		go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+	}
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
