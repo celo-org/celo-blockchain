@@ -121,10 +121,9 @@ const (
 
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
-	interrupt  *int32
-	noempty    bool
-	timestamp  int64
-	isProposer bool
+	interrupt *int32
+	noempty   bool
+	timestamp int64
 }
 
 // intervalAdjust represents a resubmitting interval adjustment.
