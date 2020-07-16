@@ -59,11 +59,8 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 }
 
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	if block, err := b.BlockByNumber(ctx, number); err != nil {
-		return nil, err
-	} else {
-		return block.Header(), nil
-	}
+	block, err := b.BlockByNumber(ctx, number)
+	return block.Header(), err
 }
 
 func (b *EthAPIBackend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
@@ -88,14 +85,8 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 }
 
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	// For validator: use latest block, otherwise resolve and return the block
-	if number == rpc.PendingBlockNumber {
-		if b.eth.IsMining() {
-			return b.eth.blockchain.CurrentBlock(), nil
-		}
-		return b.eth.miner.PendingBlock(), nil
-	}
-	if number == rpc.LatestBlockNumber {
+	// Use latest block for validators, otherwise use pending block for full nodes
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.eth.blockchain.CurrentBlock(), nil
 	}
 	return b.eth.blockchain.GetBlockByNumber(uint64(number)), nil
@@ -128,9 +119,6 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	header, err := b.HeaderByNumber(ctx, number)
-	if err != nil {
-		return nil, nil, err
-	}
 	if header == nil {
 		return nil, nil, errors.New("header not found")
 	}
