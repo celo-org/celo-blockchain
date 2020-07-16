@@ -59,8 +59,11 @@ func (b *EthAPIBackend) SetHead(number uint64) {
 }
 
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	block, err := b.BlockByNumber(ctx, number)
-	return block.Header(), err
+	// Use latest block for validators, otherwise use pending block for full nodes
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
+		return b.eth.blockchain.CurrentBlock().Header(), nil
+	}
+	return b.eth.blockchain.GetHeaderByNumber(uint64(number)), nil
 }
 
 func (b *EthAPIBackend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
