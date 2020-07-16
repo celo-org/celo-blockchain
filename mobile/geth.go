@@ -62,6 +62,9 @@ type NodeConfig struct {
 	// set to zero, then only the configured static and trusted peers can connect.
 	MaxPeers int
 
+	// NoDiscovery indicates whether the node should not participate in p2p discovery
+	NoDiscovery bool
+
 	// EthereumEnabled specifies whether the node should run the Ethereum protocol.
 	EthereumEnabled bool
 
@@ -111,6 +114,7 @@ type NodeConfig struct {
 var defaultNodeConfig = &NodeConfig{
 	BootstrapNodes:        FoundationBootnodes(),
 	MaxPeers:              25,
+	NoDiscovery:           true,
 	EthereumEnabled:       true,
 	EthereumNetworkID:     1,
 	EthereumDatabaseCache: 16,
@@ -150,8 +154,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		UseLightweightKDF: config.UseLightweightKDF,
 		IPCPath:           config.IPCPath,
 		P2P: p2p.Config{
-			NoDiscovery:      true,
-			DiscoveryV5:      false,
+			NoDiscovery:      config.NoDiscovery,
+			DiscoveryV5:      !config.NoDiscovery,
 			BootstrapNodesV5: config.BootstrapNodes.nodes,
 			ListenAddr:       ":0",
 			NAT:              nat.Any(),
