@@ -257,7 +257,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 }
 
 // Actions triggered by a new block being added to the chain.
-func (sb *Backend) NewChainHead(newBlock *types.Block) error {
+func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
@@ -265,11 +265,9 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
-
-	sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
-	go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+	        sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
+	        go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+	}	
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
@@ -296,8 +294,6 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) error {
 	}
 
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
-
-	return nil
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) {
