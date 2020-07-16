@@ -118,7 +118,7 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 }
 
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
-	header, err := b.HeaderByNumber(ctx, number)
+	header, _ := b.HeaderByNumber(ctx, number)
 	if header == nil {
 		return nil, nil, errors.New("header not found")
 	}
