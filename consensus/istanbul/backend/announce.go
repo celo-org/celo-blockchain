@@ -221,17 +221,14 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.updateAnnounceVersionCh:
-			// Drain this channel, as the update version action will address all requests
-		drainLoop:
+			// Drain this channel, as the update version action will address all requests.
 			for {
 				select {
 				case <-sb.updateAnnounceVersionCh:
 				default:
-					break drainLoop
+					updateAnnounceVersionFunc()
 				}
 			}
-
-			updateAnnounceVersionFunc()
 
 		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -402,8 +399,6 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		return err
 	}
 
-	queryEnodeEncryptedEnodeURLParams := make([]*genEncryptedEnodeURLParam, 0)
-
 	var valProxyAssignments map[common.Address]*enode.Node
 	var selfEnodeURL string
 	if sb.IsProxiedValidator() {
@@ -415,6 +410,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		selfEnodeURL = sb.SelfNode().URLv4()
 	}
 
+	var queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			var queryEnodeExternalEnodeURL string
@@ -1046,9 +1042,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	return nil
 }
 
-// UpdateAnnounceVersion will synchronously update the announce version.
-// Must be called in a separate goroutine from the announceThread to avoid
-// a deadlock.
+// UpdateAnnounceVersion will asynchronously update the announce version.
 func (sb *Backend) UpdateAnnounceVersion() {
 	sb.updateAnnounceVersionCh <- struct{}{}
 }
@@ -1269,11 +1263,11 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 	// Ensure this node is a validator in the validator conn set
 	shouldSave, err := sb.shouldSaveAndPublishValEnodeURLs()
 	if err != nil {
-		logger.Debug("Error checking if should save val enode url", "err", err)
+		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
 	}
 	if !shouldSave {
-		logger.Debug("This node should not save val enode urls, ignoring enodeCertificate")
+		logger.Debug("This node should not save validator enode urls, ignoring enodeCertificate")
 		return nil
 	}
 
