@@ -9,6 +9,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/VictoriaMetrics/fastcache v1.5.3
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847
+	github.com/aws/aws-sdk-go v1.25.48
 	github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6
 	github.com/celo-org/celo-bls-go v0.1.6
 	github.com/cespare/cp v0.1.0
@@ -59,6 +60,7 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	golang.org/x/text v0.3.2
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20190213234257-ec84240a7772
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect

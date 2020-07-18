@@ -44,7 +44,6 @@ type Backend interface {
 	SuggestPrice(ctx context.Context) (*big.Int, error)
 	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error)
 	ChainDb() ethdb.Database
-	EventMux() *event.TypeMux
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool
 	RPCGasCap() *big.Int // global gas cap for eth_call over rpc: DoS protection
@@ -81,6 +80,7 @@ type Backend interface {
 	GetLogs(ctx context.Context, blockHash common.Hash) ([][]*types.Log, error)
 	ServiceFilter(ctx context.Context, session *bloombits.MatcherSession)
 	SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription
+	SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription
 	SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription
 
 	ChainConfig() *params.ChainConfig
