@@ -633,7 +633,7 @@ outer:
 func TestBroadcastMalformedBlock(t *testing.T) {
 	// Create a live node to test propagation with
 	var (
-		engine  = ethash.NewFaker()
+		engine  = mockEngine.NewFaker()
 		db      = rawdb.NewMemoryDatabase()
 		config  = &params.ChainConfig{}
 		gspec   = &core.Genesis{Config: config}
@@ -643,7 +643,7 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), engine, blockchain, db, 1, nil)
+	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), engine, blockchain, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -652,22 +652,17 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 
 	// Create two peers, one to send the malformed block with and one to check
 	// propagation
-	source, _ := newTestPeer("source", eth63, pm, true)
+	source, _ := newTestPeer("source", istanbul.Celo64, pm, true)
 	defer source.close()
 
-	sink, _ := newTestPeer("sink", eth63, pm, true)
+	sink, _ := newTestPeer("sink", istanbul.Celo64, pm, true)
 	defer sink.close()
 
 	// Create various combinations of malformed blocks
-	chain, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
+	chain, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
 
-	malformedUncles := chain[0].Header()
-	malformedUncles.UncleHash[0]++
 	malformedTransactions := chain[0].Header()
 	malformedTransactions.TxHash[0]++
-	malformedEverything := chain[0].Header()
-	malformedEverything.UncleHash[0]++
-	malformedEverything.TxHash[0]++
 
 	// Keep listening to broadcasts and notify if any arrives
 	notify := make(chan struct{})
@@ -677,8 +672,8 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 		}
 	}()
 	// Try to broadcast all malformations and ensure they all get discarded
-	for _, header := range []*types.Header{malformedUncles, malformedTransactions, malformedEverything} {
-		block := types.NewBlockWithHeader(header).WithBody(chain[0].Transactions(), chain[0].Uncles())
+	for _, header := range []*types.Header{malformedTransactions} {
+		block := types.NewBlockWithHeader(header).WithBody(chain[0].Transactions(), nil, nil)
 		if err := p2p.Send(source.app, NewBlockMsg, []interface{}{block, big.NewInt(131136)}); err != nil {
 			t.Fatalf("failed to broadcast block: %v", err)
 		}
