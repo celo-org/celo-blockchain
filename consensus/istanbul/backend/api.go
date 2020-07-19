@@ -176,7 +176,7 @@ func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 }
 
 // ProxiedValidators retrieves all of the proxies connected proxied validators.
-// Note that we plan to support multiple proxies in the future, so this function
+// Note that we plan to support validators per proxy in the future, so this function
 // is plural and returns an array of proxied validators.  This is to prevent
 // future backwards compatibility issues.
 func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
