@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -1072,21 +1073,20 @@ func TestLogRebirth(t *testing.T) {
 		chanval := reflect.ValueOf(sink)
 		chantyp := chanval.Type()
 		if chantyp.Kind() != reflect.Chan || chantyp.ChanDir()&reflect.RecvDir == 0 {
-			t.Fatalf("invalid channel, given type %v", chantyp)
+			// t.Fatalf won't work since it's called in another goroutine
+			panic(fmt.Sprintf("invalid channel, given type %v", chantyp))
 		}
 		cnt := 0
-		var recv []reflect.Value
 		timeout := time.After(1 * time.Second)
 		cases := []reflect.SelectCase{{Chan: chanval, Dir: reflect.SelectRecv}, {Chan: reflect.ValueOf(timeout), Dir: reflect.SelectRecv}}
 		for {
-			chose, v, _ := reflect.Select(cases)
+			chose, _, _ := reflect.Select(cases)
 			if chose == 1 {
 				// Not enough event received
 				result <- false
 				return
 			}
 			cnt += 1
-			recv = append(recv, v)
 			if cnt == expect {
 				break
 			}

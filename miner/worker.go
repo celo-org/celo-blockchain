@@ -1013,11 +1013,3 @@ func (w *worker) isIstanbulEngine() bool {
 	_, isIstanbul := w.engine.(consensus.Istanbul)
 	return isIstanbul
 }
-
-// postSideBlock fires a side chain event, only use it for testing.
-func (w *worker) postSideBlock(event core.ChainSideEvent) {
-	select {
-	case w.chainSideCh <- event:
-	case <-w.exitCh:
-	}
-}

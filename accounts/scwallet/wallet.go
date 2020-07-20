@@ -918,7 +918,7 @@ func (s *Session) walletStatus() (*walletStatus, error) {
 
 // derivationPath fetches the wallet's current derivation path from the card.
 //lint:ignore U1000 needs to be added to the console interface
-func (s *Session) derivationPath() (accounts.DerivationPath, error) {
+func (s *Session) derivationPath() (accounts.DerivationPath, error) { // nolint:unused
 	response, err := s.Channel.transmitEncrypted(claSCWallet, insStatus, statusP1Path, 0, nil)
 	if err != nil {
 		return nil, err
@@ -1033,14 +1033,14 @@ func (s *Session) derive(path accounts.DerivationPath) (accounts.Account, error)
 
 // keyExport contains information on an exported keypair.
 //lint:ignore U1000 needs to be added to the console interface
-type keyExport struct {
+type keyExport struct { // nolint:unused
 	PublicKey  []byte `asn1:"tag:0"`
 	PrivateKey []byte `asn1:"tag:1,optional"`
 }
 
 // publicKey returns the public key for the current derivation path.
 //lint:ignore U1000 needs to be added to the console interface
-func (s *Session) publicKey() ([]byte, error) {
+func (s *Session) publicKey() ([]byte, error) { // nolint:unused
 	response, err := s.Channel.transmitEncrypted(claSCWallet, insExportKey, exportP1Any, exportP2Pubkey, nil)
 	if err != nil {
 		return nil, err

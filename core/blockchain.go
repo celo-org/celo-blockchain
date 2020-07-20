@@ -2032,7 +2032,6 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 					l := *log
 					if removed {
 						l.Removed = true
-					} else {
 					}
 					logs = append(logs, &l)
 				}
