@@ -207,7 +207,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	defer chain.Stop()
 
 	loopErr := make(chan error)
-	newBlock := make(chan struct{})
+	newBlockCh := make(chan struct{})
 	listenNewBlock := func() {
 		sub := w.mux.Subscribe(core.NewMinedBlockEvent{})
 		defer sub.Unsubscribe()
@@ -218,7 +218,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 			if err != nil {
 				loopErr <- fmt.Errorf("failed to insert new mined block:%d, error:%v", block.NumberU64(), err)
 			}
-			newBlock <- struct{}{}
+			newBlockCh <- struct{}{}
 		}
 	}
 	// Ignore empty commit here for less noise
@@ -231,10 +231,15 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		b.txPool.AddLocal(b.newRandomTx(true))
 		b.txPool.AddLocal(b.newRandomTx(false))
+		w.newViewCh <- istanbul.NewViewEvent{
+			NewView: &istanbul.View{
+				Sequence: new(big.Int),
+				Round:    new(big.Int),
+			}}
 		select {
 		case e := <-loopErr:
 			t.Fatal(e)
-		case <-newBlock:
+		case <-newBlockCh:
 		case <-time.NewTimer(3 * time.Second).C: // Worker needs 1s to include new changes.
 			t.Fatalf("timeout")
 		}
@@ -367,13 +372,6 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	}
 
 	w.start()
-	// expect one work
-	select {
-	case <-taskCh:
-	case <-time.NewTimer(time.Second).C:
-		t.Error("new task timeout")
-	}
-
 	b.txPool.AddLocals(newTxs)
 	time.Sleep(time.Second)
 
