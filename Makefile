@@ -31,7 +31,7 @@ geth:
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 geth-musl:
-	build/env.sh go run build/ci.go install -musl ./cmd/geth
+	$(GORUN) build/ci.go install -musl ./cmd/geth
 	@echo "Done building with musl."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
@@ -55,7 +55,7 @@ endif
 endif
 
 swarm:
-	build/env.sh go run build/ci.go install ./cmd/swarm
+	$(GORUN) build/ci.go install ./cmd/swarm
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
 
@@ -63,7 +63,7 @@ all:
 	$(GORUN) build/ci.go install
 
 all-musl:
-	build/env.sh go run build/ci.go install -musl
+	$(GORUN) build/ci.go install -musl
 
 android:
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local
