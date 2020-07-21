@@ -623,6 +623,7 @@ func (sb *Backend) StartAnnouncing() error {
 
 	go sb.announceThread()
 
+	sb.announceThreadQuit = make(chan struct{})
 	sb.announceRunning = true
 
 	if err := sb.vph.startThread(); err != nil {

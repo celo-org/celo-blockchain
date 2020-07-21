@@ -289,11 +289,9 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
 		if peerIsValidator {
-			// msg may be nil
-			msg, err = sb.RetrieveEnodeCertificateMsg()
-			if err != nil {
-				errCh <- err
-				return
+			msgMap := sb.RetrieveEnodeCertificateMsgMap()
+			if msgMap != nil {
+				msg = msgMap[sb.SelfNode().ID()]
 			}
 		}
 		// Even if we decide not to identify ourselves,

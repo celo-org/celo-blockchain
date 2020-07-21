@@ -41,7 +41,7 @@ type proxyEngine struct {
 
 // New creates a new proxy engine.  This is used by both
 // proxies and proxied validators
-func New(backend istanbul.BackendForProxy, config *istanbul.Config) ProxyEngine {
+func NewEngine(backend istanbul.BackendForProxy, config *istanbul.Config) ProxyEngine {
 	p := &proxyEngine{
 		config:  config,
 		logger:  log.New(),
@@ -182,8 +182,8 @@ func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.
 	}
 }
 
-func (p *proxyEngine) GetProxiesInfo() ([]*ProxyInfo, error) {
-	return p.ph.GetProxiesInfo()
+func (p *proxyEngine) GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]common.Address, error) {
+	return p.ph.GetProxiesAndValAssignments()
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {

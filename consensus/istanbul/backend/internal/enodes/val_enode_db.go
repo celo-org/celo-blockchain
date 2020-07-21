@@ -186,7 +186,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 	})
 
 	if err != nil {
-		vet.logger.Error("ValidatorEnodeDB.GetAllValEnodes error", "err", err)
+		vet.logger.Error("ValidatorEnodeDB.GetValEnodes error", "err", err)
 		return nil, err
 	}
 

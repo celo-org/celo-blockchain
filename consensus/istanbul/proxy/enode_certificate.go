@@ -19,6 +19,7 @@ package proxy
 import (
 	"encoding/hex"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -114,8 +115,25 @@ func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(payload []byte) error {
 		return errInvalidEnodeCertificate
 	}
 
-	if err := p.backend.SetEnodeCertificateMsg(msg); err != nil {
+	if err := p.backend.SetEnodeCertificateMsgMap(map[enode.ID]*istanbul.Message{selfNode.ID(): msg}); err != nil {
 		logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
+		return err
+	}
+
+	// Send the new enode certificate to all of the connected validators
+	vetEntries, err := p.backend.GetValEnodeTableEntries(nil)
+	if err != nil {
+		logger.Warn("Error in retrieving val enode table entries", "err", err)
+		return err
+	}
+
+	destAddresses := make([]common.Address, 0, len(vetEntries))
+	for destAddress, _ := range vetEntries {
+		destAddresses = append(destAddresses, destAddress)
+	}
+
+	if err := p.backend.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		logger.Warn("Error in sending enode certificate to validators")
 		return err
 	}
 

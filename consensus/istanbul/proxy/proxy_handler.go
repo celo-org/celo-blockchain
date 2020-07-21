@@ -66,7 +66,6 @@ func newProxyHandler(sb istanbul.BackendForProxy, pe ProxyEngine) *proxyHandler 
 		pe:          pe,
 		runningFlag: false,
 
-		quit:            make(chan struct{}),
 		addProxies:      make(chan []*istanbul.ProxyConfig),
 		removeProxies:   make(chan []*enode.Node),
 		addProxyPeer:    make(chan consensus.Peer),
@@ -78,7 +77,7 @@ func newProxyHandler(sb istanbul.BackendForProxy, pe ProxyEngine) *proxyHandler 
 		sendValEnodeShareMsgsCh: make(chan struct{}),
 		newBlockchainEpoch:      make(chan struct{}),
 
-		proxyHandlerEpochLength: time.Minute,
+		proxyHandlerEpochLength: 15 * time.Second,
 
 		ps: newProxySet(newConsistentHashingPolicy()),
 
@@ -99,6 +98,7 @@ func (ph *proxyHandler) Start() error {
 	ph.runningFlag = true
 
 	ph.loopWG.Add(1)
+	ph.quit = make(chan struct{})
 	go ph.run()
 
 	log.Info("Proxy handler started")
@@ -114,7 +114,7 @@ func (ph *proxyHandler) Stop() error {
 		return ErrStoppedProxyHandler
 	}
 	ph.runningFlag = false
-	ph.quit <- struct{}{}
+	close(ph.quit)
 	ph.loopWG.Wait()
 
 	log.Info("Proxy handler stopped")
@@ -148,23 +148,28 @@ func (ph *proxyHandler) GetValidatorAssignments(validators []common.Address) (ma
 	return assignedProxies, nil
 }
 
+// This function will return all of the peered proxies
+/* func (ph *proxyHandler) GetProxiesExternalURL() ([]) {
+} */
+
 // This function will return all of the proxies' info.  It's used to display
 // that info via the RPC API.
-func (ph *proxyHandler) GetProxiesInfo() ([]*ProxyInfo, error) {
-	var proxyInfo []*ProxyInfo
+func (ph *proxyHandler) GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]common.Address, error) {
+	var proxies []*proxy
+	var valAssignments map[enode.ID][]common.Address
 
 	select {
 	case ph.proxyHandlerOpCh <- func(ps *proxySet) {
-		proxyInfo = ps.getProxyInfo()
+		proxies, valAssignments = ps.getProxyAndValAssignments()
 	}:
 		<-ph.proxyHandlerOpDoneCh
 
 	case <-ph.quit:
-		return nil, ErrStoppedProxyHandler
+		return nil, nil, ErrStoppedProxyHandler
 
 	}
 
-	return proxyInfo, nil
+	return proxies, valAssignments, nil
 }
 
 // isRunning returns if `run` is currently running in a goroutine
@@ -242,34 +247,9 @@ loop:
 				if valsReassigned := ph.ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
 					ph.sendValEnodeShareMsgs()
+
+					// Note that update announce version will also share the enodeCertifcate to all the proxies
 					ph.sb.UpdateAnnounceVersion()
-				}
-
-				// Share this node's enodeCertificate for the proxy to use for handshakes via a forward message
-				proxyEnodeCertificateMsg, err := ph.sb.GenerateEnodeCertificateMsg(proxy.externalNode.URLv4())
-				if err != nil {
-					logger.Warn("Error generating enode certificate message", "err", err)
-				} else {
-					payload, err := proxyEnodeCertificateMsg.Payload()
-					if err != nil {
-						logger.Error("Error getting payload of enode certificate message", "err", err)
-					} else {
-						validatorAssignments := ph.ps.getValidatorAssignments(nil, []enode.ID{peerID})
-
-						destAddresses := make([]common.Address, 0, len(validatorAssignments))
-						for valAddress := range validatorAssignments {
-							destAddresses = append(destAddresses, valAddress)
-						}
-
-						// The forward message is being sent within a goroutine, since SendForwardMsg will query the proxy handler thread
-						// (which we are already in).  If this command is done inline, then it will result in a deadlock.
-						// TODO: Figure out a way to run this command inline.
-						go func() {
-							if err := ph.pe.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, map[enode.ID][]byte{peerID: payload}); err != nil {
-								logger.Error("Error in forwarding a enodeCertificateMsg to proxy", "proxy", peerNode, "error", err)
-							}
-						}()
-					}
 				}
 			}
 
@@ -297,21 +277,50 @@ loop:
 			}
 
 		case <-phEpochTicker.C:
-			// At every proxy handler epoch, do the following:
-
-			// 1. Ensure that any proxy nodes that haven't been connected as peers
-			//    in the duration of the epoch are not assigned to any validators.
-			//    This can happen if the peer was previously connected, was assigned
-			//    validators, but was later disconnected at the p2p level.
+			logger.Trace("phEpochTicker expired.  Will process disconnected proxies.")
+			// Remove validator assignement for proxies that are disconnected for at minmum `proxyHandlerEpochLength` seconds.
+			// The reason for not immediately removing the validator asssignments is so that if there is a
+			// network disconnect then a quick reconnect, the validator assignments wouldn't be changed.
 			if valsReassigned := ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength); valsReassigned {
+				ph.sendValEnodeShareMsgs()
 				ph.sb.UpdateAnnounceVersion()
+			} else {
+				// This is the case if there were no changes the validator assignments at the end of `proxyHandlerEpochLength` seconds.
+
+				// Send out the val enode share message.  We will resend the valenodeshare message here in case it was
+				// never successfully sent before.
+				ph.sendValEnodeShareMsgs()
+
+				// Also resend the enode certificates to the proxies (via a forward message), in case it was
+				// never successfully sent before.
+
+				// Get all connected proxies
+				proxiesMap := ph.ps.getAllProxies()
+				proxyPeers := make([]consensus.Peer, 0, len(proxiesMap))
+				for _, proxy := range proxiesMap {
+					if proxy.peer != nil {
+						proxyPeers = append(proxyPeers, proxy.peer)
+					}
+				}
+
+				// Get the enode certificate messages
+				proxyEnodeCertMsgs := ph.sb.RetrieveEnodeCertificateMsgMap()
+				proxySpecificPayloads := make(map[enode.ID][]byte)
+				for proxyID, enodeCertMsg := range proxyEnodeCertMsgs {
+					payload, err := enodeCertMsg.Payload()
+					if err != nil {
+						logger.Warn("Error getting payload of enode certificate message", "err", err, "proxyID", proxyID)
+						continue
+					} else {
+						proxySpecificPayloads[proxyID] = payload
+					}
+				}
+
+				// Send the enode certificate messages to the proxies
+				if err := ph.pe.SendForwardMsg(proxyPeers, []common.Address{}, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
+					logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
+				}
 			}
-
-			// 2. Send out a val enode share message to the proxies. Do this regardless if validators got reassigned,
-			//    just to ensure that proxies will get the val enode table
-			ph.sendValEnodeShareMsgs()
-
-			// 3. TODO - Do consistency checks with the proxy peers in proxy handler and proxy peers in the p2p server
 
 		case <-ph.sendValEnodeShareMsgsCh:
 			ph.sendValEnodeShareMsgs()
@@ -363,7 +372,7 @@ func (ph *proxyHandler) getValidatorConnSetDiff(validators []common.Address) (ne
 	// Get the set of active and registered validators
 	newValConnSet, err := ph.sb.RetrieveValidatorConnSet(false)
 	if err != nil {
-		logger.Warn("Proxy Handler couldn't get the validator connection set", "err", err, "func", "getValidatorConnSetDiff")
+		logger.Warn("Proxy Handler couldn't get the validator connection set", "err", err)
 		return nil, nil, err
 	}
 

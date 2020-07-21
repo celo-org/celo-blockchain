@@ -24,33 +24,39 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (p *proxyEngine) SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
+func (p *proxyEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
 	logger := p.logger.New("func", "SendForwardMsg")
 
 	if p.backend.IsProxiedValidator() {
 		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
-		valAssignments, err := p.ph.GetValidatorAssignments(finalDestAddresses)
-		if err != nil {
-			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
-			return err
-		}
-
-		// Create proxy -> set of validator addresses map
 		proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
-		for valAddress, proxy := range valAssignments {
-			if proxy != nil && proxy.peer != nil {
-				if proxyToAddressesMap[proxy.peer] == nil {
-					proxyToAddressesMap[proxy.peer] = make([]common.Address, 0)
-				}
-
-				proxyToAddressesMap[proxy.peer] = append(proxyToAddressesMap[proxy.peer], valAddress)
+		if proxyPeers != nil {
+			for _, proxyPeer := range proxyPeers {
+				proxyToAddressesMap[proxyPeer] = nil
 			}
-		}
+		} else {
+			valAssignments, err := p.ph.GetValidatorAssignments(finalDestAddresses)
+			if err != nil {
+				logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
+				return err
+			}
 
-		if len(proxyToAddressesMap) == 0 {
-			logger.Warn("No proxy assigned to any of the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-			return nil
+			// Create proxy -> set of validator addresses map
+			for valAddress, proxy := range valAssignments {
+				if proxy != nil && proxy.peer != nil {
+					if proxyToAddressesMap[proxy.peer] == nil {
+						proxyToAddressesMap[proxy.peer] = make([]common.Address, 0)
+					}
+
+					proxyToAddressesMap[proxy.peer] = append(proxyToAddressesMap[proxy.peer], valAddress)
+				}
+			}
+
+			if len(proxyToAddressesMap) == 0 {
+				logger.Warn("No proxy assigned to any of the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
+				return nil
+			}
 		}
 
 		// Send the forward messages to the proxies

@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -44,6 +45,10 @@ import (
 const (
 	queryEnodeGossipCooldownDuration         = 5 * time.Minute
 	versionCertificateGossipCooldownDuration = 5 * time.Minute
+)
+
+var (
+	errInvalidEnodeCertMsgMap = errors.New("invalid enode certificate message map")
 )
 
 // QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
@@ -107,6 +112,7 @@ func (sb *Backend) announceThread() {
 			return
 		}
 		sb.announceVersionMu.Lock()
+		logger.Debug("Updating announce version", "announceVersion", version)
 		sb.announceVersion = version
 		sb.announceVersionMu.Unlock()
 	}
@@ -222,13 +228,17 @@ func (sb *Backend) announceThread() {
 
 		case <-sb.updateAnnounceVersionCh:
 			// Drain this channel, as the update version action will address all requests.
+
+		drainLoop:
 			for {
 				select {
 				case <-sb.updateAnnounceVersionCh:
 				default:
-					updateAnnounceVersionFunc()
+					break drainLoop
 				}
 			}
+
+			updateAnnounceVersionFunc()
 
 		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -678,12 +688,12 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// The target could be an existing peer of any purpose.
 	matches := sb.broadcaster.FindPeers(targetIDs, p2p.AnyPurpose)
 	if matches[node.ID()] != nil {
-		enodeCertificateMsg, err := sb.RetrieveEnodeCertificateMsg()
-		if err != nil {
-			return err
-		}
-		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertificateMsg); err != nil {
-			return err
+		enodeCertificateMsgMap := sb.RetrieveEnodeCertificateMsgMap()
+
+		if enodeCertMsg := enodeCertificateMsgMap[sb.SelfNode().ID()]; enodeCertMsg != nil {
+			if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertMsg); err != nil {
+				return err
+			}
 		}
 	}
 	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
@@ -1081,6 +1091,10 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		return err
 	}
 
+	if len(enodeCertificateMsgs) > 0 {
+		sb.SetEnodeCertificateMsgMap(enodeCertificateMsgs)
+	}
+
 	destAddresses := make([]common.Address, 0, len(validatorConnSet))
 	for address := range validatorConnSet {
 		destAddresses = append(destAddresses, address)
@@ -1098,22 +1112,14 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			}
 		}
 
-		if err := sb.proxyEngine.SendForwardMsg(destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
+		if err := sb.proxyEngine.SendForwardMsg(nil, destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
 			logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
 			return err
 		}
 	} else {
-		var enodeCertMsg *istanbul.Message
-
-		// There should be only one enodeCertificateMsg
-		for _, cert := range enodeCertificateMsgs {
-			enodeCertMsg = cert
-			break
-		}
+		enodeCertMsg := enodeCertificateMsgs[sb.SelfNode().ID()]
 
 		if enodeCertMsg != nil {
-			sb.SetEnodeCertificateMsg(enodeCertMsg)
-
 			payload, err := enodeCertMsg.Payload()
 			if err != nil {
 				return err
@@ -1142,16 +1148,16 @@ func getTimestamp() uint {
 	return uint(time.Now().Unix())
 }
 
-// RetrieveEnodeCertificateMsg gets the most recent enode certificate message.
+// RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
-func (sb *Backend) RetrieveEnodeCertificateMsg() (*istanbul.Message, error) {
-	sb.enodeCertificateMsgMu.Lock()
-	defer sb.enodeCertificateMsgMu.Unlock()
-	if sb.enodeCertificateMsg == nil {
-		return nil, nil
+func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Message {
+	sb.enodeCertificateMsgMapMu.Lock()
+	defer sb.enodeCertificateMsgMapMu.Unlock()
+	if sb.enodeCertificateMsgMap == nil {
+		return nil
 	}
-	return sb.enodeCertificateMsg.Copy(), nil
+	return sb.enodeCertificateMsgMap
 }
 
 func (sb *Backend) GenerateEnodeCertificateMsg(enodeURL string) (*istanbul.Message, error) {
@@ -1186,12 +1192,12 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 
 	externalEnodes := make(map[enode.ID]*enode.Node)
 	if sb.IsProxiedValidator() {
-		if valProxyAssignments, err := sb.proxyEngine.GetValidatorProxyAssignments(); err != nil {
+		if proxies, _, err := sb.proxyEngine.GetProxiesAndValAssignments(); err != nil {
 			return nil, err
 		} else {
-			for _, proxyNode := range valProxyAssignments {
-				if proxyNode != nil {
-					externalEnodes[proxyNode.ID()] = proxyNode
+			for _, proxy := range proxies {
+				if proxy.IsPeered() {
+					externalEnodes[proxy.ExternalNode().ID()] = proxy.ExternalNode()
 				}
 			}
 		}
@@ -1227,14 +1233,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	return enodeCertificateMsgs, nil
 }
 
-// handleEnodeCertificateMsg handles an enode certificate message.
-// If this node is a proxy and the enode certificate is from a remote validator
-// (ie not the proxied validator), this node will forward the enode certificate
-// to its proxied validator. If the proxied validator decides this node should process
-// the enode certificate and upsert it into its val enode table, the proxied validator
-// will send it back to this node.
-// If the proxied validator sends an enode certificate for itself to this node,
-// this node will set the enode certificate as its own for handshaking.
+// handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
 func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
@@ -1305,29 +1304,47 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 	return peer.Send(istanbul.EnodeCertificateMsg, payload)
 }
 
-func (sb *Backend) SetEnodeCertificateMsg(msg *istanbul.Message) error {
-	var newEnodeCertificate istanbul.EnodeCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &newEnodeCertificate); err != nil {
-		return err
+// This function will set this nodes enode certificate field and then share it with all it's connected
+// validators.
+func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.Message) error {
+	logger := sb.logger.New("func", "SetEnodeCertificateMsgMap")
+	var enodeCertVersion *uint
+
+	// Verify that all of the certificates have the same version
+	for _, enodeCertMsg := range enodeCertMsgMap {
+		var enodeCert istanbul.EnodeCertificate
+		if err := rlp.DecodeBytes(enodeCertMsg.Msg, &enodeCert); err != nil {
+			return err
+		}
+
+		if enodeCertVersion == nil {
+			enodeCertVersion = &enodeCert.Version
+		} else {
+			if enodeCert.Version != *enodeCertVersion {
+				logger.Error("enode certificate messages within enode certificate msg map don't all have the same version")
+				return errInvalidEnodeCertMsgMap
+			}
+		}
 	}
 
-	sb.enodeCertificateMsgMu.Lock()
-	defer sb.enodeCertificateMsgMu.Unlock()
+	sb.enodeCertificateMsgMapMu.Lock()
+	defer sb.enodeCertificateMsgMapMu.Unlock()
 
 	// Already have a more recent or the same enodeCertificate
-	if newEnodeCertificate.Version <= sb.enodeCertificateMsgVersion {
+	if *enodeCertVersion <= sb.enodeCertificateMsgVersion {
+		logger.Info("Ignoring enode certificate msg map since it's an older version")
 		return nil
 	} else {
-		sb.enodeCertificateMsg = msg
-		sb.enodeCertificateMsgVersion = newEnodeCertificate.Version
+		sb.enodeCertificateMsgMap = enodeCertMsgMap
+		sb.enodeCertificateMsgVersion = *enodeCertVersion
 	}
 
 	return nil
 }
 
 func (sb *Backend) getEnodeCertificateMsgVersion() uint {
-	sb.enodeCertificateMsgMu.RLock()
-	defer sb.enodeCertificateMsgMu.RUnlock()
+	sb.enodeCertificateMsgMapMu.RLock()
+	defer sb.enodeCertificateMsgMapMu.RUnlock()
 	return sb.enodeCertificateMsgVersion
 }
 

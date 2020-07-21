@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
+	proxyPkg "github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -171,14 +171,26 @@ func (api *API) ForceRoundChange() (bool, error) {
 }
 
 // Proxies retrieves all the proxied validator's proxies' info
-func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
-	return api.istanbul.proxyEngine.GetProxiesInfo()
+func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
+	proxies, valAssignments, err := api.istanbul.proxyEngine.GetProxiesAndValAssignments()
+
+	if err != nil {
+		return nil, err
+	}
+
+	proxyInfoArray := make([]*proxyPkg.ProxyInfo, 0, len(proxies))
+
+	for _, proxy := range proxies {
+		proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()])
+	}
+
+	return proxyInfoArray, nil
 }
 
 // ProxiedValidators retrieves all of the proxies connected proxied validators.
 // Note that we plan to support validators per proxy in the future, so this function
 // is plural and returns an array of proxied validators.  This is to prevent
 // future backwards compatibility issues.
-func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
+func (api *API) GetProxiedValidators() ([]proxyPkg.ProxiedValidatorInfo, error) {
 	return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
 }

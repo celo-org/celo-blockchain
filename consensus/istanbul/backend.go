@@ -136,10 +136,10 @@ type BackendForProxy interface {
 	UpdateAnnounceVersion()
 
 	// SetEnodeCertificateMsg will set this node's enodeCertificate to be used for connection handshakes
-	SetEnodeCertificateMsg(enodeCertificateMsg *Message) error
+	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*Message) error
 
-	// RetrieveEnodeCertificateMsg will retrieve this node's handshake enodeCertificate
-	RetrieveEnodeCertificateMsg() (*Message, error)
+	// RetrieveEnodeCertificateMsgMap will retrieve this node's handshake enodeCertificate
+	RetrieveEnodeCertificateMsgMap() map[enode.ID]*Message
 
 	// VerifyPendingBlockValidatorSignature is a message validation function to verify that a message's sender is within the validator set
 	// of the current pending block and that the message's address field matches the message's signature's signer

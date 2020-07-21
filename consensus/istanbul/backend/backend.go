@@ -93,7 +93,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		peerRecentMessages:            peerRecentMessages,
 		selfRecentMessages:            selfRecentMessages,
 		announceThreadWg:              new(sync.WaitGroup),
-		announceThreadQuit:            make(chan struct{}),
 		generateAndGossipQueryEnodeCh: make(chan struct{}, 1),
 
 		// Ideally, the updateAnnounceVersionCh should be an unbounded non blocking channel, but
@@ -139,7 +138,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	// If this node is a proxy or is a proxied validator, then create a proxy handler object
 	if backend.IsProxiedValidator() || backend.IsProxy() {
-		backend.proxyEngine = proxy.New(backend, backend.config)
+		backend.proxyEngine = proxy.NewEngine(backend, backend.config)
 	}
 
 	return backend
@@ -207,13 +206,16 @@ type Backend struct {
 
 	updateAnnounceVersionCh chan struct{}
 
-	// The enode certificate message most recently generated if this is a validator
-	// or received by a proxied validator if this is a proxy.
-	// Used for proving itself as a validator in the handshake. The entire
-	// istanbul.Message is saved to keep the signature.
-	enodeCertificateMsg        *istanbul.Message
+	// The enode certificate message map contains the most recently generated
+	// enode certificates for each external node ID (e.g. will have one entry per proxy
+	// for a proxied validator, or just one entry if it's a standalone validator).
+	// Each proxy will just have one entry for their own external node ID.
+	// Used for proving itself as a validator in the handshake for externally exposed nodes,
+	// or by saving latest generated certificate messages by proxied validators to send
+	// to their proxies.
+	enodeCertificateMsgMap     map[enode.ID]*istanbul.Message
 	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMu      sync.RWMutex
+	enodeCertificateMsgMapMu   sync.RWMutex
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
