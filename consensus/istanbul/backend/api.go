@@ -181,7 +181,7 @@ func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
 	proxyInfoArray := make([]*proxyPkg.ProxyInfo, 0, len(proxies))
 
 	for _, proxy := range proxies {
-		proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()])
+	    proxyInfoArray = append(proxyInfoArray, proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()]))
 	}
 
 	return proxyInfoArray, nil
