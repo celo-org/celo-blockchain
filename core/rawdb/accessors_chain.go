@@ -310,6 +310,42 @@ func WriteBodyRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint64, rlp 
 	}
 }
 
+// WritePlumoProof stores the serialized proof to sync from `firstEpoch` to `lastEpoch`
+func WritePlumoProof(db ethdb.KeyValueWriter, proof []byte, firstEpoch uint64, lastEpoch uint64) {
+	if err := db.Put(plumoProofKey(firstEpoch, lastEpoch), proof); err != nil {
+		log.Crit("Failed to store plumo proof", "err", err)
+	}
+}
+
+// HasPlumoProof verifies the existence of a plumo proof from `firstEpoch` to `lastEpoch`
+// TODO(lucas): handle proofs in between epochs, likely here
+func HasPlumoProof(db ethdb.Reader, firstEpoch uint64, lastEpoch uint64) bool {
+	if has, err := db.Has(plumoProofKey(firstEpoch, lastEpoch)); !has || err != nil {
+		return false
+	}
+	return true
+}
+
+func ReadPlumoProof(db ethdb.Reader, firstEpoch uint64, lastEpoch uint64) []byte {
+	// Then try to look up the data in leveldb.
+	data, _ := db.Get(plumoProofKey(firstEpoch, lastEpoch))
+	if len(data) > 0 {
+		return data
+	}
+
+	return nil
+}
+
+// TODO(lucas): fix to iterate over all plumo prefixed values
+func ReadPlumoProofs(db ethdb.Iterator) [][]byte {
+	var output [][]byte
+	output = append(output, db.Value())
+	for db.Next() {
+		output = append(output, db.Value())
+	}
+	return output
+}
+
 // HasBody verifies the existence of a block body corresponding to the hash.
 func HasBody(db ethdb.Reader, hash common.Hash, number uint64) bool {
 	if has, err := db.Ancient(freezerHashTable, number); err == nil && common.BytesToHash(has) == hash {

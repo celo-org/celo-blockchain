@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -270,6 +271,17 @@ func (api *PrivateAdminAPI) DiscoverTableInfo() (*discover.TableInfo, error) {
 	return server.DiscoverTableInfo(), nil
 }
 
+func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint64, lastEpoch uint64) (bool, error) {
+	// TODO(lucas): Where to manage database so I don't have to keep opening/closing
+	chaindb, err := api.node.OpenDatabase("lightestchaindata", 0, 0, "eth/db/lightestchaindata/")
+	if err != nil {
+		fmt.Errorf("Failed to open database: %v", err)
+	}
+	rawdb.WritePlumoProof(chaindb, proof, firstEpoch, lastEpoch)
+	chaindb.Close()
+	return true, nil
+}
+
 // PublicAdminAPI is the collection of administrative API methods exposed over
 // both secure and unsecure RPC channels.
 type PublicAdminAPI struct {
@@ -305,6 +317,17 @@ func (api *PublicAdminAPI) NodeInfo() (*p2p.NodeInfo, error) {
 // Datadir retrieves the current data directory the node is using.
 func (api *PublicAdminAPI) Datadir() string {
 	return api.node.DataDir()
+}
+
+// TODO(lucas): Fix to return all proofs for inspection
+func (api *PublicAdminAPI) Proofs() ([]byte, error) {
+	chaindb, err := api.node.OpenDatabase("lightestchaindata", 0, 0, "eth/db/lightestchaindata/")
+	defer chaindb.Close()
+	if err != nil {
+		fmt.Errorf("Failed to open database: %v", err)
+		return nil, err
+	}
+	return rawdb.ReadPlumoProof(chaindb, 0, 2), nil
 }
 
 // PublicWeb3API offers helper utils

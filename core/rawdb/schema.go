@@ -61,6 +61,8 @@ var (
 
 	preimageCounter    = metrics.NewRegisteredCounter("db/preimage/total", nil)
 	preimageHitCounter = metrics.NewRegisteredCounter("db/preimage/hits", nil)
+
+	plumoProofPrefix = []byte("plumo-proof-")
 )
 
 const (
@@ -169,4 +171,9 @@ func preimageKey(hash common.Hash) []byte {
 // configKey = configPrefix + hash
 func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
+}
+
+func plumoProofKey(firstEpoch uint64, lastEpoch uint64) []byte {
+	// abuse encodeBlockNumber for epochs
+	return append(append(plumoProofPrefix, encodeBlockNumber(firstEpoch)...), encodeBlockNumber(lastEpoch)...)
 }

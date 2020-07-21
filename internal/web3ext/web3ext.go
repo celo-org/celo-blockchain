@@ -125,6 +125,12 @@ web3._extend({
 			name: 'stopWS',
 			call: 'admin_stopWS'
 		}),
+		new web3._extend.Method({
+			name: 'addProof',
+			call: 'admin_addProof'
+			params: 3,
+			inputFormatter: [null, null, null]
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -142,6 +148,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
+		}),
+		new web3._extend.Property({
+			name: 'proofs',
+			getter: 'admin_proofs'
 		}),
 	]
 });
