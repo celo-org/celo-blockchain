@@ -48,7 +48,9 @@ const (
 )
 
 var (
-	errInvalidEnodeCertMsgMap = errors.New("invalid enode certificate message map")
+	errInvalidEnodeCertMsgMapInconsistenVersion = errors.New("invalid enode certificate message map because of inconsistent version")
+
+	errInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
 )
 
 // QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
@@ -1320,7 +1322,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 		} else {
 			if enodeCert.Version != *enodeCertVersion {
 				logger.Error("enode certificate messages within enode certificate msg map don't all have the same version")
-				return errInvalidEnodeCertMsgMap
+				return errInvalidEnodeCertMsgMapInconsistenVersion
 			}
 		}
 	}
@@ -1330,8 +1332,8 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 
 	// Already have a more recent or the same enodeCertificate
 	if *enodeCertVersion <= sb.enodeCertificateMsgVersion {
-		logger.Info("Ignoring enode certificate msg map since it's an older version")
-		return nil
+		logger.Error("Ignoring enode certificate msg map since it's an older version")
+		return errInvalidEnodeCertMsgMapOldVersion
 	} else {
 		sb.enodeCertificateMsgMap = enodeCertMsgMap
 		sb.enodeCertificateMsgVersion = *enodeCertVersion
