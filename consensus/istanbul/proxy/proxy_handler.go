@@ -339,7 +339,7 @@ func (ph *proxyHandler) sendValEnodeShareMsgs() {
 				valAddresses = append(valAddresses, valAddress)
 			}
 			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
-			go ph.pe.SendValEnodesShareMsg(proxy.peer, valAddresses)
+			ph.pe.SendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
 }
