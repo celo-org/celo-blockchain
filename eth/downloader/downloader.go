@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -66,11 +67,11 @@ var (
 	reorgProtThreshold   = 48 // Threshold number of recent blocks to disable mini reorg protection
 	reorgProtHeaderDelay = 2  // Number of headers to delay delivering to cover mini reorgs
 
-	fsHeaderCheckFrequency = 100             // Verification frequency of the downloaded headers during fast sync
-	fsHeaderSafetyNet      = 2048            // Number of headers to discard in case a chain violation is detected
-	fsHeaderForceVerify    = 24              // Number of headers to verify before and after the pivot to accept it
-	fsHeaderContCheck      = 3 * time.Second // Time interval to check for header continuations during state download
-	fsMinFullBlocks        = 64              // Number of blocks to retrieve fully even in fast sync
+	fsHeaderCheckFrequency        = 100             // Verification frequency of the downloaded headers during fast sync
+	fsHeaderSafetyNet             = 2048            // Number of headers to discard in case a chain violation is detected
+	fsHeaderForceVerify           = 24              // Number of headers to verify before and after the pivot to accept it
+	fsHeaderContCheck             = 3 * time.Second // Time interval to check for header continuations during state download
+	fsMinFullBlocks        uint64 = 64              // Number of blocks to retrieve fully even in fast sync
 )
 
 var (
@@ -484,13 +485,11 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	// Ensure our origin point is below any fast sync pivot point
 	pivot := uint64(0)
 	if d.Mode == FastSync {
-		if height <= uint64(fsMinFullBlocks) {
+		pivot = d.calcPivot(height)
+		if pivot == 0 {
 			origin = 0
-		} else {
-			pivot = height - uint64(fsMinFullBlocks)
-			if pivot <= origin {
-				origin = pivot - 1
-			}
+		} else if pivot <= origin {
+			origin = pivot - 1
 		}
 	}
 	d.committed = 1
@@ -1703,6 +1702,42 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	return nil
 }
 
+func max(a uint64, b uint64) uint64 {
+	if a < b {
+		return b
+	}
+	return a
+}
+
+func computePivot(height uint64, epochSize uint64) uint64 {
+	if height <= fsMinFullBlocks {
+		return 0
+	}
+	target := height - fsMinFullBlocks
+	targetEpoch := istanbul.GetEpochNumber(target, epochSize)
+
+	// if target is on first epoch start on genesis
+	if targetEpoch <= 1 {
+		return 0
+	}
+
+	// else start on first block of the epoch
+	pivot, _ := istanbul.GetEpochFirstBlockNumber(targetEpoch, epochSize)
+	return pivot
+
+}
+
+func (d *Downloader) calcPivot(height uint64) uint64 {
+	// If epoch is not set (not IBFT) use old logic
+	if d.epoch == 0 {
+		if fsMinFullBlocks > height {
+			return 0
+		}
+		return height - fsMinFullBlocks
+	}
+	return computePivot(height, d.epoch)
+}
+
 // processFastSyncContent takes fetch results from the queue and writes them to the
 // database. It also controls the synchronisation of state nodes of the pivot block.
 func (d *Downloader) processFastSyncContent(latest *types.Header) error {
@@ -1718,10 +1753,7 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 	go closeOnErr(sync)
 	// Figure out the ideal pivot block. Note, that this goalpost may move if the
 	// sync takes long enough for the chain head to move significantly.
-	pivot := uint64(0)
-	if height := latest.Number.Uint64(); height > uint64(fsMinFullBlocks) {
-		pivot = height - uint64(fsMinFullBlocks)
-	}
+	pivot := d.calcPivot(latest.Number.Uint64())
 	// To cater for moving pivot points, track the pivot block and subsequently
 	// accumulated download results separately.
 	var (
@@ -1754,9 +1786,10 @@ func (d *Downloader) processFastSyncContent(latest *types.Header) error {
 		// Split around the pivot block and process the two sides via fast/full sync
 		if atomic.LoadInt32(&d.committed) == 0 {
 			latest = results[len(results)-1].Header
-			if height := latest.Number.Uint64(); height > pivot+2*uint64(fsMinFullBlocks) {
-				log.Warn("Pivot became stale, moving", "old", pivot, "new", height-uint64(fsMinFullBlocks))
-				pivot = height - uint64(fsMinFullBlocks)
+			if height := latest.Number.Uint64(); height > pivot+2*max(d.epoch, fsMinFullBlocks) {
+				newPivot := d.calcPivot(height)
+				log.Warn("Pivot became stale, moving", "old", pivot, "new", newPivot)
+				pivot = newPivot
 			}
 		}
 		P, beforeP, afterP := splitAroundPivot(pivot, results)

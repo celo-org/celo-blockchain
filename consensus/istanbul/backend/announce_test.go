@@ -27,7 +27,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Set backend to val1
 	b.SetP2PServer(val1P2pServer)
-	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
+	b.Authorize(val1Addr, val1Addr, &val1PrivateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
 
 	val2Address := valSet.GetByIndex(2).Address()
 

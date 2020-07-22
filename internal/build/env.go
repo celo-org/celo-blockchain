@@ -91,6 +91,24 @@ func Env() Environment {
 			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
 			IsMusl:        os.Getenv("MUSL") == "true",
 		}
+	case os.Getenv("CI") == "True" && os.Getenv("CLOUDBUILD") == "True":
+		commit := os.Getenv("COMMIT_SHA")
+		date, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("COMMIT_TIMESTAMP")), 10, 64)
+		if err != nil {
+			panic(fmt.Sprintf("failed to parse git commit date: %v", err))
+		}
+		return Environment{
+			Name:          "cloudbuild",
+			Repo:          os.Getenv("REPO_NAME"),
+			Commit:        commit,
+			Date:          time.Unix(date, 0).Format("20060102"),
+			Branch:        os.Getenv("BRANCH_NAME"),
+			Tag:           os.Getenv("TAG_NAME"),
+			Buildnum:      os.Getenv("BUILD_ID"),
+			IsPullRequest: os.Getenv("_PR_NUMBER") != "",
+			IsCronJob:     false,
+			IsMusl:        os.Getenv("MUSL") == "true",
+		}
 	default:
 		return LocalEnv()
 	}

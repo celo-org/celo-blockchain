@@ -56,3 +56,8 @@ profile.cov
 **/yarn-error.log
 
 vendor/**/Cargo.lock
+
+# Docs
+docs/Gemfile.lock
+docs/_site
+docs/.jekyll-metadata
