@@ -38,9 +38,11 @@ var (
 	errNotRegistered     = errors.New("peer is not registered")
 )
 
+// TODO(lucas): How much for proof constants and why?
 const (
-	maxKnownTxs    = 32768 // Maximum transactions hashes to keep in the known list (prevent DOS)
-	maxKnownBlocks = 1024  // Maximum block hashes to keep in the known list (prevent DOS)
+	maxKnownTxs         = 32768 // Maximum transactions hashes to keep in the known list (prevent DOS)
+	maxKnownBlocks      = 1024  // Maximum block hashes to keep in the known list (prevent DOS)
+	maxKnownPlumoProofs = 1024  // Maximum plumo proofs to keep in the known list (prevent DOS)
 
 	// maxQueuedTxs is the maximum number of transaction lists to queue up before
 	// dropping broadcasts. This is a sensitive number as a transaction list might
@@ -56,6 +58,10 @@ const (
 	// dropping broadcasts. Similarly to block propagations, there's no point to queue
 	// above some healthy uncle limit, so use that.
 	maxQueuedAnns = 4
+
+	// maxQueuedPlumoProofs is the maximum number of plumo proof announcements to queue up before
+	// dropping broadcasts.
+	maxQueuedPlumoProofs = 4
 
 	handshakeTimeout = 5 * time.Second
 )
@@ -87,26 +93,28 @@ type peer struct {
 	td   *big.Int
 	lock sync.RWMutex
 
-	knownTxs    mapset.Set                // Set of transaction hashes known to be known by this peer
-	knownBlocks mapset.Set                // Set of block hashes known to be known by this peer
-	queuedTxs   chan []*types.Transaction // Queue of transactions to broadcast to the peer
-	queuedProps chan *propEvent           // Queue of blocks to broadcast to the peer
-	queuedAnns  chan *types.Block         // Queue of blocks to announce to the peer
-	term        chan struct{}             // Termination channel to stop the broadcaster
+	knownTxs          mapset.Set                // Set of transaction hashes known to be known by this peer
+	knownBlocks       mapset.Set                // Set of block hashes known to be known by this peer
+	queuedTxs         chan []*types.Transaction // Queue of transactions to broadcast to the peer
+	queuedProps       chan *propEvent           // Queue of blocks to broadcast to the peer
+	queuedAnns        chan *types.Block         // Queue of blocks to announce to the peer
+	queuedPlumoProofs chan *types.PlumoProof    // Queue of proofs to announce to the peer
+	term              chan struct{}             // Termination channel to stop the broadcaster
 }
 
 func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 	return &peer{
-		Peer:        p,
-		rw:          rw,
-		version:     version,
-		id:          fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownTxs:    mapset.NewSet(),
-		knownBlocks: mapset.NewSet(),
-		queuedTxs:   make(chan []*types.Transaction, maxQueuedTxs),
-		queuedProps: make(chan *propEvent, maxQueuedProps),
-		queuedAnns:  make(chan *types.Block, maxQueuedAnns),
-		term:        make(chan struct{}),
+		Peer:              p,
+		rw:                rw,
+		version:           version,
+		id:                fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		knownTxs:          mapset.NewSet(),
+		knownBlocks:       mapset.NewSet(),
+		queuedTxs:         make(chan []*types.Transaction, maxQueuedTxs),
+		queuedProps:       make(chan *propEvent, maxQueuedProps),
+		queuedAnns:        make(chan *types.Block, maxQueuedAnns),
+		queuedPlumoProofs: make(chan *types.PlumoProof, maxQueuedPlumoProofs),
+		term:              make(chan struct{}),
 	}
 }
 
@@ -133,6 +141,13 @@ func (p *peer) broadcast() {
 				return
 			}
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
+
+		case proof := <-p.queuedPlumoProofs:
+			// TODO(lucas): proof type expansions
+			if err := p.SendPlumoProof(proof); err != nil {
+				return
+			}
+			p.Log().Error("Broadcast Proof", "proof", proof)
 
 		case <-p.term:
 			return
@@ -287,6 +302,22 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 		}
 	default:
 		p.Log().Debug("Dropping block propagation", "number", block.NumberU64(), "hash", block.Hash())
+	}
+}
+
+// SendPlumoProof propagates a plumo proof to a remote peer.
+func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
+	return p2p.Send(p.rw, ProofMsg, proof)
+}
+
+// AsyncSendPlumoProof queues a Plumo proof for propagation to a remote peer.
+// If the peer's broadcast queue is full, the event is silently dropped.
+func (p *peer) AsyncSendPlumoProof(proof *types.PlumoProof) {
+	select {
+	case p.queuedPlumoProofs <- proof:
+		// p.knownProofs.add(proof)
+	default:
+		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "firstEpoch", proof.FirstEpoch, "lastEpoch", proof.LastEpoch)
 	}
 }
 
