@@ -54,8 +54,6 @@ var (
 // QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
 type QueryEnodeGossipFrequencyState int
 
-type announceOpFunc func(uint)
-
 const (
 	// HighFreqBeforeFirstPeerState will send out a query enode message every 1 minute until the first peer is established
 	HighFreqBeforeFirstPeerState QueryEnodeGossipFrequencyState = iota
