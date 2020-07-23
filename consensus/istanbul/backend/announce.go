@@ -412,7 +412,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	var valProxyAssignments map[common.Address]*enode.Node
 	var selfEnodeURL string
 	if sb.IsProxiedValidator() {
-		valProxyAssignments, err = sb.proxyEngine.GetValidatorProxyAssignments()
+		valProxyAssignments, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments()
 		if err != nil {
 			return err
 		}
@@ -1115,7 +1115,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			}
 		}
 
-		if err := sb.proxyEngine.SendForwardMsg(nil, destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
+		if err := sb.proxiedValidatorEngine.SendForwardMsg(nil, destAddresses, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
 			logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
 			return err
 		}
@@ -1195,7 +1195,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 
 	externalEnodes := make(map[enode.ID]*enode.Node)
 	if sb.IsProxiedValidator() {
-		if proxies, _, err := sb.proxyEngine.GetProxiesAndValAssignments(); err != nil {
+		if proxies, _, err := sb.proxiedValidatorEngine.GetProxiesAndValAssignments(); err != nil {
 			return nil, err
 		} else {
 			for _, proxy := range proxies {
@@ -1291,7 +1291,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 
 	if sb.IsProxiedValidator() {
 		// Send a valEnodesShare message to the proxy
-		sb.proxyEngine.SendValEnodesShareMsgToAllProxies()
+		sb.proxiedValidatorEngine.SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil

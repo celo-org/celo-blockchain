@@ -138,9 +138,17 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.versionCertificateTable = versionCertificateTable
 
-	// If this node is a proxy or is a proxied validator, then create a proxy handler object
-	if backend.IsProxiedValidator() || backend.IsProxy() {
-		backend.proxyEngine = proxy.NewEngine(backend, backend.config)
+	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
+	if backend.IsProxy() {
+		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
+		if err != nil {
+			logger.Crit("Can't create a new proxy engine", "err", err)
+		}
+	} else if backend.IsProxiedValidator() {
+		backend.proxiedValidatorEngine, err = proxy.NewProxiedValidatorEngine(backend, backend.config)
+		if err != nil {
+			logger.Crit("Can't create a new proxied validator engine", "err", err)
+		}
 	}
 
 	return backend
@@ -258,11 +266,13 @@ type Backend struct {
 	// Handler to manage and maintain validator peer connections
 	vph *validatorPeerHandler
 
-	// Handler for proxy related functionality.  Note that BOTH the proxy
-	// and the proxied validator will create and use this handler.
-	proxyEngine        proxy.ProxyEngine
-	proxyEngineRunning bool
-	proxyEngineMu      sync.RWMutex
+	// Handler for proxy related functionality
+	proxyEngine proxy.ProxyEngine
+
+	// Handler for proxied validator related functionality
+	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
+	proxiedValidatorEngineRunning bool
+	proxiedValidatorEngineMu      sync.RWMutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -873,11 +883,19 @@ func (sb *Backend) RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[com
 }
 
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
-	return sb.proxyEngine.AddProxy(node, externalNode)
+	if sb.IsProxiedValidator() {
+		return sb.proxiedValidatorEngine.AddProxy(node, externalNode)
+	} else {
+		return proxy.ErrNodeNotProxiedValidator
+	}
 }
 
-func (sb *Backend) RemoveProxy(node *enode.Node) {
-	sb.proxyEngine.RemoveProxy(node)
+func (sb *Backend) RemoveProxy(node *enode.Node) error {
+	if sb.IsProxiedValidator() {
+		return sb.proxiedValidatorEngine.RemoveProxy(node)
+	} else {
+		return proxy.ErrNodeNotProxiedValidator
+	}
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible

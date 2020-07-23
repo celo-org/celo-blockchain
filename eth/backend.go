@@ -590,17 +590,21 @@ func (s *Ethereum) stopAnnounce() error {
 	return nil
 }
 
-func (s *Ethereum) StartProxyEngine() error {
+func (s *Ethereum) StartProxiedValidatorEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StartProxyEngine()
+		if istanbul.IsProxiedValidator() {
+			return istanbul.StartProxiedValidatorEngine()
+		}
 	}
 
 	return nil
 }
 
-func (s *Ethereum) StopProxyEngine() error {
+func (s *Ethereum) StopProxiedValidatorEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StopProxyEngine()
+		if istanbul.IsProxiedValidator() {
+			return istanbul.StopProxiedValidatorEngine()
+		}
 	}
 
 	return nil
@@ -681,7 +685,7 @@ func (s *Ethereum) Stop() error {
 	if s.lesServer != nil {
 		s.lesServer.Stop()
 	}
-	s.StopProxyEngine()
+	s.StopProxiedValidatorEngine()
 	s.stopAnnounce()
 	s.txPool.Stop()
 	s.miner.Stop()

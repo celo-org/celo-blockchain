@@ -664,35 +664,35 @@ func (sb *Backend) StopAnnouncing() error {
 }
 
 // StartProxyHandler implements consensus.Istanbul.StartProxyEngine
-func (sb *Backend) StartProxyEngine() error {
-	sb.proxyEngineMu.Lock()
-	defer sb.proxyEngineMu.Unlock()
+func (sb *Backend) StartProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if sb.proxyEngineRunning {
-		return istanbul.ErrStartedProxyEngine
+	if sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStartedProxiedValidatorEngine
 	}
 
 	if !sb.config.Proxied {
 		return istanbul.ErrValidatorNotProxied
 	}
 
-	sb.proxyEngine.Start()
-	sb.proxyEngineRunning = true
+	sb.proxiedValidatorEngine.Start()
+	sb.proxiedValidatorEngineRunning = true
 
 	return nil
 }
 
 // StopProxyHandler implements consensus.Istanbul.StopProxyEngine
-func (sb *Backend) StopProxyEngine() error {
-	sb.proxyEngineMu.Lock()
-	defer sb.proxyEngineMu.Unlock()
+func (sb *Backend) StopProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if !sb.proxyEngineRunning {
-		return istanbul.ErrStoppedProxyEngine
+	if !sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	sb.proxyEngine.Stop()
-	sb.proxyEngineRunning = false
+	sb.proxiedValidatorEngine.Stop()
+	sb.proxiedValidatorEngineRunning = false
 
 	return nil
 }

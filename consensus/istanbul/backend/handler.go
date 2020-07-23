@@ -258,7 +258,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		if err := sb.proxyEngine.RegisterProxyPeer(peer); err != nil {
+		if err := sb.proxiedValidatorEngine.RegisterProxyPeer(peer); err != nil {
 			return err
 		}
 	}
@@ -274,7 +274,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		sb.proxyEngine.UnregisterProxyPeer(peer)
+		sb.proxiedValidatorEngine.UnregisterProxyPeer(peer)
 	}
 }
 

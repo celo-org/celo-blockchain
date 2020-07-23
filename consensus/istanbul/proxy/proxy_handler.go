@@ -52,18 +52,18 @@ type proxyHandler struct {
 
 	proxyHandlerEpochLength time.Duration // The duration of time between proxy handler epochs, which are occasional check-ins to ensure proxy/validator assignments are as intended
 
-	sb     BackendForProxyEngine
-	pe     ProxyEngine
+	sb     BackendForProxiedValidatorEngine
+	pve    ProxiedValidatorEngine
 	ps     *proxySet // Used to keep track of proxies & validators the proxies are associated with
 	logger log.Logger
 }
 
 type proxyHandlerOpFunc func(ps *proxySet)
 
-func newProxyHandler(sb BackendForProxyEngine, pe ProxyEngine) *proxyHandler {
+func newProxyHandler(sb BackendForProxiedValidatorEngine, pve ProxiedValidatorEngine) *proxyHandler {
 	ph := &proxyHandler{
 		sb:          sb,
-		pe:          pe,
+		pve:         pve,
 		runningFlag: false,
 
 		addProxies:      make(chan []*istanbul.ProxyConfig),
@@ -226,7 +226,7 @@ loop:
 
 				logger.Info("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
 
-				ph.pe.SendValEnodesShareMsg(proxy.peer, []common.Address{})
+				ph.pve.sendValEnodesShareMsg(proxy.peer, []common.Address{})
 
 				if valsReassigned := ph.ps.removeProxy(proxyID); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
@@ -317,7 +317,7 @@ loop:
 				}
 
 				// Send the enode certificate messages to the proxies
-				if err := ph.pe.SendForwardMsg(proxyPeers, []common.Address{}, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
+				if err := ph.pve.SendForwardMsg(proxyPeers, []common.Address{}, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
 					logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
 				}
 			}
@@ -339,7 +339,7 @@ func (ph *proxyHandler) sendValEnodeShareMsgs() {
 				valAddresses = append(valAddresses, valAddress)
 			}
 			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
-			ph.pe.SendValEnodesShareMsg(proxy.peer, valAddresses)
+			ph.pve.sendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
 }

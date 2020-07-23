@@ -140,7 +140,10 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.RemoveProxy(node)
+	if err = api.istanbul.RemoveProxy(node); err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
@@ -172,19 +175,23 @@ func (api *API) ForceRoundChange() (bool, error) {
 
 // Proxies retrieves all the proxied validator's proxies' info
 func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
-	proxies, valAssignments, err := api.istanbul.proxyEngine.GetProxiesAndValAssignments()
+	if api.istanbul.IsProxiedValidator() {
+		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+
+		proxyInfoArray := make([]*proxyPkg.ProxyInfo, 0, len(proxies))
+
+		for _, proxy := range proxies {
+			proxyInfoArray = append(proxyInfoArray, proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()]))
+		}
+
+		return proxyInfoArray, nil
+	} else {
+		return nil, nil
 	}
-
-	proxyInfoArray := make([]*proxyPkg.ProxyInfo, 0, len(proxies))
-
-	for _, proxy := range proxies {
-	    proxyInfoArray = append(proxyInfoArray, proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()]))
-	}
-
-	return proxyInfoArray, nil
 }
 
 // ProxiedValidators retrieves all of the proxies connected proxied validators.
@@ -192,5 +199,9 @@ func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
 // is plural and returns an array of proxied validators.  This is to prevent
 // future backwards compatibility issues.
 func (api *API) GetProxiedValidators() ([]proxyPkg.ProxiedValidatorInfo, error) {
-	return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
+	if api.istanbul.IsProxy() {
+		return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
+	} else {
+		return nil, nil
+	}
 }

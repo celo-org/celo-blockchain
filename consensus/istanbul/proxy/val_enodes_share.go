@@ -26,11 +26,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (p *proxyEngine) generateValEnodesShareMsg(remoteValidators []common.Address) (*istanbul.Message, error) {
-	logger := p.logger.New("func", "generateValEnodesShareMsg")
+func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []common.Address) (*istanbul.Message, error) {
+	logger := pv.logger.New("func", "generateValEnodesShareMsg")
 
 	logger.Trace("generateValEnodesShareMsg called", "remoteValidators", common.ConvertToStringSlice(remoteValidators))
-	vetEntries, err := p.backend.GetValEnodeTableEntries(remoteValidators)
+	vetEntries, err := pv.backend.GetValEnodeTableEntries(remoteValidators)
 	logger.Trace("GetValEnodeTableEntries returned", "vetEntries", vetEntries)
 
 	if err != nil {
@@ -63,7 +63,7 @@ func (p *proxyEngine) generateValEnodesShareMsg(remoteValidators []common.Addres
 	msg := &istanbul.Message{
 		Code:      istanbul.ValEnodesShareMsg,
 		Msg:       valEnodesShareBytes,
-		Address:   p.backend.Address(),
+		Address:   pv.backend.Address(),
 		Signature: []byte{},
 	}
 
@@ -72,17 +72,17 @@ func (p *proxyEngine) generateValEnodesShareMsg(remoteValidators []common.Addres
 	return msg, nil
 }
 
-func (p *proxyEngine) SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error {
-	logger := p.logger.New("func", "sendValEnodesShareMsg")
+func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error {
+	logger := pv.logger.New("func", "sendValEnodesShareMsg")
 
-	msg, err := p.generateValEnodesShareMsg(remoteValidators)
+	msg, err := pv.generateValEnodesShareMsg(remoteValidators)
 	if err != nil {
 		logger.Error("Error generating Istanbul ValEnodesShare Message", "err", err)
 		return err
 	}
 
 	// Sign the validator enode share message
-	if err := msg.Sign(p.backend.Sign); err != nil {
+	if err := msg.Sign(pv.backend.Sign); err != nil {
 		logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
@@ -103,8 +103,8 @@ func (p *proxyEngine) SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteVali
 	return nil
 }
 
-func (p *proxyEngine) SendValEnodesShareMsgToAllProxies() {
-	p.ph.SendValEnodeShareMsgs()
+func (pv *proxiedValidatorEngine) SendValEnodesShareMsgToAllProxies() {
+	pv.ph.SendValEnodeShareMsgs()
 }
 
 func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {

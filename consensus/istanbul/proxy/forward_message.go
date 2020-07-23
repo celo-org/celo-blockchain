@@ -24,10 +24,10 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (p *proxyEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
-	logger := p.logger.New("func", "SendForwardMsg")
+func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
+	logger := pv.logger.New("func", "SendForwardMsg")
 
-	if p.backend.IsProxiedValidator() {
+	if pv.backend.IsProxiedValidator() {
 		logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
 		proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
@@ -36,7 +36,7 @@ func (p *proxyEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddre
 				proxyToAddressesMap[proxyPeer] = nil
 			}
 		} else {
-			valAssignments, err := p.ph.GetValidatorAssignments(finalDestAddresses)
+			valAssignments, err := pv.ph.GetValidatorAssignments(finalDestAddresses)
 			if err != nil {
 				logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
 				return err
@@ -82,7 +82,7 @@ func (p *proxyEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddre
 				}
 
 				// Note that we are not signing message.  The message that is being wrapped is already signed.
-				msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: p.backend.Address()}
+				msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: pv.backend.Address()}
 				fwdMsgPayload, err := msg.Payload()
 				if err != nil {
 					return err

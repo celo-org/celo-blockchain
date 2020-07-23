@@ -446,7 +446,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 		// Start the proxy handler if this is a node is proxied and "mining"
 		if ctx.GlobalBool(utils.ProxiedFlag.Name) {
-			if err := ethereum.StartProxyEngine(); err != nil {
+			if err := ethereum.StartProxiedValidatorEngine(); err != nil {
 				utils.Fatalf("Failed to start the proxy engine: %v", err)
 			}
 		}
