@@ -101,6 +101,8 @@ func (p *proxyEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddre
 func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "HandleForwardMsg")
 
+	logger.Trace("Handling a forward message")
+
 	if p.backend.IsProxy() {
 		// Verify that it's coming from the proxied validator
 		if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {
@@ -124,8 +126,14 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 			return true, err
 		}
 
-		// If this is a EnodeCertificateMsg, then do additional handling
+		logger.Trace("Forward message's code", "fwdMsg.Code", fwdMsg.Code)
+
+		// If this is a EnodeCertificateMsg, then do additional handling.
+		// TODO: Ideally there should be a separate protocol between proxy and proxied validator
+		//       and as part of that protocol, it has a specific message code for a proxied validator
+		//       to share to all of it's proxies their enode certificate.
 		if fwdMsg.Code == istanbul.EnodeCertificateMsg {
+			logger.Trace("Doing special handling for a forwarded enode certficate msg")
 			if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.Msg); err != nil {
 				logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
 				return true, err

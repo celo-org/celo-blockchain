@@ -110,7 +110,7 @@ func (p *proxyEngine) SendValEnodesShareMsgToAllProxies() {
 func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleValEnodesShareMsg")
 
-	logger.Debug("Handling an Istanbul Validator Enodes Share message")
+	logger.Trace("Handling an Istanbul Validator Enodes Share message")
 
 	// Verify that it's coming from the proxied peer
 	if p.proxiedValidator == nil || p.proxiedValidator.Node().ID() != peer.Node().ID() {

@@ -17,16 +17,10 @@
 package istanbul
 
 import (
-	"crypto/ecdsa"
-	"math/big"
-	"time"
-
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -42,66 +36,6 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 // BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
 // backing account using BLS with a direct or composite hasher
 type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
-
-// BackendForCore provides the Istanbul backend application specific functions for Istanbul core
-type BackendForCore interface {
-	// Address returns the owner's address
-	Address() common.Address
-
-	// Validators returns the validator set
-	Validators(proposal Proposal) ValidatorSet
-	NextBlockValidators(proposal Proposal) (ValidatorSet, error)
-
-	// EventMux returns the event mux in backend
-	EventMux() *event.TypeMux
-
-	// Gossip will send a message to all connnected peers
-	Gossip(payload []byte, ethMsgCode uint64) error
-
-	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
-	// is associated with those node's signing key)
-	// If sendToSelf is set to true, then the function will send an event to self via a message event
-	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
-
-	// Commit delivers an approved proposal to backend.
-	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
-
-	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
-	// the time difference of the proposal and current time is also returned.
-	Verify(Proposal) (time.Duration, error)
-
-	// Sign signs input data with the backend's private key
-	Sign([]byte) ([]byte, error)
-
-	// Sign with the data with the BLS key, using either a direct or composite hasher
-	SignBLS([]byte, []byte, bool) (blscrypto.SerializedSignature, error)
-
-	// CheckSignature verifies the signature by checking if it's signed by
-	// the given validator
-	CheckSignature(data []byte, addr common.Address, sig []byte) error
-
-	// GetCurrentHeadBlock retrieves the last block
-	GetCurrentHeadBlock() Proposal
-
-	// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the author for that block
-	GetCurrentHeadBlockAndAuthor() (Proposal, common.Address)
-
-	// LastSubject retrieves latest committed subject (view and digest)
-	LastSubject() (Subject, error)
-
-	// HasBlock checks if the combination of the given hash and height matches any existing blocks
-	HasBlock(hash common.Hash, number *big.Int) bool
-
-	// AuthorForBlock returns the proposer of the given block height
-	AuthorForBlock(number uint64) common.Address
-
-	// ParentBlockValidators returns the validator set of the given proposal's parent block
-	ParentBlockValidators(proposal Proposal) ValidatorSet
-
-	// Authorize injects a private key into the consensus engine.
-	Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signBLSFn BLSSignerFn)
-}
 
 // BackendForProxy provides the Istanbul backend application specific functions for Istanbul proxy
 type BackendForProxy interface {

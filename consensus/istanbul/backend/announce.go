@@ -1330,10 +1330,15 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 	sb.enodeCertificateMsgMapMu.Lock()
 	defer sb.enodeCertificateMsgMapMu.Unlock()
 
-	// Already have a more recent or the same enodeCertificate
-	if *enodeCertVersion <= sb.enodeCertificateMsgVersion {
-		logger.Error("Ignoring enode certificate msg map since it's an older version")
+	// Already have a more recent enodeCertificate
+	if *enodeCertVersion < sb.enodeCertificateMsgVersion {
+		logger.Error("Ignoring enode certificate msg map since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", sb.enodeCertificateMsgVersion)
 		return errInvalidEnodeCertMsgMapOldVersion
+	} else if *enodeCertVersion == sb.enodeCertificateMsgVersion {
+		// This function may be called with the same enode certificate.
+		// Proxied validators will periodically send the same enode certificate to it's proxies,
+		// to ensure that the proxies to eventually get their enode certificates.
+		logger.Trace("Attempting to set an enode certificate with the same version as the previous set enode certificate's")
 	} else {
 		sb.enodeCertificateMsgMap = enodeCertMsgMap
 		sb.enodeCertificateMsgVersion = *enodeCertVersion
