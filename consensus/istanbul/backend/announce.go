@@ -1092,7 +1092,10 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	}
 
 	if len(enodeCertificateMsgs) > 0 {
-		sb.SetEnodeCertificateMsgMap(enodeCertificateMsgs)
+		if err := sb.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
+			logger.Error("Error in SetEnodeCertificateMsgMap", "err", err)
+			return err
+		}
 	}
 
 	destAddresses := make([]common.Address, 0, len(validatorConnSet))

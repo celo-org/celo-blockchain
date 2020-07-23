@@ -52,7 +52,7 @@ type proxyHandler struct {
 
 	proxyHandlerEpochLength time.Duration // The duration of time between proxy handler epochs, which are occasional check-ins to ensure proxy/validator assignments are as intended
 
-	sb     istanbul.BackendForProxy
+	sb     BackendForProxyEngine
 	pe     ProxyEngine
 	ps     *proxySet // Used to keep track of proxies & validators the proxies are associated with
 	logger log.Logger
@@ -60,7 +60,7 @@ type proxyHandler struct {
 
 type proxyHandlerOpFunc func(ps *proxySet)
 
-func newProxyHandler(sb istanbul.BackendForProxy, pe ProxyEngine) *proxyHandler {
+func newProxyHandler(sb BackendForProxyEngine, pe ProxyEngine) *proxyHandler {
 	ph := &proxyHandler{
 		sb:          sb,
 		pe:          pe,

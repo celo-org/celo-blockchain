@@ -23,12 +23,26 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+type DecryptFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
+
+// SignerFn is a signer callback function to request a header to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
+
+// BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
+// backing account using BLS with a direct or composite hasher
+type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
 // last block they signed on
