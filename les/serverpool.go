@@ -657,6 +657,28 @@ func (pool *serverPool) checkDialTimeout(entry *poolEntry) {
 	pool.setRetryDial(entry)
 }
 
+func (pool *serverPool) Info() []*poolEntryInfo {
+	stateStringMap := make(map[int]string)
+	stateStringMap[psNotConnected] = "NotConnected"
+	stateStringMap[psDialed] = "Dialed"
+	stateStringMap[psConnected] = "Connected"
+	stateStringMap[psRegistered] = "Registered"
+	entryInfos := make([]*poolEntryInfo, 0)
+	for _, entry := range pool.entries {
+		entryInfos = append(entryInfos, &poolEntryInfo{
+			Peered: entry.peer != nil,
+			Node: entry.node,
+			Known: entry.known,
+			KnownSelected: entry.knownSelected,
+			Trusted: entry.trusted,
+			LastDiscoveredTime: entry.lastDiscovered,
+			RegisteredTime: entry.regTime,
+			State: stateStringMap[entry.state],
+		})
+	}
+	return entryInfos
+}
+
 const (
 	psNotConnected = iota
 	psDialed
@@ -683,6 +705,18 @@ type poolEntry struct {
 
 	delayedRetry bool
 	shortRetry   int
+}
+
+type poolEntryInfo struct {
+	Peered      bool `json:"peered"`
+	Node *enode.Node `json:"node"`
+	Known bool `json:"known"`
+	KnownSelected bool `json:"knownSelected"`
+	Trusted bool `json:"trusted"`
+	LastDiscoveredTime mclock.AbsTime `json:"lastDiscoveredTime"`
+	RegisteredTime mclock.AbsTime `json:"registeredTime"`
+	State	string	`json:"state"`
+	// IPs          string  `json:"ips"`
 }
 
 // poolEntryEnc is the RLP encoding of poolEntry.

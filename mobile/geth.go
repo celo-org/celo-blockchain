@@ -153,6 +153,10 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,
 		IPCPath:           config.IPCPath,
+		HTTPHost:          "0.0.0.0",
+		HTTPPort:          8545,
+		HTTPVirtualHosts:  []string{"*"},
+		HTTPModules:       []string{"rpc", "txpool", "admin", "istanbul", "les", "net", "web3", "debug", "eth"},
 		P2P: p2p.Config{
 			NoDiscovery:      config.NoDiscovery,
 			DiscoveryV5:      !config.NoDiscovery,
