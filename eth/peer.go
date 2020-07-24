@@ -95,6 +95,7 @@ type peer struct {
 
 	knownTxs          mapset.Set                // Set of transaction hashes known to be known by this peer
 	knownBlocks       mapset.Set                // Set of block hashes known to be known by this peer
+	knownPlumoProofs  mapset.Set                // Set of plumo proofs by {firstEpoch, lastEpoch} known to be known by this peer
 	queuedTxs         chan []*types.Transaction // Queue of transactions to broadcast to the peer
 	queuedProps       chan *propEvent           // Queue of blocks to broadcast to the peer
 	queuedAnns        chan *types.Block         // Queue of blocks to announce to the peer
@@ -110,6 +111,7 @@ func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		id:                fmt.Sprintf("%x", p.ID().Bytes()[:8]),
 		knownTxs:          mapset.NewSet(),
 		knownBlocks:       mapset.NewSet(),
+		knownPlumoProofs:  mapset.NewSet(),
 		queuedTxs:         make(chan []*types.Transaction, maxQueuedTxs),
 		queuedProps:       make(chan *propEvent, maxQueuedProps),
 		queuedAnns:        make(chan *types.Block, maxQueuedAnns),
@@ -188,6 +190,15 @@ func (p *peer) SetHead(hash common.Hash, td *big.Int) {
 
 	copy(p.head[:], hash[:])
 	p.td.Set(td)
+}
+
+// MarkPlumoProofs marks a set of epochs as known for the peer, ensuring that the proof will
+// never be propagated to this particular peer.
+func (p *peer) MarkPlumoProof(plumoProofEpochs *types.PlumoProofEpochs) {
+	for p.knownPlumoProofs.Cardinality() >= maxKnownPlumoProofs {
+		p.knownPlumoProofs.Pop()
+	}
+	p.knownPlumoProofs.Add(plumoProofEpochs)
 }
 
 // MarkBlock marks a block as known for the peer, ensuring that the block will
@@ -307,7 +318,8 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 
 // SendPlumoProof propagates a plumo proof to a remote peer.
 func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
-	return p2p.Send(p.rw, ProofMsg, proof)
+	p.MarkPlumoProof(&proof.Epochs)
+	return p2p.Send(p.rw, PlumoProofMsg, proof)
 }
 
 // AsyncSendPlumoProof queues a Plumo proof for propagation to a remote peer.
@@ -315,9 +327,9 @@ func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
 func (p *peer) AsyncSendPlumoProof(proof *types.PlumoProof) {
 	select {
 	case p.queuedPlumoProofs <- proof:
-		// p.knownProofs.add(proof)
+		p.MarkPlumoProof(&proof.Epochs)
 	default:
-		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "firstEpoch", proof.FirstEpoch, "lastEpoch", proof.LastEpoch)
+		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "Epochs", proof.Epochs)
 	}
 }
 
@@ -508,6 +520,7 @@ func (p *peer) ReadMsg() (p2p.Msg, error) {
 		return msg, err
 	}
 	if msg.Size > protocolMaxMsgSize {
+		p.Log().Error("Protocol message too big")
 		return msg, errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
 	}
 	return msg, nil
@@ -605,6 +618,21 @@ func (ps *peerSet) Len() int {
 	defer ps.lock.RUnlock()
 
 	return len(ps.peers)
+}
+
+// PeersWithoutPlumoProof retrieves a list of peers that do not have a given plumo proof (by epochs) in
+// their set of known proofs.
+func (ps *peerSet) PeersWithoutPlumoProof(plumoProofEpochs *types.PlumoProofEpochs) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.knownPlumoProofs.Contains(plumoProofEpochs) {
+			list = append(list, p)
+		}
+	}
+	return list
 }
 
 // PeersWithoutBlock retrieves a list of peers that do not have a given block in

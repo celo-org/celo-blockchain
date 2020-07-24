@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/metrics"
 )
 
@@ -173,7 +174,7 @@ func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
 }
 
-func plumoProofKey(firstEpoch uint64, lastEpoch uint64) []byte {
+func plumoProofKey(epochs *types.PlumoProofEpochs) []byte {
 	// abuse encodeBlockNumber for epochs
-	return append(append(plumoProofPrefix, encodeBlockNumber(firstEpoch)...), encodeBlockNumber(lastEpoch)...)
+	return append(append(plumoProofPrefix, encodeBlockNumber(uint64(epochs.FirstEpoch))...), encodeBlockNumber(uint64(epochs.LastEpoch))...)
 }

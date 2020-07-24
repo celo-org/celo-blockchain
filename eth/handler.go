@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -87,6 +88,7 @@ type ProtocolManager struct {
 	txsCh         chan core.NewTxsEvent
 	txsSub        event.Subscription
 	minedBlockSub *event.TypeMuxSubscription
+	plumoProofSub *event.TypeMuxSubscription
 
 	whitelist map[uint64]common.Hash
 
@@ -279,6 +281,9 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
 	go pm.minedBroadcastLoop()
 
+	pm.plumoProofSub = pm.eventMux.Subscribe(core.NewPlumoProofAddedEvent{})
+	go pm.plumoProofBroadcastLoop()
+
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
@@ -289,6 +294,7 @@ func (pm *ProtocolManager) Stop() {
 
 	pm.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	pm.plumoProofSub.Unsubscribe() // quits plumoProofBroadcastLoop
 
 	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
@@ -423,6 +429,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.ReadMsg()
+	p.Log().Error("Msg received", "msg", msg)
 	if err != nil {
 		return err
 	}
@@ -808,6 +815,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 
+	case msg.Code == PlumoProofMsg:
+		var proof *types.PlumoProof
+		if err := msg.Decode(&proof); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		p.MarkPlumoProof(&proof.Epochs)
+		log.Error("Proof received", "proof", proof)
+		chaindb := pm.blockchain.GetDatabase()
+		rawdb.WritePlumoProof(chaindb, proof)
+
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
@@ -816,6 +833,16 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 func (pm *ProtocolManager) Enqueue(id string, block *types.Block) {
 	pm.fetcher.Enqueue(id, block)
+}
+
+func (pm *ProtocolManager) BroadcastPlumoProof(plumoProof *types.PlumoProof) {
+	// Broadcast plumo proof to a batch of peers not knowing about it
+	peers := pm.peers.PeersWithoutPlumoProof(&plumoProof.Epochs)
+	for _, peer := range peers {
+		peer.AsyncSendPlumoProof(plumoProof)
+	}
+	// TODO (lucas): trace
+	log.Error("Broadcast Plumo Proof", "Epochs", plumoProof.Epochs)
 }
 
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
@@ -897,6 +924,20 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 		// Err() channel will be closed when unsubscribing.
 		case <-pm.txsSub.Err():
 			return
+		}
+	}
+}
+
+// Added Plumo Proof loop
+func (pm *ProtocolManager) plumoProofBroadcastLoop() {
+	// automatically stops if unsubscribed
+	for obj := range pm.plumoProofSub.Chan() {
+		if ev, ok := obj.Data.(core.NewPlumoProofAddedEvent); ok {
+			log.Error("Broadcast loop", "ev", ev)
+			chainDb := pm.blockchain.GetDatabase()
+			rawdb.WritePlumoProof(chainDb, ev.Proof)
+			// TODO propogate?
+			pm.BroadcastPlumoProof(ev.Proof)
 		}
 	}
 }
