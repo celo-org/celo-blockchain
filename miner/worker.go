@@ -140,13 +140,11 @@ type worker struct {
 	chain       *core.BlockChain
 
 	// Subscriptions
-	mux          *event.TypeMux
-	txsCh        chan core.NewTxsEvent
-	txsSub       event.Subscription
-	chainSideCh  chan core.ChainSideEvent
-	chainSideSub event.Subscription
-	newViewCh    chan istanbul.NewViewEvent
-	newViewSub   event.Subscription
+	mux        *event.TypeMux
+	txsCh      chan core.NewTxsEvent
+	txsSub     event.Subscription
+	newViewCh  chan istanbul.NewViewEvent
+	newViewSub event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -201,7 +199,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newViewCh:          make(chan istanbul.NewViewEvent, newViewChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
@@ -215,7 +212,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
-	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
 	worker.newViewSub = engine.SubscribeNewViewEvent(worker.newViewCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
@@ -438,17 +434,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 // mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
 func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
-	defer w.chainSideSub.Unsubscribe()
 	defer w.newViewSub.Unsubscribe()
 
 	for {
 		select {
 		case req := <-w.newWorkCh:
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.noSeal)
-
-		case ev := <-w.chainSideCh:
-			// TOOO(nategraf): Remove this subcription, as there is no work to be done here.
-			log.Debug("Message in chan chainSideCh", "hash", ev.Block.Hash(), "number", ev.Block.Number(), "root", ev.Block.Root())
 
 		case ev := <-w.txsCh:
 			// Apply transactions to the pending state if we're not mining.
@@ -486,8 +477,6 @@ func (w *worker) mainLoop() {
 		case <-w.exitCh:
 			return
 		case <-w.txsSub.Err():
-			return
-		case <-w.chainSideSub.Err():
 			return
 		case <-w.newViewSub.Err():
 			return
