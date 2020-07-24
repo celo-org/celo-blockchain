@@ -255,22 +255,22 @@ func TestVerifySeal(t *testing.T) {
 }
 
 func TestVerifyHeaders(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
+	numValidators := 4
+	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys)
 	genesis := chain.Genesis()
 
 	// success case
 	headers := []*types.Header{}
 	blocks := []*types.Block{}
-	size := 100
+	size := 10
 
 	for i := 0; i < size; i++ {
 		var b *types.Block
 		if i == 0 {
-			b = makeBlockWithoutSeal(chain, engine, genesis)
-			b, _ = engine.updateBlock(genesis.Header(), b)
+			b, _ = makeBlock(nodeKeys, chain, engine, genesis)
 		} else {
-			b = makeBlockWithoutSeal(chain, engine, blocks[i-1])
-			b, _ = engine.updateBlock(blocks[i-1].Header(), b)
+			b, _ = makeBlock(nodeKeys, chain, engine, blocks[i-1])
 		}
 
 		blocks = append(blocks, b)
@@ -288,10 +288,8 @@ OUT1:
 		select {
 		case err := <-results:
 			if err != nil {
-				if err != errEmptyAggregatedSeal && err != errInvalidAggregatedSeal {
-					t.Errorf("error mismatch: have %v, want errEmptyAggregatedSeal|errInvalidAggregatedSeal", err)
-					break OUT1
-				}
+				t.Errorf("error mismatch: have %v, want nil", err)
+				break OUT1
 			}
 			index++
 			if index == size {
@@ -310,13 +308,11 @@ OUT2:
 		select {
 		case err := <-results:
 			if err != nil {
-				if err != errEmptyAggregatedSeal && err != errInvalidAggregatedSeal {
-					t.Errorf("error mismatch: have %v, want errEmptyAggregatedSeal|errInvalidAggregatedSeal", err)
-					break OUT2
-				}
+				t.Errorf("error mismatch: have %v, want nil", err)
+				break OUT2
 			}
 			index++
-			if index == 5 {
+			if index == 1 {
 				abort <- struct{}{}
 			}
 			if index >= size {
@@ -333,20 +329,18 @@ OUT2:
 	timeout = time.NewTimer(timeoutDura)
 	index = 0
 	errors := 0
-	expectedErrors := 2
+	expectedErrors := 8
 OUT3:
 	for {
 		select {
 		case err := <-results:
 			if err != nil {
-				if err != errEmptyAggregatedSeal && err != errInvalidAggregatedSeal {
-					errors++
-				}
+				errors++
 			}
 			index++
 			if index == size {
 				if errors != expectedErrors {
-					t.Errorf("error mismatch: have %v, want %v", err, expectedErrors)
+					t.Errorf("error mismatch: have %v, want %v", errors, expectedErrors)
 				}
 				break OUT3
 			}

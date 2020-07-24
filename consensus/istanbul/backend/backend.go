@@ -169,12 +169,13 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address   common.Address       // Ethereum address of the signing key
-	publicKey *ecdsa.PublicKey     // The signer public key
-	decryptFn istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn    istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu  sync.RWMutex         // Protects the signer fields
+	address    common.Address       // Ethereum address of the ECDSA signing key
+	blsAddress common.Address       // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey     // The signer public key
+	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	signFnMu   sync.RWMutex         // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -330,16 +331,17 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
-	sb.address = address
+	sb.address = ecdsaAddress
+	sb.blsAddress = blsAddress
 	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
-	sb.core.SetAddress(address)
+	sb.core.SetAddress(ecdsaAddress)
 }
 
 // Address implements istanbul.Backend.Address
@@ -616,7 +618,7 @@ func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscry
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.address}, data, extra, useComposite)
+	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
