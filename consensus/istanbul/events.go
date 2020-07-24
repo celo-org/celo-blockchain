@@ -32,5 +32,5 @@ type FinalCommittedEvent struct {
 
 // NewViewEvent is posted when a new view has been created
 type NewViewEvent struct {
-	NewView *View
+	NewView View
 }

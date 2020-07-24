@@ -468,7 +468,7 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Send NewViewEvent to trigger proposal in worker
 	if c.isProposer() {
-		newViewEvent := istanbul.NewViewEvent{NewView: newView}
+		newViewEvent := istanbul.NewViewEvent{NewView: *newView}
 		c.newViewFeed.Send(newViewEvent)
 	}
 
