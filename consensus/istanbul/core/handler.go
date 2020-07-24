@@ -26,6 +26,9 @@ import (
 
 // Start implements core.Engine.Start
 func (c *core) Start() error {
+	// TODO(joshua): Figure out how to use the String method here
+	logger := c.logger.New("faultyMode", c.config.FaultyMode, "func", "core.Start")
+	logger.Info("Started istanbul core.Engine")
 
 	roundState, err := c.createRoundState()
 	if err != nil {
@@ -198,6 +201,11 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 		return err
 	}
 
+	if msg.Code != istanbul.MsgRoundChange && c.alwaysRoundChange() {
+		logger.Info("Send faulty round change", "round", c.current.Round().Uint64())
+		c.sendRoundChange()
+		return nil
+	}
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		return catchFutureMessages(c.handlePreprepare(msg))

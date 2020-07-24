@@ -39,7 +39,70 @@ const (
 	ShuffledRoundRobin
 )
 
-// Config represents the istanbul consensus engine
+type FaultyMode uint64
+
+const (
+	// Disabled disables the faulty mode
+	Disabled FaultyMode = iota
+	// Random will, at the time of any of the following actions, engage in faulty behavior with 50% probability
+	Random
+	// NotBroadcast doesn't broadcast any messages to other validators
+	NotBroadcast
+	// SendWrongMsg sends the message with the wrong message code
+	SendWrongMsg
+	// ModifySig modifies the message signature
+	ModifySig
+	// AlwaysPropose always proposes a proposal to validators
+	AlwaysPropose
+	// AlwaysRoundChange always sends round change while receiving messages
+	AlwaysRoundChange
+	// BadBlock always proposes a block with bad body
+	BadBlock
+	// SendExtraMessages sends multiple copies of the same message
+	SendExtraMessages
+	// SendExtraFutureMessages sends multiple copies of a prepare message with a future sequence and round number
+	SendExtraFutureMessages
+	// NeverCommit never commits proposals
+	NeverCommit
+	// HalfCommit commits 1 every 2 rounds (deterministically by digest hash)
+	HalfCommit
+)
+
+func (f FaultyMode) Uint64() uint64 {
+	return uint64(f)
+}
+
+func (f FaultyMode) String() string {
+	switch f {
+	case Disabled:
+		return "Disabled"
+	case Random:
+		return "Random"
+	case NotBroadcast:
+		return "NotBroadcast"
+	case SendWrongMsg:
+		return "SendWrongMsg"
+	case ModifySig:
+		return "ModifySig"
+	case AlwaysPropose:
+		return "AlwaysPropose"
+	case AlwaysRoundChange:
+		return "AlwaysRoundChange"
+	case BadBlock:
+		return "BadBlock"
+	case SendExtraMessages:
+		return "SendExtraMessages"
+	case SendExtraFutureMessages:
+		return "SendExtraFutureMessages"
+	case NeverCommit:
+		return "NeverCommit"
+	case HalfCommit:
+		return "HalfCommit"
+	default:
+		return "Undefined"
+	}
+}
+
 type Config struct {
 	RequestTimeout              uint64         `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
 	TimeoutBackoffFactor        uint64         `toml:",omitempty"` // Timeout at subsequent rounds is: RequestTimeout + 2**round * TimeoutBackoffFactor (in milliseconds)
@@ -47,6 +110,7 @@ type Config struct {
 	MaxResendRoundChangeTimeout uint64         `toml:",omitempty"` // Maximum interval with which to resend RoundChange messages for same round
 	BlockPeriod                 uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	FaultyMode                  uint64         `toml:",omitempty"` // The faulty node indicates the faulty node's behavior
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	DefaultLookbackWindow       uint64         `toml:",omitempty"` // The default value for how many blocks in a row a validator must miss to be considered "down"
 	ReplicaStateDBPath          string         `toml:",omitempty"` // The location for the validator replica state DB
@@ -89,6 +153,7 @@ var DefaultConfig = &Config{
 	MaxResendRoundChangeTimeout:    2 * 60 * 1000,
 	BlockPeriod:                    5,
 	ProposerPolicy:                 ShuffledRoundRobin,
+	FaultyMode:                     Disabled.Uint64(),
 	Epoch:                          30000,
 	DefaultLookbackWindow:          12,
 	ReplicaStateDBPath:             "replicastate",

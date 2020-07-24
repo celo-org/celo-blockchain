@@ -155,6 +155,7 @@ var (
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
 		utils.VersionCheckFlag,
+		utils.IstanbulFaultyModeFlag,
 		utils.ProxyFlag,
 		utils.ProxyInternalFacingEndpointFlag,
 		utils.ProxiedValidatorAddressFlag,

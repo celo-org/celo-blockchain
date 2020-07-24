@@ -193,6 +193,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Name: "ISTANBUL",
 		Flags: []cli.Flag{
 			utils.IstanbulReplicaFlag,
+			utils.IstanbulFaultyModeFlag,
 		},
 	},
 	{

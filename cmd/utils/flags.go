@@ -768,6 +768,11 @@ var (
 		Name:  "istanbul.replica",
 		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
 	}
+	IstanbulFaultyModeFlag = cli.Uint64Flag{
+		Name:  "istanbul.faultymode",
+		Usage: "0: not faulty, 1: inject random faults, 2+ specific faults (see code)",
+		Value: istanbul.DefaultConfig.FaultyMode,
+	}
 
 	// Announce settings
 
@@ -1466,6 +1471,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulProposerPolicyFlag.Name)
 	}
 	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
+	if ctx.GlobalIsSet(IstanbulFaultyModeFlag.Name) {
+		cfg.Istanbul.FaultyMode = ctx.GlobalUint64(IstanbulFaultyModeFlag.Name)
+	}
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)

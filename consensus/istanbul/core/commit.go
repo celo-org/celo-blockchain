@@ -19,6 +19,7 @@ package core
 import (
 	"errors"
 	"math/big"
+	"math/rand"
 	"reflect"
 	"time"
 
@@ -124,6 +125,18 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		CommittedSeal:         committedSeal[:],
 		EpochValidatorSetSeal: epochValidatorSetSeal[:],
 	}, c.address)
+	if c.neverCommit() {
+		logger.Trace("Not sending commit (faulty NeverCommit)")
+		return
+	}
+	if c.halfCommit() {
+		src := rand.NewSource(sub.View.Sequence.Int64() + (sub.View.Round.Int64() * 11))
+		rnd := rand.New(src)
+		if rnd.Intn(2) == 0 {
+			logger.Trace("Not sending commit (faulty by HalfCommit)")
+			return
+		}
+	}
 	c.broadcast(istMsg)
 }
 

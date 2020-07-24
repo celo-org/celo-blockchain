@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"math/big"
 	"reflect"
 	"time"
 
@@ -29,6 +30,26 @@ func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
 	logger.Debug("Sending prepare")
 	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
+
+	if c.sendExtraFutureMessages() {
+		logger.Info("Broadcasting future messages")
+		sub := c.current.Subject()
+		sub.View.Round = new(big.Int).Add(sub.View.Round, common.Big1)
+		sub.View.Sequence = new(big.Int).Add(sub.View.Sequence, common.Big1)
+		encodedFutureSubject, err := Encode(sub)
+		if err != nil {
+			logger.Error("Failed to encode", "subject", sub)
+			return
+		}
+		// TODO(joshua): This might be ~200 messages on random
+		for i := 0; i < 20; i++ {
+			c.broadcast(&istanbul.Message{
+				Code: istanbul.MsgPrepare,
+				Msg:  encodedFutureSubject,
+			})
+		}
+
+	}
 }
 
 func (c *core) verifySignedPrepareOrCommitMessage(message istanbul.Message, seen map[common.Address]bool) (*common.Address, error) {

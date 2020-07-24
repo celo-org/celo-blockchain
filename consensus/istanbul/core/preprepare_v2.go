@@ -12,14 +12,16 @@ import (
 func (c *core) sendPreprepareV2(request *istanbul.Request, roundChangeCertificateV2 istanbul.RoundChangeCertificateV2) {
 	logger := c.newLogger("func", "sendPreprepareV2")
 
-	// If I'm the proposer and I have the same sequence with the proposal
-	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
+	// If I'm the proposer and I have the same sequence with the proposal OR I'm faulty
+	faultyPropose := c.alwaysPropose()
+	if (c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer()) || faultyPropose {
 		m := istanbul.NewPreprepareV2Message(&istanbul.PreprepareV2{
 			View:                     c.current.View(),
 			Proposal:                 request.Proposal,
 			RoundChangeCertificateV2: roundChangeCertificateV2,
 		}, c.address)
 		logger.Debug("Sending preprepareV2", "m", m)
+		logger.Trace("Sending preprepareV2", "is_proposer", c.isProposer(), "faultyPropose", faultyPropose)
 		c.broadcast(m)
 	}
 }
