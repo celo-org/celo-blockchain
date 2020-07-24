@@ -36,7 +36,7 @@ type BackendForProxiedValidatorEngine interface {
 	// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
 	SelfNode() *enode.Node
 
-	// Sign signs input data with the backend's ecdsa signing key
+	// Sign signs input data with the validator's ecdsa signing key
 	Sign([]byte) ([]byte, error)
 
 	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
