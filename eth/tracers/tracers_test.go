@@ -229,8 +229,8 @@ func TestCallTracer(t *testing.T) {
 				t.Fatalf("failed to unmarshal trace result: %v", err)
 			}
 
-			if !reflect.DeepEqual(ret, test.Result) {
-				t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, test.Result)
+			if !reflect.DeepEqual(ret, test.BlockProcessResult) {
+				t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, test.BlockProcessResult)
 			}
 		})
 	}

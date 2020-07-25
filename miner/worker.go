@@ -152,7 +152,7 @@ type worker struct {
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
-	resultCh           chan *types.Block
+	resultCh           chan *types.BlockProcessResult
 	startCh            chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
@@ -206,7 +206,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
-		resultCh:           make(chan *types.Block, resultQueueSize),
+		resultCh:           make(chan *types.BlockProcessResult, resultQueueSize),
 		exitCh:             make(chan struct{}),
 		startCh:            make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),
@@ -551,13 +551,10 @@ func (w *worker) taskLoop() {
 func (w *worker) resultLoop() {
 	for {
 		select {
-		case block := <-w.resultCh:
-			// Short circuit when receiving empty result.
-			if block == nil {
-				continue
-			}
-			// Short circuit when receiving duplicate result caused by resubmitting.
-			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
+		case result := <-w.resultCh:
+			block := result.Block
+			// Short circuit when receiving empty result or receiving duplicate result caused by resubmitting.
+			if block == nil || w.chain.HasBlock(block.Hash(), block.NumberU64()) {
 				continue
 			}
 			var (

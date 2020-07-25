@@ -281,6 +281,9 @@ type Backend struct {
 
 	proxyHandlerRunning bool
 	proxyHandlerMu      sync.RWMutex
+
+	pendingMu                 sync.RWMutex
+	pendingBlockProcessResult map[common.Hash]*types.BlockProcessResult
 }
 
 // IsProxy returns if instance has proxy flag

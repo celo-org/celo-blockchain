@@ -473,7 +473,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, resultCh chan<- *types.BlockProcessResult, stop <-chan struct{}) error {
 	// update the block header timestamp and signature and propose the block to core engine
 	header := block.Header()
 	number := header.Number.Uint64()
@@ -513,12 +513,12 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		defer clear()
 		for {
 			select {
-			case result := <-sb.commitCh:
+			case resultBlock := <-sb.commitCh:
 				// Somehow, the block `result` coming from commitCh can be null
 				// if the block hash and the hash from channel are the same,
 				// return the result. Otherwise, keep waiting the next hash.
-				if result != nil && block.Hash() == result.Hash() {
-					results <- result
+				if resultBlock != nil && block.Hash() == resultBlock.Hash() {
+					resultCh <- &types.BlockProcessResult{Block: resultBlock}
 					return
 				}
 			case <-stop:
