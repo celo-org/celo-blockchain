@@ -134,7 +134,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
-	results := make(chan *types.BlockProcessResult)
+	results := make(chan *istanbul.BlockProcessResult)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {

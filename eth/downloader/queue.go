@@ -74,7 +74,7 @@ type queue struct {
 	headerTaskQueue *prque.Prque                   // [eth/62] Priority queue of the skeleton indexes to fetch the filling headers for
 	headerPeerMiss  map[string]map[uint64]struct{} // [eth/62] Set of per-peer header batches known to be unavailable
 	headerPendPool  map[string]*fetchRequest       // [eth/62] Currently pending header retrieval operations
-	headerResults   []*types.Header                // [eth/62] BlockProcessResult cache accumulating the completed headers
+	headerResults   []*types.Header                // [eth/62] Result cache accumulating the completed headers
 	headerProced    int                            // [eth/62] Number of headers already processed from the results
 	headerOffset    uint64                         // [eth/62] Number of the first header in the result cache
 	headerContCh    chan bool                      // [eth/62] Channel to notify when header download finishes

@@ -451,8 +451,3 @@ func (b *Block) Hash() common.Hash {
 }
 
 type Blocks []*Block
-
-// result contains verification cache info for submitting.
-type BlockProcessResult struct {
-	Block *Block
-}

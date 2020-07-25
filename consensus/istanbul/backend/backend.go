@@ -100,7 +100,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *types.BlockProcessResult, 1),
+		commitCh:                           make(chan *istanbul.BlockProcessResult, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -186,7 +186,7 @@ type Backend struct {
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *types.BlockProcessResult
+	commitCh          chan *istanbul.BlockProcessResult
 	proposedBlockHash common.Hash
 	sealMu            sync.Mutex
 	coreStarted       bool
@@ -283,7 +283,7 @@ type Backend struct {
 	proxyHandlerMu      sync.RWMutex
 
 	pendingMu                  sync.RWMutex
-	pendingBlockProcessResults map[common.Hash]*types.BlockProcessResult
+	pendingBlockProcessResults map[common.Hash]*istanbul.BlockProcessResult
 }
 
 // IsProxy returns if instance has proxy flag
@@ -441,7 +441,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// -- otherwise, a error will be returned and a round change event will be fired.
 	if sb.proposedBlockHash == block.Hash() {
 		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- &types.BlockProcessResult{Block: block}
+		sb.commitCh <- &istanbul.BlockProcessResult{Block: block, IsProposer: true}
 		return nil
 	}
 

@@ -542,7 +542,7 @@ func (s *PublicBlockChainAPI) GetBalance(ctx context.Context, address common.Add
 	return (*hexutil.Big)(state.GetBalance(address)), state.Error()
 }
 
-// BlockProcessResult structs for GetProof
+// Result structs for GetProof
 type AccountResult struct {
 	Address      common.Address  `json:"address"`
 	AccountProof []string        `json:"accountProof"`
