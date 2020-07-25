@@ -513,12 +513,12 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, resultC
 		defer clear()
 		for {
 			select {
-			case resultBlock := <-sb.commitCh:
+			case result := <-sb.commitCh:
 				// Somehow, the block `result` coming from commitCh can be null
 				// if the block hash and the hash from channel are the same,
 				// return the result. Otherwise, keep waiting the next hash.
-				if resultBlock != nil && block.Hash() == resultBlock.Hash() {
-					resultCh <- &types.BlockProcessResult{Block: resultBlock}
+				if result != nil && result.Block != nil && block.Hash() == result.Block.Hash() {
+					resultCh <- result
 					return
 				}
 			case <-stop:
@@ -582,7 +582,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	if sb.commitCh != nil {
 		close(sb.commitCh)
 	}
-	sb.commitCh = make(chan *types.Block, 1)
+	sb.commitCh = make(chan *types.BlockProcessResult, 1)
 
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
