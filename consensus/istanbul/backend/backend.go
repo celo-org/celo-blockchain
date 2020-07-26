@@ -70,6 +70,9 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
+
+	// staleThreshold is the maximum depth of the acceptable stale BlockProcessResult.
+	staleThreshold = uint64(7)
 )
 
 // Information about the proxy for a proxied validator
@@ -115,6 +118,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareThreadWg:             new(sync.WaitGroup),
 		valEnodesShareThreadQuit:           make(chan struct{}),
+		pendingBlockProcessResults:         make(map[common.Hash]*istanbul.BlockProcessResult),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -445,9 +449,15 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	if sb.broadcaster != nil {
-		sb.broadcaster.Enqueue(fetcherID, block)
+	sb.pendingMu.RLock()
+	sealHash := sb.SealHash(block.Header())
+	result, exist := sb.pendingBlockProcessResults[sealHash]
+	sb.pendingMu.RUnlock()
+	if !exist {
+		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
+		return nil
 	}
+	sb.commitCh <- result
 	return nil
 }
 
@@ -518,7 +528,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	state = state.Copy()
 
 	// Apply this block's transactions to update the state
-	receipts, _, usedGas, err := sb.processBlock(block, state)
+	receipts, allLogs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
 		return 0, err
@@ -537,6 +547,16 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 			return 0, err
 		}
 	}
+
+	sb.pendingMu.Lock()
+	// CLear stale results
+	for hash, result := range sb.pendingBlockProcessResults {
+		if result.Block.NumberU64()+staleThreshold <= sb.chain.CurrentHeader().Number.Uint64() {
+			delete(sb.pendingBlockProcessResults, hash)
+		}
+	}
+	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &istanbul.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state, IsProposer: false}
+	sb.pendingMu.Unlock()
 
 	return 0, err
 }
