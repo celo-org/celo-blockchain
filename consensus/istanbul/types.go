@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -420,14 +419,4 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 	}
 
 	return returnList
-}
-
-// BlockProcessResult caches block process info.
-type BlockProcessResult struct {
-	Block    *types.Block
-	Receipts []*types.Receipt
-	Logs     []*types.Log
-	State    *state.StateDB
-
-	IsProposer bool
 }

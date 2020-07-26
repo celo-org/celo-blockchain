@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/consensus"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -113,7 +115,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 func TestCommit(t *testing.T) {
 	backend := newBackend()
 
-	commitCh := make(chan *types.Block)
+	commitCh := make(chan *consensus.BlockProcessResult)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr       error
@@ -162,8 +164,8 @@ func TestCommit(t *testing.T) {
 			// to avoid race condition is occurred by goroutine
 			select {
 			case result := <-commitCh:
-				if result.Hash() != expBlock.Hash() {
-					t.Errorf("hash mismatch: have %v, want %v", result.Hash(), expBlock.Hash())
+				if result.Block.Hash() != expBlock.Hash() {
+					t.Errorf("hash mismatch: have %v, want %v", result.Block.Hash(), expBlock.Hash())
 				}
 			case <-time.After(10 * time.Second):
 				t.Fatal("timeout")

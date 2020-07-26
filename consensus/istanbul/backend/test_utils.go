@@ -9,6 +9,7 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
@@ -134,7 +135,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
-	results := make(chan *istanbul.BlockProcessResult)
+	results := make(chan *consensus.BlockProcessResult)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {

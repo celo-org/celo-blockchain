@@ -103,7 +103,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *istanbul.BlockProcessResult, 1),
+		commitCh:                           make(chan *consensus.BlockProcessResult, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -118,7 +118,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareThreadWg:             new(sync.WaitGroup),
 		valEnodesShareThreadQuit:           make(chan struct{}),
-		pendingBlockProcessResults:         make(map[common.Hash]*istanbul.BlockProcessResult),
+		pendingBlockProcessResults:         make(map[common.Hash]*consensus.BlockProcessResult),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -190,7 +190,7 @@ type Backend struct {
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *istanbul.BlockProcessResult
+	commitCh          chan *consensus.BlockProcessResult
 	proposedBlockHash common.Hash
 	sealMu            sync.Mutex
 	coreStarted       bool
@@ -287,7 +287,7 @@ type Backend struct {
 	proxyHandlerMu      sync.RWMutex
 
 	pendingMu                  sync.RWMutex
-	pendingBlockProcessResults map[common.Hash]*istanbul.BlockProcessResult
+	pendingBlockProcessResults map[common.Hash]*consensus.BlockProcessResult
 }
 
 // IsProxy returns if instance has proxy flag
@@ -437,26 +437,16 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
-	// - if the proposed and committed blocks are the same, send the proposed hash
-	//   to commit channel, which is being watched inside the engine.Seal() function.
-	// - otherwise, we try to insert the block.
-	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
-	//    the next block and the previous Seal() will be stopped.
-	// -- otherwise, a error will be returned and a round change event will be fired.
-	if sb.proposedBlockHash == block.Hash() {
-		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- &istanbul.BlockProcessResult{Block: block, IsProposer: true}
-		return nil
-	}
 
-	sb.pendingMu.RLock()
 	sealHash := sb.SealHash(block.Header())
+	sb.pendingMu.RLock()
 	result, exist := sb.pendingBlockProcessResults[sealHash]
 	sb.pendingMu.RUnlock()
 	if !exist {
 		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
 		return nil
 	}
+	result.Block = block
 	sb.commitCh <- result
 	return nil
 }
@@ -540,14 +530,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, err
 	}
 
-	// verify the validator set diff if this is the last block of the epoch
-	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
-		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
-			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
-			return 0, err
-		}
-	}
-
+	// Cache the BlockProcessResult
 	sb.pendingMu.Lock()
 	// CLear stale results
 	for hash, result := range sb.pendingBlockProcessResults {
@@ -555,8 +538,16 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 			delete(sb.pendingBlockProcessResults, hash)
 		}
 	}
-	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &istanbul.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state, IsProposer: false}
+	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state}
 	sb.pendingMu.Unlock()
+
+	// verify the validator set diff if this is the last block of the epoch
+	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
+		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
+			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
+			return 0, err
+		}
+	}
 
 	return 0, err
 }
