@@ -145,13 +145,19 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
-	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
+	aggregatedEpochValidatorSetSeal := types.IstanbulEpochValidatorSetSeal{}
+	err := engine.Commit(block, aggregatedSeal, aggregatedEpochValidatorSetSeal)
 	if err != nil {
 		return nil, err
 	}
 
-	result := <-results
-	block = result.Block
+	h := block.Header()
+	writeAggregatedSeal(h, aggregatedSeal, false)
+	block = block.WithSeal(h)
+	block = block.WithEpochSnarkData(&types.EpochSnarkData{
+		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
+		Signature: aggregatedEpochValidatorSetSeal.Signature,
+	})
 
 	// insert the block to the chain so that we can make multiple calls to this function
 	_, err = chain.InsertChain(types.Blocks{block})

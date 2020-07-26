@@ -534,10 +534,13 @@ func (w *worker) resultLoop() {
 				continue
 			}
 
-			_, err := w.chain.WriteBlockWithState(result.Block, result.Receipts, result.Logs, result.State, true)
-			if err != nil {
-				log.Error("Failed writing block to chain", "err", err)
-				continue
+			if result.State != nil {
+				_, err := w.chain.WriteBlockWithState(result.Block, result.Receipts, result.Logs, result.State, true)
+				if err != nil {
+					log.Error("Failed writing block to chain", "err", err)
+					continue
+				}
+				log.Info("Successfully sealed new block", "number", result.Block.Number(), "sealHash", w.engine.SealHash(result.Block.Header()), "hash", result.Block.Hash())
 			}
 
 			// Broadcast the block and announce chain insertion event

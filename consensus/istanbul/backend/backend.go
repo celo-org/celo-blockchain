@@ -52,11 +52,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-const (
-	// fetcherID is the ID indicates the block is from Istanbul engine
-	fetcherID = "istanbul"
-)
-
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")

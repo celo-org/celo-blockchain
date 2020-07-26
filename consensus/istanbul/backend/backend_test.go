@@ -22,9 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/consensus"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -152,6 +151,10 @@ func TestCommit(t *testing.T) {
 			result := <-backend.commitCh
 			commitCh <- result
 		}()
+
+		backend.pendingMu.Lock()
+		backend.pendingBlockProcessResults[backend.SealHash(expBlock.Header())] = &consensus.BlockProcessResult{Block: expBlock}
+		backend.pendingMu.Unlock()
 
 		backend.proposedBlockHash = expBlock.Hash()
 		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}); err != nil {
