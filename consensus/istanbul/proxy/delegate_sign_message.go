@@ -33,7 +33,7 @@ package proxy
 // proxied validator if one exists
 /* func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if p.proxiedValidator != nil {
-		return p.proxiedValidator.Send(istanbul.DelegateSignMsg, msg)
+		return p.backend.AsyncSendCeloMsg(p.proxiedValidator, istanbul.DelegateSignMsg, msg)
 	} else {
 		return errNoConnectedProxiedValidator
 	}

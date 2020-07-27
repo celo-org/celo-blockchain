@@ -935,7 +935,9 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return peer.Send(istanbul.VersionCertificatesMsg, payload)
+
+	sb.Unicast(peer, payload, istanbul.VersionCertificatesMsg)
+	return nil
 }
 
 func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
@@ -1304,7 +1306,9 @@ func (sb *Backend) sendEnodeCertificateMsg(peer consensus.Peer, msg *istanbul.Me
 		logger.Error("Error getting payload of enode certificate message", "err", err)
 		return err
 	}
-	return peer.Send(istanbul.EnodeCertificateMsg, payload)
+
+	sb.Unicast(peer, payload, istanbul.EnodeCertificateMsg)
+	return nil
 }
 
 // This function will set this nodes enode certificate field and then share it with all it's connected

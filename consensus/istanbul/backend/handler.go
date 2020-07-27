@@ -304,6 +304,8 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			errCh <- err
 			return
 		}
+		// No need to use sb.AsyncSendCeloMsg, since this is already
+		// being called within a goroutine.
 		err = peer.Send(istanbul.ValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err

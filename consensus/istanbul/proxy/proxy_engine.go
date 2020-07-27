@@ -54,6 +54,9 @@ type BackendForProxyEngine interface {
 	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
 	// validator connection set and that the message's address field matches the message's signature's signer
 	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
+
+	// Unicast will asynchronously send a celo message to peer
+	Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64)
 }
 
 type proxyEngine struct {
@@ -84,16 +87,13 @@ func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (Pro
 
 func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error) {
 	if msgCode == istanbul.ValEnodesShareMsg {
-		// For now, handle this in a goroutine
-		go p.handleValEnodesShareMsg(peer, payload)
-		return true, nil
+		return p.handleValEnodesShareMsg(peer, payload)
 	} else if msgCode == istanbul.FwdMsg {
 		return p.handleForwardMsg(peer, payload)
 	} else if msgCode == istanbul.ConsensusMsg {
 		return p.handleConsensusMsg(peer, payload)
 	} else if msgCode == istanbul.EnodeCertificateMsg {
-		go p.handleEnodeCertificateMsg(peer, payload)
-		return true, nil
+		return p.handleEnodeCertificateMsg(peer, payload)
 	}
 
 	return false, nil

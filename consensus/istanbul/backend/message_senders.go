@@ -46,8 +46,6 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 // in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
 // destAddresses.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error {
-	var err error
-
 	if sb.IsProxiedValidator() {
 		if err := sb.proxiedValidatorEngine.SendForwardMsg(nil, destAddresses, ethMsgCode, payload, nil); err != nil {
 			return err
@@ -55,7 +53,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	} else {
 		destPeers := sb.getPeersFromDestAddresses(destAddresses)
 		if len(destPeers) > 0 {
-			err = sb.sendMsg(destPeers, payload, ethMsgCode)
+			sb.asyncMulticast(destPeers, payload, ethMsgCode)
 		}
 	}
 
@@ -68,7 +66,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 		go sb.istanbulEventMux.Post(msg)
 	}
 
-	return err
+	return nil
 }
 
 // Gossip implements istanbul.Backend.Gossip
@@ -96,20 +94,29 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 		}
 	}
 
-	return sb.sendMsg(peersToSendMsg, payload, ethMsgCode)
-}
-
-// sendMsg will send the eth message (with the message's payload and msgCode field set to the params
-// payload and ethMsgCode respectively) to all the nodes destPeers param.
-func (sb *Backend) sendMsg(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) error {
-	logger := sb.logger.New("func", "sendMsg")
-
-	logger.Trace("Going to send a message", "peers", destPeers, "ethMsgCode", ethMsgCode)
-
-	for _, peer := range destPeers {
-		logger.Trace("Sending istanbul message to peer", "peer", peer)
-		go peer.Send(ethMsgCode, payload)
-	}
+	sb.asyncMulticast(peersToSendMsg, payload, ethMsgCode)
 
 	return nil
+}
+
+// sendMsg will asynchronously send the the Celo messages to all the peers in the destPeers param.
+func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) {
+	logger := sb.logger.New("func", "AsyncMulticastCeloMsg")
+
+	for _, peer := range destPeers {
+		peer := peer // Create new instance of peer for the goroutine
+		go func() {
+			logger.Trace("Sending istanbul message(s) to peer", "peer", peer)
+			if err := peer.Send(ethMsgCode, payload); err != nil {
+				logger.Warn("Error in sending message", "peer", peer, "ethMsgCode", ethMsgCode)
+			}
+		}()
+	}
+}
+
+// Unicast is basically a helper function to asynchronously send a message (via asyncMulticast)
+// to a single peer.
+func (sb *Backend) Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64) {
+	peerMap := map[enode.ID]consensus.Peer{peer.Node().ID(): peer}
+	sb.asyncMulticast(peerMap, payload, ethMsgCode)
 }

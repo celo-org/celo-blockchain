@@ -183,12 +183,28 @@ func (ph *proxyHandler) Running() bool {
 // run handles changes to proxies, validators, and performs occasional check-ins
 // that proxy/validator assignments are as expected
 func (ph *proxyHandler) run() {
+	logger := ph.logger.New("func", "run")
+
+	updateAnnounceVersionRequestTimestamps := make([]*time.Time, 0)
+	updateAnnounceVersionTimer := time.NewTimer(0)
+	defer updateAnnounceVersionTimer.Stop()
+	<-updateAnnounceVersionTimer.C // discard initial tick
+
+	// This function will send update the announce version at least
+	// a second later.
+	updateAnnounceVersionInFuture := func() {
+		if len(updateAnnounceVersionRequestTimestamps) == 0 {
+			updateAnnounceVersionTimer.Reset(time.Second)
+		}
+
+		requestTime := time.Now().Add(time.Second)
+		updateAnnounceVersionRequestTimestamps = append(updateAnnounceVersionRequestTimestamps, &requestTime)
+	}
+
 	defer ph.loopWG.Done()
 
 	phEpochTicker := time.NewTicker(ph.proxyHandlerEpochLength)
 	defer phEpochTicker.Stop()
-
-	logger := ph.logger.New("func", "run")
 
 	ph.updateValidators()
 
@@ -231,7 +247,13 @@ loop:
 				if valsReassigned := ph.ps.removeProxy(proxyID); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
 					ph.sendValEnodeShareMsgs()
-					ph.sb.UpdateAnnounceVersion()
+					// Send the announce version update request slightly in the future.
+					// The just sent val enode share messages will update all of the proxies' val enode tables.
+					// Ideally their val enode tables are updated before they get their latest enode certificates (via an update
+					// announce request).  This is not entirely necessary, since this thread will resend those
+					// enode certificates, but will reduce the time of validator connections being disconnected
+					// after a reassignment.
+					updateAnnounceVersionInFuture()
 				}
 				ph.sb.RemovePeer(proxy.node, p2p.ProxyPurpose)
 			}
@@ -247,9 +269,7 @@ loop:
 				if valsReassigned := ph.ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
 					ph.sendValEnodeShareMsgs()
-
-					// Note that update announce version will also share the enodeCertifcate to all the proxies
-					ph.sb.UpdateAnnounceVersion()
+					updateAnnounceVersionInFuture()
 				}
 			}
 
@@ -273,7 +293,37 @@ loop:
 			}
 			if valsReassigned {
 				ph.sendValEnodeShareMsgs()
-				ph.sb.UpdateAnnounceVersion()
+				updateAnnounceVersionInFuture()
+			}
+
+		case <-updateAnnounceVersionTimer.C:
+			// updateAnnounceVersionRequests should never be empty here.
+			// If it is, there is a bug in the code
+			if len(updateAnnounceVersionRequestTimestamps) == 0 {
+				logger.Error("updateAnnounceVersionRequestTimestamps is empty when updateAnnounceVersionTimer expired")
+			} else {
+				now := time.Now()
+				updateSent := false
+				numRequestToPop := 0
+
+				for _, minRequestTimestamp := range updateAnnounceVersionRequestTimestamps {
+					if minRequestTimestamp.Before(now) || minRequestTimestamp.Equal(now) {
+						if !updateSent {
+							ph.sb.UpdateAnnounceVersion()
+							updateSent = true
+						}
+
+						numRequestToPop++
+					} else {
+						// Update the timer to tick for the first entry of the requests
+						updateAnnounceVersionTimer.Reset(updateAnnounceVersionRequestTimestamps[0].Sub(now))
+						break
+					}
+				}
+
+				if numRequestToPop > 0 {
+					updateAnnounceVersionRequestTimestamps = updateAnnounceVersionRequestTimestamps[numRequestToPop:]
+				}
 			}
 
 		case <-phEpochTicker.C:
@@ -283,7 +333,7 @@ loop:
 			// network disconnect then a quick reconnect, the validator assignments wouldn't be changed.
 			if valsReassigned := ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength); valsReassigned {
 				ph.sendValEnodeShareMsgs()
-				ph.sb.UpdateAnnounceVersion()
+				updateAnnounceVersionInFuture()
 			} else {
 				// This is the case if there were no changes the validator assignments at the end of `proxyHandlerEpochLength` seconds.
 
