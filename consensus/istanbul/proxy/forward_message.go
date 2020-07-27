@@ -30,11 +30,9 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, fi
 	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
 
 	proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
-	if proxyPeers != nil {
-		for _, proxyPeer := range proxyPeers {
-			proxyToAddressesMap[proxyPeer] = nil
-		}
-	} else {
+
+	// If the proxy peers are not given to this function, then retrieve them via the proxy handler
+	if proxyPeers == nil {
 		valAssignments, err := pv.ph.GetValidatorAssignments(finalDestAddresses)
 		if err != nil {
 			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
@@ -55,6 +53,10 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, fi
 		if len(proxyToAddressesMap) == 0 {
 			logger.Warn("No proxy assigned to any of the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
 			return nil
+		}
+	} else {
+		for _, proxyPeer := range proxyPeers {
+			proxyToAddressesMap[proxyPeer] = nil
 		}
 	}
 

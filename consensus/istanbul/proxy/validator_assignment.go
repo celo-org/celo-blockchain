@@ -220,7 +220,7 @@ func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignm
 		for proxyID, validatorSet := range valAssignments.proxyToVals {
 			validatorSlice := make([]common.Address, 0, len(validatorSet))
 
-			for valAddress, _ := range validatorSet {
+			for valAddress := range validatorSet {
 				validatorSlice = append(validatorSlice, valAddress)
 			}
 

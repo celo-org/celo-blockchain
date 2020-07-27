@@ -48,7 +48,7 @@ type Config struct {
 	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
 
 	// Proxied Validator Configs
-	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
+	Proxied      bool           `toml:",omitempty"` // Specifies if this node is proxied
 	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs

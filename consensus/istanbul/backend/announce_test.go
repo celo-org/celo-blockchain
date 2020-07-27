@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"net"
 	"testing"
 
@@ -33,12 +32,14 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Pretend the signed announce version belongs to a different address
 	// but use val 1's public key so we can decrypt it using val 1's private key
-	destAddresses := []common.Address{val2Address}
-	publicKeys := []*ecdsa.PublicKey{b.publicKey}
-	externalEnodeURLs := []string{b.SelfNode().URLv4()}
+	queryEnodeEncryptedEnodeURLParams := make([]*genEncryptedEnodeURLParam, 1)
+	queryEnodeEncryptedEnodeURLParams[0] = &genEncryptedEnodeURLParam{
+		destAddress: val2Address,
+		publicKey:   b.publicKey,
+		enodeURL:    b.SelfNode().URLv4()}
 
 	// Generate an ist announce message using val1
-	istMsg, err := b.generateQueryEnodeMsg(getTimestamp(), destAddresses, publicKeys, externalEnodeURLs)
+	istMsg, err := b.generateQueryEnodeMsg(getTimestamp(), queryEnodeEncryptedEnodeURLParams)
 	if err != nil {
 		t.Fatalf("Error on generateAnnounce: %s", err)
 	}

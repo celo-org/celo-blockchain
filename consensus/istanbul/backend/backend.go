@@ -60,9 +60,6 @@ var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 
-	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
-	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
-
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
@@ -226,7 +223,7 @@ type Backend struct {
 	// to their proxies.
 	enodeCertificateMsgMap     map[enode.ID]*istanbul.Message
 	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex
+	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -917,7 +914,7 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 	} else {
 		validators := make([]istanbul.ValidatorData, len(valConnSet))
 		i := 0
-		for address, _ := range valConnSet {
+		for address := range valConnSet {
 			validators[i].Address = address
 			i++
 		}

@@ -157,9 +157,9 @@ func (vph *validatorPeerHandler) ClearValidatorPeers() {
 }
 
 func (sb *Backend) AddPeer(node *enode.Node, purpose p2p.PurposeFlag) {
-     sb.p2pserver.AddPeer(node, purpose)
+	sb.p2pserver.AddPeer(node, purpose)
 }
 
 func (sb *Backend) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag) {
-     sb.p2pserver.RemovePeer(node, purpose)
+	sb.p2pserver.RemovePeer(node, purpose)
 }

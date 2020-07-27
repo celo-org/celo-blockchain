@@ -129,7 +129,7 @@ func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(payload []byte) error {
 	}
 
 	destAddresses := make([]common.Address, 0, len(vetEntries))
-	for destAddress, _ := range vetEntries {
+	for destAddress := range vetEntries {
 		destAddresses = append(destAddresses, destAddress)
 	}
 

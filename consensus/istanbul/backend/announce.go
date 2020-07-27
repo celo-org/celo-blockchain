@@ -1354,12 +1354,6 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 	return nil
 }
 
-func (sb *Backend) getEnodeCertificateMsgVersion() uint {
-	sb.enodeCertificateMsgMapMu.RLock()
-	defer sb.enodeCertificateMsgMapMu.RUnlock()
-	return sb.enodeCertificateMsgVersion
-}
-
 func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
 	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
 

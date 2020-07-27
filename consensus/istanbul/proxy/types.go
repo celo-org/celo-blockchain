@@ -34,12 +34,6 @@ var (
 	// by the proxied validator, but signed from another key
 	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
 
-	// errNoAssignedProxies is returned when there is no assigned proxy
-	errNoAssignedProxies = errors.New("no assigned proxies")
-
-	// errNoConnectedProxiedValidator is returned when there is no connected proxied validator
-	errNoConnectedProxiedValidator = errors.New("no connected proxied validator")
-
 	// errInvalidEnodeCertificate is returned if the enode certificate is invalid
 	errInvalidEnodeCertificate = errors.New("invalid enode certificate")
 
