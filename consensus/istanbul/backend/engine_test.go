@@ -82,7 +82,7 @@ func TestSealStopChannel(t *testing.T) {
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
-	results := make(chan *consensus.BlockProcessResult)
+	results := make(chan *types.Block)
 
 	err := engine.Seal(chain, block, results, stop)
 	if err != nil {
@@ -115,7 +115,7 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 		t.Fatalf("did not create different blocks")
 	}
 
-	results := make(chan *consensus.BlockProcessResult)
+	results := make(chan *types.Block)
 	engine.Seal(chain, block, results, nil)
 
 	// in the single validator case, the result will instantly be processed
@@ -138,7 +138,7 @@ func TestSealCommitted(t *testing.T) {
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 
-	results := make(chan *consensus.BlockProcessResult)
+	results := make(chan *types.Block)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {
@@ -146,9 +146,9 @@ func TestSealCommitted(t *testing.T) {
 		}
 	}()
 
-	result := <-results
-	if result.Block.Hash() != expectedBlock.Hash() {
-		t.Errorf("hash mismatch: have %v, want %v", result.Block.Hash(), expectedBlock.Hash())
+	finalBlock := <-results
+	if finalBlock.Hash() != expectedBlock.Hash() {
+		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
 	}
 }
 

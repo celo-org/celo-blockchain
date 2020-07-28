@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -114,7 +113,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 func TestCommit(t *testing.T) {
 	backend := newBackend()
 
-	commitCh := make(chan *consensus.BlockProcessResult)
+	commitCh := make(chan *types.Block)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr       error
@@ -152,10 +151,6 @@ func TestCommit(t *testing.T) {
 			commitCh <- result
 		}()
 
-		backend.pendingMu.Lock()
-		backend.pendingBlockProcessResults[backend.SealHash(expBlock.Header())] = &consensus.BlockProcessResult{Block: expBlock}
-		backend.pendingMu.Unlock()
-
 		backend.proposedBlockHash = expBlock.Hash()
 		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}); err != nil {
 			if err != test.expectedErr {
@@ -167,8 +162,8 @@ func TestCommit(t *testing.T) {
 			// to avoid race condition is occurred by goroutine
 			select {
 			case result := <-commitCh:
-				if result.Block.Hash() != expBlock.Hash() {
-					t.Errorf("hash mismatch: have %v, want %v", result.Block.Hash(), expBlock.Hash())
+				if result.Hash() != expBlock.Hash() {
+					t.Errorf("hash mismatch: have %v, want %v", result.Hash(), expBlock.Hash())
 				}
 			case <-time.After(10 * time.Second):
 				t.Fatal("timeout")

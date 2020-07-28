@@ -152,7 +152,7 @@ type worker struct {
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
-	resultCh           chan *consensus.BlockProcessResult
+	resultCh           chan *types.Block
 	startCh            chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
@@ -206,7 +206,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
-		resultCh:           make(chan *consensus.BlockProcessResult, resultQueueSize),
+		resultCh:           make(chan *types.Block, resultQueueSize),
 		exitCh:             make(chan struct{}),
 		startCh:            make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),
@@ -551,75 +551,64 @@ func (w *worker) taskLoop() {
 func (w *worker) resultLoop() {
 	for {
 		select {
-		case result := <-w.resultCh:
-			// Short circuit when receiving empty result or receiving duplicate result caused by resubmitting.
-			if result == nil || result.Block == nil || w.chain.HasBlock(result.Block.Hash(), result.Block.NumberU64()) {
+		case block := <-w.resultCh:
+			// Short circuit when receiving empty result.
+			if block == nil {
 				continue
 			}
-
-			if result.IsProposer {
-				var (
-					block    = result.Block
-					sealHash = w.engine.SealHash(block.Header())
-					hash     = block.Hash()
-				)
-
-				w.pendingMu.RLock()
-				task, exist := w.pendingTasks[sealHash]
-				w.pendingMu.RUnlock()
-				if !exist {
-					log.Error("Block found but no relative pending task", "number", block.Number(), "sealHash", sealHash, "hash", hash)
-					continue
-				}
-
-				var (
-					receipts = make([]*types.Receipt, len(task.receipts))
-					logs     []*types.Log
-				)
-				// Different block could share same sealHash, deep copy here to prevent write-write conflict.
-				for i, receipt := range task.receipts {
-					// add block location fields
-					receipt.BlockHash = hash
-					receipt.BlockNumber = block.Number()
-					receipt.TransactionIndex = uint(i)
-
-					receipts[i] = new(types.Receipt)
-					*receipts[i] = *receipt
-					// Update the block hash in all logs since it is now available and not when the
-					// receipt/log of individual transactions were created.
-					for _, log := range receipt.Logs {
-						log.BlockHash = hash
-						// Handle block finalization receipt
-						if (log.TxHash == common.Hash{}) {
-							log.TxHash = hash
-						}
-					}
-					logs = append(logs, receipt.Logs...)
-				}
-
-				// Commit block and state to database.
-				_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
-				if err != nil {
-					log.Error("Failed writing block to chain", "err", err)
-					continue
-				}
-				log.Info("Successfully sealed new block", "number", block.Number(), "sealHash", sealHash, "hash", hash,
-					"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
-			} else {
-				if result.State != nil {
-					_, err := w.chain.WriteBlockWithState(result.Block, result.Receipts, result.Logs, result.State, true)
-					if err != nil {
-						log.Error("Failed writing block to chain", "err", err)
-						continue
-					}
-				}
+			// Short circuit when receiving duplicate result caused by resubmitting.
+			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
+				continue
 			}
+			var (
+				sealhash = w.engine.SealHash(block.Header())
+				hash     = block.Hash()
+			)
+			w.pendingMu.RLock()
+			task, exist := w.pendingTasks[sealhash]
+			w.pendingMu.RUnlock()
+			if !exist {
+				log.Error("Block found but no relative pending task", "number", block.Number(), "sealhash", sealhash, "hash", hash)
+				continue
+			}
+			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
+			var (
+				receipts = make([]*types.Receipt, len(task.receipts))
+				logs     []*types.Log
+			)
+			for i, receipt := range task.receipts {
+				// add block location fields
+				receipt.BlockHash = hash
+				receipt.BlockNumber = block.Number()
+				receipt.TransactionIndex = uint(i)
+
+				receipts[i] = new(types.Receipt)
+				*receipts[i] = *receipt
+				// Update the block hash in all logs since it is now available and not when the
+				// receipt/log of individual transactions were created.
+				for _, log := range receipt.Logs {
+					log.BlockHash = hash
+					// Handle block finalization receipt
+					if (log.TxHash == common.Hash{}) {
+						log.TxHash = hash
+					}
+				}
+				logs = append(logs, receipt.Logs...)
+			}
+			// Commit block and state to database.
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
+			if err != nil {
+				log.Error("Failed writing block to chain", "err", err)
+				continue
+			}
+			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
+				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
 			// Broadcast the block and announce chain insertion event
-			w.mux.Post(core.NewMinedBlockEvent{Block: result.Block})
+			w.mux.Post(core.NewMinedBlockEvent{Block: block})
 
 			// Insert the block into the set of pending ones to resultLoop for confirmations
-			w.unconfirmed.Insert(result.Block.NumberU64(), result.Block.Hash())
+			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
 
 		case <-w.exitCh:
 			return
