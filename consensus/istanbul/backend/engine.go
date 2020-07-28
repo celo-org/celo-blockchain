@@ -473,7 +473,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, resultCh chan<- *consensus.BlockProcessResult, stop <-chan struct{}) error {
 	// update the block header timestamp and signature and propose the block to core engine
 	header := block.Header()
 	number := header.Number.Uint64()
@@ -517,8 +517,8 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 				// Somehow, the block `result` coming from commitCh can be null
 				// if the block hash and the hash from channel are the same,
 				// return the result. Otherwise, keep waiting the next hash.
-				if result != nil && block.Hash() == result.Hash() {
-					results <- result
+				if result != nil && result.Block != nil && block.Hash() == result.Block.Hash() {
+					resultCh <- result
 					return
 				}
 			case <-stop:
@@ -582,7 +582,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	if sb.commitCh != nil {
 		close(sb.commitCh)
 	}
-	sb.commitCh = make(chan *types.Block, 1)
+	sb.commitCh = make(chan *consensus.BlockProcessResult, 1)
 
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock

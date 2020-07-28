@@ -329,10 +329,10 @@ func (e *MockEngine) SealHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
-func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *consensus.BlockProcessResult, stop <-chan struct{}) error {
 	header := block.Header()
 	select {
-	case results <- block.WithSeal(header):
+	case results <- &consensus.BlockProcessResult{Block: block.WithSeal(header)}:
 	default:
 		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
 	}

@@ -52,11 +52,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-const (
-	// fetcherID is the ID indicates the block is from Istanbul engine
-	fetcherID = "istanbul"
-)
-
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
@@ -70,6 +65,9 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
+
+	// staleThreshold is the maximum depth of the acceptable stale BlockProcessResult.
+	staleThreshold = 7
 )
 
 // Information about the proxy for a proxied validator
@@ -100,7 +98,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *types.Block, 1),
+		commitCh:                           make(chan *consensus.BlockProcessResult, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -115,6 +113,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareThreadWg:             new(sync.WaitGroup),
 		valEnodesShareThreadQuit:           make(chan struct{}),
+		pendingBlockProcessResults:         make(map[common.Hash]*consensus.BlockProcessResult),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -186,7 +185,7 @@ type Backend struct {
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *types.Block
+	commitCh          chan *consensus.BlockProcessResult
 	proposedBlockHash common.Hash
 	sealMu            sync.Mutex
 	coreStarted       bool
@@ -281,6 +280,9 @@ type Backend struct {
 
 	proxyHandlerRunning bool
 	proxyHandlerMu      sync.RWMutex
+
+	pendingMu                  sync.RWMutex
+	pendingBlockProcessResults map[common.Hash]*consensus.BlockProcessResult
 }
 
 // IsProxy returns if instance has proxy flag
@@ -438,13 +440,20 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// -- otherwise, a error will be returned and a round change event will be fired.
 	if sb.proposedBlockHash == block.Hash() {
 		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- block
+		sb.commitCh <- &consensus.BlockProcessResult{Block: block, IsProposer: true}
 		return nil
 	}
 
-	if sb.broadcaster != nil {
-		sb.broadcaster.Enqueue(fetcherID, block)
+	sealHash := sb.SealHash(block.Header())
+	sb.pendingMu.RLock()
+	result, exist := sb.pendingBlockProcessResults[sealHash]
+	sb.pendingMu.RUnlock()
+	if !exist {
+		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
+		return nil
 	}
+	result.Block = block
+	sb.commitCh <- result
 	return nil
 }
 
@@ -515,7 +524,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	state = state.Copy()
 
 	// Apply this block's transactions to update the state
-	receipts, _, usedGas, err := sb.processBlock(block, state)
+	receipts, allLogs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
 		return 0, err
@@ -526,6 +535,17 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
 		return 0, err
 	}
+
+	// Cache the BlockProcessResult
+	sb.pendingMu.Lock()
+	// CLear stale results
+	for hash, result := range sb.pendingBlockProcessResults {
+		if result.Block.NumberU64()+uint64(staleThreshold) <= sb.chain.CurrentHeader().Number.Uint64() {
+			delete(sb.pendingBlockProcessResults, hash)
+		}
+	}
+	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state, IsProposer: false}
+	sb.pendingMu.Unlock()
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
