@@ -67,7 +67,7 @@ var (
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
 	// staleThreshold is the maximum depth of the acceptable stale BlockProcessResult.
-	staleThreshold = 7
+	staleThreshold = uint64(7)
 )
 
 // Information about the proxy for a proxied validator
@@ -432,17 +432,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
-	// - if the proposed and committed blocks are the same, send the proposed hash
-	//   to commit channel, which is being watched inside the engine.Seal() function.
-	// - otherwise, we try to insert the block.
-	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
-	//    the next block and the previous Seal() will be stopped.
-	// -- otherwise, a error will be returned and a round change event will be fired.
-	if sb.proposedBlockHash == block.Hash() {
-		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- &consensus.BlockProcessResult{Block: block, IsProposer: true}
-		return nil
-	}
 
 	sealHash := sb.SealHash(block.Header())
 	sb.pendingMu.RLock()
@@ -452,7 +441,36 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
 		return nil
 	}
+
+	// Different block could share same sealhash, deep copy here to prevent write-write conflict.
+	var (
+		hash     = block.Hash()
+		receipts = make([]*types.Receipt, len(result.Receipts))
+		logs     []*types.Log
+	)
+	for i, receipt := range result.Receipts {
+		// add block location fields
+		receipt.BlockHash = hash
+		receipt.BlockNumber = block.Number()
+		receipt.TransactionIndex = uint(i)
+
+		receipts[i] = new(types.Receipt)
+		*receipts[i] = *receipt
+		// Update the block hash in all logs since it is now available and not when the
+		// receipt/log of individual transactions were created.
+		for _, log := range receipt.Logs {
+			log.BlockHash = hash
+			// Handle block finalization receipt
+			if (log.TxHash == common.Hash{}) {
+				log.TxHash = hash
+			}
+		}
+		logs = append(logs, receipt.Logs...)
+	}
+
 	result.Block = block
+	result.Receipts = receipts
+	result.Logs = logs
 	sb.commitCh <- result
 	return nil
 }
@@ -540,11 +558,11 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	sb.pendingMu.Lock()
 	// CLear stale results
 	for hash, result := range sb.pendingBlockProcessResults {
-		if result.Block.NumberU64()+uint64(staleThreshold) <= sb.chain.CurrentHeader().Number.Uint64() {
+		if result.Block.NumberU64()+staleThreshold <= sb.chain.CurrentHeader().Number.Uint64() {
 			delete(sb.pendingBlockProcessResults, hash)
 		}
 	}
-	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state, IsProposer: false}
+	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state}
 	sb.pendingMu.Unlock()
 
 	// verify the validator set diff if this is the last block of the epoch
