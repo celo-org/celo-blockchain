@@ -319,7 +319,7 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 // SendPlumoProof propagates a plumo proof to a remote peer.
 func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
 	p.MarkPlumoProof(&proof.Epochs)
-	return p2p.Send(p.rw, PlumoProofMsg, proof)
+	return p2p.Send(p.rw, PlumoProofsMsg, proof)
 }
 
 // AsyncSendPlumoProof queues a Plumo proof for propagation to a remote peer.
@@ -354,6 +354,12 @@ func (p *peer) SendNodeData(data [][]byte) error {
 // ones requested from an already RLP encoded format.
 func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
 	return p2p.Send(p.rw, ReceiptsMsg, receipts)
+}
+
+// SendPlumoProofsRLP sends a batch of plumo proofs to the remote peer from
+// an already RLP encoded format
+func (p *peer) SendPlumoProofs(proofs []types.PlumoProof) error {
+	return p2p.Send(p.rw, PlumoProofsMsg, proofs)
 }
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a

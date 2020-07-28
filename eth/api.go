@@ -281,9 +281,8 @@ func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint, lastEpoch ui
 	return true, nil
 }
 
-// TODO(lucas): Fix to return all proofs for inspection
-func (api *PrivateAdminAPI) Proofs() ([]byte, error) {
-	return rawdb.ReadPlumoProof(api.eth.proofDb, &types.PlumoProofEpochs{0, 2}), nil
+func (api *PrivateAdminAPI) Proofs() ([][]byte, error) {
+	return rawdb.ReadPlumoProofs(api.eth.proofDb), nil
 }
 
 // PublicDebugAPI is the collection of Ethereum full node APIs exposed

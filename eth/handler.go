@@ -818,14 +818,53 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 
-	case msg.Code == PlumoProofMsg:
-		var proof *types.PlumoProof
-		if err := msg.Decode(&proof); err != nil {
+	case msg.Code == GetPlumoProofsMsg:
+		// Decode the retrieval message
+		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
+		if _, err := msgStream.List(); err != nil {
+			return err
+		}
+		// Gather proofs until the fetch or network limits is reached
+		var (
+			epochKey types.PlumoProofEpochs
+			bytes    int
+			proofs   []types.PlumoProof
+		)
+		for bytes < softResponseLimit && len(proofs) < downloader.MaxPlumoProofFetch {
+			// Retrieve the epochKey of the next block
+			if err := msgStream.Decode(&epochKey); err == rlp.EOL {
+				break
+			} else if err != nil {
+				return errResp(ErrDecode, "msg %v: %v", msg, err)
+			}
+			// Retrieve the requested plumo proof, stopping if enough was found
+			if proof := rawdb.ReadPlumoProof(pm.proofDb, &epochKey); proof != nil {
+				plumoProof := types.PlumoProof{
+					Proof:  proof,
+					Epochs: epochKey,
+				}
+				proofs = append(proofs, plumoProof)
+				proofRLPBytes, err := rlp.EncodeToBytes(plumoProof)
+				if err != nil {
+					return err
+				}
+				// TODO(lucas): could optimize if this size is semi-constant
+				proofRLP := rlp.RawValue(proofRLPBytes)
+				bytes += len(proofRLP)
+			}
+		}
+		return p.SendPlumoProofs(proofs)
+
+	case msg.Code == PlumoProofsMsg:
+		var proofs []*types.PlumoProof
+		if err := msg.Decode(&proofs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		p.MarkPlumoProof(&proof.Epochs)
-		log.Error("Proof received", "proof", proof)
-		rawdb.WritePlumoProof(pm.proofDb, proof)
+		for _, proof := range proofs {
+			p.MarkPlumoProof(&proof.Epochs)
+			log.Error("Proof received", "proof", proof)
+			rawdb.WritePlumoProof(pm.proofDb, proof)
+		}
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)

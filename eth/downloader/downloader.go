@@ -48,6 +48,7 @@ var (
 	MaxBodyFetch        = 128 // Amount of block bodies to be fetched per retrieval request
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
 	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
+	MaxPlumoProofFetch  = 192 // Amount of plumo proofs to be fetched per retrieval request (TODO(lucas))
 
 	rttMinEstimate   = 2 * time.Second  // Minimum round-trip time to target for download requests
 	rttMaxEstimate   = 20 * time.Second // Maximum round-trip time to target for download requests

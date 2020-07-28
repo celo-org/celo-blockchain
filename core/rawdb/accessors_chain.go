@@ -336,12 +336,12 @@ func ReadPlumoProof(db ethdb.Reader, epochs *types.PlumoProofEpochs) []byte {
 	return nil
 }
 
-// TODO(lucas): fix to iterate over all plumo prefixed values
-func ReadPlumoProofs(db ethdb.Iterator) [][]byte {
+func ReadPlumoProofs(db ethdb.Database) [][]byte {
 	var output [][]byte
-	output = append(output, db.Value())
-	for db.Next() {
-		output = append(output, db.Value())
+	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)
+	for proofIterator.Next() {
+		log.Error("Iterating keys", "key", proofIterator.Key(), "value", proofIterator.Value())
+		output = append(output, proofIterator.Value())
 	}
 	return output
 }

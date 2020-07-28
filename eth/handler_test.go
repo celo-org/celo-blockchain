@@ -687,7 +687,7 @@ func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
 	doneCh := make(chan struct{}, totalPeers)
 	for _, peer := range peers {
 		go func(p *testPeer) {
-			if err := p2p.ExpectMsg(p.app, PlumoProofMsg, &plumoProof); err != nil {
+			if err := p2p.ExpectMsg(p.app, PlumoProofsMsg, &plumoProof); err != nil {
 				errCh <- err
 			} else {
 				doneCh <- struct{}{}

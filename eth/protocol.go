@@ -45,9 +45,8 @@ const (
 	NodeDataMsg        = 0x0e
 	GetReceiptsMsg     = 0x0f
 	ReceiptsMsg        = 0x10
-	// TODO(lucas): should these belong here or after istanbul codes?
-	GetPlumoProofMsg = 0x19
-	PlumoProofMsg    = 0x1a
+	GetPlumoProofsMsg  = 0x19
+	PlumoProofsMsg     = 0x1a
 )
 
 type errCode int
