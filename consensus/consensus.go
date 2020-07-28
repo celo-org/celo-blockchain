@@ -205,4 +205,6 @@ type BlockProcessResult struct {
 	Receipts []*types.Receipt
 	Logs     []*types.Log
 	State    *state.StateDB
+
+	IsProposer bool
 }

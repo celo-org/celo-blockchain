@@ -67,7 +67,7 @@ var (
 	errNoBlockHeader = errors.New("failed to retrieve block header")
 
 	// staleThreshold is the maximum depth of the acceptable stale BlockProcessResult.
-	staleThreshold = uint64(7)
+	staleThreshold = 7
 )
 
 // Information about the proxy for a proxied validator
@@ -432,6 +432,17 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	})
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
+	// - if the proposed and committed blocks are the same, send the proposed hash
+	//   to commit channel, which is being watched inside the engine.Seal() function.
+	// - otherwise, we try to insert the block.
+	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
+	//    the next block and the previous Seal() will be stopped.
+	// -- otherwise, a error will be returned and a round change event will be fired.
+	if sb.proposedBlockHash == block.Hash() {
+		// feed block hash to Seal() and wait the Seal() result
+		sb.commitCh <- &consensus.BlockProcessResult{Block: block, IsProposer: true}
+		return nil
+	}
 
 	sealHash := sb.SealHash(block.Header())
 	sb.pendingMu.RLock()
@@ -529,11 +540,11 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	sb.pendingMu.Lock()
 	// CLear stale results
 	for hash, result := range sb.pendingBlockProcessResults {
-		if result.Block.NumberU64()+staleThreshold <= sb.chain.CurrentHeader().Number.Uint64() {
+		if result.Block.NumberU64()+uint64(staleThreshold) <= sb.chain.CurrentHeader().Number.Uint64() {
 			delete(sb.pendingBlockProcessResults, hash)
 		}
 	}
-	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state}
+	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state, IsProposer: false}
 	sb.pendingMu.Unlock()
 
 	// verify the validator set diff if this is the last block of the epoch
