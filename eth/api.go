@@ -267,6 +267,25 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	return true, nil
 }
 
+func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint, lastEpoch uint) (bool, error) {
+	plumoProof := types.PlumoProof{
+		Proof: proof,
+		Epochs: types.PlumoProofEpochs{
+			FirstEpoch: firstEpoch,
+			LastEpoch:  lastEpoch,
+		},
+	}
+	// TODO(lucas): is this cleaner than just adding an event?
+	rawdb.WritePlumoProof(api.eth.proofDb, &plumoProof)
+	api.eth.protocolManager.BroadcastPlumoProof(&plumoProof)
+	return true, nil
+}
+
+// TODO(lucas): Fix to return all proofs for inspection
+func (api *PrivateAdminAPI) Proofs() ([]byte, error) {
+	return rawdb.ReadPlumoProof(api.eth.proofDb, &types.PlumoProofEpochs{0, 2}), nil
+}
+
 // PublicDebugAPI is the collection of Ethereum full node APIs exposed
 // over the public debugging endpoint.
 type PublicDebugAPI struct {

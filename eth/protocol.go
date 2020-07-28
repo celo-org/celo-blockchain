@@ -47,7 +47,7 @@ const (
 	ReceiptsMsg        = 0x10
 	// TODO(lucas): should these belong here or after istanbul codes?
 	GetPlumoProofMsg = 0x19
-	PlumoProofMsg    = 0x1A
+	PlumoProofMsg    = 0x1a
 )
 
 type errCode int

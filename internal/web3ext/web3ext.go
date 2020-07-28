@@ -127,7 +127,7 @@ web3._extend({
 		}),
 		new web3._extend.Method({
 			name: 'addProof',
-			call: 'admin_addProof'
+			call: 'admin_addProof',
 			params: 3,
 			inputFormatter: [null, null, null]
 		}),

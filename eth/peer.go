@@ -426,6 +426,15 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 				Genesis:         genesis,
 				ForkID:          forkID,
 			})
+		case p.version == istanbul.Celo66:
+			errc <- p2p.Send(p.rw, StatusMsg, &statusData{
+				ProtocolVersion: uint32(p.version),
+				NetworkID:       network,
+				TD:              td,
+				Head:            head,
+				Genesis:         genesis,
+				ForkID:          forkID,
+			})
 		default:
 			panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
 		}
@@ -435,6 +444,8 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 		case p.version == istanbul.Celo64:
 			errc <- p.readStatusLegacy(network, &status63, genesis)
 		case p.version == istanbul.Celo65:
+			errc <- p.readStatus(network, &status, genesis, forkFilter)
+		case p.version == istanbul.Celo66:
 			errc <- p.readStatus(network, &status, genesis, forkFilter)
 		default:
 			panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
@@ -456,6 +467,8 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 	case p.version == istanbul.Celo64:
 		p.td, p.head = status63.TD, status63.CurrentBlock
 	case p.version == istanbul.Celo65:
+		p.td, p.head = status.TD, status.Head
+	case p.version == istanbul.Celo66:
 		p.td, p.head = status.TD, status.Head
 	default:
 		panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))

@@ -24,16 +24,17 @@ import (
 const (
 	Celo64 = 64
 	Celo65 = 65
+	Celo66 = 66
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
 const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the eth protocol (first is primary).
-var ProtocolVersions = []uint{Celo65, Celo64}
+var ProtocolVersions = []uint{Celo66, Celo65, Celo64}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27}
+var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 25, Celo66: 27}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size

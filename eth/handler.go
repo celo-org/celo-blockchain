@@ -106,12 +106,14 @@ type ProtocolManager struct {
 
 	server      *p2p.Server
 	proxyServer *p2p.Server
+
+	proofDb ethdb.Database
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
-	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
+	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database, proofdb ethdb.Database,
 	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -129,6 +131,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		engine:      engine,
 		server:      server,
 		proxyServer: proxyServer,
+		proofDb:     proofdb,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -822,8 +825,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		p.MarkPlumoProof(&proof.Epochs)
 		log.Error("Proof received", "proof", proof)
-		chaindb := pm.blockchain.GetDatabase()
-		rawdb.WritePlumoProof(chaindb, proof)
+		rawdb.WritePlumoProof(pm.proofDb, proof)
 
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
@@ -928,14 +930,14 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 	}
 }
 
+// TODO(lucas): remove?
 // Added Plumo Proof loop
 func (pm *ProtocolManager) plumoProofBroadcastLoop() {
 	// automatically stops if unsubscribed
 	for obj := range pm.plumoProofSub.Chan() {
 		if ev, ok := obj.Data.(core.NewPlumoProofAddedEvent); ok {
 			log.Error("Broadcast loop", "ev", ev)
-			chainDb := pm.blockchain.GetDatabase()
-			rawdb.WritePlumoProof(chainDb, ev.Proof)
+			rawdb.WritePlumoProof(pm.proofDb, ev.Proof)
 			// TODO propogate?
 			pm.BroadcastPlumoProof(ev.Proof)
 		}

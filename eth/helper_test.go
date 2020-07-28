@@ -201,6 +201,15 @@ func (p *testPeer) handshake(t *testing.T, td *big.Int, head common.Hash, genesi
 			Genesis:         genesis,
 			ForkID:          forkID,
 		}
+	case p.version == istanbul.Celo66:
+		msg = &statusData{
+			ProtocolVersion: uint32(p.version),
+			NetworkID:       DefaultConfig.NetworkId,
+			TD:              td,
+			Head:            head,
+			Genesis:         genesis,
+			ForkID:          forkID,
+		}
 	default:
 		panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
 	}

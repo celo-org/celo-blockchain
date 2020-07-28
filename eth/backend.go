@@ -79,6 +79,7 @@ type Ethereum struct {
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
+	proofDb ethdb.Database // Plumo proof database
 
 	eventMux       *event.TypeMux
 	engine         consensus.Engine
@@ -143,6 +144,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	proofDb, err := ctx.OpenDatabase("plumoproofdata", config.DatabaseCache, config.DatabaseHandles, "eth/db/plumoproofdata/")
+	if err != nil {
+		return nil, err
+	}
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideIstanbul)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
@@ -153,6 +158,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth := &Ethereum{
 		config:         config,
 		chainDb:        chainDb,
+		proofDb:        proofDb,
 		eventMux:       ctx.EventMux,
 		accountManager: ctx.AccountManager,
 		engine:         CreateConsensusEngine(ctx, chainConfig, config, config.Miner.Notify, config.Miner.Noverify, chainDb),
@@ -224,7 +230,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
-	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, ctx.Server, ctx.ProxyServer); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, proofDb, cacheLimit, config.Whitelist, ctx.Server, ctx.ProxyServer); err != nil {
 		return nil, err
 	}
 
@@ -687,6 +693,7 @@ func (s *Ethereum) Stop() error {
 	s.eventMux.Stop()
 
 	s.chainDb.Close()
+	s.proofDb.Close()
 	close(s.shutdownChan)
 	return nil
 }
