@@ -9,7 +9,6 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
@@ -135,7 +134,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
-	results := make(chan *consensus.BlockProcessResult)
+	results := make(chan *types.Block)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {
@@ -145,19 +144,11 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
-	aggregatedEpochValidatorSetSeal := types.IstanbulEpochValidatorSetSeal{}
-	err := engine.Commit(block, aggregatedSeal, aggregatedEpochValidatorSetSeal)
+	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
 	if err != nil {
 		return nil, err
 	}
-
-	h := block.Header()
-	writeAggregatedSeal(h, aggregatedSeal, false)
-	block = block.WithSeal(h)
-	block = block.WithEpochSnarkData(&types.EpochSnarkData{
-		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
-		Signature: aggregatedEpochValidatorSetSeal.Signature,
-	})
+	block = <-results
 
 	// insert the block to the chain so that we can make multiple calls to this function
 	_, err = chain.InsertChain(types.Blocks{block})
