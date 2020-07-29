@@ -89,7 +89,7 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, fi
 				return err
 			}
 
-			go proxyPeer.Send(istanbul.FwdMsg, fwdMsgPayload)
+			pv.backend.Unicast(proxyPeer, fwdMsgPayload, istanbul.FwdMsg)
 		}
 	}
 
@@ -138,7 +138,10 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 	}
 
 	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
-	go p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false)
+	if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
+		logger.Error("Error in multicasting a forwarded message", "error", err)
+		return true, err
+	}
 
 	return true, nil
 }

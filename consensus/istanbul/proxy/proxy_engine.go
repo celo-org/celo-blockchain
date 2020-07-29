@@ -37,6 +37,9 @@ type BackendForProxyEngine interface {
 	// If sendToSelf is set to true, then the function will send an event to self via a message event
 	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 
+	// Unicast will asynchronously send a celo message to peer
+	Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64)
+
 	// GetValEnodeTableEntries retrieves the entries in the valEnodeTable filtered on the "validators" parameter.
 	// If the parameter is nil, then no filter will be applied.
 	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]*istanbul.AddressEntry, error)
@@ -54,9 +57,6 @@ type BackendForProxyEngine interface {
 	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
 	// validator connection set and that the message's address field matches the message's signature's signer
 	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
-
-	// Unicast will asynchronously send a celo message to peer
-	Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64)
 }
 
 type proxyEngine struct {

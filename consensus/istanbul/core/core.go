@@ -37,8 +37,8 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-// IstBackendForCore provides the Istanbul backend application specific functions for Istanbul core
-type IstBackendForCore interface {
+// CoreBackend provides the Istanbul backend application specific functions for Istanbul core
+type CoreBackend interface {
 	// Address returns the owner's address
 	Address() common.Address
 
@@ -100,7 +100,7 @@ type core struct {
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
-	backend           IstBackendForCore
+	backend           CoreBackend
 	events            *event.TypeMuxSubscription
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
@@ -129,7 +129,7 @@ type core struct {
 }
 
 // New creates an Istanbul consensus core
-func New(backend IstBackendForCore, config *istanbul.Config) Engine {
+func New(backend CoreBackend, config *istanbul.Config) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
