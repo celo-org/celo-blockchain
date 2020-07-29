@@ -227,6 +227,8 @@ func init() {
 		dumpConfigCommand,
 		// See retesteth.go
 		retestethCommand,
+		// See signtxcmd.go
+		signTxCommand,
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 

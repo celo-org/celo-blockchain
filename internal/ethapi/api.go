@@ -1368,7 +1368,7 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 	return wallet.SignTx(account, tx, s.b.ChainConfig().ChainID)
 }
 
-// SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
+// SendTxArgs represents the arguments to submit a new transaction into the transaction pool.
 type SendTxArgs struct {
 	From                common.Address  `json:"from"`
 	To                  *common.Address `json:"to"`
