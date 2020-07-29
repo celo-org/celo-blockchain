@@ -139,7 +139,16 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 }
 
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
-	header, _ := b.HeaderByNumber(ctx, number)
+	// Pending state is only known by the miner
+	if number == rpc.PendingBlockNumber {
+		block, state := b.eth.miner.Pending()
+		return state, block.Header(), nil
+	}
+	// Otherwise resolve the block number and return its state
+	header, err := b.HeaderByNumber(ctx, number)
+	if err != nil {
+		return nil, nil, err
+	}
 	if header == nil {
 		return nil, nil, errors.New("header not found")
 	}

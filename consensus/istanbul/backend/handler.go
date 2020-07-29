@@ -261,11 +261,9 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
 
-	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if sb.coreStarted {
-		sb.logger.Debug("Posting FinalCommittedEvent", "func", "NewWork")
 		go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
 	}
 

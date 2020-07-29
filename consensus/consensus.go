@@ -111,8 +111,7 @@ type Engine interface {
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainReader) []rpc.API
 
-	// This is only implemented for Istanbul
-	// It will subscribe to NewViewFeed in
+	// SubscribeNewViewEvent will subscribe to the NewViewEvent.
 	SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription
 
 	// Close terminates any background threads maintained by the consensus engine.

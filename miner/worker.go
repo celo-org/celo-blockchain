@@ -49,9 +49,6 @@ const (
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
 
-	// chainSideChanSize is the size of channel listening to ChainSideEvent.
-	chainSideChanSize = 10
-
 	// newViewChanSize is the size of channel listening to NewViewEvent.
 	newViewChanSize = 10
 

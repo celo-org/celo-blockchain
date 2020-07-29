@@ -30,7 +30,7 @@ type MessageEvent struct {
 type FinalCommittedEvent struct {
 }
 
-// NewViewEvent is posted when a new view has been created
+// NewViewEvent is posted when a new view(sequence, round) has been created
 type NewViewEvent struct {
-	NewView View
+	NewView *View
 }
