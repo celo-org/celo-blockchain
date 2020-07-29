@@ -61,6 +61,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 	pcsclite "github.com/gballet/go-libpcsclite"
+	signerService "github.com/ethereum/go-ethereum/signer/service"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -1707,6 +1708,15 @@ func RegisterEthService(stack *node.Node, cfg *eth.Config) {
 			return fullNode, err
 		})
 	}
+	if err != nil {
+		Fatalf("Failed to register the Ethereum service: %v", err)
+	}
+}
+
+func RegisterSignerService(stack *node.Node, cfg *eth.Config) {
+	err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
+		return signerService.New(ctx, cfg)
+	})
 	if err != nil {
 		Fatalf("Failed to register the Ethereum service: %v", err)
 	}

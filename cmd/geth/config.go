@@ -144,6 +144,12 @@ func enableWhisper(ctx *cli.Context) bool {
 	return false
 }
 
+func makeSignerNode(ctx *cli.Context) *node.Node {
+	stack, cfg := makeConfigNode(ctx)
+	utils.RegisterSignerService(stack, &cfg.Eth)
+	return stack
+}
+
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
 	utils.RegisterEthService(stack, &cfg.Eth)
