@@ -159,7 +159,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	if err != nil {
 		return nil, err
 	}
-	return block, nil
+	return result.Block, nil
 }
 
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {

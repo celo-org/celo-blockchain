@@ -65,9 +65,6 @@ var (
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
-
-	// staleThreshold is the maximum depth of the acceptable stale BlockProcessResult.
-	staleThreshold = uint64(7)
 )
 
 // Information about the proxy for a proxied validator
@@ -432,7 +429,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	sealHash := sb.SealHash(block.Header())
 	result, isCached := sb.core.CurrentRoundState().GetBlockProcessResult(sealHash)
 	if !isCached {
-		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
+		log.Error("BlockProcessResult not found in cache", "number", block.Number(), "sealHash", sealHash)
 		return nil
 	}
 
