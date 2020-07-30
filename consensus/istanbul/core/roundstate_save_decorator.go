@@ -19,6 +19,8 @@ package core
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/consensus"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
@@ -80,6 +82,9 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
+func (rsp *rsSaveDecorator) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult) {
+	rsp.rs.SetBlockProcessResult(sealHash, blockProcessResult)
+}
 
 // DesiredRound implements RoundState.DesiredRound
 func (rsp *rsSaveDecorator) DesiredRound() *big.Int { return rsp.rs.DesiredRound() }
@@ -134,6 +139,10 @@ func (rsp *rsSaveDecorator) GetValidatorByAddress(address common.Address) istanb
 // GetValidatorByAddress implements RoundState.GetProposalVerificationStatus
 func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
+}
+
+func (rsp *rsSaveDecorator) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool) {
+	return rsp.rs.GetBlockProcessResult(sealHash)
 }
 
 // IsProposer implements RoundState.IsProposer

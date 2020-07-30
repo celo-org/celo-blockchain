@@ -23,6 +23,8 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/consensus"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -49,6 +51,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
+	SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -70,6 +73,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
+	GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool)
 	Summary() *RoundStateSummary
 }
 
@@ -92,11 +96,14 @@ type roundStateImpl struct {
 	pendingRequest      *istanbul.Request
 	preparedCertificate istanbul.PreparedCertificate
 
-	// Verification status for proposals seen in this view
+	// Verification status for proposals seen in this sequence
 	// Note that this field will not get RLP enoded and persisted, since it contains an error type,
 	// which doesn't have a native RLP encoding.  Also, this is a cache, so it's not necessary for it
 	// to be persisted.
 	proposalVerificationStatus map[common.Hash]error
+
+	// Cache for BlockProcessResult in this sequence.
+	blockProcessResults map[common.Hash]*consensus.BlockProcessResult
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -300,6 +307,7 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 	rs.pendingRequest = nil
 	rs.parentCommits = parentCommits
 	rs.proposalVerificationStatus = nil
+	rs.blockProcessResults = nil
 
 	// Update sequence gauge
 	rs.sequenceGauge.Update(nextSequence.Int64())
@@ -450,6 +458,22 @@ func (rs *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash
 		verificationStatus, isCached = rs.proposalVerificationStatus[proposalHash]
 	}
 
+	return
+}
+
+func (rs *roundStateImpl) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if rs.blockProcessResults == nil {
+		rs.blockProcessResults = make(map[common.Hash]*consensus.BlockProcessResult)
+	}
+	rs.blockProcessResults[sealHash] = blockProcessResult
+}
+
+func (rs *roundStateImpl) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	result, isCached = rs.blockProcessResults[sealHash]
 	return
 }
 

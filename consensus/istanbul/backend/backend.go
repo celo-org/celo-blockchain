@@ -113,7 +113,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		valEnodesShareThreadWg:             new(sync.WaitGroup),
 		valEnodesShareThreadQuit:           make(chan struct{}),
-		pendingBlockProcessResults:         make(map[common.Hash]*consensus.BlockProcessResult),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -280,9 +279,6 @@ type Backend struct {
 
 	proxyHandlerRunning bool
 	proxyHandlerMu      sync.RWMutex
-
-	pendingMu                  sync.RWMutex
-	pendingBlockProcessResults map[common.Hash]*consensus.BlockProcessResult
 }
 
 // IsProxy returns if instance has proxy flag
@@ -434,44 +430,13 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 
 	sealHash := sb.SealHash(block.Header())
-	sb.pendingMu.RLock()
-	result, exist := sb.pendingBlockProcessResults[sealHash]
-	sb.pendingMu.RUnlock()
-	if !exist {
+	result, isCached := sb.core.CurrentRoundState().GetBlockProcessResult(sealHash)
+	if !isCached {
 		log.Error("pending BlockProcessResult not found", "number", block.Number(), "sealHash", sealHash)
 		return nil
 	}
 
-	// Different block could share same sealhash, deep copy here to prevent write-write conflict.
-	var (
-		hash     = block.Hash()
-		receipts = make([]*types.Receipt, len(result.Receipts))
-		logs     []*types.Log
-	)
-	for i, receipt := range result.Receipts {
-		// add block location fields
-		receipt.BlockHash = hash
-		receipt.BlockNumber = block.Number()
-		receipt.TransactionIndex = uint(i)
-
-		receipts[i] = new(types.Receipt)
-		*receipts[i] = *receipt
-		// Update the block hash in all logs since it is now available and not when the
-		// receipt/log of individual transactions were created.
-		for _, log := range receipt.Logs {
-			log.BlockHash = hash
-			// Handle block finalization receipt
-			if (log.TxHash == common.Hash{}) {
-				log.TxHash = hash
-			}
-		}
-		logs = append(logs, receipt.Logs...)
-	}
-
-	result.Block = block
-	result.Receipts = receipts
-	result.Logs = logs
-	sb.commitCh <- result
+	sb.commitCh <- sb.deepCopy(result, block)
 	return nil
 }
 
@@ -554,17 +519,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, err
 	}
 
-	// Cache the BlockProcessResult
-	sb.pendingMu.Lock()
-	// CLear stale results
-	for hash, result := range sb.pendingBlockProcessResults {
-		if result.Block.NumberU64()+staleThreshold <= sb.chain.CurrentHeader().Number.Uint64() {
-			delete(sb.pendingBlockProcessResults, hash)
-		}
-	}
-	sb.pendingBlockProcessResults[sb.SealHash(block.Header())] = &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state}
-	sb.pendingMu.Unlock()
-
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
@@ -572,6 +526,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 			return 0, err
 		}
 	}
+
+	// Cache the BlockProcessResult
+	sealHash := sb.SealHash(block.Header())
+	sb.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state})
 
 	return 0, err
 }
@@ -954,4 +912,37 @@ func (sb *Backend) sendForwardMsgToProxy(finalDestAddresses []common.Address, et
 	go sb.proxyNode.peer.Send(istanbul.FwdMsg, fwdMsgPayload)
 
 	return nil
+}
+
+func (sb *Backend) deepCopy(result *consensus.BlockProcessResult, block *types.Block) *consensus.BlockProcessResult {
+	// Different block could share same sealHash, deep copy here to prevent write-write conflict.
+	var (
+		hash     = block.Hash()
+		receipts = make([]*types.Receipt, len(result.Receipts))
+		logs     []*types.Log
+	)
+	for i, receipt := range result.Receipts {
+		// add block location fields
+		receipt.BlockHash = hash
+		receipt.BlockNumber = block.Number()
+		receipt.TransactionIndex = uint(i)
+
+		receipts[i] = new(types.Receipt)
+		*receipts[i] = *receipt
+		// Update the block hash in all logs since it is now available and not when the
+		// receipt/log of individual transactions were created.
+		for _, log := range receipt.Logs {
+			log.BlockHash = hash
+			// Handle block finalization receipt
+			if (log.TxHash == common.Hash{}) {
+				log.TxHash = hash
+			}
+		}
+		logs = append(logs, receipt.Logs...)
+	}
+
+	result.Block = block
+	result.Receipts = receipts
+	result.Logs = logs
+	return result
 }
