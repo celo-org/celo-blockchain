@@ -33,6 +33,7 @@ import (
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -594,6 +595,8 @@ func (s *Ethereum) StartProxiedValidatorEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		if istanbul.IsProxiedValidator() {
 			return istanbul.StartProxiedValidatorEngine()
+		} else {
+			return proxy.ErrNodeNotProxiedValidator
 		}
 	}
 
@@ -604,6 +607,8 @@ func (s *Ethereum) StopProxiedValidatorEngine() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		if istanbul.IsProxiedValidator() {
 			return istanbul.StopProxiedValidatorEngine()
+		} else {
+			return proxy.ErrNodeNotProxiedValidator
 		}
 	}
 
