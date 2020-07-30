@@ -120,3 +120,20 @@ func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 		return []ProxiedValidatorInfo{}, nil
 	}
 }
+
+// SendMsgToProxiedValidator will send a `celo` message to the proxied validator.
+func (p *proxyEngine) SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error {
+	logger := p.logger.New("func", "SendMsgToProxiedValidator")
+	if p.proxiedValidator != nil {
+		payload, err := msg.Payload()
+		if err != nil {
+			logger.Error("Error getting payload of message", "err", err)
+			return err
+		}
+		p.backend.Unicast(p.proxiedValidator, payload, msgCode)
+		return nil
+	} else {
+		logger.Warn("Proxy has no connected proxied validator.  Not sending message.")
+		return nil
+	}
+}

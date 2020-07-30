@@ -70,9 +70,8 @@ type ProxyEngine interface {
 
 	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
 
-	// SendEnodeCertificateMsgToProxiedValidator will send the given enode certificate
-	// message to the proxied validator.
-	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
+	// SendMsgToProxiedValidator will send the `celo` message to the proxied validator.
+	SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error
 
 	// GetProxiedValidatorsInfo will return information about the proxied validator.
 	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)

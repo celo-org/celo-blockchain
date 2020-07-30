@@ -59,24 +59,6 @@ func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []b
 	return true, nil
 }
 
-// SendEnodeCertificateMsgToProxiedValidator will send the enode certificate message to
-// the proxied validator.
-func (p *proxyEngine) SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error {
-	logger := p.logger.New("func", "SendEnodeCertificateMsgToProxiedValidator")
-	if p.proxiedValidator != nil {
-		payload, err := msg.Payload()
-		if err != nil {
-			logger.Error("Error getting payload of enode certificate message", "err", err)
-			return err
-		}
-		p.backend.Unicast(p.proxiedValidator, payload, istanbul.EnodeCertificateMsg)
-		return nil
-	} else {
-		logger.Warn("Proxy has no connected proxied validator.  Not sending enode certificate message.")
-		return nil
-	}
-}
-
 // handleEnodeCertificateFromFwdMsg will handle an enode certifcate message sent from the proxied validator
 // in a forward message
 func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(payload []byte) error {

@@ -420,7 +420,7 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	// to its val enode table, which occurs if the proxied validator sends back
 	// the enode certificate to this proxy.
 	if sb.IsProxy() {
-		if err := sb.proxyEngine.SendEnodeCertificateMsgToProxiedValidator(&msg); err != nil {
+		if err := sb.proxyEngine.SendMsgToProxiedValidator(istanbul.EnodeCertificateMsg, &msg); err != nil {
 			logger.Warn("Error in sending enode certificate to proxied validator", "err", err)
 		}
 		return false, nil
