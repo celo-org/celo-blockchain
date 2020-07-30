@@ -267,12 +267,13 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	return true, nil
 }
 
-func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint, lastEpoch uint) (bool, error) {
+func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint, lastEpoch uint, versionNumber uint) (bool, error) {
 	plumoProof := types.PlumoProof{
 		Proof: proof,
-		Epochs: types.PlumoProofEpochs{
-			FirstEpoch: firstEpoch,
-			LastEpoch:  lastEpoch,
+		Metadata: types.PlumoProofMetadata{
+			FirstEpoch:    firstEpoch,
+			LastEpoch:     lastEpoch,
+			VersionNumber: versionNumber,
 		},
 	}
 	// TODO(lucas): is this cleaner than just adding an event?

@@ -34,7 +34,7 @@ const ProtocolName = "istanbul"
 var ProtocolVersions = []uint{Celo66, Celo65, Celo64}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 25, Celo66: 27}
+var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 25, Celo66: 28}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size

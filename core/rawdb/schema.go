@@ -174,7 +174,7 @@ func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
 }
 
-func plumoProofKey(epochs *types.PlumoProofEpochs) []byte {
+func plumoProofKey(metadata *types.PlumoProofMetadata) []byte {
 	// abuse encodeBlockNumber for epochs
-	return append(append(plumoProofPrefix, encodeBlockNumber(uint64(epochs.FirstEpoch))...), encodeBlockNumber(uint64(epochs.LastEpoch))...)
+	return append(append(append(plumoProofPrefix, encodeBlockNumber(uint64(metadata.FirstEpoch))...), encodeBlockNumber(uint64(metadata.LastEpoch))...), encodeBlockNumber(uint64(metadata.VersionNumber))...)
 }

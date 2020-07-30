@@ -23,64 +23,67 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// PlumoProofEpochs holds a proof's epoch range, which is then used as a key for lookups
-type PlumoProofEpochs struct {
-	FirstEpoch uint
-	LastEpoch  uint
+// PlumoProofMetadata holds a proof's epoch range and proof version number, which is then used as a key for lookups
+type PlumoProofMetadata struct {
+	FirstEpoch    uint
+	LastEpoch     uint
+	VersionNumber uint
 }
 
 // EncodeRLP serializes p into the Ethereum RLP format.
-func (p *PlumoProofEpochs) EncodeRLP(w io.Writer) error {
+func (p *PlumoProofMetadata) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		p.FirstEpoch,
 		p.LastEpoch,
+		p.VersionNumber,
 	})
 }
 
 // DecodeRLP implements rlp.Decoder, and loads the plumo proof epoch fields from a RLP stream.
-func (p *PlumoProofEpochs) DecodeRLP(s *rlp.Stream) error {
-	var plumoProofEpochs struct {
-		FirstEpoch uint
-		LastEpoch  uint
+func (p *PlumoProofMetadata) DecodeRLP(s *rlp.Stream) error {
+	var plumoProofMetadata struct {
+		FirstEpoch    uint
+		LastEpoch     uint
+		VersionNumber uint
 	}
-	if err := s.Decode(&plumoProofEpochs); err != nil {
+	if err := s.Decode(&plumoProofMetadata); err != nil {
 		return err
 	}
-	p.FirstEpoch, p.LastEpoch = plumoProofEpochs.FirstEpoch, plumoProofEpochs.LastEpoch
+	p.FirstEpoch, p.LastEpoch, p.VersionNumber = plumoProofMetadata.FirstEpoch, plumoProofMetadata.LastEpoch, plumoProofMetadata.VersionNumber
 	return nil
 }
 
-func (p *PlumoProofEpochs) String() string {
+func (p *PlumoProofMetadata) String() string {
 	return fmt.Sprintf("{firstEpoch: %d, lastEpoch: %d}", p.FirstEpoch, p.LastEpoch)
 }
 
 // PlumoProof encapsulates a serialized plumo proof and the epochs it operates over
 type PlumoProof struct {
-	Proof  []byte
-	Epochs PlumoProofEpochs
+	Proof    []byte
+	Metadata PlumoProofMetadata
 }
 
 // EncodeRLP serializes p into the Ethereum RLP format.
 func (p *PlumoProof) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		p.Proof,
-		&p.Epochs,
+		&p.Metadata,
 	})
 }
 
 // DecodeRLP implements rlp.Decoder, and loads the plumo proof fields from a RLP stream.
 func (p *PlumoProof) DecodeRLP(s *rlp.Stream) error {
 	var plumoProof struct {
-		Proof  []byte
-		Epochs PlumoProofEpochs
+		Proof    []byte
+		Metadata PlumoProofMetadata
 	}
 	if err := s.Decode(&plumoProof); err != nil {
 		return err
 	}
-	p.Proof, p.Epochs = plumoProof.Proof, plumoProof.Epochs
+	p.Proof, p.Metadata = plumoProof.Proof, plumoProof.Metadata
 	return nil
 }
 
 func (p *PlumoProof) String() string {
-	return fmt.Sprintf("{epochs: %s, proof: %x}", p.Epochs.String(), p.Proof)
+	return fmt.Sprintf("{metadata: %s, proof: %x}", p.Metadata.String(), p.Proof)
 }

@@ -312,23 +312,23 @@ func WriteBodyRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint64, rlp 
 
 // WritePlumoProof stores the serialized proof to sync from `firstEpoch` to `lastEpoch`
 func WritePlumoProof(db ethdb.KeyValueWriter, plumoProof *types.PlumoProof) {
-	if err := db.Put(plumoProofKey(&plumoProof.Epochs), plumoProof.Proof); err != nil {
+	if err := db.Put(plumoProofKey(&plumoProof.Metadata), plumoProof.Proof); err != nil {
 		log.Crit("Failed to store plumo proof", "err", err)
 	}
 }
 
 // HasPlumoProof verifies the existence of a plumo proof from `firstEpoch` to `lastEpoch`
 // TODO(lucas): handle proofs in between epochs, likely here
-func HasPlumoProof(db ethdb.Reader, epochs *types.PlumoProofEpochs) bool {
-	if has, err := db.Has(plumoProofKey(epochs)); !has || err != nil {
+func HasPlumoProof(db ethdb.Reader, metadata *types.PlumoProofMetadata) bool {
+	if has, err := db.Has(plumoProofKey(metadata)); !has || err != nil {
 		return false
 	}
 	return true
 }
 
-func ReadPlumoProof(db ethdb.Reader, epochs *types.PlumoProofEpochs) []byte {
+func ReadPlumoProof(db ethdb.Reader, metadata *types.PlumoProofMetadata) []byte {
 	// Then try to look up the data in leveldb.
-	data, _ := db.Get(plumoProofKey(epochs))
+	data, _ := db.Get(plumoProofKey(metadata))
 	if len(data) > 0 {
 		return data
 	}

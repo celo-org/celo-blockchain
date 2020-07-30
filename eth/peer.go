@@ -194,11 +194,11 @@ func (p *peer) SetHead(hash common.Hash, td *big.Int) {
 
 // MarkPlumoProofs marks a set of epochs as known for the peer, ensuring that the proof will
 // never be propagated to this particular peer.
-func (p *peer) MarkPlumoProof(plumoProofEpochs *types.PlumoProofEpochs) {
+func (p *peer) MarkPlumoProof(plumoProofMetadata *types.PlumoProofMetadata) {
 	for p.knownPlumoProofs.Cardinality() >= maxKnownPlumoProofs {
 		p.knownPlumoProofs.Pop()
 	}
-	p.knownPlumoProofs.Add(plumoProofEpochs)
+	p.knownPlumoProofs.Add(plumoProofMetadata)
 }
 
 // MarkBlock marks a block as known for the peer, ensuring that the block will
@@ -318,7 +318,7 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 
 // SendPlumoProof propagates a plumo proof to a remote peer.
 func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
-	p.MarkPlumoProof(&proof.Epochs)
+	p.MarkPlumoProof(&proof.Metadata)
 	return p2p.Send(p.rw, PlumoProofsMsg, proof)
 }
 
@@ -327,9 +327,9 @@ func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
 func (p *peer) AsyncSendPlumoProof(proof *types.PlumoProof) {
 	select {
 	case p.queuedPlumoProofs <- proof:
-		p.MarkPlumoProof(&proof.Epochs)
+		p.MarkPlumoProof(&proof.Metadata)
 	default:
-		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "Epochs", proof.Epochs)
+		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "Metadata", proof.Metadata)
 	}
 }
 
@@ -641,13 +641,13 @@ func (ps *peerSet) Len() int {
 
 // PeersWithoutPlumoProof retrieves a list of peers that do not have a given plumo proof (by epochs) in
 // their set of known proofs.
-func (ps *peerSet) PeersWithoutPlumoProof(plumoProofEpochs *types.PlumoProofEpochs) []*peer {
+func (ps *peerSet) PeersWithoutPlumoProof(plumoProofMetadata *types.PlumoProofMetadata) []*peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	list := make([]*peer, 0, len(ps.peers))
 	for _, p := range ps.peers {
-		if !p.knownPlumoProofs.Contains(plumoProofEpochs) {
+		if !p.knownPlumoProofs.Contains(plumoProofMetadata) {
 			list = append(list, p)
 		}
 	}

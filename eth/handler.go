@@ -818,6 +818,26 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 
+	case msg.Code == NewPlumoProofMsg:
+		var proofsMetadata newPlumoProofData
+		if err := msg.Decode(&proofsMetadata); err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+		// Mark the proofs' metadata as present at the remote node
+		for _, proofMetadata := range proofsMetadata {
+			p.MarkPlumoProof(proofMetadata)
+		}
+		// Schedule all the unknown proofs' metadata for retrieval
+		unknown := make(newPlumoProofData, 0, len(proofsMetadata))
+		for _, proofMetadata := range proofsMetadata {
+			if !rawdb.HasPlumoProof(pm.proofDb, proofMetadata) {
+				unknown = append(unknown, proofMetadata)
+			}
+		}
+		// for _, proofMetadata := range unknown {
+		// 	// Fetch proof
+		// }
+
 	case msg.Code == GetPlumoProofsMsg:
 		// Decode the retrieval message
 		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
@@ -826,22 +846,22 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		// Gather proofs until the fetch or network limits is reached
 		var (
-			epochKey types.PlumoProofEpochs
-			bytes    int
-			proofs   []types.PlumoProof
+			metadataKey types.PlumoProofMetadata
+			bytes       int
+			proofs      []types.PlumoProof
 		)
 		for bytes < softResponseLimit && len(proofs) < downloader.MaxPlumoProofFetch {
 			// Retrieve the epochKey of the next block
-			if err := msgStream.Decode(&epochKey); err == rlp.EOL {
+			if err := msgStream.Decode(&metadataKey); err == rlp.EOL {
 				break
 			} else if err != nil {
 				return errResp(ErrDecode, "msg %v: %v", msg, err)
 			}
 			// Retrieve the requested plumo proof, stopping if enough was found
-			if proof := rawdb.ReadPlumoProof(pm.proofDb, &epochKey); proof != nil {
+			if proof := rawdb.ReadPlumoProof(pm.proofDb, &metadataKey); proof != nil {
 				plumoProof := types.PlumoProof{
-					Proof:  proof,
-					Epochs: epochKey,
+					Proof:    proof,
+					Metadata: metadataKey,
 				}
 				proofs = append(proofs, plumoProof)
 				proofRLPBytes, err := rlp.EncodeToBytes(plumoProof)
@@ -861,7 +881,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		for _, proof := range proofs {
-			p.MarkPlumoProof(&proof.Epochs)
+			p.MarkPlumoProof(&proof.Metadata)
 			log.Error("Proof received", "proof", proof)
 			rawdb.WritePlumoProof(pm.proofDb, proof)
 		}
@@ -878,12 +898,12 @@ func (pm *ProtocolManager) Enqueue(id string, block *types.Block) {
 
 func (pm *ProtocolManager) BroadcastPlumoProof(plumoProof *types.PlumoProof) {
 	// Broadcast plumo proof to a batch of peers not knowing about it
-	peers := pm.peers.PeersWithoutPlumoProof(&plumoProof.Epochs)
+	peers := pm.peers.PeersWithoutPlumoProof(&plumoProof.Metadata)
 	for _, peer := range peers {
 		peer.AsyncSendPlumoProof(plumoProof)
 	}
 	// TODO (lucas): trace
-	log.Error("Broadcast Plumo Proof", "Epochs", plumoProof.Epochs)
+	log.Error("Broadcast Plumo Proof", "Metadata", plumoProof.Metadata)
 }
 
 // BroadcastBlock will either propagate a block to a subset of it's peers, or
