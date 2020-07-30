@@ -55,26 +55,72 @@ var (
 )
 
 type ProxyEngine interface {
+	// HandleMsg is the `celo` subprotocol message handler for proxies.
 	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
+
+	// RegisterProxiedValidatorPeer is the callback function that should be called
+	// when a proxied validator connects to a proxy.  This function will save
+	// the proxied validator's peer in the proxy's state.
 	RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
+
+	// UnregisterProxiedValidatorPeer is the callback function that should be
+	// called when a proxied validator disconnects from a proxy.  This function
+	// will remove the proxied validator's peer from the proxy's state.
 	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
+
 	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
+
+	// SendEnodeCertificateMsgToProxiedValidator will send the given enode certificate
+	// message to the proxied validator.
 	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
+
+	// GetProxiedValidatorsInfo will return information about the proxied validator.
 	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 }
 
 type ProxiedValidatorEngine interface {
+	// Start will start the proxied validator engine. Specifically, it will start the
+	// proxy handler thread.
 	Start() error
+
+	// Stop will stop the proxied validator engine. Specifically, it will stop the
+	// proxy handler thread.
 	Stop() error
+
+	// AddProxy will add a new proxy to the proxy handler
 	AddProxy(node, externalNode *enode.Node) error
+
+	// RemoveProxy will remove a proxy from the proxy handler
 	RemoveProxy(node *enode.Node) error
+
+	// RegisterProxyPeer is the callback function that should be called
+	// when a proxy connects to a proxied validator.  This function will
+	// notify the proxy handler that a proxy has connected.
 	RegisterProxyPeer(proxyPeer consensus.Peer) error
+
+	// UnregisterProxyPeer is the callback function that should be called
+	// when a proxy is disconnected from a proxied validator.  This function will
+	// notify the proxy handler that a proxy has disconnected.
 	UnregisterProxyPeer(proxyPeer consensus.Peer)
+
+	// sendValEnodesShareMsg will send a val enode share messages with the val enode table entries associated
+	// with the remoteValidators to the proxyPeer.
 	sendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
+
+	// SendForwardMsg will send a forward message.
 	SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
+
 	// SendDelegateSignMsgToProxy(msg []byte) error
+
+	// SendValEnodeShareMsgToAllProxies will send the appropriate val enode share message to each
+	// connected proxy.
 	SendValEnodesShareMsgToAllProxies()
+
+	// GetValidatorProxyAssignments will retrieve all of the remote validator to proxy assignments.
 	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
+
+	// GetProxiesAndValAssignments will retrieve all of the proxies (connected or not yet connected) and
+	// the proxy to validator assignments.
 	GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]common.Address, error)
 }
 

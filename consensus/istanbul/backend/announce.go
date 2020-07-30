@@ -936,8 +936,7 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		return err
 	}
 
-	sb.Unicast(peer, payload, istanbul.VersionCertificatesMsg)
-	return nil
+	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
 func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
