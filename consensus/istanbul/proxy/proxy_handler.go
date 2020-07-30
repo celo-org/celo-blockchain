@@ -107,8 +107,8 @@ func (ph *proxyHandler) Start() error {
 
 // Stop stops the goroutine `run` if it is currently running
 func (ph *proxyHandler) Stop() error {
-	ph.lock.Lock()
-	defer ph.lock.Unlock()
+	ph.runningFlagMu.Lock()
+	defer ph.runningFlagMu.Unlock()
 
 	if !ph.runningFlag {
 		return ErrStoppedProxyHandler
@@ -174,8 +174,8 @@ func (ph *proxyHandler) GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]
 
 // isRunning returns if `run` is currently running in a goroutine
 func (ph *proxyHandler) Running() bool {
-	ph.lock.RLock()
-	defer ph.lock.RUnlock()
+	ph.runningFlagMu.RLock()
+	defer ph.runningFlagMu.RUnlock()
 
 	return ph.runningFlag
 }
