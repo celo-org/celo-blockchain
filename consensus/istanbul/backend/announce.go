@@ -1164,35 +1164,11 @@ func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Messa
 	return sb.enodeCertificateMsgMap
 }
 
-func (sb *Backend) GenerateEnodeCertificateMsg(enodeURL string) (*istanbul.Message, error) {
-	version := sb.GetAnnounceVersion()
-
-	enodeCertificate := &istanbul.EnodeCertificate{
-		EnodeURL: enodeURL,
-		Version:  version,
-	}
-	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
-	if err != nil {
-		return nil, err
-	}
-	msg := &istanbul.Message{
-		Code:    istanbul.EnodeCertificateMsg,
-		Address: sb.Address(),
-		Msg:     enodeCertificateBytes,
-	}
-	// Sign the message
-	if err := msg.Sign(sb.Sign); err != nil {
-		return nil, err
-	}
-
-	return msg, nil
-}
-
 // generateEnodeCertificateMsg generates an enode certificate message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
 func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateEnodeCertificateMsg")
+	logger := sb.logger.New("func", "generateEnodeCertificateMsgs")
 
 	externalEnodes := make(map[enode.ID]*enode.Node)
 	if sb.IsProxiedValidator() {
