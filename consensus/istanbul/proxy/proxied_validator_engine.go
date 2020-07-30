@@ -119,15 +119,11 @@ func (pv *proxiedValidatorEngine) Stop() error {
 }
 
 func (pv *proxiedValidatorEngine) AddProxy(node, externalNode *enode.Node) error {
-	pv.ph.addProxies <- []*istanbul.ProxyConfig{&istanbul.ProxyConfig{InternalNode: node, ExternalNode: externalNode}}
-
-	return nil
+	return pv.ph.AddProxies([]*istanbul.ProxyConfig{&istanbul.ProxyConfig{InternalNode: node, ExternalNode: externalNode}})
 }
 
 func (pv *proxiedValidatorEngine) RemoveProxy(node *enode.Node) error {
-	pv.ph.removeProxies <- []*enode.Node{node}
-
-	return nil
+	return pv.ph.RemoveProxies([]*enode.Node{node})
 }
 
 func (pv *proxiedValidatorEngine) RegisterProxyPeer(proxyPeer consensus.Peer) error {

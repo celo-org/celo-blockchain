@@ -51,7 +51,7 @@ func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 // is peered with.
 func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 	logger := ps.logger.New("func", "addProxy")
-	logger.Trace("Adding proxy to the proxy set", "new proxy internal ID", newProxy.InternalNode.ID(), "new proxy external ID", newProxy.ExternalNode.ID())
+	logger.Trace("Adding proxy to the proxy set", "new proxy internal ID", newProxy.InternalNode.String(), "new proxy external ID", newProxy.ExternalNode.String())
 	internalID := newProxy.InternalNode.ID()
 	if ps.proxiesByID[internalID] == nil {
 		ps.proxiesByID[internalID] = &proxy{

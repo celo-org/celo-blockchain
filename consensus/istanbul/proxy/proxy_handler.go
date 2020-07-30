@@ -121,6 +121,14 @@ func (ph *proxyHandler) Stop() error {
 	return nil
 }
 
+// isRunning returns if `run` is currently running in a goroutine
+func (ph *proxyHandler) Running() bool {
+	ph.runningFlagMu.RLock()
+	defer ph.runningFlagMu.RUnlock()
+
+	return ph.runningFlag
+}
+
 func (ph *proxyHandler) SendValEnodeShareMsgs() {
 	ph.sendValEnodeShareMsgsCh <- struct{}{}
 }
@@ -148,10 +156,6 @@ func (ph *proxyHandler) GetValidatorAssignments(validators []common.Address) (ma
 	return assignedProxies, nil
 }
 
-// This function will return all of the peered proxies
-/* func (ph *proxyHandler) GetProxiesExternalURL() ([]) {
-} */
-
 // This function will return all of the proxies' info.  It's used to display
 // that info via the RPC API.
 func (ph *proxyHandler) GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]common.Address, error) {
@@ -172,12 +176,26 @@ func (ph *proxyHandler) GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]
 	return proxies, valAssignments, nil
 }
 
-// isRunning returns if `run` is currently running in a goroutine
-func (ph *proxyHandler) Running() bool {
-	ph.runningFlagMu.RLock()
-	defer ph.runningFlagMu.RUnlock()
+// AddProxies will add a set of proxy configs to the proxy handler for it to connect and
+// assign them remote validators.
+func (ph *proxyHandler) AddProxies(proxies []*istanbul.ProxyConfig) error {
+	select {
+	case ph.addProxies <- proxies:
+		return nil
+	case <-ph.quit:
+		return ErrStoppedProxyHandler
+	}
+}
 
-	return ph.runningFlag
+// RemoveProxies will remove a set of proxies from the proxy handler for it to
+// disconnect from and reassign remote validators that were originally assigned to them.
+func (ph *proxyHandler) RemoveProxies(proxyNodes []*enode.Node) error {
+	select {
+	case ph.removeProxies <- proxyNodes:
+		return nil
+	case <-ph.quit:
+		return ErrStoppedProxyHandler
+	}
 }
 
 // run handles changes to proxies, validators, and performs occasional check-ins
