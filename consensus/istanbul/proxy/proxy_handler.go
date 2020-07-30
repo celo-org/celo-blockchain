@@ -31,8 +31,8 @@ import (
 // This struct defines the handler that will manage all of the proxies and
 // validator assignments to them
 type proxyHandler struct {
-	lock        sync.RWMutex // protects "runningFlag"
-	runningFlag bool         // indicates if `run` is currently being run in a goroutine
+	runningFlag   bool         // indicates if `run` is currently being run in a goroutine
+	runningFlagMu sync.RWMutex // protects "runningFlag"
 
 	loopWG sync.WaitGroup
 	quit   chan struct{}
@@ -89,8 +89,8 @@ func newProxyHandler(sb BackendForProxiedValidatorEngine, pve ProxiedValidatorEn
 
 // Start begins the proxyHandler event loop
 func (ph *proxyHandler) Start() error {
-	ph.lock.Lock()
-	defer ph.lock.Unlock()
+	ph.runningFlagMu.Lock()
+	defer ph.runningFlagMu.Unlock()
 
 	if ph.runningFlag {
 		return ErrStartedProxyHandler
