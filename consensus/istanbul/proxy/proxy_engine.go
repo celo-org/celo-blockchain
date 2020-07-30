@@ -74,12 +74,11 @@ type proxyEngine struct {
 
 	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
-	// Proxy's validator
 	proxiedValidator   consensus.Peer
 	proxiedValidatorMu sync.RWMutex
 }
 
-// New creates a new proxy engine.
+// NewProxyEngine creates a new proxy engine.
 func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (ProxyEngine, error) {
 	if !backend.IsProxy() {
 		return nil, ErrNodeNotProxy
@@ -130,16 +129,17 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 	}
 }
 
-func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
+func (p *proxyEngine) GetProxiedValidatorsInfo() ([]*ProxiedValidatorInfo, error) {
 	p.proxiedValidatorMu.RLock()
 	defer p.proxiedValidatorMu.RUnlock()
 	if p.proxiedValidator != nil {
-		proxiedValidatorInfo := ProxiedValidatorInfo{Address: p.config.ProxiedValidatorAddress,
+		return []*ProxiedValidatorInfo{{
+			Address:  p.config.ProxiedValidatorAddress,
 			IsPeered: true,
-			Node:     p.proxiedValidator.Node()}
-		return []ProxiedValidatorInfo{proxiedValidatorInfo}, nil
+			Node:     p.proxiedValidator.Node(),
+		}}, nil
 	} else {
-		return []ProxiedValidatorInfo{}, nil
+		return nil, nil
 	}
 }
 

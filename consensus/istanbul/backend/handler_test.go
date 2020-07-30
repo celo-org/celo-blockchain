@@ -188,8 +188,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	// The enodeCertificate is not set synchronously. Wait until it's been set
 	for i := 0; i < 10; i++ {
 		// Test a legitimate message being sent
-		msgMap := backend.RetrieveEnodeCertificateMsgMap()
-		enodeCertMsg := msgMap[backend.SelfNode().ID()]
+		enodeCertMsg := backend.RetrieveEnodeCertificateMsgMap()[backend.SelfNode().ID()]
 		if enodeCertMsg != nil {
 			validMsg = enodeCertMsg.Msg
 		}

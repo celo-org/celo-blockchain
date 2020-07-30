@@ -661,7 +661,7 @@ func (sb *Backend) StopAnnouncing() error {
 	return sb.vph.stopThread()
 }
 
-// StartProxyHandler implements consensus.Istanbul.StartProxyEngine
+// StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
 func (sb *Backend) StartProxiedValidatorEngine() error {
 	sb.proxiedValidatorEngineMu.Lock()
 	defer sb.proxiedValidatorEngineMu.Unlock()
@@ -680,7 +680,7 @@ func (sb *Backend) StartProxiedValidatorEngine() error {
 	return nil
 }
 
-// StopProxyHandler implements consensus.Istanbul.StopProxyEngine
+// StopProxiedValidatorEngine implements consensus.Istanbul.StopProxiedValidatorEngine
 func (sb *Backend) StopProxiedValidatorEngine() error {
 	sb.proxiedValidatorEngineMu.Lock()
 	defer sb.proxiedValidatorEngineMu.Unlock()

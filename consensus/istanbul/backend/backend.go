@@ -79,23 +79,19 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                        config,
-		istanbulEventMux:              new(event.TypeMux),
-		logger:                        logger,
-		db:                            db,
-		commitCh:                      make(chan *types.Block, 1),
-		recentSnapshots:               recentSnapshots,
-		coreStarted:                   false,
-		announceRunning:               false,
-		peerRecentMessages:            peerRecentMessages,
-		selfRecentMessages:            selfRecentMessages,
-		announceThreadWg:              new(sync.WaitGroup),
-		generateAndGossipQueryEnodeCh: make(chan struct{}, 1),
-
-		// Ideally, the updateAnnounceVersionCh should be an unbounded non blocking channel, but
-		// golang doesn't natively support that.  Here's a suggested implementation:
-		// https://medium.com/capital-one-tech/building-an-unbounded-channel-in-go-789e175cd2cd
-		updateAnnounceVersionCh:            make(chan struct{}, 100),
+		config:                             config,
+		istanbulEventMux:                   new(event.TypeMux),
+		logger:                             logger,
+		db:                                 db,
+		commitCh:                           make(chan *types.Block, 1),
+		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
+		announceRunning:                    false,
+		peerRecentMessages:                 peerRecentMessages,
+		selfRecentMessages:                 selfRecentMessages,
+		announceThreadWg:                   new(sync.WaitGroup),
+		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
+		updateAnnounceVersionCh:            make(chan struct{}, 1),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
