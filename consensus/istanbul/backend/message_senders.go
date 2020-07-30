@@ -46,6 +46,8 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 // in an istanbul.ForwardMessage to ensure the proxy sends it to the correct
 // destAddresses.
 func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error {
+	logger := sb.logger.New("func", "Multicast")
+
 	if sb.IsProxiedValidator() {
 		if err := sb.proxiedValidatorEngine.SendForwardMsg(nil, destAddresses, ethMsgCode, payload, nil); err != nil {
 			return err
@@ -63,7 +65,11 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 			Payload: payload,
 		}
 
-		go sb.istanbulEventMux.Post(msg)
+		go func() {
+			if err := sb.istanbulEventMux.Post(msg); err != nil {
+				logger.Warn("Error in posting message to self", "err", err)
+			}
+		}()
 	}
 
 	return nil
