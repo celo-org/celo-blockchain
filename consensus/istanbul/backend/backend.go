@@ -95,7 +95,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *consensus.BlockProcessResult, 1),
+		commitCh:                           make(chan *consensus.BlockConsensusAndProcessResult, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -181,7 +181,7 @@ type Backend struct {
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *consensus.BlockProcessResult
+	commitCh          chan *consensus.BlockConsensusAndProcessResult
 	proposedBlockHash common.Hash
 	sealMu            sync.Mutex
 	coreStarted       bool
@@ -433,7 +433,8 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	sb.commitCh <- sb.deepCopy(result, block)
+	result.SealedBlock = block
+	sb.commitCh <- result
 	return nil
 }
 
@@ -526,7 +527,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 
 	// Cache the BlockProcessResult
 	sealHash := sb.SealHash(block.Header())
-	sb.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockProcessResult{Block: block, Receipts: receipts, Logs: allLogs, State: state})
+	sb.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockConsensusAndProcessResult{SealedBlock: block, Receipts: receipts, Logs: allLogs, State: state})
 
 	return 0, err
 }
@@ -909,37 +910,4 @@ func (sb *Backend) sendForwardMsgToProxy(finalDestAddresses []common.Address, et
 	go sb.proxyNode.peer.Send(istanbul.FwdMsg, fwdMsgPayload)
 
 	return nil
-}
-
-func (sb *Backend) deepCopy(result *consensus.BlockProcessResult, block *types.Block) *consensus.BlockProcessResult {
-	// Different block could share same sealHash, deep copy here to prevent write-write conflict.
-	var (
-		hash     = block.Hash()
-		receipts = make([]*types.Receipt, len(result.Receipts))
-		logs     []*types.Log
-	)
-	for i, receipt := range result.Receipts {
-		// add block location fields
-		receipt.BlockHash = hash
-		receipt.BlockNumber = block.Number()
-		receipt.TransactionIndex = uint(i)
-
-		receipts[i] = new(types.Receipt)
-		*receipts[i] = *receipt
-		// Update the block hash in all logs since it is now available and not when the
-		// receipt/log of individual transactions were created.
-		for _, log := range receipt.Logs {
-			log.BlockHash = hash
-			// Handle block finalization receipt
-			if (log.TxHash == common.Hash{}) {
-				log.TxHash = hash
-			}
-		}
-		logs = append(logs, receipt.Logs...)
-	}
-
-	result.Block = block
-	result.Receipts = receipts
-	result.Logs = logs
-	return result
 }

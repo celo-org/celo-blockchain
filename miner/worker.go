@@ -149,7 +149,7 @@ type worker struct {
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
-	resultCh           chan *consensus.BlockProcessResult
+	resultCh           chan *consensus.BlockConsensusAndProcessResult
 	startCh            chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
@@ -199,7 +199,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
-		resultCh:           make(chan *consensus.BlockProcessResult, resultQueueSize),
+		resultCh:           make(chan *consensus.BlockConsensusAndProcessResult, resultQueueSize),
 		exitCh:             make(chan struct{}),
 		startCh:            make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),
@@ -529,25 +529,60 @@ func (w *worker) resultLoop() {
 	for {
 		select {
 		case result := <-w.resultCh:
-			// Short circuit when receiving empty result or receiving duplicate result caused by resubmitting.
-			if result == nil || result.Block == nil || w.chain.HasBlock(result.Block.Hash(), result.Block.NumberU64()) {
+			// Short circuit when receiving empty result
+			if result == nil || result.State == nil || result.Receipts == nil || result.SealedBlock == nil {
+				continue
+			}
+			block := result.SealedBlock
+			if block == nil {
+				continue
+			}
+			// Short circuit when receiving duplicate result caused by resubmitting.
+			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
 				continue
 			}
 
-			if result.State != nil {
-				_, err := w.chain.WriteBlockWithState(result.Block, result.Receipts, result.Logs, result.State, true)
-				if err != nil {
-					log.Error("Failed writing block to chain", "err", err)
-					continue
+			var (
+				sealhash = w.engine.SealHash(block.Header())
+				hash     = block.Hash()
+			)
+			// Different block could share same sealHash, deep copy here to prevent write-write conflict.
+			var (
+				receipts = make([]*types.Receipt, len(result.Receipts))
+				logs     []*types.Log
+			)
+			for i, receipt := range result.Receipts {
+				// add block location fields
+				receipt.BlockHash = hash
+				receipt.BlockNumber = block.Number()
+				receipt.TransactionIndex = uint(i)
+
+				receipts[i] = new(types.Receipt)
+				*receipts[i] = *receipt
+				// Update the block hash in all logs since it is now available and not when the
+				// receipt/log of individual transactions were created.
+				for _, log := range receipt.Logs {
+					log.BlockHash = hash
+					// Handle block finalization receipt
+					if (log.TxHash == common.Hash{}) {
+						log.TxHash = hash
+					}
 				}
-				log.Info("Successfully sealed new block", "number", result.Block.Number(), "sealHash", w.engine.SealHash(result.Block.Header()), "hash", result.Block.Hash())
+				logs = append(logs, receipt.Logs...)
 			}
+			// Commit block and state to database.
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, result.State, true)
+			if err != nil {
+				log.Error("Failed writing block to chain", "err", err)
+				continue
+			}
+			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 
 			// Broadcast the block and announce chain insertion event
-			w.mux.Post(core.NewMinedBlockEvent{Block: result.Block})
+			w.mux.Post(core.NewMinedBlockEvent{Block: block})
 
 			// Insert the block into the set of pending ones to resultLoop for confirmations
-			w.unconfirmed.Insert(result.Block.NumberU64(), result.Block.Hash())
+			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
 
 		case <-w.exitCh:
 			return

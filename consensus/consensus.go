@@ -97,7 +97,7 @@ type Engine interface {
 	//
 	// Note, the method returns immediately and will send the result async. More
 	// than one result may also be returned depending on the consensus algorithm.
-	Seal(chain ChainReader, block *types.Block, results chan<- *BlockProcessResult, stop <-chan struct{}) error
+	Seal(chain ChainReader, block *types.Block, results chan<- *BlockConsensusAndProcessResult, stop <-chan struct{}) error
 
 	// SealHash returns the hash of a block prior to it being sealed.
 	SealHash(header *types.Header) common.Hash
@@ -200,9 +200,9 @@ type Istanbul interface {
 }
 
 // BlockProcessResult caches block process result.
-type BlockProcessResult struct {
-	Block    *types.Block
-	Receipts []*types.Receipt
-	Logs     []*types.Log
-	State    *state.StateDB
+type BlockConsensusAndProcessResult struct {
+	SealedBlock *types.Block
+	Receipts    []*types.Receipt
+	Logs        []*types.Log
+	State       *state.StateDB
 }

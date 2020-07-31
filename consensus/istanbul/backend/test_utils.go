@@ -135,7 +135,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
-	results := make(chan *consensus.BlockProcessResult)
+	results := make(chan *consensus.BlockConsensusAndProcessResult)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {
@@ -145,7 +145,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// Setup the BlockProcessResult cache and create the sig and call Commit so that the result is pushed to the channel
 	sealHash := engine.SealHash(block.Header())
-	engine.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockProcessResult{Block: block})
+	engine.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockConsensusAndProcessResult{SealedBlock: block})
 	aggregatedSeal := signBlock(keys, block)
 	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
 	if err != nil {
@@ -155,11 +155,11 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	result := <-results
 
 	// insert the block to the chain so that we can make multiple calls to this function
-	_, err = chain.InsertChain(types.Blocks{result.Block})
+	_, err = chain.InsertChain(types.Blocks{result.SealedBlock})
 	if err != nil {
 		return nil, err
 	}
-	return result.Block, nil
+	return result.SealedBlock, nil
 }
 
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {

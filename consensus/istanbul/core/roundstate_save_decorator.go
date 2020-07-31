@@ -81,7 +81,7 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
-func (rsp *rsSaveDecorator) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult) {
+func (rsp *rsSaveDecorator) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockConsensusAndProcessResult) {
 	rsp.rs.SetBlockProcessResult(sealHash, blockProcessResult)
 }
 
@@ -140,7 +140,7 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
 }
 
-func (rsp *rsSaveDecorator) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool) {
+func (rsp *rsSaveDecorator) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockConsensusAndProcessResult, isCached bool) {
 	return rsp.rs.GetBlockProcessResult(sealHash)
 }
 

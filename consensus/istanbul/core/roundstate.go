@@ -50,7 +50,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
-	SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult)
+	SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockConsensusAndProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -72,7 +72,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
-	GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool)
+	GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockConsensusAndProcessResult, isCached bool)
 	Summary() *RoundStateSummary
 }
 
@@ -102,7 +102,7 @@ type roundStateImpl struct {
 	proposalVerificationStatus map[common.Hash]error
 
 	// Cache for BlockProcessResult in this sequence.
-	blockProcessResults map[common.Hash]*consensus.BlockProcessResult
+	blockProcessResults map[common.Hash]*consensus.BlockConsensusAndProcessResult
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -460,16 +460,16 @@ func (rs *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash
 	return
 }
 
-func (rs *roundStateImpl) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockProcessResult) {
+func (rs *roundStateImpl) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockConsensusAndProcessResult) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	if rs.blockProcessResults == nil {
-		rs.blockProcessResults = make(map[common.Hash]*consensus.BlockProcessResult)
+		rs.blockProcessResults = make(map[common.Hash]*consensus.BlockConsensusAndProcessResult)
 	}
 	rs.blockProcessResults[sealHash] = blockProcessResult
 }
 
-func (rs *roundStateImpl) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockProcessResult, isCached bool) {
+func (rs *roundStateImpl) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockConsensusAndProcessResult, isCached bool) {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 	result, isCached = rs.blockProcessResults[sealHash]
