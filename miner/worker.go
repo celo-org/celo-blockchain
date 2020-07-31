@@ -530,13 +530,10 @@ func (w *worker) resultLoop() {
 		select {
 		case result := <-w.resultCh:
 			// Short circuit when receiving empty result
-			if result == nil || result.State == nil || result.Receipts == nil || result.SealedBlock == nil {
+			if result == nil {
 				continue
 			}
 			block := result.SealedBlock
-			if block == nil {
-				continue
-			}
 			// Short circuit when receiving duplicate result caused by resubmitting.
 			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
 				continue
@@ -546,7 +543,7 @@ func (w *worker) resultLoop() {
 				sealhash = w.engine.SealHash(block.Header())
 				hash     = block.Hash()
 			)
-			// Different block could share same sealHash, deep copy here to prevent write-write conflict.
+			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			var (
 				receipts = make([]*types.Receipt, len(result.Receipts))
 				logs     []*types.Log
@@ -571,12 +568,14 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			_, err := w.chain.WriteBlockWithState(block, receipts, logs, result.State, true)
-			if err != nil {
-				log.Error("Failed writing block to chain", "err", err)
-				continue
+			if result.State != nil {
+				_, err := w.chain.WriteBlockWithState(block, receipts, logs, result.State, true)
+				if err != nil {
+					log.Error("Failed writing block to chain", "err", err)
+					continue
+				}
+				log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 			}
-			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})
