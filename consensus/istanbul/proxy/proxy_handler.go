@@ -50,7 +50,9 @@ type proxyHandler struct {
 
 	newBlockchainEpoch chan struct{} // This channel is when a new blockchain epoch has started and we need to check if any validators are removed or added
 
-	proxyHandlerEpochLength time.Duration // The duration of time between proxy handler epochs, which are occasional check-ins to ensure proxy/validator assignments are as intended
+	minProxyDisconnectTime time.Duration // The minimum allowable time that a proxy can be disconnected from the proxied validator.  After this expires, the proxy handler
+	// will remove any validator assignments from the proxy.
+	schedulerPeriod time.Duration // The duration of time between proxy handler update, which are occasional check-ins to ensure proxy/validator assignments are as intended
 
 	sb     BackendForProxiedValidatorEngine
 	pve    ProxiedValidatorEngine
@@ -68,8 +70,8 @@ func newProxyHandler(sb BackendForProxiedValidatorEngine, pve ProxiedValidatorEn
 
 		addProxies:      make(chan []*istanbul.ProxyConfig),
 		removeProxies:   make(chan []*enode.Node),
-		addProxyPeer:    make(chan consensus.Peer),
-		removeProxyPeer: make(chan consensus.Peer),
+		addProxyPeer:    make(chan consensus.Peer, 10),
+		removeProxyPeer: make(chan consensus.Peer, 10),
 
 		proxyHandlerOpCh:     make(chan proxyHandlerOpFunc),
 		proxyHandlerOpDoneCh: make(chan struct{}),
@@ -77,7 +79,8 @@ func newProxyHandler(sb BackendForProxiedValidatorEngine, pve ProxiedValidatorEn
 		sendValEnodeShareMsgsCh: make(chan struct{}),
 		newBlockchainEpoch:      make(chan struct{}),
 
-		proxyHandlerEpochLength: 15 * time.Second,
+		minProxyDisconnectTime: 30 * time.Second,
+		schedulerPeriod:        30 * time.Second,
 
 		ps: newProxySet(newConsistentHashingPolicy()),
 
@@ -221,8 +224,8 @@ func (ph *proxyHandler) run() {
 
 	defer ph.loopWG.Done()
 
-	phEpochTicker := time.NewTicker(ph.proxyHandlerEpochLength)
-	defer phEpochTicker.Stop()
+	schedulerTicker := time.NewTicker(ph.schedulerPeriod)
+	defer schedulerTicker.Stop()
 
 	ph.updateValidators()
 
@@ -344,17 +347,18 @@ loop:
 				}
 			}
 
-		case <-phEpochTicker.C:
-			logger.Trace("phEpochTicker expired.  Will process disconnected proxies.")
-			// Remove validator assignement for proxies that are disconnected for at minmum `proxyHandlerEpochLength` seconds.
+		case <-schedulerTicker.C:
+			logger.Trace("schedulerTicker ticked")
+
+			// Remove validator assignement for proxies that are disconnected for a minimum of `ph.minProxyDisconnectTime` seconds.
 			// The reason for not immediately removing the validator asssignments is so that if there is a
 			// network disconnect then a quick reconnect, the validator assignments wouldn't be changed.
-			if valsReassigned := ph.ps.unassignDisconnectedProxies(ph.proxyHandlerEpochLength); valsReassigned {
+			// If no reassignments were made, then resend all enode certificates and val enode share messages to the
+			// proxies, in case previous attempts failed.
+			if valsReassigned := ph.ps.unassignDisconnectedProxies(ph.minProxyDisconnectTime); valsReassigned {
 				ph.sendValEnodeShareMsgs()
 				updateAnnounceVersionInFuture()
 			} else {
-				// This is the case if there were no changes the validator assignments at the end of `proxyHandlerEpochLength` seconds.
-
 				// Send out the val enode share message.  We will resend the valenodeshare message here in case it was
 				// never successfully sent before.
 				ph.sendValEnodeShareMsgs()
