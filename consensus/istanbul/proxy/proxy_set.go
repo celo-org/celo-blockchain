@@ -31,7 +31,7 @@ import (
 // WARNING:  None of this object's functions are threadsafe, so it's
 //           the user's responsibility to ensure that.
 type proxySet struct {
-	proxiesByID    map[enode.ID]*proxy // all proxies known by this node, whether or not they are peered
+	proxiesByID    map[enode.ID]*Proxy // all proxies known by this node, whether or not they are peered
 	valAssignments *valAssignments     // the mappings of proxy<->remote validators
 	valAssigner    assignmentPolicy    // used for assigning peered proxies with remote validators
 	logger         log.Logger
@@ -39,7 +39,7 @@ type proxySet struct {
 
 func newProxySet(assignmentPolicy assignmentPolicy) *proxySet {
 	return &proxySet{
-		proxiesByID:    make(map[enode.ID]*proxy),
+		proxiesByID:    make(map[enode.ID]*Proxy),
 		valAssignments: newValAssignments(),
 		valAssigner:    assignmentPolicy,
 		logger:         log.New(),
@@ -54,7 +54,7 @@ func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 	logger.Trace("Adding proxy to the proxy set", "new proxy internal ID", newProxy.InternalNode.String(), "new proxy external ID", newProxy.ExternalNode.String())
 	internalID := newProxy.InternalNode.ID()
 	if ps.proxiesByID[internalID] == nil {
-		ps.proxiesByID[internalID] = &proxy{
+		ps.proxiesByID[internalID] = &Proxy{
 			node:         newProxy.InternalNode,
 			externalNode: newProxy.ExternalNode,
 			peer:         nil,
@@ -66,7 +66,7 @@ func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 }
 
 // getProxy returns the proxy in the proxySet with ID proxyID
-func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
+func (ps *proxySet) getProxy(proxyID enode.ID) *Proxy {
 	proxy, ok := ps.proxiesByID[proxyID]
 	if ok {
 		return proxy
@@ -74,7 +74,7 @@ func (ps *proxySet) getProxy(proxyID enode.ID) *proxy {
 	return nil
 }
 
-func (ps *proxySet) getAllProxies() map[enode.ID]*proxy {
+func (ps *proxySet) getAllProxies() map[enode.ID]*Proxy {
 	return ps.proxiesByID
 }
 
@@ -131,7 +131,7 @@ func (ps *proxySet) removeRemoteValidators(validators []common.Address) bool {
 // getValidatorAssignments returns the validator assignments for the given set of validators filtered on
 // the parameters `validators` AND `proxies`.  If either or both of them or nil, then that means that there is no
 // filter for that respective dimension.
-func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyIDs []enode.ID) map[common.Address]*proxy {
+func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyIDs []enode.ID) map[common.Address]*Proxy {
 	// First get temp set based on proxies filter
 	var tempValAssignmentsFromProxies map[common.Address]*enode.ID
 
@@ -165,7 +165,7 @@ func (ps *proxySet) getValidatorAssignments(validators []common.Address, proxyID
 	// Now do an intersection between the two temporary maps.
 	// TODO:  An optimization that can be done is to loop over the temporary map
 	//        that is smaller.
-	valAssignments := make(map[common.Address]*proxy)
+	valAssignments := make(map[common.Address]*Proxy)
 
 	for outerValAddress := range tempValAssignmentsFromProxies {
 		if enodeID, ok := tempValAssignmentsFromValidators[outerValAddress]; ok {
@@ -210,8 +210,8 @@ func (ps *proxySet) getValidators() []common.Address {
 
 // getProxyAndValAssignments returns the proxies that are added to the proxied validators
 // and the remote validator assignments
-func (ps *proxySet) getProxyAndValAssignments() ([]*proxy, map[enode.ID][]common.Address) {
-	proxies := make([]*proxy, 0, len(ps.proxiesByID))
+func (ps *proxySet) getProxyAndValAssignments() ([]*Proxy, map[enode.ID][]common.Address) {
+	proxies := make([]*Proxy, 0, len(ps.proxiesByID))
 	valAssignments := make(map[enode.ID][]common.Address)
 
 	for proxyID, proxy := range ps.proxiesByID {

@@ -33,7 +33,7 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, fi
 
 	// If the proxy peers are not given to this function, then retrieve them via the proxy handler
 	if proxyPeers == nil {
-		valAssignments, err := pv.ph.GetValidatorAssignments(finalDestAddresses)
+		valAssignments, err := pv.GetValidatorProxyAssignments(finalDestAddresses)
 		if err != nil {
 			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
 			return err

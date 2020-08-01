@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -409,10 +410,10 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		return err
 	}
 
-	var valProxyAssignments map[common.Address]*enode.Node
+	var valProxyAssignments map[common.Address]*proxy.Proxy
 	var selfEnodeURL string
 	if sb.IsProxiedValidator() {
-		valProxyAssignments, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments()
+		valProxyAssignments, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments(nil)
 		if err != nil {
 			return err
 		}
@@ -426,7 +427,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			var queryEnodeExternalEnodeURL string
 			if sb.IsProxiedValidator() {
 				if proxyNode, ok := valProxyAssignments[valEnodeEntry.Address]; ok && proxyNode != nil {
-					queryEnodeExternalEnodeURL = proxyNode.URLv4()
+					queryEnodeExternalEnodeURL = proxyNode.ExternalNode().URLv4()
 				} else {
 					continue
 				}

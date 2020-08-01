@@ -100,11 +100,7 @@ type ProxiedValidatorEngine interface {
 	// UnregisterProxyPeer is the callback function that should be called
 	// when a proxy is disconnected from a proxied validator.  This function will
 	// notify the proxy handler that a proxy has disconnected.
-	UnregisterProxyPeer(proxyPeer consensus.Peer)
-
-	// sendValEnodesShareMsg will send a val enode share messages with the val enode table entries associated
-	// with the remoteValidators to the proxyPeer.
-	sendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
+	UnregisterProxyPeer(proxyPeer consensus.Peer) error
 
 	// SendForwardMsg will send a forward message.
 	SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
@@ -113,40 +109,40 @@ type ProxiedValidatorEngine interface {
 
 	// SendValEnodeShareMsgToAllProxies will send the appropriate val enode share message to each
 	// connected proxy.
-	SendValEnodesShareMsgToAllProxies()
+	SendValEnodesShareMsgToAllProxies() error
 
-	// GetValidatorProxyAssignments will retrieve all of the remote validator to proxy assignments.
-	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
+	// GetValidatorProxyAssignments will retrieve all the remote validator to proxy assignments.
+	GetValidatorProxyAssignments(validators []common.Address) (map[common.Address]*Proxy, error)
 
 	// GetProxiesAndValAssignments will retrieve all of the proxies (connected or not yet connected) and
 	// the proxy to validator assignments.
-	GetProxiesAndValAssignments() ([]*proxy, map[enode.ID][]common.Address, error)
+	GetProxiesAndValAssignments() ([]*Proxy, map[enode.ID][]common.Address, error)
 }
 
 // ==============================================
 //
 // define the proxy object
 
-type proxy struct {
+type Proxy struct {
 	node         *enode.Node    // Enode for the internal network interface
 	externalNode *enode.Node    // Enode for the external network interface
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 	disconnectTS time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
 }
 
-func (p *proxy) ID() enode.ID {
+func (p *Proxy) ID() enode.ID {
 	return p.node.ID()
 }
 
-func (p *proxy) ExternalNode() *enode.Node {
+func (p *Proxy) ExternalNode() *enode.Node {
 	return p.externalNode
 }
 
-func (p *proxy) IsPeered() bool {
+func (p *Proxy) IsPeered() bool {
 	return p.peer != nil
 }
 
-func (p *proxy) String() string {
+func (p *Proxy) String() string {
 	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
 }
 
@@ -159,7 +155,7 @@ type ProxyInfo struct {
 	DisconnectTS             int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
 }
 
-func NewProxyInfo(p *proxy, assignedVals []common.Address) *ProxyInfo {
+func NewProxyInfo(p *Proxy, assignedVals []common.Address) *ProxyInfo {
 	return &ProxyInfo{
 		InternalNode:             p.node,
 		ExternalNode:             p.ExternalNode(),

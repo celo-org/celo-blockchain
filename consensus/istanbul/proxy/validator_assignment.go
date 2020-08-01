@@ -106,8 +106,8 @@ func (va *valAssignments) getValidators() []common.Address {
 // assignmentPolicy is intended to allow multiple implementations of validator assignment
 // policies
 type assignmentPolicy interface {
-	assignProxy(proxy *proxy, valAssignments *valAssignments) bool
-	removeProxy(proxy *proxy, valAssignments *valAssignments) bool
+	assignProxy(proxy *Proxy, valAssignments *valAssignments) bool
+	removeProxy(proxy *Proxy, valAssignments *valAssignments) bool
 	assignRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
 	removeRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
 }
@@ -160,13 +160,13 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 }
 
 // assignProxy adds a proxy to the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) assignProxy(proxy *proxy, valAssignments *valAssignments) bool {
+func (ch *consistentHashingPolicy) assignProxy(proxy *Proxy, valAssignments *valAssignments) bool {
 	ch.c.Add(proxy.ID())
 	return ch.reassignValidators(valAssignments)
 }
 
 // removeProxy removes a proxy from the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) removeProxy(proxy *proxy, valAssignments *valAssignments) bool {
+func (ch *consistentHashingPolicy) removeProxy(proxy *Proxy, valAssignments *valAssignments) bool {
 	ch.c.Remove(proxy.ID().String())
 	return ch.reassignValidators(valAssignments)
 }

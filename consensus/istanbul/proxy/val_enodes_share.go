@@ -103,10 +103,6 @@ func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer
 	return nil
 }
 
-func (pv *proxiedValidatorEngine) SendValEnodesShareMsgToAllProxies() {
-	pv.ph.SendValEnodeShareMsgs()
-}
-
 func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleValEnodesShareMsg")
 
