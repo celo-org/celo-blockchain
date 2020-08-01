@@ -44,8 +44,8 @@ type BackendForProxyEngine interface {
 	// If the parameter is nil, then no filter will be applied.
 	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]*istanbul.AddressEntry, error)
 
-	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries" rows.
-	RewriteValEnodeTableEntries(entries []*istanbul.AddressEntry) error
+	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries".
+	RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error
 
 	// SetEnodeCertificateMsg will set this node's enodeCertificate to be used for connection handshakes
 	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*istanbul.Message) error

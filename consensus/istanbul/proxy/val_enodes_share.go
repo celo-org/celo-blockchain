@@ -137,13 +137,13 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 
 	logger.Trace("Received an Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
-	var valEnodeEntries []*istanbul.AddressEntry
+	valEnodeEntries := make(map[common.Address]*istanbul.AddressEntry)
 	for _, sharedValidatorEnode := range valEnodesShareData.ValEnodes {
 		if node, err := enode.ParseV4(sharedValidatorEnode.EnodeURL); err != nil {
 			logger.Warn("Error in parsing enodeURL", "enodeURL", sharedValidatorEnode.EnodeURL)
 			continue
 		} else {
-			valEnodeEntries = append(valEnodeEntries, &istanbul.AddressEntry{Address: sharedValidatorEnode.Address, Node: node, Version: sharedValidatorEnode.Version})
+			valEnodeEntries[sharedValidatorEnode.Address] = &istanbul.AddressEntry{Address: sharedValidatorEnode.Address, Node: node, Version: sharedValidatorEnode.Version}
 		}
 	}
 

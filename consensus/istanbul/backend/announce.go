@@ -52,6 +52,8 @@ var (
 	errInvalidEnodeCertMsgMapInconsistenVersion = errors.New("invalid enode certificate message map because of inconsistent version")
 
 	errInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
+
+	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
 )
 
 // QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
@@ -394,6 +396,41 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+// getValProxyAssignments returns the remote validator -> external node assignments.
+// If this is a standalone validator, it will set the external node to itself.
+// If this is a proxied validator, it will set external node to the proxy's external node.
+func (sb *Backend) getValProxyAssignments(valEnodeEntries []*istanbul.AddressEntry) (map[common.Address]*enode.Node, error) {
+	var valProxyAssignments map[common.Address]*enode.Node = make(map[common.Address]*enode.Node)
+	var selfEnode *enode.Node = sb.SelfNode()
+	var proxies map[common.Address]*proxy.Proxy // This var is only used if this is a proxied validator
+
+	for _, valEnodeEntry := range valEnodeEntries {
+		var externalNode *enode.Node
+
+		if sb.IsProxiedValidator() {
+			if proxies == nil {
+				var err error
+				proxies, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments(nil)
+				if err != nil {
+					return nil, err
+				}
+			}
+			proxyObj := proxies[valEnodeEntry.Address]
+			if proxyObj == nil {
+				continue
+			}
+
+			externalNode = proxyObj.ExternalNode()
+		} else {
+			externalNode = selfEnode
+		}
+
+		valProxyAssignments[valEnodeEntry.Address] = externalNode
+	}
+
+	return valProxyAssignments, nil
+}
+
 // generateAndGossipAnnounce will generate the lastest announce msg from this node
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
@@ -410,34 +447,23 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		return err
 	}
 
-	var valProxyAssignments map[common.Address]*proxy.Proxy
-	var selfEnodeURL string
-	if sb.IsProxiedValidator() {
-		valProxyAssignments, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments(nil)
-		if err != nil {
-			return err
-		}
-	} else {
-		selfEnodeURL = sb.SelfNode().URLv4()
+	valProxyAssignments, err := sb.getValProxyAssignments(valEnodeEntries)
+	if err != nil {
+		return err
 	}
 
 	var queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
-			var queryEnodeExternalEnodeURL string
-			if sb.IsProxiedValidator() {
-				if proxyNode, ok := valProxyAssignments[valEnodeEntry.Address]; ok && proxyNode != nil {
-					queryEnodeExternalEnodeURL = proxyNode.ExternalNode().URLv4()
-				} else {
-					continue
-				}
-			} else { // For the standalone validator case
-				queryEnodeExternalEnodeURL = selfEnodeURL
+			externalEnode := valProxyAssignments[valEnodeEntry.Address]
+			if externalEnode == nil {
+				continue
 			}
 
+			externalEnodeURL := externalEnode.URLv4()
 			queryEnodeEncryptedEnodeURLParams = append(queryEnodeEncryptedEnodeURLParams, &genEncryptedEnodeURLParam{destAddress: valEnodeEntry.Address,
 				publicKey: valEnodeEntry.PublicKey,
-				enodeURL:  queryEnodeExternalEnodeURL})
+				enodeURL:  externalEnodeURL})
 		}
 	}
 
@@ -691,10 +717,13 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	if matches[node.ID()] != nil {
 		enodeCertificateMsgMap := sb.RetrieveEnodeCertificateMsgMap()
 
-		if enodeCertMsg := enodeCertificateMsgMap[sb.SelfNode().ID()]; enodeCertMsg != nil {
-			if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertMsg); err != nil {
-				return err
-			}
+		enodeCertMsg := enodeCertificateMsgMap[sb.SelfNode().ID()]
+		if enodeCertMsg == nil {
+			return errNodeMissingEnodeCertificate
+		}
+
+		if err := sb.sendEnodeCertificateMsg(matches[node.ID()], enodeCertMsg); err != nil {
+			return err
 		}
 	}
 	// Upsert regardless to account for the case that the target is a non-ValidatorPurpose
@@ -1165,30 +1194,42 @@ func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Messa
 	return sb.enodeCertificateMsgMap
 }
 
+// getExternalNodes will retrieve all the external facing external nodes for this
+// validator.  If it's the standalone validator, it will return it's own enode. If
+// it's a proxied validator, it will return it's proxies' enode.
+func (sb *Backend) getExternalNodes() ([]*enode.Node, error) {
+	var externalEnodes []*enode.Node
+	if sb.IsProxiedValidator() {
+		proxies, _, err := sb.proxiedValidatorEngine.GetProxiesAndValAssignments()
+		if err != nil {
+			return nil, err
+		}
+
+		externalEnodes = make([]*enode.Node, len(proxies))
+		for i, proxy := range proxies {
+			externalEnodes[i] = proxy.ExternalNode()
+		}
+	} else {
+		externalEnodes = make([]*enode.Node, 1)
+		externalEnodes[0] = sb.p2pserver.Self()
+	}
+
+	return externalEnodes, nil
+}
+
 // generateEnodeCertificateMsg generates an enode certificate message with the enode
 // this node is publicly accessible at. If this node is proxied, the proxy's
 // public enode is used.
 func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateEnodeCertificateMsgs")
 
-	externalEnodes := make(map[enode.ID]*enode.Node)
-	if sb.IsProxiedValidator() {
-		if proxies, _, err := sb.proxiedValidatorEngine.GetProxiesAndValAssignments(); err != nil {
-			return nil, err
-		} else {
-			for _, proxy := range proxies {
-				if proxy.IsPeered() {
-					externalEnodes[proxy.ExternalNode().ID()] = proxy.ExternalNode()
-				}
-			}
-		}
-	} else {
-		selfEnode := sb.p2pserver.Self()
-		externalEnodes[selfEnode.ID()] = selfEnode
+	enodeCertificateMsgs := make(map[enode.ID]*istanbul.Message)
+	externalEnodes, err := sb.getExternalNodes()
+	if err != nil {
+		return nil, err
 	}
 
-	enodeCertificateMsgs := make(map[enode.ID]*istanbul.Message)
-	for externalNodeID, externalNode := range externalEnodes {
+	for _, externalNode := range externalEnodes {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: externalNode.URLv4(),
 			Version:  version,
@@ -1207,7 +1248,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 			return nil, err
 		}
 
-		enodeCertificateMsgs[externalNodeID] = msg
+		enodeCertificateMsgs[externalNode.ID()] = msg
 	}
 
 	logger.Trace("Generated Istanbul Enode Certificate messages", "enodeCertificateMsgs", enodeCertificateMsgs)
@@ -1346,15 +1387,17 @@ func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[c
 	return returnMap, nil
 }
 
-func (sb *Backend) RewriteValEnodeTableEntries(entries []*istanbul.AddressEntry) error {
+func (sb *Backend) RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error {
 	addressesToKeep := make(map[common.Address]bool)
+	entriesToUpsert := make([]*istanbul.AddressEntry, 0, len(entries))
 
 	for _, entry := range entries {
 		addressesToKeep[entry.GetAddress()] = true
+		entriesToUpsert = append(entriesToUpsert, entry)
 	}
 
 	sb.valEnodeTable.PruneEntries(addressesToKeep)
-	sb.valEnodeTable.UpsertVersionAndEnode(entries)
+	sb.valEnodeTable.UpsertVersionAndEnode(entriesToUpsert)
 
 	return nil
 }
