@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
-	proxyPkg "github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -174,7 +174,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 }
 
 // Proxies retrieves all the proxied validator's proxies' info
-func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
+func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 	if api.istanbul.IsProxiedValidator() {
 		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()
 
@@ -182,15 +182,15 @@ func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
 			return nil, err
 		}
 
-		proxyInfoArray := make([]*proxyPkg.ProxyInfo, 0, len(proxies))
+		proxyInfoArray := make([]*proxy.ProxyInfo, 0, len(proxies))
 
-		for _, proxy := range proxies {
-			proxyInfoArray = append(proxyInfoArray, proxyPkg.NewProxyInfo(proxy, valAssignments[proxy.ID()]))
+		for _, proxyObj := range proxies {
+			proxyInfoArray = append(proxyInfoArray, proxy.NewProxyInfo(proxyObj, valAssignments[proxyObj.ID()]))
 		}
 
 		return proxyInfoArray, nil
 	} else {
-		return nil, nil
+		return nil, proxy.ErrNodeNotProxiedValidator
 	}
 }
 
@@ -198,10 +198,10 @@ func (api *API) GetProxiesInfo() ([]*proxyPkg.ProxyInfo, error) {
 // Note that we plan to support validators per proxy in the future, so this function
 // is plural and returns an array of proxied validators.  This is to prevent
 // future backwards compatibility issues.
-func (api *API) GetProxiedValidators() ([]proxyPkg.ProxiedValidatorInfo, error) {
+func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
 	if api.istanbul.IsProxy() {
 		return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
 	} else {
-		return nil, nil
+		return nil, proxy.ErrNodeNotProxy
 	}
 }
