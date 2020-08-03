@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -426,7 +425,15 @@ func (api *LightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
 	return bestGatewayFeeInfo, nil
 }
 
-func (api *LightClientAPI) ServerPoolEntries() ([]*poolEntryInfo, error) {
-	log.Warn("Called ServerPoolEntries", "entries", api.le.serverPool.entries)
+// API should be for private use of light clients of les protocol
+type PrivateLightClientAPI struct {
+	le *LightEthereum
+}
+
+func NewPrivateLightClientAPI(le *LightEthereum) *PrivateLightClientAPI {
+	return &PrivateLightClientAPI{le}
+}
+
+func (api *PrivateLightClientAPI) ServerPoolEntries() ([]*poolEntryInfo, error) {
 	return api.le.serverPool.Info(), nil
 }

@@ -408,6 +408,7 @@ func (pool *serverPool) eventLoop() {
 			}
 			pool.knownQueue.setLatest(entry)
 			entry.shortRetry = shortRetryCnt
+			pool.saveNodes()
 			close(req.done)
 
 		case req := <-pool.disconnCh:
@@ -529,10 +530,8 @@ func parseTrustedNodes(trustedNodes []string) map[enode.ID]*enode.Node {
 // saveNodes saves known nodes and their statistics into the database. Nodes are
 // ordered from least to most recently connected.
 func (pool *serverPool) saveNodes() {
-	list := make([]*poolEntry, len(pool.knownQueue.queue))
-	for i := range list {
-		list[i] = pool.knownQueue.fetchOldest()
-	}
+	list := pool.knownQueue.list()
+	log.Debug("Saving serverPool nodes", "length", len(list))
 	enc, err := rlp.EncodeToBytes(list)
 	if err == nil {
 		pool.db.Put(pool.dbKey, enc)
@@ -936,4 +935,24 @@ func (q *poolEntryQueue) setLatest(entry *poolEntry) {
 	entry.queueIdx = q.newPtr
 	q.queue[entry.queueIdx] = entry
 	q.newPtr++
+}
+
+func (q *poolEntryQueue) list() []*poolEntry {
+	if len(q.queue) == 0 {
+		return nil
+	}
+	list := make([]*poolEntry, len(q.queue))
+	ptr := q.oldPtr
+	for i := range list {
+	queueTraverser:
+		for {
+			if e := q.queue[ptr]; e != nil {
+				ptr++
+				list[i] = e
+				break queueTraverser
+			}
+			ptr++
+		}
+	}
+	return list
 }

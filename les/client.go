@@ -235,6 +235,11 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Service:   NewLightClientAPI(s),
 			Public:    true,
 		}, {
+			Namespace: "les",
+			Version:   "1.0",
+			Service:   NewPrivateLightClientAPI(s),
+			Public:    false,
+		}, {
 			Namespace: "eth",
 			Version:   "1.0",
 			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
