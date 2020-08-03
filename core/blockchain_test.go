@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -47,13 +46,13 @@ var (
 )
 
 func TestUptimeSingle(t *testing.T) {
-	var uptimes *istanbul.Uptime
+	var uptimes *types.Uptime
 	uptimes = updateUptime(uptimes, 212, big.NewInt(7), 3, 2, 211)
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block
-	expected := &istanbul.Uptime{
+	expected := &types.Uptime{
 		LatestBlock: 212,
-		Entries: []istanbul.UptimeEntry{
+		Entries: []types.UptimeEntry{
 			{
 				ScoreTally:      0,
 				LastSignedBlock: 211,
@@ -87,7 +86,7 @@ func TestUptimeSingle(t *testing.T) {
 }
 
 func TestUptime(t *testing.T) {
-	var uptimes *istanbul.Uptime
+	var uptimes *types.Uptime
 	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
 	bitmaps := []*big.Int{
 		big.NewInt(3), // 011     // Parent aggregated seal for block #1
@@ -107,9 +106,9 @@ func TestUptime(t *testing.T) {
 		block++
 	}
 
-	expected := &istanbul.Uptime{
+	expected := &types.Uptime{
 		LatestBlock: 7,
-		Entries: []istanbul.UptimeEntry{
+		Entries: []types.UptimeEntry{
 			{
 				ScoreTally:      5,
 				LastSignedBlock: 6,

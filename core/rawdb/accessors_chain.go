@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -397,13 +396,13 @@ func ReadTd(db ethdb.Reader, hash common.Hash, number uint64) *big.Int {
 }
 
 // ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
-func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *istanbul.Uptime {
+func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *types.Uptime {
 	data, _ := db.Get(uptimeKey(epoch))
 	if len(data) == 0 {
 		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
 		return nil
 	}
-	uptime := new(istanbul.Uptime)
+	uptime := new(types.Uptime)
 	if err := rlp.Decode(bytes.NewReader(data), uptime); err != nil {
 		log.Error("Invalid uptime RLP", "err", err)
 		return nil
@@ -412,7 +411,7 @@ func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *istanbul.Uptime 
 }
 
 // WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
-func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *istanbul.Uptime) {
+func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *types.Uptime) {
 	data, err := rlp.EncodeToBytes(uptime)
 	if err != nil {
 		log.Crit("Failed to RLP encode updated uptime", "err", err)

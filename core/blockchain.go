@@ -1307,13 +1307,13 @@ func popcount(x uint64) int {
 
 // updateUptime receives the currently accumulated uptime for all validators in an epoch and proceeds to update it
 // based on which validators signed on the provided block by inspecting the block's parent bitmap
-func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *istanbul.Uptime {
+func updateUptime(uptime *types.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *types.Uptime {
 	if uptime == nil {
-		uptime = new(istanbul.Uptime)
+		uptime = new(types.Uptime)
 		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
 		// We multiply by 2 just to be extra cautious of off-by-one errors.
 		validatorsSizeUpperBound := uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
-		uptime.Entries = make([]istanbul.UptimeEntry, validatorsSizeUpperBound)
+		uptime.Entries = make([]types.UptimeEntry, validatorsSizeUpperBound)
 	}
 
 	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
