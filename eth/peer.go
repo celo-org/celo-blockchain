@@ -433,7 +433,7 @@ func (p *peer) readStatusLegacy(network uint64, status *statusData63, genesis co
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
 	}
 	if status.GenesisBlock != genesis {
-		return errResp(ErrGenesisMismatch, "%x (!= %x)", status.GenesisBlock[:8], genesis[:8])
+		return errResp(ErrGenesisMismatch, "peer: %x (local: %x)", status.GenesisBlock[:8], genesis[:8])
 	}
 	if status.NetworkId != network {
 		return errResp(ErrNetworkIDMismatch, "%d (!= %d)", status.NetworkId, network)
@@ -463,7 +463,7 @@ func (p *peer) readStatus(network uint64, status *statusData, genesis common.Has
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", status.ProtocolVersion, p.version)
 	}
 	if status.Genesis != genesis {
-		return errResp(ErrGenesisMismatch, "%x (!= %x)", status.Genesis, genesis)
+		return errResp(ErrGenesisMismatch, "peer: %x (local: %x)", status.Genesis, genesis)
 	}
 	if err := forkFilter(status.ForkID); err != nil {
 		return errResp(ErrForkIDRejected, "%v", err)
