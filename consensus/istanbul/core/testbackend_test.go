@@ -154,7 +154,7 @@ func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration
 }
 
 func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
-	return 0, nil, nil
+	return 0, &istanbul.BlockConsensusAndProcessResult{SealedBlock: proposal.(*types.Block)}, nil
 }
 
 func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
