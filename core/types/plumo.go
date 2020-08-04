@@ -54,7 +54,7 @@ func (p *PlumoProofMetadata) DecodeRLP(s *rlp.Stream) error {
 }
 
 func (p *PlumoProofMetadata) String() string {
-	return fmt.Sprintf("{firstEpoch: %d, lastEpoch: %d}", p.FirstEpoch, p.LastEpoch)
+	return fmt.Sprintf("{firstEpoch: %d, lastEpoch: %d, versionNumber: %d}", p.FirstEpoch, p.LastEpoch, p.VersionNumber)
 }
 
 // PlumoProof encapsulates a serialized plumo proof and the epochs it operates over
@@ -87,3 +87,5 @@ func (p *PlumoProof) DecodeRLP(s *rlp.Stream) error {
 func (p *PlumoProof) String() string {
 	return fmt.Sprintf("{metadata: %s, proof: %x}", p.Metadata.String(), p.Proof)
 }
+
+type PlumoProofs []*PlumoProof

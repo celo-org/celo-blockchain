@@ -489,7 +489,7 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), mockEngine.NewFaker(), blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), mockEngine.NewFaker(), blockchain, db, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -576,7 +576,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, new(testTxPool), pow, blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, new(testTxPool), pow, blockchain, db, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -661,7 +661,7 @@ func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, new(testTxPool), pow, blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, new(testTxPool), pow, blockchain, db, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -676,9 +676,10 @@ func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
 	proofDec, _ := hex.DecodeString("33796bc0cdbc50464a385a36e2c1ef80ae43372efc3a61f6274d6d51e6e3416986255d51a2259a11bf1195b25ac99f45958aaf352bfbd95be29d452aebdc566b54db0088f4ef5ca5365e2f3932c753c54c285ecd320e2a909edc4ac4ee3b2a82fc26bc53b4823a344578112646803524e13835d82ec38437d309d8e7d4d2094444bf0ecc61e3342e3260361fec644dc092346f03f9d1b796be7ef33579a38bddff69b4a9e080d90ce9712e974a450c5f6757807459ff257ccbb76e654ccccb90b4e82e1be04756b49f07f52a9a9eefd5f1ed3896df3ea10d55a6504d38012f60a6dda539ddc258a27004a9f30206c280230ee2928a6562f8e0bf67c60e2770cbc0020051b88c3c087abe93951e492e25a5b15dd99fa04fa0638dbc3b9fe358b9874f68d88e247cbaa0fae4ce250f432acafcc01ec6d248910884a3c9f78f5b0a1020db8c7b5cdca1a8dccb697d56f1a3592c5ae9f629fa17df7df08f94c31d21955dc4de4d5429ef742a69e9b35ff22b1649d4528a52d2f28f97abeeac93c665e1296da84a03723165e9e8fc71c09fd389bb1282fa212777ade68a7bed836ffb79dc1d2f9c091d5dd12c39705ccb4121de3bcf0e21a571a2c777e6271bb9c1e556ed46276fbe31a20aa488f13211883e5cce80692fe08b3ac3f6131435b2dbd28208fc114accdc69cb8b")
 	plumoProof := types.PlumoProof{
 		Proof: proofDec,
-		Epochs: types.PlumoProofEpochs{
-			FirstEpoch: 0,
-			LastEpoch:  2,
+		Metadata: types.PlumoProofMetadata{
+			FirstEpoch:    0,
+			LastEpoch:     2,
+			VersionNumber: 0,
 		},
 	}
 	pm.BroadcastPlumoProof(&plumoProof)
