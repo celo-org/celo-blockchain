@@ -117,7 +117,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	purpose PurposeFlag
+	purposeMu sync.Mutex
+	purpose   PurposeFlag
 
 	Server *Server
 }
@@ -133,8 +134,10 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 }
 
 func (p *Peer) AddPurpose(purpose PurposeFlag) {
+	p.purposeMu.Lock()
+	defer p.purposeMu.Unlock()
 
-	// assumes we are connected already...
+	// assumes we are still connected...
 	if purpose.IsSet(ValidatorPurpose) && !p.purpose.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Inc(1)
 	}
@@ -146,8 +149,10 @@ func (p *Peer) AddPurpose(purpose PurposeFlag) {
 }
 
 func (p *Peer) RemovePurpose(purpose PurposeFlag) {
+	p.purposeMu.Lock()
+	defer p.purposeMu.Unlock()
 
-	// assumes we are conencted alredy
+	// assumes we are still connected...
 	if purpose.IsSet(ValidatorPurpose) && p.purpose.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
 	}
@@ -222,6 +227,15 @@ func newPeer(log log.Logger, conn *conn, protocols []Protocol, purpose PurposeFl
 		purpose:  purpose,
 		Server:   server,
 	}
+
+	// Increase connection metrics for proxies & validators
+	if p.purpose.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Inc(1)
+	}
+	if p.purpose.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Inc(1)
+	}
+
 	return p
 }
 
@@ -243,14 +257,6 @@ func (p *Peer) run() (remoteRequested bool, err error) {
 	// Start all protocol handlers.
 	writeStart <- struct{}{}
 	p.startProtocols(writeStart, writeErr)
-
-	// Increase connection metrics for proxies & validators
-	if p.purpose.IsSet(ValidatorPurpose) {
-		activeValidatorsPeerGauge.Inc(1)
-	}
-	if p.purpose.IsSet(ProxyPurpose) {
-		activeProxiesPeerGauge.Inc(1)
-	}
 
 	// Wait for an error or disconnect.
 loop:
@@ -282,6 +288,7 @@ loop:
 	}
 
 	// Decrease connection metrics for proxies & validators
+	p.purposeMu.Lock()
 	if p.purpose.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
 	}
@@ -296,6 +303,7 @@ loop:
 			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purpose, "reason", reason, "remoteRequested", remoteRequested)
 		}
 	}
+	p.purposeMu.Unlock()
 
 	close(p.closed)
 	p.rw.close(reason)
