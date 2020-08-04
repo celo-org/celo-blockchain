@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -199,4 +200,45 @@ func testSequentialProofAnnouncements(t *testing.T) {
 		verifyProofImportEvent(t, imported, true)
 	}
 	verifyProofImportDone(t, imported)
+}
+
+// Tests that if proofs are announced by multiple peers (or even the same buggy
+// peer), they will only get downloaded at most once.
+func TestConcurrentProofAnnouncements(t *testing.T) { testConcurrentProofAnnouncements(t) }
+
+func testConcurrentProofAnnouncements(t *testing.T) {
+	// Create a chain of proofs to import
+	targetProofs := 4 * proofLimit
+	proofsMetadata, proofs := makeProofs(targetProofs, 1)
+
+	// Assemble a tester with a built in counter for the requests
+	tester := newProofTester()
+	firstProofFetcher := tester.makeProofFetcher(t, "first", proofs, -gatherSlack)
+	secondProofFetcher := tester.makeProofFetcher(t, "second", proofs, -gatherSlack)
+
+	counter := uint32(0)
+	firstProofWrapper := func(metadata []types.PlumoProofMetadata) error {
+		atomic.AddUint32(&counter, 1)
+		return firstProofFetcher(metadata)
+	}
+	secondProofWrapper := func(metadata []types.PlumoProofMetadata) error {
+		atomic.AddUint32(&counter, 1)
+		return secondProofFetcher(metadata)
+	}
+	// Iteratively announce proofs until all are imported
+	imported := make(chan *types.PlumoProof)
+	tester.proofFetcher.importedHook = func(proof *types.PlumoProof) { imported <- proof }
+
+	for i := 0; i < len(proofsMetadata); i++ {
+		tester.proofFetcher.Notify("first", proofsMetadata[i], time.Now().Add(-arriveTimeout), firstProofWrapper)
+		tester.proofFetcher.Notify("second", proofsMetadata[i], time.Now().Add(-arriveTimeout+time.Millisecond), secondProofWrapper)
+		tester.proofFetcher.Notify("second", proofsMetadata[i], time.Now().Add(-arriveTimeout-time.Millisecond), secondProofWrapper)
+		verifyProofImportEvent(t, imported, true)
+	}
+	verifyProofImportDone(t, imported)
+
+	// Make sure no proofs were retrieved twice
+	if int(counter) != targetProofs {
+		t.Fatalf("retrieval count mismatch: have %v, want %v", counter, targetProofs)
+	}
 }
