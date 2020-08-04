@@ -170,7 +170,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, &istanbul.BlockConsensusAndProcessResult{})
 					c := backend.engine.(*core)
 					if i == 0 {
 						// replica 0 is the proposer
@@ -203,6 +203,9 @@ OUTER:
 
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
+
+		block := r0.current.Proposal().(*types.Block)
+		r0.current.SetBlockConsensusAndProcessResult(block.Hash(), &istanbul.BlockConsensusAndProcessResult{SealedBlock: block})
 
 		for i, v := range test.system.backends {
 			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))

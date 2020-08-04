@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -81,8 +80,8 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
-func (rsp *rsSaveDecorator) SetBlockProcessResult(sealHash common.Hash, blockProcessResult *consensus.BlockConsensusAndProcessResult) {
-	rsp.rs.SetBlockProcessResult(sealHash, blockProcessResult)
+func (rsp *rsSaveDecorator) SetBlockConsensusAndProcessResult(proposalHash common.Hash, result *istanbul.BlockConsensusAndProcessResult) {
+	rsp.rs.SetBlockConsensusAndProcessResult(proposalHash, result)
 }
 
 // DesiredRound implements RoundState.DesiredRound
@@ -140,8 +139,8 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
 }
 
-func (rsp *rsSaveDecorator) GetBlockProcessResult(sealHash common.Hash) (result *consensus.BlockConsensusAndProcessResult, isCached bool) {
-	return rsp.rs.GetBlockProcessResult(sealHash)
+func (rsp *rsSaveDecorator) GetBlockConsensusAndProcessResult(proposalHash common.Hash) (result *istanbul.BlockConsensusAndProcessResult, isCached bool) {
+	return rsp.rs.GetBlockConsensusAndProcessResult(proposalHash)
 }
 
 // IsProposer implements RoundState.IsProposer

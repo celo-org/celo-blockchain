@@ -97,7 +97,7 @@ func TestVerifyProposal(t *testing.T) {
 	testCases := []struct {
 		name             string
 		proposal         istanbul.Proposal
-		verifyImpl       func(proposal istanbul.Proposal) (time.Duration, error)
+		verifyImpl       func(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error)
 		expectedErr      error
 		expectedDuration time.Duration
 	}{

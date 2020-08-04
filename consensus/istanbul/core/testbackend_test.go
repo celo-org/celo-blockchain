@@ -60,7 +60,7 @@ type testSystemBackend struct {
 
 	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
 	// can inject in different proposal verification statuses.
-	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
+	verifyImpl func(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error)
 }
 
 type testCommittedMsgs struct {
@@ -132,8 +132,8 @@ func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite b
 	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
 }
 
-func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
-	testLogger.Info("commit message", "address", self.Address())
+func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbul.BlockConsensusAndProcessResult) error {
+	testLogger.Info("commit message", "id", self.id, "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal:                  proposal,
 		aggregatedSeal:                  aggregatedSeal,
@@ -145,7 +145,7 @@ func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal
 	return nil
 }
 
-func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
 	if self.verifyImpl == nil {
 		return self.verifyWithSuccess(proposal)
 	} else {
@@ -153,16 +153,16 @@ func (self *testSystemBackend) Verify(proposal istanbul.Proposal) (time.Duration
 	}
 }
 
-func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, error) {
-	return 0, nil
+func (self *testSystemBackend) verifyWithSuccess(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
+	return 0, nil, nil
 }
 
-func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, error) {
-	return 0, InvalidProposalError
+func (self *testSystemBackend) verifyWithFailure(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
+	return 0, nil, InvalidProposalError
 }
 
-func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (time.Duration, error) {
-	return 5, consensus.ErrFutureBlock
+func (self *testSystemBackend) verifyWithFutureProposal(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
+	return 5, nil, consensus.ErrFutureBlock
 }
 
 func (self *testSystemBackend) Sign(data []byte) ([]byte, error) {
@@ -320,7 +320,7 @@ func (self *testSystemBackend) RefreshValPeers() error {
 	return nil
 }
 
-func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)) {
+func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error)) {
 	self.verifyImpl = verifyImpl
 }
 

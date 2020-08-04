@@ -82,7 +82,7 @@ func TestSealStopChannel(t *testing.T) {
 		eventSub.Unsubscribe()
 	}
 	go eventLoop()
-	results := make(chan *consensus.BlockConsensusAndProcessResult)
+	results := make(chan *istanbul.BlockConsensusAndProcessResult)
 
 	err := engine.Seal(chain, block, results, stop)
 	if err != nil {
@@ -115,7 +115,7 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 		t.Fatalf("did not create different blocks")
 	}
 
-	results := make(chan *consensus.BlockConsensusAndProcessResult)
+	results := make(chan *istanbul.BlockConsensusAndProcessResult)
 	engine.Seal(chain, block, results, nil)
 
 	// in the single validator case, the result will instantly be processed
@@ -124,7 +124,7 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 		<-results
 	}
 	// this commit should _NOT_ push a new message to the queue
-	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, &istanbul.BlockConsensusAndProcessResult{})
 
 	select {
 	case res := <-results:
@@ -138,7 +138,7 @@ func TestSealCommitted(t *testing.T) {
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
 
-	results := make(chan *consensus.BlockConsensusAndProcessResult)
+	results := make(chan *istanbul.BlockConsensusAndProcessResult)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {

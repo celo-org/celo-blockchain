@@ -310,7 +310,13 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
+
+		result, isCached := c.current.GetBlockConsensusAndProcessResult(proposal.Hash())
+		if !isCached {
+			log.Error("BlockConsensusAndProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
+			return nil
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
@@ -690,12 +696,16 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 	} else {
 		logger.Trace("verification status cache miss")
 
-		duration, err := c.backend.Verify(proposal)
+		duration, result, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+
+		if result != nil {
+			c.current.SetBlockConsensusAndProcessResult(proposal.Hash(), result)
 		}
 
 		return duration, err

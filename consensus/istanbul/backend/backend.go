@@ -95,7 +95,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *consensus.BlockConsensusAndProcessResult, 1),
+		commitCh:                           make(chan *istanbul.BlockConsensusAndProcessResult, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -181,7 +181,7 @@ type Backend struct {
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *consensus.BlockConsensusAndProcessResult
+	commitCh          chan *istanbul.BlockConsensusAndProcessResult
 	proposedBlockHash common.Hash
 	sealMu            sync.Mutex
 	coreStarted       bool
@@ -403,7 +403,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbul.BlockConsensusAndProcessResult) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -426,13 +426,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 
-	sealHash := sb.SealHash(block.Header())
-	result, isCached := sb.core.CurrentRoundState().GetBlockProcessResult(sealHash)
-	if !isCached {
-		log.Error("BlockProcessResult not found in cache", "number", block.Number(), "sealHash", sealHash)
-		return nil
-	}
-
 	result.SealedBlock = block
 	sb.commitCh <- result
 	return nil
@@ -444,29 +437,29 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
-		return 0, errInvalidProposal
+		return 0, nil, errInvalidProposal
 	}
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return 0, core.ErrBlacklistedHash
+		return 0, nil, core.ErrBlacklistedHash
 	}
 
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions())
 	if txnHash != block.Header().TxHash {
-		return 0, errMismatchTxhashes
+		return 0, nil, errMismatchTxhashes
 	}
 
 	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
 	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
 	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
@@ -475,10 +468,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return 0, errInvalidProposal
+			return 0, nil, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
 			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
-			return 0, errInvalidCoinbase
+			return 0, nil, errInvalidCoinbase
 		}
 	}
 
@@ -487,9 +480,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
-			return time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
+			return time.Unix(int64(block.Header().Time), 0).Sub(now()), nil, consensus.ErrFutureBlock
 		} else {
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
@@ -498,7 +491,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// Make a copy of the state
@@ -508,28 +501,25 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	receipts, allLogs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
 			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
-	// Cache the BlockProcessResult
-	sealHash := sb.SealHash(block.Header())
-	sb.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockConsensusAndProcessResult{SealedBlock: block, Receipts: receipts, Logs: allLogs, State: state})
-
-	return 0, err
+	result := &istanbul.BlockConsensusAndProcessResult{SealedBlock: block, Receipts: receipts, Logs: allLogs, State: state}
+	return 0, result, nil
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {

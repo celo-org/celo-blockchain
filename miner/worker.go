@@ -23,6 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -149,7 +151,7 @@ type worker struct {
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
-	resultCh           chan *consensus.BlockConsensusAndProcessResult
+	resultCh           chan *istanbul.BlockConsensusAndProcessResult
 	startCh            chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
@@ -199,7 +201,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
-		resultCh:           make(chan *consensus.BlockConsensusAndProcessResult, resultQueueSize),
+		resultCh:           make(chan *istanbul.BlockConsensusAndProcessResult, resultQueueSize),
 		exitCh:             make(chan struct{}),
 		startCh:            make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),

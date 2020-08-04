@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -114,7 +113,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 func TestCommit(t *testing.T) {
 	backend := newBackend()
 
-	commitCh := make(chan *consensus.BlockConsensusAndProcessResult)
+	commitCh := make(chan *istanbul.BlockConsensusAndProcessResult)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr       error
@@ -154,9 +153,8 @@ func TestCommit(t *testing.T) {
 
 		// Setup the BlockProcessResult cache and call Commit so that the result is pushed to the channel
 		backend.proposedBlockHash = expBlock.Hash()
-		sealHash := backend.SealHash(expBlock.Header())
-		backend.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockConsensusAndProcessResult{SealedBlock: expBlock})
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}); err != nil {
+		processedResult := &istanbul.BlockConsensusAndProcessResult{SealedBlock: expBlock}
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, processedResult); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}

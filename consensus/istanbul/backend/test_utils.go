@@ -9,7 +9,6 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
@@ -135,7 +134,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
-	results := make(chan *consensus.BlockConsensusAndProcessResult)
+	results := make(chan *istanbul.BlockConsensusAndProcessResult)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
 		if err != nil {
@@ -143,11 +142,11 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 		}
 	}()
 
-	// Setup the BlockProcessResult cache and create the sig and call Commit so that the result is pushed to the channel
-	sealHash := engine.SealHash(block.Header())
-	engine.core.CurrentRoundState().SetBlockProcessResult(sealHash, &consensus.BlockConsensusAndProcessResult{SealedBlock: block})
+	// Setup the BlockConsensusAndProcessResult cache and create the sig, then call Commit so that the result is pushed to the channel
+	cachedResult := &istanbul.BlockConsensusAndProcessResult{SealedBlock: block}
+	engine.core.CurrentRoundState().SetBlockConsensusAndProcessResult(block.Hash(), cachedResult)
 	aggregatedSeal := signBlock(keys, block)
-	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
+	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{}, cachedResult)
 	if err != nil {
 		return nil, err
 	}
