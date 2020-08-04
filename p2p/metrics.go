@@ -39,11 +39,13 @@ const (
 )
 
 var (
-	ingressConnectMeter = metrics.NewRegisteredMeter(MetricsInboundConnects, nil)  // Meter counting the ingress connections
-	ingressTrafficMeter = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)   // Meter metering the cumulative ingress traffic
-	egressConnectMeter  = metrics.NewRegisteredMeter(MetricsOutboundConnects, nil) // Meter counting the egress connections
-	egressTrafficMeter  = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)  // Meter metering the cumulative egress traffic
-	activePeerGauge     = metrics.NewRegisteredGauge("p2p/peers", nil)             // Gauge tracking the current peer count
+	ingressConnectMeter       = metrics.NewRegisteredMeter(MetricsInboundConnects, nil)  // Meter counting the ingress connections
+	ingressTrafficMeter       = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)   // Meter metering the cumulative ingress traffic
+	egressConnectMeter        = metrics.NewRegisteredMeter(MetricsOutboundConnects, nil) // Meter counting the egress connections
+	egressTrafficMeter        = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)  // Meter metering the cumulative egress traffic
+	activePeerGauge           = metrics.NewRegisteredGauge("p2p/peers", nil)             // Gauge tracking the current peer count
+	activeValidatorsPeerGauge = metrics.NewRegisteredGauge("p2p/peers/validators", nil)  // Gauge tracking the current validators peer count
+	activeProxiesPeerGauge    = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)     // Gauge tracking the current proxies peer count
 
 	PeerIngressRegistry = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsInboundTraffic+"/")  // Registry containing the peer ingress
 	PeerEgressRegistry  = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsOutboundTraffic+"/") // Registry containing the peer egress

@@ -133,12 +133,28 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 }
 
 func (p *Peer) AddPurpose(purpose PurposeFlag) {
-	// TODO: metric.increaseConnectionCounter by purpose
+
+	// assumes we are connected already...
+	if purpose.IsSet(ValidatorPurpose) && !p.purpose.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Inc(1)
+	}
+	if purpose.IsSet(ProxyPurpose) && !p.purpose.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Inc(1)
+	}
+
 	p.purpose = p.purpose.Add(purpose)
 }
 
 func (p *Peer) RemovePurpose(purpose PurposeFlag) {
-	// TODO: metric.decreaseConnectionCounter by purpose
+
+	// assumes we are conencted alredy
+	if purpose.IsSet(ValidatorPurpose) && p.purpose.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Dec(1)
+	}
+	if purpose.IsSet(ProxyPurpose) && p.purpose.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Dec(1)
+	}
+
 	p.purpose = p.purpose.Remove(purpose)
 }
 
@@ -228,7 +244,13 @@ func (p *Peer) run() (remoteRequested bool, err error) {
 	writeStart <- struct{}{}
 	p.startProtocols(writeStart, writeErr)
 
-	// TODO: metric.increaseConnectionCounter by purpose
+	// Increase connection metrics for proxies & validators
+	if p.purpose.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Inc(1)
+	}
+	if p.purpose.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Inc(1)
+	}
 
 	// Wait for an error or disconnect.
 loop:
@@ -259,7 +281,13 @@ loop:
 		}
 	}
 
-	// TODO: metric.decreaseConnectionCounter by purpose
+	// Decrease connection metrics for proxies & validators
+	if p.purpose.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Dec(1)
+	}
+	if p.purpose.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Dec(1)
+	}
 
 	if p.purpose.HasPurpose() {
 		if err != nil {
