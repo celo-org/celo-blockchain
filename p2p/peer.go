@@ -163,6 +163,10 @@ func (p *Peer) RemovePurpose(purpose PurposeFlag) {
 	p.purpose = p.purpose.Remove(purpose)
 }
 
+func (p *Peer) HasPurpose(purpose PurposeFlag) bool {
+	return p.purpose.IsSet(purpose)
+}
+
 // ID returns the node's public key.
 func (p *Peer) ID() enode.ID {
 	return p.rw.node.ID()
