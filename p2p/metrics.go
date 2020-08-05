@@ -30,22 +30,26 @@ import (
 )
 
 const (
-	MetricsInboundTraffic   = "p2p/ingress" // Name for the registered inbound traffic meter
-	MetricsOutboundTraffic  = "p2p/egress"  // Name for the registered outbound traffic meter
-	MetricsOutboundConnects = "p2p/dials"   // Name for the registered outbound connects meter
-	MetricsInboundConnects  = "p2p/serves"  // Name for the registered inbound connects meter
+	MetricsInboundTraffic            = "p2p/ingress"           // Name for the registered inbound traffic meter
+	MetricsOutboundTraffic           = "p2p/egress"            // Name for the registered outbound traffic meter
+	MetricsOutboundConnects          = "p2p/dials"             // Name for the registered outbound connects meter
+	MetricsOutboundHandshakeConnects = "p2p/dials/handshakes"  // Name for the registered outbound connects with successful handshake meter
+	MetricsInboundConnects           = "p2p/serves"            // Name for the registered inbound connects meter
+	MetricsInboundHandshakeConnects  = "p2p/serves/handshakes" // Name for the registered inbound connects with successful handshake meter
 
 	MeteredPeerLimit = 1024 // This amount of peers are individually metered
 )
 
 var (
-	ingressConnectMeter       = metrics.NewRegisteredMeter(MetricsInboundConnects, nil)  // Meter counting the ingress connections
-	ingressTrafficMeter       = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)   // Meter metering the cumulative ingress traffic
-	egressConnectMeter        = metrics.NewRegisteredMeter(MetricsOutboundConnects, nil) // Meter counting the egress connections
-	egressTrafficMeter        = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)  // Meter metering the cumulative egress traffic
-	activePeerGauge           = metrics.NewRegisteredGauge("p2p/peers", nil)             // Gauge tracking the current peer count
-	activeValidatorsPeerGauge = metrics.NewRegisteredGauge("p2p/peers/validators", nil)  // Gauge tracking the current validators peer count
-	activeProxiesPeerGauge    = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)     // Gauge tracking the current proxies peer count
+	ingressConnectMeter              = metrics.NewRegisteredMeter(MetricsInboundConnects, nil)           // Meter counting the ingress connections
+	ingressConnectWithHandshakeMeter = metrics.NewRegisteredMeter(MetricsInboundHandshakeConnects, nil)  // Meter counting the ingress with successful handshake connections
+	ingressTrafficMeter              = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)            // Meter metering the cumulative ingress traffic
+	egressConnectMeter               = metrics.NewRegisteredMeter(MetricsOutboundConnects, nil)          // Meter counting the egress connections
+	egressConnectWithHandshakeMeter  = metrics.NewRegisteredMeter(MetricsOutboundHandshakeConnects, nil) // Meter counting the egress with successful handshake connections
+	egressTrafficMeter               = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)           // Meter metering the cumulative egress traffic
+	activePeerGauge                  = metrics.NewRegisteredGauge("p2p/peers", nil)                      // Gauge tracking the current peer count
+	activeValidatorsPeerGauge        = metrics.NewRegisteredGauge("p2p/peers/validators", nil)           // Gauge tracking the current validators peer count
+	activeProxiesPeerGauge           = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)              // Gauge tracking the current proxies peer count
 
 	PeerIngressRegistry = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsInboundTraffic+"/")  // Registry containing the peer ingress
 	PeerEgressRegistry  = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsOutboundTraffic+"/") // Registry containing the peer egress
@@ -94,6 +98,7 @@ type meteredConn struct {
 	connected time.Time    // Connection time of the peer
 	addr      *net.TCPAddr // TCP address of the peer
 	peer      *Peer        // Peer instance
+	ingress   bool         // Indicates wether connection inbound or outbound
 
 	// trafficMetered denotes if the peer is registered in the traffic registries.
 	// Its value is true if the metered peer count doesn't reach the limit in the
@@ -118,6 +123,7 @@ func newMeteredConn(conn net.Conn, ingress bool, addr *net.TCPAddr) net.Conn {
 		log.Warn("Peer address is unspecified")
 		return conn
 	}
+
 	// Bump the connection counters and wrap the connection
 	if ingress {
 		ingressConnectMeter.Mark(1)
@@ -129,6 +135,7 @@ func newMeteredConn(conn net.Conn, ingress bool, addr *net.TCPAddr) net.Conn {
 	return &meteredConn{
 		Conn:      conn,
 		addr:      addr,
+		ingress:   ingress,
 		connected: time.Now(),
 	}
 }
@@ -161,6 +168,12 @@ func (c *meteredConn) Write(b []byte) (n int, err error) {
 
 // handshakeDone is called after the connection passes the handshake.
 func (c *meteredConn) handshakeDone(peer *Peer) {
+	if c.ingress {
+		ingressConnectWithHandshakeMeter.Mark(1)
+	} else {
+		egressConnectWithHandshakeMeter.Mark(1)
+	}
+
 	if atomic.AddInt32(&meteredPeerCount, 1) >= MeteredPeerLimit {
 		// Don't register the peer in the traffic registries.
 		atomic.AddInt32(&meteredPeerCount, -1)
