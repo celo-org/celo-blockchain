@@ -12,6 +12,7 @@ executors:
       GO_VERSION: "1.13.7"
       CELO_MONOREPO_BRANCH_TO_TEST: master
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+      FLAKEY: false
 jobs:
   build-geth:
     executor: golang
