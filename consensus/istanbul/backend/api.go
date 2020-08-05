@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 // API is a user facing RPC API to dump Istanbul state
@@ -87,6 +88,16 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	}
 	validators := api.istanbul.GetValidators(header.Number, header.Hash())
 	return istanbul.MapValidatorsToAddresses(validators), nil
+}
+
+// GetValidatorsPublicKeys retrieves the list of validators public keys that must sign a given block.
+func (api *API) GetValidatorsPublicKeys(number *rpc.BlockNumber) ([]blscrypto.SerializedPublicKey, error) {
+	header, err := api.getParentHeaderByNumber(number)
+	if err != nil {
+		return nil, err
+	}
+	validators := api.istanbul.GetValidators(header.Number, header.Hash())
+	return istanbul.MapValidatorsToPublicKeys(validators), nil
 }
 
 // GetProposer retrieves the proposer for a given block number (i.e. sequence) and round.
