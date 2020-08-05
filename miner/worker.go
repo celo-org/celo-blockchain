@@ -115,10 +115,10 @@ const (
 
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
-	interrupt *int32
-	noempty   bool
-	timestamp int64
-	noSeal    bool
+	interrupt    *int32
+	noempty      bool
+	timestamp    int64
+	initSnapshot bool
 }
 
 // intervalAdjust represents a resubmitting interval adjustment.
@@ -326,12 +326,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32, noSeal bool) {
+	commit := func(noempty bool, s int32, initSnapshot bool) {
 		if interrupt != nil {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, noSeal: noSeal}
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, initSnapshot: initSnapshot}
 		timer.Reset(recommit)
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -436,7 +436,7 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.noSeal)
+			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.initSnapshot)
 
 		case ev := <-w.txsCh:
 			// Apply transactions to the pending state if we're not mining.
@@ -787,7 +787,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, noSeal bool) {
+func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, initSnapshot bool) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -936,12 +936,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, 
 			return
 		}
 	}
-	w.commit(w.fullTaskHook, true, tstart, noSeal)
+	w.commit(w.fullTaskHook, true, tstart, initSnapshot)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (w *worker) commit(interval func(), update bool, start time.Time, noSeal bool) error {
+func (w *worker) commit(interval func(), update bool, start time.Time, initSnapshot bool) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
 	receipts := make([]*types.Receipt, len(w.current.receipts))
 	for i, l := range w.current.receipts {
@@ -974,7 +974,7 @@ func (w *worker) commit(interval func(), update bool, start time.Time, noSeal bo
 		log.Error("Unable to finalize block", "err", err)
 		return err
 	}
-	if w.isRunning() && !noSeal {
+	if w.isRunning() && !initSnapshot {
 		if interval != nil {
 			interval()
 		}
