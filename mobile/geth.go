@@ -165,6 +165,16 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
 	}
 
+	var httpVirtualHosts []string
+	if config.HTTPVirtualHosts != "" {
+		httpVirtualHosts = strings.Split(config.HTTPVirtualHosts, ",")
+	}
+
+	var httpModules []string
+	if config.HTTPModules != "" {
+		httpModules = strings.Split(config.HTTPModules, ",")
+	}
+
 	if config.PprofAddress != "" {
 		debug.StartPProf(config.PprofAddress)
 	}
@@ -180,8 +190,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		HTTPHost:          config.HTTPHost,
 		HTTPPort:          config.HTTPPort,
 		// gomobile doesn't allow arrays to be passed in, so comma separated strings are used
-		HTTPVirtualHosts:  strings.Split(config.HTTPVirtualHosts, ","),
-		HTTPModules:       strings.Split(config.HTTPModules, ","),
+		HTTPVirtualHosts: httpVirtualHosts,
+		HTTPModules:      httpModules,
 		P2P: p2p.Config{
 			NoDiscovery:      config.NoDiscovery,
 			DiscoveryV5:      !config.NoDiscovery,

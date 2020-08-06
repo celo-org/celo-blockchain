@@ -530,9 +530,9 @@ func parseTrustedNodes(trustedNodes []string) map[enode.ID]*enode.Node {
 // saveNodes saves known nodes and their statistics into the database. Nodes are
 // ordered from least to most recently connected.
 func (pool *serverPool) saveNodes() {
-	list := pool.knownQueue.list()
-	log.Debug("Saving serverPool nodes", "length", len(list))
-	enc, err := rlp.EncodeToBytes(list)
+	nodes := pool.knownQueue.list()
+	log.Debug("Saving serverPool nodes", "length", len(nodes))
+	enc, err := rlp.EncodeToBytes(nodes)
 	if err == nil {
 		pool.db.Put(pool.dbKey, enc)
 	}
@@ -665,14 +665,14 @@ func (pool *serverPool) Info() []*poolEntryInfo {
 	entryInfos := make([]*poolEntryInfo, 0)
 	for _, entry := range pool.entries {
 		entryInfos = append(entryInfos, &poolEntryInfo{
-			Peered: entry.peer != nil,
-			Node: entry.node,
-			Known: entry.known,
-			KnownSelected: entry.knownSelected,
-			Trusted: entry.trusted,
+			Peered:             entry.peer != nil,
+			Node:               entry.node,
+			Known:              entry.known,
+			KnownSelected:      entry.knownSelected,
+			Trusted:            entry.trusted,
 			LastDiscoveredTime: entry.lastDiscovered,
-			RegisteredTime: entry.regTime,
-			State: stateStringMap[entry.state],
+			RegisteredTime:     entry.regTime,
+			State:              stateStringMap[entry.state],
 		})
 	}
 	return entryInfos
@@ -707,15 +707,14 @@ type poolEntry struct {
 }
 
 type poolEntryInfo struct {
-	Peered      bool `json:"peered"`
-	Node *enode.Node `json:"node"`
-	Known bool `json:"known"`
-	KnownSelected bool `json:"knownSelected"`
-	Trusted bool `json:"trusted"`
+	Peered             bool           `json:"peered"`
+	Node               *enode.Node    `json:"node"`
+	Known              bool           `json:"known"`
+	KnownSelected      bool           `json:"knownSelected"`
+	Trusted            bool           `json:"trusted"`
 	LastDiscoveredTime mclock.AbsTime `json:"lastDiscoveredTime"`
-	RegisteredTime mclock.AbsTime `json:"registeredTime"`
-	State	string	`json:"state"`
-	// IPs          string  `json:"ips"`
+	RegisteredTime     mclock.AbsTime `json:"registeredTime"`
+	State              string         `json:"state"`
 }
 
 // poolEntryEnc is the RLP encoding of poolEntry.
@@ -937,6 +936,7 @@ func (q *poolEntryQueue) setLatest(entry *poolEntry) {
 	q.newPtr++
 }
 
+// traverses the queue and returns it as an array ordered oldest -> newest
 func (q *poolEntryQueue) list() []*poolEntry {
 	if len(q.queue) == 0 {
 		return nil
