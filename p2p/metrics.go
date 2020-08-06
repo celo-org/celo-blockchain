@@ -95,7 +95,7 @@ type meteredConn struct {
 	connected time.Time    // Connection time of the peer
 	addr      *net.TCPAddr // TCP address of the peer
 	peer      *Peer        // Peer instance
-	ingress   bool         // Indicates wether connection inbound or outbound
+	ingress   bool         // Indicates whether connection inbound or outbound
 
 	// trafficMetered denotes if the peer is registered in the traffic registries.
 	// Its value is true if the metered peer count doesn't reach the limit in the
