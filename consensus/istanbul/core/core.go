@@ -313,8 +313,8 @@ func (c *core) commit() error {
 
 		result, isCached := c.current.GetBlockProcessResult(proposal.Hash())
 		if !isCached {
-			log.Error("BlockConsensusAndProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
-			return nil
+			log.Error("BlockProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
+			return errBlockProcessResultNotFound
 		}
 		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
