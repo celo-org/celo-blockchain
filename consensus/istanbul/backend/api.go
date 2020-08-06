@@ -27,9 +27,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 // API is a user facing RPC API to dump Istanbul state
