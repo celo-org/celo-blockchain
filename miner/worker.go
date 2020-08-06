@@ -540,22 +540,22 @@ func (w *worker) resultLoop() {
 				continue
 			}
 			var (
-				sealhash      = w.engine.SealHash(block.Header())
-				hash          = block.Hash()
-				processResult = result.BlockProcessResult
+				sealhash = w.engine.SealHash(block.Header())
+				hash     = block.Hash()
+				r        = result.BlockProcessResult
 			)
 
-			if processResult.State == nil || processResult.Receipts == nil {
-				log.Error("Block found but no relative BlockProcessResult", "number", block.Number(), "sealhash", sealhash, "hash", hash)
+			if r.State == nil {
+				log.Error("BlockProcessResult cannot be nil", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 				continue
 			}
 
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			var (
-				receipts = make([]*types.Receipt, len(processResult.Receipts))
+				receipts = make([]*types.Receipt, len(r.Receipts))
 				logs     []*types.Log
 			)
-			for i, receipt := range processResult.Receipts {
+			for i, receipt := range r.Receipts {
 				// add block location fields
 				receipt.BlockHash = hash
 				receipt.BlockNumber = block.Number()
@@ -575,12 +575,12 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, r.State, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
-			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash, "elapsed", common.PrettyDuration(time.Since(processResult.CreatedAt)))
+			log.Info("Successfully writing block to chain", "number", block.Number(), "sealhash", sealhash, "hash", hash, "elapsed from receiving proposal", common.PrettyDuration(time.Since(r.CreatedAt)))
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})

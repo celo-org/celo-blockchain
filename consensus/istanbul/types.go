@@ -405,7 +405,7 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 	return returnList
 }
 
-// BlockConsensusAndProcessResult consists bock
+// BlockConsensusAndProcessResult consists of sealed block and its BlockProcessResult
 type BlockConsensusAndProcessResult struct {
 	SealedBlock        *types.Block
 	BlockProcessResult *BlockProcessResult

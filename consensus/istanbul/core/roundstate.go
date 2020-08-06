@@ -49,7 +49,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
-	SetBlockProcessResult(sealHash common.Hash, blockProcessResult *istanbul.BlockProcessResult)
+	SetBlockProcessResult(proposalHash common.Hash, blockProcessResult *istanbul.BlockProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -71,7 +71,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
-	GetBlockProcessResult(sealHash common.Hash) (result *istanbul.BlockProcessResult, isCached bool)
+	GetBlockProcessResult(proposalHash common.Hash) (result *istanbul.BlockProcessResult, isCached bool)
 	Summary() *RoundStateSummary
 }
 
