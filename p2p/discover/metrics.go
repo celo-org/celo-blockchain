@@ -19,6 +19,6 @@ package discover
 import "github.com/ethereum/go-ethereum/metrics"
 
 var (
-	ingressTrafficMeter = metrics.NewRegisteredMeter("discover/InboundTraffic", nil)
-	egressTrafficMeter  = metrics.NewRegisteredMeter("discover/OutboundTraffic", nil)
+	ingressTrafficMeter = metrics.NewRegisteredMeter("discover/ingress", nil)
+	egressTrafficMeter  = metrics.NewRegisteredMeter("discover/egress", nil)
 )
