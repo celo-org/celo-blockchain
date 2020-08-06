@@ -25,6 +25,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -332,8 +334,11 @@ func (e *MockEngine) SealHash(header *types.Header) (hash common.Hash) {
 
 func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *istanbul.BlockConsensusAndProcessResult, stop <-chan struct{}) error {
 	header := block.Header()
+	bc := chain.(*core.BlockChain)
+	state, _ := bc.State()
+	receipts, logs, _, _ := bc.Processor().Process(block, state, *bc.GetVMConfig())
 	select {
-	case results <- &istanbul.BlockConsensusAndProcessResult{SealedBlock: block.WithSeal(header), BlockProcessResult: &istanbul.BlockProcessResult{}}:
+	case results <- &istanbul.BlockConsensusAndProcessResult{SealedBlock: block.WithSeal(header), BlockProcessResult: &istanbul.BlockProcessResult{Receipts: receipts, Logs: logs, State: state}}:
 	default:
 		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
 	}

@@ -164,9 +164,6 @@ type worker struct {
 	txFeeRecipient common.Address
 	extra          []byte
 
-	pendingMu    sync.RWMutex
-	pendingTasks map[common.Hash]*task
-
 	snapshotMu    sync.RWMutex // The lock used to protect the block snapshot and state snapshot
 	snapshotBlock *types.Block
 	snapshotState *state.StateDB
@@ -548,8 +545,9 @@ func (w *worker) resultLoop() {
 				processResult = result.BlockProcessResult
 			)
 
-			if processResult.State == nil || processResult.Receipts == nil || processResult.Logs == nil {
+			if processResult.State == nil || processResult.Receipts == nil {
 				log.Error("Block found but no relative BlockProcessResult", "number", block.Number(), "sealhash", sealhash, "hash", hash)
+				continue
 			}
 
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
