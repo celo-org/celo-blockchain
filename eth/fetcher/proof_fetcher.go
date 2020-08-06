@@ -45,7 +45,7 @@ type proofVerifierFn func(proof *types.PlumoProof) error
 type proofBroadcasterFn func(proof *types.PlumoProof, propagate bool)
 
 // proofInsertFn is a callback type to insert a batch of proofs into the local db.
-type proofInsertFn func(types.PlumoProofs) (int, error)
+type proofInsertFn func(types.PlumoProofs) error
 
 // announce is the metadata notification of the availability of a new proof in the
 // network.
@@ -431,7 +431,7 @@ func (pf *ProofFetcher) insert(peer string, proof *types.PlumoProof) {
 			return
 		}
 		// Run the actual import and log any issues
-		if _, err := pf.insertProofs(types.PlumoProofs{proof}); err != nil {
+		if err := pf.insertProofs(types.PlumoProofs{proof}); err != nil {
 			log.Debug("Propagated proof import failed", "peer", peer, "metadata", metadata.String(), "err", err)
 			return
 		}

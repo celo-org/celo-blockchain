@@ -80,9 +80,10 @@ type ProtocolManager struct {
 	blockchain *core.BlockChain
 	maxPeers   int
 
-	downloader *downloader.Downloader
-	fetcher    *fetcher.Fetcher
-	peers      *peerSet
+	downloader   *downloader.Downloader
+	fetcher      *fetcher.Fetcher
+	proofFetcher *fetcher.ProofFetcher
+	peers        *peerSet
 
 	eventMux      *event.TypeMux
 	txsCh         chan core.NewTxsEvent
@@ -210,6 +211,26 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		return n, err
 	}
 	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
+
+	getPlumoProof := func(metadata types.PlumoProofMetadata) *types.PlumoProof {
+		proof := rawdb.ReadPlumoProof(manager.proofDb, &metadata)
+		return &types.PlumoProof{Proof: proof, Metadata: metadata}
+	}
+	verifyPlumoProof := func(proof *types.PlumoProof) error {
+		// TODO
+		return nil
+	}
+	broadcastPlumoProof := func(proof *types.PlumoProof, propagate bool) {
+		// TODO
+	}
+	insertPlumoProofs := func(proofs types.PlumoProofs) error {
+		// TODO error
+		for _, proof := range proofs {
+			rawdb.WritePlumoProof(manager.proofDb, proof)
+		}
+		return nil
+	}
+	manager.proofFetcher = fetcher.NewProofFetcher(getPlumoProof, verifyPlumoProof, broadcastPlumoProof, insertPlumoProofs, manager.removePeer)
 
 	return manager, nil
 }
@@ -835,7 +856,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			}
 		}
 		// for _, proofMetadata := range unknown {
-		// 	// Fetch proof
+		// 	pm.proofFetcher.Notify()
 		// }
 
 	case msg.Code == GetPlumoProofsMsg:
