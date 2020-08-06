@@ -128,6 +128,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
 		blocksElectedButNotSignedGauge:     metrics.NewRegisteredGauge("consensus/istanbul/blocks/missedbyusinarow", nil),
 		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
+		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
+		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -273,6 +275,12 @@ type Backend struct {
 	// for all blocks & when are the proposer.
 	blocksTotalMissedRoundsMeter      metrics.Meter
 	blocksMissedRoundsAsProposerMeter metrics.Meter
+
+	// Gauge counting the transactions in the last block
+	blocksFinalizedTransactionsGauge metrics.Gauge
+
+	// Gauge counting the gas used in the last block
+	blocksFinalizedGasUsedGauge metrics.Gauge
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 

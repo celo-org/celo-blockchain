@@ -65,7 +65,7 @@ This command will:
 ### A Full node on the Alfajores test network
 
 Smart contract developers will be most interested in the Alfajores testnet.
-On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very simmialr to Mainnet.
+On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
 More information about the Alfajores testnet can be found on [docs.celo.org](https://docs.celo.org/getting-started/alfajores-testnet).
 
 ```shell
