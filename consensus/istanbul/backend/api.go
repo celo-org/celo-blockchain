@@ -90,8 +90,8 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	return istanbul.MapValidatorsToAddresses(validators), nil
 }
 
-// GetValidatorsPublicKeys retrieves the list of validators public keys that must sign a given block.
-func (api *API) GetValidatorsPublicKeys(number *rpc.BlockNumber) ([]blscrypto.SerializedPublicKey, error) {
+// GetValidatorsBLSPublicKeys retrieves the list of validators BLS public keys that must sign a given block.
+func (api *API) GetValidatorsBLSPublicKeys(number *rpc.BlockNumber) ([]blscrypto.SerializedPublicKey, error) {
 	header, err := api.getParentHeaderByNumber(number)
 	if err != nil {
 		return nil, err
