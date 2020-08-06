@@ -250,9 +250,9 @@ type Backend struct {
 	blocksTotalMissedRoundsMeter metrics.Meter
 
 	// Cache for the return values of the method retrieveValidatorConnSet
-	cachedValidatorConnSet          map[common.Address]bool
-	cachedValidatorConnSetTimestamp time.Time
-	cachedValidatorConnSetMu        sync.RWMutex
+	cachedValidatorConnSet         map[common.Address]bool
+	cachedValidatorConnSetBlockNum uint64
+	cachedValidatorConnSetMu       sync.RWMutex
 
 	// Used for ensuring that only one goroutine is doing the work of updating
 	// the validator conn set cache at a time.
@@ -760,19 +760,31 @@ func (sb *Backend) ValidatorAddress() common.Address {
 }
 
 // retrieveValidatorConnSet returns the cached validator conn set if the cache
-// is younger than 1 minute. In the event of a cache miss, this may block for a
+// is younger than 20 blocks or if an epoch transition didn't occur since the last
+// cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
-	waitPeriod := 1 * time.Minute
+	// wait period in blocks
+	waitPeriod := uint64(20)
 	if sb.config.Epoch <= 10 {
-		waitPeriod = 1 * time.Second
+		waitPeriod = 1
 	}
-	// Check to see if there is a cached validator conn set, and if it's for the current block
-	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= waitPeriod {
-		defer sb.cachedValidatorConnSetMu.RUnlock()
-		return sb.cachedValidatorConnSet, nil
+
+	currentBlockNum := sb.currentBlock().Number().Uint64()
+	currentEpochNum := istanbul.GetEpochNumber(currentBlockNum, sb.config.Epoch)
+
+	// Check to see if there is a cached validator conn set
+	if sb.cachedValidatorConnSet != nil {
+		cachedEntryEpochNum := istanbul.GetEpochNumber(sb.cachedValidatorConnSetBlockNum, sb.config.Epoch)
+
+		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
+		// blocks of the current block.
+		if cachedEntryEpochNum == currentEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum {
+			defer sb.cachedValidatorConnSetMu.RUnlock()
+			return sb.cachedValidatorConnSet, nil
+		}
 	}
 	sb.cachedValidatorConnSetMu.RUnlock()
 
@@ -832,7 +844,7 @@ func (sb *Backend) updateCachedValidatorConnSet() (err error) {
 	}
 	sb.cachedValidatorConnSetMu.Lock()
 	sb.cachedValidatorConnSet = validatorConnSet
-	sb.cachedValidatorConnSetTimestamp = time.Now()
+	sb.cachedValidatorConnSetBlockNum = sb.currentBlock().Number().Uint64()
 	sb.cachedValidatorConnSetMu.Unlock()
 	return nil
 }
@@ -905,11 +917,8 @@ func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte)
 
 // VerifyValidatorConnectionSetSignature will verify that the message sender is a validator that is responsible
 // for the current pending block (the next block right after the head block).
-// Note that it is NOT using the cached validator conn set.  The reason is that
-// the current user of this function is the proxy's handleEnodeCertificate function (which is executed in it's own thread),
-// and it shouldn't be a big deal if it slightly delays the forwarding of the enodeCertificate to the proxied validator.
 func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error) {
-	if valConnSet, err := sb.retrieveUncachedValidatorConnSet(); err != nil {
+	if valConnSet, err := sb.retrieveValidatorConnSet(); err != nil {
 		return common.Address{}, err
 	} else {
 		validators := make([]istanbul.ValidatorData, len(valConnSet))
