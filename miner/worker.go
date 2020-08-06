@@ -164,6 +164,9 @@ type worker struct {
 	txFeeRecipient common.Address
 	extra          []byte
 
+	pendingMu    sync.RWMutex
+	pendingTasks map[common.Hash]*task
+
 	snapshotMu    sync.RWMutex // The lock used to protect the block snapshot and state snapshot
 	snapshotBlock *types.Block
 	snapshotState *state.StateDB
@@ -544,6 +547,11 @@ func (w *worker) resultLoop() {
 				hash          = block.Hash()
 				processResult = result.BlockProcessResult
 			)
+
+			if processResult.State == nil || processResult.Receipts == nil || processResult.Logs == nil {
+				log.Error("Block found but no relative BlockProcessResult", "number", block.Number(), "sealhash", sealhash, "hash", hash)
+			}
+
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			var (
 				receipts = make([]*types.Receipt, len(processResult.Receipts))
@@ -569,14 +577,12 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			if processResult.State != nil {
-				_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
-				if err != nil {
-					log.Error("Failed writing block to chain", "err", err)
-					continue
-				}
-				log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash)
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
+			if err != nil {
+				log.Error("Failed writing block to chain", "err", err)
+				continue
 			}
+			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash, "elapsed", common.PrettyDuration(time.Since(processResult.CreatedAt)))
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})

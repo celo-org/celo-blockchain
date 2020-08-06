@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/core/state"
 
@@ -412,7 +413,8 @@ type BlockConsensusAndProcessResult struct {
 
 // BlockProcessResult caches block process result.
 type BlockProcessResult struct {
-	Receipts []*types.Receipt
-	Logs     []*types.Log
-	State    *state.StateDB
+	Receipts  []*types.Receipt
+	Logs      []*types.Log
+	State     *state.StateDB
+	CreatedAt time.Time
 }

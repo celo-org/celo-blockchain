@@ -517,7 +517,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.
 		}
 	}
 
-	result := &istanbul.BlockProcessResult{Receipts: receipts, Logs: allLogs, State: state}
+	result := &istanbul.BlockProcessResult{Receipts: receipts, Logs: allLogs, State: state, CreatedAt: time.Now()}
 	return 0, result, nil
 }
 
