@@ -537,7 +537,7 @@ func (rs *roundStateImpl) EncodeRLP(w io.Writer) error {
 		return err
 	}
 	if rs.proposer == nil {
-		log.Crit("Round state corrupted")
+		return errors.New("Invalid RoundState: no proposer")
 	}
 	serializedProposer, err := rs.proposer.Serialize()
 	if err != nil {
