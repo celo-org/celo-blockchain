@@ -23,17 +23,18 @@ Usage: go run build/ci.go <command> <command flags/arguments>
 
 Available commands are:
 
-   install    [ -arch architecture ] [ -cc compiler ] [ packages... ]                          -- builds packages and executables
-   test       [ -coverage ] [ packages... ]                                                    -- runs the tests
-   lint                                                                                        -- runs certain pre-selected linters
-   archive    [ -arch architecture ] [ -type zip|tar ] [ -signer key-envvar ] [ -upload dest ] -- archives build artifacts
-   importkeys                                                                                  -- imports signing keys from env
-   debsrc     [ -signer key-id ] [ -upload dest ]                                              -- creates a debian source package
-   nsis                                                                                        -- creates a Windows NSIS installer
-   aar        [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an Android archive
-   xcode      [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an iOS XCode framework
-   xgo        [ -alltools ] [ options ]                                                        -- cross builds according to options
-   purge      [ -store blobstore ] [ -days threshold ]                                         -- purges old archives from the blobstore
+   install     [ -arch architecture ] [ -cc compiler ] [ packages... ]                          -- builds packages and executables
+   test        [ -coverage ] [ packages... ]                                                    -- runs the tests
+   lint                                                                                         -- runs certain pre-selected linters
+   archive     [ -arch architecture ] [ -type zip|tar ] [ -signer key-envvar ] [ -upload dest ] -- archives build artifacts
+   importkeys                                                                                   -- imports signing keys from env
+   debsrc      [ -signer key-id ] [ -upload dest ]                                              -- creates a debian source package
+   nsis                                                                                         -- creates a Windows NSIS installer
+   aar         [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an Android archive
+   xcode       [ -local ] [ -sign key-id ] [-deploy repo] [ -upload dest ]                      -- creates an iOS XCode framework
+   xgo         [ -alltools ] [ options ]                                                        -- cross builds according to options
+   xgo-archive [ -targets linux/amd64,linux/386... ][ -type zip|tar ][ -in dir ][ -out dir ]	-- archives build artifacts from cross-compilation
+   purge       [ -store blobstore ] [ -days threshold ]                                         -- purges old archives from the blobstore
 
 For all commands, -n prevents execution of external programs (dry run mode).
 
@@ -145,6 +146,7 @@ var (
 		"bionic": "golang-go",
 		"disco":  "golang-go",
 		"eoan":   "golang-go",
+		"focal":  "golang-go",
 	}
 
 	debGoBootPaths = map[string]string{
@@ -192,6 +194,8 @@ func main() {
 		doXCodeFramework(os.Args[2:])
 	case "xgo":
 		doXgo(os.Args[2:])
+	case "xgo-archive":
+		doXgoArchive(os.Args[2:])
 	case "purge":
 		doPurge(os.Args[2:])
 	default:
@@ -216,9 +220,9 @@ func doInstall(cmdline []string) {
 		var minor int
 		fmt.Sscanf(strings.TrimPrefix(runtime.Version(), "go1."), "%d", &minor)
 
-		if minor < 9 {
+		if minor < 11 {
 			log.Println("You have Go version", runtime.Version())
-			log.Println("go-ethereum requires at least Go version 1.9 and cannot")
+			log.Println("go-ethereum requires at least Go version 1.11 and cannot")
 			log.Println("be compiled with an earlier version. Please upgrade your Go installation.")
 			os.Exit(1)
 		}
@@ -238,13 +242,6 @@ func doInstall(cmdline []string) {
 		goinstall.Args = append(goinstall.Args, packages...)
 		build.MustRun(goinstall)
 		return
-	}
-	// If we are cross compiling to ARMv5 ARMv6 or ARMv7, clean any previous builds
-	if *arch == "arm" {
-		os.RemoveAll(filepath.Join(runtime.GOROOT(), "pkg", runtime.GOOS+"_arm"))
-		for _, path := range filepath.SplitList(build.GOPATH()) {
-			os.RemoveAll(filepath.Join(path, "pkg", runtime.GOOS+"_arm"))
-		}
 	}
 
 	// Seems we are cross compiling, work around forbidden GOBIN
@@ -303,7 +300,6 @@ func goTool(subcmd string, args ...string) *exec.Cmd {
 
 func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd {
 	cmd := build.GoTool(subcmd, args...)
-	cmd.Env = []string{"GOPATH=" + build.GOPATH()}
 	if arch == "" || arch == runtime.GOARCH {
 		cmd.Env = append(cmd.Env, "GOBIN="+GOBIN)
 	} else {
@@ -314,7 +310,7 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 		cmd.Env = append(cmd.Env, "CC="+cc)
 	}
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOPATH=") || strings.HasPrefix(e, "GOBIN=") {
+		if strings.HasPrefix(e, "GOBIN=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, e)
@@ -498,8 +494,8 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping because this is a cron job")
 		os.Exit(0)
 	}
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping because branch %q, tag %q is not on the whitelist", env.Branch, env.Tag)
+	if env.Branch != "master" && !strings.HasPrefix(env.Branch, "release/") {
+		log.Printf("skipping because branch %q is not on the whitelist", env.Branch)
 		os.Exit(0)
 	}
 }
@@ -917,7 +913,6 @@ func gomobileTool(subcmd string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(GOBIN, "gomobile"), subcmd)
 	cmd.Args = append(cmd.Args, args...)
 	cmd.Env = []string{
-		"GOPATH=" + build.GOPATH(),
 		"PATH=" + GOBIN + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
 	for _, e := range os.Environ() {
@@ -1106,10 +1101,84 @@ func xgoTool(args []string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(GOBIN, "xgo"), args...)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, []string{
-		"GOPATH=" + build.GOPATH(),
 		"GOBIN=" + GOBIN,
 	}...)
 	return cmd
+}
+
+// Archive cross compilation artifacts
+
+func doXgoArchive(cmdline []string) {
+	var (
+		targetsFlag = flag.String("targets", "", `List of targets int the same format as xgo`)
+		archiveType = flag.String("type", "tar", `Archive type tar|zip`)
+		inputDir    = flag.String("in", "", `Directory with all build binaries`)
+		outputDir   = flag.String("out", "", `Output directory`)
+		ext         string
+	)
+
+	flag.CommandLine.Parse(cmdline)
+	targets := strings.Split(*targetsFlag, ",")
+	switch *archiveType {
+	case "zip":
+		ext = ".zip"
+	case "tar":
+		ext = ".tar.gz"
+	default:
+		log.Fatal("unknown archive type: ", archiveType)
+	}
+
+	var (
+		env = build.Env()
+	)
+	maybeSkipArchive(env)
+
+	for _, target := range targets {
+		// linux/amd64 => geth-linux-amd64
+		var (
+			targetBinSegment = strings.Replace(target, "/", "-", 1)
+			basegeth         = targetBinSegment + "-" + params.ArchiveVersion(env.Commit)
+			geth             = filepath.Join(*outputDir, "geth-"+basegeth+ext)
+			alltools         = filepath.Join(*outputDir, "geth-alltools-"+basegeth+ext)
+		)
+
+		if err := build.WriteArchive(geth, xgoGethArchiveFiles(targetBinSegment, *inputDir)); err != nil {
+			log.Fatal(err)
+		}
+		if err := build.WriteArchive(alltools, xgoAllToolsArchiveFiles(targetBinSegment, *inputDir)); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func xgoGethArchiveFiles(target string, dir string) []string {
+	return []string{
+		"COPYING",
+		executableXgoPath("geth", target, dir),
+	}
+}
+
+func xgoAllToolsArchiveFiles(target string, dir string) []string {
+	return []string{
+		"COPYING",
+		executableXgoPath("abigen", target, dir),
+		executableXgoPath("bootnode", target, dir),
+		executableXgoPath("evm", target, dir),
+		executableXgoPath("geth", target, dir),
+		executableXgoPath("rlpdump", target, dir),
+		executableXgoPath("wnode", target, dir),
+		executableXgoPath("clef", target, dir),
+		executableXgoPath("blspopchecker", target, dir),
+	}
+}
+
+func executableXgoPath(exec, target, dir string) string {
+	filename := exec + "-" + target
+	if strings.HasPrefix(target, "windows") {
+		filename = filename + ".exe"
+	}
+
+	return filepath.Join(dir, filename)
 }
 
 // Binary distribution cleanups

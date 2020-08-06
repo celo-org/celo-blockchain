@@ -51,7 +51,7 @@ By default, the Celo client will connect to the Mainnet.
 Running the following command will create a full node that will sync with the Celo network and allow access to all of its functionality.
 
 ```shell
-$ geth --syncmode full console
+$ geth console
 ```
 
 This command will:
@@ -65,11 +65,11 @@ This command will:
 ### A Full node on the Alfajores test network
 
 Smart contract developers will be most interested in the Alfajores testnet.
-On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very simmialr to Mainnet.
+On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
 More information about the Alfajores testnet can be found on [docs.celo.org](https://docs.celo.org/getting-started/alfajores-testnet).
 
 ```shell
-$ geth --alfajores --syncmode full console
+$ geth --alfajores console
 ```
 
 *Note: Although there are some internal protective measures to prevent transactions from
@@ -86,7 +86,7 @@ More information about the Baklava testnet can be found on [docs.celo.org](https
 A full guide to getting started as a validator on Baklava can be found in the [Getting Started guides](https://docs.celo.org/getting-started/baklava-testnet/running-a-validator-in-baklava)
 
 ```shell
-$ geth --baklava --syncmode full console
+$ geth --baklava console
 ```
 
 ### Configuration

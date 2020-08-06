@@ -137,6 +137,9 @@ type worker struct {
 	eth         Backend
 	chain       *core.BlockChain
 
+	// Feeds
+	pendingLogsFeed event.Feed
+
 	// Subscriptions
 	mux          *event.TypeMux
 	txsCh        chan core.NewTxsEvent
@@ -158,9 +161,10 @@ type worker struct {
 	current     *environment       // An environment for current running cycle.
 	unconfirmed *unconfirmedBlocks // A set of locally mined blocks pending canonicalness confirmations.
 
-	mu       sync.RWMutex // The lock used to protect the coinbase and extra fields
-	coinbase common.Address
-	extra    []byte
+	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
+	validator      common.Address
+	txFeeRecipient common.Address
+	extra          []byte
 
 	pendingMu    sync.RWMutex
 	pendingTasks map[common.Hash]*task
@@ -234,11 +238,18 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	return worker
 }
 
-// setEtherbase sets the etherbase used to initialize the block coinbase field.
-func (w *worker) setEtherbase(addr common.Address) {
+// setValidator sets the validator address that signs messages and commits randomness
+func (w *worker) setValidator(addr common.Address) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.coinbase = addr
+	w.validator = addr
+}
+
+// setTxFeeRecipient sets the address to receive tx fees, stored in header.Coinbase
+func (w *worker) setTxFeeRecipient(addr common.Address) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.txFeeRecipient = addr
 }
 
 // setExtra sets the content used to initialize the block extra field.
@@ -455,7 +466,7 @@ func (w *worker) mainLoop() {
 					continue
 				}
 				w.mu.RLock()
-				coinbase := w.coinbase
+				txFeeRecipient := w.txFeeRecipient
 				w.mu.RUnlock()
 
 				txs := make(map[common.Address]types.Transactions)
@@ -466,7 +477,7 @@ func (w *worker) mainLoop() {
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				tcount := w.current.tcount
-				w.commitTransactions(txset, coinbase, nil)
+				w.commitTransactions(txset, txFeeRecipient, nil)
 				// Only update the snapshot if any new transactons were added
 				// to the pending block
 				if tcount != w.current.tcount {
@@ -585,7 +596,7 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			stat, err := w.chain.WriteBlockWithState(block, receipts, task.state)
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
@@ -595,16 +606,6 @@ func (w *worker) resultLoop() {
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})
-
-			var events []interface{}
-			switch stat {
-			case core.CanonStatTy:
-				events = append(events, core.ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
-				events = append(events, core.ChainHeadEvent{Block: block})
-			case core.SideStatTy:
-				events = append(events, core.ChainSideEvent{Block: block})
-			}
-			w.chain.PostChainEvents(events, logs)
 
 			// Insert the block into the set of pending ones to resultLoop for confirmations
 			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
@@ -657,10 +658,10 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -671,7 +672,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -739,7 +740,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, coinbase)
+		logs, err := w.commitTransaction(tx, txFeeRecipient)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -783,7 +784,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			cpy[i] = new(types.Log)
 			*cpy[i] = *l
 		}
-		go w.mux.Post(core.PendingLogsEvent{Logs: cpy})
+		w.pendingLogsFeed.Send(cpy)
 	}
 	// Notify resubmit loop to decrease resubmitting interval if current interval is larger
 	// than the user-specified one.
@@ -820,11 +821,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
-		if w.coinbase == (common.Address{}) {
+		if w.txFeeRecipient == (common.Address{}) {
 			log.Error("Refusing to mine without etherbase")
 			return
 		}
-		header.Coinbase = w.coinbase
+		header.Coinbase = w.txFeeRecipient
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -872,7 +873,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
 		if randomSeed == nil {
-			account := accounts.Account{Address: w.coinbase}
+			account := accounts.Account{Address: w.validator}
 			wallet, err := w.eth.AccountManager().Find(account)
 			if err == nil {
 				// TODO: Use SignData instead
@@ -884,7 +885,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 
-		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		lastRandomness, err := random.GetLastRandomness(w.validator, w.db, w.current.header, w.current.state, w.chain, randomSeed)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return
@@ -896,7 +897,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 
-		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		err = random.RevealAndCommit(lastRandomness, commitment, w.validator, w.current.header, w.current.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
 			return
@@ -933,13 +934,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, w.txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, w.txFeeRecipient, interrupt) {
 			return
 		}
 	}

@@ -152,18 +152,12 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.MainnetChainConfig, common.Hash{}, errGenesisNoConfig
 	}
-	if genesis != nil && genesis.Config != nil && genesis.Config.UseOldFormat {
-		types.SetOldFormat()
-	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
 			genesis = MainnetGenesisBlock()
-			if genesis.Config != nil && genesis.Config.UseOldFormat {
-				types.SetOldFormat()
-			}
 		} else {
 			log.Info("Writing custom genesis block")
 		}
@@ -360,7 +354,7 @@ func DefaultBaklavaGenesisBlock() *Genesis {
 	baklavaAlloc.UnmarshalJSON([]byte(baklavaAllocJSON))
 	return &Genesis{
 		Config:    params.BaklavaChainConfig,
-		Timestamp: 0x5e8ca380,
+		Timestamp: 0x5b843511,
 		ExtraData: hexutil.MustDecode(baklavaExtraData),
 		Alloc:     *baklavaAlloc,
 	}
@@ -377,8 +371,7 @@ func DefaultAlfajoresGenesisBlock() *Genesis {
 	}
 }
 
-// DeveloperGenesisBlock returns the 'geth --dev' genesis block. Note, this must
-// be seeded with the
+// DeveloperGenesisBlock returns the 'geth --dev' genesis block.
 func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Override the default period to the user requested one
 	config := *params.DeveloperChainConfig

@@ -51,14 +51,24 @@ func NewPublicEthereumAPI(e *Ethereum) *PublicEthereumAPI {
 	return &PublicEthereumAPI{e}
 }
 
-// Etherbase is the address that mining rewards will be send to
-func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
-	return api.e.Etherbase()
+// Validator is the address that will sign messages
+func (api *PublicEthereumAPI) Validator() (common.Address, error) {
+	return api.e.Validator()
 }
 
-// Coinbase is the address that mining rewards will be send to (alias for Etherbase)
+// TxFeeRecipient is the address that mining rewards will be sent to
+func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
+	return api.e.TxFeeRecipient()
+}
+
+// Etherbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
+func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
+	return api.TxFeeRecipient()
+}
+
+// Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
-	return api.Etherbase()
+	return api.TxFeeRecipient()
 }
 
 // Hashrate returns the POW hashrate
@@ -144,7 +154,8 @@ func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 
 // SetEtherbase sets the etherbase of the miner
 func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
-	api.e.SetEtherbase(etherbase)
+	api.e.SetValidator(etherbase)
+	api.e.SetTxFeeRecipient(etherbase)
 	return true
 }
 
@@ -170,8 +181,16 @@ func NewPrivateAdminAPI(eth *Ethereum) *PrivateAdminAPI {
 	return &PrivateAdminAPI{eth: eth}
 }
 
-// ExportChain exports the current blockchain into a local file.
-func (api *PrivateAdminAPI) ExportChain(file string) (bool, error) {
+// ExportChain exports the current blockchain into a local file,
+// or a range of blocks if first and last are non-nil
+func (api *PrivateAdminAPI) ExportChain(file string, first *uint64, last *uint64) (bool, error) {
+	if first == nil && last != nil {
+		return false, errors.New("last cannot be specified without first")
+	}
+	if first != nil && last == nil {
+		head := api.eth.BlockChain().CurrentHeader().Number.Uint64()
+		last = &head
+	}
 	if _, err := os.Stat(file); err == nil {
 		// File already exists. Allowing overwrite could be a DoS vecotor,
 		// since the 'file' may point to arbitrary paths on the drive
@@ -191,7 +210,11 @@ func (api *PrivateAdminAPI) ExportChain(file string) (bool, error) {
 	}
 
 	// Export the blockchain
-	if err := api.eth.BlockChain().Export(writer); err != nil {
+	if first != nil {
+		if err := api.eth.BlockChain().ExportN(writer, *first, *last); err != nil {
+			return false, err
+		}
+	} else if err := api.eth.BlockChain().Export(writer); err != nil {
 		return false, err
 	}
 	return true, nil

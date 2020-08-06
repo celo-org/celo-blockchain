@@ -47,7 +47,7 @@ func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) 
 	signerBLSFn := SignBLSFn(nodeKeys[0])
 
 	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, &publicKey, decryptFn, signerFn, signerBLSFn)
+	b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
 
 	genesis.MustCommit(memDB)
 
@@ -318,6 +318,7 @@ func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
-	b.Authorize(crypto.PubkeyToAddress(key.PublicKey), &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
+	address := crypto.PubkeyToAddress(key.PublicKey)
+	b.Authorize(address, address, &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
 	return
 }

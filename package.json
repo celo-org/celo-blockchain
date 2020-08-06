@@ -11,7 +11,8 @@
   "files": [
     "build/bin/geth.aar",
     "build/bin/Geth.framework.tgz",
-    "CeloBlockchain.podspec"
+    "CeloBlockchain.podspec",
+    "libbls_snark_sys.a"
   ],
   "scripts": {
     "postinstall": "rm -rf build/bin/Geth.framework && tar -xvf build/bin/Geth.framework.tgz -C build/bin && touch Empty.m && ln -sf build/bin/Geth.framework/Versions/A/Geth libGeth.a"

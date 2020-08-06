@@ -328,6 +328,7 @@ type discoverTask struct {
 
 func (t *discoverTask) Do(srv *Server) {
 	t.results = enode.ReadNodes(srv.discmix, t.want)
+	discoveredPeersCounter.Inc(int64(len(t.results)))
 }
 
 func (t *discoverTask) String() string {
