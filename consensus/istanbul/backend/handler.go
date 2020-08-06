@@ -266,8 +266,8 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		// could have proposed a block that was not finalized?
 		// This is a could, not did because the consensus algo may have forced the proposer
 		// to re-propose an existing block, thus not placing it's own signature on it.
+		gpAuthor := sb.AuthorForBlock(number - 2)
 		for i := int64(0); i < missedRounds; i++ {
-			gpAuthor := sb.AuthorForBlock(number - 2)
 			proposer := validator.GetProposerSelector(sb.config.ProposerPolicy)(gpValSet, gpAuthor, uint64(i))
 			if sb.ValidatorAddress() == proposer.Address() {
 				sb.blocksMissedRoundsAsProposerMeter.Mark(1)
