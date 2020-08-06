@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -1022,7 +1023,7 @@ func TestLogReorgs(t *testing.T) {
 	blockchain, _ := NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil)
 	defer blockchain.Stop()
 
-	rmLogsCh := make(chan RemovedLogsEvent)
+	rmLogsCh := make(chan RemovedLogsEvent, 100)
 	blockchain.SubscribeRemovedLogsEvent(rmLogsCh)
 	chain, _ := GenerateChain(params.DefaultChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
 		if i == 1 {
@@ -1041,7 +1042,6 @@ func TestLogReorgs(t *testing.T) {
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
-
 	timeout := time.NewTimer(1 * time.Second)
 	select {
 	case ev := <-rmLogsCh:
@@ -1060,39 +1060,46 @@ func TestLogRebirth(t *testing.T) {
 		db      = rawdb.NewMemoryDatabase()
 
 		// this code generates a log
-		code     = common.Hex2Bytes("60606040525b7f24ec1d3ff24c2f6ff210738839dbc339cd45a5294d85c79361016243157aae7b60405180905060405180910390a15b600a8060416000396000f360606040526008565b00")
-		gspec    = &Genesis{Config: params.DefaultChainConfig, Alloc: GenesisAlloc{addr1: {Balance: big.NewInt(10000000000000)}}}
-		genesis  = gspec.MustCommit(db)
-		signer   = types.NewEIP155Signer(gspec.Config.ChainID)
-		newLogCh = make(chan bool)
+		code        = common.Hex2Bytes("60606040525b7f24ec1d3ff24c2f6ff210738839dbc339cd45a5294d85c79361016243157aae7b60405180905060405180910390a15b600a8060416000396000f360606040526008565b00")
+		gspec       = &Genesis{Config: params.DefaultChainConfig, Alloc: GenesisAlloc{addr1: {Balance: big.NewInt(10000000000000)}}}
+		genesis     = gspec.MustCommit(db)
+		signer      = types.NewEIP155Signer(gspec.Config.ChainID)
+		newLogCh    = make(chan bool)
+		removeLogCh = make(chan bool)
 	)
 
-	// listenNewLog checks whether the received logs number is equal with expected.
-	listenNewLog := func(sink chan []*types.Log, expect int) {
+	// validateLogEvent checks whether the received logs number is equal with expected.
+	validateLogEvent := func(sink interface{}, result chan bool, expect int) {
+		chanval := reflect.ValueOf(sink)
+		chantyp := chanval.Type()
+		if chantyp.Kind() != reflect.Chan || chantyp.ChanDir()&reflect.RecvDir == 0 {
+			// t.Fatalf won't work since it's called in another goroutine
+			panic(fmt.Sprintf("invalid channel, given type %v", chantyp))
+		}
 		cnt := 0
+		timeout := time.After(1 * time.Second)
+		cases := []reflect.SelectCase{{Chan: chanval, Dir: reflect.SelectRecv}, {Chan: reflect.ValueOf(timeout), Dir: reflect.SelectRecv}}
 		for {
-			select {
-			case logs := <-sink:
-				cnt += len(logs)
-			case <-time.NewTimer(5 * time.Second).C:
-				// new logs timeout
-				newLogCh <- false
+			chose, _, _ := reflect.Select(cases)
+			if chose == 1 {
+				// Not enough event received
+				result <- false
 				return
 			}
+			cnt += 1
 			if cnt == expect {
 				break
-			} else if cnt > expect {
-				// redundant logs received
-				newLogCh <- false
-				return
 			}
 		}
-		select {
-		case <-sink:
-			// redundant logs received
-			newLogCh <- false
-		case <-time.NewTimer(100 * time.Millisecond).C:
-			newLogCh <- true
+		done := time.After(50 * time.Millisecond)
+		cases = cases[:1]
+		cases = append(cases, reflect.SelectCase{Chan: reflect.ValueOf(done), Dir: reflect.SelectRecv})
+		chose, _, _ := reflect.Select(cases)
+		// If chose equal 0, it means receiving redundant events.
+		if chose == 1 {
+			result <- true
+		} else {
+			result <- false
 		}
 	}
 
@@ -1116,12 +1123,12 @@ func TestLogRebirth(t *testing.T) {
 	})
 
 	// Spawn a goroutine to receive log events
-	go listenNewLog(logsCh, 1)
+	go validateLogEvent(logsCh, newLogCh, 1)
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		t.Fatalf("failed to insert chain: %v", err)
 	}
 	if !<-newLogCh {
-		t.Fatalf("failed to receive new log event")
+		t.Fatal("failed to receive new log event")
 	}
 
 	// Generate long reorg chain
@@ -1138,40 +1145,31 @@ func TestLogRebirth(t *testing.T) {
 	})
 
 	// Spawn a goroutine to receive log events
-	go listenNewLog(logsCh, 1)
+	go validateLogEvent(logsCh, newLogCh, 1)
+	go validateLogEvent(rmLogsCh, removeLogCh, 1)
 	if _, err := blockchain.InsertChain(forkChain); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
 	if !<-newLogCh {
-		t.Fatalf("failed to receive new log event")
+		t.Fatal("failed to receive new log event")
 	}
-	// Ensure removedLog events received
-	select {
-	case ev := <-rmLogsCh:
-		if len(ev.Logs) == 0 {
-			t.Error("expected logs")
-		}
-	case <-time.NewTimer(1 * time.Second).C:
-		t.Fatal("Timeout. There is no RemovedLogsEvent has been sent.")
+	if !<-removeLogCh {
+		t.Fatal("failed to receive removed log event")
 	}
 
 	newBlocks, _ := GenerateChain(params.DefaultChainConfig, chain[len(chain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
-	go listenNewLog(logsCh, 1)
+	go validateLogEvent(logsCh, newLogCh, 1)
+	go validateLogEvent(rmLogsCh, removeLogCh, 1)
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
-	// Ensure removedLog events received
-	select {
-	case ev := <-rmLogsCh:
-		if len(ev.Logs) == 0 {
-			t.Error("expected logs")
-		}
-	case <-time.NewTimer(1 * time.Second).C:
-		t.Fatal("Timeout. There is no RemovedLogsEvent has been sent.")
-	}
 	// Rebirth logs should omit a newLogEvent
 	if !<-newLogCh {
-		t.Fatalf("failed to receive new log event")
+		t.Fatal("failed to receive new log event")
+	}
+	// Ensure removedLog events received
+	if !<-removeLogCh {
+		t.Fatal("failed to receive removed log event")
 	}
 }
 
