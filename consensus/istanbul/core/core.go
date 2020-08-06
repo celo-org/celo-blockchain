@@ -311,7 +311,7 @@ func (c *core) commit() error {
 			return nil
 		}
 
-		result, isCached := c.current.GetBlockConsensusAndProcessResult(proposal.Hash())
+		result, isCached := c.current.GetBlockProcessResult(proposal.Hash())
 		if !isCached {
 			log.Error("BlockConsensusAndProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
 			return nil
@@ -705,7 +705,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		}
 
 		if result != nil {
-			c.current.SetBlockConsensusAndProcessResult(proposal.Hash(), result)
+			c.current.SetBlockProcessResult(proposal.Hash(), result)
 		}
 
 		return duration, err

@@ -143,8 +143,8 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	}()
 
 	// setup the BlockConsensusAndProcessResult cache and
-	cachedResult := &istanbul.BlockConsensusAndProcessResult{SealedBlock: block}
-	engine.core.CurrentRoundState().SetBlockConsensusAndProcessResult(block.Hash(), cachedResult)
+	cachedResult := &istanbul.BlockProcessResult{}
+	engine.core.CurrentRoundState().SetBlockProcessResult(block.Hash(), cachedResult)
 	// create the sig, then call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
 	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{}, cachedResult)

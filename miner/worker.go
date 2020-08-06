@@ -539,17 +539,17 @@ func (w *worker) resultLoop() {
 			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
 				continue
 			}
-
 			var (
-				sealhash = w.engine.SealHash(block.Header())
-				hash     = block.Hash()
+				sealhash      = w.engine.SealHash(block.Header())
+				hash          = block.Hash()
+				processResult = result.BlockProcessResult
 			)
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			var (
-				receipts = make([]*types.Receipt, len(result.Receipts))
+				receipts = make([]*types.Receipt, len(processResult.Receipts))
 				logs     []*types.Log
 			)
-			for i, receipt := range result.Receipts {
+			for i, receipt := range processResult.Receipts {
 				// add block location fields
 				receipt.BlockHash = hash
 				receipt.BlockNumber = block.Number()
@@ -569,8 +569,8 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			if result.State != nil {
-				_, err := w.chain.WriteBlockWithState(block, receipts, logs, result.State, true)
+			if processResult.State != nil {
+				_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
 				if err != nil {
 					log.Error("Failed writing block to chain", "err", err)
 					continue

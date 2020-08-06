@@ -25,8 +25,6 @@ import (
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -152,14 +150,4 @@ func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]commo
 	}
 
 	return addrs, pubKeys
-}
-
-// ----------------------------------------------------------------------------
-
-// BlockProcessResult caches block process result.
-type BlockConsensusAndProcessResult struct {
-	SealedBlock *types.Block
-	Receipts    []*types.Receipt
-	Logs        []*types.Log
-	State       *state.StateDB
 }

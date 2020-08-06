@@ -80,8 +80,8 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
-func (rsp *rsSaveDecorator) SetBlockConsensusAndProcessResult(proposalHash common.Hash, result *istanbul.BlockConsensusAndProcessResult) {
-	rsp.rs.SetBlockConsensusAndProcessResult(proposalHash, result)
+func (rsp *rsSaveDecorator) SetBlockProcessResult(proposalHash common.Hash, result *istanbul.BlockProcessResult) {
+	rsp.rs.SetBlockProcessResult(proposalHash, result)
 }
 
 // DesiredRound implements RoundState.DesiredRound
@@ -139,8 +139,8 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
 }
 
-func (rsp *rsSaveDecorator) GetBlockConsensusAndProcessResult(proposalHash common.Hash) (result *istanbul.BlockConsensusAndProcessResult, isCached bool) {
-	return rsp.rs.GetBlockConsensusAndProcessResult(proposalHash)
+func (rsp *rsSaveDecorator) GetBlockProcessResult(proposalHash common.Hash) (result *istanbul.BlockProcessResult, isCached bool) {
+	return rsp.rs.GetBlockProcessResult(proposalHash)
 }
 
 // IsProposer implements RoundState.IsProposer

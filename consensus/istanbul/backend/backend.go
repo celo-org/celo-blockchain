@@ -403,7 +403,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbul.BlockConsensusAndProcessResult) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbul.BlockProcessResult) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -426,8 +426,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 
-	result.SealedBlock = block
-	sb.commitCh <- result
+	sb.commitCh <- &istanbul.BlockConsensusAndProcessResult{SealedBlock: block, BlockProcessResult: result}
 	return nil
 }
 
@@ -437,7 +436,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockConsensusAndProcessResult, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.BlockProcessResult, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -518,7 +517,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.
 		}
 	}
 
-	result := &istanbul.BlockConsensusAndProcessResult{SealedBlock: block, Receipts: receipts, Logs: allLogs, State: state}
+	result := &istanbul.BlockProcessResult{Receipts: receipts, Logs: allLogs, State: state}
 	return 0, result, nil
 }
 

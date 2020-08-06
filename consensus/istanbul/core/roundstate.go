@@ -49,7 +49,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
-	SetBlockConsensusAndProcessResult(sealHash common.Hash, blockProcessResult *istanbul.BlockConsensusAndProcessResult)
+	SetBlockProcessResult(sealHash common.Hash, blockProcessResult *istanbul.BlockProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -71,7 +71,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
-	GetBlockConsensusAndProcessResult(sealHash common.Hash) (result *istanbul.BlockConsensusAndProcessResult, isCached bool)
+	GetBlockProcessResult(sealHash common.Hash) (result *istanbul.BlockProcessResult, isCached bool)
 	Summary() *RoundStateSummary
 }
 
@@ -101,7 +101,7 @@ type roundStateImpl struct {
 	proposalVerificationStatus map[common.Hash]error
 
 	// Cache for BlockConsensusAndProcessResult in this sequence.
-	blockConsensusAndProcessResults map[common.Hash]*istanbul.BlockConsensusAndProcessResult
+	blockProcessResults map[common.Hash]*istanbul.BlockProcessResult
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -305,7 +305,7 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 	rs.pendingRequest = nil
 	rs.parentCommits = parentCommits
 	rs.proposalVerificationStatus = nil
-	rs.blockConsensusAndProcessResults = nil
+	rs.blockProcessResults = nil
 
 	// Update sequence gauge
 	rs.sequenceGauge.Update(nextSequence.Int64())
@@ -459,24 +459,24 @@ func (rs *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash
 	return
 }
 
-func (rs *roundStateImpl) SetBlockConsensusAndProcessResult(proposalHash common.Hash, blockProcessResult *istanbul.BlockConsensusAndProcessResult) {
+func (rs *roundStateImpl) SetBlockProcessResult(proposalHash common.Hash, blockProcessResult *istanbul.BlockProcessResult) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	if rs.blockConsensusAndProcessResults == nil {
-		rs.blockConsensusAndProcessResults = make(map[common.Hash]*istanbul.BlockConsensusAndProcessResult)
+	if rs.blockProcessResults == nil {
+		rs.blockProcessResults = make(map[common.Hash]*istanbul.BlockProcessResult)
 	}
 
-	rs.blockConsensusAndProcessResults[proposalHash] = blockProcessResult
+	rs.blockProcessResults[proposalHash] = blockProcessResult
 }
 
-func (rs *roundStateImpl) GetBlockConsensusAndProcessResult(proposalHash common.Hash) (result *istanbul.BlockConsensusAndProcessResult, isCached bool) {
+func (rs *roundStateImpl) GetBlockProcessResult(proposalHash common.Hash) (result *istanbul.BlockProcessResult, isCached bool) {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
 	result, isCached = nil, false
-	if rs.blockConsensusAndProcessResults != nil {
-		result, isCached = rs.blockConsensusAndProcessResults[proposalHash]
+	if rs.blockProcessResults != nil {
+		result, isCached = rs.blockProcessResults[proposalHash]
 	}
 
 	return
