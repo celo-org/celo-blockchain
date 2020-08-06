@@ -47,8 +47,8 @@ type BackendForProxyEngine interface {
 	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries".
 	RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error
 
-	// SetEnodeCertificateMsg will set this node's enodeCertificate to be used for connection handshakes
-	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*istanbul.Message) error
+	// SetEnodeCertificateMsgs will set this node's enodeCertificate to be used for connection handshakes
+	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error
 
 	// VerifyPendingBlockValidatorSignature is a message validation function to verify that a message's sender is within the validator set
 	// of the current pending block and that the message's address field matches the message's signature's signer

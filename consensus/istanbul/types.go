@@ -439,7 +439,7 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 	return returnList
 }
 
-// ## EnodeCertificate ######################################################################OA
+// ## EnodeCertificate ######################################################################
 type EnodeCertificate struct {
 	EnodeURL string
 	Version  uint
@@ -464,7 +464,13 @@ func (ec *EnodeCertificate) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// ## AddressEntry ######################################################################OA
+// ## EnodeCertMsg ######################################################################
+type EnodeCertMsg struct {
+	Msg           *Message
+	DestAddresses []common.Address
+}
+
+// ## AddressEntry ######################################################################
 // AddressEntry is an entry for the valEnodeTable.
 type AddressEntry struct {
 	Address                      common.Address

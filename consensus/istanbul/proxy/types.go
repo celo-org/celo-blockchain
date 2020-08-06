@@ -34,9 +34,6 @@ var (
 	// by the proxied validator, but signed from another key
 	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
 
-	// errInvalidEnodeCertificate is returned if the enode certificate is invalid
-	errInvalidEnodeCertificate = errors.New("invalid enode certificate")
-
 	// errUnauthorizedProxiedValidator is returned if the peer connecting is not the
 	// authorized proxied validator
 	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
@@ -102,8 +99,8 @@ type ProxiedValidatorEngine interface {
 	// notify the proxy handler that a proxy has disconnected.
 	UnregisterProxyPeer(proxyPeer consensus.Peer) error
 
-	// SendForwardMsg will send a forward message.
-	SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
+	// SendForwardMsg will send a forward message to all of the proxies.
+	SendForwardMsg(proxies []*Proxy, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
 
 	// SendDelegateSignMsgToProxy(msg []byte) error
 

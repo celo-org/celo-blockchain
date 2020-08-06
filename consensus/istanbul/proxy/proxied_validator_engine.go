@@ -58,7 +58,7 @@ type BackendForProxiedValidatorEngine interface {
 	UpdateAnnounceVersion()
 
 	// RetrieveEnodeCertificateMsgMap will retrieve this node's handshake enodeCertificate
-	RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Message
+	RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg
 
 	// RetrieveValidatorConnSet will retrieve the validator connection set.
 	// The parameter `retrieveCachedVersion` will specify if the function should retrieve the
@@ -465,31 +465,22 @@ loop:
 				// Also resend the enode certificates to the proxies (via a forward message), in case it was
 				// never successfully sent before.
 
-				// Get all connected proxies
-				proxiesMap := ps.getAllProxies()
-				proxyPeers := make([]consensus.Peer, 0, len(proxiesMap))
-				for _, proxy := range proxiesMap {
-					if proxy.peer != nil {
-						proxyPeers = append(proxyPeers, proxy.peer)
-					}
-				}
+				// Get all proxies
+				proxies, _ := ps.getProxyAndValAssignments()
 
-				// Get the enode certificate messages
+				// Get all the enode certificate messages
 				proxyEnodeCertMsgs := pv.backend.RetrieveEnodeCertificateMsgMap()
-				proxySpecificPayloads := make(map[enode.ID][]byte)
-				for proxyID, enodeCertMsg := range proxyEnodeCertMsgs {
-					payload, err := enodeCertMsg.Payload()
+				for _, enodeCertMsg := range proxyEnodeCertMsgs {
+					payload, err := enodeCertMsg.Msg.Payload()
 					if err != nil {
-						logger.Warn("Error getting payload of enode certificate message", "err", err, "proxyID", proxyID)
+						logger.Warn("Error getting payload of enode certificate message", "err", err)
 						continue
-					} else {
-						proxySpecificPayloads[proxyID] = payload
 					}
-				}
 
-				// Send the enode certificate messages to the proxies
-				if err := pv.SendForwardMsg(proxyPeers, []common.Address{}, istanbul.EnodeCertificateMsg, nil, proxySpecificPayloads); err != nil {
-					logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
+					// Send the enode certificate messages to the proxies
+					if err := pv.SendForwardMsg(proxies, enodeCertMsg.DestAddresses, istanbul.EnodeCertificateMsg, payload); err != nil {
+						logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
+					}
 				}
 			}
 

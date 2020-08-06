@@ -221,7 +221,7 @@ type Backend struct {
 	// Used for proving itself as a validator in the handshake for externally exposed nodes,
 	// or by saving latest generated certificate messages by proxied validators to send
 	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.Message
+	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 

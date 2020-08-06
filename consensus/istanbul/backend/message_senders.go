@@ -49,7 +49,13 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	logger := sb.logger.New("func", "Multicast")
 
 	if sb.IsProxiedValidator() {
-		if err := sb.proxiedValidatorEngine.SendForwardMsg(nil, destAddresses, ethMsgCode, payload, nil); err != nil {
+		// Get all of the proxies
+		proxies, _, err := sb.proxiedValidatorEngine.GetProxiesAndValAssignments()
+		if err != nil {
+			return err
+		}
+
+		if err := sb.proxiedValidatorEngine.SendForwardMsg(proxies, destAddresses, ethMsgCode, payload); err != nil {
 			return err
 		}
 	} else {

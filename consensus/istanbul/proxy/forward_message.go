@@ -20,61 +20,23 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayloads map[enode.ID][]byte) error {
+func (pv *proxiedValidatorEngine) SendForwardMsg(proxies []*Proxy, destAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
 	logger := pv.logger.New("func", "SendForwardMsg")
 
-	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "finalDestAddresses", common.ConvertToStringSlice(finalDestAddresses))
-
-	proxyToAddressesMap := make(map[consensus.Peer][]common.Address)
-
-	// If the proxy peers are not given to this function, then retrieve them via the proxy handler
-	if proxyPeers == nil {
-		valAssignments, err := pv.GetValidatorProxyAssignments(finalDestAddresses)
-		if err != nil {
-			logger.Warn("Got an error when trying to retrieve validator assignments", "err", err)
-			return err
-		}
-
-		// Create proxy -> set of validator addresses map
-		for valAddress, proxy := range valAssignments {
-			if proxy != nil && proxy.peer != nil {
-				if proxyToAddressesMap[proxy.peer] == nil {
-					proxyToAddressesMap[proxy.peer] = make([]common.Address, 0)
-				}
-
-				proxyToAddressesMap[proxy.peer] = append(proxyToAddressesMap[proxy.peer], valAddress)
-			}
-		}
-
-		if len(proxyToAddressesMap) == 0 {
-			logger.Warn("No proxy assigned to any of the final dest addresses for sending a fwd message", "ethMsgCode", ethMsgCode, "finalDestAddreses", common.ConvertToStringSlice(finalDestAddresses))
-			return nil
-		}
-	} else {
-		for _, proxyPeer := range proxyPeers {
-			proxyToAddressesMap[proxyPeer] = nil
-		}
-	}
+	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "destAddresses", common.ConvertToStringSlice(destAddresses))
 
 	// Send the forward messages to the proxies
-	for proxyPeer, valAddresses := range proxyToAddressesMap {
-		// Convert the message to a fwdMessage
+	for _, proxy := range proxies {
+		if proxy.IsPeered() {
 
-		msgToForward := payload
-
-		if proxySpecificPayload, ok := proxySpecificPayloads[proxyPeer.Node().ID()]; ok {
-			msgToForward = proxySpecificPayload
-		}
-
-		if msgToForward != nil {
+			// Convert the message to a fwdMessage
 			fwdMessage := &istanbul.ForwardMessage{
 				Code:          ethMsgCode,
-				DestAddresses: valAddresses,
-				Msg:           msgToForward,
+				DestAddresses: destAddresses,
+				Msg:           payload,
 			}
 			fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
 			if err != nil {
@@ -89,7 +51,7 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxyPeers []consensus.Peer, fi
 				return err
 			}
 
-			pv.backend.Unicast(proxyPeer, fwdMsgPayload, istanbul.FwdMsg)
+			pv.backend.Unicast(proxy.peer, fwdMsgPayload, istanbul.FwdMsg)
 		}
 	}
 
@@ -131,7 +93,7 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 	//       to share to all of it's proxies their enode certificate.
 	if fwdMsg.Code == istanbul.EnodeCertificateMsg {
 		logger.Trace("Doing special handling for a forwarded enode certficate msg")
-		if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.Msg); err != nil {
+		if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.DestAddresses, fwdMsg.Msg); err != nil {
 			logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
 			return true, err
 		}

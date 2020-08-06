@@ -61,7 +61,7 @@ func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []b
 
 // handleEnodeCertificateFromFwdMsg will handle an enode certifcate message sent from the proxied validator
 // in a forward message
-func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(payload []byte) error {
+func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(destAddresses []common.Address, payload []byte) error {
 	logger := p.logger.New("func", "handleEnodeCertificateFromFwdMsg")
 
 	msg := new(istanbul.Message)
@@ -90,34 +90,15 @@ func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(payload []byte) error {
 		return err
 	}
 
-	// Check to make sure that the enodeCertificate's nodeID matches this node's external nodeID.
-	// There may be a difference in the URLv4 string because of `discport`, so instead compare the ID.
+	// If this enode certificate's nodeID is the same as the node's external nodeID, then save it.
 	selfNode := p.backend.SelfNode()
-	if enodeCertificateNode.ID() != selfNode.ID() {
-		logger.Warn("Received Istanbul Enode Certificate message with an incorrect external enode url", "message enode url", enodeCertificate.EnodeURL, "self enode url", selfNode.URLv4())
-		return errInvalidEnodeCertificate
-	}
-
-	if err := p.backend.SetEnodeCertificateMsgMap(map[enode.ID]*istanbul.Message{selfNode.ID(): msg}); err != nil {
-		logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
-		return err
-	}
-
-	// Send the new enode certificate to all of the connected validators
-	vetEntries, err := p.backend.GetValEnodeTableEntries(nil)
-	if err != nil {
-		logger.Warn("Error in retrieving val enode table entries", "err", err)
-		return err
-	}
-
-	destAddresses := make([]common.Address, 0, len(vetEntries))
-	for destAddress := range vetEntries {
-		destAddresses = append(destAddresses, destAddress)
-	}
-
-	if err := p.backend.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
-		logger.Warn("Error in sending enode certificate to validators")
-		return err
+	if enodeCertificateNode.ID() == selfNode.ID() {
+		enodeCertMsgMap := make(map[enode.ID]*istanbul.EnodeCertMsg)
+		enodeCertMsgMap[selfNode.ID()] = &istanbul.EnodeCertMsg{Msg: msg, DestAddresses: destAddresses}
+		if err := p.backend.SetEnodeCertificateMsgMap(enodeCertMsgMap); err != nil {
+			logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
+			return err
+		}
 	}
 
 	return nil

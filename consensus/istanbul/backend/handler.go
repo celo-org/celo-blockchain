@@ -291,7 +291,10 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		if peerIsValidator {
 			msgMap := sb.RetrieveEnodeCertificateMsgMap()
 			if msgMap != nil {
-				msg = msgMap[sb.SelfNode().ID()]
+				enodeCertMsg := msgMap[sb.SelfNode().ID()]
+				if enodeCertMsg != nil {
+					msg = enodeCertMsg.Msg
+				}
 			}
 		}
 		// Even if we decide not to identify ourselves,

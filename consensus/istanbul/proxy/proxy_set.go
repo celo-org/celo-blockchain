@@ -74,10 +74,6 @@ func (ps *proxySet) getProxy(proxyID enode.ID) *Proxy {
 	return nil
 }
 
-func (ps *proxySet) getAllProxies() map[enode.ID]*Proxy {
-	return ps.proxiesByID
-}
-
 // addProxy removes a proxy with ID proxyID from the proxySet and valAssigner.
 // Will return true if any of the validators got reassigned to a different proxy.
 func (ps *proxySet) removeProxy(proxyID enode.ID) bool {

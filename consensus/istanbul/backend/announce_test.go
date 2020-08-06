@@ -4,7 +4,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -50,7 +49,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = val2Address
 
 	// Handle val1's announce message
-	if err = b.handleQueryEnodeMsg(common.Address{}, nil, payload); err != nil {
+	if err = b.handleQueryEnodeMsg(val1Addr, nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

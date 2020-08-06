@@ -189,7 +189,10 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		// Test a legitimate message being sent
 		msgMap := backend.RetrieveEnodeCertificateMsgMap()
-		validMsg = msgMap[backend.SelfNode().ID()]
+		enodeCertMsg := msgMap[backend.SelfNode().ID()]
+		if enodeCertMsg != nil {
+			validMsg = enodeCertMsg.Msg
+		}
 
 		if validMsg != nil {
 			break
