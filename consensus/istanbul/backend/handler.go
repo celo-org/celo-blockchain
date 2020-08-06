@@ -301,6 +301,8 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		}
 	}
 
+	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
+	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
