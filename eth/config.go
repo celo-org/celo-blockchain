@@ -36,10 +36,10 @@ var DefaultConfig = Config{
 	LightServ:          0,
 	UltraLightFraction: 75,
 	DatabaseCache:      768,
-	TrieCleanCache:     256,
+	TrieCleanCache:     154,
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
-	SnapshotCache:      256,
+	SnapshotCache:      102,
 	Miner: miner.Config{
 		GasFloor: 8000000,
 		GasCeil:  8000000,
