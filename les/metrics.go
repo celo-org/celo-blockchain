@@ -112,6 +112,8 @@ var (
 
 	requestRTT       = metrics.NewRegisteredTimer("les/client/req/rtt", nil)
 	requestSendDelay = metrics.NewRegisteredTimer("les/client/req/sendDelay", nil)
+
+	clientDiscoveredNodesCounter = metrics.NewRegisteredCounter("les/client/discovered", nil) // Counter for discovered nodes
 )
 
 // meteredMsgReadWriter is a wrapper around a p2p.MsgReadWriter, capable of
