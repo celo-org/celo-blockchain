@@ -125,6 +125,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
+		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
+		blocksElectedButNotSignedGauge:     metrics.NewRegisteredGauge("consensus/istanbul/blocks/missedbyusinarow", nil),
+		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
@@ -257,14 +260,21 @@ type Backend struct {
 	blocksElectedButNotSignedMeter metrics.Meter
 	blocksElectedAndProposedMeter  metrics.Meter
 
+	// Gauge for how many blocks that we missed while elected in a row.
+	blocksElectedButNotSignedGauge metrics.Gauge
+	// Meter for downtime events when we did not sign 12+ blocks in a row.
+	blocksDowntimeEventMeter metrics.Meter
+
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
 
 	// Gauge for validator set size of grandparent of last received block (maximum value for blocksTotalSigsGauge)
 	blocksValSetSizeGauge metrics.Gauge
 
-	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
-	blocksTotalMissedRoundsMeter metrics.Meter
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed
+	// for all blocks & when are the proposer.
+	blocksTotalMissedRoundsMeter      metrics.Meter
+	blocksMissedRoundsAsProposerMeter metrics.Meter
 
 	// Gauge counting the transactions in the last block
 	blocksFinalizedTransactionsGauge metrics.Gauge
