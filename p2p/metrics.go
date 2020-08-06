@@ -30,26 +30,23 @@ import (
 )
 
 const (
-	MetricsInboundTraffic            = "p2p/ingress"           // Name for the registered inbound traffic meter
-	MetricsOutboundTraffic           = "p2p/egress"            // Name for the registered outbound traffic meter
-	MetricsOutboundConnects          = "p2p/dials"             // Name for the registered outbound connects meter
-	MetricsOutboundHandshakeConnects = "p2p/dials/handshakes"  // Name for the registered outbound connects with successful handshake meter
-	MetricsInboundConnects           = "p2p/serves"            // Name for the registered inbound connects meter
-	MetricsInboundHandshakeConnects  = "p2p/serves/handshakes" // Name for the registered inbound connects with successful handshake meter
+	MetricsInboundTraffic  = "p2p/ingress" // Name for the registered inbound traffic meter
+	MetricsOutboundTraffic = "p2p/egress"  // Name for the registered outbound traffic meter
 
 	MeteredPeerLimit = 1024 // This amount of peers are individually metered
 )
 
 var (
-	ingressConnectMeter              = metrics.NewRegisteredMeter(MetricsInboundConnects, nil)           // Meter counting the ingress connections
-	ingressConnectWithHandshakeMeter = metrics.NewRegisteredMeter(MetricsInboundHandshakeConnects, nil)  // Meter counting the ingress with successful handshake connections
-	ingressTrafficMeter              = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)            // Meter metering the cumulative ingress traffic
-	egressConnectMeter               = metrics.NewRegisteredMeter(MetricsOutboundConnects, nil)          // Meter counting the egress connections
-	egressConnectWithHandshakeMeter  = metrics.NewRegisteredMeter(MetricsOutboundHandshakeConnects, nil) // Meter counting the egress with successful handshake connections
-	egressTrafficMeter               = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)           // Meter metering the cumulative egress traffic
-	activePeerGauge                  = metrics.NewRegisteredGauge("p2p/peers", nil)                      // Gauge tracking the current peer count
-	activeValidatorsPeerGauge        = metrics.NewRegisteredGauge("p2p/peers/validators", nil)           // Gauge tracking the current validators peer count
-	activeProxiesPeerGauge           = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)              // Gauge tracking the current proxies peer count
+	ingressConnectMeter              = metrics.NewRegisteredMeter("p2p/serves", nil)             // Meter counting the ingress connections
+	ingressConnectWithHandshakeMeter = metrics.NewRegisteredMeter("p2p/serves/handshakes", nil)  // Meter counting the ingress with successful handshake connections
+	ingressTrafficMeter              = metrics.NewRegisteredMeter(MetricsInboundTraffic, nil)    // Meter metering the cumulative ingress traffic
+	egressConnectMeter               = metrics.NewRegisteredMeter("p2p/dials", nil)              // Meter counting the egress connections
+	egressConnectWithHandshakeMeter  = metrics.NewRegisteredMeter("p2p/dials/handshakes", nil)   // Meter counting the egress with successful handshake connections
+	egressTrafficMeter               = metrics.NewRegisteredMeter(MetricsOutboundTraffic, nil)   // Meter metering the cumulative egress traffic
+	activePeerGauge                  = metrics.NewRegisteredGauge("p2p/peers", nil)              // Gauge tracking the current peer count
+	activeValidatorsPeerGauge        = metrics.NewRegisteredGauge("p2p/peers/validators", nil)   // Gauge tracking the current validators peer count
+	activeProxiesPeerGauge           = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)      // Gauge tracking the current proxies peer count
+	discoveredPeersCounter           = metrics.NewRegisteredCounter("p2p/peers/discovered", nil) // Counter of the total discovered peers
 
 	PeerIngressRegistry = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsInboundTraffic+"/")  // Registry containing the peer ingress
 	PeerEgressRegistry  = metrics.NewPrefixedChildRegistry(metrics.EphemeralRegistry, MetricsOutboundTraffic+"/") // Registry containing the peer egress
