@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -85,6 +86,29 @@ type NodeConfig struct {
 	//
 	// It has the form "nodename:secret@host:port"
 	EthereumNetStats string
+
+	// HTTPHost is the host interface on which to start the HTTP RPC server. If this
+	// field is empty, no HTTP API endpoint will be started.
+	HTTPHost string
+
+	// HTTPPort is the TCP port number on which to start the HTTP RPC server. The
+	// default zero value is/ valid and will pick a port number randomly (useful
+	// for ephemeral nodes).
+	HTTPPort int
+
+	// HTTPVirtualHosts is a comma separated list of virtual hostnames which are allowed on incoming requests.
+	// This is by default {'localhost'}. Using this prevents attacks like
+	// DNS rebinding, which bypasses SOP by simply masquerading as being within the same
+	// origin. These attacks do not utilize CORS, since they are not cross-domain.
+	// By explicitly checking the Host-header, the server will not allow requests
+	// made against the server with a malicious host domain.
+	// Requests using ip address directly are not affected
+	HTTPVirtualHosts string
+
+	// HTTPModules is a comma separated list of API modules to expose via the HTTP RPC interface.
+	// If the module list is empty, all RPC API endpoints designated public will be
+	// exposed.
+	HTTPModules string
 
 	// WhisperEnabled specifies whether the node should run the Whisper protocol.
 	WhisperEnabled bool
@@ -153,10 +177,11 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,
 		IPCPath:           config.IPCPath,
-		HTTPHost:          "0.0.0.0",
-		HTTPPort:          8545,
-		HTTPVirtualHosts:  []string{"*"},
-		HTTPModules:       []string{"rpc", "txpool", "admin", "istanbul", "les", "net", "web3", "debug", "eth"},
+		HTTPHost:          config.HTTPHost,
+		HTTPPort:          config.HTTPPort,
+		// gomobile doesn't allow arrays to be passed in, so comma separated strings are used
+		HTTPVirtualHosts:  strings.Split(config.HTTPVirtualHosts, ","),
+		HTTPModules:       strings.Split(config.HTTPModules, ","),
 		P2P: p2p.Config{
 			NoDiscovery:      config.NoDiscovery,
 			DiscoveryV5:      !config.NoDiscovery,
