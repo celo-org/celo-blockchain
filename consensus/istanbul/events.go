@@ -29,3 +29,8 @@ type MessageEvent struct {
 // FinalCommittedEvent is posted when a proposal is committed
 type FinalCommittedEvent struct {
 }
+
+// NewViewEvent is posted when a new view(sequence, round) has been created
+type NewViewEvent struct {
+	NewView *View
+}

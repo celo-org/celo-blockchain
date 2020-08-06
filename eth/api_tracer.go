@@ -105,9 +105,14 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 	// Fetch the block interval that we want to trace
 	var from, to *types.Block
 
+	// Use latest block for validators, otherwise use pending block for full nodes
 	switch start {
 	case rpc.PendingBlockNumber:
-		from = api.eth.miner.PendingBlock()
+		if !api.eth.IsMining() { // This is a full node
+			from = api.eth.miner.PendingBlock()
+		} else {
+			from = api.eth.blockchain.CurrentBlock()
+		}
 	case rpc.LatestBlockNumber:
 		from = api.eth.blockchain.CurrentBlock()
 	default:
@@ -115,7 +120,11 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 	}
 	switch end {
 	case rpc.PendingBlockNumber:
-		to = api.eth.miner.PendingBlock()
+		if !api.eth.IsMining() { // This is a full node
+			to = api.eth.miner.PendingBlock()
+		} else {
+			to = api.eth.blockchain.CurrentBlock()
+		}
 	case rpc.LatestBlockNumber:
 		to = api.eth.blockchain.CurrentBlock()
 	default:

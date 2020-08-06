@@ -28,9 +28,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -344,7 +346,20 @@ func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
 	return []rpc.API{}
 }
 
+// SubscribeNewViewEvent registers a subscription of NewViewEvent
+func (e *MockEngine) SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription {
+	return &MockSubscription{}
+}
+
 // Close closes the exit channel to notify all backend threads exiting.
 func (e *MockEngine) Close() error {
 	return nil
 }
+
+type MockSubscription struct{}
+
+func (s *MockSubscription) Err() <-chan error {
+	return nil
+}
+
+func (s *MockSubscription) Unsubscribe() {}

@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -48,11 +49,8 @@ const (
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
 
-	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
-	chainHeadChanSize = 10
-
-	// chainSideChanSize is the size of channel listening to ChainSideEvent.
-	chainSideChanSize = 10
+	// newViewChanSize is the size of channel listening to NewViewEvent.
+	newViewChanSize = 10
 
 	// resubmitAdjustChanSize is the size of resubmitting interval adjustment channel.
 	resubmitAdjustChanSize = 10
@@ -117,9 +115,10 @@ const (
 
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
-	interrupt *int32
-	noempty   bool
-	timestamp int64
+	interrupt    *int32
+	noempty      bool
+	timestamp    int64
+	initSnapshot bool
 }
 
 // intervalAdjust represents a resubmitting interval adjustment.
@@ -138,19 +137,17 @@ type worker struct {
 	chain       *core.BlockChain
 
 	// Subscriptions
-	mux          *event.TypeMux
-	txsCh        chan core.NewTxsEvent
-	txsSub       event.Subscription
-	chainHeadCh  chan core.ChainHeadEvent
-	chainHeadSub event.Subscription
-	chainSideCh  chan core.ChainSideEvent
-	chainSideSub event.Subscription
+	mux        *event.TypeMux
+	txsCh      chan core.NewTxsEvent
+	txsSub     event.Subscription
+	newViewCh  chan istanbul.NewViewEvent
+	newViewSub event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
 	resultCh           chan *types.Block
-	startCh            chan struct{}
+	initSnapshotCh     chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
 	resubmitAdjustCh   chan *intervalAdjust
@@ -199,13 +196,12 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:       make(map[common.Hash]*task),
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newViewCh:          make(chan istanbul.NewViewEvent, newViewChanSize),
 		newWorkCh:          make(chan *newWorkReq),
 		taskCh:             make(chan *task),
 		resultCh:           make(chan *types.Block, resultQueueSize),
 		exitCh:             make(chan struct{}),
-		startCh:            make(chan struct{}, 1),
+		initSnapshotCh:     make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),
 		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
 		db:                 db,
@@ -213,8 +209,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
-	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
-	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
+	worker.newViewSub = engine.SubscribeNewViewEvent(worker.newViewCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
@@ -230,7 +225,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 
 	// Submit first work to initialize pending state.
 	if init {
-		worker.startCh <- struct{}{}
+		worker.initSnapshotCh <- struct{}{}
 	}
 	return worker
 }
@@ -283,7 +278,6 @@ func (w *worker) pendingBlock() *types.Block {
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
-	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		istanbul.StartValidating(w.chain.HasBadBlock,
@@ -332,12 +326,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32) {
+	commit := func(noempty bool, s int32, initSnapshot bool) {
 		if interrupt != nil {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp}
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp, initSnapshot: initSnapshot}
 		timer.Reset(recommit)
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -375,16 +369,17 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 
 	for {
 		select {
-		case <-w.startCh:
+		case <-w.initSnapshotCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			commit(false, commitInterruptNewHead, true)
 
-		case head := <-w.chainHeadCh:
-			headNumber := head.Block.NumberU64()
+		case newView := <-w.newViewCh:
+			log.Info("Received newViewEvent")
+			headNumber := newView.NewView.Sequence.Uint64() - 1
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			commit(false, commitInterruptNewHead, false)
 
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
@@ -395,7 +390,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					timer.Reset(recommit)
 					continue
 				}
-				commit(true, commitInterruptResubmit)
+				commit(true, commitInterruptResubmit, false)
 			}
 
 		case interval := <-w.resubmitIntervalCh:
@@ -436,20 +431,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 // mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
 func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
-	defer w.chainHeadSub.Unsubscribe()
-	defer w.chainSideSub.Unsubscribe()
+	defer w.newViewSub.Unsubscribe()
 
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			if h, ok := w.engine.(consensus.Handler); ok {
-				h.NewWork()
-			}
-			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
-
-		case ev := <-w.chainSideCh:
-			// TOOO(nategraf): Remove this subcription, as there is no work to be done here.
-			log.Debug("Message in chan chainSideCh", "hash", ev.Block.Hash(), "number", ev.Block.Number(), "root", ev.Block.Root())
+			w.commitNewWork(req.interrupt, req.noempty, req.timestamp, req.initSnapshot)
 
 		case ev := <-w.txsCh:
 			// Apply transactions to the pending state if we're not mining.
@@ -488,9 +475,7 @@ func (w *worker) mainLoop() {
 			return
 		case <-w.txsSub.Err():
 			return
-		case <-w.chainHeadSub.Err():
-			return
-		case <-w.chainSideSub.Err():
+		case <-w.newViewSub.Err():
 			return
 		}
 	}
@@ -802,7 +787,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
+func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, initSnapshot bool) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -866,12 +851,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if !noempty && !w.isIstanbulEngine() {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
-		w.commit(nil, false, tstart)
+		w.commit(nil, false, tstart, false)
 	}
 
 	istanbulEmptyBlockCommit := func() {
 		if !noempty && w.isIstanbulEngine() {
-			w.commit(nil, false, tstart)
+			w.commit(nil, false, tstart, false)
 		}
 	}
 
@@ -951,12 +936,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
-	w.commit(w.fullTaskHook, true, tstart)
+	w.commit(w.fullTaskHook, true, tstart, initSnapshot)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (w *worker) commit(interval func(), update bool, start time.Time) error {
+func (w *worker) commit(interval func(), update bool, start time.Time, initSnapshot bool) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
 	receipts := make([]*types.Receipt, len(w.current.receipts))
 	for i, l := range w.current.receipts {
@@ -989,7 +974,7 @@ func (w *worker) commit(interval func(), update bool, start time.Time) error {
 		log.Error("Unable to finalize block", "err", err)
 		return err
 	}
-	if w.isRunning() {
+	if w.isRunning() && !initSnapshot {
 		if interval != nil {
 			interval()
 		}

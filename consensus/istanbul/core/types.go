@@ -19,6 +19,7 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -34,6 +35,8 @@ type Engine interface {
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
+	// GetNewViewFeed will return newViewFeed
+	GetNewViewFeed() *event.Feed
 }
 
 // State represents the IBFT state

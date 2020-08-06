@@ -41,9 +41,23 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 		return err
 	}
 
-	// Must go through startNewRound to send proposals for round > 0 to ensure a round change certificate is generated.
-	if c.current.State() == StateAcceptRequest && c.current.Round().Cmp(common.Big0) == 0 {
-		c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
+	// When Round == 0, send proposal with empty certificate
+	// When Round > 0, generate certificate and send proposal
+	if c.current.State() == StateAcceptRequest {
+		if c.current.Round().Cmp(common.Big0) == 0 {
+			c.sendPreprepare(request, istanbul.RoundChangeCertificate{})
+		} else {
+			rcCertRequest, roundChangeCertificate, err := c.getPreprepareWithRoundChangeCertificate(c.current.Round())
+			if err != nil {
+				logger.Error("Unable to produce round change certificate", "err", err, "new_round", c.current.Round())
+				return nil
+			}
+			if rcCertRequest != nil {
+				c.sendPreprepare(rcCertRequest, roundChangeCertificate)
+			} else {
+				c.sendPreprepare(request, roundChangeCertificate)
+			}
+		}
 	}
 	return nil
 }

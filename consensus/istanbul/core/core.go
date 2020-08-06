@@ -69,6 +69,8 @@ type core struct {
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	newViewFeed event.Feed
 }
 
 // New creates an Istanbul consensus core
@@ -218,6 +220,11 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
+}
+
+// GetNewViewFeed will return newViewFeed
+func (c *core) GetNewViewFeed() *event.Feed {
+	return &c.newViewFeed
 }
 
 // Appends the current view and state to the given context.
@@ -428,8 +435,6 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Generate next view and preprepare
 	var newView *istanbul.View
-	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var request *istanbul.Request
 
 	valSet := c.current.ValidatorSet()
 	if roundChange {
@@ -437,15 +442,7 @@ func (c *core) startNewRound(round *big.Int) error {
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
-
-		var err error
-		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
-		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return nil
-		}
 	} else {
-		request = c.current.PendingRequest()
 		newView = &istanbul.View{
 			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 			Round:    new(big.Int),
@@ -466,10 +463,13 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.processPendingRequests()
 	c.backlog.updateState(c.current.View(), c.current.State())
 
-	if roundChange && c.isProposer() && request != nil {
-		c.sendPreprepare(request, roundChangeCertificate)
-	}
 	c.resetRoundChangeTimer()
+
+	// Send NewViewEvent to trigger worker proposing
+	if c.isProposer() {
+		newViewEvent := istanbul.NewViewEvent{NewView: newView}
+		c.newViewFeed.Send(newViewEvent)
+	}
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())

@@ -41,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
@@ -257,6 +258,10 @@ func (e *NoRewardEngine) EpochSize() uint64 {
 
 func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {
 	return e.inner.APIs(chain)
+}
+
+func (e *NoRewardEngine) SubscribeNewViewEvent(ch chan<- istanbul.NewViewEvent) event.Subscription {
+	return e.inner.SubscribeNewViewEvent(ch)
 }
 
 func (e *NoRewardEngine) Close() error {
