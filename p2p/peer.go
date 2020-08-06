@@ -117,8 +117,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	purposeMu sync.Mutex
-	purpose   PurposeFlag
+	purposesMu sync.Mutex
+	purposes   PurposeFlag
 
 	Server *Server
 }
@@ -134,37 +134,37 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 }
 
 func (p *Peer) AddPurpose(purpose PurposeFlag) {
-	p.purposeMu.Lock()
-	defer p.purposeMu.Unlock()
+	p.purposesMu.Lock()
+	defer p.purposesMu.Unlock()
 
 	// assumes we are still connected...
-	if purpose.IsSet(ValidatorPurpose) && !p.purpose.IsSet(ValidatorPurpose) {
+	if purpose.IsSet(ValidatorPurpose) && !p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Inc(1)
 	}
-	if purpose.IsSet(ProxyPurpose) && !p.purpose.IsSet(ProxyPurpose) {
+	if purpose.IsSet(ProxyPurpose) && !p.purposes.IsSet(ProxyPurpose) {
 		activeProxiesPeerGauge.Inc(1)
 	}
 
-	p.purpose = p.purpose.Add(purpose)
+	p.purposes = p.purposes.Add(purpose)
 }
 
 func (p *Peer) RemovePurpose(purpose PurposeFlag) {
-	p.purposeMu.Lock()
-	defer p.purposeMu.Unlock()
+	p.purposesMu.Lock()
+	defer p.purposesMu.Unlock()
 
 	// assumes we are still connected...
-	if purpose.IsSet(ValidatorPurpose) && p.purpose.IsSet(ValidatorPurpose) {
+	if purpose.IsSet(ValidatorPurpose) && p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
 	}
-	if purpose.IsSet(ProxyPurpose) && p.purpose.IsSet(ProxyPurpose) {
+	if purpose.IsSet(ProxyPurpose) && p.purposes.IsSet(ProxyPurpose) {
 		activeProxiesPeerGauge.Dec(1)
 	}
 
-	p.purpose = p.purpose.Remove(purpose)
+	p.purposes = p.purposes.Remove(purpose)
 }
 
 func (p *Peer) HasPurpose(purpose PurposeFlag) bool {
-	return p.purpose.IsSet(purpose)
+	return p.purposes.IsSet(purpose)
 }
 
 // ID returns the node's public key.
@@ -228,15 +228,15 @@ func newPeer(log log.Logger, conn *conn, protocols []Protocol, purpose PurposeFl
 		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
 		closed:   make(chan struct{}),
 		log:      log.New("id", conn.node.ID(), "conn", conn.flags),
-		purpose:  purpose,
+		purposes: purpose,
 		Server:   server,
 	}
 
 	// Increase connection metrics for proxies & validators
-	if p.purpose.IsSet(ValidatorPurpose) {
+	if p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Inc(1)
 	}
-	if p.purpose.IsSet(ProxyPurpose) {
+	if p.purposes.IsSet(ProxyPurpose) {
 		activeProxiesPeerGauge.Inc(1)
 	}
 
@@ -292,22 +292,22 @@ loop:
 	}
 
 	// Decrease connection metrics for proxies & validators
-	p.purposeMu.Lock()
-	if p.purpose.IsSet(ValidatorPurpose) {
+	p.purposesMu.Lock()
+	if p.purposes.IsSet(ValidatorPurpose) {
 		activeValidatorsPeerGauge.Dec(1)
 	}
-	if p.purpose.IsSet(ProxyPurpose) {
+	if p.purposes.IsSet(ProxyPurpose) {
 		activeProxiesPeerGauge.Dec(1)
 	}
 
-	if p.purpose.HasPurpose() {
+	if p.purposes.HasPurpose() {
 		if err != nil {
-			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purpose, "reason", reason, "remoteRequested", remoteRequested, "err", err)
+			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purposes, "reason", reason, "remoteRequested", remoteRequested, "err", err)
 		} else {
-			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purpose, "reason", reason, "remoteRequested", remoteRequested)
+			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purposes, "reason", reason, "remoteRequested", remoteRequested)
 		}
 	}
-	p.purposeMu.Unlock()
+	p.purposesMu.Unlock()
 
 	close(p.closed)
 	p.rw.close(reason)
@@ -519,9 +519,8 @@ type PeerInfo struct {
 	ID       string   `json:"id"`            // Unique node identifier
 	Name     string   `json:"name"`          // Name of the node, including client type, version, OS, custom data
 	Caps     []string `json:"caps"`          // Protocols advertised by this peer
-	Purposes string   `json:"nodeInfo"`      // Purposes for the peer
-	// TrustedNodePurposes string   `json:"trustedNodeInfo"` // Purposes for the trusted node
-	Network struct {
+	Purposes string   `json:"purposes"`      // Purposes for the peer
+	Network  struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 		Inbound       bool   `json:"inbound"`
@@ -568,7 +567,7 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	info.Purposes = p.purpose.String()
+	info.Purposes = p.purposes.String()
 
 	return info
 }
