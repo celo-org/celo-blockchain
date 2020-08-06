@@ -525,8 +525,8 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getTobinTax(evm *EVM, sender common.Address) (*big.Int, *big.Int, *common.Address, error) {
-	reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
+	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -541,8 +541,8 @@ func getTobinTax(evm *EVM, sender common.Address) (*big.Int, *big.Int, *common.A
 	if binary.Size(ret) != 64 {
 		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
 	}
-	numerator := new(big.Int).SetBytes(ret[0:32])
-	denominator := new(big.Int).SetBytes(ret[32:64])
+	numerator = new(big.Int).SetBytes(ret[0:32])
+	denominator = new(big.Int).SetBytes(ret[32:64])
 	if denominator.Cmp(common.Big0) == 0 {
 		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
 	}
