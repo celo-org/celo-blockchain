@@ -74,7 +74,7 @@ func TestStatusMsgErrors64(t *testing.T) {
 		},
 		{
 			code: StatusMsg, data: statusData63{64, DefaultConfig.NetworkId, td, head.Hash(), common.Hash{3}},
-			wantError: errResp(ErrGenesisMismatch, "0300000000000000 (!= %x)", genesis.Hash().Bytes()[:8]),
+			wantError: errResp(ErrGenesisMismatch, "peer: 0300000000000000 (local: %x)", genesis.Hash().Bytes()[:8]),
 		},
 	}
 	for i, test := range tests {
@@ -126,7 +126,7 @@ func TestStatusMsgErrors65(t *testing.T) {
 		},
 		{
 			code: StatusMsg, data: statusData{65, DefaultConfig.NetworkId, td, head.Hash(), common.Hash{3}, forkID},
-			wantError: errResp(ErrGenesisMismatch, "0300000000000000000000000000000000000000000000000000000000000000 (!= %x)", genesis.Hash()),
+			wantError: errResp(ErrGenesisMismatch, "peer: 0300000000000000000000000000000000000000000000000000000000000000 (local: %x)", genesis.Hash()),
 		},
 		{
 			code: StatusMsg, data: statusData{65, DefaultConfig.NetworkId, td, head.Hash(), genesis.Hash(), forkid.ID{Hash: [4]byte{0x00, 0x01, 0x02, 0x03}}},
