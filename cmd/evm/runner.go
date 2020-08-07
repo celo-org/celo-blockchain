@@ -221,7 +221,7 @@ func runCmd(ctx *cli.Context) error {
 	if chainConfig != nil {
 		runtimeConfig.ChainConfig = chainConfig
 	} else {
-		runtimeConfig.ChainConfig = params.DefaultChainConfig
+		runtimeConfig.ChainConfig = params.MainnetChainConfig
 	}
 
 	var hexInput []byte
