@@ -739,6 +739,12 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
+			name: 'getValidatorsBLSPublicKeys',
+			call: 'istanbul_getValidatorsBLSPublicKeys',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
 			name: 'getProposer',
 			call: 'istanbul_getProposer',
 			params: 2,
