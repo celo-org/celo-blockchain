@@ -435,6 +435,24 @@ func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr c
 	return signature, nil
 }
 
+// Decrypt will decrypt a given ciphertext with the given account via ECIES
+func (s *PrivateAccountAPI) Decrypt(ctx context.Context, ciphertext hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
+	// Look up the wallet containing the requested signer
+	account := accounts.Account{Address: addr}
+
+	wallet, err := s.b.AccountManager().Find(account)
+	if err != nil {
+		return nil, err
+	}
+	// Decrypt the data with the wallet
+	plaintext, err := wallet.Decrypt(account, ciphertext, nil, nil)
+	if err != nil {
+		log.Warn("Failed data decryption attempt", "address", addr, "err", err)
+		return nil, err
+	}
+	return plaintext, nil
+}
+
 // EcRecover returns the address for the account that was used to create the signature.
 // Note, this function is compatible with eth_sign and personal_sign. As such it recovers
 // the address of:
