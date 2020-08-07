@@ -113,12 +113,12 @@ func TestNewSimulatedBackend(t *testing.T) {
 		})
 	defer sim.Close()
 
-	if sim.config != params.DefaultChainConfig {
-		t.Errorf("expected sim config to equal params.DefaultChainConfig, got %v", sim.config)
+	if sim.config != params.IstanbulTestChainConfig {
+		t.Errorf("expected sim config to equal params.IstanbulTestChainConfig, got %v", sim.config)
 	}
 
-	if sim.blockchain.Config() != params.DefaultChainConfig {
-		t.Errorf("expected sim blockchain config to equal params.DefaultChainConfig, got %v", sim.config)
+	if sim.blockchain.Config() != params.IstanbulTestChainConfig {
+		t.Errorf("expected sim blockchain config to equal params.IstanbulTestChainConfig, got %v", sim.config)
 	}
 
 	statedb, _ := sim.blockchain.State()
