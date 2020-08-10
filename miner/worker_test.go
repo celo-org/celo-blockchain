@@ -218,9 +218,16 @@ func TestGenerateBlockAndImport(t *testing.T) {
 			newBlock <- struct{}{}
 		}
 	}
-	// Ignore empty commit here for less noise
+	// Bypass seal
 	w.skipSealHook = func(task *task) bool {
-		return len(task.receipts) == 0
+		return true
+	}
+	w.newTaskHook = func(task *task) {
+		state, _ := w.chain.State()
+		block := task.block
+		receipts, logs, _, _ := w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
+		w.resultCh <- &istanbul.BlockConsensusAndProcessResult{SealedBlock: block.WithSeal(block.Header()),
+			BlockProcessResult: &istanbul.BlockProcessResult{Receipts: receipts, Logs: logs, State: state}}
 	}
 	w.start() // Start mining!
 	go listenNewBlock()
