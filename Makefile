@@ -10,6 +10,7 @@
 
 GOBIN = ./build/bin
 GO ?= latest
+GORUN = env GO111MODULE=on go run
 
 LSB_exists := $(shell command -v lsb_release 2> /dev/null)
 
@@ -25,12 +26,12 @@ export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
 geth:
-	build/env.sh go run build/ci.go install ./cmd/geth
+	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 geth-musl:
-	build/env.sh go run build/ci.go install -musl ./cmd/geth
+	$(GORUN) build/ci.go install -musl ./cmd/geth
 	@echo "Done building with musl."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
@@ -54,35 +55,35 @@ endif
 endif
 
 swarm:
-	build/env.sh go run build/ci.go install ./cmd/swarm
+	$(GORUN) build/ci.go install ./cmd/swarm
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
 
 all:
-	build/env.sh go run build/ci.go install
+	$(GORUN) build/ci.go install
 
 all-musl:
-	build/env.sh go run build/ci.go install -musl
+	$(GORUN) build/ci.go install -musl
 
 android:
-	ANDROID_NDK_HOME=$(ANDROID_NDK) build/env.sh go run build/ci.go aar --local
+	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
 ios:
-	build/env.sh go run build/ci.go xcode --local
+	$(GORUN) build/ci.go xcode --local
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
 test: all
-	build/env.sh go run build/ci.go test $(TEST_FLAGS)
+	$(GORUN) build/ci.go test $(TEST_FLAGS)
 
 lint: ## Run linters.
-	build/env.sh go run build/ci.go lint
+	$(GORUN) build/ci.go lint
 
 clean-geth:
-	go clean -cache
+	env GO111MODULE=on go clean -cache
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 clean: clean-geth
@@ -112,12 +113,12 @@ geth-linux: geth-linux-386 geth-linux-amd64 geth-linux-arm geth-linux-mips64 get
 	@ls -ld $(GOBIN)/geth-linux-*
 
 geth-linux-386:
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/386 -v ./cmd/geth
 	@echo "Linux 386 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep 386
 
 geth-linux-amd64:
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/amd64 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/amd64 -v ./cmd/geth
 	@echo "Linux amd64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep amd64
 
@@ -127,48 +128,48 @@ geth-linux-arm: geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-ar
 
 geth-linux-arm-5:
 	# requires an arm compiler, on Ubuntu: sudo apt-get install gcc-arm-linux-gnueabi g++-arm-linux-gnueabi
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm-5 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/arm-5 -v ./cmd/geth
 	@echo "Linux ARMv5 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm-5
 
 geth-linux-arm-6:
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm-6 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/arm-6 -v ./cmd/geth
 	@echo "Linux ARMv6 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm-6
 
 geth-linux-arm-7:
 	# requires an arm compiler, on Ubuntu: sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm-7 -v  --tags arm7 ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/arm-7 -v  --tags arm7 ./cmd/geth
 	@echo "Linux ARMv7 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm-7
 
 geth-linux-arm64:
 	# requires an arm64 compiler, on Ubuntu: sudo apt-get install gcc-aarch64-linux-gnu	g++-aarch64-linux-gnu
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/arm64 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/arm64 -v ./cmd/geth
 	@echo "Linux ARM64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm64
 
 geth-linux-mips:
 	# requires a mips compiler, on Ubuntu: sudo apt-get install gcc-mips-linux-gnu
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/mips --ldflags '-extldflags "-static"' -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/mips --ldflags '-extldflags "-static"' -v ./cmd/geth
 	@echo "Linux MIPS cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep mips
 
 geth-linux-mipsle:
 	# requires a mips compiler, on Ubuntu: sudo apt-get install gcc-mipsel-linux-gnu
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/mipsle --ldflags '-extldflags "-static"' -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/mipsle --ldflags '-extldflags "-static"' -v ./cmd/geth
 	@echo "Linux MIPSle cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep mipsle
 
 geth-linux-mips64:
 	# requires a mips compiler, on Ubuntu: sudo apt-get install gcc-mips64-linux-gnuabi64
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/mips64 --ldflags '-extldflags "-static"' -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/mips64 --ldflags '-extldflags "-static"' -v ./cmd/geth
 	@echo "Linux MIPS64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep mips64
 
 geth-linux-mips64le:
 	# requires a mips compiler, on Ubuntu: sudo apt-get install gcc-mips64el-linux-gnuabi64
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/mips64le --ldflags '-extldflags "-static"' -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=linux/mips64le --ldflags '-extldflags "-static"' -v ./cmd/geth
 	@echo "Linux MIPS64le cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep mips64le
 
@@ -179,14 +180,14 @@ geth-darwin: geth-darwin-386 geth-darwin-amd64
 geth-darwin-386:
 	# needs include files for asm errno, on Ubuntu: sudo apt-get install linux-libc-dev:i386
 	# currently doesn't compile on Ubuntu
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=darwin/386 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=darwin/386 -v ./cmd/geth
 	@echo "Darwin 386 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-darwin-* | grep 386
 
 geth-darwin-amd64:
 	# needs include files for asm errno, on Ubuntu: sudo apt-get install linux-libc-dev
 	# currently doesn't compile on Ubuntu
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=darwin/amd64 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=darwin/amd64 -v ./cmd/geth
 	@echo "Darwin amd64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-darwin-* | grep amd64
 
@@ -196,12 +197,12 @@ geth-windows: geth-windows-386 geth-windows-amd64
 
 geth-windows-386:
 	# currently doesn't compile on Ubuntu, missing libunwind in xgo
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=windows/386 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=windows/386 -v ./cmd/geth
 	@echo "Windows 386 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-windows-* | grep 386
 
 geth-windows-amd64:
 	# currently doesn't compile on Ubuntu, missing libunwind in xgo
-	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=windows/amd64 -v ./cmd/geth
+	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=windows/amd64 -v ./cmd/geth
 	@echo "Windows amd64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-windows-* | grep amd64

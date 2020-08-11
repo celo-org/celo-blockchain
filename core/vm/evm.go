@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -526,6 +525,33 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
+func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
+	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
+	// each of which is equivalent to 32 bytes
+	if binary.Size(ret) != 64 {
+		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
+	}
+	numerator = new(big.Int).SetBytes(ret[0:32])
+	denominator = new(big.Int).SetBytes(ret[32:64])
+	if denominator.Cmp(common.Big0) == 0 {
+		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
+	}
+	if numerator.Cmp(denominator) == 1 {
+		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
+	}
+	return numerator, denominator, reserveAddress, nil
+}
+
 // TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
@@ -537,28 +563,14 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		reserveAddress, err := GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-		if err != nil && err != errors.ErrSmartContractNotDeployed && err != errors.ErrRegistryContractNotDeployed {
-			log.Trace("TobinTransfer: Error fetching Reserve address", "error", err)
-		}
-
+		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
 		if err == nil {
-			ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-			if err != nil {
-				log.Trace("TobinTransfer: Error calling getOrComputeTobinTaxFunctionSelector", "error", err)
-			}
-
-			// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-			// each of which is equivalent to 32 bytes
-			if err == nil && binary.Size(ret) == 64 {
-				numerator := new(big.Int).SetBytes(ret[0:32])
-				denominator := new(big.Int).SetBytes(ret[32:64])
-				tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-
-				evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-				evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-				return gas, nil
-			}
+			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
+			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
+			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
+			return gas, nil
+		} else {
+			log.Error("Failed to get tobin tax", "error", err)
 		}
 	}
 

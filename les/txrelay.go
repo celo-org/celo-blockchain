@@ -51,31 +51,31 @@ func newLesTxRelay(ps *peerSet, retriever *retrieveManager) *lesTxRelay {
 	return r
 }
 
-func (self *lesTxRelay) Stop() {
-	close(self.stop)
+func (ltrx *lesTxRelay) Stop() {
+	close(ltrx.stop)
 }
 
 // registerPeer implements peerSetNotify
-func (self *lesTxRelay) registerPeer(_ *peer) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) registerPeer(_ *peer) {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
-	self.peerList = self.ps.AllPeers()
+	ltrx.peerList = ltrx.ps.AllPeers()
 }
 
 // unregisterPeer implements peerSetNotify
-func (self *lesTxRelay) unregisterPeer(_ *peer) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) unregisterPeer(_ *peer) {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
-	self.peerList = self.ps.AllPeers()
+	ltrx.peerList = ltrx.ps.AllPeers()
 }
 
-func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
-	for _, p := range self.peerList {
+	for _, p := range ltrx.peerList {
 		if p.WillAcceptTransaction(tx) {
 			return true
 		}
@@ -85,15 +85,15 @@ func (self *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 
 // send sends a list of transactions to at most a given number of peers at
 // once, never resending any particular transaction to the same peer twice
-func (self *lesTxRelay) send(txs types.Transactions) {
+func (ltrx *lesTxRelay) send(txs types.Transactions) {
 	for _, tx := range txs {
 		hash := tx.Hash()
-		if _, ok := self.txSent[hash]; ok {
+		if _, ok := ltrx.txSent[hash]; ok {
 			continue
 		}
 
-		self.txSent[hash] = tx
-		self.txPending[hash] = struct{}{}
+		ltrx.txSent[hash] = tx
+		ltrx.txPending[hash] = struct{}{}
 
 		// Send a single transaction per request to avoid failure coupling and
 		// because the expected base cost of a SendTxV2 request is 0, so it
@@ -140,46 +140,46 @@ func (self *lesTxRelay) send(txs types.Transactions) {
 			}
 			return nil
 		}
-		go self.retriever.retrieve(context.Background(), reqID, rq, checkTxStatus, self.stop)
+		go ltrx.retriever.retrieve(context.Background(), reqID, rq, checkTxStatus, ltrx.stop)
 	}
 }
 
-func (self *lesTxRelay) Send(txs types.Transactions) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) Send(txs types.Transactions) {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
-	self.send(txs)
+	ltrx.send(txs)
 }
 
-func (self *lesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) NewHead(head common.Hash, mined []common.Hash, rollback []common.Hash) {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
 	for _, hash := range mined {
-		delete(self.txPending, hash)
+		delete(ltrx.txPending, hash)
 	}
 
 	for _, hash := range rollback {
-		self.txPending[hash] = struct{}{}
+		ltrx.txPending[hash] = struct{}{}
 	}
 
-	if len(self.txPending) > 0 {
-		txs := make(types.Transactions, len(self.txPending))
+	if len(ltrx.txPending) > 0 {
+		txs := make(types.Transactions, len(ltrx.txPending))
 		i := 0
-		for hash := range self.txPending {
-			txs[i] = self.txSent[hash]
+		for hash := range ltrx.txPending {
+			txs[i] = ltrx.txSent[hash]
 			i++
 		}
-		self.send(txs)
+		ltrx.send(txs)
 	}
 }
 
-func (self *lesTxRelay) Discard(hashes []common.Hash) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (ltrx *lesTxRelay) Discard(hashes []common.Hash) {
+	ltrx.lock.Lock()
+	defer ltrx.lock.Unlock()
 
 	for _, hash := range hashes {
-		delete(self.txSent, hash)
-		delete(self.txPending, hash)
+		delete(ltrx.txSent, hash)
+		delete(ltrx.txPending, hash)
 	}
 }

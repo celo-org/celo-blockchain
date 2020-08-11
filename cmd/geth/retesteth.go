@@ -660,9 +660,6 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 	for i := 0; i < int(maxResults) && it.Next(); i++ {
 		if preimage := accountTrie.GetKey(it.Key); preimage != nil {
 			result.AddressMap[common.BytesToHash(it.Key)] = common.BytesToAddress(preimage)
-			//fmt.Printf("%x: %x\n", it.Key, preimage)
-			// } else {
-			//fmt.Printf("could not find preimage for %x\n", it.Key)
 		}
 	}
 	//fmt.Printf("Number of entries returned: %d\n", len(result.AddressMap))
@@ -786,9 +783,6 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 				Key:   string(ks),
 				Value: string(vs),
 			}
-			//fmt.Printf("Key: %s, Value: %s\n", ks, vs)
-			// } else {
-			//fmt.Printf("Did not find preimage for %x\n", it.Key)
 		}
 	}
 	if it.Next() {
@@ -867,8 +861,7 @@ func retesteth(ctx *cli.Context) error {
 		log.Info("HTTP endpoint closed", "url", httpEndpoint)
 	}()
 
-	// the channel used with signal.Notify should be buffered
-	abortChan := make(chan os.Signal, 5)
+	abortChan := make(chan os.Signal, 11)
 	signal.Notify(abortChan, os.Interrupt)
 
 	sig := <-abortChan

@@ -195,3 +195,9 @@ func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
 	miner.txFeeRecipient = addr
 	miner.worker.setTxFeeRecipient(addr)
 }
+
+// SubscribePendingLogs starts delivering logs from pending transactions
+// to the given channel.
+func (self *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {
+	return self.worker.pendingLogsFeed.Subscribe(ch)
+}

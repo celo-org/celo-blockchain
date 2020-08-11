@@ -92,8 +92,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'exportChain',
 			call: 'admin_exportChain',
-			params: 1,
-			inputFormatter: [null]
+			params: 3,
+			inputFormatter: [null, null, null]
 		}),
 		new web3._extend.Method({
 			name: 'importChain',
@@ -161,6 +161,11 @@ const DebugJs = `
 web3._extend({
 	property: 'debug',
 	methods: [
+		new web3._extend.Method({
+			name: 'accountRange',
+			call: 'debug_accountRange',
+			params: 2
+		}),
 		new web3._extend.Method({
 			name: 'printBlock',
 			call: 'debug_printBlock',
@@ -740,6 +745,12 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getValidators',
 			call: 'istanbul_getValidators',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getValidatorsBLSPublicKeys',
+			call: 'istanbul_getValidatorsBLSPublicKeys',
 			params: 1,
 			inputFormatter: [null]
 		}),
