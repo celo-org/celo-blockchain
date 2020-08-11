@@ -545,7 +545,7 @@ func (w *worker) resultLoop() {
 				r        = result.BlockProcessResult
 			)
 
-			if r.State == nil {
+			if r == nil || r.State == nil {
 				log.Error("BlockProcessResult cannot be nil", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 				continue
 			}
