@@ -213,7 +213,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
 
 	getPlumoProof := func(metadata types.PlumoProofMetadata) *types.PlumoProof {
-		proof := rawdb.ReadPlumoProof(manager.proofDb, &metadata)
+		proof := rawdb.ReadPlumoProof(manager.proofDb, metadata)
 		if proof != nil {
 			return &types.PlumoProof{Proof: proof, Metadata: metadata}
 		}
@@ -859,7 +859,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		// Schedule all the unknown proofs' metadata for retrieval
 		unknown := make(newPlumoProofsData, 0, len(proofsMetadata))
 		for _, proofMetadata := range proofsMetadata {
-			if !rawdb.HasPlumoProof(pm.proofDb, &proofMetadata) {
+			if !rawdb.HasPlumoProof(pm.proofDb, proofMetadata) {
 				unknown = append(unknown, proofMetadata)
 			}
 		}
@@ -888,14 +888,45 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			proofs []types.PlumoProof
 		)
 		if query.Complement {
-			log.Error("TODO")
+			// TODO(lucas): inefficient, could improve via some better DS
+			knownPlumoProofs := rawdb.KnownPlumoProofs(pm.proofDb)
+			for _, knownProof := range knownPlumoProofs {
+				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
+					log.Error("Too many proofs")
+					break
+				}
+				requested := true
+				for _, peerKnownProof := range query.ProofsMetadata {
+					if knownProof == peerKnownProof {
+						requested = false
+					}
+				}
+				if requested {
+					proof := rawdb.ReadPlumoProof(pm.proofDb, knownProof)
+					if proof == nil {
+						break
+					}
+					plumoProof := types.PlumoProof{
+						Proof:    proof,
+						Metadata: knownProof,
+					}
+					proofs = append(proofs, plumoProof)
+					// TODO(lucas): could optimize if this size is semi-constant
+					proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
+					if err != nil {
+						return err
+					}
+					proofRLP := rlp.RawValue(proofRLPBytes)
+					bytes += len(proofRLP)
+				}
+			}
 		} else {
 			for _, metadata := range query.ProofsMetadata {
 				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
 					log.Error("Too many proofs")
 					break
 				}
-				proof := rawdb.ReadPlumoProof(pm.proofDb, &metadata)
+				proof := rawdb.ReadPlumoProof(pm.proofDb, metadata)
 				if proof == nil {
 					log.Error("Unknown requested proof")
 					break

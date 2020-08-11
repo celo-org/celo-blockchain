@@ -312,21 +312,21 @@ func WriteBodyRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint64, rlp 
 
 // WritePlumoProof stores the serialized proof to sync from `firstEpoch` to `lastEpoch`
 func WritePlumoProof(db ethdb.KeyValueWriter, plumoProof *types.PlumoProof) {
-	if err := db.Put(plumoProofKey(&plumoProof.Metadata), plumoProof.Proof); err != nil {
+	if err := db.Put(plumoProofKey(plumoProof.Metadata), plumoProof.Proof); err != nil {
 		log.Crit("Failed to store plumo proof", "err", err)
 	}
 }
 
 // HasPlumoProof verifies the existence of a plumo proof from `firstEpoch` to `lastEpoch`
 // TODO(lucas): handle proofs in between epochs, likely here
-func HasPlumoProof(db ethdb.Reader, metadata *types.PlumoProofMetadata) bool {
+func HasPlumoProof(db ethdb.Reader, metadata types.PlumoProofMetadata) bool {
 	if has, err := db.Has(plumoProofKey(metadata)); !has || err != nil {
 		return false
 	}
 	return true
 }
 
-func ReadPlumoProof(db ethdb.Reader, metadata *types.PlumoProofMetadata) []byte {
+func ReadPlumoProof(db ethdb.Reader, metadata types.PlumoProofMetadata) []byte {
 	// Then try to look up the data in leveldb.
 	data, _ := db.Get(plumoProofKey(metadata))
 	if len(data) > 0 {
@@ -340,8 +340,16 @@ func ReadPlumoProofs(db ethdb.Database) [][]byte {
 	var output [][]byte
 	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)
 	for proofIterator.Next() {
-		log.Error("Iterating keys", "key", proofIterator.Key(), "value", proofIterator.Value())
 		output = append(output, proofIterator.Value())
+	}
+	return output
+}
+
+func KnownPlumoProofs(db ethdb.Database) []types.PlumoProofMetadata {
+	var output []types.PlumoProofMetadata
+	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)
+	for proofIterator.Next() {
+		output = append(output, decodePlumoProof(proofIterator.Key()))
 	}
 	return output
 }

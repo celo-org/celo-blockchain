@@ -174,7 +174,21 @@ func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
 }
 
-func plumoProofKey(metadata *types.PlumoProofMetadata) []byte {
+func plumoProofKey(metadata types.PlumoProofMetadata) []byte {
 	// abuse encodeBlockNumber for epochs
 	return append(append(append(plumoProofPrefix, encodeBlockNumber(uint64(metadata.FirstEpoch))...), encodeBlockNumber(uint64(metadata.LastEpoch))...), encodeBlockNumber(uint64(metadata.VersionNumber))...)
+}
+
+func decodePlumoProof(plumoProofKey []byte) types.PlumoProofMetadata {
+	prefixBoundary := len(plumoProofPrefix)
+	firstEpoch := binary.BigEndian.Uint64(plumoProofKey[prefixBoundary : prefixBoundary+8])
+	lastEpoch := binary.BigEndian.Uint64(plumoProofKey[prefixBoundary+8 : prefixBoundary+16])
+	versionNumber := binary.BigEndian.Uint64(plumoProofKey[prefixBoundary+16:])
+	metadata := types.PlumoProofMetadata{
+		FirstEpoch:    uint(firstEpoch),
+		LastEpoch:     uint(lastEpoch),
+		VersionNumber: uint(versionNumber),
+	}
+	return metadata
+
 }
