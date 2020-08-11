@@ -342,6 +342,16 @@ func (s *PrivateAccountAPI) LockAccount(addr common.Address) bool {
 	return fetchKeystore(s.am).Lock(addr) == nil
 }
 
+// UpdateAccount will update the account associated with the given address when it's unlocked.
+func (s *PrivateAccountAPI) UpdateAccount(addr common.Address, password string, newPassword string) bool {
+	return fetchKeystore(s.am).Update(accounts.Account{Address: addr}, password, newPassword) == nil
+}
+
+// DeleteAccount will delete the account associated with the given address from the keychain.
+func (s *PrivateAccountAPI) DeleteAccount(addr common.Address, password string) bool {
+	return fetchKeystore(s.am).Delete(accounts.Account{Address: addr}, password) == nil
+}
+
 // signTransaction sets defaults and signs the given transaction
 // NOTE: the caller needs to ensure that the nonceLock is held, if applicable,
 // and release it after the transaction has been submitted to the tx pool
