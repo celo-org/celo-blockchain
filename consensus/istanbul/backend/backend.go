@@ -298,8 +298,7 @@ func (sb *Backend) IsValidator() bool {
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 	if sb.IsProxiedValidator() {
-		// return sb.proxyEngine.SendDelegateSignMsgToProxy(msg)
-		return nil
+		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg)
 	} else {
 		return errors.New("No Proxy found")
 	}
@@ -309,8 +308,7 @@ func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 // proxied validator if one exists
 func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if sb.IsProxy() {
-		// return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
-		return nil
+		return sb.proxyEngine.SendDelegateSignMsgToProxiedValidator(msg)
 	} else {
 		return errors.New("No Proxied Validator found")
 	}

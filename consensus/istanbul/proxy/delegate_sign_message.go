@@ -15,26 +15,37 @@
 
 package proxy
 
-/* import (
+import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-) */
+	"github.com/ethereum/go-ethereum/p2p"
+)
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-/* func (p *proxyEngine) SendDelegateSignMsgToProxy(msg []byte) error {
-	if p.proxyNode != nil && p.proxyNode.peer != nil {
-		return p.proxyNode.peer.Send(istanbul.DelegateSignMsg, msg)
-	} else {
-		return errNoConnectedProxy
+func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
+	proxies, _, err := pv.GetProxiesAndValAssignments()
+	if err != nil {
+		return err
 	}
-} */
+
+	for _, proxy := range proxies {
+		if proxy.peer != nil && proxy.peer.PurposeIsSet(p2p.StatsProxyPurpose) {
+			pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
+			return nil
+		}
+	}
+
+	// If we got here, then there is no designated proxy for the ethstats messages
+	return ErrNoEthstatsProxy
+}
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
-/* func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
+func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if p.proxiedValidator != nil {
-		return p.backend.AsyncSendCeloMsg(p.proxiedValidator, istanbul.DelegateSignMsg, msg)
+		p.backend.Unicast(p.proxiedValidator, msg, istanbul.EnodeCertificateMsg)
+		return nil
 	} else {
-		return errNoConnectedProxiedValidator
+		return ErrNoProxiedValidator
 	}
-} */
+}

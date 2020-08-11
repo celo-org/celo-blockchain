@@ -38,17 +38,17 @@ var (
 	// authorized proxied validator
 	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
 
-	// ErrStoppedProxyHandler is returned if proxy handler is stopped
-	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
-
-	// ErrStartedProxyHandler is returned if proxy handler is already started
-	ErrStartedProxyHandler = errors.New("started proxy handler")
-
 	// ErrNodeNotProxiedValidator is returned if this node is not a proxied validator
 	ErrNodeNotProxiedValidator = errors.New("node not a proxied validator")
 
 	// ErrNodeNotProxy is returned if this node is not a proxy
 	ErrNodeNotProxy = errors.New("node not a proxy")
+
+	// ErrNoProxiedValidator is returned if the proxy has no connected proxied validator
+	ErrNoProxiedValidator = errors.New("no connected proxied validator")
+
+	// ErrNoEthstatsProxy is returned if there is no connected proxy designated for ethstats messages
+	ErrNoEthstatsProxy = errors.New("no connected proxy that is designated for ethstats messages")
 )
 
 type ProxyEngine interface {
@@ -65,7 +65,8 @@ type ProxyEngine interface {
 	// will remove the proxied validator's peer from the proxy's state.
 	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
 
-	// SendDelegateSignMsgToProxiedValidator(msg []byte) error
+	// SendDelegateSignMsgToProxiedValidator will send a delegate sign message to the proxied validator.
+	SendDelegateSignMsgToProxiedValidator(msg []byte) error
 
 	// SendMsgToProxiedValidator will send the `celo` message to the proxied validator.
 	SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error
@@ -102,7 +103,8 @@ type ProxiedValidatorEngine interface {
 	// SendForwardMsg will send a forward message to all of the proxies.
 	SendForwardMsg(proxies []*Proxy, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
 
-	// SendDelegateSignMsgToProxy(msg []byte) error
+	// SendDelegateSignMsgToProxy will send a delegate sign message back to the proxy.
+	SendDelegateSignMsgToProxy(msg []byte) error
 
 	// SendValEnodeShareMsgToAllProxies will send the appropriate val enode share message to each
 	// connected proxy.
