@@ -1,11 +1,9 @@
 package backend
 
 import (
-	"crypto/ecdsa"
 	"net"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -27,18 +25,20 @@ func TestHandleIstAnnounce(t *testing.T) {
 
 	// Set backend to val1
 	b.SetP2PServer(val1P2pServer)
-	b.Authorize(val1Addr, &val1PrivateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
+	b.Authorize(val1Addr, val1Addr, &val1PrivateKey.PublicKey, decryptFn, SignFn(nil), SignBLSFn(nil))
 
 	val2Address := valSet.GetByIndex(2).Address()
 
 	// Pretend the signed announce version belongs to a different address
 	// but use val 1's public key so we can decrypt it using val 1's private key
-	destAddresses := []common.Address{val2Address}
-	publicKeys := []*ecdsa.PublicKey{b.publicKey}
-	externalEnodeURLs := []string{b.SelfNode().URLv4()}
+	queryEnodeEncryptedEnodeURLParams := make([]*genEncryptedEnodeURLParam, 1)
+	queryEnodeEncryptedEnodeURLParams[0] = &genEncryptedEnodeURLParam{
+		destAddress: val2Address,
+		publicKey:   b.publicKey,
+		enodeURL:    b.SelfNode().URLv4()}
 
 	// Generate an ist announce message using val1
-	istMsg, err := b.generateQueryEnodeMsg(getTimestamp(), destAddresses, publicKeys, externalEnodeURLs)
+	istMsg, err := b.generateQueryEnodeMsg(getTimestamp(), queryEnodeEncryptedEnodeURLParams)
 	if err != nil {
 		t.Fatalf("Error on generateAnnounce: %s", err)
 	}
@@ -49,7 +49,7 @@ func TestHandleIstAnnounce(t *testing.T) {
 	b.address = val2Address
 
 	// Handle val1's announce message
-	if err = b.handleQueryEnodeMsg(common.Address{}, nil, payload); err != nil {
+	if err = b.handleQueryEnodeMsg(val1Addr, nil, payload); err != nil {
 		t.Errorf("error %v", err)
 	}
 

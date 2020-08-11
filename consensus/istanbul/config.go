@@ -48,7 +48,7 @@ type Config struct {
 	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
 
 	// Proxied Validator Configs
-	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
+	Proxied      bool           `toml:",omitempty"` // Specifies if this node is proxied
 	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs
@@ -80,5 +80,5 @@ var DefaultConfig = &Config{
 type ProxyConfig struct {
 	InternalNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will peer with
 	ExternalNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
-	StatsHandler bool `toml:",omitempty"` // Is it used for celostats messages?
+	StatsHandler bool        `toml:",omitempty"` // Is it used for celostats messages?
 }

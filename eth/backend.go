@@ -89,15 +89,16 @@ type Ethereum struct {
 
 	APIBackend *EthAPIBackend
 
-	miner      *miner.Miner
-	gasPrice   *big.Int
-	gatewayFee *big.Int
-	etherbase  common.Address
-	blsbase    common.Address
+	miner          *miner.Miner
+	gasPrice       *big.Int
+	gatewayFee     *big.Int
+	validator      common.Address
+	txFeeRecipient common.Address
+	blsbase        common.Address
 
 	networkID     uint64
 	netRPCService *ethapi.PublicNetAPI
-	lock          sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
+	lock          sync.RWMutex // Protects the variadic fields (e.g. gas price, validator and txFeeRecipient)
 }
 
 func (s *Ethereum) AddLesServer(ls LesServer) {
@@ -158,7 +159,8 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		shutdownChan:   make(chan bool),
 		networkID:      config.NetworkId,
 		gasPrice:       config.Miner.GasPrice,
-		etherbase:      config.Miner.Etherbase,
+		validator:      config.Miner.Validator,
+		txFeeRecipient: config.TxFeeRecipient,
 		gatewayFee:     config.GatewayFee,
 		blsbase:        config.BLSbase,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
@@ -257,7 +259,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
-
 	return eth, nil
 }
 
@@ -288,6 +289,12 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 		log.Debug("Setting up Istanbul consensus engine")
 		if chainConfig.Istanbul.Epoch != 0 {
 			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
+		}
+		if chainConfig.Istanbul.RequestTimeout != 0 {
+			config.Istanbul.RequestTimeout = chainConfig.Istanbul.RequestTimeout
+		}
+		if chainConfig.Istanbul.BlockPeriod != 0 {
+			config.Istanbul.BlockPeriod = chainConfig.Istanbul.BlockPeriod
 		}
 		if chainConfig.Istanbul.LookbackWindow != 0 {
 			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
@@ -368,27 +375,54 @@ func (s *Ethereum) ResetWithGenesisBlock(gb *types.Block) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
 
-func (s *Ethereum) Etherbase() (eb common.Address, err error) {
+func (s *Ethereum) Validator() (val common.Address, err error) {
 	s.lock.RLock()
-	etherbase := s.etherbase
+	validator := s.validator
 	s.lock.RUnlock()
 
-	if etherbase != (common.Address{}) {
-		return etherbase, nil
+	if validator != (common.Address{}) {
+		return validator, nil
 	}
 	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
 		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-			etherbase := accounts[0].Address
+			validator := accounts[0].Address
 
 			s.lock.Lock()
-			s.etherbase = etherbase
+			s.validator = validator
 			s.lock.Unlock()
 
-			log.Info("Etherbase automatically configured", "address", etherbase)
-			return etherbase, nil
+			log.Info("Validator automatically configured", "address", validator)
+			return validator, nil
 		}
 	}
-	return common.Address{}, fmt.Errorf("etherbase must be explicitly specified")
+	return common.Address{}, fmt.Errorf("validator must be explicitly specified")
+}
+
+func (s *Ethereum) TxFeeRecipient() (common.Address, error) {
+	s.lock.RLock()
+	txFeeRecipient := s.txFeeRecipient
+	s.lock.RUnlock()
+
+	if txFeeRecipient != (common.Address{}) {
+		return txFeeRecipient, nil
+	}
+	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
+		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+			txFeeRecipient := accounts[0].Address
+
+			s.lock.Lock()
+			s.txFeeRecipient = txFeeRecipient
+			s.lock.Unlock()
+
+			log.Info("TxFeeRecipient automatically configured", "address", txFeeRecipient)
+			return txFeeRecipient, nil
+		}
+	}
+	return common.Address{}, fmt.Errorf("txFeeRecipient must be explicitly specified")
+}
+
+func (s *Ethereum) Etherbase() (common.Address, error) {
+	return s.TxFeeRecipient()
 }
 
 func (s *Ethereum) BLSbase() (eb common.Address, err error) {
@@ -400,25 +434,25 @@ func (s *Ethereum) BLSbase() (eb common.Address, err error) {
 		return blsbase, nil
 	}
 
-	return s.Etherbase()
+	return s.Validator()
 }
 
 // isLocalBlock checks whether the specified block is mined
 // by local miner accounts.
 //
-// We regard two types of accounts as local miner account: etherbase
-// and accounts specified via `txpool.locals` flag.
+// We regard two types of accounts as local miner account: the validator
+// address and accounts specified via `txpool.locals` flag.
 func (s *Ethereum) isLocalBlock(block *types.Block) bool {
 	author, err := s.engine.Author(block.Header())
 	if err != nil {
 		log.Warn("Failed to retrieve block author", "number", block.NumberU64(), "hash", block.Hash(), "err", err)
 		return false
 	}
-	// Check whether the given address is etherbase.
+	// Check whether the given address is configured validator.
 	s.lock.RLock()
-	etherbase := s.etherbase
+	validator := s.validator
 	s.lock.RUnlock()
-	if author == etherbase {
+	if author == validator {
 		return true
 	}
 	// Check whether the given address is specified by `txpool.local`
@@ -438,13 +472,22 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 	return s.isLocalBlock(block)
 }
 
-// SetEtherbase sets the mining reward address.
-func (s *Ethereum) SetEtherbase(etherbase common.Address) {
+// SetValidator sets the address to sign consensus messages.
+func (s *Ethereum) SetValidator(validator common.Address) {
 	s.lock.Lock()
-	s.etherbase = etherbase
+	s.validator = validator
 	s.lock.Unlock()
 
-	s.miner.SetEtherbase(etherbase)
+	s.miner.SetValidator(validator)
+}
+
+// SetTxFeeRecipient sets the mining reward address.
+func (s *Ethereum) SetTxFeeRecipient(txFeeRecipient common.Address) {
+	s.lock.Lock()
+	s.txFeeRecipient = txFeeRecipient
+	s.lock.Unlock()
+
+	s.miner.SetTxFeeRecipient(txFeeRecipient)
 }
 
 // StartMining starts the miner with the given number of CPU threads. If mining
@@ -471,11 +514,18 @@ func (s *Ethereum) StartMining(threads int) error {
 		s.txPool.SetGasPrice(price)
 
 		// Configure the local mining address
-		eb, err := s.Etherbase()
+		validator, err := s.Validator()
 		if err != nil {
-			log.Error("Cannot start mining without etherbase", "err", err)
-			return fmt.Errorf("etherbase missing: %v", err)
+			log.Error("Cannot start mining without validator", "err", err)
+			return fmt.Errorf("validator missing: %v", err)
 		}
+
+		txFeeRecipient, err := s.TxFeeRecipient()
+		if err != nil {
+			log.Error("Cannot start mining without txFeeRecipient", "err", err)
+			return fmt.Errorf("txFeeRecipient missing: %v", err)
+		}
+
 		blsbase, err := s.BLSbase()
 		if err != nil {
 			log.Error("Cannot start mining without blsbase", "err", err)
@@ -483,13 +533,13 @@ func (s *Ethereum) StartMining(threads int) error {
 		}
 
 		if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
-			ebAccount := accounts.Account{Address: eb}
-			wallet, err := s.accountManager.Find(ebAccount)
+			valAccount := accounts.Account{Address: validator}
+			wallet, err := s.accountManager.Find(valAccount)
 			if wallet == nil || err != nil {
-				log.Error("Etherbase account unavailable locally", "err", err)
+				log.Error("Validator account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
-			publicKey, err := wallet.GetPublicKey(ebAccount)
+			publicKey, err := wallet.GetPublicKey(valAccount)
 			if err != nil {
 				return fmt.Errorf("ECDSA public key missing: %v", err)
 			}
@@ -498,14 +548,21 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("BLSbase account unavailable locally", "err", err)
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
-			istanbul.Authorize(eb, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS)
+			istanbul.Authorize(validator, blsbase, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS)
+
+			if istanbul.IsProxiedValidator() {
+				if err := istanbul.StartProxiedValidatorEngine(); err != nil {
+					log.Error("Error in starting proxied validator engine", "err", err)
+					return err
+				}
+			}
 		}
 
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.
 		atomic.StoreUint32(&s.protocolManager.acceptTxs, 1)
 
-		go s.miner.Start(eb)
+		go s.miner.Start(validator, txFeeRecipient)
 	}
 	return nil
 }
@@ -522,6 +579,15 @@ func (s *Ethereum) StopMining() {
 	}
 	// Stop the block creating itself
 	s.miner.Stop()
+
+	// Stop the proxied validator engine
+	if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
+		if istanbul.IsProxiedValidator() {
+			if err := istanbul.StopProxiedValidatorEngine(); err != nil {
+				log.Warn("Error in stopping proxied validator engine", "err", err)
+			}
+		}
+	}
 }
 
 func (s *Ethereum) startAnnounce() error {
@@ -535,22 +601,6 @@ func (s *Ethereum) startAnnounce() error {
 func (s *Ethereum) stopAnnounce() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		return istanbul.StopAnnouncing()
-	}
-
-	return nil
-}
-
-func (s *Ethereum) StartProxyEngine() error {
-	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StartProxyEngine()
-	}
-
-	return nil
-}
-
-func (s *Ethereum) StopProxyEngine() error {
-	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StopProxyEngine()
 	}
 
 	return nil
@@ -631,7 +681,6 @@ func (s *Ethereum) Stop() error {
 	if s.lesServer != nil {
 		s.lesServer.Stop()
 	}
-	s.StopProxyEngine()
 	s.stopAnnounce()
 	s.txPool.Stop()
 	s.miner.Stop()

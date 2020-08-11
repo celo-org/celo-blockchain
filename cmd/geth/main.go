@@ -94,7 +94,7 @@ var (
 		utils.UltraLightFractionFlag,
 		utils.UltraLightOnlyAnnounceFlag,
 		utils.WhitelistFlag,
-		utils.EtherbaseFlag,
+		utils.TxFeeRecipientFlag,
 		utils.BLSbaseFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
@@ -104,7 +104,10 @@ var (
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
+		utils.MinerEtherbaseFlag,
+		utils.MinerLegacyEtherbaseFlag,
 		utils.MiningEnabledFlag,
+		utils.MinerValidatorFlag,
 		utils.MinerThreadsFlag,
 		utils.MinerLegacyThreadsFlag,
 		utils.MinerNotifyFlag,
@@ -149,6 +152,7 @@ var (
 		utils.ProxiedValidatorAddressFlag,
 		utils.ProxiedFlag,
 		utils.ProxyEnodeURLPairsFlag,
+		utils.ProxyEnodeURLPairsLegacyFlag,
 		utils.ProxyAllowPrivateIPFlag,
 	}
 
@@ -439,12 +443,6 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 		if err := ethereum.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
-		}
-		// Start the proxy handler if this is a node is proxied and "mining"
-		if ctx.GlobalBool(utils.ProxiedFlag.Name) {
-			if err := ethereum.StartProxyEngine(); err != nil {
-				utils.Fatalf("Failed to start the proxy engine: %v", err)
-			}
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {

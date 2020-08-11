@@ -173,8 +173,18 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 	go func() {
+		errored := false
 		for i, header := range headers {
-			err := sb.verifyHeader(chain, header, headers[:i])
+			var err error
+			if errored {
+				err = consensus.ErrUnknownAncestor
+			} else {
+				err = sb.verifyHeader(chain, header, headers[:i])
+			}
+
+			if err != nil {
+				errored = true
+			}
 
 			select {
 			case <-abort:
@@ -331,8 +341,10 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	// unused fields, force to set to empty
-	header.Coinbase = sb.address
+	// If proposer has not set the `Coinbase` via the `tx-fee-recipient` flag, default to the backend address.
+	if header.Coinbase == (common.Address{}) {
+		header.Coinbase = sb.address
+	}
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
@@ -623,6 +635,7 @@ func (sb *Backend) StartAnnouncing() error {
 
 	go sb.announceThread()
 
+	sb.announceThreadQuit = make(chan struct{})
 	sb.announceRunning = true
 
 	if err := sb.vph.startThread(); err != nil {
@@ -651,35 +664,35 @@ func (sb *Backend) StopAnnouncing() error {
 }
 
 // StartProxyHandler implements consensus.Istanbul.StartProxyEngine
-func (sb *Backend) StartProxyEngine() error {
-	sb.proxyEngineMu.Lock()
-	defer sb.proxyEngineMu.Unlock()
+func (sb *Backend) StartProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if sb.proxyEngineRunning {
-		return istanbul.ErrStartedProxyEngine
+	if sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStartedProxiedValidatorEngine
 	}
 
 	if !sb.config.Proxied {
 		return istanbul.ErrValidatorNotProxied
 	}
 
-	sb.proxyEngine.Start()
-	sb.proxyEngineRunning = true
+	sb.proxiedValidatorEngine.Start()
+	sb.proxiedValidatorEngineRunning = true
 
 	return nil
 }
 
 // StopProxyHandler implements consensus.Istanbul.StopProxyEngine
-func (sb *Backend) StopProxyEngine() error {
-	sb.proxyEngineMu.Lock()
-	defer sb.proxyEngineMu.Unlock()
+func (sb *Backend) StopProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if !sb.proxyEngineRunning {
-		return istanbul.ErrStoppedProxyEngine
+	if !sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	sb.proxyEngine.Stop()
-	sb.proxyEngineRunning = false
+	sb.proxiedValidatorEngine.Stop()
+	sb.proxiedValidatorEngineRunning = false
 
 	return nil
 }
@@ -758,6 +771,10 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		genesis := chain.GetHeaderByNumber(0)
+		if genesis == nil {
+			log.Error("Cannot load genesis")
+			return nil, errors.New("Cannot load genesis")
+		}
 
 		istanbulExtra, err := types.ExtractIstanbulExtra(genesis)
 		if err != nil {

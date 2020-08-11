@@ -74,7 +74,7 @@ func (vph *validatorPeerHandler) thread() {
 	vph.threadWg.Add(1)
 	defer vph.threadWg.Done()
 
-	refreshValidatorPeersTicker := time.NewTicker(5 * time.Minute)
+	refreshValidatorPeersTicker := time.NewTicker(1 * time.Minute)
 
 	refreshValPeersFunc := func() {
 		if vph.MaintainValConnections() {
@@ -157,9 +157,9 @@ func (vph *validatorPeerHandler) ClearValidatorPeers() {
 }
 
 func (sb *Backend) AddPeer(node *enode.Node, purpose p2p.PurposeFlag) {
-     sb.p2pserver.AddPeer(node, purpose)
+	sb.p2pserver.AddPeer(node, purpose)
 }
 
 func (sb *Backend) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag) {
-     sb.p2pserver.RemovePeer(node, purpose)
+	sb.p2pserver.RemovePeer(node, purpose)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -31,9 +32,9 @@ func TestSimpleCase(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Address: addressA, Node: nodeA, Version: 1}
+	addressEntry := &istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 1}
 
-	err = vet.UpsertVersionAndEnode([]*AddressEntry{addressEntry})
+	err = vet.UpsertVersionAndEnode([]*istanbul.AddressEntry{addressEntry})
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -61,9 +62,9 @@ func TestDeleteEntry(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	addressEntry := &AddressEntry{Address: addressA, Node: nodeA, Version: 2}
+	addressEntry := &istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2}
 
-	err = vet.UpsertVersionAndEnode([]*AddressEntry{addressEntry})
+	err = vet.UpsertVersionAndEnode([]*istanbul.AddressEntry{addressEntry})
 	if err != nil {
 		t.Fatal("Failed to upsert")
 	}
@@ -89,9 +90,9 @@ func TestPruneEntries(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := []*AddressEntry{
-		&AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+	batch := []*istanbul.AddressEntry{
+		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
+		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)
@@ -113,14 +114,14 @@ func TestPruneEntries(t *testing.T) {
 }
 
 func TestRLPEntries(t *testing.T) {
-	original := AddressEntry{Address: addressA, Node: nodeA, Version: 1}
+	original := istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 1}
 
 	rawEntry, err := rlp.EncodeToBytes(&original)
 	if err != nil {
 		t.Errorf("Error %v", err)
 	}
 
-	var result AddressEntry
+	var result istanbul.AddressEntry
 	if err = rlp.DecodeBytes(rawEntry, &result); err != nil {
 		t.Errorf("Error %v", err)
 	}
@@ -139,9 +140,9 @@ func TestTableToString(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := []*AddressEntry{
-		&AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+	batch := []*istanbul.AddressEntry{
+		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
+		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)

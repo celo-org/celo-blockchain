@@ -34,86 +34,144 @@ var (
 	// by the proxied validator, but signed from another key
 	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
 
-	// errNoAssignedProxies is returned when there is no assigned proxy
-	errNoAssignedProxies = errors.New("no assigned proxies")
-
-	// errNoConnectedProxiedValidator is returned when there is no connected proxied validator
-	errNoConnectedProxiedValidator = errors.New("no connected proxied validator")
-
-	// errInvalidEnodeCertificate is returned if the enode certificate is invalid
-	errInvalidEnodeCertificate = errors.New("invalid enode certificate")
-
 	// errUnauthorizedProxiedValidator is returned if the peer connecting is not the
 	// authorized proxied validator
 	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
-
-	// ErrStoppedProxyHandler is returned if proxy handler is stopped
-	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
-
-	// ErrStartedProxyHandler is returned if proxy handler is already started
-	ErrStartedProxyHandler = errors.New("started proxy handler")
 
 	// ErrNodeNotProxiedValidator is returned if this node is not a proxied validator
 	ErrNodeNotProxiedValidator = errors.New("node not a proxied validator")
 
 	// ErrNodeNotProxy is returned if this node is not a proxy
 	ErrNodeNotProxy = errors.New("node not a proxy")
+
+	// ErrNoProxiedValidator is returned if the proxy has no connected proxied validator
+	ErrNoProxiedValidator = errors.New("no connected proxied validator")
+
+	// ErrNoEthstatsProxy is returned if there is no connected proxy designated for ethstats messages
+	ErrNoEthstatsProxy = errors.New("no connected proxy that is designated for ethstats messages")
 )
 
 type ProxyEngine interface {
-	Start() error
-	Stop() error
+	// HandleMsg is the `celo` subprotocol message handler for proxies.
 	HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error)
-	AddProxy(node, externalNode *enode.Node) error
-	RemoveProxy(node *enode.Node) error
-	RegisterProxyPeer(proxyPeer consensus.Peer) error
-	UnregisterProxyPeer(proxyPeer consensus.Peer)
+
+	// RegisterProxiedValidatorPeer is the callback function that should be called
+	// when a proxied validator connects to a proxy.  This function will save
+	// the proxied validator's peer in the proxy's state.
 	RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
+
+	// UnregisterProxiedValidatorPeer is the callback function that should be
+	// called when a proxied validator disconnects from a proxy.  This function
+	// will remove the proxied validator's peer from the proxy's state.
 	UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer)
-	SendEnodeCertificateMsgToProxiedValidator(msg *istanbul.Message) error
-	SendForwardMsg(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte, proxySpecificPayload map[enode.ID][]byte) error
-	SendDelegateSignMsgToProxy(msg []byte) error
+
+	// SendDelegateSignMsgToProxiedValidator will send a delegate sign message to the proxied validator.
 	SendDelegateSignMsgToProxiedValidator(msg []byte) error
-	SendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error
-	SendValEnodesShareMsgToAllProxies()
-	GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error)
+
+	// SendMsgToProxiedValidator will send the `celo` message to the proxied validator.
+	SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error
+
+	// GetProxiedValidatorsInfo will return information about the proxied validator.
+	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
+}
+
+type ProxiedValidatorEngine interface {
+	// Start will start the proxied validator engine. Specifically, it will start the
+	// proxy handler thread.
+	Start() error
+
+	// Stop will stop the proxied validator engine. Specifically, it will stop the
+	// proxy handler thread.
+	Stop() error
+
+	// AddProxy will add a new proxy to the proxy handler
+	AddProxy(node, externalNode *enode.Node) error
+
+	// RemoveProxy will remove a proxy from the proxy handler
+	RemoveProxy(node *enode.Node) error
+
+	// RegisterProxyPeer is the callback function that should be called
+	// when a proxy connects to a proxied validator.  This function will
+	// notify the proxy handler that a proxy has connected.
+	RegisterProxyPeer(proxyPeer consensus.Peer) error
+
+	// UnregisterProxyPeer is the callback function that should be called
+	// when a proxy is disconnected from a proxied validator.  This function will
+	// notify the proxy handler that a proxy has disconnected.
+	UnregisterProxyPeer(proxyPeer consensus.Peer) error
+
+	// SendForwardMsg will send a forward message to all of the proxies.
+	SendForwardMsg(proxies []*Proxy, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
+
+	// SendDelegateSignMsgToProxy will send a delegate sign message back to the proxy.
+	SendDelegateSignMsgToProxy(msg []byte) error
+
+	// SendValEnodeShareMsgToAllProxies will send the appropriate val enode share message to each
+	// connected proxy.
+	SendValEnodesShareMsgToAllProxies() error
+
+	// GetValidatorProxyAssignments will retrieve all the remote validator to proxy assignments.
+	GetValidatorProxyAssignments(validators []common.Address) (map[common.Address]*Proxy, error)
+
+	// GetProxiesAndValAssignments will retrieve all of the proxies (connected or not yet connected) and
+	// the proxy to validator assignments.
+	GetProxiesAndValAssignments() ([]*Proxy, map[enode.ID][]common.Address, error)
 }
 
 // ==============================================
 //
 // define the proxy object
 
-type proxy struct {
+type Proxy struct {
 	node         *enode.Node    // Enode for the internal network interface
 	externalNode *enode.Node    // Enode for the external network interface
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 	disconnectTS time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
 }
 
-// ProxyInfo is used to provide info on a proxy that can be given via an RPC
-type ProxyInfo struct {
-	InternalNode *enode.Node      `json:"internalEnodeUrl"`
-	ExternalNode *enode.Node      `json:"externalEnodeUrl"`
-	IsPeered     bool             `json:"isPeered"`
-	Validators   []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
-	DisconnectTS int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
-}
-
-func (p proxy) ID() enode.ID {
+func (p *Proxy) ID() enode.ID {
 	return p.node.ID()
 }
 
-func (p proxy) Info() ProxyInfo {
-	return ProxyInfo{
-		InternalNode: p.node,
-		ExternalNode: p.externalNode,
-		IsPeered:     p.peer != nil,
-		DisconnectTS: p.disconnectTS.Unix(),
+func (p *Proxy) ExternalNode() *enode.Node {
+	return p.externalNode
+}
+
+func (p *Proxy) IsPeered() bool {
+	return p.peer != nil
+}
+
+func (p *Proxy) String() string {
+	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
+}
+
+// ProxyInfo is used to provide info on a proxy that can be given via an RPC
+type ProxyInfo struct {
+	InternalNode             *enode.Node      `json:"internalEnodeUrl"`
+	ExternalNode             *enode.Node      `json:"externalEnodeUrl"`
+	IsPeered                 bool             `json:"isPeered"`
+	AssignedRemoteValidators []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
+	DisconnectTS             int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
+}
+
+func NewProxyInfo(p *Proxy, assignedVals []common.Address) *ProxyInfo {
+	return &ProxyInfo{
+		InternalNode:             p.node,
+		ExternalNode:             p.ExternalNode(),
+		IsPeered:                 p.IsPeered(),
+		DisconnectTS:             p.disconnectTS.Unix(),
+		AssignedRemoteValidators: assignedVals,
 	}
 }
 
-func (p proxy) String() string {
-	return fmt.Sprintf("{internalNode: %v, externalNode %v, dcTimestamp: %v, ID: %v}", p.node, p.externalNode, p.disconnectTS, p.ID())
+// ==============================================
+//
+// define the proxied validator info object
+
+type ProxiedValidatorInfo struct {
+	Address  common.Address `json:"address"`
+	IsPeered bool           `json:"isPeered"`
+	Node     *enode.Node    `json:"enodeURL"`
 }
 
 // ==============================================

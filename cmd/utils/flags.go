@@ -216,9 +216,9 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
-	EtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+	TxFeeRecipientFlag = cli.StringFlag{
+		Name:  "tx-fee-recipient",
+		Usage: "Public address for block transaction fees and gateway fees (default = first account)",
 		Value: "0",
 	}
 	BLSbaseFlag = cli.StringFlag{
@@ -349,6 +349,11 @@ var (
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
 		Usage: "Enable mining",
+	}
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
+		Usage: "Public address for participation in consensus (default = first account)",
+		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
 		Name:  "miner.threads",
@@ -757,8 +762,14 @@ var (
 	}
 	ProxyEnodeURLPairsFlag = cli.StringFlag{
 		Name:  "proxy.proxyenodeurlpairs",
-		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a comma. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
+
+	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
+	}
+
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -1062,41 +1073,73 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
+// `Validator` is the address used to sign consensus messages.
+func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current validator, new flag overriding legacy etherbase
+	var validator string
 	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		if validator != "" {
+			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
+		validator = ctx.GlobalString(MinerValidatorFlag.Name)
+	}
+	// Convert the validator into an address and configure it
+	if validator != "" {
+		account, err := MakeAddress(ks, validator)
+		if err != nil {
+			Fatalf("Invalid validator: %v", err)
+		}
+		cfg.Miner.Validator = account.Address
+	}
+}
+
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current txFeeRecipient, new flag overriding legacy etherbase
+	var txFeeRecipient string
+	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
+		txFeeRecipient = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
+		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	}
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if txFeeRecipient != "" {
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
+		}
+		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
+	}
+	// Convert the txFeeRecipient into an address and configure it
+	if txFeeRecipient != "" {
+		account, err := MakeAddress(ks, txFeeRecipient)
+		if err != nil {
+			Fatalf("Invalid txFeeRecipient: %v", err)
+		}
+		cfg.TxFeeRecipient = account.Address
 	}
 }
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `BLSbase` is the ethereum address which identifies an ECDSA key
+// from which the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
+	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
 	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
 		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
+	// Convert the blsbase into an address and configure it
 	if blsbase != "" {
 		account, err := MakeAddress(ks, blsbase)
 		if err != nil {
@@ -1438,44 +1481,50 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
-		} else {
-			proxyEnodeURLPairs := strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+		}
 
-			ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
+		// Extract the proxy enode url pairs, new flag overriding legacy one
+		var proxyEnodeURLPairs []string
 
-			for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
-				var err error
+		if ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsLegacyFlag.Name), ",")
+		}
 
-				proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
-				if len(proxyEnodeURLPair) != 2 {
-					Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairsFlag.Name)
+		if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+		}
+		ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
+
+		for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
+			proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
+			if len(proxyEnodeURLPair) != 2 {
+				Fatalf("Invalid format for option --%s", ProxyEnodeURLPairsFlag.Name)
+			}
+
+			proxyInternalNode, err := enode.ParseV4(proxyEnodeURLPair[0])
+			if err != nil {
+				Fatalf("Proxy internal facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[0], err)
+			}
+
+			proxyExternalNode, err := enode.ParseV4(proxyEnodeURLPair[1])
+			if err != nil {
+				Fatalf("Proxy external facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[1], err)
+			}
+
+			// Check that external IP is not a private IP address.
+			if proxyExternalNode.IsPrivateIP() {
+				if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
+					log.Warn("Proxy external facing enodeURL (%s) is private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
+				} else {
+					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
 				}
-
-				proxyInternalNode, err := enode.ParseV4(proxyEnodeURLPair[0])
-				if err != nil {
-					Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
-				}
-
-				proxyExternalNode, err := enode.ParseV4(proxyEnodeURLPair[1])
-				if err != nil {
-					Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
-				}
-
-				// Check that external IP is not a private IP address.
-				if proxyExternalNode.IsPrivateIP() {
-					if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
-						log.Warn("Proxy external facing enodeURL (%s) is private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
-					} else {
-						Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
-					}
-				}
-				ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
-					InternalNode: proxyInternalNode,
-					ExternalNode: proxyExternalNode,
-					StatsHandler: i == 0,
-				}
+			}
+			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
+				InternalNode: proxyInternalNode,
+				ExternalNode: proxyExternalNode,
+				StatsHandler: i == 0,
 			}
 		}
 
@@ -1565,7 +1614,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {
 		ks = keystores[0].(*keystore.KeyStore)
 	}
-	setEtherbase(ctx, ks, cfg)
+	setValidator(ctx, ks, cfg)
+	setTxFeeRecipient(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setMiner(ctx, &cfg.Miner)

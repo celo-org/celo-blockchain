@@ -305,7 +305,6 @@ func (s *Service) loop() {
 				time.Sleep(connectionTimeout * time.Second)
 				continue
 			}
-			log.Debug("Login success")
 			go s.readLoop(conn)
 
 			// Send the initial stats so our node looks decent from the get go
@@ -395,8 +394,6 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		},
 	}
 
-	log.Debug("Logging in to celostats")
-
 	if err := s.sendStats(conn, actionHello, auth); err != nil {
 		return err
 	}
@@ -428,7 +425,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	case <-time.After(loginTimeout * time.Second):
 		// Login timeout, abort
 		return errors.New("delegation of login timed out")
-	case err := <- signalCh:
+	case err := <-signalCh:
 		if err != nil {
 			return errors.New("unauthorized, try registering your validator to get whitelisted")
 		}
@@ -666,12 +663,12 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	msgHash := crypto.Keccak256Hash(msg)
 
-	etherBase, errEtherbase := s.eth.Etherbase()
+	validator, errEtherbase := s.eth.Validator()
 	if errEtherbase != nil {
 		return nil, errEtherbase
 	}
 
-	account := accounts.Account{Address: etherBase}
+	account := accounts.Account{Address: validator}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
 		return nil, errWallet
@@ -690,7 +687,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 
 	proof := map[string]interface{}{
 		"signature": hexutil.Encode(signature),
-		"address":   etherBase,
+		"address":   validator,
 		"publicKey": hexutil.Encode(pubkeyBytes),
 		"msgHash":   msgHash.Hex(),
 	}
@@ -735,7 +732,7 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 		if err != nil {
 			return err
 		}
-		go func () {
+		go func() {
 			err := s.backend.SendDelegateSignMsgToProxiedValidator(msg)
 			if err != nil {
 				log.Warn("Failed to delegate", "err", err)
@@ -1009,7 +1006,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		gasprice  int
 	)
 	if s.eth != nil {
-		etherBase, _ = s.eth.Etherbase()
+		etherBase, _ = s.eth.Validator()
 		block := s.eth.BlockChain().CurrentBlock()
 
 		proxy = s.backend.IsProxy()

@@ -106,8 +106,8 @@ func (va *valAssignments) getValidators() []common.Address {
 // assignmentPolicy is intended to allow multiple implementations of validator assignment
 // policies
 type assignmentPolicy interface {
-	assignProxy(proxy *proxy, valAssignments *valAssignments) bool
-	removeProxy(proxy *proxy, valAssignments *valAssignments) bool
+	assignProxy(proxy *Proxy, valAssignments *valAssignments) bool
+	removeProxy(proxy *Proxy, valAssignments *valAssignments) bool
 	assignRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
 	removeRemoteValidators(validators []common.Address, valAssignments *valAssignments) bool
 }
@@ -135,20 +135,20 @@ type consistentHashingPolicy struct {
 func newConsistentHashingPolicy() *consistentHashingPolicy {
 	// This sets up a consistent hasher with bounded loads:
 	// https://ai.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html
-	// Partitions are assigned to members (proxies in this case)
+	// Partitions are assigned to members (proxies in this case).
 	// using a hash ring.
-	// When locating a key's member using `LocateKey`, the key is assigned
-	// to a partition using hash(key) % PartitionCount in constant time.
+	// When locating a validator's proxy using `LocateKey`, the validator is assigned
+	// to a partition using hash(validator's address) % PartitionCount in constant time.
 	cfg := consistent.Config{
-		// Prime to distribute keys more uniformly.
+		// Prime to distribute validators more uniformly.
 		// Higher partition count generally gives a more even distribution
 		PartitionCount: 271,
-		// The number of replications of a member (proxy) on the hash ring
+		// The number of replications of a proxy on the hash ring
 		ReplicationFactor: 40,
-		// Used to enforce a max # of partitions assigned per member, which is
-		// (PartitionCount / len(members)) * Load. A load closer to 1 gives
+		// Used to enforce a max # of partitions assigned per proxy, which is
+		// (PartitionCount / len(proxies)) * Load. A load closer to 1 gives
 		// more uniformity in the # of partitions assigned to specific members,
-		// but a higher load results in less relocations when members are added/removed
+		// but a higher load results in less relocations when proxies are added/removed
 		Load:   1.2,
 		Hasher: hasher{},
 	}
@@ -160,13 +160,13 @@ func newConsistentHashingPolicy() *consistentHashingPolicy {
 }
 
 // assignProxy adds a proxy to the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) assignProxy(proxy *proxy, valAssignments *valAssignments) bool {
+func (ch *consistentHashingPolicy) assignProxy(proxy *Proxy, valAssignments *valAssignments) bool {
 	ch.c.Add(proxy.ID())
 	return ch.reassignValidators(valAssignments)
 }
 
 // removeProxy removes a proxy from the consistent hasher and recalculates all validator assignments
-func (ch *consistentHashingPolicy) removeProxy(proxy *proxy, valAssignments *valAssignments) bool {
+func (ch *consistentHashingPolicy) removeProxy(proxy *Proxy, valAssignments *valAssignments) bool {
 	ch.c.Remove(proxy.ID().String())
 	return ch.reassignValidators(valAssignments)
 }
@@ -220,7 +220,7 @@ func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignm
 		for proxyID, validatorSet := range valAssignments.proxyToVals {
 			validatorSlice := make([]common.Address, 0, len(validatorSet))
 
-			for valAddress, _ := range validatorSet {
+			for valAddress := range validatorSet {
 				validatorSlice = append(validatorSlice, valAddress)
 			}
 

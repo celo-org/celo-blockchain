@@ -34,6 +34,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -46,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -57,9 +59,6 @@ const (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-
-	// errNoProxyConnection is returned when a proxied validator is not connected to a proxy
-	errNoProxyConnection = errors.New("proxied validator not connected to a proxy")
 
 	// errNoBlockHeader is returned when the requested block header could not be found.
 	errNoBlockHeader = errors.New("failed to retrieve block header")
@@ -93,7 +92,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		peerRecentMessages:            peerRecentMessages,
 		selfRecentMessages:            selfRecentMessages,
 		announceThreadWg:              new(sync.WaitGroup),
-		announceThreadQuit:            make(chan struct{}),
 		generateAndGossipQueryEnodeCh: make(chan struct{}, 1),
 
 		// Ideally, the updateAnnounceVersionCh should be an unbounded non blocking channel, but
@@ -137,9 +135,17 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.versionCertificateTable = versionCertificateTable
 
-	// If this node is a proxy or is a proxied validator, then create a proxy handler object
-	if backend.IsProxiedValidator() || backend.IsProxy() {
-		backend.proxyEngine = proxy.New(backend, backend.config)
+	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
+	if backend.IsProxy() {
+		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
+		if err != nil {
+			logger.Crit("Can't create a new proxy engine", "err", err)
+		}
+	} else if backend.IsProxiedValidator() {
+		backend.proxiedValidatorEngine, err = proxy.NewProxiedValidatorEngine(backend, backend.config)
+		if err != nil {
+			logger.Crit("Can't create a new proxied validator engine", "err", err)
+		}
 	}
 
 	return backend
@@ -151,12 +157,13 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address   common.Address       // Ethereum address of the signing key
-	publicKey *ecdsa.PublicKey     // The signer public key
-	decryptFn istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn    istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu  sync.RWMutex         // Protects the signer fields
+	address    common.Address       // Ethereum address of the ECDSA signing key
+	blsAddress common.Address       // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey     // The signer public key
+	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	signFnMu   sync.RWMutex         // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -207,13 +214,16 @@ type Backend struct {
 
 	updateAnnounceVersionCh chan struct{}
 
-	// The enode certificate message most recently generated if this is a validator
-	// or received by a proxied validator if this is a proxy.
-	// Used for proving itself as a validator in the handshake. The entire
-	// istanbul.Message is saved to keep the signature.
-	enodeCertificateMsg        *istanbul.Message
+	// The enode certificate message map contains the most recently generated
+	// enode certificates for each external node ID (e.g. will have one entry per proxy
+	// for a proxied validator, or just one entry if it's a standalone validator).
+	// Each proxy will just have one entry for their own external node ID.
+	// Used for proving itself as a validator in the handshake for externally exposed nodes,
+	// or by saving latest generated certificate messages by proxied validators to send
+	// to their proxies.
+	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
 	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMu      sync.RWMutex
+	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -240,9 +250,9 @@ type Backend struct {
 	blocksTotalMissedRoundsMeter metrics.Meter
 
 	// Cache for the return values of the method retrieveValidatorConnSet
-	cachedValidatorConnSet          map[common.Address]bool
-	cachedValidatorConnSetTimestamp time.Time
-	cachedValidatorConnSetMu        sync.RWMutex
+	cachedValidatorConnSet         map[common.Address]bool
+	cachedValidatorConnSetBlockNum uint64
+	cachedValidatorConnSetMu       sync.RWMutex
 
 	// Used for ensuring that only one goroutine is doing the work of updating
 	// the validator conn set cache at a time.
@@ -253,11 +263,13 @@ type Backend struct {
 	// Handler to manage and maintain validator peer connections
 	vph *validatorPeerHandler
 
-	// Handler for proxy related functionality.  Note that BOTH the proxy
-	// and the proxied validator will create and use this handler.
-	proxyEngine        proxy.ProxyEngine
-	proxyEngineRunning bool
-	proxyEngineMu      sync.RWMutex
+	// Handler for proxy related functionality
+	proxyEngine proxy.ProxyEngine
+
+	// Handler for proxied validator related functionality
+	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
+	proxiedValidatorEngineRunning bool
+	proxiedValidatorEngineMu      sync.RWMutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -286,7 +298,7 @@ func (sb *Backend) IsValidator() bool {
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
 	if sb.IsProxiedValidator() {
-		return sb.proxyEngine.SendDelegateSignMsgToProxy(msg)
+		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg)
 	} else {
 		return errors.New("No Proxy found")
 	}
@@ -303,16 +315,17 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
-	sb.address = address
+	sb.address = ecdsaAddress
+	sb.blsAddress = blsAddress
 	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
-	sb.core.SetAddress(address)
+	sb.core.SetAddress(ecdsaAddress)
 }
 
 // Address implements istanbul.Backend.Address
@@ -459,14 +472,23 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// The author should be the first person to propose the block to ensure that randomness matches up.
-	addr, err := sb.Author(block.Header())
+	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
+	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
 	if err != nil {
-		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-		return 0, errInvalidProposal
-	} else if addr != block.Header().Coinbase {
-		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
-		return 0, errInvalidCoinbase
+		return 0, err
+	}
+	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
+	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
+	// then fallback to checking our client's version.
+	if !isSupported || (!isOk && params.CurrentVersionInfo.Cmp(version) == -1) {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return 0, errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
+			return 0, errInvalidCoinbase
+		}
 	}
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
@@ -585,7 +607,7 @@ func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscry
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.address}, data, extra, useComposite)
+	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
@@ -736,19 +758,31 @@ func (sb *Backend) ValidatorAddress() common.Address {
 }
 
 // retrieveValidatorConnSet returns the cached validator conn set if the cache
-// is younger than 1 minute. In the event of a cache miss, this may block for a
+// is younger than 20 blocks or if an epoch transition didn't occur since the last
+// cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
-	waitPeriod := 1 * time.Minute
+	// wait period in blocks
+	waitPeriod := uint64(20)
 	if sb.config.Epoch <= 10 {
-		waitPeriod = 1 * time.Second
+		waitPeriod = 1
 	}
-	// Check to see if there is a cached validator conn set, and if it's for the current block
-	if sb.cachedValidatorConnSet != nil && time.Since(sb.cachedValidatorConnSetTimestamp) <= waitPeriod {
-		defer sb.cachedValidatorConnSetMu.RUnlock()
-		return sb.cachedValidatorConnSet, nil
+
+	currentBlockNum := sb.currentBlock().Number().Uint64()
+	currentEpochNum := istanbul.GetEpochNumber(currentBlockNum, sb.config.Epoch)
+
+	// Check to see if there is a cached validator conn set
+	if sb.cachedValidatorConnSet != nil {
+		cachedEntryEpochNum := istanbul.GetEpochNumber(sb.cachedValidatorConnSetBlockNum, sb.config.Epoch)
+
+		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
+		// blocks of the current block.
+		if cachedEntryEpochNum == currentEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum {
+			defer sb.cachedValidatorConnSetMu.RUnlock()
+			return sb.cachedValidatorConnSet, nil
+		}
 	}
 	sb.cachedValidatorConnSetMu.RUnlock()
 
@@ -808,7 +842,7 @@ func (sb *Backend) updateCachedValidatorConnSet() (err error) {
 	}
 	sb.cachedValidatorConnSetMu.Lock()
 	sb.cachedValidatorConnSet = validatorConnSet
-	sb.cachedValidatorConnSetTimestamp = time.Now()
+	sb.cachedValidatorConnSetBlockNum = sb.currentBlock().Number().Uint64()
 	sb.cachedValidatorConnSetMu.Unlock()
 	return nil
 }
@@ -856,11 +890,19 @@ func (sb *Backend) RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[com
 }
 
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
-	return sb.proxyEngine.AddProxy(node, externalNode)
+	if sb.IsProxiedValidator() {
+		return sb.proxiedValidatorEngine.AddProxy(node, externalNode)
+	} else {
+		return proxy.ErrNodeNotProxiedValidator
+	}
 }
 
-func (sb *Backend) RemoveProxy(node *enode.Node) {
-	sb.proxyEngine.RemoveProxy(node)
+func (sb *Backend) RemoveProxy(node *enode.Node) error {
+	if sb.IsProxiedValidator() {
+		return sb.proxiedValidatorEngine.RemoveProxy(node)
+	} else {
+		return proxy.ErrNodeNotProxiedValidator
+	}
 }
 
 // VerifyPendingBlockValidatorSignature will verify that the message sender is a validator that is responsible
@@ -873,16 +915,13 @@ func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte)
 
 // VerifyValidatorConnectionSetSignature will verify that the message sender is a validator that is responsible
 // for the current pending block (the next block right after the head block).
-// Note that it is NOT using the cached validator conn set.  The reason is that
-// the current user of this function is the proxy's handleEnodeCertificate function (which is executed in it's own thread),
-// and it shouldn't be a big deal if it slightly delays the forwarding of the enodeCertificate to the proxied validator.
 func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error) {
-	if valConnSet, err := sb.retrieveUncachedValidatorConnSet(); err != nil {
+	if valConnSet, err := sb.retrieveValidatorConnSet(); err != nil {
 		return common.Address{}, err
 	} else {
 		validators := make([]istanbul.ValidatorData, len(valConnSet))
 		i := 0
-		for address, _ := range valConnSet {
+		for address := range valConnSet {
 			validators[i].Address = address
 			i++
 		}

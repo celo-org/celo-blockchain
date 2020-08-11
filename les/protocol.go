@@ -33,6 +33,7 @@ import (
 const (
 	lpv2 = 2
 	lpv3 = 3
+	lpv4 = 4 // Work in progress. Breaking changes expected.
 )
 
 // Supported versions of the les protocol (first is primary)
@@ -43,7 +44,7 @@ var (
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 28}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28}
 
 const (
 	NetworkId          = 1
@@ -71,12 +72,13 @@ const (
 	SendTxV2Msg            = 0x13
 	GetTxStatusMsg         = 0x14
 	TxStatusMsg            = 0x15
-	// Celo specific
+	// Introduced in Celo v1.0
 	GetEtherbaseMsg = 0x16
 	EtherbaseMsg    = 0x17
 	// Protocol messages introduced in LPV3
-	StopMsg          = 0x18
-	ResumeMsg        = 0x19
+	StopMsg   = 0x18
+	ResumeMsg = 0x19
+	// Protocol messages to be introduced in LPV4
 	GetGatewayFeeMsg = 0x1A
 	GatewayFeeMsg    = 0x1B
 )

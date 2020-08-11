@@ -17,7 +17,9 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/binary"
+	goerrors "errors"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -581,6 +583,22 @@ func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, f
 	return evm.handleABICall(abi, funcName, args, returnObj, call)
 }
 
+var (
+	errorSig     = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
+	abiString, _ = abipkg.NewType("string", "", nil)
+)
+
+func unpackError(result []byte) (string, error) {
+	if len(result) < 4 || !bytes.Equal(result[:4], errorSig) {
+		return "<tx result not Error(string)>", goerrors.New("TX result not of type Error(string)")
+	}
+	vs, err := abipkg.Arguments{{Type: abiString}}.UnpackValues(result[4:])
+	if err != nil {
+		return "<invalid tx result>", err
+	}
+	return vs[0].(string), nil
+}
+
 func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
@@ -591,12 +609,13 @@ func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{
 	ret, leftoverGas, err := call(transactionData)
 
 	if err != nil {
+		msg, _ := unpackError(ret)
 		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
 		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
 		if funcName == "getAddressFor" {
-			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
 		} else {
-			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err)
+			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
 		}
 		return leftoverGas, err
 	}

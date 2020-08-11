@@ -21,157 +21,119 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
+// BackendForProxyEngine provides the Istanbul backend application specific functions for Istanbul proxy engine
+type BackendForProxyEngine interface {
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
+
+	// SelfNode returns the owner's node (if this is a proxy, it will return the external node)
+	SelfNode() *enode.Node
+
+	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
+	// is associated with those node's signing key)
+	// If sendToSelf is set to true, then the function will send an event to self via a message event
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
+
+	// Unicast will asynchronously send a celo message to peer
+	Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64)
+
+	// GetValEnodeTableEntries retrieves the entries in the valEnodeTable filtered on the "validators" parameter.
+	// If the parameter is nil, then no filter will be applied.
+	GetValEnodeTableEntries(validators []common.Address) (map[common.Address]*istanbul.AddressEntry, error)
+
+	// RewriteValEnodeTableEntries will rewrite the val enode table with "entries".
+	RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error
+
+	// SetEnodeCertificateMsgs will set this node's enodeCertificate to be used for connection handshakes
+	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error
+
+	// VerifyPendingBlockValidatorSignature is a message validation function to verify that a message's sender is within the validator set
+	// of the current pending block and that the message's address field matches the message's signature's signer
+	VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error)
+
+	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
+	// validator connection set and that the message's address field matches the message's signature's signer
+	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
+}
+
 type proxyEngine struct {
 	config  *istanbul.Config
-	address common.Address
 	logger  log.Logger
-	backend istanbul.Backend
+	backend BackendForProxyEngine
 
 	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	// Proxy's validator
 	proxiedValidator consensus.Peer
-
-	// Proxied validator's proxy handler
-	ph *proxyHandler
 }
 
-// New creates a new proxy engine.  This is used by both
-// proxies and proxied validators
-func New(backend istanbul.Backend, config *istanbul.Config) ProxyEngine {
+// New creates a new proxy engine.
+func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (ProxyEngine, error) {
+	if !backend.IsProxy() {
+		return nil, ErrNodeNotProxy
+	}
+
 	p := &proxyEngine{
 		config:  config,
-		address: backend.Address(),
 		logger:  log.New(),
 		backend: backend,
 	}
 
-	if backend.IsProxiedValidator() {
-		p.ph = newProxyHandler(backend, p)
-	}
-
-	return p
-}
-
-func (p *proxyEngine) Start() error {
-	if p.backend.IsProxiedValidator() {
-		if err := p.ph.Start(); err != nil {
-			return err
-		}
-
-		if len(p.config.ProxyConfigs) > 0 {
-			p.ph.addProxies <- p.config.ProxyConfigs
-		}
-
-	}
-
-	p.logger.Info("Proxy engine started")
-	return nil
-}
-
-func (p *proxyEngine) Stop() error {
-	if p.backend.IsProxiedValidator() {
-		if err := p.ph.Stop(); err != nil {
-			return err
-		}
-	}
-
-	p.logger.Info("Proxy engine stopped")
-	return nil
+	return p, nil
 }
 
 func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []byte) (bool, error) {
 	if msgCode == istanbul.ValEnodesShareMsg {
-		// For now, handle this in a goroutine
-		go p.handleValEnodesShareMsg(peer, payload)
-		return true, nil
+		return p.handleValEnodesShareMsg(peer, payload)
 	} else if msgCode == istanbul.FwdMsg {
 		return p.handleForwardMsg(peer, payload)
 	} else if msgCode == istanbul.ConsensusMsg {
 		return p.handleConsensusMsg(peer, payload)
 	} else if msgCode == istanbul.EnodeCertificateMsg {
-		go p.handleEnodeCertificateMsg(peer, payload)
-		return true, nil
+		return p.handleEnodeCertificateMsg(peer, payload)
 	}
 
 	return false, nil
 }
 
-func (p *proxyEngine) AddProxy(node, externalNode *enode.Node) error {
-	if p.backend.IsProxiedValidator() {
-		p.ph.addProxies <- []*istanbul.ProxyConfig{&istanbul.ProxyConfig{InternalNode: node, ExternalNode: externalNode}}
-	} else {
-		return ErrNodeNotProxiedValidator
-	}
-
-	return nil
-}
-
-func (p *proxyEngine) RemoveProxy(node *enode.Node) error {
-	if p.backend.IsProxiedValidator() {
-		p.ph.removeProxies <- []*enode.Node{node}
-	} else {
-		return ErrNodeNotProxiedValidator
-	}
-
-	return nil
-}
-
-func (p *proxyEngine) RegisterProxyPeer(proxyPeer consensus.Peer) error {
-	logger := p.logger.New("func", "RegisterProxyPeer")
-	if p.backend.IsProxiedValidator() {
-		if proxyPeer.PurposeIsSet(p2p.ProxyPurpose) {
-			logger.Info("Got new proxy peer", "proxyPeer", proxyPeer)
-			p.ph.addProxyPeer <- proxyPeer
-		} else {
-			logger.Error("Unauthorized connected peer to the proxied validator", "peerID", proxyPeer.Node().ID())
-			return errUnauthorizedProxiedValidator
-		}
-	}
-
-	return nil
-}
-
-func (p *proxyEngine) UnregisterProxyPeer(proxyPeer consensus.Peer) {
-	if p.backend.IsProxiedValidator() && proxyPeer.PurposeIsSet(p2p.ProxyPurpose) {
-		p.ph.removeProxyPeer <- proxyPeer
-	}
-}
-
 func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
 	// TODO: Does this need a lock?
-	if p.backend.IsProxy() {
-		p.proxiedValidator = proxiedValidatorPeer
-	}
+	p.proxiedValidator = proxiedValidatorPeer
 }
 
 func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
-	if p.backend.IsProxy() && p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
+	if p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
 		p.proxiedValidator = nil
 	}
 }
 
-func (p *proxyEngine) GetValidatorProxyAssignments() (map[common.Address]*enode.Node, error) {
-	valProxyAssignments := make(map[common.Address]*enode.Node)
-
-	select {
-	case p.ph.proxyHandlerOpCh <- func(getValidatorAssignements func([]common.Address, []enode.ID) map[common.Address]*proxy) {
-		valAssignments := getValidatorAssignements(nil, nil)
-
-		for address, proxy := range valAssignments {
-			valProxyAssignments[address] = proxy.externalNode
-		}
-	}:
-		<-p.ph.proxyHandlerOpDoneCh
-
-	case <-p.ph.quit:
-		return nil, ErrStoppedProxyHandler
-
+func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
+	if p.proxiedValidator != nil {
+		proxiedValidatorInfo := ProxiedValidatorInfo{Address: p.config.ProxiedValidatorAddress,
+			IsPeered: true,
+			Node:     p.proxiedValidator.Node()}
+		return []ProxiedValidatorInfo{proxiedValidatorInfo}, nil
+	} else {
+		return []ProxiedValidatorInfo{}, nil
 	}
+}
 
-	return valProxyAssignments, nil
+// SendMsgToProxiedValidator will send a `celo` message to the proxied validator.
+func (p *proxyEngine) SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error {
+	logger := p.logger.New("func", "SendMsgToProxiedValidator")
+	if p.proxiedValidator != nil {
+		payload, err := msg.Payload()
+		if err != nil {
+			logger.Error("Error getting payload of message", "err", err)
+			return err
+		}
+		p.backend.Unicast(p.proxiedValidator, payload, msgCode)
+		return nil
+	} else {
+		logger.Warn("Proxy has no connected proxied validator.  Not sending message.")
+		return nil
+	}
 }

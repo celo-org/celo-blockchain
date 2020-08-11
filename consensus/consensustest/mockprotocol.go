@@ -82,6 +82,40 @@ func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeF
 
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
+type MockPeer struct {
+	node *enode.Node
+}
+
+func NewMockPeer(node *enode.Node) *MockPeer {
+	mockPeer := &MockPeer{node: node}
+
+	return mockPeer
+}
+
+func (mp *MockPeer) Send(msgCode uint64, data interface{}) error {
+	return nil
+}
+
+func (mp *MockPeer) Node() *enode.Node {
+	return mp.node
+}
+
+func (mp *MockPeer) Version() int {
+	return 0
+}
+
+func (mp *MockPeer) ReadMsg() (p2p.Msg, error) {
+	return p2p.Msg{}, nil
+}
+
+func (mp *MockPeer) Inbound() bool {
+	return false
+}
+
+func (mp *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return true
+}
+
 type Mode uint
 
 // MockEngine provides a minimal fake implementation of a consensus engine for use in blockchain tests.

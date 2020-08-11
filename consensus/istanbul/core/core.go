@@ -37,13 +37,70 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+// CoreBackend provides the Istanbul backend application specific functions for Istanbul core
+type CoreBackend interface {
+	// Address returns the owner's address
+	Address() common.Address
+
+	// Validators returns the validator set
+	Validators(proposal istanbul.Proposal) istanbul.ValidatorSet
+	NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error)
+
+	// EventMux returns the event mux in backend
+	EventMux() *event.TypeMux
+
+	// Gossip will send a message to all connnected peers
+	Gossip(payload []byte, ethMsgCode uint64) error
+
+	// Multicast sends a message to it's connected nodes filtered on the 'addresses' parameter (where each address
+	// is associated with those node's signing key)
+	// If sendToSelf is set to true, then the function will send an event to self via a message event
+	Multicast(addresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
+
+	// Commit delivers an approved proposal to backend.
+	// The delivered proposal will be put into blockchain.
+	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
+
+	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
+	// the time difference of the proposal and current time is also returned.
+	Verify(istanbul.Proposal) (time.Duration, error)
+
+	// Sign signs input data with the backend's private key
+	Sign([]byte) ([]byte, error)
+
+	// Sign with the data with the BLS key, using either a direct or composite hasher
+	SignBLS([]byte, []byte, bool) (blscrypto.SerializedSignature, error)
+
+	// CheckSignature verifies the signature by checking if it's signed by
+	// the given validator
+	CheckSignature(data []byte, addr common.Address, sig []byte) error
+
+	// GetCurrentHeadBlock retrieves the last block
+	GetCurrentHeadBlock() istanbul.Proposal
+
+	// GetCurrentHeadBlockAndAuthor retrieves the last block alongside the author for that block
+	GetCurrentHeadBlockAndAuthor() (istanbul.Proposal, common.Address)
+
+	// LastSubject retrieves latest committed subject (view and digest)
+	LastSubject() (istanbul.Subject, error)
+
+	// HasBlock checks if the combination of the given hash and height matches any existing blocks
+	HasBlock(hash common.Hash, number *big.Int) bool
+
+	// AuthorForBlock returns the proposer of the given block height
+	AuthorForBlock(number uint64) common.Address
+
+	// ParentBlockValidators returns the validator set of the given proposal's parent block
+	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
+}
+
 type core struct {
 	config         *istanbul.Config
 	address        common.Address
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
-	backend           istanbul.Backend
+	backend           CoreBackend
 	events            *event.TypeMuxSubscription
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
@@ -72,7 +129,7 @@ type core struct {
 }
 
 // New creates an Istanbul consensus core
-func New(backend istanbul.Backend, config *istanbul.Config) Engine {
+func New(backend CoreBackend, config *istanbul.Config) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)

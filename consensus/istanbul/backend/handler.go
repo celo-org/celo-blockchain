@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -256,11 +255,11 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
 
-	// Check to see if this connecting peer if a proxied validator
+	// Check to see if this connecting peer is a proxied validator
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		if err := sb.proxyEngine.RegisterProxyPeer(peer); err != nil {
+		if err := sb.proxiedValidatorEngine.RegisterProxyPeer(peer); err != nil {
 			return err
 		}
 	}
@@ -276,7 +275,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
-		sb.proxyEngine.UnregisterProxyPeer(peer)
+		sb.proxiedValidatorEngine.UnregisterProxyPeer(peer)
 	}
 }
 
@@ -291,11 +290,12 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
 		if peerIsValidator {
-			// msg may be nil
-			msg, err = sb.RetrieveEnodeCertificateMsg()
-			if err != nil {
-				errCh <- err
-				return
+			msgMap := sb.RetrieveEnodeCertificateMsgMap()
+			if msgMap != nil {
+				enodeCertMsg := msgMap[sb.SelfNode().ID()]
+				if enodeCertMsg != nil {
+					msg = enodeCertMsg.Msg
+				}
 			}
 		}
 		// Even if we decide not to identify ourselves,
@@ -308,9 +308,12 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			errCh <- err
 			return
 		}
+		// No need to use sb.AsyncSendCeloMsg, since this is already
+		// being called within a goroutine.
 		err = peer.Send(istanbul.ValidatorHandshakeMsg, msgBytes)
 		if err != nil {
 			errCh <- err
+			return
 		}
 		isValidatorCh <- peerIsValidator
 	}
@@ -421,13 +424,15 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	// to its val enode table, which occurs if the proxied validator sends back
 	// the enode certificate to this proxy.
 	if sb.IsProxy() {
-		sb.proxyEngine.SendEnodeCertificateMsgToProxiedValidator(&msg)
+		if err := sb.proxyEngine.SendMsgToProxiedValidator(istanbul.EnodeCertificateMsg, &msg); err != nil {
+			logger.Warn("Error in sending enode certificate to proxied validator", "err", err)
+		}
 		return false, nil
 	}
 
 	// By this point, this node and the peer are both validators and we update
 	// our val enode table accordingly. Upsert will only use this entry if the version is new
-	err = sb.valEnodeTable.UpsertVersionAndEnode([]*vet.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
+	err = sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: node, Version: enodeCertificate.Version}})
 	if err != nil {
 		return false, err
 	}

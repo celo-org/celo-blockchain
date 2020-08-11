@@ -17,15 +17,32 @@
 package istanbul
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+type DecryptFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
+
+// SignerFn is a signer callback function to request a header to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
+
+// BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
+// backing account using BLS with a direct or composite hasher
+type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
 // last block they signed on
@@ -374,7 +391,7 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 		if err != nil {
 			return err
 		}
-		 if signed_val_addr != m.Address {
+		if signed_val_addr != m.Address {
 			return ErrInvalidSigner
 		}
 	}
@@ -422,13 +439,6 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 	return returnList
 }
 
-// ## ValEnodeTable entry interface ##########################################################
-type ValEnodeTableEntry interface {
-	GetNode() *enode.Node
-	GetVersion() uint
-	GetAddress() common.Address
-}
-
 // ## EnodeCertificate ######################################################################
 type EnodeCertificate struct {
 	EnodeURL string
@@ -452,4 +462,123 @@ func (ec *EnodeCertificate) DecodeRLP(s *rlp.Stream) error {
 	}
 	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
 	return nil
+}
+
+// ## EnodeCertMsg ######################################################################
+type EnodeCertMsg struct {
+	Msg           *Message
+	DestAddresses []common.Address
+}
+
+// ## AddressEntry ######################################################################
+// AddressEntry is an entry for the valEnodeTable.
+type AddressEntry struct {
+	Address                      common.Address
+	PublicKey                    *ecdsa.PublicKey
+	Node                         *enode.Node
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           *time.Time
+}
+
+func (ae *AddressEntry) String() string {
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForHKVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForHKVersion, ae.LastQueryTimestamp)
+}
+
+// Implement RLP Encode/Decode interface
+type AddressEntryRLP struct {
+	Address                      common.Address
+	CompressedPublicKey          []byte
+	EnodeURL                     string
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           []byte
+}
+
+// EncodeRLP serializes AddressEntry into the Ethereum RLP format.
+func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	var publicKeyBytes []byte
+	if ae.PublicKey != nil {
+		publicKeyBytes = crypto.CompressPubkey(ae.PublicKey)
+	}
+	var lastQueryTimestampBytes []byte
+	if ae.LastQueryTimestamp != nil {
+		var err error
+		lastQueryTimestampBytes, err = ae.LastQueryTimestamp.MarshalBinary()
+		if err != nil {
+			return err
+		}
+	}
+
+	return rlp.Encode(w, AddressEntryRLP{Address: ae.Address,
+		CompressedPublicKey:          publicKeyBytes,
+		EnodeURL:                     nodeString,
+		Version:                      ae.Version,
+		HighestKnownVersion:          ae.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: ae.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestampBytes})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
+func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
+	var entry AddressEntryRLP
+	var err error
+	if err := s.Decode(&entry); err != nil {
+		return err
+	}
+	var node *enode.Node
+	if len(entry.EnodeURL) > 0 {
+		node, err = enode.ParseV4(entry.EnodeURL)
+		if err != nil {
+			return err
+		}
+	}
+	var publicKey *ecdsa.PublicKey
+	if len(entry.CompressedPublicKey) > 0 {
+		publicKey, err = crypto.DecompressPubkey(entry.CompressedPublicKey)
+		if err != nil {
+			return err
+		}
+	}
+	lastQueryTimestamp := &time.Time{}
+	if len(entry.LastQueryTimestamp) > 0 {
+		err := lastQueryTimestamp.UnmarshalBinary(entry.LastQueryTimestamp)
+		if err != nil {
+			return err
+		}
+	}
+
+	*ae = AddressEntry{Address: entry.Address,
+		PublicKey:                    publicKey,
+		Node:                         node,
+		Version:                      entry.Version,
+		HighestKnownVersion:          entry.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: entry.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestamp}
+	return nil
+}
+
+// GetNode returns the address entry's node
+func (ae *AddressEntry) GetNode() *enode.Node {
+	return ae.Node
+}
+
+// GetVersion returns the addess entry's version
+func (ae *AddressEntry) GetVersion() uint {
+	return ae.Version
+}
+
+// GetAddess returns the addess entry's address
+func (ae *AddressEntry) GetAddress() common.Address {
+	return ae.Address
 }
