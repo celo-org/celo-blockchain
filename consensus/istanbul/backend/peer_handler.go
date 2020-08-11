@@ -74,7 +74,7 @@ func (vph *validatorPeerHandler) thread() {
 	vph.threadWg.Add(1)
 	defer vph.threadWg.Done()
 
-	refreshValidatorPeersTicker := time.NewTicker(5 * time.Minute)
+	refreshValidatorPeersTicker := time.NewTicker(1 * time.Minute)
 
 	refreshValPeersFunc := func() {
 		if vph.MaintainValConnections() {

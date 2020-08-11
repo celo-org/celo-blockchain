@@ -254,7 +254,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 
 	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
 
-	// Check to see if this connecting peer if a proxied validator
+	// Check to see if this connecting peer is a proxied validator
 	if sb.IsProxy() && isProxiedPeer {
 		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
