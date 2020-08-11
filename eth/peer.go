@@ -145,11 +145,10 @@ func (p *peer) broadcast() {
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
 
 		case proof := <-p.queuedPlumoProofs:
-			// TODO(lucas): proof type expansions
-			if err := p.SendPlumoProof(proof); err != nil {
+			if err := p.SendNewPlumoProofs([]types.PlumoProofMetadata{proof.Metadata}); err != nil {
 				return
 			}
-			p.Log().Error("Broadcast Proof", "proof", proof)
+			p.Log().Error("Announced Proof", "proof", proof)
 
 		case <-p.term:
 			return
@@ -316,6 +315,16 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 	}
 }
 
+// SendNewPlumoProofs announces the availability of a number of proofs through
+// a metadata notification.
+func (p *peer) SendNewPlumoProofs(proofsMetadata []types.PlumoProofMetadata) error {
+	// Mark all the proofs' metadata as known, but ensure we don't overflow our limits
+	for _, metadata := range proofsMetadata {
+		p.knownPlumoProofs.Add(metadata)
+	}
+	return p2p.Send(p.rw, NewPlumoProofsMsg, proofsMetadata)
+}
+
 // SendPlumoProof propagates a plumo proof to a remote peer.
 func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
 	p.MarkPlumoProof(&proof.Metadata)
@@ -401,6 +410,13 @@ func (p *peer) RequestNodeData(hashes []common.Hash) error {
 func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of receipts", "count", len(hashes))
 	return p2p.Send(p.rw, GetReceiptsMsg, hashes)
+}
+
+// RequestProof fetches a proof from a remote node
+func (p *peer) RequestProofs(metadata []types.PlumoProofMetadata, complement bool) error {
+	// TODO trace
+	p.Log().Error("Fetching batch of proofs", "complement", complement)
+	return p2p.Send(p.rw, GetPlumoProofsMsg, &getPlumoProofsData{Complement: complement, ProofsMetadata: metadata})
 }
 
 // Handshake executes the eth protocol handshake, negotiating version number,

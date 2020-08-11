@@ -214,7 +214,10 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 
 	getPlumoProof := func(metadata types.PlumoProofMetadata) *types.PlumoProof {
 		proof := rawdb.ReadPlumoProof(manager.proofDb, &metadata)
-		return &types.PlumoProof{Proof: proof, Metadata: metadata}
+		if proof != nil {
+			return &types.PlumoProof{Proof: proof, Metadata: metadata}
+		}
+		return nil
 	}
 	verifyPlumoProof := func(proof *types.PlumoProof) error {
 		// TODO
@@ -839,57 +842,70 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 
-	case msg.Code == NewPlumoProofMsg:
-		var proofsMetadata newPlumoProofData
+	case msg.Code == NewPlumoProofsMsg:
+		log.Error("NewPlumoProofs msg received")
+		var proofsMetadata newPlumoProofsData
 		if err := msg.Decode(&proofsMetadata); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
 		// Mark the proofs' metadata as present at the remote node
 		for _, proofMetadata := range proofsMetadata {
-			p.MarkPlumoProof(proofMetadata)
+			p.MarkPlumoProof(&proofMetadata)
 		}
 		// Schedule all the unknown proofs' metadata for retrieval
-		unknown := make(newPlumoProofData, 0, len(proofsMetadata))
+		unknown := make(newPlumoProofsData, 0, len(proofsMetadata))
 		for _, proofMetadata := range proofsMetadata {
-			if !rawdb.HasPlumoProof(pm.proofDb, proofMetadata) {
+			if !rawdb.HasPlumoProof(pm.proofDb, &proofMetadata) {
 				unknown = append(unknown, proofMetadata)
 			}
 		}
-		// for _, proofMetadata := range unknown {
-		// 	pm.proofFetcher.Notify()
-		// }
+		requestSpecificProofs := func(proofsMetadata []types.PlumoProofMetadata) error {
+			log.Error("Requesting proofs")
+			return p.RequestProofs(proofsMetadata, false)
+		}
+		log.Error("Len of unknown", "len", len(unknown))
+		for _, proofMetadata := range unknown {
+			log.Error("Notifying fetcher")
+			pm.proofFetcher.Notify(p.id, proofMetadata, time.Now(), requestSpecificProofs)
+		}
 
 	case msg.Code == GetPlumoProofsMsg:
-		// Decode the retrieval message
-		msgStream := rlp.NewStream(msg.Payload, uint64(msg.Size))
-		if _, err := msgStream.List(); err != nil {
-			return err
+		log.Error("Received getPlumoProofMsg")
+		// Decode the complex proofs query
+		var query getPlumoProofsData
+		if err := msg.Decode(&query); err != nil {
+			log.Error("Error response", "err", err, "msg", msg)
+			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+
 		// Gather proofs until the fetch or network limits is reached
 		var (
-			metadataKey types.PlumoProofMetadata
-			bytes       int
-			proofs      []types.PlumoProof
+			bytes  int
+			proofs []types.PlumoProof
 		)
-		for bytes < softResponseLimit && len(proofs) < downloader.MaxPlumoProofFetch {
-			// Retrieve the epochKey of the next block
-			if err := msgStream.Decode(&metadataKey); err == rlp.EOL {
-				break
-			} else if err != nil {
-				return errResp(ErrDecode, "msg %v: %v", msg, err)
-			}
-			// Retrieve the requested plumo proof, stopping if enough was found
-			if proof := rawdb.ReadPlumoProof(pm.proofDb, &metadataKey); proof != nil {
+		if query.Complement {
+			log.Error("TODO")
+		} else {
+			for _, metadata := range query.ProofsMetadata {
+				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
+					log.Error("Too many proofs")
+					break
+				}
+				proof := rawdb.ReadPlumoProof(pm.proofDb, &metadata)
+				if proof == nil {
+					log.Error("Unknown requested proof")
+					break
+				}
 				plumoProof := types.PlumoProof{
 					Proof:    proof,
-					Metadata: metadataKey,
+					Metadata: metadata,
 				}
 				proofs = append(proofs, plumoProof)
-				proofRLPBytes, err := rlp.EncodeToBytes(plumoProof)
+				// TODO(lucas): could optimize if this size is semi-constant
+				proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
 				if err != nil {
 					return err
 				}
-				// TODO(lucas): could optimize if this size is semi-constant
 				proofRLP := rlp.RawValue(proofRLPBytes)
 				bytes += len(proofRLP)
 			}
@@ -897,14 +913,15 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		return p.SendPlumoProofs(proofs)
 
 	case msg.Code == PlumoProofsMsg:
-		var proofs []*types.PlumoProof
+		log.Error("Received PlumoProofsMsg")
+		var proofs []types.PlumoProof
 		if err := msg.Decode(&proofs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 		for _, proof := range proofs {
-			p.MarkPlumoProof(&proof.Metadata)
 			log.Error("Proof received", "proof", proof)
-			rawdb.WritePlumoProof(pm.proofDb, proof)
+			p.MarkPlumoProof(&proof.Metadata)
+			rawdb.WritePlumoProof(pm.proofDb, &proof)
 		}
 
 	default:
