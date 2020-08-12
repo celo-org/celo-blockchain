@@ -100,7 +100,7 @@ type roundStateImpl struct {
 	// to be persisted.
 	proposalVerificationStatus map[common.Hash]error
 
-	// Cache for BlockConsensusAndProcessResult in this sequence.
+	// Cache for BlockProcessResult in this sequence.
 	blockProcessResults map[common.Hash]*istanbul.BlockProcessResult
 
 	mu     *sync.RWMutex

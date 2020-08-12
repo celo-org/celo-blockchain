@@ -151,10 +151,8 @@ func TestCommit(t *testing.T) {
 			commitCh <- result
 		}()
 
-		// Setup the BlockConsensusAndProcessResult cache and call Commit so that the result is pushed to the channel
 		backend.proposedBlockHash = expBlock.Hash()
-		result := &istanbul.BlockProcessResult{}
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, result); err != nil {
+		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, &istanbul.BlockProcessResult{}); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
