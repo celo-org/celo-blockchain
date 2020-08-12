@@ -663,12 +663,12 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	msgHash := crypto.Keccak256Hash(msg)
 
-	validator, errEtherbase := s.eth.Validator()
+	etherBase, errEtherbase := s.eth.Etherbase()
 	if errEtherbase != nil {
 		return nil, errEtherbase
 	}
 
-	account := accounts.Account{Address: validator}
+	account := accounts.Account{Address: etherBase}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
 		return nil, errWallet
@@ -687,7 +687,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 
 	proof := map[string]interface{}{
 		"signature": hexutil.Encode(signature),
-		"address":   validator,
+		"address":   etherBase,
 		"publicKey": hexutil.Encode(pubkeyBytes),
 		"msgHash":   msgHash.Hex(),
 	}
@@ -1006,7 +1006,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		gasprice  int
 	)
 	if s.eth != nil {
-		etherBase, _ = s.eth.Validator()
+		etherBase, _ = s.eth.Etherbase()
 		block := s.eth.BlockChain().CurrentBlock()
 
 		proxy = s.backend.IsProxy()

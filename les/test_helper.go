@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/les/checkpointoracle"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -171,10 +172,10 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		evmux  = new(event.TypeMux)
 		engine = mockEngine.NewFaker()
 		gspec  = core.Genesis{
-			Config: params.DefaultChainConfig,
+			Config: params.IstanbulTestChainConfig,
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
-		oracle *checkpointOracle
+		oracle *checkpointoracle.CheckpointOracle
 	)
 	genesis := gspec.MustCommit(db)
 	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
@@ -194,13 +195,13 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 				BloomRoot:    light.GetBloomTrieRoot(db, index, sectionHead),
 			}
 		}
-		oracle = newCheckpointOracle(checkpointConfig, getLocal)
+		oracle = checkpointoracle.New(checkpointConfig, getLocal)
 	}
 	client := &LightEthereum{
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.DefaultChainConfig,
+			chainConfig: params.IstanbulTestChainConfig,
 			iConfig:     light.TestClientIndexerConfig,
 			chainDb:     db,
 			oracle:      oracle,
@@ -218,7 +219,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 	client.handler = newClientHandler(syncMode, ulcServers, ulcFraction, nil, client, nil)
 
 	if client.oracle != nil {
-		client.oracle.start(backend)
+		client.oracle.Start(backend)
 	}
 	return client.handler
 }
@@ -226,10 +227,10 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
-			Config: params.DefaultChainConfig,
+			Config: params.IstanbulTestChainConfig,
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
-		oracle *checkpointOracle
+		oracle *checkpointoracle.CheckpointOracle
 	)
 	genesis := gspec.MustCommit(db)
 
@@ -256,13 +257,13 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 				BloomRoot:    light.GetBloomTrieRoot(db, index, sectionHead),
 			}
 		}
-		oracle = newCheckpointOracle(checkpointConfig, getLocal)
+		oracle = checkpointoracle.New(checkpointConfig, getLocal)
 	}
 	server := &LesServer{
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.DefaultChainConfig,
+			chainConfig: params.IstanbulTestChainConfig,
 			iConfig:     light.TestServerIndexerConfig,
 			chainDb:     db,
 			chainReader: simulation.Blockchain(),
@@ -283,7 +284,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.clientPool.setLimits(10000, 10000) // Assign enough capacity for clientpool
 	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true }, common.ZeroAddress, eth.DefaultConfig.GatewayFee)
 	if server.oracle != nil {
-		server.oracle.start(simulation)
+		server.oracle.Start(simulation)
 	}
 	server.servingQueue.setThreads(4)
 	server.handler.start()

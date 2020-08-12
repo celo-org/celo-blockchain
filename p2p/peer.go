@@ -117,8 +117,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events *event.Feed
 
-	StaticNodePurposes  *PurposeFlag
-	TrustedNodePurposes *PurposeFlag
+	purposesMu sync.Mutex
+	purposes   PurposeFlag
 
 	Server *Server
 }
@@ -128,9 +128,43 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	pipe, _ := net.Pipe()
 	node := enode.SignNull(new(enr.Record), id)
 	conn := &conn{fd: pipe, transport: nil, node: node, caps: caps, name: name}
-	peer := newPeer(log.Root(), conn, nil, nil, nil, nil)
+	peer := newPeer(log.Root(), conn, nil, NoPurpose, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
+}
+
+func (p *Peer) AddPurpose(purpose PurposeFlag) {
+	p.purposesMu.Lock()
+	defer p.purposesMu.Unlock()
+
+	// assumes we are still connected...
+	if purpose.IsSet(ValidatorPurpose) && !p.purposes.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Inc(1)
+	}
+	if purpose.IsSet(ProxyPurpose) && !p.purposes.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Inc(1)
+	}
+
+	p.purposes = p.purposes.Add(purpose)
+}
+
+func (p *Peer) RemovePurpose(purpose PurposeFlag) {
+	p.purposesMu.Lock()
+	defer p.purposesMu.Unlock()
+
+	// assumes we are still connected...
+	if purpose.IsSet(ValidatorPurpose) && p.purposes.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Dec(1)
+	}
+	if purpose.IsSet(ProxyPurpose) && p.purposes.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Dec(1)
+	}
+
+	p.purposes = p.purposes.Remove(purpose)
+}
+
+func (p *Peer) HasPurpose(purpose PurposeFlag) bool {
+	return p.purposes.IsSet(purpose)
 }
 
 // ID returns the node's public key.
@@ -184,20 +218,28 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-func newPeer(log log.Logger, conn *conn, protocols []Protocol, staticNodePurposes *PurposeFlag, trustedNodePurposes *PurposeFlag, server *Server) *Peer {
+func newPeer(log log.Logger, conn *conn, protocols []Protocol, purpose PurposeFlag, server *Server) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
-		rw:                  conn,
-		running:             protomap,
-		created:             mclock.Now(),
-		disc:                make(chan DiscReason),
-		protoErr:            make(chan error, len(protomap)+1), // protocols + pingLoop
-		closed:              make(chan struct{}),
-		log:                 log.New("id", conn.node.ID(), "conn", conn.flags),
-		StaticNodePurposes:  staticNodePurposes,
-		TrustedNodePurposes: trustedNodePurposes,
-		Server:              server,
+		rw:       conn,
+		running:  protomap,
+		created:  mclock.Now(),
+		disc:     make(chan DiscReason),
+		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
+		closed:   make(chan struct{}),
+		log:      log.New("id", conn.node.ID(), "conn", conn.flags),
+		purposes: purpose,
+		Server:   server,
 	}
+
+	// Increase connection metrics for proxies & validators
+	if p.purposes.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Inc(1)
+	}
+	if p.purposes.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Inc(1)
+	}
+
 	return p
 }
 
@@ -249,13 +291,23 @@ loop:
 		}
 	}
 
-	if !(p.StaticNodePurposes.NoPurpose() && p.TrustedNodePurposes.NoPurpose()) {
+	// Decrease connection metrics for proxies & validators
+	p.purposesMu.Lock()
+	if p.purposes.IsSet(ValidatorPurpose) {
+		activeValidatorsPeerGauge.Dec(1)
+	}
+	if p.purposes.IsSet(ProxyPurpose) {
+		activeProxiesPeerGauge.Dec(1)
+	}
+
+	if p.purposes.HasPurpose() {
 		if err != nil {
-			p.log.Info("Disconnecting from static or trusted peer", "static", p.StaticNodePurposes, "trusted", p.TrustedNodePurposes, "reason", reason, "remoteRequested", remoteRequested, "err", err)
+			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purposes, "reason", reason, "remoteRequested", remoteRequested, "err", err)
 		} else {
-			p.log.Info("Disconnecting from static or trusted peer", "static", p.StaticNodePurposes, "trusted", p.TrustedNodePurposes, "reason", reason, "remoteRequested", remoteRequested)
+			p.log.Info("Disconnecting from static or trusted peer", "purpose", p.purposes, "reason", reason, "remoteRequested", remoteRequested)
 		}
 	}
+	p.purposesMu.Unlock()
 
 	close(p.closed)
 	p.rw.close(reason)
@@ -462,14 +514,13 @@ func (rw *protoRW) ReadMsg() (Msg, error) {
 // peer. Sub-protocol independent fields are contained and initialized here, with
 // protocol specifics delegated to all connected sub-protocols.
 type PeerInfo struct {
-	ENR                 string   `json:"enr,omitempty"`   // Ethereum Node Record
-	Enode               string   `json:"enode"`           // Node URL
-	ID                  string   `json:"id"`              // Unique node identifier
-	Name                string   `json:"name"`            // Name of the node, including client type, version, OS, custom data
-	Caps                []string `json:"caps"`            // Protocols advertised by this peer
-	StaticNodePurposes  string   `json:"staticNodeInfo"`  // Purposes for the static node
-	TrustedNodePurposes string   `json:"trustedNodeInfo"` // Purposes for the trusted node
-	Network             struct {
+	ENR      string   `json:"enr,omitempty"` // Ethereum Node Record
+	Enode    string   `json:"enode"`         // Node URL
+	ID       string   `json:"id"`            // Unique node identifier
+	Name     string   `json:"name"`          // Name of the node, including client type, version, OS, custom data
+	Caps     []string `json:"caps"`          // Protocols advertised by this peer
+	Purposes string   `json:"purposes"`      // Purposes for the peer
+	Network  struct {
 		LocalAddress  string `json:"localAddress"`  // Local endpoint of the TCP data connection
 		RemoteAddress string `json:"remoteAddress"` // Remote endpoint of the TCP data connection
 		Inbound       bool   `json:"inbound"`
@@ -516,8 +567,7 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
-	info.StaticNodePurposes = p.StaticNodePurposes.String()
-	info.TrustedNodePurposes = p.TrustedNodePurposes.String()
+	info.Purposes = p.purposes.String()
 
 	return info
 }

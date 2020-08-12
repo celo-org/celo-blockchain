@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -88,6 +89,16 @@ func (api *API) GetValidators(number *rpc.BlockNumber) ([]common.Address, error)
 	}
 	validators := api.istanbul.GetValidators(header.Number, header.Hash())
 	return istanbul.MapValidatorsToAddresses(validators), nil
+}
+
+// GetValidatorsBLSPublicKeys retrieves the list of validators BLS public keys that must sign a given block.
+func (api *API) GetValidatorsBLSPublicKeys(number *rpc.BlockNumber) ([]blscrypto.SerializedPublicKey, error) {
+	header, err := api.getParentHeaderByNumber(number)
+	if err != nil {
+		return nil, err
+	}
+	validators := api.istanbul.GetValidators(header.Number, header.Hash())
+	return istanbul.MapValidatorsToPublicKeys(validators), nil
 }
 
 // GetProposer retrieves the proposer for a given block number (i.e. sequence) and round.

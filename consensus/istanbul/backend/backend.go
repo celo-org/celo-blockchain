@@ -34,7 +34,6 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -48,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -110,6 +110,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
+		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
+		blocksElectedButNotSignedGauge:     metrics.NewRegisteredGauge("consensus/istanbul/blocks/missedbyusinarow", nil),
+		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
+		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
+		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -240,14 +245,27 @@ type Backend struct {
 	blocksElectedButNotSignedMeter metrics.Meter
 	blocksElectedAndProposedMeter  metrics.Meter
 
+	// Gauge for how many blocks that we missed while elected in a row.
+	blocksElectedButNotSignedGauge metrics.Gauge
+	// Meter for downtime events when we did not sign 12+ blocks in a row.
+	blocksDowntimeEventMeter metrics.Meter
+
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
 
 	// Gauge for validator set size of grandparent of last received block (maximum value for blocksTotalSigsGauge)
 	blocksValSetSizeGauge metrics.Gauge
 
-	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
-	blocksTotalMissedRoundsMeter metrics.Meter
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed
+	// for all blocks & when are the proposer.
+	blocksTotalMissedRoundsMeter      metrics.Meter
+	blocksMissedRoundsAsProposerMeter metrics.Meter
+
+	// Gauge counting the transactions in the last block
+	blocksFinalizedTransactionsGauge metrics.Gauge
+
+	// Gauge counting the gas used in the last block
+	blocksFinalizedGasUsedGauge metrics.Gauge
 
 	// Cache for the return values of the method retrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
@@ -472,23 +490,14 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
-	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
+	// The author should be the first person to propose the block to ensure that randomness matches up.
+	addr, err := sb.Author(block.Header())
 	if err != nil {
-		return 0, err
-	}
-	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
-	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
-	// then fallback to checking our client's version.
-	if !isSupported || (!isOk && params.CurrentVersionInfo.Cmp(version) == -1) {
-		addr, err := sb.Author(block.Header())
-		if err != nil {
-			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return 0, errInvalidProposal
-		} else if addr != block.Header().Coinbase {
-			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
-			return 0, errInvalidCoinbase
-		}
+		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
+		return 0, errInvalidProposal
+	} else if addr != block.Header().Coinbase {
+		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
+		return 0, errInvalidCoinbase
 	}
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
