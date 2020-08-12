@@ -19,6 +19,7 @@ package eth
 import (
 	"compress/gzip"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -279,14 +280,20 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	return true, nil
 }
 
-func (api *PrivateAdminAPI) AddProof(proof []byte, firstEpoch uint, lastEpoch uint, versionNumber uint) (bool, error) {
+func (api *PrivateAdminAPI) AddProof(proof string, firstEpoch uint, lastEpoch uint, versionNumber uint) (bool, error) {
+	proofDec, _ := hex.DecodeString(proof)
 	plumoProof := types.PlumoProof{
-		Proof: proof,
+		Proof: proofDec,
 		Metadata: types.PlumoProofMetadata{
 			FirstEpoch:    firstEpoch,
 			LastEpoch:     lastEpoch,
 			VersionNumber: versionNumber,
 		},
+	}
+	// TODO unify verify/add logic on one component - which one? Engine?
+	err := api.eth.Engine().VerifyPlumoProof(api.eth.BlockChain(), &plumoProof)
+	if err != nil {
+		return false, err
 	}
 	// TODO(lucas): is this cleaner than just adding an event?
 	rawdb.WritePlumoProof(api.eth.proofDb, &plumoProof)

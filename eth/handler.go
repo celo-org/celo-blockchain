@@ -220,15 +220,17 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		return nil
 	}
 	verifyPlumoProof := func(proof *types.PlumoProof) error {
-		// TODO
-		return nil
+		return engine.VerifyPlumoProof(blockchain, proof)
 	}
 	broadcastPlumoProof := func(proof *types.PlumoProof, propagate bool) {
 		// TODO
 	}
 	insertPlumoProofs := func(proofs types.PlumoProofs) error {
-		// TODO error
 		for _, proof := range proofs {
+			if err := verifyPlumoProof(proof); err != nil {
+				log.Error("Proof cannot verify")
+				return err
+			}
 			rawdb.WritePlumoProof(manager.proofDb, proof)
 		}
 		return nil
@@ -956,6 +958,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for _, proof := range proofs {
 			log.Error("Proof received", "proof", proof)
 			p.MarkPlumoProof(&proof.Metadata)
+			if err := pm.engine.VerifyPlumoProof(pm.blockchain, &proof); err != nil {
+				log.Error("Proof does not verify. Dropping Peer")
+				return errResp(ErrDecode, "err %v", err)
+			}
 			rawdb.WritePlumoProof(pm.proofDb, &proof)
 		}
 

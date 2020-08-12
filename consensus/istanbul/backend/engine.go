@@ -18,11 +18,13 @@ package backend
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
 	"time"
 
+	"github.com/celo-org/celo-bls-go/snark"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -339,6 +341,45 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	// for a fork from the canonical chain which does not cross an epoch boundary)
 	valSet := sb.getValidators(header.Number.Uint64()-1, header.ParentHash)
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
+}
+
+func (sb *Backend) VerifyPlumoProof(chain consensus.ChainReader, proof *types.PlumoProof) error {
+	verificationKey, _ := hex.DecodeString("27de9b5798fd5c832aaabe2b1bb480473df29203a3a1971aed07a21441a6f21573031b01b821546c16f8470dda69131439854051daf5fb6ab7b6815cd9acc0c583ca1376d37343d69fc397323be1d601c7cd43fc42d4361aa27cdf8bc565d3731a93514b0fd38659ebc40f3c44ba9c6882a2e820828135d292d9bb7734afb8094e1e8a9c755420b93155ac4caefe44dd6a64e732daf6e0e141b26c88a30353d627e3a4afec307e285607d18261c04cf8b568eb4fdb3f48da889e8d46c4ff2712fd5664326a9642161463b234dd7b89f1fccb1a6c9acc26b1994c58b68106276345ecf79e0137a941be4bca06489616810b7db4d93fd8b3f6615e84b9683112cbf8e696867656616b5dbd60553df7f92fc1300c0aaf6217b2561b7f10671ae540c209f22a8e2cb98fb60e118aa2c372a44db6a404eb19d7e68ec9d0f0b4521a7f405ca2f421cf4b4128176a34cdf49a9a471dc197e4ee5c8ccb9342fb967173eb3137659930767af5228d1c36038885512286189c358cfc053c1319d4a2f8e50ca32ab13468d86aa059ed201de13f0eae7f4a687baa5d212df991cc5e656200fe705cb8e293614eebc196acc1a5d493d189162e0eeef2c68a37d58cc6717e9b649a595293cd18cc27f8aed9863b0a727b5e12cfa4e90513a282bb65658bd786968f89993ebbc7006f810f0cb6a7002599739fa40f337eaab7e639f79ebdf85ffecf106d5fa8464a197803f8a742a1ef2f05d03c592c97abdd0847c45f5b8878443319618ff04b7a3de13ce778c58c79b1c7f8d6e900d02fa1279dde856c7a62e1b13aff7a42b63bed3c2100318d515c0175c0c067b1ae5b4dc17c3423290c0d5c5e4c6da641073562f5ba99de560671bce41e2aa0abbeb2176b13802e58ba424ce8d790c7d5b610a409e26c718ef1a939198d3a32aef7f5b83347b15fc2b4adfebc468e7bb4f5667a70ea45c3b7135e0efc2e1738ab5b033176f75780fa17415fb5037c748d6be0a6ae68235cd307bf08f890261378aad62ef89395e33004c1e5f50a9fc261fd6a6f175e64110f15af68d3e888f132348039e3fb8db3ac974b8b07867b452bb73584d4c6e7ba5f790c119500b7b538cddcfc81ee754db65aca15f5853c806a40b38e02c0ed2a797fcc11afe2e26f972b4a7f8fe70e626e5d3b4fa600ee730f6a27b9fb448daa9b364ede0feefba1fc74a2d546eb74ac2c61f7d8033e0df3e214d3f12b8bf229692148305e2d82e3ad4c8266b7da641a42c21689e1e738b2689d1bc31afcb6d2b53a87afabd970de2da2e26431a1d4178a6808a23ca803a479e15ea5b7875adc1f4456ce88a3a94a7aecc9763899a353bcc1363a746ab55bd3322d44919eb0a3350c1a8eb574f7220300000000000000a21df711258265911c858a49dc5e866c47f4da8c6f24c4d5002156f719631fcf22af144657300ce576ca5523c69a2cef3e1771a054f51365321a78e2877a8505a02a25300f414035e4f84517141ada5e702376358634fe0b2d5477bfcda04f6ced04908edbd11f470d8e060600031662f9bb513919ab3b21846461a9c70c486adb9a200f16eeb66bf4d550bcfc44b2b29af9338b9c054f04c00eda28301a5d78ad5352fb88ee7623a5554a08a8f886e325a9a5cc4071fbe168860614a0a4e6ffd3aa7c2837fea5669ccd78c6c4c6573d1512ac83ecca8bb2b31d2a7a8870e84763eee2e6f47dc83ab5a78c6a45254c003853a563d59a00bc9cfec4586ef5b5b6e37564304f1ea1ad6c002b0f016863e0af2229a473258e9f1d91926ad75a310c5adead0bbda1")
+	// TODO handle err case?
+	firstValSet := sb.getValidators(uint64(proof.Metadata.FirstEpoch), common.Hash{})
+	firstSerializedValSet := istanbul.MapValidatorsToPublicKeys(firstValSet.List())
+	var firstSerializedValSetBytes [][]byte
+	for _, pubKey := range firstSerializedValSet {
+		firstSerializedValSetBytes = append(firstSerializedValSetBytes, pubKey[:])
+	}
+	firstEpochBlock := snark.EpochBlock{
+		Index:         uint16(proof.Metadata.FirstEpoch),
+		MaxNonSigners: uint32(firstValSet.MinQuorumSize()),
+		PublicKeys:    firstSerializedValSetBytes,
+	}
+
+	lastValSet := sb.getValidators(uint64(proof.Metadata.LastEpoch), common.Hash{})
+	lastSerializedValSet := istanbul.MapValidatorsToPublicKeys(lastValSet.List())
+	var lastSerializedValSetBytes [][]byte
+	for _, pubKey := range lastSerializedValSet {
+		lastSerializedValSetBytes = append(lastSerializedValSetBytes, pubKey[:])
+	}
+	lastEpochBlock := snark.EpochBlock{
+		Index:         uint16(proof.Metadata.LastEpoch),
+		MaxNonSigners: uint32(lastValSet.MinQuorumSize()),
+		PublicKeys:    lastSerializedValSetBytes,
+	}
+	err := snark.VerifyEpochs(
+		verificationKey,
+		proof.Proof,
+		firstEpochBlock,
+		lastEpochBlock,
+	)
+	if err != nil {
+		log.Error("Proof verification error")
+		return err
+	}
+	return nil
 }
 
 // Prepare initializes the consensus fields of a block header according to the
