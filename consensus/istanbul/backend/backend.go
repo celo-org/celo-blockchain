@@ -475,10 +475,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *istanbul.
 	addr, err := sb.Author(block.Header())
 	if err != nil {
 		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-		return 0, errInvalidProposal
+		return 0, nil, errInvalidProposal
 	} else if addr != block.Header().Coinbase {
 		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
-		return 0, errInvalidCoinbase
+		return 0, nil, errInvalidCoinbase
 	}
 
 	err = sb.VerifyHeader(sb.chain, block.Header(), false)
