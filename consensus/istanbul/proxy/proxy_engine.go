@@ -17,6 +17,8 @@
 package proxy
 
 import (
+	"sync"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -67,7 +69,8 @@ type proxyEngine struct {
 	// Proxy's validator
 	// Right now, we assume that there is at most one proxied peer for a proxy
 	// Proxy's validator
-	proxiedValidator consensus.Peer
+	proxiedValidator   consensus.Peer
+	proxiedValidatorMu sync.RWMutex
 }
 
 // New creates a new proxy engine.
@@ -100,17 +103,22 @@ func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []b
 }
 
 func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
-	// TODO: Does this need a lock?
+	p.proxiedValidatorMu.Lock()
+	defer p.proxiedValidatorMu.Unlock()
 	p.proxiedValidator = proxiedValidatorPeer
 }
 
 func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
+	p.proxiedValidatorMu.RLock()
+	defer p.proxiedValidatorMu.RUnlock()
 	if p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
 		p.proxiedValidator = nil
 	}
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
+	p.proxiedValidatorMu.RLock()
+	defer p.proxiedValidatorMu.RUnlock()
 	if p.proxiedValidator != nil {
 		proxiedValidatorInfo := ProxiedValidatorInfo{Address: p.config.ProxiedValidatorAddress,
 			IsPeered: true,
@@ -124,6 +132,9 @@ func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 // SendMsgToProxiedValidator will send a `celo` message to the proxied validator.
 func (p *proxyEngine) SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error {
 	logger := p.logger.New("func", "SendMsgToProxiedValidator")
+	p.proxiedValidatorMu.RLock()
+	defer p.proxiedValidatorMu.RUnlock()
+
 	if p.proxiedValidator != nil {
 		payload, err := msg.Payload()
 		if err != nil {

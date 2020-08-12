@@ -27,6 +27,8 @@ func (p *proxyEngine) handleConsensusMsg(peer consensus.Peer, payload []byte) (b
 	logger := p.logger.New("func", "handleConsensusMsg")
 
 	// Verify that this message is not from the proxied validator
+	p.proxiedValidatorMu.RLock()
+	defer p.proxiedValidatorMu.RUnlock()
 	if p.proxiedValidator != nil && peer.Node().ID() == p.proxiedValidator.Node().ID() {
 		logger.Warn("Got a consensus message from the proxied validator. Ignoring it", "from", peer.Node().ID())
 		return false, nil

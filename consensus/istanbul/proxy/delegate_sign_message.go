@@ -42,6 +42,9 @@ func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
 func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
+	p.proxiedValidatorMu.RLock()
+	defer p.proxiedValidatorMu.RUnlock()
+
 	if p.proxiedValidator != nil {
 		p.backend.Unicast(p.proxiedValidator, msg, istanbul.EnodeCertificateMsg)
 		return nil
