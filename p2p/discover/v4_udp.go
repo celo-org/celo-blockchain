@@ -670,8 +670,11 @@ func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req packetV4) ([]byte, 
 }
 
 func (t *UDPv4) write(toaddr *net.UDPAddr, toid enode.ID, what string, packet []byte) error {
-	_, err := t.conn.WriteToUDP(packet, toaddr)
+	nbytes, err := t.conn.WriteToUDP(packet, toaddr)
 	t.log.Trace(">> "+what, "id", toid, "addr", toaddr, "err", err)
+	if err == nil {
+		egressTrafficMeter.Mark(int64(nbytes))
+	}
 	return err
 }
 
@@ -709,6 +712,7 @@ func (t *UDPv4) readLoop(unhandled chan<- ReadPacket) {
 	buf := make([]byte, maxPacketSize)
 	for {
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
+		ingressTrafficMeter.Mark(int64(nbytes))
 		if netutil.IsTemporaryError(err) {
 			// Ignore temporary read errors.
 			t.log.Debug("Temporary UDP read error", "err", err)

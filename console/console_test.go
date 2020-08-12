@@ -96,10 +96,9 @@ func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
 		t.Fatalf("failed to create node: %v", err)
 	}
 	ethConf := &eth.Config{
-		Genesis:        core.DeveloperGenesisBlock(15, common.Address{}),
-		TxFeeRecipient: common.HexToAddress(testAddress),
+		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
 		Miner: miner.Config{
-			Validator: common.HexToAddress(testAddress),
+			Etherbase: common.HexToAddress(testAddress),
 		},
 	}
 	if confOverride != nil {

@@ -19,7 +19,6 @@ package params
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,14 +28,14 @@ import (
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash   = common.HexToHash("0x19ea3339d3c8cda97235bc8293240d5b9dadcdfbb5d4b0b90ee731cac1bd11c3")
-	AlfajoresGenesisHash = common.HexToHash("0xcdfbb05debfdbf4cb2f58c5a2e3915983898728188014f94728c4f72864652fc")
+	AlfajoresGenesisHash = common.HexToHash("0xe423b034e7f0282c1b621f7bbc1cea4316a2a80b1600490769eae77777e4b67e")
 	BaklavaGenesisHash   = common.HexToHash("0xbd1db1803638c0c151cdd10179c0117fedfffa4a3f0f88a8334708a4ea1a5fda")
 )
 
 var (
 	MainnetNetworkId   = uint64(42220)
 	BaklavaNetworkId   = uint64(62320)
-	AlfajoresNetworkId = uint64(44786)
+	AlfajoresNetworkId = uint64(44787)
 )
 
 var NetworkIdHelp = fmt.Sprintf("Mainnet=%v, Baklava=%v, Alfajores=%v", MainnetNetworkId, BaklavaNetworkId, AlfajoresNetworkId)
@@ -68,7 +67,6 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		UseOldFormat: false,
 	}
 
 	// TestnetChainConfig is left here until Baklava or Alfajores are up to date with the mainnet
@@ -109,7 +107,6 @@ var (
 			ProposerPolicy: 2,
 			LookbackWindow: 12,
 		},
-		UseOldFormat: false,
 	}
 
 	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
@@ -124,25 +121,35 @@ var (
 		ByzantiumBlock:      big.NewInt(0),
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(math.MaxInt64),
+		IstanbulBlock:       big.NewInt(0),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 10000,
 			LookbackWindow: 12,
 		},
-		UseOldFormat: true,
 	}
 
-	DefaultChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
-		Epoch:          30000,
+	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+		Epoch:          300,
 		ProposerPolicy: 0,
-	}, true, false, false}
+		RequestTimeout: 1000,
+		BlockPeriod:    1,
+	}, true, false}
+
+	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
+		Epoch:          300,
+		ProposerPolicy: 0,
+		RequestTimeout: 1000,
+		BlockPeriod:    1,
+	}, true, false}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
-	}, true, true, false}
-	TestRules = DefaultChainConfig.Rules(new(big.Int))
+	}, true, true}
+	TestRules = TestChainConfig.Rules(new(big.Int))
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -223,8 +230,6 @@ type ChainConfig struct {
 
 	// Requests mock engine if true
 	Faker bool `json:"faker,omitempty"`
-
-	UseOldFormat bool `json:"useOldFormat,omitempty"`
 }
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.

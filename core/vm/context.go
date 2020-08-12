@@ -75,13 +75,13 @@ type ChainContext interface {
 }
 
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) Context {
-	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author *common.Address) Context {
+	// If we don't have an explicit author (i.e. not mining), extract from the header
 	var beneficiary common.Address
-	if txFeeRecipient == nil {
-		beneficiary = header.Coinbase
+	if author == nil {
+		beneficiary, _ = chain.Engine().Author(header) // Ignore error, we're past header validation
 	} else {
-		beneficiary = *txFeeRecipient
+		beneficiary = *author
 	}
 
 	var engine consensus.Engine

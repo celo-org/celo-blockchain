@@ -172,7 +172,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		evmux  = new(event.TypeMux)
 		engine = mockEngine.NewFaker()
 		gspec  = core.Genesis{
-			Config: params.DefaultChainConfig,
+			Config: params.IstanbulTestChainConfig,
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointoracle.CheckpointOracle
@@ -201,7 +201,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.DefaultChainConfig,
+			chainConfig: params.IstanbulTestChainConfig,
 			iConfig:     light.TestClientIndexerConfig,
 			chainDb:     db,
 			oracle:      oracle,
@@ -227,7 +227,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Database, peers *peerSet, clock mclock.Clock) (*serverHandler, *backends.SimulatedBackend) {
 	var (
 		gspec = core.Genesis{
-			Config: params.DefaultChainConfig,
+			Config: params.IstanbulTestChainConfig,
 			Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 		}
 		oracle *checkpointoracle.CheckpointOracle
@@ -263,7 +263,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
 			config:      &eth.Config{LightPeers: 100, NetworkId: NetworkId},
-			chainConfig: params.DefaultChainConfig,
+			chainConfig: params.IstanbulTestChainConfig,
 			iConfig:     light.TestServerIndexerConfig,
 			chainDb:     db,
 			chainReader: simulation.Blockchain(),

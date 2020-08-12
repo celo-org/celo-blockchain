@@ -83,7 +83,7 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.DefaultChainConfig
+	istanbulChainConfig = params.IstanbulTestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
@@ -182,7 +182,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
-	w.setTxFeeRecipient(testBankAddress)
+	w.setEtherbase(testBankAddress)
 	return w, backend
 }
 
@@ -192,7 +192,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.DefaultChainConfig
+	chainConfig = params.IstanbulTestChainConfig
 	engine = mockEngine.NewFaker()
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)

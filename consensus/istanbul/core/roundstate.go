@@ -131,6 +131,9 @@ type RoundStateSummary struct {
 }
 
 func newRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, proposer istanbul.Validator) RoundState {
+	if proposer == nil {
+		log.Crit("Proposer cannot be nil")
+	}
 	return &roundStateImpl{
 		state:        StateAcceptRequest,
 		round:        view.Round,
@@ -265,6 +268,10 @@ func (rs *roundStateImpl) Round() *big.Int {
 }
 
 func (rs *roundStateImpl) changeRound(nextRound *big.Int, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) {
+	if nextProposer == nil {
+		log.Crit("Proposer cannot be nil")
+	}
+
 	rs.state = StateAcceptRequest
 	rs.round = nextRound
 	rs.desiredRound = nextRound
@@ -338,6 +345,10 @@ func (rs *roundStateImpl) TransitionToWaitingForNewRound(desiredRound *big.Int, 
 	if rs.round.Cmp(desiredRound) > 0 {
 		return errInvalidState
 	}
+	if nextProposer == nil {
+		log.Crit("Proposer cannot be nil")
+	}
+
 	rs.desiredRound = new(big.Int).Set(desiredRound)
 	rs.proposer = nextProposer
 	rs.state = StateWaitingForNewRound
@@ -553,6 +564,9 @@ func (rs *roundStateImpl) EncodeRLP(w io.Writer) error {
 	serializedValSet, err := rs.validatorSet.Serialize()
 	if err != nil {
 		return err
+	}
+	if rs.proposer == nil {
+		return errors.New("Invalid RoundState: no proposer")
 	}
 	serializedProposer, err := rs.proposer.Serialize()
 	if err != nil {
