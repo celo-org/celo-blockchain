@@ -100,11 +100,12 @@ type ProxiedValidatorEngine interface {
 	// notify the proxy handler that a proxy has disconnected.
 	UnregisterProxyPeer(proxyPeer consensus.Peer) error
 
-	// SendForwardMsg will send a forward message to all of the proxies.
-	SendForwardMsg(proxies []*Proxy, finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
-
-	// SendDelegateSignMsgToProxy will send a delegate sign message back to the proxy.
+	// SendDelegateSignMsgToProxy will send a delegate sign message back to the proxy that is designated to
+	// handle celostats.
 	SendDelegateSignMsgToProxy(msg []byte) error
+
+	// SendForwardMsg will send a forward message to all of the proxies.
+	SendForwardMsgToAllProxies(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
 
 	// SendValEnodeShareMsgToAllProxies will send the appropriate val enode share message to each
 	// connected proxy.

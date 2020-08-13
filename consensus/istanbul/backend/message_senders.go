@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -52,14 +51,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	var err error
 
 	if sb.IsProxiedValidator() {
-		// Get all of the proxies
-		var proxies []*proxy.Proxy
-		proxies, _, err = sb.proxiedValidatorEngine.GetProxiesAndValAssignments()
-		if err != nil {
-			logger.Warn("Error in retrieving the proxies", "err", err)
-		}
-
-		err = sb.proxiedValidatorEngine.SendForwardMsg(proxies, destAddresses, ethMsgCode, payload)
+		err = sb.proxiedValidatorEngine.SendForwardMsgToAllProxies(destAddresses, ethMsgCode, payload)
 		if err != nil {
 			logger.Warn("Error in sending forward message to the proxies", "err", err)
 		}

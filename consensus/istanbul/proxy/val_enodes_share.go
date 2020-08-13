@@ -67,6 +67,12 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		Signature: []byte{},
 	}
 
+	// Sign the validator enode share message
+	if err := msg.Sign(pv.backend.Sign); err != nil {
+		logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
+		return nil, err
+	}
+
 	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
 
 	return msg, nil
@@ -78,12 +84,6 @@ func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer
 	msg, err := pv.generateValEnodesShareMsg(remoteValidators)
 	if err != nil {
 		logger.Error("Error generating Istanbul ValEnodesShare Message", "err", err)
-		return err
-	}
-
-	// Sign the validator enode share message
-	if err := msg.Sign(pv.backend.Sign); err != nil {
-		logger.Error("Error in signing an Istanbul ValEnodesShare Message", "ValEnodesShareMsg", msg.String(), "err", err)
 		return err
 	}
 

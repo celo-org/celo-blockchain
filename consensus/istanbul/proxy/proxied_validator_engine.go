@@ -73,6 +73,12 @@ type BackendForProxiedValidatorEngine interface {
 	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
 }
 
+type fwdMsgInfo struct {
+	destAddresses []common.Address
+	ethMsgCode    uint64
+	payload       []byte
+}
+
 type proxiedValidatorEngine struct {
 	config  *istanbul.Config
 	logger  log.Logger
@@ -97,6 +103,8 @@ type proxiedValidatorEngine struct {
 	sendValEnodeShareMsgsCh chan struct{} // Used to notify the thread to send a val enode share message to all of the proxies
 
 	sendEnodeCertsCh chan map[enode.ID]*istanbul.EnodeCertMsg // Used to notify the thread to send the enode certs to the appropriate proxy.
+
+	sendFwdMsgsCh chan *fwdMsgInfo // Used to send a forward message to all of the proxies
 
 	newBlockchainEpoch chan struct{} // Used to notify to the thread that a new blockchain epoch has started
 }
@@ -125,6 +133,7 @@ func NewProxiedValidatorEngine(backend BackendForProxiedValidatorEngine, config 
 
 		sendValEnodeShareMsgsCh: make(chan struct{}),
 		sendEnodeCertsCh:        make(chan map[enode.ID]*istanbul.EnodeCertMsg),
+		sendFwdMsgsCh:           make(chan *fwdMsgInfo),
 		newBlockchainEpoch:      make(chan struct{}),
 	}
 
@@ -325,6 +334,22 @@ func (pv *proxiedValidatorEngine) SendEnodeCertsToAllProxies(enodeCerts map[enod
 	return nil
 }
 
+// SendForwardMsgToAllProxies will signal to the running thread to send a forward message to all proxies.
+func (pv *proxiedValidatorEngine) SendForwardMsgToAllProxies(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
+	if !pv.Running() {
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
+
+	select {
+	case pv.sendFwdMsgsCh <- &fwdMsgInfo{destAddresses: finalDestAddresses, ethMsgCode: ethMsgCode, payload: payload}:
+
+	case <-pv.quit:
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
+
+	return nil
+}
+
 // run handles changes to proxies and validator assignments
 func (pv *proxiedValidatorEngine) threadRun() {
 	var (
@@ -486,6 +511,15 @@ loop:
 				}
 			}
 
+		case <-pv.sendValEnodeShareMsgsCh:
+			pv.sendValEnodeShareMsgs(ps)
+
+		case enodeCerts := <-pv.sendEnodeCertsCh:
+			pv.sendEnodeCerts(ps, enodeCerts)
+
+		case fwdMsg := <-pv.sendFwdMsgsCh:
+			pv.sendForwardMsg(ps, fwdMsg.destAddresses, fwdMsg.ethMsgCode, fwdMsg.payload)
+
 		case <-schedulerTicker.C:
 			logger.Trace("schedulerTicker ticked")
 
@@ -511,13 +545,6 @@ loop:
 				// Share the enode certs with the proxies
 				pv.sendEnodeCerts(ps, proxyEnodeCertMsgs)
 			}
-
-		case <-pv.sendValEnodeShareMsgsCh:
-			pv.sendValEnodeShareMsgs(ps)
-
-		case enodeCerts := <-pv.sendEnodeCertsCh:
-			pv.sendEnodeCerts(ps, enodeCerts)
-
 		}
 	}
 }

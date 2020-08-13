@@ -23,13 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-func (pv *proxiedValidatorEngine) SendForwardMsg(proxies []*Proxy, destAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
+func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
 	logger := pv.logger.New("func", "SendForwardMsg")
 
 	logger.Info("Sending forward msg", "ethMsgCode", ethMsgCode, "destAddresses", common.ConvertToStringSlice(destAddresses))
 
 	// Send the forward messages to the proxies
-	for _, proxy := range proxies {
+	for _, proxy := range ps.proxiesByID {
 		if proxy.IsPeered() {
 
 			// Convert the message to a fwdMessage
