@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	ethCore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -416,19 +417,22 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
-// Returns whether or not a particular header represents the last block in the epoch.
+// IsLastBlockOfEpoch returns whether or not a particular header represents the last block in the epoch.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
 
-// Returns the size of epochs in blocks.
+// EpochSize returns the size of epochs in blocks.
 func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
-// Returns the size of the lookback window for calculating uptime (in blocks)
-func (sb *Backend) LookbackWindow() uint64 {
-	return sb.config.LookbackWindow
+// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) (uint64, error) {
+	if !sb.chain.Config().IsDonut(header.Number) {
+		return sb.config.LookbackWindow, nil
+	}
+	return blockchain_parameters.GetLookbackWindow(header, state)
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)

@@ -213,7 +213,7 @@ func (sb *Backend) NewWork() error {
 	return nil
 }
 
-// Maintain metrics around the *parent* of the supplied block.
+// UpdateMetricsForParentOfBlock maintains metrics around the *parent* of the supplied block.
 // To figure out if this validator signed the parent block:
 // * First check the grandparent's validator set. If not elected, it didn't.
 // * Then, check the parent seal on the supplied (child) block.
@@ -303,8 +303,21 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		}
 	}
 
-	// Report downtime events.
-	if sb.blocksElectedButNotSignedGauge.Value() >= int64(sb.config.LookbackWindow) {
+	parentState, err := sb.stateAt(parentHeader.Hash())
+	if err != nil {
+		sb.logger.Error(err.Error())
+		return
+	}
+	// The parents lookback window at the time will be used.
+	// However, the value used for updating the validator scores is the one set at the last epoch block.
+	lookbackWindow, err := sb.LookbackWindow(parentHeader, parentState)
+	if err != nil {
+		sb.logger.Error(err.Error())
+		return
+	}
+
+	// Report downtime events
+	if sb.blocksElectedButNotSignedGauge.Value() >= int64(lookbackWindow) {
 		sb.blocksDowntimeEventMeter.Mark(1)
 		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.Address())
 	}
