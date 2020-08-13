@@ -144,7 +144,11 @@ func (pv *proxiedValidatorEngine) Start() error {
 	go pv.threadRun()
 
 	if len(pv.config.ProxyConfigs) > 0 {
-		pv.addProxies <- pv.config.ProxyConfigs
+		select {
+		case pv.addProxies <- pv.config.ProxyConfigs:
+		case <-pv.quit:
+			return istanbul.ErrStartedProxiedValidatorEngine
+		}
 	}
 
 	pv.isRunning = true
@@ -212,7 +216,11 @@ func (pv *proxiedValidatorEngine) RegisterProxyPeer(proxyPeer consensus.Peer) er
 	logger := pv.logger.New("func", "RegisterProxyPeer")
 	if proxyPeer.PurposeIsSet(p2p.ProxyPurpose) {
 		logger.Info("Got new proxy peer", "proxyPeer", proxyPeer)
-		pv.addProxyPeer <- proxyPeer
+		select {
+		case pv.addProxyPeer <- proxyPeer:
+		case <-pv.quit:
+			return istanbul.ErrStoppedProxiedValidatorEngine
+		}
 	} else {
 		logger.Error("Unauthorized connected peer to the proxied validator", "peerID", proxyPeer.Node().ID())
 		return errUnauthorizedProxiedValidator
@@ -227,7 +235,11 @@ func (pv *proxiedValidatorEngine) UnregisterProxyPeer(proxyPeer consensus.Peer) 
 	}
 
 	if proxyPeer.PurposeIsSet(p2p.ProxyPurpose) {
-		pv.removeProxyPeer <- proxyPeer
+		select {
+		case pv.removeProxyPeer <- proxyPeer:
+		case <-pv.quit:
+			return istanbul.ErrStoppedProxiedValidatorEngine
+		}
 	}
 
 	return nil
@@ -287,7 +299,12 @@ func (pv *proxiedValidatorEngine) SendValEnodesShareMsgToAllProxies() error {
 		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	pv.sendValEnodeShareMsgsCh <- struct{}{}
+	select {
+	case pv.sendValEnodeShareMsgsCh <- struct{}{}:
+
+	case <-pv.quit:
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
 
 	return nil
 }
@@ -298,7 +315,12 @@ func (pv *proxiedValidatorEngine) SendEnodeCertsToAllProxies(enodeCerts map[enod
 		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	pv.sendEnodeCertsCh <- enodeCerts
+	select {
+	case pv.sendEnodeCertsCh <- enodeCerts:
+
+	case <-pv.quit:
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
 
 	return nil
 }
