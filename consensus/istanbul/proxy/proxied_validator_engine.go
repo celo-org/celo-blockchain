@@ -366,22 +366,6 @@ func (pv *proxiedValidatorEngine) threadRun() {
 
 	logger := pv.logger.New("func", "threadRun")
 
-	updateAnnounceVersionRequestTimestamps := make([]*time.Time, 0)
-	updateAnnounceVersionTimer := time.NewTimer(0)
-	defer updateAnnounceVersionTimer.Stop()
-	<-updateAnnounceVersionTimer.C // discard initial tick
-
-	// This function will update the announce version at least
-	// a second later.
-	updateAnnounceVersionInFuture := func() {
-		if len(updateAnnounceVersionRequestTimestamps) == 0 {
-			updateAnnounceVersionTimer.Reset(time.Second)
-		}
-
-		requestTime := time.Now().Add(time.Second)
-		updateAnnounceVersionRequestTimestamps = append(updateAnnounceVersionRequestTimestamps, &requestTime)
-	}
-
 	defer pv.loopWG.Done()
 
 	schedulerTicker := time.NewTicker(schedulerPeriod)
@@ -431,14 +415,8 @@ loop:
 
 				if valsReassigned := ps.removeProxy(proxyID); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
+					pv.backend.UpdateAnnounceVersion()
 					pv.sendValEnodeShareMsgs(ps)
-					// Send the announce version update request slightly in the future.
-					// The just sent val enode share messages will update all of the proxies' val enode tables.
-					// Ideally their val enode tables are updated before they get their latest enode certificates (via an update
-					// announce request).  This is not entirely necessary, since this thread will resend those
-					// enode certificates, but will reduce the time of validator connections being disconnected
-					// after a reassignment.
-					updateAnnounceVersionInFuture()
 				}
 				pv.backend.RemovePeer(proxy.node, p2p.ProxyPurpose)
 			}
@@ -453,8 +431,8 @@ loop:
 				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
 				if valsReassigned := ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
+					pv.backend.UpdateAnnounceVersion()
 					pv.sendValEnodeShareMsgs(ps)
-					updateAnnounceVersionInFuture()
 				}
 			}
 
@@ -477,38 +455,8 @@ loop:
 				logger.Warn("Error in updating validator assignments on new epoch", "error", error)
 			}
 			if valsReassigned {
+				pv.backend.UpdateAnnounceVersion()
 				pv.sendValEnodeShareMsgs(ps)
-				updateAnnounceVersionInFuture()
-			}
-
-		case <-updateAnnounceVersionTimer.C:
-			// updateAnnounceVersionRequests should never be empty here.
-			// If it is, there is a bug in the code
-			if len(updateAnnounceVersionRequestTimestamps) == 0 {
-				logger.Error("updateAnnounceVersionRequestTimestamps is empty when updateAnnounceVersionTimer expired")
-			} else {
-				now := time.Now()
-				updateSent := false
-				numRequestToPop := 0
-
-				for _, minRequestTimestamp := range updateAnnounceVersionRequestTimestamps {
-					if minRequestTimestamp.Before(now) || minRequestTimestamp.Equal(now) {
-						if !updateSent {
-							pv.backend.UpdateAnnounceVersion()
-							updateSent = true
-						}
-
-						numRequestToPop++
-					} else {
-						// Update the timer to tick for the first entry of the requests
-						updateAnnounceVersionTimer.Reset(updateAnnounceVersionRequestTimestamps[0].Sub(now))
-						break
-					}
-				}
-
-				if numRequestToPop > 0 {
-					updateAnnounceVersionRequestTimestamps = updateAnnounceVersionRequestTimestamps[numRequestToPop:]
-				}
 			}
 
 		case <-pv.sendValEnodeShareMsgsCh:
@@ -529,8 +477,8 @@ loop:
 			// If no reassignments were made, then resend all enode certificates and val enode share messages to the
 			// proxies, in case previous attempts failed.
 			if valsReassigned := ps.unassignDisconnectedProxies(minProxyDisconnectTime); valsReassigned {
+				pv.backend.UpdateAnnounceVersion()
 				pv.sendValEnodeShareMsgs(ps)
-				updateAnnounceVersionInFuture()
 			} else {
 				// Send out the val enode share message.  We will resend the valenodeshare message here in case it was
 				// never successfully sent before.
