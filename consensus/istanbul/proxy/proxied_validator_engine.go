@@ -96,6 +96,8 @@ type proxiedValidatorEngine struct {
 
 	sendValEnodeShareMsgsCh chan struct{} // Used to notify the thread to send a val enode share message to all of the proxies
 
+	sendEnodeCertsCh chan map[enode.ID]*istanbul.EnodeCertMsg // Used to notify the thread to send the enode certs to the appropriate proxy.
+
 	newBlockchainEpoch chan struct{} // Used to notify to the thread that a new blockchain epoch has started
 }
 
@@ -122,6 +124,7 @@ func NewProxiedValidatorEngine(backend BackendForProxiedValidatorEngine, config 
 		proxiedValThreadOpDoneCh: make(chan struct{}),
 
 		sendValEnodeShareMsgsCh: make(chan struct{}),
+		sendEnodeCertsCh:        make(chan map[enode.ID]*istanbul.EnodeCertMsg),
 		newBlockchainEpoch:      make(chan struct{}),
 	}
 
@@ -285,6 +288,17 @@ func (pv *proxiedValidatorEngine) SendValEnodesShareMsgToAllProxies() error {
 	}
 
 	pv.sendValEnodeShareMsgsCh <- struct{}{}
+
+	return nil
+}
+
+// SendEnodeCertsToAllProxies will signal to the running thread to share the given enode certs to the appropriate proxy
+func (pv *proxiedValidatorEngine) SendEnodeCertsToAllProxies(enodeCerts map[enode.ID]*istanbul.EnodeCertMsg) error {
+	if !pv.Running() {
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
+
+	pv.sendEnodeCertsCh <- enodeCerts
 
 	return nil
 }
@@ -469,27 +483,19 @@ loop:
 				// Also resend the enode certificates to the proxies (via a forward message), in case it was
 				// never successfully sent before.
 
-				// Get all proxies
-				proxies, _ := ps.getProxyAndValAssignments()
-
 				// Get all the enode certificate messages
 				proxyEnodeCertMsgs := pv.backend.RetrieveEnodeCertificateMsgMap()
-				for _, enodeCertMsg := range proxyEnodeCertMsgs {
-					payload, err := enodeCertMsg.Msg.Payload()
-					if err != nil {
-						logger.Warn("Error getting payload of enode certificate message", "err", err)
-						continue
-					}
 
-					// Send the enode certificate messages to the proxies
-					if err := pv.SendForwardMsg(proxies, enodeCertMsg.DestAddresses, istanbul.EnodeCertificateMsg, payload); err != nil {
-						logger.Error("Error in sharing the enode certificate message to the proxies", "error", err)
-					}
-				}
+				// Share the enode certs with the proxies
+				pv.sendEnodeCerts(ps, proxyEnodeCertMsgs)
 			}
 
 		case <-pv.sendValEnodeShareMsgsCh:
 			pv.sendValEnodeShareMsgs(ps)
+
+		case enodeCerts := <-pv.sendEnodeCertsCh:
+			pv.sendEnodeCerts(ps, enodeCerts)
+
 		}
 	}
 }
@@ -508,6 +514,25 @@ func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 			pv.sendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
+}
+
+// sendEnodeCerts will send the appropriate enode certificate to the proxies.
+func (pv *proxiedValidatorEngine) sendEnodeCerts(ps *proxySet, enodeCerts map[enode.ID]*istanbul.EnodeCertMsg) {
+	logger := pv.logger.New("func", "sendEnodeCerts")
+
+	for proxyID, proxy := range ps.proxiesByID {
+		if proxy.peer != nil && enodeCerts[proxyID] != nil {
+			// Generate message payload.  Note that these enode certs are already signed by the validator
+			payload, err := enodeCerts[proxyID].Msg.Payload()
+			if err != nil {
+				logger.Error("Error getting payload of enode certificate message", "err", err, "proxyID", proxyID)
+			}
+
+			logger.Info("Sharing enode certificate to proxy", "proxy peer", proxy.peer, "proxyID", proxyID)
+			pv.backend.Unicast(proxy.peer, payload, istanbul.EnodeCertificateMsg)
+		}
+	}
+
 }
 
 // updateValidatorAssignments will retrieve find the validator conn set diff between the current validator

@@ -1169,6 +1169,10 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		}
 	}
 
+	if sb.IsProxiedValidator() {
+		sb.proxiedValidatorEngine.SendEnodeCertsToAllProxies(enodeCertificateMsgs)
+	}
+
 	// Generate and gossip a new version certificate
 	newVersionCertificate, err := sb.generateVersionCertificate(version)
 	if err != nil {
@@ -1357,6 +1361,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 		// to ensure that the proxies to eventually get their enode certificates.
 		logger.Trace("Attempting to set an enode certificate with the same version as the previous set enode certificate's")
 	} else {
+		logger.Debug("Setting enode certificate", "version", *enodeCertVersion)
 		sb.enodeCertificateMsgMap = enodeCertMsgMap
 		sb.enodeCertificateMsgVersion = *enodeCertVersion
 	}

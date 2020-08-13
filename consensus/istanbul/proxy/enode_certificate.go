@@ -19,7 +19,6 @@ package proxy
 import (
 	"encoding/hex"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -63,45 +62,47 @@ func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []b
 
 // handleEnodeCertificateFromFwdMsg will handle an enode certifcate message sent from the proxied validator
 // in a forward message
-func (p *proxyEngine) handleEnodeCertificateFromFwdMsg(destAddresses []common.Address, payload []byte) error {
-	logger := p.logger.New("func", "handleEnodeCertificateFromFwdMsg")
+func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consensus.Peer, payload []byte) (bool, error) {
+	logger := p.logger.New("func", "handleEnodeCertificateMsgFromProxiedValidator")
+
+	logger.Trace("Handling an enode certificate msg from proxied validator")
 
 	msg := new(istanbul.Message)
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
 	if err != nil {
 		logger.Error("Error in decoding received Enode Certificate message from forward message", "err", err, "payload", hex.EncodeToString(payload))
-		return err
+		return false, err
 	}
 
 	// Verify that the sender is from the proxied validator
 	if msg.Address != p.config.ProxiedValidatorAddress {
 		logger.Error("Unauthorized Enode Certificate message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
-		return errUnauthorizedMessageFromProxiedValidator
+		return false, errUnauthorizedMessageFromProxiedValidator
 	}
 
 	var enodeCertificate istanbul.EnodeCertificate
 	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
 		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
-		return err
+		return false, err
 	}
 
 	enodeCertificateNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
 	if err != nil {
 		logger.Warn("Malformed v4 node in received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate, "err", err)
-		return err
+		return false, err
 	}
 
 	// If this enode certificate's nodeID is the same as the node's external nodeID, then save it.
 	selfNode := p.backend.SelfNode()
 	if enodeCertificateNode.ID() == selfNode.ID() {
 		enodeCertMsgMap := make(map[enode.ID]*istanbul.EnodeCertMsg)
-		enodeCertMsgMap[selfNode.ID()] = &istanbul.EnodeCertMsg{Msg: msg, DestAddresses: destAddresses}
+		enodeCertMsgMap[selfNode.ID()] = &istanbul.EnodeCertMsg{Msg: msg}
 		if err := p.backend.SetEnodeCertificateMsgMap(enodeCertMsgMap); err != nil {
 			logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
-			return err
+			return true, err
 		}
 	}
 
-	return nil
+	return true, nil
 }

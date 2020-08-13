@@ -44,8 +44,14 @@ func (pv *proxiedValidatorEngine) SendForwardMsg(proxies []*Proxy, destAddresses
 				return err
 			}
 
-			// Note that we are not signing message.  The message that is being wrapped is already signed.
 			msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: pv.backend.Address()}
+
+			// Sign the message
+			if err := msg.Sign(pv.backend.Sign); err != nil {
+				logger.Error("Error in signing an Istanbul Forward Message", "ForwardMsg", msg.String(), "err", err)
+				return err
+			}
+
 			fwdMsgPayload, err := msg.Payload()
 			if err != nil {
 				return err
@@ -74,11 +80,15 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 
 	istMsg := new(istanbul.Message)
 
-	// An Istanbul FwdMsg doesn't have a signature since it's coming from a trusted peer and
-	// the wrapped message is already signed by the proxied validator.
-	if err := istMsg.FromPayload(payload, nil); err != nil {
+	if err := istMsg.FromPayload(payload, istanbul.GetSignatureAddress); err != nil {
 		logger.Error("Failed to decode message from payload", "from", peer.Node().ID(), "err", err)
 		return true, err
+	}
+
+	// Verify that the sender is from the proxied validator
+	if istMsg.Address != p.config.ProxiedValidatorAddress {
+		logger.Error("Unauthorized forward message", "sender address", istMsg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
+		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
 	var fwdMsg *istanbul.ForwardMessage
@@ -86,20 +96,6 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 	if err != nil {
 		logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
 		return true, err
-	}
-
-	logger.Trace("Forward message's code", "fwdMsg.Code", fwdMsg.Code)
-
-	// If this is a EnodeCertificateMsg, then do additional handling.
-	// TODO: Ideally there should be a separate protocol between proxy and proxied validator
-	//       and as part of that protocol, it has a specific message code for a proxied validator
-	//       to share to all of it's proxies their enode certificate.
-	if fwdMsg.Code == istanbul.EnodeCertificateMsg {
-		logger.Trace("Doing special handling for a forwarded enode certficate msg")
-		if err := p.handleEnodeCertificateFromFwdMsg(fwdMsg.DestAddresses, fwdMsg.Msg); err != nil {
-			logger.Error("Error in handling enode certificate msg from forward msg", "from", peer.Node().ID(), "err", err)
-			return true, err
-		}
 	}
 
 	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)

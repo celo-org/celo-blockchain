@@ -110,6 +110,9 @@ type ProxiedValidatorEngine interface {
 	// connected proxy.
 	SendValEnodesShareMsgToAllProxies() error
 
+	// SendEnodeCertsToAllProxies will send the enode certs to the appropriate proxy.
+	SendEnodeCertsToAllProxies(map[enode.ID]*istanbul.EnodeCertMsg) error
+
 	// GetValidatorProxyAssignments will retrieve all the remote validator to proxy assignments.
 	GetValidatorProxyAssignments(validators []common.Address) (map[common.Address]*Proxy, error)
 
