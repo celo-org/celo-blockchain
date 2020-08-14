@@ -71,6 +71,9 @@ type BackendForProxiedValidatorEngine interface {
 
 	// RemovePeer will remove a static peer
 	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
+
+	// GetPeers will retrieve the connected peers filtered on target.  Will return all connected peers if target is nil.
+	GetPeers(target map[enode.ID]bool) map[enode.ID]consensus.Peer
 }
 
 type fwdMsgInfo struct {
@@ -373,6 +376,19 @@ func (pv *proxiedValidatorEngine) threadRun() {
 
 	pv.updateValidatorAssignments(ps)
 
+	addProxyPeer := func(proxyPeer consensus.Peer) {
+		peerNode := proxyPeer.Node()
+		peerID := peerNode.ID()
+		proxy := ps.getProxy(peerID)
+		if proxy != nil {
+			if valsReassigned := ps.setProxyPeer(peerID, proxyPeer); valsReassigned {
+				logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
+				pv.backend.UpdateAnnounceVersion()
+				pv.sendValEnodeShareMsgs(ps)
+			}
+		}
+	}
+
 loop:
 	for {
 		select {
@@ -396,6 +412,13 @@ loop:
 					purpose |= p2p.StatsProxyPurpose
 				}
 				pv.backend.AddPeer(proxyNode.InternalNode, purpose)
+
+				// Check to see if the proxy is already peered with the validator
+				peer := pv.backend.GetPeers(map[enode.ID]bool{proxyID: true})
+				if peer[proxyID] != nil {
+					logger.Debug("Proxy already connected", "proxy", proxyNode, "chan", "addProxyNodes")
+					addProxyPeer(peer[proxyID])
+				}
 			}
 
 		case rmProxyNodes := <-pv.removeProxies:
@@ -428,17 +451,8 @@ loop:
 		case connectedPeer := <-pv.addProxyPeer:
 			// Proxied peer just connected.
 			// Set the corresponding proxyInfo's peer
-			peerNode := connectedPeer.Node()
-			peerID := peerNode.ID()
-			proxy := ps.getProxy(peerID)
-			if proxy != nil {
-				logger.Debug("Connected proxy", "proxy", proxy.String(), "chan", "addProxyPeer")
-				if valsReassigned := ps.setProxyPeer(peerID, connectedPeer); valsReassigned {
-					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
-					pv.backend.UpdateAnnounceVersion()
-					pv.sendValEnodeShareMsgs(ps)
-				}
-			}
+			logger.Debug("Connected proxy", "connectedPeer", connectedPeer, "chan", "addProxyPeer")
+			addProxyPeer(connectedPeer)
 
 		case disconnectedPeer := <-pv.removeProxyPeer:
 			// Proxied peer just disconnected.
