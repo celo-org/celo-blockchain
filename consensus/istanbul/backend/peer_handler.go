@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -163,10 +162,4 @@ func (sb *Backend) AddPeer(node *enode.Node, purpose p2p.PurposeFlag) {
 
 func (sb *Backend) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag) {
 	sb.p2pserver.RemovePeer(node, purpose)
-}
-
-// GetPeers will return the connected peers filtered on targets.  If targets is nil,
-// then it will return all the peers
-func (sb *Backend) GetPeers(targets map[enode.ID]bool) map[enode.ID]consensus.Peer {
-	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
 }
