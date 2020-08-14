@@ -411,7 +411,11 @@ loop:
 
 				logger.Info("Removing proxy node", "proxy", proxy.String(), "chan", "removeProxies")
 
-				pv.sendValEnodesShareMsg(proxy.peer, []common.Address{})
+				// If the removed proxy is connected, instruct it to disconnect any of it's validator connections
+				// by sending a val enode share message with an empty set.
+				if proxy.peer != nil {
+					pv.sendValEnodesShareMsg(proxy.peer, []common.Address{})
+				}
 
 				if valsReassigned := ps.removeProxy(proxyID); valsReassigned {
 					logger.Info("Remote validator to proxy assignment has changed.  Sending val enode share messages and updating announce version")
