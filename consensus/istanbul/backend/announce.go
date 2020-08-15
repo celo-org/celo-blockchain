@@ -718,7 +718,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// Get the external enode that this validator is assigned to
 	externalEnodeMap, err := sb.getValProxyAssignments([]common.Address{address})
 	if err != nil {
-		logger.Warn("Error in retrieving assigned proxy for remove validator", "address", address, "err", err)
+		logger.Warn("Error in retrieving assigned proxy for remote validator", "address", address, "err", err)
 		return err
 	}
 
