@@ -62,7 +62,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
 				return true, nil
 			}
-			logger.Warn("Bad delegate sign message", "peer", peer)
+			logger.Error("Delegate Sign message sent to node that is not designated to handle celostats", "peer", peer)
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		}

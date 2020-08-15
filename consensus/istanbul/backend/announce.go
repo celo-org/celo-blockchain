@@ -438,7 +438,7 @@ func (sb *Backend) getValProxyAssignments(valAddresses []common.Address) (map[co
 // Note that this function must ONLY be called by the announceThread.
 func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) error {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
-	logger.Trace("generateAndGossipQueryEnode called\n")
+	logger.Trace("generateAndGossipQueryEnode called")
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message

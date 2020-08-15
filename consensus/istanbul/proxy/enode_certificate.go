@@ -25,19 +25,10 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// handleEnodeCertificateMsg is invoked by the proxy
-// It will verify that the message is from a validator that is within the
-// validator connection set and then forward it to the proxied validator.
-func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) (bool, error) {
-	logger := p.logger.New("func", "handleEnodeCertificateMsg")
-
-	// Verify that this message is not from the proxied validator
-	p.proxiedValidatorMu.RLock()
-	defer p.proxiedValidatorMu.RUnlock()
-	if p.proxiedValidator != nil && peer.Node().ID() == p.proxiedValidator.Node().ID() {
-		logger.Warn("Got a enodeCertficate message from the proxied validator. Ignoring it", "from", peer.Node().ID())
-		return false, nil
-	}
+// handleEnodeCertificateMsgFromRemoteVal will handle an enode certificate sent from
+// a remote validator.
+func (p *proxyEngine) handleEnodeCertificateMsgFromRemoteVal(peer consensus.Peer, payload []byte) (bool, error) {
+	logger := p.logger.New("func", "handleEnodeCertificateMsgFromRemoteVal")
 
 	msg := new(istanbul.Message)
 
@@ -60,8 +51,7 @@ func (p *proxyEngine) handleEnodeCertificateMsg(peer consensus.Peer, payload []b
 	return true, nil
 }
 
-// handleEnodeCertificateFromFwdMsg will handle an enode certifcate message sent from the proxied validator
-// in a forward message
+// handleEnodeCertificateFromProxiedValidator will handle an enode certifcate message sent from the proxied validator
 func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consensus.Peer, payload []byte) (bool, error) {
 	logger := p.logger.New("func", "handleEnodeCertificateMsgFromProxiedValidator")
 
