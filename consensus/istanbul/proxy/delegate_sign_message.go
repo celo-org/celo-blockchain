@@ -17,7 +17,6 @@ package proxy
 
 import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/p2p"
 )
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -29,8 +28,15 @@ func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 	}
 
 	for _, proxy := range proxies {
-		if proxy.peer != nil && proxy.peer.PurposeIsSet(p2p.StatsProxyPurpose) {
-			pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
+		if proxy.peer != nil {
+			isStatsProxy, err := pv.IsStatsProxy(proxy.peer.Node().ID())
+			if err != nil {
+				return err
+			}
+
+			if isStatsProxy {
+				pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
+			}
 			return nil
 		}
 	}

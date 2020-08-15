@@ -226,8 +226,7 @@ const (
 	ExplicitTrustedPurpose             = 1 << 1
 	ValidatorPurpose                   = 1 << 2
 	ProxyPurpose                       = 1 << 3
-	StatsProxyPurpose                  = 1 << 4
-	AnyPurpose                         = ExplicitStaticPurpose | ExplicitTrustedPurpose | ValidatorPurpose | ProxyPurpose | StatsProxyPurpose // This value should be the bitwise OR of all possible PurposeFlag values
+	AnyPurpose                         = ExplicitStaticPurpose | ExplicitTrustedPurpose | ValidatorPurpose | ProxyPurpose // This value should be the bitwise OR of all possible PurposeFlag values
 )
 
 func (pf PurposeFlag) Add(f PurposeFlag) PurposeFlag {
@@ -263,9 +262,6 @@ func (pf PurposeFlag) String() string {
 	}
 	if pf.IsSet(ProxyPurpose) {
 		s += "-ProxyPurpose"
-	}
-	if pf.IsSet(StatsProxyPurpose) {
-		s += "-StatsProxyPurpose"
 	}
 	if s != "" {
 		s = s[1:]
