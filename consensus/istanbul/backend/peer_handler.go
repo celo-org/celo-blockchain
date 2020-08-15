@@ -111,7 +111,7 @@ func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address comm
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
-	valConnSet, err := vph.sb.retrieveValidatorConnSet()
+	valConnSet, err := vph.sb.RetrieveValidatorConnSet()
 	if err != nil {
 		vph.sb.logger.Error("Error in retrieving val conn set in AddValidatorPeer", "err", err)
 		return

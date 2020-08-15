@@ -265,7 +265,7 @@ type Backend struct {
 	// Gauge counting the gas used in the last block
 	blocksFinalizedGasUsedGauge metrics.Gauge
 
-	// Cache for the return values of the method retrieveValidatorConnSet
+	// Cache for the return values of the method RetrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
 	cachedValidatorConnSetBlockNum uint64
 	cachedValidatorConnSetMu       sync.RWMutex
@@ -746,7 +746,7 @@ func (sb *Backend) RefreshValPeers() error {
 		return errors.New("Broadcaster is not set")
 	}
 
-	valConnSet, err := sb.retrieveValidatorConnSet()
+	valConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -764,11 +764,11 @@ func (sb *Backend) ValidatorAddress() common.Address {
 	return localAddress
 }
 
-// retrieveValidatorConnSet returns the cached validator conn set if the cache
+// RetrieveValidatorConnSet returns the cached validator conn set if the cache
 // is younger than 20 blocks or if an epoch transition didn't occur since the last
 // cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
-func (sb *Backend) retrieveValidatorConnSet() (map[common.Address]bool, error) {
+func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 	sb.cachedValidatorConnSetMu.RLock()
 
 	// wait period in blocks
@@ -888,14 +888,6 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	return validatorsSet, nil
 }
 
-func (sb *Backend) RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error) {
-	if retrieveCachedVersion {
-		return sb.retrieveValidatorConnSet()
-	} else {
-		return sb.retrieveUncachedValidatorConnSet()
-	}
-}
-
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
 	if sb.IsProxiedValidator() {
 		return sb.proxiedValidatorEngine.AddProxy(node, externalNode)
@@ -923,7 +915,7 @@ func (sb *Backend) VerifyPendingBlockValidatorSignature(data []byte, sig []byte)
 // VerifyValidatorConnectionSetSignature will verify that the message sender is a validator that is responsible
 // for the current pending block (the next block right after the head block).
 func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error) {
-	if valConnSet, err := sb.retrieveValidatorConnSet(); err != nil {
+	if valConnSet, err := sb.RetrieveValidatorConnSet(); err != nil {
 		return common.Address{}, err
 	} else {
 		validators := make([]istanbul.ValidatorData, len(valConnSet))

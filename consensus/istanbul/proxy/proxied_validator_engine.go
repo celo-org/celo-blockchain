@@ -61,10 +61,7 @@ type BackendForProxiedValidatorEngine interface {
 	RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg
 
 	// RetrieveValidatorConnSet will retrieve the validator connection set.
-	// The parameter `retrieveCachedVersion` will specify if the function should retrieve the
-	// set directly from making an EVM call (which is relatively expensive), or from the cached
-	// version (which will be no more than one minute old).
-	RetrieveValidatorConnSet(retrieveCachedVersion bool) (map[common.Address]bool, error)
+	RetrieveValidatorConnSet() (map[common.Address]bool, error)
 
 	// AddPeer will add a static peer
 	AddPeer(node *enode.Node, purpose p2p.PurposeFlag)
@@ -560,7 +557,7 @@ func (pv *proxiedValidatorEngine) getValidatorConnSetDiff(validators []common.Ad
 	logger.Trace("Proxied validator engine retrieving validator connection set diff", "validators", common.ConvertToStringSlice(validators))
 
 	// Get the set of active and registered validators
-	newValConnSet, err := pv.backend.RetrieveValidatorConnSet(false)
+	newValConnSet, err := pv.backend.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Warn("Proxy Handler couldn't get the validator connection set", "err", err)
 		return nil, nil, err

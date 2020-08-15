@@ -274,7 +274,7 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
 
 	// Check if this node is in the validator connection set
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -292,7 +292,7 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
 
 	// retrieve the validator connection set
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -642,7 +642,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
 
 	// Check if the sender is within the validator connection set
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator connection set", "err", err)
 		return err
@@ -772,7 +772,7 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 
 	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -1009,7 +1009,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	}
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator conn set", "err", err)
 		return err
@@ -1121,7 +1121,7 @@ func (sb *Backend) GetAnnounceVersion() uint {
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -1302,7 +1302,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 		return nil
 	}
 
-	validatorConnSet, err := sb.retrieveValidatorConnSet()
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Debug("Error in retrieving registered/elected valset", "err", err)
 		return err
