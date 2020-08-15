@@ -111,7 +111,17 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 }
 
 func (sb *Backend) shouldHandleDelegateSign(peer consensus.Peer) bool {
-	return sb.IsProxy() || (sb.IsProxiedValidator() && peer.PurposeIsSet(p2p.StatsProxyPurpose))
+	if sb.IsProxy() {
+		return true
+	} else if sb.IsProxiedValidator() {
+		isStatsProxy, err := sb.proxiedValidatorEngine.IsStatsProxy(peer.Node().ID())
+		if err != nil {
+			sb.logger.Warn("Error when checking if peer is stats proxy", "err", err)
+		}
+		return isStatsProxy
+	}
+
+	return false
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages

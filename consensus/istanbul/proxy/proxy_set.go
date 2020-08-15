@@ -59,6 +59,7 @@ func (ps *proxySet) addProxy(newProxy *istanbul.ProxyConfig) {
 			externalNode: newProxy.ExternalNode,
 			peer:         nil,
 			disconnectTS: time.Now(),
+			statsHandler: newProxy.StatsHandler,
 		}
 	} else {
 		logger.Warn("Cannot add proxy, since a proxy with the same internal enode ID exists already")

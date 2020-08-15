@@ -120,6 +120,9 @@ type ProxiedValidatorEngine interface {
 	// GetProxiesAndValAssignments will retrieve all of the proxies (connected or not yet connected) and
 	// the proxy to validator assignments.
 	GetProxiesAndValAssignments() ([]*Proxy, map[enode.ID][]common.Address, error)
+
+	// IsStatsProxy will check if the peerID is the designated proxy to communicate with celo stats.
+	IsStatsProxy(peerID enode.ID) (bool, error)
 }
 
 // ==============================================
@@ -131,6 +134,7 @@ type Proxy struct {
 	externalNode *enode.Node    // Enode for the external network interface
 	peer         consensus.Peer // Connected proxy peer.  Is nil if this node is not connected to the proxy
 	disconnectTS time.Time      // Timestamp when this proxy's peer last disconnected. Initially set to the timestamp of when the proxy was added
+	statsHandler bool           // Does this proxy handle celo stats?
 }
 
 func (p *Proxy) ID() enode.ID {
@@ -156,6 +160,7 @@ type ProxyInfo struct {
 	IsPeered                 bool             `json:"isPeered"`
 	AssignedRemoteValidators []common.Address `json:"validators"`            // All validator addresses assigned to the proxy
 	DisconnectTS             int64            `json:"disconnectedTimestamp"` // Unix time of the last disconnect of the peer
+	StatsHandler             bool             `json:"statsHandler"`
 }
 
 func NewProxyInfo(p *Proxy, assignedVals []common.Address) *ProxyInfo {
@@ -165,6 +170,7 @@ func NewProxyInfo(p *Proxy, assignedVals []common.Address) *ProxyInfo {
 		IsPeered:                 p.IsPeered(),
 		DisconnectTS:             p.disconnectTS.Unix(),
 		AssignedRemoteValidators: assignedVals,
+		StatsHandler:             p.statsHandler,
 	}
 }
 

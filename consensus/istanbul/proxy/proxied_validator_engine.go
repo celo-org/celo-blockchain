@@ -601,3 +601,18 @@ func (pv *proxiedValidatorEngine) getValidatorConnSetDiff(validators []common.Ad
 
 	return newVals, rmVals, nil
 }
+
+func (pv *proxiedValidatorEngine) IsStatsProxy(peerID enode.ID) (bool, error) {
+	proxies, _, err := pv.GetProxiesAndValAssignments()
+	if err != nil {
+		return false, err
+	}
+
+	for _, proxy := range proxies {
+		if proxy.peer != nil && proxy.peer.Node().ID() == peerID {
+			return proxy.statsHandler, nil
+		}
+	}
+
+	return false, nil
+}
