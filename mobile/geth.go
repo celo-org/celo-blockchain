@@ -104,6 +104,9 @@ type NodeConfig struct {
 	// pipe path on Windows), whereas if it's a resolvable path name (absolute or
 	// relative), then that specific path is enforced. An empty path disables IPC.
 	IPCPath string
+
+	// NoUSB disables hardware wallet monitoring and connectivity.
+	NoUSB bool
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
@@ -114,6 +117,7 @@ var defaultNodeConfig = &NodeConfig{
 	EthereumEnabled:       true,
 	EthereumNetworkID:     1,
 	EthereumDatabaseCache: 16,
+	NoUSB:                 true,
 }
 
 // NewNodeConfig creates a new node option set, initialized to the default values.
@@ -157,6 +161,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			NAT:              nat.Any(),
 			MaxPeers:         config.MaxPeers,
 		},
+		NoUSB: true,
 	}
 
 	rawStack, err := node.New(nodeConf)
