@@ -69,4 +69,4 @@ require (
 // Use our fork which contains the fix to build on iOS
 replace github.com/elastic/gosigar => github.com/celo-org/gosigar v0.10.5-celo1
 
-replace golang.org/x/sys => github.com/celo-org/sys v0.0.0-20200812044206-417cb99ec37c
+replace golang.org/x/sys => github.com/celo-org/sys v0.0.0-20200816232032-1d4c3212eaf2

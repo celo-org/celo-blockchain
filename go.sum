@@ -39,8 +39,8 @@ github.com/celo-org/celo-bls-go v0.1.4 h1:d99spabDiuyMJ4uYa/0MbpCsEhaWSYNIujIoZ5
 github.com/celo-org/celo-bls-go v0.1.4/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/gosigar v0.10.5-celo1 h1:LbhCsvNot586MAVvGFVF4cekBAo1pAYfUxktl8VuPas=
 github.com/celo-org/gosigar v0.10.5-celo1/go.mod h1:/kPo9MOBSowZbtkqUg0tJ048OJJVjG8dpaHKwAgBLz4=
-github.com/celo-org/sys v0.0.0-20200812044206-417cb99ec37c h1:4Ir1xhajMGrI203Ax4CVZZHLewyaFsU+O1qMklnV6jM=
-github.com/celo-org/sys v0.0.0-20200812044206-417cb99ec37c/go.mod h1:ScSp7VP4UhPbGOfaFbd/KJ6aMdnvROQL4cMA0vYCB1M=
+github.com/celo-org/sys v0.0.0-20200816232032-1d4c3212eaf2 h1:uJk1UfNR+T/7iQOckLNGqpItPkY5Z/wV2glfwu0/3n8=
+github.com/celo-org/sys v0.0.0-20200816232032-1d4c3212eaf2/go.mod h1:ScSp7VP4UhPbGOfaFbd/KJ6aMdnvROQL4cMA0vYCB1M=
 github.com/cespare/cp v0.1.0 h1:SE+dxFebS7Iik5LK0tsi1k9ZCxEaFX4AjQmoyA+1dJk=
 github.com/cespare/cp v0.1.0/go.mod h1:SOGHArjBr4JWaSDEVpWpo/hNg6RoKrls6Oh40hiwW+s=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
