@@ -157,6 +157,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			NAT:              nat.Any(),
 			MaxPeers:         config.MaxPeers,
 		},
+		NoUSB: true,
 	}
 
 	rawStack, err := node.New(nodeConf)
