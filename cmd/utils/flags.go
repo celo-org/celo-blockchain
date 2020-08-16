@@ -456,9 +456,13 @@ var (
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas",
 	}
 	// Logging and debug settings
-	EthStatsURLFlag = cli.StringFlag{
+	EthStatsLegacyURLFlag = cli.StringFlag{
 		Name:  "ethstats",
-		Usage: "Reporting URL of a ethstats service (nodename:secret@host:port)",
+		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
+	}
+	CeloStatsURLFlag = cli.StringFlag{
+		Name:  "celostats",
+		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
 	}
 	FakePoWFlag = cli.BoolFlag{
 		Name:  "fakepow",
@@ -774,6 +778,11 @@ var (
 	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
 		Name:  "proxy.proxyenodeurlpair",
 		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
+	}
+
+	ProxyCeloStatsFlag = cli.StringFlag{
+		Name:  "proxy.proxycelostats",
+		Usage: "Internal facing enode URL of proxy responsible for communicating with celostats",
 	}
 
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
@@ -1502,7 +1511,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
 				InternalNode: proxyInternalNode,
 				ExternalNode: proxyExternalNode,
-				StatsHandler: i == 0,
+				StatsHandler: ctx.GlobalIsSet(ProxyCeloStatsFlag.Name) && ProxyCeloStatsFlag.Name == proxyInternalNode.String(),
 			}
 		}
 

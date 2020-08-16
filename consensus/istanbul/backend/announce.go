@@ -230,17 +230,6 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.updateAnnounceVersionCh:
-			// Drain this channel, as the update version action will address all requests.
-
-		drainLoop:
-			for {
-				select {
-				case <-sb.updateAnnounceVersionCh:
-				default:
-					break drainLoop
-				}
-			}
-
 			updateAnnounceVersionFunc()
 
 		case <-pruneAnnounceDataStructuresTicker.C:

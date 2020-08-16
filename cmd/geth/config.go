@@ -126,8 +126,10 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)
 	}
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
-	if ctx.GlobalIsSet(utils.EthStatsURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
+	if ctx.GlobalIsSet(utils.CeloStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.CeloStatsURLFlag.Name)
+	} else if ctx.GlobalIsSet(utils.EthStatsLegacyURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsLegacyURLFlag.Name)
 	}
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
 
