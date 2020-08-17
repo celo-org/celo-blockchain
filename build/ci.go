@@ -146,6 +146,7 @@ var (
 		"bionic": "golang-go",
 		"disco":  "golang-go",
 		"eoan":   "golang-go",
+		"focal":  "golang-go",
 	}
 
 	debGoBootPaths = map[string]string{
@@ -219,9 +220,9 @@ func doInstall(cmdline []string) {
 		var minor int
 		fmt.Sscanf(strings.TrimPrefix(runtime.Version(), "go1."), "%d", &minor)
 
-		if minor < 9 {
+		if minor < 11 {
 			log.Println("You have Go version", runtime.Version())
-			log.Println("go-ethereum requires at least Go version 1.9 and cannot")
+			log.Println("go-ethereum requires at least Go version 1.11 and cannot")
 			log.Println("be compiled with an earlier version. Please upgrade your Go installation.")
 			os.Exit(1)
 		}
@@ -241,13 +242,6 @@ func doInstall(cmdline []string) {
 		goinstall.Args = append(goinstall.Args, packages...)
 		build.MustRun(goinstall)
 		return
-	}
-	// If we are cross compiling to ARMv5 ARMv6 or ARMv7, clean any previous builds
-	if *arch == "arm" {
-		os.RemoveAll(filepath.Join(runtime.GOROOT(), "pkg", runtime.GOOS+"_arm"))
-		for _, path := range filepath.SplitList(build.GOPATH()) {
-			os.RemoveAll(filepath.Join(path, "pkg", runtime.GOOS+"_arm"))
-		}
 	}
 
 	// Seems we are cross compiling, work around forbidden GOBIN
@@ -306,7 +300,6 @@ func goTool(subcmd string, args ...string) *exec.Cmd {
 
 func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd {
 	cmd := build.GoTool(subcmd, args...)
-	cmd.Env = []string{"GOPATH=" + build.GOPATH()}
 	if arch == "" || arch == runtime.GOARCH {
 		cmd.Env = append(cmd.Env, "GOBIN="+GOBIN)
 	} else {
@@ -317,7 +310,7 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 		cmd.Env = append(cmd.Env, "CC="+cc)
 	}
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOPATH=") || strings.HasPrefix(e, "GOBIN=") {
+		if strings.HasPrefix(e, "GOBIN=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, e)
@@ -920,7 +913,6 @@ func gomobileTool(subcmd string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(GOBIN, "gomobile"), subcmd)
 	cmd.Args = append(cmd.Args, args...)
 	cmd.Env = []string{
-		"GOPATH=" + build.GOPATH(),
 		"PATH=" + GOBIN + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
 	for _, e := range os.Environ() {
@@ -1109,7 +1101,6 @@ func xgoTool(args []string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(GOBIN, "xgo"), args...)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, []string{
-		"GOPATH=" + build.GOPATH(),
 		"GOBIN=" + GOBIN,
 	}...)
 	return cmd
@@ -1121,9 +1112,9 @@ func doXgoArchive(cmdline []string) {
 	var (
 		targetsFlag = flag.String("targets", "", `List of targets int the same format as xgo`)
 		archiveType = flag.String("type", "tar", `Archive type tar|zip`)
-		inputDir = flag.String("in", "", `Directory with all build binaries`)
-		outputDir = flag.String("out", "", `Output directory`)
-		ext string
+		inputDir    = flag.String("in", "", `Directory with all build binaries`)
+		outputDir   = flag.String("out", "", `Output directory`)
+		ext         string
 	)
 
 	flag.CommandLine.Parse(cmdline)
@@ -1137,7 +1128,6 @@ func doXgoArchive(cmdline []string) {
 		log.Fatal("unknown archive type: ", archiveType)
 	}
 
-
 	var (
 		env = build.Env()
 	)
@@ -1147,9 +1137,9 @@ func doXgoArchive(cmdline []string) {
 		// linux/amd64 => geth-linux-amd64
 		var (
 			targetBinSegment = strings.Replace(target, "/", "-", 1)
-			basegeth = targetBinSegment + "-" + params.ArchiveVersion(env.Commit)
-			geth     = filepath.Join(*outputDir, "geth-" + basegeth + ext)
-			alltools = filepath.Join(*outputDir, "geth-alltools-" + basegeth + ext)
+			basegeth         = targetBinSegment + "-" + params.ArchiveVersion(env.Commit)
+			geth             = filepath.Join(*outputDir, "geth-"+basegeth+ext)
+			alltools         = filepath.Join(*outputDir, "geth-alltools-"+basegeth+ext)
 		)
 
 		if err := build.WriteArchive(geth, xgoGethArchiveFiles(targetBinSegment, *inputDir)); err != nil {

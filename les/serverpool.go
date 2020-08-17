@@ -198,6 +198,7 @@ func (pool *serverPool) discoverNodes() {
 		if err != nil {
 			continue
 		}
+		clientDiscoveredNodesCounter.Inc(1)
 		pool.discNodes <- enode.NewV4(pubkey, n.IP, int(n.TCP), int(n.UDP))
 	}
 }

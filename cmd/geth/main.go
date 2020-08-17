@@ -94,7 +94,7 @@ var (
 		utils.UltraLightFractionFlag,
 		utils.UltraLightOnlyAnnounceFlag,
 		utils.WhitelistFlag,
-		utils.TxFeeRecipientFlag,
+		utils.EtherbaseFlag,
 		utils.BLSbaseFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
@@ -104,10 +104,7 @@ var (
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
-		utils.MinerEtherbaseFlag,
-		utils.MinerLegacyEtherbaseFlag,
 		utils.MiningEnabledFlag,
-		utils.MinerValidatorFlag,
 		utils.MinerThreadsFlag,
 		utils.MinerLegacyThreadsFlag,
 		utils.MinerNotifyFlag,
@@ -201,7 +198,7 @@ func init() {
 	// Initialize the CLI app and start Geth
 	app.Action = geth
 	app.HideVersion = true // we have a command to print the version
-	app.Copyright = "Copyright 2013-2019 The go-ethereum Authors"
+	app.Copyright = "Copyright 2013-2020 The go-ethereum Authors"
 	app.Commands = []cli.Command{
 		// See chaincmd.go:
 		initCommand,
