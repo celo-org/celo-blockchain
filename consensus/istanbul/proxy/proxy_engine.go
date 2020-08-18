@@ -67,10 +67,9 @@ type proxyEngine struct {
 	logger  log.Logger
 	backend BackendForProxyEngine
 
-	// Proxied Validators set and count of authorized addresses
-	// TODO: What to name authorizedAddresses?
+	// Proxied Validators set and count of nodekey addresses
 	proxiedValidators   map[consensus.Peer]bool
-	authorizedAddresses map[common.Address]int
+	proxiedNodekeys     map[common.Address]int
 	proxiedValidatorsMu sync.RWMutex
 }
 
@@ -85,8 +84,8 @@ func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (Pro
 		logger:  log.New(),
 		backend: backend,
 
-		proxiedValidators:   make(map[consensus.Peer]bool),
-		authorizedAddresses: make(map[common.Address]int),
+		proxiedValidators: make(map[consensus.Peer]bool),
+		proxiedNodekeys:   make(map[common.Address]int),
 	}
 
 	return p, nil
@@ -124,7 +123,7 @@ func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensu
 	logger := p.logger.New("func", "RegisterProxiedValidatorPeer")
 	logger.Info("Validator connected to proxy", "addr", addr, "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
 
-	p.authorizedAddresses[addr] = p.authorizedAddresses[addr] + 1
+	p.proxiedNodekeys[addr] = p.proxiedNodekeys[addr] + 1
 	p.proxiedValidators[proxiedValidatorPeer] = true
 }
 
@@ -137,9 +136,9 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 	logger := p.logger.New("func", "UnregisterProxiedValidatorPeer")
 	logger.Info("Removing validator", "addr", addr, "enode", proxiedValidatorPeer.Node())
 
-	p.authorizedAddresses[addr] = p.authorizedAddresses[addr] - 1
-	if p.authorizedAddresses[addr] == 0 {
-		delete(p.authorizedAddresses, addr)
+	p.proxiedNodekeys[addr] = p.proxiedNodekeys[addr] - 1
+	if p.proxiedNodekeys[addr] == 0 {
+		delete(p.proxiedNodekeys, addr)
 	}
 	delete(p.proxiedValidators, proxiedValidatorPeer)
 }
