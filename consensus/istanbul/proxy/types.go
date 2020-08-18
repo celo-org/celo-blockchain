@@ -68,10 +68,10 @@ type ProxyEngine interface {
 	// SendDelegateSignMsgToProxiedValidator will send a delegate sign message to the proxied validator.
 	SendDelegateSignMsgToProxiedValidator(msg []byte) error
 
-	// SendMsgToProxiedValidator will send the `celo` message to the proxied validator.
-	SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error
+	// SendMsgToProxiedValidators will send the `celo` message to the proxied validators.
+	SendMsgToProxiedValidators(msgCode uint64, msg *istanbul.Message) error
 
-	// GetProxiedValidatorsInfo will return information about the proxied validator.
+	// GetProxiedValidatorsInfo will return information about the proxied validators.
 	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 }
 

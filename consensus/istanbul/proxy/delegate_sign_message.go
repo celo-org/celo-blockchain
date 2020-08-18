@@ -48,13 +48,14 @@ func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
 // proxied validator if one exists
 func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
-	p.proxiedValidatorMu.RLock()
-	defer p.proxiedValidatorMu.RUnlock()
+	p.proxiedValidatorsMu.RLock()
+	defer p.proxiedValidatorsMu.RUnlock()
 
-	if p.proxiedValidator != nil {
-		p.backend.Unicast(p.proxiedValidator, msg, istanbul.DelegateSignMsg)
-		return nil
-	} else {
+	if len(p.proxiedValidators) == 0 {
 		return ErrNoProxiedValidator
 	}
+	for proxiedValidator := range p.proxiedValidators {
+		p.backend.Unicast(proxiedValidator, msg, istanbul.DelegateSignMsg)
+	}
+	return nil
 }

@@ -39,10 +39,10 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromRemoteVal(peer consensus.Peer
 		return true, istanbul.ErrUnauthorizedAddress
 	}
 
-	// Need to forward the message to the proxied validator
-	logger.Trace("Forwarding consensus message to proxied validator", "from", peer.Node().ID())
-	if p.proxiedValidator != nil {
-		p.backend.Unicast(p.proxiedValidator, payload, istanbul.EnodeCertificateMsg)
+	// Need to forward the message to the proxied validators
+	logger.Trace("Forwarding enode certificate message to proxied validators", "from", peer.Node().ID())
+	for proxiedValidator := range p.proxiedValidators {
+		p.backend.Unicast(proxiedValidator, payload, istanbul.EnodeCertificateMsg)
 	}
 
 	// We could add an optimization here where the proxy will save thie enodeCertificate in it's own valEnodeTable.
@@ -66,7 +66,9 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consens
 	}
 
 	// Verify that the sender is from the proxied validator
-	if msg.Address != p.config.ProxiedValidatorAddress {
+	p.proxiedValidatorsMu.RLock()
+	defer p.proxiedValidatorsMu.RUnlock()
+	if ok := p.proxiedValidators[peer]; !ok {
 		logger.Error("Unauthorized Enode Certificate message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
 		return false, errUnauthorizedMessageFromProxiedValidator
 	}
