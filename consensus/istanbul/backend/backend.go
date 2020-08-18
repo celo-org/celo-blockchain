@@ -281,7 +281,9 @@ type Backend struct {
 	vph *validatorPeerHandler
 
 	// Handler for proxy related functionality
-	proxyEngine proxy.ProxyEngine
+	proxyEngine        proxy.ProxyEngine
+	proxyEngineRunning bool
+	proxyEngineMu      sync.RWMutex
 
 	// Handler for proxied validator related functionality
 	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
@@ -303,12 +305,22 @@ func (sb *Backend) IsProxiedValidator() bool {
 func (sb *Backend) IsValidating() bool {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	return sb.coreStarted
+	return sb.coreStarted && sb.core.IsPrimaryForSeq(sb.core.CurrentView().Sequence)
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)
 func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
+}
+
+//  IsElectedValidator returns true if instance is an elected validator
+func (sb *Backend) IsElectedValidator() bool {
+	// Check if this node is in the validator connection set
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	if err != nil {
+		return false
+	}
+	return validatorConnSet[sb.Address()]
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy

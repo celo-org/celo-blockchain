@@ -41,7 +41,8 @@ type Config struct {
 	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
 	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
 	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
-	Validator                   bool           `toml:",omitempty"` // Specified if this node is configured to validate (specifically if --mine command line is set)
+	Validator                   bool           `toml:",omitempty"` // Specified if this node is configured to validate (from --validator or --mine)
+	Replica                     bool           `toml:",omitempty"` // Specified if this node is configured to be a replica
 
 	// Proxy Configs
 	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
@@ -70,6 +71,7 @@ var DefaultConfig = &Config{
 	VersionCertificateDBPath:       "versioncertificates",
 	RoundStateDBPath:               "roundstates",
 	Validator:                      false,
+	Replica:                        false,
 	Proxy:                          false,
 	Proxied:                        false,
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes

@@ -60,6 +60,11 @@ func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 		return errFutureMessage
 	}
 
+	// Then reject messages for seqs where we are not the primary validator
+	if !c.IsPrimaryForSeq(msgView.Sequence) {
+		return errIgnoredMessage
+	}
+
 	// We will never do consensus on any round less than desiredRound.
 	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
 		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))

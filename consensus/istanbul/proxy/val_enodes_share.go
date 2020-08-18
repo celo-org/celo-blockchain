@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"encoding/hex"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -80,6 +81,11 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 
 func (pv *proxiedValidatorEngine) sendValEnodesShareMsg(proxyPeer consensus.Peer, remoteValidators []common.Address) error {
 	logger := pv.logger.New("func", "sendValEnodesShareMsg")
+
+	if !pv.backend.IsValidating() {
+		logger.Info("Skipping sending ValEnodesShareMsg b/c not validating")
+		return errors.New("Not validating")
+	}
 
 	msg, err := pv.generateValEnodesShareMsg(remoteValidators)
 	if err != nil {

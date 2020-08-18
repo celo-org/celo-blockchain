@@ -43,20 +43,21 @@ const (
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
-	logger := sb.logger.New("func", "HandleMsg")
+	logger := sb.logger.New("func", "HandleMsg", "msgCode", msg.Code)
 
-	if istanbul.IsIstanbulMsg(msg) {
-		// Only a running validator or proxy should handle consensus messages
-		if (msg.Code == istanbul.ConsensusMsg) && (!sb.IsValidating() && !sb.IsProxy()) {
-			return true, istanbul.ErrStoppedEngine
-		}
+	if !istanbul.IsIstanbulMsg(msg) {
+		return false, nil
+	}
 
-		var data []byte
-		if err := msg.Decode(&data); err != nil {
-			logger.Error("Failed to decode message payload", "err", err, "from", addr)
-			return true, errDecodeFailed
-		}
+	var data []byte
+	if err := msg.Decode(&data); err != nil {
+		logger.Error("Failed to decode message payload", "err", err, "from", addr)
+		return true, errDecodeFailed
+	}
 
+	// Handle messages as proxy
+	if sb.IsProxy() {
+		// Handle DelegateSign here rather than in proxy engine b/c of handling method
 		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign(peer) {
 				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
@@ -66,47 +67,53 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		}
-
-		if sb.IsProxy() {
-			// This will handle the following messages:
-			// 1) ValEnodesShareMsg
-			// 2) FwdMsg
-			// 3) ConsensusMsg
-			// 4) EnodeCertificateMsg
-			handled, error := sb.proxyEngine.HandleMsg(peer, msg.Code, data)
-			if handled {
-				return handled, error
-			}
-		} else if sb.IsValidating() {
-			if msg.Code == istanbul.ConsensusMsg {
-				go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-					Payload: data,
-				})
-				return true, nil
-			} else if msg.Code == istanbul.EnodeCertificateMsg {
-				go sb.handleEnodeCertificateMsg(peer, data)
-				return true, nil
-			}
+		// This will handle the following messages:
+		// 1) ValEnodesShareMsg
+		// 2) FwdMsg
+		// 3) ConsensusMsg
+		// 4) EnodeCertificateMsg
+		// No error on skipped messages
+		handled, error := sb.proxyEngine.HandleMsg(peer, msg.Code, data)
+		if handled {
+			return handled, error
 		}
-
-		// Handle gossip messages (which ALL node types, other than light nodes, need to handle)
-		if msg.Code == istanbul.QueryEnodeMsg {
-			go sb.handleQueryEnodeMsg(addr, peer, data)
-			return true, nil
-		} else if msg.Code == istanbul.VersionCertificatesMsg {
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
-			return true, nil
-		} else if msg.Code == istanbul.ValidatorHandshakeMsg {
-			logger.Warn("Received unexpected Istanbul validator handshake message")
-			return true, nil
-		}
-
-		// If we got here, then that means that there is an istanbul message type that either there
-		// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
-		// node other than a proxy received the message).
-		logger.Error("Unhandled istanbul message", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
-		return false, nil
 	}
+	// Handle messages are validator (validating or not)
+	switch msg.Code {
+	case istanbul.ConsensusMsg:
+		// if sb.IsValidating() {
+		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
+			Payload: data,
+		})
+		// }
+		return true, nil
+	case istanbul.DelegateSignMsg:
+		if sb.shouldHandleDelegateSign(peer) {
+			go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+			return true, nil
+		}
+		return true, errors.New("No proxy or proxied validator found")
+	case istanbul.EnodeCertificateMsg:
+		// if sb.IsValidating() {
+		go sb.handleEnodeCertificateMsg(peer, data)
+		// }
+		return true, nil
+	// Handle gossip messages (which ALL node types, other than light nodes, need to handle)
+	case istanbul.QueryEnodeMsg:
+		go sb.handleQueryEnodeMsg(addr, peer, data)
+		return true, nil
+	case istanbul.VersionCertificatesMsg:
+		go sb.handleVersionCertificatesMsg(addr, peer, data)
+		return true, nil
+	case istanbul.ValidatorHandshakeMsg:
+		logger.Warn("Received unexpected Istanbul validator handshake message")
+		return true, nil
+	}
+
+	// If we got here, then that means that there is an istanbul message type that either there
+	// is an istanbul message that is not handled, or it's a forward message not handled (e.g. a
+	// node other than a proxy received the message).
+	logger.Error("Unhandled istanbul message", "address", addr, "peer's enodeURL", peer.Node().String(), "ethMsgCode", msg.Code)
 	return false, nil
 }
 

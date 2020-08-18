@@ -19,6 +19,7 @@ package backend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -216,3 +217,28 @@ func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
 		return nil, proxy.ErrNodeNotProxy
 	}
 }
+
+// StartValidatingAtBlock starts the consensus engine on the given
+// block number.
+func (api *API) StartValidatingAtBlock(blockNumber int64) error {
+	if blockNumber <= 0 {
+		return errors.New("blockNumber must be > 0")
+	}
+	seq := big.NewInt(blockNumber)
+	// TODO check error)
+	api.istanbul.SetStartValidatingBlock(seq)
+	return nil
+}
+
+// StopValidatingAtBlock stop the consensus engine from participating in consensus
+// on the given block number.
+func (api *API) StopValidatingAtBlock(blockNumber int64) error {
+	if blockNumber <= 0 {
+		return errors.New("blockNumber must be > 0")
+	}
+	seq := big.NewInt(blockNumber)
+	// TODO check error)
+	api.istanbul.SetStopValidatingBlock(seq)
+	return nil
+}
+

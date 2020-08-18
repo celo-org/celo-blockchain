@@ -18,6 +18,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -92,6 +93,9 @@ type CoreBackend interface {
 
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
+
+	IsValidating() bool
+	IsElectedValidator() bool
 }
 
 type core struct {
@@ -110,6 +114,12 @@ type core struct {
 	roundChangeTimer              *time.Timer
 
 	validateFn func([]byte, []byte) (common.Address, error)
+
+	isReplica            bool // Overridden by start/stop blocks if start/stop is enabled.
+	startStopEnabled     bool
+	startValidatingBlock *big.Int
+	stopValidatingBlock  *big.Int
+	startStopMu          *sync.RWMutex
 
 	backlog MsgBacklog
 
@@ -142,6 +152,8 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
+		isReplica:          config.Replica,
+		startStopMu:        new(sync.RWMutex),
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
@@ -275,6 +287,61 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
+}
+
+func (c *core) SetStartValidatingBlock(blockNumber *big.Int) error {
+	c.startStopMu.Lock()
+	defer c.startStopMu.Unlock()
+
+	if blockNumber == nil {
+		c.startValidatingBlock = nil
+		return nil
+	}
+
+	if c.stopValidatingBlock != nil && !(blockNumber.Cmp(c.stopValidatingBlock) < 0) {
+		return errors.New("Start block number should be less than the stop block number")
+	}
+	c.startStopEnabled = true
+	c.startValidatingBlock = blockNumber
+	return nil
+}
+
+func (c *core) SetStopValidatingBlock(blockNumber *big.Int) error {
+	c.startStopMu.Lock()
+	defer c.startStopMu.Unlock()
+
+	if blockNumber == nil {
+		c.stopValidatingBlock = nil
+		return nil
+	}
+
+	if c.stopValidatingBlock != nil && !(blockNumber.Cmp(c.stopValidatingBlock) > 0) {
+		return errors.New("Stop block number should be greater than the start block number")
+	}
+	c.startStopEnabled = true
+	c.stopValidatingBlock = blockNumber
+	return nil
+}
+
+func (c *core) MakeReplica() {
+	c.startStopMu.Lock()
+	defer c.startStopMu.Unlock()
+
+	c.isReplica = true
+	c.startStopEnabled = false
+	c.startValidatingBlock = nil
+	c.stopValidatingBlock = nil
+
+}
+
+func (c *core) MakePrimary() {
+	c.startStopMu.Lock()
+	defer c.startStopMu.Unlock()
+
+	c.isReplica = false
+	c.startStopEnabled = false
+	c.startValidatingBlock = nil
+	c.stopValidatingBlock = nil
 }
 
 // Appends the current view and state to the given context.
@@ -518,6 +585,20 @@ func (c *core) startNewRound(round *big.Int) error {
 	if err != nil {
 		return err
 	}
+
+	// // Transition to Primary/Replica
+	// if !roundChange && c.startStopEnabled {
+	// 	// start <= seq w/ no stop -> primary
+	// 	if c.startValidatingBlock != nil && newView.Sequence.Cmp(c.startValidatingBlock) > 0 {
+	// 		if c.stopValidatingBlock != nil {
+	// 			c.MakePrimary()
+	// 		}
+	// 	}
+	// 	// start <= stop <= seq -> replica
+	// 	if c.stopValidatingBlock != nil && newView.Sequence.Cmp(c.stopValidatingBlock) > 0 {
+	// 		c.MakeReplica()
+	// 	}
+	// }
 
 	// Process backlog
 	c.processPendingRequests()

@@ -31,6 +31,8 @@ var (
 	// errOldMessage is returned when the received message's view is earlier
 	// than current view.
 	errOldMessage = errors.New("old message")
+	// errIgnoredMessage is returned when the validator is not the primary validator
+	errIgnoredMessage = errors.New("ignored this message as non-primary validator")
 	// errInvalidMessage is returned when the message is malformed.
 	errInvalidMessage = errors.New("invalid message")
 	// errFailedDecodePreprepare is returned when the PREPREPARE message is malformed.

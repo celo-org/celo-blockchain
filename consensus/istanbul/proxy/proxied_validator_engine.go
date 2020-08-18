@@ -33,6 +33,9 @@ type BackendForProxiedValidatorEngine interface {
 	// Address returns the validator's signing address
 	Address() common.Address
 
+	// IsValidating returns true if this node is currently validating
+	IsValidating() bool
+
 	// IsProxiedValidator returns true if this node is a proxied validator
 	IsProxiedValidator() bool
 
