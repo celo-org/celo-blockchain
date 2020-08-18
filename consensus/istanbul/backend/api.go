@@ -242,3 +242,7 @@ func (api *API) StopValidatingAtBlock(blockNumber int64) error {
 	return nil
 }
 
+// IsValidating returns true if this node is participating in the consensus protocol
+func (api *API) IsValidating() bool {
+	return api.istanbul.IsValidating()
+}
