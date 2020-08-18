@@ -68,6 +68,7 @@ type proxyEngine struct {
 	backend BackendForProxyEngine
 
 	// Proxied Validators set and count of authorized addresses
+	// TODO: What to name authorizedAddresses?
 	proxiedValidators   map[consensus.Peer]bool
 	authorizedAddresses map[common.Address]int
 	proxiedValidatorsMu sync.RWMutex
@@ -121,7 +122,7 @@ func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensu
 	pubKey := proxiedValidatorPeer.Node().Pubkey()
 	addr := crypto.PubkeyToAddress(*pubKey)
 	logger := p.logger.New("func", "RegisterProxiedValidatorPeer")
-	logger.Warn("Adding validator", "addr", addr, "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
+	logger.Info("Validator connected to proxy", "addr", addr, "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
 
 	p.authorizedAddresses[addr] = p.authorizedAddresses[addr] + 1
 	p.proxiedValidators[proxiedValidatorPeer] = true
@@ -134,7 +135,7 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 	pubKey := proxiedValidatorPeer.Node().Pubkey()
 	addr := crypto.PubkeyToAddress(*pubKey)
 	logger := p.logger.New("func", "UnregisterProxiedValidatorPeer")
-	logger.Warn("Removing validator", "addr", addr, "enode", proxiedValidatorPeer.Node())
+	logger.Info("Removing validator", "addr", addr, "enode", proxiedValidatorPeer.Node())
 
 	p.authorizedAddresses[addr] = p.authorizedAddresses[addr] - 1
 	if p.authorizedAddresses[addr] == 0 {
