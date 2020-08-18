@@ -323,7 +323,7 @@ func (c *core) SetStopValidatingBlock(blockNumber *big.Int) error {
 	return nil
 }
 
-func (c *core) MakeReplica() {
+func (c *core) MakeReplica() error {
 	c.startStopMu.Lock()
 	defer c.startStopMu.Unlock()
 
@@ -332,9 +332,10 @@ func (c *core) MakeReplica() {
 	c.startValidatingBlock = nil
 	c.stopValidatingBlock = nil
 
+	return nil
 }
 
-func (c *core) MakePrimary() {
+func (c *core) MakePrimary() error {
 	c.startStopMu.Lock()
 	defer c.startStopMu.Unlock()
 
@@ -342,6 +343,8 @@ func (c *core) MakePrimary() {
 	c.startStopEnabled = false
 	c.startValidatingBlock = nil
 	c.stopValidatingBlock = nil
+
+	return nil
 }
 
 // Appends the current view and state to the given context.

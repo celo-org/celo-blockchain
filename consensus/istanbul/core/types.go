@@ -43,8 +43,8 @@ type Engine interface {
 	// SetStopValidatingBlock sets stop in the range start <= seq < stop for which
 	// we are the primary validator
 	SetStopValidatingBlock(blockNumber *big.Int) error
-	MakeReplica()
-	MakePrimary()
+	MakeReplica() error
+	MakePrimary() error
 }
 
 // State represents the IBFT state

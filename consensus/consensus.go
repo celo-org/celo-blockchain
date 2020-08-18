@@ -196,9 +196,9 @@ type Istanbul interface {
 
 	// TODO: Add errors
 	// MakeReplica clears the start/stop block state and makes this node a replica validator.
-	MakeReplica()
+	MakeReplica() error
 	// MakePrimary clears the start/stop block state and makes this node the primary validator.
-	MakePrimary()
+	MakePrimary() error
 
 	// StartAnnouncing starts the announcing
 	StartAnnouncing() error

@@ -774,7 +774,17 @@ web3._extend({
 		}),
 		new web3._extend.Method({
 			name: 'validating',
-			call: 'istanbul_IsValidating',
+			call: 'istanbul_isValidating',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'start',
+			call: 'istanbul_stopValidating',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'stop',
+			call: 'istanbul_stopValidating',
 			params: 0,
 		}),
 		new web3._extend.Property({
