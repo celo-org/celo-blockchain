@@ -738,14 +738,9 @@ var (
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
-	IstanbulValidatorFlag = cli.BoolFlag{
-		Name:  "istanbul.validator",
-		Usage: "Run this node as a validator. Use --mine to participate in consensus",
-	}
 	IstanbulReplicaFlag = cli.BoolFlag{
-		Name: "istanbul.replica",
-		// TODO(Joshua) clean up flags
-		Usage: "Run this node as a validator replica. Use ?? to participate in consensus",
+		Name:  "istanbul.replica",
+		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
 	}
 
 	// Announce settings
@@ -1425,8 +1420,7 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
-	// --mine implies --istanbul.validator (to maintain backwards compatibility)
-	cfg.Istanbul.Validator = ctx.GlobalIsSet(IstanbulValidatorFlag.Name) || ctx.GlobalIsSet(MiningEnabledFlag.Name)
+	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name)
 	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 }
 
@@ -1453,10 +1447,6 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
 		}
-		// Validator must not be set for proxies
-		if ctx.GlobalIsSet(IstanbulValidatorFlag.Name) {
-			Fatalf("Option --%s must not be used if option --%s is used", IstanbulValidatorFlag.Name, ProxyFlag.Name)
-		}
 		// Replica must not be set for proxies
 		if ctx.GlobalIsSet(IstanbulReplicaFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", IstanbulReplicaFlag.Name, ProxyFlag.Name)
@@ -1482,9 +1472,9 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 	if ctx.GlobalIsSet(ProxiedFlag.Name) {
 		ethCfg.Istanbul.Proxied = ctx.GlobalBool(ProxiedFlag.Name)
 
-		// Validator or Mining must be set for proxied nodes
-		if !(ctx.GlobalIsSet(IstanbulValidatorFlag.Name) || ctx.GlobalIsSet(MiningEnabledFlag.Name)) {
-			Fatalf("Option --%s or --%s must be used if option --%s is used", IstanbulValidatorFlag.Name, MiningEnabledFlag.Name, ProxiedFlag.Name)
+		// Mining must be set for proxied nodes
+		if !ctx.GlobalIsSet(MiningEnabledFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
 		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {

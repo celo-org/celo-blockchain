@@ -140,7 +140,6 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
 		utils.IstanbulLookbackWindowFlag,
-		utils.IstanbulValidatorFlag,
 		utils.IstanbulReplicaFlag,
 		utils.AnnounceQueryEnodeGossipPeriodFlag,
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
@@ -415,20 +414,20 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}()
 	}
 	// Miners and proxies only makes sense if a full node is running
-	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.IstanbulValidatorFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
-	// Replicas only makes sense if we are mining or a validator
+	// Replicas only makes sense if we are mining
 	if ctx.GlobalBool(utils.IstanbulReplicaFlag.Name) {
-		if !(ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.IstanbulValidatorFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name)) {
-			utils.Fatalf("Must run a replica as a validator, in dev mode, or with mining eneabled.")
+		if !(ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name)) {
+			utils.Fatalf("Must run a replica with mining enabled or in dev mode.")
 		}
 	}
 
 	// Start auxiliary services if enabled
-	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.IstanbulValidatorFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if ctx.GlobalBool(utils.ProxyFlag.Name) {
 			utils.Fatalf("Proxies can't mine")
 		}
