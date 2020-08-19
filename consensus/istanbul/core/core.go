@@ -365,8 +365,8 @@ func (c *core) GetStartStop() (map[string]string, error) {
 		if c.startValidatingBlock != nil {
 			ret["startBlock"] = c.startValidatingBlock.String()
 		}
-		if c.startValidatingBlock != nil {
-			ret["startBlock"] = c.startValidatingBlock.String()
+		if c.stopValidatingBlock != nil {
+			ret["stopBlock"] = c.stopValidatingBlock.String()
 		}
 	}
 	return ret, nil
