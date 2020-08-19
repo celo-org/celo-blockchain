@@ -49,6 +49,8 @@ type Engine interface {
 	MakeReplica() error
 	// MakePrimary clears the start/stop state & makes this node participate in consensus
 	MakePrimary() error
+	// GetStartStop returns info on the start/stop state
+	GetStartStop() (map[string]string, error)
 }
 
 // State represents the IBFT state

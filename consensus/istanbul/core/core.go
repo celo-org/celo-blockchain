@@ -347,6 +347,28 @@ func (c *core) MakePrimary() error {
 	return nil
 }
 
+// GetStartStop returns info on the start/stop state
+func (c *core) GetStartStop() (map[string]string, error) {
+	c.startStopMu.RLock()
+	defer c.startStopMu.RUnlock()
+	ret := map[string]string{}
+	if c.isReplica {
+		ret["state"] = "replica"
+	} else {
+		ret["state"] = "primary"
+	}
+	if c.startStopEnabled {
+		ret["startStopEnabled"] = "true"
+		if c.startValidatingBlock != nil {
+			ret["startBlock"] = c.startValidatingBlock.String()
+		}
+		if c.startValidatingBlock != nil {
+			ret["startBlock"] = c.startValidatingBlock.String()
+		}
+	}
+	return ret, nil
+}
+
 // Appends the current view and state to the given context.
 func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round, desired *big.Int

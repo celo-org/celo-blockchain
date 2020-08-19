@@ -257,3 +257,13 @@ func (api *API) StopValidatingAtBlock(blockNumber int64) error {
 func (api *API) IsValidating() bool {
 	return api.istanbul.IsValidating()
 }
+
+// GetStartStop returns information about this node's start/stop block and if
+// it is participating in consensus.
+func (api *API) GetStartStop() (map[string]string, error) {
+	if api.istanbul.IsValidator() {
+		return api.istanbul.core.GetStartStop()
+	} else {
+		return nil, errors.New("Node must be a validator")
+	}
+}

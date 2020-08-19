@@ -773,11 +773,6 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'validating',
-			call: 'istanbul_isValidating',
-			params: 0,
-		}),
-		new web3._extend.Method({
 			name: 'start',
 			call: 'istanbul_stopValidating',
 			params: 0,
@@ -800,12 +795,20 @@ web3._extend({
 			getter: 'istanbul_getCurrentRoundState',
 		}),
 		new web3._extend.Property({
-		        name: 'proxies',
+		    name: 'proxies',
 			getter: 'istanbul_getProxiesInfo',
 		}),
 		new web3._extend.Property({
-		        name: 'proxiedValidators',
+		    name: 'proxiedValidators',
 			getter: 'istanbul_getProxiedValidators',
+		}),
+		new web3._extend.Property({
+			name: 'validating',
+			getter: 'istanbul_isValidating',
+		}),
+		new web3._extend.Property({
+			name: 'startStop',
+			getter: 'istanbul_getStartStop',
 		}),
 	],
 	properties: []
