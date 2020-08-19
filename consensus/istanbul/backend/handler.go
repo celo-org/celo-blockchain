@@ -81,11 +81,9 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 	// Handle messages are validator (validating or not)
 	switch msg.Code {
 	case istanbul.ConsensusMsg:
-		// if sb.IsValidating() {
 		go sb.istanbulEventMux.Post(istanbul.MessageEvent{
 			Payload: data,
 		})
-		// }
 		return true, nil
 	case istanbul.DelegateSignMsg:
 		if sb.shouldHandleDelegateSign(peer) {
@@ -94,9 +92,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		}
 		return true, errors.New("No proxy or proxied validator found")
 	case istanbul.EnodeCertificateMsg:
-		// if sb.IsValidating() {
 		go sb.handleEnodeCertificateMsg(peer, data)
-		// }
 		return true, nil
 	// Handle gossip messages (which ALL node types, other than light nodes, need to handle)
 	case istanbul.QueryEnodeMsg:

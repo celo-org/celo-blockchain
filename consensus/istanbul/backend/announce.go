@@ -719,6 +719,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 		return err
 	}
 
+	// Only answer query when validating
 	if externalEnode := externalEnodeMap[address]; externalEnode != nil && sb.IsValidating() {
 		enodeCertificateMsgs := sb.RetrieveEnodeCertificateMsgMap()
 

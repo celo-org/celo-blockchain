@@ -27,7 +27,7 @@ import (
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
 	logger := c.newLogger("func", "sendPreprepare")
 
-	// If I'm the proposer and I have the same sequence with the proposal
+	// If I'm validating, the proposer, and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() && c.backend.IsValidating() {
 		curView := c.current.View()
 		preprepare, err := Encode(&istanbul.Preprepare{
