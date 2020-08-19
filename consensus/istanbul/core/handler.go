@@ -153,6 +153,14 @@ func (c *core) handleEvents() {
 			if !ok {
 				return
 			}
+			// Add another hook on timeout events
+			if c.backend.IsElectedValidator() && !c.backend.IsValidating() {
+				headBlock := c.backend.GetCurrentHeadBlock()
+				if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
+					go c.backend.EventMux().Post(istanbul.FinalCommittedEvent{})
+				}
+				return
+			}
 			switch ev := event.Data.(type) {
 			case timeoutAndMoveToNextRoundEvent:
 				if err := c.handleTimeoutAndMoveToNextRound(ev.view); err != nil {
