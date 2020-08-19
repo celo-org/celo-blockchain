@@ -618,7 +618,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	if !roundChange && c.startStopEnabled {
 		// start <= seq w/ no stop -> primary
 		if c.startValidatingBlock != nil && newView.Sequence.Cmp(c.startValidatingBlock) > 0 {
-			if c.stopValidatingBlock != nil {
+			if c.stopValidatingBlock == nil {
 				c.MakePrimary()
 			}
 		}
