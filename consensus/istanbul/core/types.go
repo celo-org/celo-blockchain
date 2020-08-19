@@ -27,7 +27,6 @@ import (
 type Engine interface {
 	Start() error
 	Stop() error
-	IsPrimaryForSeq(seq *big.Int) bool
 	// CurrentView returns the current view or nil if none
 	CurrentView() *istanbul.View
 	// CurrentRoundState returns the current roundState or nil if none
@@ -43,7 +42,12 @@ type Engine interface {
 	// SetStopValidatingBlock sets stop in the range start <= seq < stop for which
 	// we are the primary validator
 	SetStopValidatingBlock(blockNumber *big.Int) error
+	// IsPrimaryForSeq returns true if the node is set as the primary or the seq
+	// number is in the range start <= seq < stop
+	IsPrimaryForSeq(seq *big.Int) bool
+	// MakeReplica clears the start/stop state & stops this node from participating in consensus
 	MakeReplica() error
+	// MakePrimary clears the start/stop state & makes this node participate in consensus
 	MakePrimary() error
 }
 

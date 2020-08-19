@@ -695,10 +695,12 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 	return nil
 }
 
+// MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() error {
 	return sb.core.MakeReplica()
 }
 
+// MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() error {
 	return sb.core.MakePrimary()
 }
