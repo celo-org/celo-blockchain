@@ -102,8 +102,8 @@ func (sb *Backend) announceThread() {
 
 	// Elected but non validating validators listen & query for enodes
 	// Elected and validating validators annouce (updateAnnounceVersion)
-	var shouldListen, shouldAnnounce bool
-	var listening, announcing bool
+	var shouldQuery, shouldAnnounce bool
+	var querying, announcing bool
 	// States: validator -> (elected & second, elected & primary, not elected) OR proxy
 
 	updateAnnounceVersionFunc := func() {
@@ -127,11 +127,11 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldListen = sb.IsElectedValidator()
-			shouldAnnounce = shouldListen && sb.IsValidating()
+			shouldQuery = sb.IsElectedValidator()
+			shouldAnnounce = shouldQuery && sb.IsValidating()
 
-			if shouldListen && !listening {
-				logger.Info("Starting to listen")
+			if shouldQuery && !querying {
+				logger.Info("Starting to query")
 
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
@@ -160,17 +160,17 @@ func (sb *Backend) announceThread() {
 				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
 				queryEnodeTickerCh = queryEnodeTicker.C
 
-				listening = true
-				logger.Trace("Enabled periodic gossiping of announce message (listen mode)")
+				querying = true
+				logger.Trace("Enabled periodic gossiping of announce message (query mode)")
 
-			} else if !shouldListen && listening {
-				logger.Info("Stopping listening")
+			} else if !shouldQuery && querying {
+				logger.Info("Stopping querying")
 
 				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
 				queryEnodeTicker.Stop()
 				queryEnodeTickerCh = nil
-				listening = false
-				logger.Trace("Disabled periodic gossiping of announce message (listen mode)")
+				querying = false
+				logger.Trace("Disabled periodic gossiping of announce message (query mode)")
 			}
 
 			if shouldAnnounce && !announcing {
@@ -216,7 +216,7 @@ func (sb *Backend) announceThread() {
 			sb.startGossipQueryEnodeTask()
 
 		case <-sb.generateAndGossipQueryEnodeCh:
-			if shouldListen {
+			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
 					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
@@ -261,7 +261,7 @@ func (sb *Backend) announceThread() {
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
-			if listening {
+			if querying {
 				queryEnodeTicker.Stop()
 
 			}
