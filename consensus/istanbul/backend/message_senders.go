@@ -111,7 +111,7 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 // sendMsg will asynchronously send the the Celo messages to all the peers in the destPeers param.
 func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) {
 	logger := sb.logger.New("func", "AsyncMulticastCeloMsg", "msgCode", ethMsgCode)
-	if ethMsgCode == istanbul.ConsensusMsg && !sb.IsValidating() {
+	if ethMsgCode == istanbul.ConsensusMsg && !sb.IsProxy() && !sb.IsValidating() {
 		logger.Error("Preventing node from sending consensus message as a replica.")
 		return
 	}
