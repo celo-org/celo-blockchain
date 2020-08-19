@@ -268,6 +268,7 @@ type Backend struct {
 	// Cache for the return values of the method RetrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
 	cachedValidatorConnSetBlockNum uint64
+	cachedValidatorConnSetTS       time.Time
 	cachedValidatorConnSetMu       sync.RWMutex
 
 	// Used for ensuring that only one goroutine is doing the work of updating
@@ -765,7 +766,7 @@ func (sb *Backend) ValidatorAddress() common.Address {
 }
 
 // RetrieveValidatorConnSet returns the cached validator conn set if the cache
-// is younger than 20 blocks or if an epoch transition didn't occur since the last
+// is younger than 20 blocks, younger than 1 minute, or if an epoch transition didn't occur since the last
 // cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
@@ -777,16 +778,23 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 		waitPeriod = 1
 	}
 
-	currentBlockNum := sb.currentBlock().Number().Uint64()
-	currentEpochNum := istanbul.GetEpochNumber(currentBlockNum, sb.config.Epoch)
+	// wait period in seconds
+	waitPeriodSec := 60 * time.Second
 
 	// Check to see if there is a cached validator conn set
 	if sb.cachedValidatorConnSet != nil {
-		cachedEntryEpochNum := istanbul.GetEpochNumber(sb.cachedValidatorConnSetBlockNum, sb.config.Epoch)
+		currentBlockNum := sb.currentBlock().Number().Uint64()
+		pendingBlockNum := currentBlockNum
+
+		// We want to get the val conn set that is meant to validate the pending block
+		desiredValSetEpochNum := istanbul.GetEpochNumber(pendingBlockNum, sb.config.Epoch)
+
+		// Note that the cached validator conn set is applicable for the block right after the cached block num
+		cachedEntryEpochNum := istanbul.GetEpochNumber(sb.cachedValidatorConnSetBlockNum+1, sb.config.Epoch)
 
 		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
-		// blocks of the current block.
-		if cachedEntryEpochNum == currentEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum {
+		// blocks of the pending block.
+		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
 			defer sb.cachedValidatorConnSetMu.RUnlock()
 			return sb.cachedValidatorConnSet, nil
 		}
@@ -843,18 +851,19 @@ func (sb *Backend) updateCachedValidatorConnSet() (err error) {
 		sb.updatingCachedValidatorConnSetCond.L.Unlock()
 	}()
 
-	validatorConnSet, err := sb.retrieveUncachedValidatorConnSet()
+	validatorConnSet, blockNum, connSetTS, err := sb.retrieveUncachedValidatorConnSet()
 	if err != nil {
 		return err
 	}
 	sb.cachedValidatorConnSetMu.Lock()
 	sb.cachedValidatorConnSet = validatorConnSet
-	sb.cachedValidatorConnSetBlockNum = sb.currentBlock().Number().Uint64()
+	sb.cachedValidatorConnSetBlockNum = blockNum
+	sb.cachedValidatorConnSetTS = connSetTS
 	sb.cachedValidatorConnSetMu.Unlock()
 	return nil
 }
 
-func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, error) {
+func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, uint64, time.Time, error) {
 	logger := sb.logger.New("func", "retrieveUncachedValidatorConnSet")
 	// Retrieve the validator conn set from the election smart contract
 	validatorsSet := make(map[common.Address]bool)
@@ -862,7 +871,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	currentBlock := sb.currentBlock()
 	currentState, err := sb.stateAt(currentBlock.Hash())
 	if err != nil {
-		return nil, err
+		return nil, 0, time.Time{}, err
 	}
 	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
 
@@ -884,8 +893,10 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 		validatorsSet[val.Address()] = true
 	}
 
+	connSetTS := time.Now()
+
 	logger.Trace("Returning validator conn set", "validatorsSet", validatorsSet)
-	return validatorsSet, nil
+	return validatorsSet, currentBlock.Number().Uint64(), connSetTS, nil
 }
 
 func (sb *Backend) AddProxy(node, externalNode *enode.Node) error {
