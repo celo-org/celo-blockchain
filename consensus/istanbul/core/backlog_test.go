@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ func TestCheckMessage(t *testing.T) {
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
 		}, valSet, valSet.GetByIndex(0)),
+		startStopMu: new(sync.RWMutex),
 	}
 
 	t.Run("invalid view format", func(t *testing.T) {

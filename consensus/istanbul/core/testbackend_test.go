@@ -87,6 +87,14 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
+func (self *testSystemBackend) IsElectedValidator() bool {
+	return true
+}
+
+func (self *testSystemBackend) IsValidating() bool {
+	return true
+}
+
 func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
 	//This doesn't really return the next block validators
 	return self.peers, nil
