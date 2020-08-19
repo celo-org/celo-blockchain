@@ -220,11 +220,17 @@ func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
 
 // StartValidating starts the consensus engine
 func (api *API) StartValidating() error {
+	if !api.istanbul.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
 	return api.istanbul.MakePrimary()
 }
 
 // StartValidating stops the consensus engine from participating in consensus
 func (api *API) StopValidating() error {
+	if !api.istanbul.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
 	return api.istanbul.MakeReplica()
 
 }
@@ -232,25 +238,27 @@ func (api *API) StopValidating() error {
 // StartValidatingAtBlock starts the consensus engine on the given
 // block number.
 func (api *API) StartValidatingAtBlock(blockNumber int64) error {
+	if !api.istanbul.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
 	if blockNumber <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
 	seq := big.NewInt(blockNumber)
-	// TODO check error)
-	api.istanbul.SetStartValidatingBlock(seq)
-	return nil
+	return api.istanbul.SetStartValidatingBlock(seq)
 }
 
 // StopValidatingAtBlock stops the consensus engine from participating in consensus
 // on the given block number.
 func (api *API) StopValidatingAtBlock(blockNumber int64) error {
+	if !api.istanbul.coreStarted {
+		return istanbul.ErrStoppedEngine
+	}
 	if blockNumber <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
 	seq := big.NewInt(blockNumber)
-	// TODO check error)
-	api.istanbul.SetStopValidatingBlock(seq)
-	return nil
+	return api.istanbul.SetStopValidatingBlock(seq)
 }
 
 // IsValidating returns true if this node is participating in the consensus protocol
