@@ -94,7 +94,10 @@ type CoreBackend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
 
+	// IsValidating return true if this instance is validating
 	IsValidating() bool
+
+	// IsElectedValidator returns true if instance is an elected validator
 	IsElectedValidator() bool
 }
 
@@ -611,19 +614,19 @@ func (c *core) startNewRound(round *big.Int) error {
 		return err
 	}
 
-	// // Transition to Primary/Replica
-	// if !roundChange && c.startStopEnabled {
-	// 	// start <= seq w/ no stop -> primary
-	// 	if c.startValidatingBlock != nil && newView.Sequence.Cmp(c.startValidatingBlock) > 0 {
-	// 		if c.stopValidatingBlock != nil {
-	// 			c.MakePrimary()
-	// 		}
-	// 	}
-	// 	// start <= stop <= seq -> replica
-	// 	if c.stopValidatingBlock != nil && newView.Sequence.Cmp(c.stopValidatingBlock) > 0 {
-	// 		c.MakeReplica()
-	// 	}
-	// }
+	// Transition to Primary/Replica
+	if !roundChange && c.startStopEnabled {
+		// start <= seq w/ no stop -> primary
+		if c.startValidatingBlock != nil && newView.Sequence.Cmp(c.startValidatingBlock) > 0 {
+			if c.stopValidatingBlock != nil {
+				c.MakePrimary()
+			}
+		}
+		// start <= stop <= seq -> replica
+		if c.stopValidatingBlock != nil && newView.Sequence.Cmp(c.stopValidatingBlock) > 0 {
+			c.MakeReplica()
+		}
+	}
 
 	// Process backlog
 	c.processPendingRequests()

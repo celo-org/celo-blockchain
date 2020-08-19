@@ -172,9 +172,6 @@ type Istanbul interface {
 	// IsProxy returns true if this node is a proxy
 	IsProxy() bool
 
-	IsValidating() bool
-	IsElectedValidator() bool
-
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
@@ -185,19 +182,6 @@ type Istanbul interface {
 
 	// StopValidating stops the validating engine
 	StopValidating() error
-
-	// SetStartValidatingBlock sets start in the range start <= seq < stop for which
-	// we are the primary validator
-	SetStartValidatingBlock(blockNumber *big.Int) error
-
-	// SetStopValidatingBlock sets stop in the range start <= seq < stop for which
-	// we are the primary validator
-	SetStopValidatingBlock(blockNumber *big.Int) error
-
-	// MakeReplica clears the start/stop state & stops this node from participating in consensus
-	MakeReplica() error
-	// MakePrimary clears the start/stop state & makes this node participate in consensus
-	MakePrimary() error
 
 	// StartAnnouncing starts the announcing
 	StartAnnouncing() error
