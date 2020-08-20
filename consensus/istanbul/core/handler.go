@@ -208,13 +208,6 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
-		// Check to see if this message is for the current block's sequence as a replica
-		if err == errFutureMessage && c.backend.IsElectedValidator() && !c.backend.IsValidating() {
-			headBlock := c.backend.GetCurrentHeadBlock()
-			if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
-				go c.backend.EventMux().Post(istanbul.FinalCommittedEvent{})
-			}
-		}
 		if err == errFutureMessage {
 			// Store in backlog (if it's not from self)
 			if msg.Address != c.address {
