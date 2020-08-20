@@ -291,6 +291,11 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 
 // Actions triggeted by a new block being added to the chain (no buffering)
 func (sb *Backend) NewChainEvent(newBlock *types.Block) {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
+	if !sb.coreStarted {
+		return
+	}
 	if sb.IsElectedValidator() && !sb.IsValidating() {
 		sb.logger.Warn("Checking round state", "func", "NewChainEvent", "newBlock", newBlock.Number(), "cur_seq", sb.core.CurrentView().Sequence)
 		if newBlock.Number().Cmp(sb.core.CurrentView().Sequence) > 0 {
