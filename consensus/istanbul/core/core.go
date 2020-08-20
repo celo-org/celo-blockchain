@@ -123,8 +123,9 @@ type core struct {
 	startValidatingBlock *big.Int
 	stopValidatingBlock  *big.Int
 	startStopMu          *sync.RWMutex
-	startStopWG          sync.WaitGroup // When enter start/stop, run a thread to keep roundstate current.
-	startStopQuit        chan struct{}  // Used to notify to the thread to quit
+	updateRSThread       bool
+	startStopWG          *sync.WaitGroup // When enter start/stop, run a thread to keep roundstate current.
+	startStopQuit        chan struct{}   // Used to notify to the thread to quit
 
 	backlog MsgBacklog
 
@@ -159,6 +160,7 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		backend:            backend,
 		isReplica:          config.Replica,
 		startStopMu:        new(sync.RWMutex),
+		startStopWG:        new(sync.WaitGroup),
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
@@ -330,12 +332,16 @@ func (c *core) SetStartValidatingBlock(blockNumber *big.Int) error {
 		return errors.New("Start block number should be less than the stop block number")
 	}
 
-	if c.startStopEnabled {
+	if c.updateRSThread {
 		close(c.startStopQuit)
 		c.startStopWG.Wait()
+		c.updateRSThread = false
 	}
-	c.startStopQuit = make(chan struct{})
-	go c.keepRoundStateCurrent()
+	if c.isReplica {
+		c.updateRSThread = true
+		c.startStopQuit = make(chan struct{})
+		go c.keepRoundStateCurrent()
+	}
 
 	c.startStopEnabled = true
 	c.startValidatingBlock = blockNumber
@@ -355,13 +361,16 @@ func (c *core) SetStopValidatingBlock(blockNumber *big.Int) error {
 		return errors.New("Stop block number should be greater than the start block number")
 	}
 
-	if c.startStopEnabled {
+	if c.updateRSThread {
 		close(c.startStopQuit)
 		c.startStopWG.Wait()
+		c.updateRSThread = false
 	}
-	c.startStopQuit = make(chan struct{})
-	c.startStopWG.Add(1)
-	go c.keepRoundStateCurrent()
+	if c.isReplica {
+		c.updateRSThread = true
+		c.startStopQuit = make(chan struct{})
+		go c.keepRoundStateCurrent()
+	}
 
 	c.startStopEnabled = true
 	c.stopValidatingBlock = blockNumber
@@ -372,11 +381,11 @@ func (c *core) MakeReplica() error {
 	c.startStopMu.Lock()
 	defer c.startStopMu.Unlock()
 
-	if c.startStopEnabled {
+	if c.updateRSThread {
 		close(c.startStopQuit)
 		c.startStopWG.Wait()
+		c.updateRSThread = false
 	}
-
 	c.isReplica = true
 	c.startStopEnabled = false
 	c.startValidatingBlock = nil
@@ -389,9 +398,10 @@ func (c *core) MakePrimary() error {
 	c.startStopMu.Lock()
 	defer c.startStopMu.Unlock()
 
-	if c.startStopEnabled {
+	if c.updateRSThread {
 		close(c.startStopQuit)
 		c.startStopWG.Wait()
+		c.updateRSThread = false
 	}
 
 	c.isReplica = false
