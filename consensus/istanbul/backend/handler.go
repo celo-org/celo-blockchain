@@ -284,11 +284,6 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		}
 	}
 
-	// Start a new round in the replica
-	if sb.IsElectedValidator() && !sb.IsValidating() {
-		go sb.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
-	}
-
 	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
 	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
