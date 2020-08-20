@@ -289,6 +289,17 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
+// Actions triggeted by a new block being added to the chain (no buffering)
+func (sb *Backend) NewChainEvent(newBlock *types.Block) {
+	if sb.IsElectedValidator() && !sb.IsValidating() {
+		sb.logger.Warn("Checking round state", "func", "NewChainEvent", "newBlock", newBlock.Number(), "cur_seq", sb.core.CurrentView().Sequence)
+		if newBlock.Number().Cmp(sb.core.CurrentView().Sequence) > 0 {
+			sb.logger.Warn("Posting final committed event", "func", "NewChainEvent")
+			go sb.EventMux().Post(istanbul.FinalCommittedEvent{})
+		}
+	}
+}
+
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
 	//        registered with the proxy, and verify that all newly connected proxied peer has

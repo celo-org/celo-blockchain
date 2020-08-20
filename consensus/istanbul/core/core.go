@@ -300,21 +300,21 @@ func (c *core) keepRoundStateCurrent() {
 	logger := c.newLogger("func", "keepRoundStateCurrent")
 	c.startStopWG.Add(1)
 	defer c.startStopWG.Done()
-	checkRoundState := time.NewTicker(2 * time.Second)
-	defer checkRoundState.Stop()
+	// chainFeedSub = c.backend.blockchain.SubscribeChainEvent()
+	// defer checkRoundState.Stop()
 	// See if we have a block further along than our current sequence.
 	for {
 		select {
 		case <-c.startStopQuit:
 			logger.Trace("Quit")
 			return
-		case <-checkRoundState.C:
-			headBlock := c.backend.GetCurrentHeadBlock()
-			logger.Warn("Checking round state", "headBlock", headBlock.Number(), "cur_seq", c.current.Sequence())
-			if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
-				logger.Warn("Posting final committed event")
-				go c.backend.EventMux().Post(istanbul.FinalCommittedEvent{})
-			}
+			// case <-checkRoundState.C:
+			// 	headBlock := c.backend.GetCurrentHeadBlock()
+			// 	logger.Warn("Checking round state", "headBlock", headBlock.Number(), "cur_seq", c.current.Sequence())
+			// 	if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
+			// 		logger.Warn("Posting final committed event")
+			// 		go c.backend.EventMux().Post(istanbul.FinalCommittedEvent{})
+			// 	}
 		}
 	}
 }

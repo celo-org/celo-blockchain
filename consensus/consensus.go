@@ -134,6 +134,9 @@ type Handler interface {
 	// NewChainHead handles a new head block
 	NewChainHead(*types.Block)
 
+	// NewChainEvent handles a new chain event (essentially unbuffered new head block)
+	NewChainEvent(*types.Block)
+
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
