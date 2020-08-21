@@ -128,20 +128,20 @@ web3._extend({
 	],
 	properties: [
 		new web3._extend.Property({
-			name: 'nodeInfo',
-			getter: 'admin_nodeInfo'
+			name: 'datadir',
+			getter: 'admin_datadir'
 		}),
 		new web3._extend.Property({
 			name: 'discoverTableInfo',
 			getter: 'admin_discoverTableInfo'
 		}),
 		new web3._extend.Property({
-			name: 'peers',
-			getter: 'admin_peers'
+			name: 'nodeInfo',
+			getter: 'admin_nodeInfo'
 		}),
 		new web3._extend.Property({
-			name: 'datadir',
-			getter: 'admin_datadir'
+			name: 'peers',
+			getter: 'admin_peers'
 		}),
 	]
 });
