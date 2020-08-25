@@ -413,10 +413,15 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 }
 
 // RequestProof fetches a proof from a remote node
+// TODO Should be called `RequestPlumoProofs` to distinguish from `eth`'s.getProof
 func (p *peer) RequestProofs(metadata []types.PlumoProofMetadata, complement bool) error {
 	// TODO trace
 	p.Log().Error("Fetching batch of proofs", "complement", complement)
 	return p2p.Send(p.rw, GetPlumoProofsMsg, &getPlumoProofsData{Complement: complement, ProofsMetadata: metadata})
+}
+
+func (p *peer) RequestPlumoProofInventory() error {
+	panic("RequestPlumoProofInventory not supported unless in lightest sync mode")
 }
 
 // Handshake executes the eth protocol handshake, negotiating version number,

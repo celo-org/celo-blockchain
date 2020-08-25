@@ -19,11 +19,14 @@ package types
 import (
 	"fmt"
 	"io"
+	"math/big"
 
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // PlumoProofMetadata holds a proof's epoch range and proof version number, which is then used as a key for lookups
+// TODO: do these need to be uints for encoding? lots of casting being done
 type PlumoProofMetadata struct {
 	FirstEpoch    uint
 	LastEpoch     uint
@@ -89,3 +92,21 @@ func (p *PlumoProof) String() string {
 }
 
 type PlumoProofs []*PlumoProof
+
+// LightEpochBlock stores the minimal info needed to construct a snark.EpochBlock
+type LightEpochBlock struct { // 16 bytes
+	Index         uint // 8 bytes
+	MaxNonSigners uint // 8 bytes
+}
+
+// LightPlumoProof encapsulates all data needed by a light client to verify and utilize a Plumo proof.
+type LightPlumoProof struct { // Total at least 535 bytes
+	Proof            []byte          // 383 bytes?
+	FirstEpoch       LightEpochBlock // 16 bytes
+	LastEpoch        LightEpochBlock // 16 bytes
+	VersionNumber    uint            // 8 bytes
+	FirstHashToField []byte          // TODO type and how to compute
+	// TODO 96 bytes?
+	NewValidators    []blscrypto.SerializedPublicKey // (96 * numNewValidators) bytes
+	DeletedValidator *big.Int                        // ~16 bytes + I think
+}

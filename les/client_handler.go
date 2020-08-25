@@ -457,6 +457,20 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		h.gatewayFeeCache.update(p.id, &resp.Data)
 
+	case PlumoProofInventoryMsg:
+		p.Log().Error("Received PlumoProofInventory response")
+		var resp struct {
+			// TODO would be nice to have detail on what BV exactly is? Looks like a buffer limit of sorts
+			ReqID, BV       uint64
+			proofsInventory []types.PlumoProofMetadata
+		}
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		//TODO do something with the reply
+
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
@@ -525,6 +539,31 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 			cost := peer.GetRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueuedRequest(reqID, cost)
 			return func() { peer.RequestHeadersByNumber(reqID, cost, origin, amount, skip, reverse) }
+		},
+	}
+	_, ok := <-pc.handler.backend.reqDist.queue(rq)
+	if !ok {
+		return light.ErrNoPeers
+	}
+	return nil
+}
+
+func (pc *peerConnection) RequestPlumoProofInventory() error {
+	rq := &distReq{
+		getCost: func(dp distPeer) uint64 {
+			peer := dp.(*peer)
+			// Would 0 work here?
+			return peer.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+		},
+		canSend: func(dp distPeer) bool {
+			return dp.(*peer) == pc.peer
+		},
+		request: func(dp distPeer) func() {
+			reqID := genReqID()
+			peer := dp.(*peer)
+			cost := peer.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+			peer.fcServer.QueuedRequest(reqID, cost)
+			return func() { peer.RequestPlumoProofInventory(reqID, cost) }
 		},
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)

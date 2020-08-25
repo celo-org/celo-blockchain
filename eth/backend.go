@@ -578,6 +578,7 @@ func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
+func (s *Ethereum) ProofDb() ethdb.Database             { return s.proofDb }
 func (s *Ethereum) IsListening() bool                   { return true } // Always listening
 func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) }
 func (s *Ethereum) NetVersion() uint64                  { return s.networkID }

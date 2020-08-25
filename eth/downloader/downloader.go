@@ -972,52 +972,69 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		}
 	}
 
-	getEpochHeaders := func(fromEpochBlock uint64) {
+	// getEpochHeaders := func(fromEpochBlock uint64) {
+	// 	if d.Mode != LightestSync {
+	// 		panic("This method should be called only in LightestSync mode")
+	// 	}
+	// 	if fromEpochBlock%epoch != 0 {
+	// 		panic(fmt.Sprintf(
+	// 			"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
+	// 			fromEpochBlock, epoch))
+	// 	}
+
+	// 	request = time.Now()
+
+	// 	ttl = d.requestTTL()
+	// 	timeout.Reset(ttl)
+
+	// 	// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
+	// 	// 1000, 1101, 1202, 1303 ...
+	// 	// So, skip has to be epoch - 1 to get the right set of blocks.
+	// 	skip := int(epoch - 1)
+	// 	count := MaxEpochHeaderFetch
+	// 	log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
+	// 	p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
+	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+	// }
+
+	getProofs := func() {
 		if d.Mode != LightestSync {
 			panic("This method should be called only in LightestSync mode")
 		}
-		if fromEpochBlock%epoch != 0 {
-			panic(fmt.Sprintf(
-				"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
-				fromEpochBlock, epoch))
-		}
 
 		request = time.Now()
-
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
-		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
-		// 1000, 1101, 1202, 1303 ...
-		// So, skip has to be epoch - 1 to get the right set of blocks.
-		skip := int(epoch - 1)
-		count := MaxEpochHeaderFetch
-		log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-		p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
-		go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+		log.Error("getProofInventory", "peer", p.id)
+		p.log.Error("Fetching proof inventory")
+		go p.peer.RequestPlumoProofInventory()
 	}
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
 	getEpochOrNormalHeaders := func(from uint64) bool {
-		// Download the epoch headers including and beyond the current head.
-		nextEpochBlock := (from-1)/epoch*epoch + epoch
-		// If we're still not synced up to the latest epoch, sync only epoch headers.
-		// Otherwise, sync block headers as we would normally in light sync.
-		log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
-		if nextEpochBlock < height {
-			getEpochHeaders(nextEpochBlock)
-			return true
-		} else if from <= height {
-			getHeaders(height)
-			return true
-		} else {
-			// During repeated invocations, "from" can be more than height since the blocks could have
-			// created after this method was invoked and in that case, the from which is one beyond the
-			// last fetched header number can be more than the height.
-			// If we have already fetched a block header >= height block header then we declare that the sync
-			// is finished and stop.
-			return false
-		}
+		// Request proof
+		getProofs()
+		return true
+		// // Download the epoch headers including and beyond the current head.
+		// nextEpochBlock := (from-1)/epoch*epoch + epoch
+		// // If we're still not synced up to the latest epoch, sync only epoch headers.
+		// // Otherwise, sync block headers as we would normally in light sync.
+		// log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
+		// if nextEpochBlock < height {
+		// 	getEpochHeaders(nextEpochBlock)
+		// 	return true
+		// } else if from <= height {
+		// 	getHeaders(height)
+		// 	return true
+		// } else {
+		// 	// During repeated invocations, "from" can be more than height since the blocks could have
+		// 	// created after this method was invoked and in that case, the from which is one beyond the
+		// 	// last fetched header number can be more than the height.
+		// 	// If we have already fetched a block header >= height block header then we declare that the sync
+		// 	// is finished and stop.
+		// 	return false
+		// }
 	}
 	// Start pulling the header chain skeleton until all is done
 	ancestor := from

@@ -345,6 +345,7 @@ func ReadPlumoProofs(db ethdb.Database) [][]byte {
 	return output
 }
 
+// TODO rename proofinventory
 func KnownPlumoProofs(db ethdb.Database) []types.PlumoProofMetadata {
 	var output []types.PlumoProofMetadata
 	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)

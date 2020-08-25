@@ -34,12 +34,13 @@ const (
 	lpv2 = 2
 	lpv3 = 3
 	lpv4 = 4 // Work in progress. Breaking changes expected.
+	lpv5 = 5 // Work in progress. Breaking changes expected.
 )
 
 // Supported versions of the les protocol (first is primary)
 var (
-	ClientProtocolVersions    = []uint{lpv2, lpv3}
-	ServerProtocolVersions    = []uint{lpv2, lpv3}
+	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4}
+	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4}
 	AdvertiseProtocolVersions = []uint{lpv2} // clients are searching for the first advertised protocol in the list
 )
 
@@ -79,8 +80,13 @@ const (
 	StopMsg   = 0x18
 	ResumeMsg = 0x19
 	// Protocol messages to be introduced in LPV4
-	GetGatewayFeeMsg = 0x1A
-	GatewayFeeMsg    = 0x1B
+	GetPlumoProofInventoryMsg = 0x1A
+	PlumoProofInventoryMsg    = 0x1B
+	GetPlumoProofsMsg         = 0x1C
+	PlumoProofsMsg            = 0x1D
+	// Protocol messages to be introduced in LPV5
+	GetGatewayFeeMsg = 0x1E
+	GatewayFeeMsg    = 0x1F
 )
 
 type requestInfo struct {
@@ -89,16 +95,18 @@ type requestInfo struct {
 }
 
 var requests = map[uint64]requestInfo{
-	GetBlockHeadersMsg:     {"GetBlockHeaders", MaxHeaderFetch},
-	GetBlockBodiesMsg:      {"GetBlockBodies", MaxBodyFetch},
-	GetReceiptsMsg:         {"GetReceipts", MaxReceiptFetch},
-	GetCodeMsg:             {"GetCode", MaxCodeFetch},
-	GetProofsV2Msg:         {"GetProofsV2", MaxProofsFetch},
-	GetHelperTrieProofsMsg: {"GetHelperTrieProofs", MaxHelperTrieProofsFetch},
-	SendTxV2Msg:            {"SendTxV2", MaxTxSend},
-	GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus},
-	GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase},
-	GetGatewayFeeMsg:       {"GetGatewayFee", MaxGatewayFee},
+	GetBlockHeadersMsg:        {"GetBlockHeaders", MaxHeaderFetch},
+	GetBlockBodiesMsg:         {"GetBlockBodies", MaxBodyFetch},
+	GetReceiptsMsg:            {"GetReceipts", MaxReceiptFetch},
+	GetCodeMsg:                {"GetCode", MaxCodeFetch},
+	GetProofsV2Msg:            {"GetProofsV2", MaxProofsFetch},
+	GetHelperTrieProofsMsg:    {"GetHelperTrieProofs", MaxHelperTrieProofsFetch},
+	SendTxV2Msg:               {"SendTxV2", MaxTxSend},
+	GetTxStatusMsg:            {"GetTxStatus", MaxTxStatus},
+	GetEtherbaseMsg:           {"GetEtherbase", MaxEtherbase},
+	GetPlumoProofInventoryMsg: {"GetPlumoProofInventory", MaxPlumoProofsMetadata},
+	GetPlumoProofsMsg:         {"GetPlumoProofs", MaxPlumoProofsFetch},
+	GetGatewayFeeMsg:          {"GetGatewayFee", MaxGatewayFee},
 }
 
 type errCode int

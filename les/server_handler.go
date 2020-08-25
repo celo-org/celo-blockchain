@@ -54,6 +54,8 @@ const (
 	MaxHelperTrieProofsFetch = 64  // Amount of helper tries to be fetched per retrieval request
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
+	MaxPlumoProofsMetadata   = 256 // TODO(lucas): Amount of plumo proofs' metadata to be returned per client request
+	MaxPlumoProofsFetch      = 256 // TODO(lucas): Amount of plumo proofs to be fetched per retrieval request
 	MaxEtherbase             = 1
 	MaxGatewayFee            = 1
 )
@@ -68,6 +70,7 @@ var (
 type serverHandler struct {
 	blockchain *core.BlockChain
 	chainDb    ethdb.Database
+	proofDb    ethdb.Database
 	txpool     *core.TxPool
 	server     *LesServer
 
@@ -83,11 +86,12 @@ type serverHandler struct {
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, proofDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
 		chainDb:    chainDb,
+		proofDb:    proofDb,
 		txpool:     txpool,
 		closeCh:    make(chan struct{}),
 		synced:     synced,
@@ -884,6 +888,26 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			go func() {
 				defer wg.Done()
 				reply := p.ReplyGatewayFee(req.ReqID, GatewayFeeInformation{GatewayFee: h.gatewayFee, Etherbase: h.etherbase})
+				sendResponse(req.ReqID, 1, reply, task.done())
+			}()
+		}
+
+	case GetPlumoProofInventoryMsg:
+		p.Log().Error("Received plumoProofInventory request")
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		if accept(req.ReqID, 1, MaxPlumoProofsMetadata) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proofInventory := rawdb.KnownPlumoProofs(h.proofDb)
+
+				reply := p.ReplyPlumoProofInventory(req.ReqID, proofInventory)
 				sendResponse(req.ReqID, 1, reply, task.done())
 			}()
 		}

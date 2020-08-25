@@ -477,10 +477,22 @@ func (p *peer) ReplyTxStatus(reqID uint64, stats []light.TxStatus) *reply {
 	return &reply{p.rw, TxStatusMsg, reqID, data}
 }
 
-//ReplyGatewayFee creates reply with gateway fee that was requested
+// ReplyGatewayFee creates a reply with gateway fee that was requested
 func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply {
 	data, _ := rlp.EncodeToBytes(resp)
 	return &reply{p.rw, GatewayFeeMsg, reqID, data}
+}
+
+// ReplyPlumoProofsInventory creates a reply with the full node's inventory of available proofs
+func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoProofMetadata) *reply {
+	data, _ := rlp.EncodeToBytes(inventory)
+	return &reply{p.rw, PlumoProofInventoryMsg, reqID, data}
+}
+
+// RequestPlumoProofsInventory fetches an inventory of proofs' metadata that the server holds.
+func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
+	p.Log().Error("Fetching proof invetnory")
+	return sendRequest(p.rw, GetPlumoProofInventoryMsg, reqID, cost, struct{}{})
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
