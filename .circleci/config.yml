@@ -142,7 +142,7 @@ jobs:
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
-            yarn build --scope @celo/celotool --include-filtered-depenencies
+            yarn build --scope @celo/celotool --include-filtered-dependencies
             yarn --cwd packages/celotool build
       - run:
           name: Setup Go language
