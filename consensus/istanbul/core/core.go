@@ -18,7 +18,6 @@ package core
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -118,14 +117,8 @@ type core struct {
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
-	isReplica            bool // Overridden by start/stop blocks if start/stop is enabled.
-	startStopEnabled     bool
-	startValidatingBlock *big.Int
-	stopValidatingBlock  *big.Int
-	startStopMu          *sync.RWMutex
-	updateRSThread       bool
-
-	backlog MsgBacklog
+	replicaState ReplicaState
+	backlog      MsgBacklog
 
 	rsdb      RoundStateDB
 	current   RoundState
@@ -148,6 +141,7 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
+	replicaState := newReplicaState(config.Replica)
 
 	c := &core{
 		config:             config,
@@ -156,8 +150,7 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
-		isReplica:          config.Replica,
-		startStopMu:        new(sync.RWMutex),
+		replicaState:       replicaState,
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
@@ -291,88 +284,6 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 		Signature: asig,
 		Round:     aggregatedSignature.Round,
 	}, nil
-}
-
-func (c *core) SetStartValidatingBlock(blockNumber *big.Int) error {
-	c.startStopMu.Lock()
-	defer c.startStopMu.Unlock()
-
-	if blockNumber == nil {
-		c.startValidatingBlock = nil
-		return nil
-	}
-
-	if c.stopValidatingBlock != nil && !(blockNumber.Cmp(c.stopValidatingBlock) < 0) {
-		return errors.New("Start block number should be less than the stop block number")
-	}
-
-	c.startStopEnabled = true
-	c.startValidatingBlock = blockNumber
-	return nil
-}
-
-func (c *core) SetStopValidatingBlock(blockNumber *big.Int) error {
-	c.startStopMu.Lock()
-	defer c.startStopMu.Unlock()
-
-	if blockNumber == nil {
-		c.stopValidatingBlock = nil
-		return nil
-	}
-
-	if c.stopValidatingBlock != nil && !(blockNumber.Cmp(c.stopValidatingBlock) > 0) {
-		return errors.New("Stop block number should be greater than the start block number")
-	}
-
-	c.startStopEnabled = true
-	c.stopValidatingBlock = blockNumber
-	return nil
-}
-
-func (c *core) MakeReplica() error {
-	c.startStopMu.Lock()
-	defer c.startStopMu.Unlock()
-
-	c.isReplica = true
-	c.startStopEnabled = false
-	c.startValidatingBlock = nil
-	c.stopValidatingBlock = nil
-
-	return nil
-}
-
-func (c *core) MakePrimary() error {
-	c.startStopMu.Lock()
-	defer c.startStopMu.Unlock()
-
-	c.isReplica = false
-	c.startStopEnabled = false
-	c.startValidatingBlock = nil
-	c.stopValidatingBlock = nil
-
-	return nil
-}
-
-// GetStartStop returns info on the start/stop state
-func (c *core) GetStartStop() (map[string]string, error) {
-	c.startStopMu.RLock()
-	defer c.startStopMu.RUnlock()
-	ret := map[string]string{}
-	if c.isReplica {
-		ret["state"] = "replica"
-	} else {
-		ret["state"] = "primary"
-	}
-	if c.startStopEnabled {
-		ret["startStopEnabled"] = "true"
-		if c.startValidatingBlock != nil {
-			ret["startBlock"] = c.startValidatingBlock.String()
-		}
-		if c.stopValidatingBlock != nil {
-			ret["stopBlock"] = c.stopValidatingBlock.String()
-		}
-	}
-	return ret, nil
 }
 
 // Appends the current view and state to the given context.
@@ -617,18 +528,9 @@ func (c *core) startNewRound(round *big.Int) error {
 		return err
 	}
 
-	// Transition to Primary/Replica
-	if !roundChange && c.startStopEnabled {
-		// start <= seq w/ no stop -> primary
-		if c.startValidatingBlock != nil && newView.Sequence.Cmp(c.startValidatingBlock) > 0 {
-			if c.stopValidatingBlock == nil {
-				c.MakePrimary()
-			}
-		}
-		// start <= stop <= seq -> replica
-		if c.stopValidatingBlock != nil && newView.Sequence.Cmp(c.stopValidatingBlock) > 0 {
-			c.MakeReplica()
-		}
+	// Update replica state
+	if !roundChange {
+		c.replicaState.UpdateReplicaState(newView.Sequence)
 	}
 
 	// Process backlog

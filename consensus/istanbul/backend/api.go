@@ -223,7 +223,8 @@ func (api *API) StartValidating() error {
 	if !api.istanbul.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	return api.istanbul.MakePrimary()
+	api.istanbul.MakePrimary()
+	return nil
 }
 
 // StartValidating stops the consensus engine from participating in consensus
@@ -231,7 +232,8 @@ func (api *API) StopValidating() error {
 	if !api.istanbul.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
-	return api.istanbul.MakeReplica()
+	api.istanbul.MakeReplica()
+	return nil
 
 }
 
@@ -266,12 +268,10 @@ func (api *API) IsValidating() bool {
 	return api.istanbul.IsValidating()
 }
 
-// GetStartStop returns information about this node's start/stop block and if
-// it is participating in consensus.
-func (api *API) GetStartStop() (map[string]string, error) {
-	if api.istanbul.IsValidator() {
-		return api.istanbul.core.GetStartStop()
-	} else {
-		return nil, errors.New("Node must be a validator")
+// GetCurrentRoundState retrieves the current replica state
+func (api *API) GetCurrentReplicaState() (*core.ReplicaStateSummary, error) {
+	if !api.istanbul.coreStarted {
+		return nil, istanbul.ErrStoppedEngine
 	}
+	return api.istanbul.core.CurrentReplicaState().Summary(), nil
 }

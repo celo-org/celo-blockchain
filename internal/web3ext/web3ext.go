@@ -808,7 +808,7 @@ web3._extend({
 		}),
 		new web3._extend.Property({
 			name: 'startStop',
-			getter: 'istanbul_getStartStop',
+			getter: 'istanbul_getCurrentReplicaState',
 		}),
 	],
 	properties: []

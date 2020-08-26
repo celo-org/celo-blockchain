@@ -46,11 +46,11 @@ type Engine interface {
 	// number is in the range start <= seq < stop
 	IsPrimaryForSeq(seq *big.Int) bool
 	// MakeReplica clears the start/stop state & stops this node from participating in consensus
-	MakeReplica() error
+	MakeReplica()
 	// MakePrimary clears the start/stop state & makes this node participate in consensus
-	MakePrimary() error
-	// GetStartStop returns info on the start/stop state
-	GetStartStop() (map[string]string, error)
+	MakePrimary()
+	// CurrentReplicaState returns info on the start/stop state
+	CurrentReplicaState() ReplicaState
 }
 
 // State represents the IBFT state
