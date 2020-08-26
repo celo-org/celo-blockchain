@@ -202,7 +202,7 @@ func (n *Node) Start() error {
 		n.proxyServerConfig.NoDiscovery = true
 		// There can only up to 10 peers within the internal network
 		// TODO(Joshua): Put behind enable authentication for these peers.
-		n.proxyServerConfig.MaxPeers = 10
+		n.proxyServerConfig.MaxPeers = 1
 		n.proxyServerConfig.PrivateKey = n.config.NodeKey()
 		n.proxyServerConfig.Name = n.config.NodeName()
 		n.proxyServerConfig.Logger = n.log
