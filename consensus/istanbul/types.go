@@ -58,6 +58,8 @@ type Proposal interface {
 	// ParentHash retrieves the hash of this block's parent
 	ParentHash() common.Hash
 
+	Transactions() types.Transactions
+
 	EncodeRLP(w io.Writer) error
 
 	DecodeRLP(s *rlp.Stream) error

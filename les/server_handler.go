@@ -776,7 +776,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					if stats[i].Status == core.TxStatusUnknown {
 						// Only include transactions that have a valid gateway fee recipient & fee
 						if err := h.verifyGatewayFee(tx.GatewayFeeRecipient(), tx.GatewayFee()); err != nil {
-							p.Log().Trace("Rejected transaction from light peer for invalid gateway fee", "hash", hash.String(), "err", err)
+							p.Log().Info("Rejected transaction from light peer for invalid gateway fee", "hash", hash.String(), "err", err)
 							stats[i].Error = err.Error()
 							continue
 						}
@@ -791,7 +791,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 							continue
 						}
 						stats[i] = h.txStatus(hash)
-						p.Log().Trace("Added transaction from light peer to pool", "hash", hash.String(), "tx", tx)
+						p.Log().Info("Added transaction from light peer to pool", "hash", hash.String(), "tx", tx)
 					}
 				}
 

@@ -447,6 +447,8 @@ func (pool *TxPool) Add(ctx context.Context, tx *types.Transaction) error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
+	log.Info("Attempting to add new transaction to light client tx pool", "from", log.Lazy{Fn: func() common.Address { from, _ := types.Sender(pool.signer, tx); return from }}, "to", tx.To(), "tx hash", tx.Hash, "nonce", tx.Nonce)
+
 	data, err := rlp.EncodeToBytes(tx)
 	if err != nil {
 		return err

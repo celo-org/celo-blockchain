@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/light"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -114,6 +115,7 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 				peer := dp.(*peer)
 				cost := peer.GetTxRelayCost(len(list), len(enc))
 				peer.fcServer.QueuedRequest(reqID, cost)
+				log.Info("Sending tx to peer", "peer id", peer.id, "tx hash", tx.Hash(), "nonce", tx.Nonce())
 				return func() { peer.SendTxs(reqID, cost, enc) }
 			},
 		}

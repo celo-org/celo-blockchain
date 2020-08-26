@@ -148,6 +148,13 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
+
+		// Accepted istanbul proposal
+		proposalTxns := preprepare.Proposal.Transactions()
+
+		for _, txn := range proposalTxns {
+			logger.Info("Accepted txn via istanbul proposal", "txn hash", txn.Hash())
+		}
 	}
 
 	return nil
