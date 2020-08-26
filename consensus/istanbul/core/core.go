@@ -618,6 +618,29 @@ func (c *core) createRoundState() (RoundState, error) {
 	return withSavingDecorator(c.rsdb, roundState), nil
 }
 
+func (c *core) loadReplicaState() error {
+	logger := c.newLogger("func", "createReplicaState")
+
+	if c.current != nil {
+		return fmt.Errorf("BUG? Attempting to Start() core with existing c.current")
+	}
+
+	savedReplicaState, err := c.rsdb.GetReplicaState()
+
+	if err != nil && err != leveldb.ErrNotFound {
+		logger.Error("Failed to fetch lastStoredView", "err", err)
+		return err
+	}
+
+	if err == leveldb.ErrNotFound {
+		logger.Info("Using existing replica state", "reason", "No storedReplicaState found")
+	} else {
+		logger.Info("Using stored replica state")
+		c.replicaState = savedReplicaState
+	}
+	return nil
+}
+
 // resetRoundState will modify the RoundState to either start a new round or a new sequence
 // based on the `roundChange` flag given
 func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) error {

@@ -32,6 +32,12 @@ func (c *core) Start() error {
 		return err
 	}
 
+	// Tries to load saved replica state if possible. If not pulls the default replica
+	// state generated in New
+	if err := c.loadReplicaState(); err != nil {
+		return err
+	}
+
 	c.current = roundState
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 

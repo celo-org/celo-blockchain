@@ -41,15 +41,27 @@ type ReplicaState interface {
 // Export replica state functions to core
 func (c *core) MakeReplica() {
 	c.replicaState.MakeReplica()
+	c.rsdb.UpdateReplicaState(c.replicaState)
+
 }
 func (c *core) MakePrimary() {
 	c.replicaState.MakePrimary()
+	c.rsdb.UpdateReplicaState(c.replicaState)
+
 }
 func (c *core) SetStartValidatingBlock(blockNumber *big.Int) error {
-	return c.replicaState.SetStartValidatingBlock(blockNumber)
+	if err := c.replicaState.SetStartValidatingBlock(blockNumber); err != nil {
+		return c.rsdb.UpdateReplicaState(c.replicaState)
+	} else {
+		return err
+	}
 }
 func (c *core) SetStopValidatingBlock(blockNumber *big.Int) error {
-	return c.replicaState.SetStopValidatingBlock(blockNumber)
+	if err := c.replicaState.SetStopValidatingBlock(blockNumber); err != nil {
+		return c.rsdb.UpdateReplicaState(c.replicaState)
+	} else {
+		return err
+	}
 }
 func (c *core) IsPrimaryForSeq(seq *big.Int) bool {
 	return c.replicaState.IsPrimaryForSeq(seq)
