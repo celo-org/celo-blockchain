@@ -42,4 +42,6 @@ var (
 	ErrStartedVPHThread = errors.New("started validator peer handler thread")
 	// ErrValidatorNotProxied is returned if the validator is not configured to be proxied
 	ErrValidatorNotProxied = errors.New("validator not proxied")
+	// ErrInvalidEnodeCertMsgMapOldVersion is returned if a validator sends old enode certificate message
+	ErrInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
 )

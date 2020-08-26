@@ -88,6 +88,4 @@ var (
 	errInvalidValidatorAddress = errors.New("failed to find an existing validator by address")
 	// Invalid round state
 	errInvalidState = errors.New("invalid round state")
-
-	ErrInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
 )

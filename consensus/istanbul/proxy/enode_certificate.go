@@ -21,7 +21,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -94,7 +93,7 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consens
 		if err := p.backend.SetEnodeCertificateMsgMap(enodeCertMsgMap); err != nil {
 			logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
 			// Don't drop validators when switching over.
-			if err == core.ErrInvalidEnodeCertMsgMapOldVersion {
+			if err == istanbul.ErrInvalidEnodeCertMsgMapOldVersion {
 				return true, nil
 			}
 			return true, err
