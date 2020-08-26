@@ -768,6 +768,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 
 				stats := make([]light.TxStatus, len(req.Txs))
 				for i, tx := range req.Txs {
+					p.Log().Info("Received txn from light client", "tx hash", tx.Hash())
 					if i != 0 && !task.waitOrStop() {
 						return
 					}
