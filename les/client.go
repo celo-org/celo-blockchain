@@ -124,7 +124,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		panic(msg)
 	}
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
-	leth.relay = newLesTxRelay(peers, leth.retriever)
+	leth.relay = newLesTxRelay(peers, leth.retriever, leth.chainConfig)
 
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
 	// If the full chain is not available then indexing each block header isn't possible.

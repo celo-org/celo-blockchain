@@ -627,11 +627,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.chain.CurrentBlock().Header(), pool.currentState, tx.FeeCurrency(), pool.istanbul)
 	if err != nil {
-		log.Info("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
+		log.Info("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err, "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 		return err
 	}
 	if tx.Gas() < intrGas {
-		log.Info("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
+		log.Info("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas, "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 		return ErrIntrinsicGas
 	}
 
@@ -642,7 +642,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-		log.Info("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
+		log.Info("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum, "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 		return ErrGasPriceDoesNotExceedMinimum
 	}
 
@@ -696,7 +696,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	}
 	// If the transaction fails basic validation, discard it
 	if err := pool.validateTx(tx, local); err != nil {
-		log.Info("Discarding invalid transaction", "hash", hash, "err", err)
+		log.Info("Discarding invalid transaction", "err", err, "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 		invalidTxMeter.Mark(1)
 		return false, err
 	}
@@ -704,14 +704,14 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	if uint64(pool.all.Count()) >= pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
 		if !local && pool.priced.Underpriced(tx, pool.locals) {
-			log.Info("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
+			log.Info("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice(), "from", from, "nonce", tx.Nonce())
 			underpricedTxMeter.Mark(1)
 			return false, ErrUnderpriced
 		}
 		// New transaction is better than our worse ones, make room for it
 		drop := pool.priced.Discard(pool.all.Slots()-int(pool.config.GlobalSlots+pool.config.GlobalQueue)+numSlots(tx), pool.locals)
 		for _, tx := range drop {
-			log.Info("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
+			log.Info("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice(), "from", from, "nonce", tx.Nonce())
 			underpricedTxMeter.Mark(1)
 			pool.removeTx(tx.Hash(), false)
 		}
@@ -734,7 +734,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		pool.priced.Put(tx)
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
-		log.Info("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
+		log.Info("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To(), "nonce", tx.Nonce())
 		return old != nil, nil
 	}
 	// New transaction isn't replacing a pending one, push into queue
@@ -754,7 +754,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	}
 	pool.journalTx(from, tx)
 
-	log.Info("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To())
+	log.Info("Pooled new future transaction", "hash", hash, "from", from, "to", tx.To(), "nonce", tx.Nonce())
 	return replaced, nil
 }
 

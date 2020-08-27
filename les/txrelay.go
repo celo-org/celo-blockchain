@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -38,15 +39,18 @@ type lesTxRelay struct {
 	stop      chan struct{}
 
 	retriever *retrieveManager
+
+	signer types.Signer
 }
 
-func newLesTxRelay(ps *peerSet, retriever *retrieveManager) *lesTxRelay {
+func newLesTxRelay(ps *peerSet, retriever *retrieveManager, config *params.ChainConfig) *lesTxRelay {
 	r := &lesTxRelay{
 		txSent:    make(map[common.Hash]*types.Transaction),
 		txPending: make(map[common.Hash]struct{}),
 		ps:        ps,
 		retriever: retriever,
 		stop:      make(chan struct{}),
+		signer:    types.NewEIP155Signer(config.ChainID),
 	}
 	ps.notify(r)
 	return r
@@ -115,7 +119,7 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 				peer := dp.(*peer)
 				cost := peer.GetTxRelayCost(len(list), len(enc))
 				peer.fcServer.QueuedRequest(reqID, cost)
-				log.Info("Sending tx to peer", "peer id", peer.id, "tx hash", tx.Hash(), "nonce", tx.Nonce())
+				log.Info("Sending tx to peer", "peer id", peer.id, "from", log.Lazy{Fn: func() common.Address { from, _ := types.Sender(ltrx.signer, tx); return from }}, "tx hash", tx.Hash(), "nonce", tx.Nonce())
 				return func() { peer.SendTxs(reqID, cost, enc) }
 			},
 		}
