@@ -39,13 +39,13 @@ const (
 
 // Supported versions of the les protocol (first is primary)
 var (
-	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4}
-	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4}
-	AdvertiseProtocolVersions = []uint{lpv2} // clients are searching for the first advertised protocol in the list
+	ClientProtocolVersions    = []uint{lpv4, lpv2, lpv3}
+	ServerProtocolVersions    = []uint{lpv4, lpv2, lpv3}
+	AdvertiseProtocolVersions = []uint{lpv4} // clients are searching for the first advertised protocol in the list
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 30, lpv5: 32}
 
 const (
 	NetworkId          = 1

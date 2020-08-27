@@ -462,13 +462,14 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		var resp struct {
 			// TODO would be nice to have detail on what BV exactly is? Looks like a buffer limit of sorts
 			ReqID, BV       uint64
-			proofsInventory []types.PlumoProofMetadata
+			ProofsInventory []types.PlumoProofMetadata
 		}
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Error("Received proof inventory", "inventory", resp.ProofsInventory)
 		//TODO do something with the reply
 
 	default:

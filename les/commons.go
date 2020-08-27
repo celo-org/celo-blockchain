@@ -42,6 +42,8 @@ func lesTopic(genesisHash common.Hash, protocolVersion uint) discv5.Topic {
 	switch protocolVersion {
 	case lpv2:
 		name = "LES2"
+	case lpv4:
+		name = "LES4"
 	default:
 		panic(nil)
 	}

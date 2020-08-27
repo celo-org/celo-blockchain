@@ -486,13 +486,17 @@ func (p *peer) ReplyGatewayFee(reqID uint64, resp GatewayFeeInformation) *reply 
 // ReplyPlumoProofsInventory creates a reply with the full node's inventory of available proofs
 func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoProofMetadata) *reply {
 	data, _ := rlp.EncodeToBytes(inventory)
+	p.Log().Error("Replying proof inventory", "data", data)
 	return &reply{p.rw, PlumoProofInventoryMsg, reqID, data}
 }
 
 // RequestPlumoProofsInventory fetches an inventory of proofs' metadata that the server holds.
 func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
 	p.Log().Error("Fetching proof invetnory")
-	return sendRequest(p.rw, GetPlumoProofInventoryMsg, reqID, cost, struct{}{})
+	type req struct {
+		ReqID uint64
+	}
+	return p2p.Send(p.rw, GetPlumoProofInventoryMsg, req{reqID})
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
@@ -549,7 +553,7 @@ func (p *peer) RequestTxStatus(reqID, cost uint64, txHashes []common.Hash) error
 
 // RequestEtherbase fetches the etherbase of a remote node.
 func (p *peer) RequestEtherbase(reqID, cost uint64) error {
-	p.Log().Debug("Requesting etherbase for peer", "enode", p.id)
+	p.Log().Error("Requesting etherbase for peer", "enode", p.id)
 	type req struct {
 		ReqID uint64
 	}
