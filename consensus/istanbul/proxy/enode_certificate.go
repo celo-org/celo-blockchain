@@ -68,7 +68,8 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consens
 	// Verify that the sender is from the proxied validator
 	p.proxiedValidatorsMu.RLock()
 	defer p.proxiedValidatorsMu.RUnlock()
-	if ok := p.proxiedValidators[peer]; !ok {
+	// if ok := p.proxiedValidators[peer]; !ok {
+	if msg.Address != p.config.ProxiedValidatorAddress {
 		logger.Error("Unauthorized Enode Certificate message", "sender address", msg.Address, "authorized sender address", p.config.ProxiedValidatorAddress)
 		return false, errUnauthorizedMessageFromProxiedValidator
 	}
