@@ -595,15 +595,17 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Value().Sign() < 0 {
 		return ErrNegativeValue
 	}
-	// Ensure the transaction doesn't exceed the current block limit gas.
-	if pool.currentMaxGas < tx.Gas() {
-		log.Info("max gas limit exceeded", "pool.currentMaxGas", pool.currentMaxGas, "tx.Gas()", tx.Gas())
-		return ErrGasLimit
-	}
+
 	// Make sure the transaction is signed properly
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
+	}
+
+	// Ensure the transaction doesn't exceed the current block limit gas.
+	if pool.currentMaxGas < tx.Gas() {
+		log.Info("max gas limit exceeded", "pool.currentMaxGas", pool.currentMaxGas, "tx.Gas()", tx.Gas(), "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
+		return ErrGasLimit
 	}
 
 	// Ensure the fee currency is native or whitelisted.
@@ -637,7 +639,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
 	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-		log.Info("unable to fetch gas price minimum", "err", err)
+		log.Info("unable to fetch gas price minimum", "err", err, "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 		return err
 	}
 
@@ -690,7 +692,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 
 	// If the transaction is already known, discard it
 	if pool.all.Get(hash) != nil {
-		log.Info("Discarding already known transaction", "hash", hash)
+		log.Info("Discarding already known transaction", "hash", hash, "from", from, "nonce", tx.Nonce())
 		knownTxMeter.Mark(1)
 		return false, fmt.Errorf("known transaction: %x", hash)
 	}
