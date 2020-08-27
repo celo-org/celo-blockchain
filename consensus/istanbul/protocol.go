@@ -21,6 +21,8 @@ import (
 )
 
 // Constants to match up protocol versions and messages
+// If extended, make sure to update `eth/peer.go` and the max protocol version
+// in calls to `idlePeers` in `eth/downloader/peer.go`
 const (
 	Celo64 = 64
 	Celo65 = 65

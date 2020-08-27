@@ -515,6 +515,7 @@ func testCanonicalSynchronisation(t *testing.T, protocol int, mode SyncMode) {
 	assertOwnChain(t, tester, chain.len())
 }
 
+// TODO(lucas): Add Celo66 tests
 // Tests that if a large batch of blocks are being downloaded, it is throttled
 // until the cached blocks are retrieved.
 func TestThrottling64Full(t *testing.T) { testThrottling(t, 64, FullSync) }

@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// TODO(lucas): Extend with protocol 66
 // Tests that block headers can be retrieved from a remote chain based on user queries.
 func TestGetBlockHeaders64(t *testing.T) { testGetBlockHeaders(t, 64) }
 func TestGetBlockHeaders65(t *testing.T) { testGetBlockHeaders(t, 65) }
