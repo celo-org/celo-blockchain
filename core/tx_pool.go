@@ -681,7 +681,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 // due to pricing constraints.
 func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err error) {
 	hash := tx.Hash()
-	log.Info("Attempting to add tx to tx pool", "hash", hash)
+	from, err := types.Sender(pool.signer, tx) // already validated
+	if err != nil {
+		log.Warn("Error in retrieving sender from tx", "tx hash", hash)
+	} else {
+		log.Info("Attempting to add tx to tx pool", "from", from, "nonce", tx.Nonce(), "hash", hash)
+	}
 
 	// If the transaction is already known, discard it
 	if pool.all.Get(hash) != nil {
@@ -712,7 +717,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		}
 	}
 	// Try to replace an existing transaction in the pending pool
-	from, _ := types.Sender(pool.signer, tx) // already validated
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
 		// Nonce already pending, check if required price bump is met
 		inserted, old := list.Add(tx, pool.config.PriceBump)
@@ -1520,6 +1524,10 @@ func (pool *TxPool) demoteUnexecutables() {
 			delete(pool.beats, addr)
 		}
 	}
+}
+
+func (pool *TxPool) Signer() types.Signer {
+	return pool.signer
 }
 
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.

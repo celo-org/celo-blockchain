@@ -69,6 +69,8 @@ type core struct {
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	signer types.Signer
 }
 
 // New creates an Istanbul consensus core
@@ -90,6 +92,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		signer:             types.NewEIP155Signer(config.ChainID),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {

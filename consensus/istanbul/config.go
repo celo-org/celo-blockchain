@@ -17,6 +17,8 @@
 package istanbul
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -56,6 +58,8 @@ type Config struct {
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
 	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
 	AnnounceAdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
+
+	ChainID *big.Int
 }
 
 var DefaultConfig = &Config{

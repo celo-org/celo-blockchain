@@ -302,6 +302,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 			log.Crit("istanbul.lookbackwindow must be less than istanbul.epoch-1")
 		}
 		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
+		config.Istanbul.ChainID = chainConfig.ChainID
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
 	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))

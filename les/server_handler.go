@@ -768,7 +768,12 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 
 				stats := make([]light.TxStatus, len(req.Txs))
 				for i, tx := range req.Txs {
-					p.Log().Info("Received txn from light client", "tx hash", tx.Hash())
+					from, err := types.Sender(h.txpool.Signer(), tx)
+					if err != nil {
+						p.Log().Warn("Error in retrieving sender from tx", "tx hash", tx.Hash())
+						continue
+					}
+					p.Log().Info("Received txn from light client", "from", from, "nonce", tx.Nonce(), "tx hash", tx.Hash())
 					if i != 0 && !task.waitOrStop() {
 						return
 					}
@@ -792,7 +797,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 							continue
 						}
 						stats[i] = h.txStatus(hash)
-						p.Log().Info("Added transaction from light peer to pool", "hash", hash.String(), "tx", tx)
+						p.Log().Info("Added transaction from light peer to pool", "from", from, "nonce", tx.Nonce(), "hash", hash.String(), "tx", tx)
 					}
 				}
 

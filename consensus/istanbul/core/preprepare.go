@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
@@ -153,7 +154,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		proposalTxns := preprepare.Proposal.Transactions()
 
 		for _, txn := range proposalTxns {
-			logger.Info("Accepted txn via istanbul proposal", "txn hash", txn.Hash())
+			from, _ := types.Sender(c.signer, txn) // already validated
+			logger.Info("Accepted txn via istanbul proposal", "from", from, "txn nonce", txn.Nonce(), "txn hash", txn.Hash())
 		}
 	}
 

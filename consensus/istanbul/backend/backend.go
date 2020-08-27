@@ -128,6 +128,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
+		signer:                             types.NewEIP155Signer(config.ChainID),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -297,6 +298,8 @@ type Backend struct {
 
 	proxyHandlerRunning bool
 	proxyHandlerMu      sync.RWMutex
+
+	signer types.Signer
 }
 
 // IsProxy returns if instance has proxy flag
@@ -449,7 +452,8 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 
 	txns := proposal.Transactions()
 	for _, txn := range txns {
-		sb.logger.Info("Committed Txn", "txn hash", txn.Hash())
+		from, _ := types.Sender(sb.signer, txn) // already validated
+		sb.logger.Info("Committed Txn", "from", from, "txn nonce", txn.Nonce(), "txn hash", txn.Hash())
 	}
 
 	// - if the proposed and committed blocks are the same, send the proposed hash
