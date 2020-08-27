@@ -408,6 +408,8 @@ func (pool *TxPool) loop() {
 				// Any non-locals old enough should be removed
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					for _, tx := range pool.queue[addr].Flatten() {
+						from, _ := types.Sender(pool.signer, tx) // already validated
+						log.Info("Evicting transaction", "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 						pool.removeTx(tx.Hash(), true)
 					}
 				}
@@ -1296,15 +1298,17 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		forwards := list.Forward(pool.currentState.GetNonce(addr))
 		for _, tx := range forwards {
 			hash := tx.Hash()
+			from, _ := types.Sender(pool.signer, tx) // already validated
 			pool.all.Remove(hash)
-			log.Trace("Removed old queued transaction", "hash", hash)
+			log.Info("Removed old queued transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
 		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
+			from, _ := types.Sender(pool.signer, tx) // already validated
 			pool.all.Remove(hash)
-			log.Trace("Removed unpayable queued transaction", "hash", hash)
+			log.Info("Removed unpayable queued transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 		}
 		queuedNofundsMeter.Mark(int64(len(drops)))
 
@@ -1325,8 +1329,9 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			caps = list.Cap(int(pool.config.AccountQueue))
 			for _, tx := range caps {
 				hash := tx.Hash()
+				from, _ := types.Sender(pool.signer, tx) // already validated
 				pool.all.Remove(hash)
-				log.Trace("Removed cap-exceeding queued transaction", "hash", hash)
+				log.Info("Removed cap-exceeding queued transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 			}
 			queuedRateLimitMeter.Mark(int64(len(caps)))
 		}
@@ -1386,11 +1391,12 @@ func (pool *TxPool) truncatePending() {
 					for _, tx := range caps {
 						// Drop the transaction from the global pools too
 						hash := tx.Hash()
+						from, _ := types.Sender(pool.signer, tx) // already validated
 						pool.all.Remove(hash)
 
 						// Update the account nonce to the dropped transaction
 						pool.pendingNonces.setIfLower(offenders[i], tx.Nonce())
-						log.Trace("Removed fairness-exceeding pending transaction", "hash", hash)
+						log.Info("Removed fairness-exceeding pending transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 					}
 					pool.priced.Removed(len(caps))
 					pendingGauge.Dec(int64(len(caps)))
@@ -1413,11 +1419,12 @@ func (pool *TxPool) truncatePending() {
 				for _, tx := range caps {
 					// Drop the transaction from the global pools too
 					hash := tx.Hash()
+					from, _ := types.Sender(pool.signer, tx) // already validated
 					pool.all.Remove(hash)
 
 					// Update the account nonce to the dropped transaction
 					pool.pendingNonces.setIfLower(addr, tx.Nonce())
-					log.Trace("Removed fairness-exceeding pending transaction", "hash", hash)
+					log.Info("Removed fairness-exceeding pending transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 				}
 				pool.priced.Removed(len(caps))
 				pendingGauge.Dec(int64(len(caps)))
@@ -1460,6 +1467,8 @@ func (pool *TxPool) truncateQueue() {
 		// Drop all transactions if they are less than the overflow
 		if size := uint64(list.Len()); size <= drop {
 			for _, tx := range list.Flatten() {
+				from, _ := types.Sender(pool.signer, tx) // already validated
+				log.Info("truncateQueue: Removing tx when removing all queued tx of sender", "from", from, "nonce", tx.Nonce(), "hash", tx.Hash())
 				pool.removeTx(tx.Hash(), true)
 			}
 			drop -= size
@@ -1469,6 +1478,8 @@ func (pool *TxPool) truncateQueue() {
 		// Otherwise drop only last few transactions
 		txs := list.Flatten()
 		for i := len(txs) - 1; i >= 0 && drop > 0; i-- {
+			from, _ := types.Sender(pool.signer, txs[i]) // already validated
+			log.Info("truncateQueue: Removing tx when removing last few queued txns of sender", "from", from, "nonce", txs[i].Nonce(), "hash", txs[i].Hash())
 			pool.removeTx(txs[i].Hash(), true)
 			drop--
 			queuedRateLimitMeter.Mark(1)
@@ -1488,14 +1499,16 @@ func (pool *TxPool) demoteUnexecutables() {
 		olds := list.Forward(nonce)
 		for _, tx := range olds {
 			hash := tx.Hash()
+			from, _ := types.Sender(pool.signer, tx) // already validated
 			pool.all.Remove(hash)
-			log.Trace("Removed old pending transaction", "hash", hash)
+			log.Info("Removed old pending transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
 		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
-			log.Trace("Removed unpayable pending transaction", "hash", hash)
+			from, _ := types.Sender(pool.signer, tx) // already validated
+			log.Info("Removed unpayable pending transaction", "from", from, "nonce", tx.Nonce(), "hash", hash)
 			pool.all.Remove(hash)
 		}
 		pool.priced.Removed(len(olds) + len(drops))
