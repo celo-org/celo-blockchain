@@ -453,7 +453,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	txns := proposal.Transactions()
 	for _, txn := range txns {
 		from, _ := types.Sender(sb.signer, txn) // already validated
-		sb.logger.Info("Committed Txn", "from", from, "txn nonce", txn.Nonce(), "txn hash", txn.Hash())
+		sb.logger.Info("Committed Txn", "from", from, "nonce", txn.Nonce(), "txn hash", txn.Hash())
 	}
 
 	// - if the proposed and committed blocks are the same, send the proposed hash

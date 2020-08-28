@@ -155,7 +155,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 
 		for _, txn := range proposalTxns {
 			from, _ := types.Sender(c.signer, txn) // already validated
-			logger.Info("Accepted txn via istanbul proposal", "from", from, "txn nonce", txn.Nonce(), "txn hash", txn.Hash())
+			logger.Info("Accepted txn via istanbul proposal", "from", from, "nonce", txn.Nonce(), "txn hash", txn.Hash())
 		}
 	}
 
