@@ -129,6 +129,12 @@ jobs:
           at: ~/repos
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
+  lightest-sync-test:
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
+
   checkout-monorepo:
     executor: e2e
     working_directory: ~/repos
@@ -268,6 +274,9 @@ workflows:
           filters:
             branches:
               only: master
+      - lightest_sync_test:
+          requires:
+            - build-geth
       - end-to-end-blockchain-parameters-test:
           requires:
             - checkout-monorepo
