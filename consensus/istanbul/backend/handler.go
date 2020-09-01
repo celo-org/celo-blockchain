@@ -114,7 +114,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return istanbul.CheckValidatorSignature(valSet, data, sig)
 		}
 		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
-			sb.logger.Error("Got a consensus message signed by a non validator.", "err", err)
+			sb.logger.Warn("Got a consensus message signed by a non validator", "err", err)
 			return errNonValidatorMessage
 		}
 

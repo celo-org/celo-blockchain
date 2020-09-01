@@ -129,6 +129,15 @@ jobs:
           at: ~/repos
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
+  lightest-sync-test:
+    docker:
+      - image: circleci/node:10
+    working_directory: ~/repos/geth
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run: DATADIR=/tmp/lightest_sync_test_data MODE=lightest ./scripts/sync_test.sh
+
   checkout-monorepo:
     executor: e2e
     working_directory: ~/repos
@@ -142,8 +151,7 @@ jobs:
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
-            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(obj[x]["location"]) for x in obj["@celo/celotool"]["dependencies"][::-1])')
-            for i in $PACKAGES; do yarn --cwd $i build; done
+            yarn build --scope @celo/celotool --include-filtered-dependencies
             yarn --cwd packages/celotool build
       - run:
           name: Setup Go language
@@ -260,6 +268,7 @@ workflows:
             # Though these are not using the mobile built binaries
             # they should be a good indicator
             - unit-tests
+            - lightest-sync-test
             - end-to-end-blockchain-parameters-test
             - end-to-end-governance-test
             - end-to-end-slashing-test
@@ -269,6 +278,9 @@ workflows:
           filters:
             branches:
               only: master
+      - lightest-sync-test:
+          requires:
+            - build-geth
       - end-to-end-blockchain-parameters-test:
           requires:
             - checkout-monorepo
