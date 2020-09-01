@@ -24,7 +24,7 @@ ATTEMPTS=5
 RETRY_SLEEP=2
 # We attempt to check it several times since, sometimes the command
 # fails with "No peers available"
-for ATTEMPT in 1 .. $ATTEMPTS; do
+for ATTEMPT in $(seq 1 $ATTEMPTS); do
 	echo "Attempt $ATTEMPT/$ATTEMPTS of getting the latest block timestamp" 
 	MARK=`date +%s`
 	LATEST=`build/bin/geth --datadir $DATADIR --verbosity 0 console --syncmode $MODE --exec 'eth.getBlock("latest").timestamp'`
