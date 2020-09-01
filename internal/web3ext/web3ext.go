@@ -542,6 +542,12 @@ web3._extend({
 	property: 'personal',
 	methods: [
 		new web3._extend.Method({
+			name: 'decrypt',
+			call: 'personal_decrypt',
+			params: 2,
+			inputFormatter: [null, web3._extend.formatters.inputAddressFormatter]
+		}),
+		new web3._extend.Method({
 			name: 'importRawKey',
 			call: 'personal_importRawKey',
 			params: 2
