@@ -277,7 +277,7 @@ workflows:
           filters:
             branches:
               only: master
-      - lightest_sync_test:
+      - lightest-sync-test:
           requires:
             - build-geth
       - end-to-end-blockchain-parameters-test:
