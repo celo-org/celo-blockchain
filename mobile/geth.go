@@ -189,8 +189,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		IPCPath:           config.IPCPath,
 		HTTPHost:          config.HTTPHost,
 		HTTPPort:          config.HTTPPort,
-		HTTPVirtualHosts: httpVirtualHosts,
-		HTTPModules:      httpModules,
+		HTTPVirtualHosts:  httpVirtualHosts,
+		HTTPModules:       httpModules,
 		P2P: p2p.Config{
 			NoDiscovery:      config.NoDiscovery,
 			DiscoveryV5:      !config.NoDiscovery,
