@@ -117,7 +117,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 	// start := time.Now()
 	// defer func() { fmt.Printf("test chain generated in %v\n", time.Since(start)) }()
 
-	blocks, receipts := core.GenerateChain(params.DefaultChainConfig, parent, mockEngine.NewFaker(), testDB, n, func(i int, block *core.BlockGen) {
+	blocks, receipts := core.GenerateChain(params.IstanbulTestChainConfig, parent, mockEngine.NewFaker(), testDB, n, func(i int, block *core.BlockGen) {
 		block.SetCoinbase(common.Address{seed})
 		// If a heavy chain is requested, delay blocks to raise difficulty
 		if heavy {
@@ -125,7 +125,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 		}
 		// Include transactions to the miner to make blocks more interesting.
 		if parent == tc.genesis && i%22 == 0 {
-			signer := types.MakeSigner(params.DefaultChainConfig, block.Number())
+			signer := types.MakeSigner(params.IstanbulTestChainConfig, block.Number())
 			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
 			if err != nil {
 				panic(err)

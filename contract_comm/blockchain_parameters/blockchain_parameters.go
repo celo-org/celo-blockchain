@@ -114,24 +114,6 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 	return &params.VersionInfo{Major: version[0].Uint64(), Minor: version[1].Uint64(), Patch: version[2].Uint64()}, nil
 }
 
-// Returns a triplet (gte, ok, error)
-// `gte` is false if the minimum version is less than the input, or if a serious error is caught.
-// `ok` is false if something prevented the minimum version check.
-// This allows the function to give the caller more information and
-// is currently only used to signal the `ContractNotDeployed` errors.
-func IsMinimumVersionAtLeast(major uint64, minor uint64, patch uint64) (bool, bool, error) {
-	desiredVersion := &params.VersionInfo{Major: major, Minor: minor, Patch: patch}
-	minVersion, err := GetMinimumVersion(nil, nil)
-	if err != nil {
-		if err != errors.ErrRegistryContractNotDeployed && err != errors.ErrSmartContractNotDeployed {
-			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
-			return false, false, err
-		}
-		return true, false, nil
-	}
-	return minVersion.Cmp(desiredVersion) >= 0, true, nil
-}
-
 func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
 	var gas *big.Int
 	var err error

@@ -63,6 +63,17 @@ func MapValidatorsToAddresses(validators []Validator) []common.Address {
 	return returnList
 }
 
+// MapValidatorsToPublicKeys maps a slice of validator to a slice of public keys
+func MapValidatorsToPublicKeys(validators []Validator) []blscrypto.SerializedPublicKey {
+	returnList := make([]blscrypto.SerializedPublicKey, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = val.BLSPublicKey()
+	}
+
+	return returnList
+}
+
 // ----------------------------------------------------------------------------
 
 type ValidatorsDataByAddress []ValidatorData
