@@ -658,11 +658,6 @@ func (pool *serverPool) checkDialTimeout(entry *poolEntry) {
 }
 
 func (pool *serverPool) Info() []*poolEntryInfo {
-	stateStringMap := make(map[int]string)
-	stateStringMap[psNotConnected] = "NotConnected"
-	stateStringMap[psDialed] = "Dialed"
-	stateStringMap[psConnected] = "Connected"
-	stateStringMap[psRegistered] = "Registered"
 	entryInfos := make([]*poolEntryInfo, 0)
 	for _, entry := range pool.entries {
 		entryInfos = append(entryInfos, &poolEntryInfo{
@@ -673,18 +668,35 @@ func (pool *serverPool) Info() []*poolEntryInfo {
 			Trusted:            entry.trusted,
 			LastDiscoveredTime: entry.lastDiscovered,
 			RegisteredTime:     entry.regTime,
-			State:              stateStringMap[entry.state],
+			State:              entry.state.String(),
 		})
 	}
 	return entryInfos
 }
 
+type poolEntryState int
+
 const (
-	psNotConnected = iota
+	psNotConnected = poolEntryState(iota)
 	psDialed
 	psConnected
 	psRegistered
 )
+
+func (e poolEntryState) String() string {
+	switch e {
+	case psNotConnected:
+		return "NotConnected"
+	case psDialed:
+		return "Dialed"
+	case psConnected:
+		return "Connected"
+	case psRegistered:
+		return "Registered"
+	default:
+		return fmt.Sprintf("poolEntryState(%d)", e)
+	}
+}
 
 // poolEntry represents a server node and stores its current state and statistics.
 type poolEntry struct {
@@ -698,7 +710,7 @@ type poolEntry struct {
 	known, knownSelected, trusted bool
 	connectStats, delayStats      poolStats
 	responseStats, timeoutStats   poolStats
-	state                         int
+	state                         poolEntryState
 	regTime                       mclock.AbsTime
 	queueIdx                      int
 	removed                       bool
