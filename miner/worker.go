@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/metrics"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -187,6 +188,9 @@ type worker struct {
 
 	// Needed for randomness
 	db *ethdb.Database
+
+	// Gauge counting the block finalization time(from created to finalized)
+	blockFinalization metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db *ethdb.Database, init bool) *worker {
@@ -211,6 +215,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		resubmitIntervalCh: make(chan time.Duration),
 		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
 		db:                 db,
+		blockFinalization: metrics.NewRegisteredGauge("miner/blockFinalization", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -588,6 +593,7 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
+			w.blockFinalization.Update(time.Now().Unix() - int64(block.Time()))
 			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
