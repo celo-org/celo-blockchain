@@ -542,6 +542,12 @@ web3._extend({
 	property: 'personal',
 	methods: [
 		new web3._extend.Method({
+			name: 'decrypt',
+			call: 'personal_decrypt',
+			params: 2,
+			inputFormatter: [null, web3._extend.formatters.inputAddressFormatter]
+		}),
+		new web3._extend.Method({
 			name: 'importRawKey',
 			call: 'personal_importRawKey',
 			params: 2
@@ -858,6 +864,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFeeCache',
 			getter: 'les_gatewayFeeCache'
+		}),
+		new web3._extend.Property({
+			name: 'serverPoolEntries',
+			getter: 'les_serverPoolEntries'
 		})
 	]
 });
