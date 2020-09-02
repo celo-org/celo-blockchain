@@ -85,8 +85,8 @@ var (
 	randomSeedString = []byte("Randomness seed string")
 	randomSeed       []byte
 
-	// Gauge counting the block finalization time(from created to finalized)
-	blockFinalizationTimer = metrics.NewRegisteredTimer("chain/head/block/finalization", nil)
+	// Timer used to measure block finalization time from created to finalized
+	blockFinalizationTimer = metrics.NewRegisteredTimer("miner/block/finalization", nil)
 )
 
 // environment is the worker's current environment and holds all of the current state information.
