@@ -81,6 +81,7 @@ type LightPeer interface {
 	RequestHeadersByHash(common.Hash, int, int, bool) error
 	RequestHeadersByNumber(uint64, int, int, bool) error
 	RequestPlumoProofInventory() error
+	RequestPlumoProofsAndHeaders(uint64, int, int, int) error
 }
 
 // Peer encapsulates the methods required to synchronise with a remote full peer.
@@ -105,6 +106,9 @@ func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int
 }
 func (w *lightPeerWrapper) RequestPlumoProofInventory() error {
 	return w.peer.RequestPlumoProofInventory()
+}
+func (w *lightPeerWrapper) RequestPlumoProofsAndHeaders(from uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+	return w.peer.RequestPlumoProofsAndHeaders(from, skip, maxPlumoProofFetch, maxEpochHeaderFetch)
 }
 func (w *lightPeerWrapper) RequestBodies([]common.Hash) error {
 	panic("RequestBodies not supported in light client mode sync")

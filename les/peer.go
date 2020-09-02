@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
 	"github.com/ethereum/go-ethereum/light"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
@@ -119,6 +120,9 @@ type peer struct {
 	onlyAnnounce            bool
 	chainSince, chainRecent uint64
 	stateSince, stateRecent uint64
+
+	knownPlumoProofs            []types.PlumoProofMetadata
+	plumoProofInventorySupplied bool
 }
 
 func newPeer(version int, network uint64, trusted bool, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
@@ -299,6 +303,12 @@ func (p *peer) SetGatewayFee(gatewayFee *big.Int) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.gatewayFee = gatewayFee
+}
+
+func (p *peer) SetKnownPlumoProofs(plumoProofs []types.PlumoProofMetadata) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.knownPlumoProofs = plumoProofs
 }
 
 // waitBefore implements distPeer interface
@@ -497,6 +507,11 @@ func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
 		ReqID uint64
 	}
 	return p2p.Send(p.rw, GetPlumoProofInventoryMsg, req{reqID})
+}
+
+func (p *peer) RequestPlumoProofs(reqID, cost uint64, proofsMetadata []types.PlumoProofMetadata) error {
+	p.Log().Error("Fetching batch of plumo proofs", "count", len(proofsMetadata))
+	return sendRequest(p.rw, GetPlumoProofsMsg, reqID, cost, proofsMetadata)
 }
 
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
@@ -885,12 +900,14 @@ type peerSet struct {
 	lock       sync.RWMutex
 	notifyList []peerSetNotify
 	closed     bool
+	lightest   bool
 }
 
 // newPeerSet creates a new peer set to track the active participants.
-func newPeerSet() *peerSet {
+func newPeerSet(lightest bool) *peerSet {
 	return &peerSet{
-		peers: make(map[string]*peer),
+		peers:    make(map[string]*peer),
+		lightest: lightest,
 	}
 }
 
@@ -930,6 +947,12 @@ func (ps *peerSet) Register(p *peer) error {
 	for _, n := range peers {
 		n.registerPeer(p)
 	}
+
+	// if ps.lightest {
+	// 	reqID := genReqID()
+	// 	cost := p.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+	// 	go p.RequestPlumoProofInventory(reqID, cost)
+	// }
 
 	return nil
 }
@@ -1006,6 +1029,8 @@ func (ps *peerSet) Len() int {
 func (ps *peerSet) BestPeer() *peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
+
+	log.Error("Calculating BestPeer")
 
 	var (
 		bestPeer *peer

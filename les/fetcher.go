@@ -18,6 +18,7 @@ package les
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -224,7 +226,13 @@ func (f *lightFetcher) syncLoop() {
 
 // registerPeer adds a new peer to the fetcher's peer set
 func (f *lightFetcher) registerPeer(p *peer) {
+	if f.handler.syncMode == downloader.LightestSync {
+		reqID := genReqID()
+		cost := p.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+		go p.RequestPlumoProofInventory(reqID, cost)
+	}
 	p.lock.Lock()
+	p.Log().Error("Registering peer", "p", p.id, "x", p.headInfo)
 	p.hasBlock = func(hash common.Hash, number *uint64, hasState bool) bool {
 		return f.peerHasBlock(p, hash, number, hasState)
 	}
@@ -233,6 +241,16 @@ func (f *lightFetcher) registerPeer(p *peer) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.peers[p] = &fetcherPeerInfo{nodeByHash: make(map[common.Hash]*fetcherTreeNode)}
+}
+
+func (f *lightFetcher) importKnownPlumoProofs(p *peer, plumoProofs []types.PlumoProofMetadata) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.Log().Error("Updating known proofs", "from", p.knownPlumoProofs, "to", plumoProofs)
+	if len(plumoProofs) > 0 {
+		p.knownPlumoProofs = plumoProofs
+	}
+	p.plumoProofInventorySupplied = true
 }
 
 // unregisterPeer removes a new peer from the fetcher's peer set
@@ -434,9 +452,8 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 
 	if bestTd == f.maxConfirmedTd {
 		return nil, 0, false
-	} else {
-		log.Trace("nextRequest", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 	}
+	log.Error("nextRequest", "bestTd", bestTd, "f.maxConfirmedTd", f.maxConfirmedTd)
 
 	var rq *distReq
 	reqID := genReqID()
@@ -454,6 +471,7 @@ func (f *lightFetcher) nextRequest() (*distReq, uint64, bool) {
 func (f *lightFetcher) findBestRequest() (bestHash common.Hash, bestAmount uint64, bestTd *big.Int, bestSyncing bool) {
 	bestTd = f.maxConfirmedTd
 	bestSyncing = false
+	var bestSyncScore uint64 = math.MaxUint64
 
 	for p, fp := range f.peers {
 		for hash, n := range fp.nodeByHash {
@@ -462,15 +480,42 @@ func (f *lightFetcher) findBestRequest() (bestHash common.Hash, bestAmount uint6
 			}
 			// if ulc mode is disabled, isTrustedHash returns true
 			amount := f.requestAmount(p, n)
-			if (bestTd == nil || n.td.Cmp(bestTd) > 0 || (amount < bestAmount && f.handler.syncMode.SyncFullHeaderChain())) && (f.isTrustedHash(hash) || f.maxConfirmedTd.Int64() == 0) {
-				bestHash = hash
-				bestTd = n.td
-				bestAmount = amount
-				bestSyncing = fp.bestConfirmed == nil || fp.root == nil || !f.checkKnownNode(p, fp.root)
+			if f.handler.syncMode == downloader.LightestSync {
+				peerSyncScore := f.calculatePeerSyncScore(p, n)
+				p.Log().Error("Comparing best requests", "currentTD", f.maxConfirmedTd, "td", n.td, "knownProofs", p.knownPlumoProofs, "peersyncSCore", peerSyncScore, "bestScore", bestSyncScore)
+				if peerSyncScore < bestSyncScore {
+					bestHash = hash
+					bestTd = n.td
+					bestAmount = amount
+					bestSyncScore = peerSyncScore
+					bestSyncing = fp.bestConfirmed == nil || fp.root == nil || !f.checkKnownNode(p, fp.root)
+				}
+			} else {
+				if (bestTd == nil || n.td.Cmp(bestTd) > 0 || (amount < bestAmount && f.handler.syncMode.SyncFullHeaderChain())) && (f.isTrustedHash(hash) || f.maxConfirmedTd.Int64() == 0) {
+					bestHash = hash
+					bestTd = n.td
+					bestAmount = amount
+					bestSyncing = fp.bestConfirmed == nil || fp.root == nil || !f.checkKnownNode(p, fp.root)
+				}
 			}
 		}
 	}
 	return
+}
+
+func (f *lightFetcher) calculatePeerSyncScore(p *peer, n *fetcherTreeNode) uint64 {
+	epoch := f.chain.Config().Istanbul.Epoch
+	maxDifference := new(big.Int).Sub(n.td, f.maxConfirmedTd).Uint64() / epoch
+	if f.handler.syncMode == downloader.LightestSync {
+		// TODO must know available version numbers
+		// Iterate through Diff(peerTd, maxTD) and subtract for known proofs
+		for _, proof := range p.knownPlumoProofs {
+			// Verify version number
+			proofDiff := proof.LastEpoch - proof.FirstEpoch
+			maxDifference = maxDifference - uint64(proofDiff)
+		}
+	}
+	return maxDifference
 }
 
 // isTrustedHash checks if the block can be trusted by the minimum trusted fraction.
@@ -512,7 +557,7 @@ func (f *lightFetcher) newFetcherDistReqForSync(bestHash common.Hash) *distReq {
 			}
 			go func() {
 				p := dp.(*peer)
-				p.Log().Debug("Synchronisation started")
+				p.Log().Error("Synchronisation started", "peer", p, "knownProofs", p.knownPlumoProofs)
 				f.handler.synchronise(p)
 				f.syncDone <- p
 			}()
@@ -779,6 +824,11 @@ func (f *lightFetcher) setLastTrustedHeader(h *types.Header) {
 func (f *lightFetcher) checkKnownNode(p *peer, n *fetcherTreeNode) bool {
 	if n.known {
 		return true
+	}
+	if f.handler.syncMode == downloader.LightestSync {
+		if !p.plumoProofInventorySupplied {
+			return true
+		}
 	}
 	td := f.chain.GetTd(n.hash, n.number)
 	if td == nil {

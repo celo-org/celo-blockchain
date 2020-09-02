@@ -87,6 +87,7 @@ type serverHandler struct {
 }
 
 func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, proofDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+	log.Error("Creating server handler")
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
@@ -193,7 +194,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	p.Log().Trace("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
+	p.Log().Error("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
 
 	// Discard large message which exceeds the limitation.
 	if msg.Size > ProtocolMaxMsgSize {
@@ -282,7 +283,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 	}
 	switch msg.Code {
 	case GetBlockHeadersMsg:
-		p.Log().Trace("Received block header request")
+		p.Log().Error("Received block header request")
 		if metrics.EnabledExpensive {
 			miscInHeaderPacketsMeter.Mark(1)
 			miscInHeaderTrafficMeter.Mark(int64(msg.Size))
@@ -848,7 +849,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 
 	case GetEtherbaseMsg:
 		// Celo: Handle Etherbase Request
-		p.Log().Trace("Received etherbase request")
+		p.Log().Error("Received etherbase request")
 		if metrics.EnabledExpensive {
 			miscInEtherbasePacketsMeter.Mark(1)
 			miscInEtherbaseTrafficMeter.Mark(int64(msg.Size))
@@ -898,6 +899,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			ReqID uint64
 		}
 		if err := msg.Decode(&req); err != nil {
+			p.Log().Error("Error decoding")
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
@@ -907,13 +909,18 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 				defer wg.Done()
 				proofInventory := rawdb.KnownPlumoProofs(h.proofDb)
 
+				p.Log().Error("Proof inventory", "inventory", proofInventory)
+
 				reply := p.ReplyPlumoProofInventory(req.ReqID, proofInventory)
 				sendResponse(req.ReqID, 1, reply, task.done())
 			}()
 		}
 
+	case GetPlumoProofsMsg:
+		p.Log().Error("Received GetPlumoProofs request")
+
 	default:
-		p.Log().Trace("Received invalid message", "code", msg.Code)
+		p.Log().Error("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

@@ -424,6 +424,10 @@ func (p *peer) RequestPlumoProofInventory() error {
 	panic("RequestPlumoProofInventory not supported unless in lightest sync mode")
 }
 
+func (p *peer) RequestPlumoProofsAndHeaders(uint64, int, int, int) error {
+	panic("RequestPlumoProofsAndHeaders not supported unless in lightest sync mode")
+}
+
 // Handshake executes the eth protocol handshake, negotiating version number,
 // network IDs, difficulties, head and genesis blocks.
 func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis common.Hash, forkID forkid.ID, forkFilter forkid.Filter) error {

@@ -470,6 +470,8 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.Log().Error("Received proof inventory", "inventory", resp.ProofsInventory)
+		h.fetcher.importKnownPlumoProofs(p, resp.ProofsInventory)
+
 		//TODO do something with the reply
 
 	default:
@@ -571,6 +573,116 @@ func (pc *peerConnection) RequestPlumoProofInventory() error {
 	if !ok {
 		return light.ErrNoPeers
 	}
+	return nil
+}
+
+func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+	// Greedy alg for grabbing proofs
+	// TODO version number
+	// TODO limit based on max fetch
+	var proofsToRequest []types.PlumoProofMetadata
+	type headerGap struct {
+		FirstEpoch uint
+		Amount     int
+	}
+	var headerGaps []headerGap
+	knownPlumoProofs := pc.peer.knownPlumoProofs
+	var currFrom uint = uint(from)
+	// Outer loop finding the path
+	for {
+		// Inner loop adding the next proof
+		var earliestMatch uint = math.MaxUint32
+		var maxRange uint = 0
+		var chosenProofMetadata types.PlumoProofMetadata
+		for _, proofMetadata := range knownPlumoProofs {
+			log.Error("iterating proofs", "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
+			if proofMetadata.FirstEpoch >= currFrom {
+				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
+				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
+					log.Error("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
+					earliestMatch = uint(proofMetadata.FirstEpoch)
+					maxRange = proofRange
+					chosenProofMetadata = proofMetadata
+				}
+			}
+		}
+		// No more proofs to add, break
+		// TODO else case
+		if maxRange == 0 && currFrom < earliestMatch {
+			// TODO check height
+			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
+			amount := int(earliestMatch - currFrom)
+			if amount > maxEpochHeaderFetch {
+				amount = maxEpochHeaderFetch
+			}
+			gap := headerGap{
+				FirstEpoch: currFrom,
+				Amount:     amount,
+			}
+			headerGaps = append(headerGaps, gap)
+			break
+		}
+		if currFrom < earliestMatch {
+			log.Error("Need to add header gap", "currFrom", currFrom, "earliestMatch", earliestMatch)
+			gap := headerGap{
+				FirstEpoch: currFrom,
+				Amount:     int(earliestMatch - currFrom),
+			}
+			headerGaps = append(headerGaps, gap)
+		}
+		proofsToRequest = append(proofsToRequest, chosenProofMetadata)
+		currFrom = chosenProofMetadata.LastEpoch
+	}
+
+	if len(proofsToRequest) > 0 {
+		log.Error("Requesting proofs", "numProofs", len(proofsToRequest))
+		proofReq := &distReq{
+			getCost: func(dp distPeer) uint64 {
+				peer := dp.(*peer)
+				return peer.GetRequestCost(GetPlumoProofsMsg, len(proofsToRequest))
+			},
+			canSend: func(dp distPeer) bool {
+				return dp.(*peer) == pc.peer
+			},
+			request: func(dp distPeer) func() {
+				reqID := genReqID()
+				peer := dp.(*peer)
+				cost := peer.GetRequestCost(GetPlumoProofInventoryMsg, len(proofsToRequest))
+				peer.fcServer.QueuedRequest(reqID, cost)
+				return func() { peer.RequestPlumoProofs(reqID, cost, proofsToRequest) }
+			},
+		}
+		_, ok := <-pc.handler.backend.reqDist.queue(proofReq)
+		if !ok {
+			return light.ErrNoPeers
+		}
+	}
+	// This does seem to work in some ways, testing proofs now
+	// for _, headerGap := range headerGaps {
+	// 	log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
+	// 	headerReq := &distReq{
+	// 		getCost: func(dp distPeer) uint64 {
+	// 			peer := dp.(*peer)
+	// 			return peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+	// 		},
+	// 		canSend: func(dp distPeer) bool {
+	// 			return dp.(*peer) == pc.peer
+	// 		},
+	// 		request: func(dp distPeer) func() {
+	// 			reqID := genReqID()
+	// 			peer := dp.(*peer)
+	// 			cost := peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+	// 			peer.fcServer.QueuedRequest(reqID, cost)
+	// 			return func() {
+	// 				peer.RequestHeadersByNumber(reqID, cost, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
+	// 			}
+	// 		},
+	// 	}
+	// 	_, ok := <-pc.handler.backend.reqDist.queue(headerReq)
+	// 	if !ok {
+	// 		return light.ErrNoPeers
+	// 	}
+	// }
 	return nil
 }
 

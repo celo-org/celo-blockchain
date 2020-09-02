@@ -459,9 +459,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		return errTooOld
 	}
 
-	log.Debug("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash, "td", td, "mode", d.Mode)
+	log.Error("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash, "td", td, "mode", d.Mode)
 	defer func(start time.Time) {
-		log.Debug("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
+		log.Error("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
 	}(time.Now())
 
 	// Look up the sync boundaries: the common ancestor and the target block
@@ -997,7 +997,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
 	// }
 
-	getProofs := func() {
+	getProofs := func(from uint64) {
+		log.Error("GETTING PROOFS")
 		if d.Mode != LightestSync {
 			panic("This method should be called only in LightestSync mode")
 		}
@@ -1006,20 +1007,25 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
-		log.Error("getProofInventory", "peer", p.id)
-		p.log.Error("Fetching proof inventory")
-		go p.peer.RequestPlumoProofInventory()
+		p.log.Error("Fetching proofs")
+		skip := int(epoch - 1)
+		go p.peer.RequestPlumoProofsAndHeaders(from, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		// go p.peer.RequestProofs()
+		// go p.peer.RequestPlumoProofInventory()
 	}
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
 	getEpochOrNormalHeaders := func(from uint64) bool {
 		// Request proof
-		getProofs()
+		getProofs(from)
 		return true
 		// // Download the epoch headers including and beyond the current head.
 		// nextEpochBlock := (from-1)/epoch*epoch + epoch
 		// // If we're still not synced up to the latest epoch, sync only epoch headers.
 		// // Otherwise, sync block headers as we would normally in light sync.
+
+		// TODO (lucas): add this back in
+
 		// log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 		// if nextEpochBlock < height {
 		// 	getEpochHeaders(nextEpochBlock)

@@ -445,7 +445,7 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 	if simClock {
 		clock = &mclock.Simulated{}
 	}
-	handler, b := newTestServerHandler(blocks, indexers, db, newPeerSet(), clock)
+	handler, b := newTestServerHandler(blocks, indexers, db, newPeerSet(false), clock)
 
 	var peer *testPeer
 	if newPeer {
@@ -483,7 +483,7 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 
 func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, protocol int, callback indexerCallback, ulcServers []string, ulcFraction int, simClock bool, connect bool) (*testServer, *testClient, func()) {
 	sdb, cdb := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
-	speers, cPeers := newPeerSet(), newPeerSet()
+	speers, cPeers := newPeerSet(false), newPeerSet(true)
 
 	var clock mclock.Clock = &mclock.System{}
 	if simClock {
