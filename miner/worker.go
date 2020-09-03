@@ -37,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -84,9 +83,6 @@ const (
 var (
 	randomSeedString = []byte("Randomness seed string")
 	randomSeed       []byte
-
-	// Timer used to measure block finalization time from created to finalized
-	blockFinalizationTimer = metrics.NewRegisteredTimer("miner/block/finalization", nil)
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -592,7 +588,6 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			blockFinalizationTimer.UpdateSince(time.Unix(int64(block.Time()), 0))
 			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
