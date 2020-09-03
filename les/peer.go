@@ -500,6 +500,13 @@ func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoPro
 	return &reply{p.rw, PlumoProofInventoryMsg, reqID, data}
 }
 
+// ReplyPlumoProofs creates a reply with the requested proofs
+func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []types.PlumoProof) *reply {
+	data, _ := rlp.EncodeToBytes(proofs)
+	p.Log().Error("Replying requested proofs", "data", data)
+	return &reply{p.rw, PlumoProofsMsg, reqID, data}
+}
+
 // RequestPlumoProofsInventory fetches an inventory of proofs' metadata that the server holds.
 func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
 	p.Log().Error("Fetching proof invetnory")

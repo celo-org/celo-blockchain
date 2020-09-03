@@ -918,6 +918,36 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 
 	case GetPlumoProofsMsg:
 		p.Log().Error("Received GetPlumoProofs request")
+		var req struct {
+			ReqID          uint64
+			ProofsMetadata []types.PlumoProofMetadata
+		}
+		if err := msg.Decode(&req); err != nil {
+			clientErrorMeter.Mark(1)
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		reqCnt := len(req.ProofsMetadata)
+		if accept(req.ReqID, uint64(reqCnt), MaxPlumoProofsFetch) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proofs := make([]types.PlumoProof, len(req.ProofsMetadata))
+				for i, metadata := range req.ProofsMetadata {
+					if i != 0 && !task.waitOrStop() {
+						sendResponse(req.ReqID, 0, nil, task.servingTime)
+						return
+					}
+					proofBytes := rawdb.ReadPlumoProof(h.proofDb, metadata)
+					proofs[i] = types.PlumoProof{
+						Proof:    proofBytes,
+						Metadata: metadata,
+					}
+				}
+				reply := p.ReplyPlumoProofs(req.ReqID, proofs)
+				sendResponse(req.ReqID, uint64(reqCnt), reply, task.done())
+				// TODO metrics
+			}()
+		}
 
 	default:
 		p.Log().Error("Received invalid message", "code", msg.Code)

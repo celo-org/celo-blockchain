@@ -472,7 +472,22 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.Log().Error("Received proof inventory", "inventory", resp.ProofsInventory)
 		h.fetcher.importKnownPlumoProofs(p, resp.ProofsInventory)
 
-		//TODO do something with the reply
+	case PlumoProofsMsg:
+		p.Log().Error("Recieved PlumoProofsMsg response")
+		var resp struct {
+			ReqID, BV uint64
+			Proofs    []types.PlumoProof
+		}
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Error("Received requested proofs", "proofs", resp.Proofs)
+		for _, proof := range resp.Proofs {
+			p.Log().Error("Verifying proof", "proof", proof)
+			h.backend.Engine().VerifyPlumoProof(h.backend.chainreader, &proof)
+		}
 
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
