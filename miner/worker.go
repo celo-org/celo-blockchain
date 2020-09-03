@@ -569,7 +569,6 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			blockFinalizationTimer.UpdateSince(time.Unix(int64(block.Time()), 0))
 			_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
