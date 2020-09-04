@@ -1,4 +1,4 @@
-// Copyright 2017 The Celo Authors
+// Copyright 2020 The Celo Authors
 // This file is part of the celo library.
 //
 // The celo library is free software: you can redistribute it and/or modify
@@ -114,7 +114,7 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 		return nil
 	}
 
-	if rs.stopValidatingBlock != nil && !(blockNumber.Cmp(rs.stopValidatingBlock) > 0) {
+	if rs.startValidatingBlock != nil && !(blockNumber.Cmp(rs.startValidatingBlock) > 0) {
 		return errors.New("Stop block number should be greater than the start block number")
 	}
 
