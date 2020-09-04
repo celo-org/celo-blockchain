@@ -72,6 +72,17 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal("bad serialization 3")
 		}
 	}
+	for i := 0; i < fuz; i++ {
+		a := g1.rand()
+		encoded := g1.EncodePoint(a)
+		b, err := g1.DecodePoint(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !g1.Equal(a, b) {
+			t.Fatal("bad serialization encode/decode")
+		}
+	}
 }
 
 func TestG1IsOnCurve(t *testing.T) {
