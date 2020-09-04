@@ -143,6 +143,8 @@ func (rs *replicaStateImpl) MakePrimary() {
 	rs.stopValidatingBlock = nil
 }
 
+// UpdateReplicaState will clear start/stop state and transition the validator
+// to being a replica/primary if it enters/leaves a start-stop range.
 func (rs *replicaStateImpl) UpdateReplicaState(newSeq *big.Int) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
