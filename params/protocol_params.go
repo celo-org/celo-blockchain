@@ -156,10 +156,19 @@ const (
 	Keccak512BaseGas    uint64 = Sha3Gas     // Per-word price for a Keccak512 operation
 	Keccak512PerWordGas uint64 = Sha3WordGas // Base price for a Keccak512 operation
 
-	Blake2sBaseGas    uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
-	Blake2sPerWordGas uint64 = Sha256PerWordGas // Base price for a Blake2s
-	InvalidCip20Gas   uint64 = 200              // Price of attempting to access an unsupported CIP20 hash function
+	Blake2sBaseGas            uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
+	Blake2sPerWordGas         uint64 = Sha256PerWordGas // Base price for a Blake2s
+	InvalidCip20Gas           uint64 = 200              // Price of attempting to access an unsupported CIP20 hash function
+	Bls12377G1AddGas          uint64 = 0                // Price for BLS12-377 elliptic curve G1 point addition
+	Bls12377G1MulGas          uint64 = 0                // Price for BLS12-377 elliptic curve G1 point scalar multiplication
+	Bls12377G2AddGas          uint64 = 0                // Price for BLS12-377 elliptic curve G2 point addition
+	Bls12377G2MulGas          uint64 = 0                // Price for BLS12-377 elliptic curve G2 point scalar multiplication
+	Bls12377PairingBaseGas    uint64 = 0                // Base gas price for BLS12-377 elliptic curve pairing check
+	Bls12377PairingPerPairGas uint64 = 0                // Per-point pair gas price for BLS12-377 elliptic curve pairing check
 )
+
+// Gas discount table for BLS12-377 G1 and G2 multi exponentiation operations
+var Bls12377MultiExpDiscountTable = [128]uint64{}
 
 var (
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
