@@ -19,8 +19,8 @@ type Engine struct {
 	pairs []pair
 }
 
-// NewEngine creates new pairing engine insteace.
-func NewEngine() *Engine {
+// NewPairingEngine creates new pairing engine instance.
+func NewPairingEngine() *Engine {
 	fp2 := newFp2()
 	fp6 := newFp6(fp2)
 	fp12 := newFp12(fp6)
