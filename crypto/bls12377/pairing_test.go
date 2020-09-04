@@ -6,7 +6,7 @@ import (
 )
 
 func TestPairingExpected(t *testing.T) {
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	G1, G2 := bls.G1, bls.G2
 	GT := bls.GT()
 	expected, err := GT.FromBytes(
@@ -39,7 +39,7 @@ func TestPairingExpected(t *testing.T) {
 }
 
 func TestPairingNonDegeneracy(t *testing.T) {
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	G1, G2 := bls.G1, bls.G2
 	g1Zero, g2Zero, g1One, g2One := G1.Zero(), G2.Zero(), G1.One(), G2.One()
 	GT := bls.GT()
@@ -119,7 +119,7 @@ func TestPairingNonDegeneracy(t *testing.T) {
 }
 
 func TestPairingBilinearity(t *testing.T) {
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	g1, g2 := bls.G1, bls.G2
 	gt := bls.GT()
 	// e(a*G1, b*G2) = e(G1, G2)^c
@@ -180,7 +180,7 @@ func TestPairingBilinearity(t *testing.T) {
 func TestPairingMulti(t *testing.T) {
 	// e(G1, G2) ^ t == e(a01 * G1, a02 * G2) * e(a11 * G1, a12 * G2) * ... * e(an1 * G1, an2 * G2)
 	// where t = sum(ai1 * ai2)
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	g1, g2 := bls.G1, bls.G2
 	numOfPair := 100
 	targetExp := new(big.Int)
@@ -208,7 +208,7 @@ func TestPairingMulti(t *testing.T) {
 }
 
 func TestPairingEmpty(t *testing.T) {
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	if !bls.Check() {
 		t.Fatal("empty check should be accepted")
 	}
@@ -218,7 +218,7 @@ func TestPairingEmpty(t *testing.T) {
 }
 
 func BenchmarkPairing(t *testing.B) {
-	bls := NewEngine()
+	bls := NewPairingEngine()
 	g1, g2, gt := bls.G1, bls.G2, bls.GT()
 	bls.AddPair(g1.One(), g2.One())
 	e := gt.New()
