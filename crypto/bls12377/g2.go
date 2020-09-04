@@ -77,7 +77,6 @@ func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
 }
 
 // FromBytes constructs a new point given uncompressed byte input.
-// FromBytes does not take zcash flags into account.
 // Byte input expected to be at least 192 bytes.
 // First 192 bytes should be concatenation of x and y values
 // Point (0, 0) is considered as infinity.
@@ -105,9 +104,37 @@ func (g *G2) FromBytes(in []byte) (*PointG2, error) {
 	return p, nil
 }
 
+// DecodePoint given encoded (x, y) coordinates in 256 bytes returns a valid G1 Point.
+func (g *G2) DecodePoint(in []byte) (*PointG2, error) {
+	if len(in) != 256 {
+		return nil, errors.New("invalid g2 point length")
+	}
+	pointBytes := make([]byte, 192)
+	x0Bytes, err := decodeFieldElement(in[:64])
+	if err != nil {
+		return nil, err
+	}
+	x1Bytes, err := decodeFieldElement(in[64:128])
+	if err != nil {
+		return nil, err
+	}
+	y0Bytes, err := decodeFieldElement(in[128:192])
+	if err != nil {
+		return nil, err
+	}
+	y1Bytes, err := decodeFieldElement(in[192:])
+	if err != nil {
+		return nil, err
+	}
+	copy(pointBytes[:48], x1Bytes)
+	copy(pointBytes[48:96], x0Bytes)
+	copy(pointBytes[96:144], y1Bytes)
+	copy(pointBytes[144:192], y0Bytes)
+	return g.FromBytes(pointBytes)
+}
+
 // ToBytes serializes a point into bytes in uncompressed form,
-// does not take zcash flags into account,
-// returns (0, 0) if point is infinity.
+// returns (0, 0) if point is at infinity.
 func (g *G2) ToBytes(p *PointG2) []byte {
 	out := make([]byte, 192)
 	if g.IsZero(p) {
@@ -116,6 +143,20 @@ func (g *G2) ToBytes(p *PointG2) []byte {
 	g.Affine(p)
 	copy(out[:96], g.f.toBytes(&p[0]))
 	copy(out[96:], g.f.toBytes(&p[1]))
+	return out
+}
+
+// EncodePoint encodes a point into 256 bytes.
+func (g *G2) EncodePoint(p *PointG2) []byte {
+	// outRaw is 96 bytes
+	outRaw := g.ToBytes(p)
+	out := make([]byte, 256)
+	// encode x
+	copy(out[16:16+48], outRaw[48:96])
+	copy(out[80:80+48], outRaw[:48])
+	// encode y
+	copy(out[144:144+48], outRaw[144:])
+	copy(out[208:208+48], outRaw[96:144])
 	return out
 }
 
