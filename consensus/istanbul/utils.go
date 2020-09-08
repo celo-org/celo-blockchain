@@ -169,6 +169,53 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	return addedValidators, removedValidatorsBitmap
 }
 
+func SnarkValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]byte, []ValidatorData) {
+	valSetMap := make(map[common.Address]bool)
+	oldValSetIndices := make(map[common.Address]int)
+
+	for i, oldVal := range oldValSet {
+		if (oldVal.Address != common.Address{}) {
+			valSetMap[oldVal.Address] = true
+			oldValSetIndices[oldValSet[i].Address] = i
+		}
+	}
+
+	var addedValidators []ValidatorData
+	var valPositions []byte
+	for newIndex, newVal := range newValSet {
+		oldIndex, ok := oldValSetIndices[newVal.Address]
+		if ok && (oldValSet[oldIndex].BLSPublicKey == newVal.BLSPublicKey) {
+			valPositions[newIndex] = byte(oldIndex)
+			delete(valSetMap, newVal.Address)
+		} else {
+			// We found a new validator that is not in the old validator set
+			valPositions[newIndex] = 255
+			addedValidators = append(addedValidators, ValidatorData{
+				newVal.Address,
+				newVal.BLSPublicKey,
+			})
+		}
+	}
+	return valPositions, addedValidators
+}
+
+// TODO may need new val set size
+func SnarkUpdateValSet(oldValSet []ValidatorData, valPositions []byte, addedValidators []ValidatorData) []ValidatorData {
+	newValSet := make([]ValidatorData, len(oldValSet))
+	for i, newValidatorIndex := range valPositions {
+		if newValidatorIndex < 255 {
+			newValSet[i] = oldValSet[newValidatorIndex]
+		} else {
+			if len(addedValidators) == 0 {
+				panic("Diff failure")
+			}
+			newValSet[i] = addedValidators[0]
+			addedValidators = addedValidators[1:]
+		}
+	}
+	return newValSet
+}
+
 // This function assumes that valSet1 and valSet2 are ordered in the same way
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
