@@ -181,7 +181,7 @@ func SnarkValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData)
 	}
 
 	var addedValidators []ValidatorData
-	var valPositions []byte
+	var valPositions = make([]byte, len(newValSet))
 	for newIndex, newVal := range newValSet {
 		oldIndex, ok := oldValSetIndices[newVal.Address]
 		if ok && (oldValSet[oldIndex].BLSPublicKey == newVal.BLSPublicKey) {
@@ -199,9 +199,8 @@ func SnarkValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData)
 	return valPositions, addedValidators
 }
 
-// TODO may need new val set size
 func SnarkUpdateValSet(oldValSet []ValidatorData, valPositions []byte, addedValidators []ValidatorData) []ValidatorData {
-	newValSet := make([]ValidatorData, len(oldValSet))
+	newValSet := make([]ValidatorData, len(valPositions))
 	for i, newValidatorIndex := range valPositions {
 		if newValidatorIndex < 255 {
 			newValSet[i] = oldValSet[newValidatorIndex]
