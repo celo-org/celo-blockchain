@@ -1,0 +1,8 @@
+# docker build --build-arg COMMIT1=<COMMIT1> --build-arg COMMIT2=<COMMIT2> -t us.gcr.io/celo-testnet/geth-multi:<COMMIT1>-<COMMIT2> -f Dockerfile.multiversion .
+ARG COMMIT1=celo-v1.0.1
+ARG COMMIT2=master
+FROM us.gcr.io/celo-testnet/geth:${COMMIT1}
+FROM us.gcr.io/celo-testnet/geth:${COMMIT2}
+COPY --from=0 /usr/local/bin/geth /usr/local/bin/geth-0
+RUN echo ${COMMIT1} > /commit1 && echo ${COMMIT2} > /commit2
+
