@@ -127,6 +127,11 @@ func (rs *replicaStateImpl) MakeReplica() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
+	rs.makeReplica()
+}
+
+// Must be called w/ rs.mu held
+func (rs *replicaStateImpl) makeReplica() {
 	rs.isReplica = true
 	rs.enabled = false
 	rs.startValidatingBlock = nil
@@ -137,6 +142,12 @@ func (rs *replicaStateImpl) MakePrimary() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
+	rs.makePrimary()
+}
+
+// Must be called w/ rs.mu held
+
+func (rs *replicaStateImpl) makePrimary() {
 	rs.isReplica = false
 	rs.enabled = false
 	rs.startValidatingBlock = nil
@@ -155,12 +166,12 @@ func (rs *replicaStateImpl) UpdateReplicaState(newSeq *big.Int) {
 	// start <= seq w/ no stop -> primary
 	if rs.startValidatingBlock != nil && newSeq.Cmp(rs.startValidatingBlock) > 0 {
 		if rs.stopValidatingBlock == nil {
-			rs.MakePrimary()
+			rs.makePrimary()
 		}
 	}
 	// start <= stop <= seq -> replica
 	if rs.stopValidatingBlock != nil && newSeq.Cmp(rs.stopValidatingBlock) > 0 {
-		rs.MakeReplica()
+		rs.makeReplica()
 	}
 
 }
