@@ -19,7 +19,7 @@ geth:
   faultyValidatorType: 1
   faultyValidators: 0
   image:
-    repository: us.gcr.io/celo-testnet/geth-multi
+    repository: gcr.io/celo-testnet/geth-multi
     tag: 13a3406014e7df867b8d7305a0adef51b5d48211-8a44c2cd92200bdffce595c7558e84a39ea2bc15
   in_memory_discovery_table: false
   istanbulrequesttimeout: 3000

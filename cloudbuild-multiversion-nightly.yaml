@@ -1,40 +1,56 @@
-# This step builds the container image.
+steps:
 - name: 'gcr.io/cloud-builders/docker'
   id: build
+  entrypoint: 'sh'
   args:
-  - 'build'
-  - '--build-arg'
-  - 'COMMIT1=$COMMIT1'
-  - '--build-arg'
-  - 'COMMIT2=$COMMIT2'
-  - '-t'
-  - 'gcr.io/$PROJECT_ID/geth-multi:$COMMIT1-$COMMIT2'
-  - '-f'
-  - 'Dockerfile.multiversion'
-  - '.'
+  - '-c'
+  - 'docker build
+     --build-arg COMMIT1=$$COMMIT1
+     --build-arg COMMIT2=$$COMMIT2
+     -t gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+     -f Dockerfile.multiversion
+     . '
+  env:
+  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
+  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
+
+- name: 'gcr.io/cloud-builders/docker'
+  id: push
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - 'docker push
+     gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+     '
   waitFor:
-  - ""
+  - 'build'
   env:
   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
   - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
 
 - name: 'gcr.io/$PROJECT_ID/helm'
   id: deploy
+  entrypoint: 'sh'
   args:
-  - 'upgrade'
-  - '--install'
-  - 'nightly-$BUILD_ID'
-  - '--namespace'
-  - 'nightly-$BUILD_ID'
-  - 'celo/testnet'
-  - '--set geth.image.tag=$COMMIT1-$COMMIT2'
+  - '-c'
+  - '/builder/helm.bash
+     install celo/testnet
+     --name nightly-geth-multiversion
+     --namespace nightly-geth-multiversion
+     --values tests/nightly/multiversion_values.yaml
+     --set geth.image.tag=$$COMMIT1-$$COMMIT2 
+     --set-file genesis.genesisFile=tests/nightly/genesis.json
+     '
   waitFor:
   - 'build'
+  - 'push'
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
-  - 'TILLERLESS=true'
-  - 'TILLER_NAMESPACE=nightly-$BUILD_ID'
   - 'HELM_REPO_NAME=celo'
   - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
-
+  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
+  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
+  - 'TILLERLESS=true'
+  - 'TILLER_NAMESPACE=tillerci'
+  - 'DEBUG=true'
