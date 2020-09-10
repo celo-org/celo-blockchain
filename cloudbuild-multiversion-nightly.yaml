@@ -35,14 +35,13 @@ steps:
   - '-c'
   - '/builder/helm.bash
      install celo/testnet
-     --name nightly-geth-multiversion
-     --namespace nightly-geth-multiversion
+     --name nightlygethmultiversion
+     --namespace nightlygethmultiversion
      --values tests/nightly/multiversion_values.yaml
      --set geth.image.tag=$$COMMIT1-$$COMMIT2 
      --set-file genesis.genesisFile=tests/nightly/genesis.json
      '
   waitFor:
-  - 'build'
   - 'push'
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
@@ -54,3 +53,11 @@ steps:
   - 'TILLERLESS=true'
   - 'TILLER_NAMESPACE=tillerci'
   - 'DEBUG=true'
+
+- name: 'ubuntu'
+  id: sleep
+  args:
+  - sleep
+  - '600'
+  waitFor:
+  - 'deploy'
