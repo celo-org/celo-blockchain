@@ -62,13 +62,14 @@ steps:
   waitFor:
   - 'deploy'
 
-- name: 'ubuntu'
+- name: 'alpine'
   id: download
-  entrypoint: "bash"
+  entrypoint: "sh"
   args:
   - "-c"
   - |
-      curl -o /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
+      mkdir -p /workspace
+      wget -O /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
       chmod +x /workspace/health_check
   waitFor:
   - 'sleep'
