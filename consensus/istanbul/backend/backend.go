@@ -637,13 +637,23 @@ func (sb *Backend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
-// AuthorForBlock implements istanbul.Backend.AuthorForBlock
+// AuthorForBlock returns the address of the block offer from a given number.
+// Implements istanbul.Backend.AuthorForBlock
 func (sb *Backend) AuthorForBlock(number uint64) common.Address {
 	if h := sb.chain.GetHeaderByNumber(number); h != nil {
 		a, _ := sb.Author(h)
 		return a
 	}
 	return common.ZeroAddress
+}
+
+// HashForBlock returns the block hash from the canonical chain for the given number.
+// Implements istanbul.Backend.HashForBlock
+func (sb *Backend) HashForBlock(number uint64) common.Hash {
+	if h := sb.chain.GetHeaderByNumber(number); h != nil {
+		return h.Hash()
+	}
+	return common.Hash{}
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {

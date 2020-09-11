@@ -40,16 +40,32 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
+// Generates serialized epoch data for use in the Plumo SNARK circuit.
+// Block number and hash may be information for a pending block.
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
 		return nil, errNotLastBlockInEpoch
 	}
+
+	// Retreive the block hash for the last block of the previous epoch, and truncate each hash to 128 bits.
+	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
+	var truncatedBlockHash [16]byte
+	copy(truncatedBlockHash[:], blockHash[:16])
+	var truncatedParentHash [16]byte
+	copy(truncatedParentHash[:], parentEpochBlockHash[:16])
+
+	// Serialize the public keys for the validators in the validator set.
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
 	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
+
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
+	epochData, err := blscrypto.EncodeEpochSnarkData(
+		blsPubKeys, maxNonSigners,
+		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		truncatedBlockHash, truncatedParentHash,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +88,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
+	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, sub.Digest, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
@@ -254,7 +270,7 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
+	epochData, err := c.generateEpochValidatorSetData(blockNumber, comSub.Subject.Digest, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil

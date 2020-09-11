@@ -94,6 +94,9 @@ type Backend interface {
 	// AuthorForBlock returns the proposer of the given block height
 	AuthorForBlock(number uint64) common.Address
 
+	// HashForBlock returns the block header hash of the given block height
+	HashForBlock(number uint64) common.Hash
+
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal Proposal) ValidatorSet
 
