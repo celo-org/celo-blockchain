@@ -61,3 +61,28 @@ steps:
   - '600'
   waitFor:
   - 'deploy'
+
+- name: 'ubuntu'
+  id: download
+  entrypoint: "bash"
+  args:
+  - "-c"
+  - |
+      curl -o /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
+      chmod +x /workspace/health_check
+  waitFor:
+  - 'sleep'
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: check
+  entrypoint: "bash"
+  args:
+  - "-c"
+  - |
+      kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 > /dev/null 2>&1 &
+      /workspace/health_check
+  waitFor:
+  - 'download'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
