@@ -50,7 +50,7 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 
 	// Retreive the block hash for the last block of the previous epoch.
 	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
-	if parentEpochBlockHash == (common.Hash{}) {
+	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
 		return nil, errors.New("unknown block")
 	}
 
