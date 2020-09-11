@@ -1,66 +1,66 @@
 steps:
-- name: 'gcr.io/cloud-builders/docker'
-  id: build
-  entrypoint: 'sh'
-  args:
-  - '-c'
-  - 'docker build
-     --build-arg COMMIT1=$$COMMIT1
-     --build-arg COMMIT2=$$COMMIT2
-     -t gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
-     -f Dockerfile.multiversion
-     . '
-  env:
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
+# - name: 'gcr.io/cloud-builders/docker'
+#   id: build
+#   entrypoint: 'sh'
+#   args:
+#   - '-c'
+#   - 'docker build
+#      --build-arg COMMIT1=$$COMMIT1
+#      --build-arg COMMIT2=$$COMMIT2
+#      -t gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+#      -f Dockerfile.multiversion
+#      . '
+#   env:
+#   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
+#   - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
 
-- name: 'gcr.io/cloud-builders/docker'
-  id: push
-  entrypoint: 'sh'
-  args:
-  - '-c'
-  - 'docker push
-     gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
-     '
-  waitFor:
-  - 'build'
-  env:
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
+# - name: 'gcr.io/cloud-builders/docker'
+#   id: push
+#   entrypoint: 'sh'
+#   args:
+#   - '-c'
+#   - 'docker push
+#      gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+#      '
+#   waitFor:
+#   - 'build'
+#   env:
+#   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
+#   - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
 
-- name: 'gcr.io/$PROJECT_ID/helm'
-  id: deploy
-  entrypoint: 'sh'
-  args:
-  - '-c'
-  - '/builder/helm.bash
-     install celo/testnet
-     --name nightlygethmultiversion
-     --namespace nightlygethmultiversion
-     --values tests/nightly/multiversion_values.yaml
-     --set geth.image.tag=$$COMMIT1-$$COMMIT2 
-     --set-file genesis.genesisFile=tests/nightly/genesis.json
-     '
-  waitFor:
-  - 'push'
-  env:
-  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
-  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
-  - 'HELM_REPO_NAME=celo'
-  - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
-  - 'TILLERLESS=true'
-  - 'TILLER_NAMESPACE=tillerci'
-  - 'DEBUG=true'
+# - name: 'gcr.io/$PROJECT_ID/helm'
+#   id: deploy
+#   entrypoint: 'sh'
+#   args:
+#   - '-c'
+#   - '/builder/helm.bash
+#      install celo/testnet
+#      --name nightlygethmultiversion
+#      --namespace nightlygethmultiversion
+#      --values tests/nightly/multiversion_values.yaml
+#      --set geth.image.tag=$$COMMIT1-$$COMMIT2 
+#      --set-file genesis.genesisFile=tests/nightly/genesis.json
+#      '
+#   waitFor:
+#   - 'push'
+#   env:
+#   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
+#   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
+#   - 'HELM_REPO_NAME=celo'
+#   - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
+#   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
+#   - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
+#   - 'TILLERLESS=true'
+#   - 'TILLER_NAMESPACE=tillerci'
+#   - 'DEBUG=true'
 
-- name: 'ubuntu'
-  id: sleep
-  args:
-  - sleep
-  - '600'
-  waitFor:
-  - 'deploy'
+# - name: 'ubuntu'
+#   id: sleep
+#   args:
+#   - sleep
+#   - '600'
+#   waitFor:
+#   - 'deploy'
 
 - name: 'alpine'
   id: download
@@ -80,7 +80,8 @@ steps:
   args:
   - "-c"
   - |
-      kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 > /dev/null 2>&1 &
+      kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
+      sleep 5
       /workspace/health_check
   waitFor:
   - 'download'
