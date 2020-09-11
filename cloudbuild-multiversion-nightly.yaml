@@ -83,6 +83,7 @@ steps:
       gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
       kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
       sleep 5
+      kubectl get pods -n nightlygethmultiversion
       /workspace/health_check
   waitFor:
   - 'download'
