@@ -71,8 +71,8 @@ steps:
       mkdir -p /workspace
       wget -O /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
       chmod +x /workspace/health_check
-  waitFor:
-  - 'sleep'
+  # waitFor:
+  # - 'sleep'
 
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: check
