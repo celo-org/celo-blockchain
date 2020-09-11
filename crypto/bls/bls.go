@@ -11,13 +11,15 @@ import (
 
 	//nolint:goimports
 	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	PUBLICKEYBYTES = bls.PUBLICKEYBYTES
-	SIGNATUREBYTES = bls.SIGNATUREBYTES
+	PUBLICKEYBYTES    = bls.PUBLICKEYBYTES
+	SIGNATUREBYTES    = bls.SIGNATUREBYTES
+	EPOCHENTROPYBYTES = bls.EPOCHENTROPYBYTES
 )
 
 var (
@@ -26,6 +28,13 @@ var (
 )
 
 type SerializedPublicKey [PUBLICKEYBYTES]byte
+
+// EpochEntropyFromHash truncates the given hash to the length of epoch SNARK entropy.
+func EpochEntropyFromHash(hash common.Hash) bls.EpochEntropy {
+	var entropy bls.EpochEntropy
+	copy(entropy[:], hash[:EPOCHENTROPYBYTES])
+	return entropy
+}
 
 // MarshalText returns the hex representation of pk.
 func (pk SerializedPublicKey) MarshalText() ([]byte, error) {
@@ -204,7 +213,7 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 	return err
 }
 
-func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16, blockHash, parentHash [16]byte) ([]byte, error) {
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16, blockHash, parentHash bls.EpochEntropy) ([]byte, error) {
 	pubKeys := []*bls.PublicKey{}
 	for _, pubKey := range newValSet {
 		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])

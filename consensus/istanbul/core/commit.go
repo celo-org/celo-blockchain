@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -47,12 +48,11 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 		return nil, errNotLastBlockInEpoch
 	}
 
-	// Retreive the block hash for the last block of the previous epoch, and truncate each hash to 128 bits.
+	// Retreive the block hash for the last block of the previous epoch.
 	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
-	var truncatedBlockHash [16]byte
-	copy(truncatedBlockHash[:], blockHash[:16])
-	var truncatedParentHash [16]byte
-	copy(truncatedParentHash[:], parentEpochBlockHash[:16])
+	if parentEpochBlockHash == (common.Hash{}) {
+		return nil, errors.New("unknown block")
+	}
 
 	// Serialize the public keys for the validators in the validator set.
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
@@ -64,7 +64,8 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 	epochData, err := blscrypto.EncodeEpochSnarkData(
 		blsPubKeys, maxNonSigners,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
-		truncatedBlockHash, truncatedParentHash,
+		blscrypto.EpochEntropyFromHash(blockHash),
+		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
 	if err != nil {
 		return nil, err
