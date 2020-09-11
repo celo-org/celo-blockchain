@@ -228,6 +228,24 @@ func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uin
 	return bls.EncodeEpochToBytes(epochIndex, blockHash, parentHash, maximumNonSigners, pubKeys)
 }
 
+// EncodeEpochSnarkDataWithoutEntropy encodes the deprecated epoch message data format where no unpredictability is included.
+// It is to be used until the hard fork is active to use the new format.
+// Note: Because this only effects active participants in consensus, it may be safely removed after the hard fork is active.
+func EncodeEpochSnarkDataWithoutEntropy(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16) ([]byte, error) {
+	pubKeys := []*bls.PublicKey{}
+	for _, pubKey := range newValSet {
+		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
+		if err != nil {
+			return nil, err
+		}
+		defer publicKeyObj.Destroy()
+
+		pubKeys = append(pubKeys, publicKeyObj)
+	}
+
+	return bls.EncodeEpochToBytesWithoutEntropy(epochIndex, maximumNonSigners, pubKeys)
+}
+
 func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignature, error) {
 	if len(serializedSignature) != SIGNATUREBYTES {
 		return SerializedSignature{}, fmt.Errorf("wrong length for serialized signature: expected %d, got %d", SIGNATUREBYTES, len(serializedSignature))

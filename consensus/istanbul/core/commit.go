@@ -48,12 +48,6 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 		return nil, errNotLastBlockInEpoch
 	}
 
-	// Retreive the block hash for the last block of the previous epoch.
-	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
-	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
-		return nil, errors.New("unknown block")
-	}
-
 	// Serialize the public keys for the validators in the validator set.
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
 	for _, v := range newValSet.List() {
@@ -61,17 +55,27 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 	}
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-	epochData, err := blscrypto.EncodeEpochSnarkData(
+
+	// DO NOT MERGE: Replace false with a check that the hard fork is inactive.
+	if false {
+		return blscrypto.EncodeEpochSnarkDataWithoutEntropy(
+			blsPubKeys, maxNonSigners,
+			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		)
+	}
+
+	// Retreive the block hash for the last block of the previous epoch.
+	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
+	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
+		return nil, errors.New("unknown block")
+	}
+
+	return blscrypto.EncodeEpochSnarkData(
 		blsPubKeys, maxNonSigners,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	return epochData, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
