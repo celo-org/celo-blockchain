@@ -125,8 +125,6 @@ var defaultCacheConfig = &CacheConfig{
 	TrieCleanLimit: 256,
 	TrieDirtyLimit: 256,
 	TrieTimeLimit:  5 * time.Minute,
-	SnapshotLimit:  256,
-	SnapshotWait:   true,
 }
 
 // BlockChain represents the canonical chain given a database with a genesis
@@ -251,7 +249,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	}
 	// Make sure the state associated with the block is available
 	head := bc.CurrentBlock()
-	if _, err := state.New(head.Root(), bc.stateCache, bc.snaps); err != nil {
+	if _, err := state.New(head.Root(), bc.stateCache); err != nil {
 		log.Warn("Head state missing, repairing", "number", head.Number(), "hash", head.Hash())
 		if err := bc.SetHead(head.NumberU64()); err != nil {
 			return nil, err
@@ -422,7 +420,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 			} else {
 				// Block exists, keep rewinding until we find one with state
 				for {
-					if _, err := state.New(newHeadBlock.Root(), bc.stateCache, bc.snaps); err != nil {
+					if _, err := state.New(newHeadBlock.Root(), bc.stateCache); err != nil {
 						log.Trace("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 						if pivot == nil || newHeadBlock.NumberU64() > *pivot {
 							newHeadBlock = bc.GetBlock(newHeadBlock.ParentHash(), newHeadBlock.NumberU64()-1)

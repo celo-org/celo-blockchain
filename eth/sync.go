@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
@@ -170,59 +171,31 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 	currentBlock := pm.blockchain.CurrentBlock()
 	td := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 
-func peerToSyncOp(mode downloader.SyncMode, p *peer) *chainSyncOp {
-	peerHead, peerTD := p.Head()
-	return &chainSyncOp{mode: mode, peer: p, td: peerTD, head: peerHead}
-}
-
-func (cs *chainSyncer) modeAndLocalHead() (downloader.SyncMode, *big.Int) {
-	// If we're in fast sync mode, return that directly
-	if atomic.LoadUint32(&cs.pm.fastSync) == 1 {
-		block := cs.pm.blockchain.CurrentFastBlock()
-		td := cs.pm.blockchain.GetTdByHash(block.Hash())
-		return downloader.FastSync, td
-	}
-	// We are probably in full sync, but we might have rewound to before the
-	// fast sync pivot, check if we should reenable
-	if pivot := rawdb.ReadLastPivotNumber(cs.pm.chaindb); pivot != nil {
-		if head := cs.pm.blockchain.CurrentBlock(); head.NumberU64() < *pivot {
-			block := cs.pm.blockchain.CurrentFastBlock()
-			td := cs.pm.blockchain.GetTdByHash(block.Hash())
-			return downloader.FastSync, td
+	// Otherwise try to sync with the downloader
+	mode := downloader.FullSync
+	if atomic.LoadUint32(&pm.fastSync) == 1 {
+		// Fast sync was explicitly requested, and explicitly granted
+		mode = downloader.FastSync
+	} else if pivot := rawdb.ReadLastPivotNumber(pm.chaindb); pivot != nil {
+		if currentBlock.NumberU64() < *pivot {
+			block := pm.blockchain.CurrentFastBlock()
+			td = pm.blockchain.GetTdByHash(block.Hash())
+			mode = downloader.FastSync
 		}
 	}
-	// Nope, we're really full syncing
-	head := cs.pm.blockchain.CurrentHeader()
-	td := cs.pm.blockchain.GetTd(head.Hash(), head.Number.Uint64())
-	return downloader.FullSync, td
-}
 
-// startSync launches doSync in a new goroutine.
-func (cs *chainSyncer) startSync(op *chainSyncOp) {
-	cs.doneCh = make(chan error, 1)
-	go func() { cs.doneCh <- cs.pm.doSync(op) }()
-}
+	pHead, pTd := peer.Head()
+	if pTd.Cmp(td) <= 0 {
+		return
+	}
 
-// doSync synchronizes the local blockchain with a remote peer.
-func (pm *ProtocolManager) doSync(op *chainSyncOp) error {
-	if op.mode == downloader.FastSync {
-		// Before launch the fast sync, we have to ensure user uses the same
-		// txlookup limit.
-		// The main concern here is: during the fast sync Geth won't index the
-		// block(generate tx indices) before the HEAD-limit. But if user changes
-		// the limit in the next fast sync(e.g. user kill Geth manually and
-		// restart) then it will be hard for Geth to figure out the oldest block
-		// has been indexed. So here for the user-experience wise, it's non-optimal
-		// that user can't change limit during the fast sync. If changed, Geth
-		// will just blindly use the original one.
-		limit := pm.blockchain.TxLookupLimit()
-		if stored := rawdb.ReadFastTxLookupLimit(pm.chaindb); stored == nil {
-			rawdb.WriteFastTxLookupLimit(pm.chaindb, limit)
-		} else if *stored != limit {
-			pm.blockchain.SetTxLookupLimit(*stored)
-			log.Warn("Update txLookup limit", "provided", limit, "updated", *stored)
+	if mode == downloader.FastSync {
+		// Make sure the peer's total difficulty we are synchronizing is higher.
+		if pm.blockchain.GetTdByHash(pm.blockchain.CurrentFastBlock().Hash()).Cmp(pTd) >= 0 {
+			return
 		}
 	}
+
 	// Run the sync cycle, and disable fast sync if we've went past the pivot block
 	if err := pm.downloader.Synchronise(peer.id, pHead, pTd, mode); err != nil {
 		return

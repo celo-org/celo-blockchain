@@ -62,7 +62,7 @@ var (
 	maxQueuedHeaders         = 32 * 1024                    // [eth/62] Maximum number of headers to queue for import (DOS protection)
 	maxHeadersProcess        = 2048                         // Number of header download results to import at once into the chain
 	maxResultsProcess        = 2048                         // Number of content download results to import at once into the chain
-	maxForkAncestry   uint64 = params.ImmutabilityThreshold // Maximum chain reorganisation (locally redeclared so tests can reduce it)
+	maxForkAncestry   uint64 = params.FullImmutabilityThreshold // Maximum chain reorganisation (locally redeclared so tests can reduce it)
 
 	reorgProtThreshold   = 48 // Threshold number of recent blocks to disable mini reorg protection
 	reorgProtHeaderDelay = 2  // Number of headers to delay delivering to cover mini reorgs
@@ -1482,7 +1482,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 	var (
 		rollback    uint64 // Zero means no rollback (fine as you can't unroll the genesis)
 		rollbackErr error
-		mode        = d.getMode()
+		mode        = d.Mode
 	)
 	defer func() {
 		if rollback > 0 {
@@ -1503,7 +1503,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 			log.Warn("Rolled back chain segment",
 				"header", fmt.Sprintf("%d->%d", lastHeader, d.lightchain.CurrentHeader().Number),
 				"fast", fmt.Sprintf("%d->%d", lastFastBlock, curFastBlock),
-				"block", fmt.Sprintf("%d->%d", lastBlock, curBlock))
+				"block", fmt.Sprintf("%d->%d", lastBlock, curBlock), "reason", rollbackErr)
 		}
 	}()
 	// Wait for batches of headers to process
@@ -1577,13 +1577,13 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				chunk := headers[:limit]
 
 				// In case of header only syncing, validate the chunk immediately
-				if mode == FastSync || mode == LightSync {
+				if mode == FastSync || !mode.SyncFullBlockChain() {
 					// If we're importing pure headers, verify based on their recentness
 					frequency := fsHeaderCheckFrequency
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
 					}
-					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency); err != nil {
+					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
 						rollbackErr = err
 
 						// If some headers were inserted, track them as uncertain
