@@ -117,7 +117,7 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 	p.proxiedValidatorsMu.RLock()
 
 	// Verify that it's coming from the proxied peer
-	if ok := p.proxiedValidators[peer]; !ok {
+	if ok := p.proxiedValidatorIDs[peer.Node().ID()]; !ok {
 		logger.Warn("Got a valEnodesShare message from a peer that is not the proxy's proxied validator. Ignoring it", "from", peer.Node().ID())
 		p.proxiedValidatorsMu.RUnlock()
 		return false, nil

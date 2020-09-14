@@ -67,9 +67,9 @@ type proxyEngine struct {
 	logger  log.Logger
 	backend BackendForProxyEngine
 
-	// Proxied Validators set and count of nodekey addresses
+	// Proxied Validators peers and IDs
 	proxiedValidators   map[consensus.Peer]bool
-	proxiedNodekeys     map[common.Address]int
+	proxiedValidatorIDs map[enode.ID]bool
 	proxiedValidatorsMu sync.RWMutex
 }
 
@@ -84,8 +84,8 @@ func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (Pro
 		logger:  log.New(),
 		backend: backend,
 
-		proxiedValidators: make(map[consensus.Peer]bool),
-		proxiedNodekeys:   make(map[common.Address]int),
+		proxiedValidators:   make(map[consensus.Peer]bool),
+		proxiedValidatorIDs: make(map[enode.ID]bool),
 	}
 
 	return p, nil
@@ -101,7 +101,7 @@ func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []b
 	} else if msgCode == istanbul.EnodeCertificateMsg {
 		// See if the message is coming from the proxied validator
 		p.proxiedValidatorsMu.RLock()
-		msgFromProxiedVal := p.proxiedValidators[peer]
+		msgFromProxiedVal := p.proxiedValidatorIDs[peer.Node().ID()]
 		p.proxiedValidatorsMu.RUnlock()
 		if msgFromProxiedVal {
 			return p.handleEnodeCertificateMsgFromProxiedValidator(peer, payload)
@@ -118,29 +118,24 @@ func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensu
 	p.proxiedValidatorsMu.Lock()
 	defer p.proxiedValidatorsMu.Unlock()
 
-	pubKey := proxiedValidatorPeer.Node().Pubkey()
-	addr := crypto.PubkeyToAddress(*pubKey)
 	logger := p.logger.New("func", "RegisterProxiedValidatorPeer")
-	logger.Info("Validator connected to proxy", "addr", addr, "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
+	logger.Info("Validator connected to proxy", "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
 
-	p.proxiedNodekeys[addr] = p.proxiedNodekeys[addr] + 1
 	p.proxiedValidators[proxiedValidatorPeer] = true
+	p.proxiedValidatorIDs[proxiedValidatorPeer.Node().ID()] = true
+
 }
 
 func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
 	p.proxiedValidatorsMu.Lock()
 	defer p.proxiedValidatorsMu.Unlock()
 
-	pubKey := proxiedValidatorPeer.Node().Pubkey()
-	addr := crypto.PubkeyToAddress(*pubKey)
 	logger := p.logger.New("func", "UnregisterProxiedValidatorPeer")
-	logger.Info("Removing validator", "addr", addr, "enode", proxiedValidatorPeer.Node())
+	logger.Info("Removing validator", "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
 
-	p.proxiedNodekeys[addr] = p.proxiedNodekeys[addr] - 1
-	if p.proxiedNodekeys[addr] == 0 {
-		delete(p.proxiedNodekeys, addr)
-	}
 	delete(p.proxiedValidators, proxiedValidatorPeer)
+	delete(p.proxiedValidatorIDs, proxiedValidatorPeer.Node().ID())
+
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
@@ -152,8 +147,7 @@ func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
 		pubKey := proxiedValidatorPeer.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
 		proxiedValidatorInfo := ProxiedValidatorInfo{
-			Address: addr,
-
+			Address:  addr,
 			IsPeered: true,
 			Node:     proxiedValidatorPeer.Node()}
 		proxiedValidatorsInfo = append(proxiedValidatorsInfo, proxiedValidatorInfo)
