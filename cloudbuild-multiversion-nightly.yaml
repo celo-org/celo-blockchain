@@ -51,7 +51,7 @@ steps:
   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
   - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
   - 'TILLERLESS=true'
-  - 'TILLER_NAMESPACE=tillerci'
+  - 'TILLER_NAMESPACE=tillercimultiversion'
   - 'DEBUG=true'
 
 - name: 'ubuntu'
@@ -71,8 +71,8 @@ steps:
       mkdir -p /workspace
       wget -O /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
       chmod +x /workspace/health_check
-  # waitFor:
-  # - 'sleep'
+  waitFor:
+  - 'sleep'
 
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: check
@@ -83,10 +83,23 @@ steps:
       gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
       kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
       sleep 5
-      kubectl get pods -n nightlygethmultiversion
       /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 280 --first-block 1 --last-block 281
   waitFor:
   - 'download'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: clean
+  entrypoint: "bash"
+  args:
+  - "-c"
+  - |
+      gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
+      kubectl delete ns tillercimultiversion nightlygethmultiversion
+  waitFor:
+  - 'check'
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
