@@ -84,7 +84,7 @@ steps:
       kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
       sleep 5
       kubectl get pods -n nightlygethmultiversion
-      /workspace/health_check
+      /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 280 --first-block 1 --last-block 281
   waitFor:
   - 'download'
   env:
