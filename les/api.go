@@ -390,21 +390,21 @@ func (api *PrivateLightAPI) GetCheckpointContractAddress() (string, error) {
 	return api.backend.oracle.Contract().ContractAddr().Hex(), nil
 }
 
-//API should be for light clients of les protocol
-type LightClientAPI struct {
+// API should be for light clients of les protocol
+type PrivateLightClientAPI struct {
 	le *LightEthereum
 }
 
-func NewLightClientAPI(le *LightEthereum) *LightClientAPI {
-	return &LightClientAPI{le}
+func NewPrivateLightClientAPI(le *LightEthereum) *PrivateLightClientAPI {
+	return &PrivateLightClientAPI{le}
 }
 
-func (api *LightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
+func (api *PrivateLightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInformation {
 	return api.le.handler.gatewayFeeCache.getMap()
 }
 
 // RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
-func (api *LightClientAPI) RequestPeerGatewayFees() error {
+func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
 	peerNodes := api.le.peers.AllPeers()
 	for _, peerNode := range peerNodes {
 		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
@@ -417,10 +417,14 @@ func (api *LightClientAPI) RequestPeerGatewayFees() error {
 }
 
 // SuggestGatewayFee suggests the best light server to choose based on different factors. Currently only minPeerGatewayFee.
-func (api *LightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
+func (api *PrivateLightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, error) {
 	bestGatewayFeeInfo, err := api.le.handler.gatewayFeeCache.MinPeerGatewayFee()
 	if err != nil {
 		return nil, err
 	}
 	return bestGatewayFeeInfo, nil
+}
+
+func (api *PrivateLightClientAPI) ServerPoolEntries() ([]*poolEntryInfo, error) {
+	return api.le.serverPool.Info(), nil
 }
