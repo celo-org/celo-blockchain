@@ -67,7 +67,7 @@ type proxyEngine struct {
 	logger  log.Logger
 	backend BackendForProxyEngine
 
-	// Proxied Validators set and count of nodekey addresses
+	// Proxied Validators peers and IDs
 	proxiedValidators   map[consensus.Peer]bool
 	proxiedValidatorIDs map[enode.ID]bool
 	proxiedValidatorsMu sync.RWMutex
