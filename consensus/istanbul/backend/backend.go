@@ -423,6 +423,11 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.List()
 }
 
+func (sb *Backend) GetValidatorSet(epochNumber uint64, headerHash common.Hash) istanbul.ValidatorSet {
+	// TODO verify epochnumber
+	return sb.getValidators(epochNumber*sb.EpochSize(), headerHash)
+}
+
 // Commit implements istanbul.Backend.Commit
 func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	// Check if the proposal is a valid block

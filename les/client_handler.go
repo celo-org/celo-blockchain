@@ -307,7 +307,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
-		} else {
+		} else { // ODR
 			h.backend.retriever.lock.RLock()
 			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
 			h.backend.retriever.lock.RUnlock()
@@ -475,19 +475,17 @@ func (h *clientHandler) handleMsg(p *peer) error {
 	case PlumoProofsMsg:
 		p.Log().Error("Recieved PlumoProofsMsg response")
 		var resp struct {
-			ReqID, BV uint64
-			Proofs    []types.PlumoProof
+			ReqID, BV   uint64
+			LightProofs []types.LightPlumoProof
 		}
 		if err := msg.Decode(&resp); err != nil {
+			p.Log().Error("Error decoding")
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-		p.Log().Error("Received requested proofs", "proofs", resp.Proofs)
-		for _, proof := range resp.Proofs {
-			p.Log().Error("Verifying proof", "proof", proof)
-			h.backend.Engine().VerifyPlumoProof(h.backend.chainreader, &proof)
-		}
+		p.Log().Error("Received requested proofs", "light_proofs", resp.LightProofs)
+		h.fetcher.chain.InsertPlumoProofs(resp.LightProofs)
 
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)

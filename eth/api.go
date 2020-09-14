@@ -280,7 +280,7 @@ func (api *PrivateAdminAPI) AddProof(proof string, firstEpoch uint, lastEpoch ui
 		},
 	}
 	// TODO unify verify/add logic on one component - which one? Engine?
-	err := api.eth.Engine().VerifyPlumoProof(api.eth.BlockChain(), &plumoProof)
+	err := api.eth.Engine().VerifyPlumoProofs([]types.PlumoProof{plumoProof})
 	if err != nil {
 		return false, err
 	}

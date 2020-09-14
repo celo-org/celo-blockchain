@@ -19,7 +19,6 @@ package types
 import (
 	"fmt"
 	"io"
-	"math/big"
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -102,11 +101,11 @@ type LightEpochBlock struct { // 16 bytes
 // LightPlumoProof encapsulates all data needed by a light client to verify and utilize a Plumo proof.
 type LightPlumoProof struct { // Total at least 535 bytes
 	Proof            []byte          // 383 bytes?
-	FirstEpoch       LightEpochBlock // 16 bytes
+	FirstEpoch       uint            // 8 bytes
 	LastEpoch        LightEpochBlock // 16 bytes
 	VersionNumber    uint            // 8 bytes
 	FirstHashToField []byte          // TODO type and how to compute
 	// TODO 96 bytes?
-	NewValidators    []blscrypto.SerializedPublicKey // (96 * numNewValidators) bytes
-	DeletedValidator *big.Int                        // ~16 bytes + I think
+	NewValidators      []blscrypto.SerializedPublicKey // (96 * numNewValidators) bytes
+	ValidatorPositions []byte                          // len(NewValSet) bytes
 }

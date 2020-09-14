@@ -28,6 +28,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -931,16 +933,42 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				proofs := make([]types.PlumoProof, len(req.ProofsMetadata))
+				proofs := make([]types.LightPlumoProof, len(req.ProofsMetadata))
 				for i, metadata := range req.ProofsMetadata {
 					if i != 0 && !task.waitOrStop() {
 						sendResponse(req.ReqID, 0, nil, task.servingTime)
 						return
 					}
 					proofBytes := rawdb.ReadPlumoProof(h.proofDb, metadata)
-					proofs[i] = types.PlumoProof{
-						Proof:    proofBytes,
-						Metadata: metadata,
+					engine := h.blockchain.Engine()
+					backend := engine.(*istanbulBackend.Backend)
+					// Could try and fetch roundstate here... but curiously never happens anywhere else.
+					firstEpochValSet := backend.GetValidatorSet(uint64(metadata.FirstEpoch), common.Hash{})
+					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
+					lastEpochBlock := types.LightEpochBlock{
+						Index:         metadata.LastEpoch,
+						MaxNonSigners: uint(lastEpochValSet.MinQuorumSize()),
+					}
+					var firstEpochValData []istanbul.ValidatorData
+					var lastEpochValData []istanbul.ValidatorData
+					for _, validator := range firstEpochValSet.List() {
+						firstEpochValData = append(firstEpochValData, *validator.AsData())
+					}
+					for _, validator := range lastEpochValSet.List() {
+						lastEpochValData = append(lastEpochValData, *validator.AsData())
+					}
+
+					valPositions, addedValidators := istanbul.SnarkValidatorSetDiff(firstEpochValData, lastEpochValData)
+					_, addedValidatorPubKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
+
+					proofs[i] = types.LightPlumoProof{
+						Proof:              proofBytes,
+						FirstEpoch:         metadata.FirstEpoch,
+						LastEpoch:          lastEpochBlock,
+						VersionNumber:      metadata.VersionNumber,
+						FirstHashToField:   []byte{},
+						NewValidators:      addedValidatorPubKeys,
+						ValidatorPositions: valPositions,
 					}
 				}
 				reply := p.ReplyPlumoProofs(req.ReqID, proofs)

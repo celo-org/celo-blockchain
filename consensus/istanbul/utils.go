@@ -199,6 +199,22 @@ func SnarkValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData)
 	return valPositions, addedValidators
 }
 
+func SnarkUpdatePublicKeySet(oldKeySet []blscrypto.SerializedPublicKey, valPositions []byte, addedKeys []blscrypto.SerializedPublicKey) []blscrypto.SerializedPublicKey {
+	newKeySet := make([]blscrypto.SerializedPublicKey, len(valPositions))
+	for i, newValidatorIndex := range valPositions {
+		if newValidatorIndex < 255 {
+			newKeySet[i] = oldKeySet[newValidatorIndex]
+		} else {
+			if len(addedKeys) == 0 {
+				panic("Diff failure")
+			}
+			newKeySet[i] = addedKeys[0]
+			addedKeys = addedKeys[1:]
+		}
+	}
+	return newKeySet
+}
+
 func SnarkUpdateValSet(oldValSet []ValidatorData, valPositions []byte, addedValidators []ValidatorData) []ValidatorData {
 	newValSet := make([]ValidatorData, len(valPositions))
 	for i, newValidatorIndex := range valPositions {

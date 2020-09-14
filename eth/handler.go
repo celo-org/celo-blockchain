@@ -220,7 +220,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		return nil
 	}
 	verifyPlumoProof := func(proof *types.PlumoProof) error {
-		return engine.VerifyPlumoProof(blockchain, proof)
+		return engine.VerifyPlumoProofs([]types.PlumoProof{*proof})
 	}
 	broadcastPlumoProof := func(proof *types.PlumoProof, propagate bool) {
 		// TODO
@@ -958,7 +958,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		for _, proof := range proofs {
 			log.Error("Proof received", "proof", proof)
 			p.MarkPlumoProof(&proof.Metadata)
-			if err := pm.engine.VerifyPlumoProof(pm.blockchain, &proof); err != nil {
+			if err := pm.engine.VerifyPlumoProofs([]types.PlumoProof{proof}); err != nil {
 				log.Error("Proof does not verify. Dropping Peer")
 				return errResp(ErrDecode, "err %v", err)
 			}

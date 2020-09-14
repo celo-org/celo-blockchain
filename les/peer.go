@@ -501,7 +501,7 @@ func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoPro
 }
 
 // ReplyPlumoProofs creates a reply with the requested proofs
-func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []types.PlumoProof) *reply {
+func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []types.LightPlumoProof) *reply {
 	data, _ := rlp.EncodeToBytes(proofs)
 	p.Log().Error("Replying requested proofs", "data", data)
 	return &reply{p.rw, PlumoProofsMsg, reqID, data}

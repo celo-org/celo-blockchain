@@ -208,8 +208,12 @@ func (e *NoRewardEngine) VerifySeal(chain consensus.ChainReader, header *types.H
 	return e.inner.VerifySeal(chain, header)
 }
 
-func (e *NoRewardEngine) VerifyPlumoProof(chain consensus.ChainReader, proof *types.PlumoProof) error {
-	return e.inner.VerifyPlumoProof(chain, proof)
+func (e *NoRewardEngine) VerifyPlumoProofs(proofs []types.PlumoProof) error {
+	return e.inner.VerifyPlumoProofs(proofs)
+}
+
+func (e *NoRewardEngine) VerifyLightPlumoProofs(lightProofs []types.LightPlumoProof) error {
+	return e.inner.VerifyLightPlumoProofs(lightProofs)
 }
 
 func (e *NoRewardEngine) Prepare(chain consensus.ChainReader, header *types.Header) error {

@@ -425,6 +425,11 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	return i, err
 }
 
+func (lc *LightChain) InsertPlumoProofs(lightProofs []types.LightPlumoProof) {
+	// TODO: any further info here? Or can this be pulled out
+	lc.engine.VerifyLightPlumoProofs(lightProofs)
+}
+
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (lc *LightChain) CurrentHeader() *types.Header {
