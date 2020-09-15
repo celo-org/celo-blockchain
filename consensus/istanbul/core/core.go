@@ -695,7 +695,7 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	}
 
 	// Check if the cache has the signer
-	if signer, ok := c.msgSigCache[string(cacheKeyBytes)]; !ok {
+	if signer, ok := c.msgSigCache[string(cacheKeyBytes)]; ok {
 		signerAddress = signer
 	} else { // Call the GetSignatureAddress function
 		signer, err := istanbul.GetSignatureAddress(data, sig)
