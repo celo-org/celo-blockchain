@@ -510,6 +510,8 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		}
 	}
 
+	sb.logger.Trace("Block header verified", "blockHash", block.Hash())
+
 	// Process the block to verify that the transactions are valid and to retrieve the resulting state and receipts
 	// Get the state from this block's parent.
 	state, err := sb.stateAt(block.Header().ParentHash)
@@ -528,11 +530,15 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, err
 	}
 
+	sb.logger.Trace("Block processed for verification", "blockHash", block.Hash())
+
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
 		return 0, err
 	}
+
+	sb.logger.Trace("Processed state verified", "blockHash", block.Hash())
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {

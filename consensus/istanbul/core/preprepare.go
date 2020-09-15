@@ -116,6 +116,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
 			return err
 		}
+		logger.Trace("RC Cert verified")
 	} else if preprepare.HasRoundChangeCertificate() {
 		logger.Error("Preprepare for round 0 has a round change certificate.")
 		return errInvalidProposal
