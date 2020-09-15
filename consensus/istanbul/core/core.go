@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -69,6 +70,8 @@ type core struct {
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
 	consensusTimer metrics.Timer
+
+	msgSigCache map[string]common.Address
 }
 
 // New creates an Istanbul consensus core
@@ -90,6 +93,7 @@ func New(backend istanbul.Backend, config *istanbul.Config) Engine {
 		consensusTimestamp: time.Time{},
 		rsdb:               rsdb,
 		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		msgSigCache:        make(map[string]common.Address),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -573,6 +577,7 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		headBlock := c.backend.GetCurrentHeadBlock()
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
+	c.msgSigCache = make(map[string]common.Address)
 	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
 
 }
@@ -679,7 +684,36 @@ func (c *core) resendRoundChangeMessage() {
 }
 
 func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
+	logger := c.newLogger("func", "checkValidatorSignature")
+
+	var signerAddress common.Address
+	cacheKey := msgSigCacheKey{msgData: data, msgSig: sig}
+	cacheKeyBytes, err := rlp.EncodeToBytes(cacheKey)
+	if err != nil {
+		logger.Error("Failed in encoding the cache key", "err", err)
+		return common.Address{}, err
+	}
+
+	// Check if the cache has the signer
+	if signer, ok := c.msgSigCache[string(cacheKeyBytes)]; !ok {
+		signerAddress = signer
+	} else { // Call the GetSignatureAddress function
+		signer, err := istanbul.GetSignatureAddress(data, sig)
+		if err != nil {
+			logger.Error("Failed to get signer address", "err", err)
+			return common.Address{}, err
+		}
+
+		signerAddress = signer
+		c.msgSigCache[string(cacheKeyBytes)] = signerAddress
+	}
+
+	// Check if the signer is within the current validator set
+	if _, val := c.current.ValidatorSet().GetByAddress(signerAddress); val != nil {
+		return val.Address(), nil
+	}
+
+	return common.Address{}, istanbul.ErrUnauthorizedAddress
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {

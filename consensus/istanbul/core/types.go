@@ -17,6 +17,8 @@
 package core
 
 import (
+	"io"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -84,4 +86,15 @@ func (s State) Cmp(y State) int {
 
 func Encode(val interface{}) ([]byte, error) {
 	return rlp.EncodeToBytes(val)
+}
+
+// message signature cache key type
+type msgSigCacheKey struct {
+	msgData []byte
+	msgSig  []byte
+}
+
+// EncodeRLP serializes key into the Ethereum RLP format.
+func (key *msgSigCacheKey) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{key.msgData, key.msgSig})
 }
