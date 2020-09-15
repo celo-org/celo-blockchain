@@ -574,7 +574,7 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
-			blockFinalizationTimeGauge.Update(time.Now().Unix() - int64(block.Time()))
+			blockFinalizationTimeGauge.Update(time.Now().UnixNano() - int64(block.Time())*1000000000)
 			log.Info("Successfully writing block to chain", "number", block.Number(), "sealhash", sealhash, "hash", hash, "elapsed from receiving proposal", common.PrettyDuration(time.Since(processResult.CreatedAt)))
 
 			// Broadcast the block and announce chain insertion event
