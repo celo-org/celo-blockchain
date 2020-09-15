@@ -21,13 +21,13 @@
 package core
 
 import (
+//	"fmt"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -378,123 +378,6 @@ func TestShortNewlyForkedFastSyncingRepair(t *testing.T) {
 		pivotBlock:         uint64ptr(4),
 		expCanonicalBlocks: 8,
 		expSidechainBlocks: 6,
-		expFrozen:          0,
-		expHeadHeader:      8,
-		expHeadFastBlock:   8,
-		expHeadBlock:       0,
-	})
-}
-
-// Tests a recovery for a short canonical chain and a longer side chain, where a
-// recent block was already committed to disk and then the process crashed. In this
-// case we expect the canonical chain to be rolled back to the committed block, but
-// the chain data itself left in the database for replaying.
-func TestShortReorgedRepair(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G, C4
-	// Pivot : none
-	//
-	// CRASH
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Expected head header    : C8
-	// Expected head fast block: C8
-	// Expected head block     : C4
-	testRepair(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
-		freezeThreshold:    16,
-		commitBlock:        4,
-		pivotBlock:         nil,
-		expCanonicalBlocks: 8,
-		expSidechainBlocks: 10,
-		expFrozen:          0,
-		expHeadHeader:      8,
-		expHeadFastBlock:   8,
-		expHeadBlock:       4,
-	})
-}
-
-// Tests a recovery for a short canonical chain and a longer side chain, where
-// the fast sync pivot point was already committed to disk and then the process
-// crashed. In this case we expect the canonical chain to be rolled back to the
-// committed block, but the chain data itself left in the database for replaying.
-func TestShortReorgedFastSyncedRepair(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G, C4
-	// Pivot : C4
-	//
-	// CRASH
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Expected head header    : C8
-	// Expected head fast block: C8
-	// Expected head block     : C4
-	testRepair(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
-		freezeThreshold:    16,
-		commitBlock:        4,
-		pivotBlock:         uint64ptr(4),
-		expCanonicalBlocks: 8,
-		expSidechainBlocks: 10,
-		expFrozen:          0,
-		expHeadHeader:      8,
-		expHeadFastBlock:   8,
-		expHeadBlock:       4,
-	})
-}
-
-// Tests a recovery for a short canonical chain and a longer side chain, where
-// the fast sync pivot point was not yet committed, but the process crashed. In
-// this case we expect the chain to detect that it was fast syncing and not delete
-// anything, since we can just pick up directly where we left off.
-func TestShortReorgedFastSyncingRepair(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G
-	// Pivot : C4
-	//
-	// CRASH
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Expected head header    : C8
-	// Expected head fast block: C8
-	// Expected head block     : G
-	testRepair(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
-		freezeThreshold:    16,
-		commitBlock:        0,
-		pivotBlock:         uint64ptr(4),
-		expCanonicalBlocks: 8,
-		expSidechainBlocks: 10,
 		expFrozen:          0,
 		expHeadHeader:      8,
 		expHeadFastBlock:   8,
@@ -1295,6 +1178,125 @@ func TestLongNewerForkedFastSyncingDeepRepair(t *testing.T) {
 // to disk and then the process crashed. In this case we expect the chain to be
 // rolled back to the committed block, with everything afterwads kept as fast sync
 // data. The side chain completely nuked by the freezer.
+/*
+
+// Tests a recovery for a short canonical chain and a longer side chain, where a
+// recent block was already committed to disk and then the process crashed. In this
+// case we expect the canonical chain to be rolled back to the committed block, but
+// the chain data itself left in the database for replaying.
+func TestShortReorgedRepair(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G, C4
+	// Pivot : none
+	//
+	// CRASH
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Expected head header    : C8
+	// Expected head fast block: C8
+	// Expected head block     : C4
+	testRepair(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        4,
+		pivotBlock:         nil,
+		expCanonicalBlocks: 8,
+		expSidechainBlocks: 10,
+		expFrozen:          0,
+		expHeadHeader:      8,
+		expHeadFastBlock:   8,
+		expHeadBlock:       4,
+	})
+}
+
+// Tests a recovery for a short canonical chain and a longer side chain, where
+// the fast sync pivot point was already committed to disk and then the process
+// crashed. In this case we expect the canonical chain to be rolled back to the
+// committed block, but the chain data itself left in the database for replaying.
+func TestShortReorgedFastSyncedRepair(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G, C4
+	// Pivot : C4
+	//
+	// CRASH
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Expected head header    : C8
+	// Expected head fast block: C8
+	// Expected head block     : C4
+	testRepair(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        4,
+		pivotBlock:         uint64ptr(4),
+		expCanonicalBlocks: 8,
+		expSidechainBlocks: 10,
+		expFrozen:          0,
+		expHeadHeader:      8,
+		expHeadFastBlock:   8,
+		expHeadBlock:       4,
+	})
+}
+
+// Tests a recovery for a short canonical chain and a longer side chain, where
+// the fast sync pivot point was not yet committed, but the process crashed. In
+// this case we expect the chain to detect that it was fast syncing and not delete
+// anything, since we can just pick up directly where we left off.
+func TestShortReorgedFastSyncingRepair(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G
+	// Pivot : C4
+	//
+	// CRASH
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Expected head header    : C8
+	// Expected head fast block: C8
+	// Expected head block     : G
+	testRepair(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        0,
+		pivotBlock:         uint64ptr(4),
+		expCanonicalBlocks: 8,
+		expSidechainBlocks: 10,
+		expFrozen:          0,
+		expHeadHeader:      8,
+		expHeadFastBlock:   8,
+		expHeadBlock:       0,
+	})
+}
+
 func TestLongReorgedShallowRepair(t *testing.T) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18 (HEAD)
@@ -1552,6 +1554,7 @@ func TestLongReorgedFastSyncingDeepRepair(t *testing.T) {
 		expHeadBlock:       0,
 	})
 }
+*/
 
 func testRepair(t *testing.T, tt *rewindTest) {
 	// It's hard to follow the test case, visualize the input
@@ -1574,9 +1577,9 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	// Initialize a fresh chain
 	var (
 		genesis = new(Genesis).MustCommit(db)
-		engine  = ethash.NewFullFaker()
+		engine  = mockEngine.NewFaker()
 	)
-	chain, err := NewBlockChain(db, nil, params.AllEthashProtocolChanges, engine, vm.Config{}, nil, nil)
+	chain, err := NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -1592,13 +1595,13 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	}
 	canonblocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.canonicalBlocks, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0x02})
-		b.SetDifficulty(big.NewInt(1000000))
+		// b.SetDifficulty(big.NewInt(1000000))
 	})
 	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if tt.commitBlock > 0 {
-		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true, nil)
+		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
 	}
 	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
@@ -1617,14 +1620,13 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	// Pull the plug on the database, simulating a hard crash
 	db.Close()
 
-	// Start a new blockchain back up and see where the repait leads us
+	// Start a new blockchain back up and see where the repair leads us
 	db, err = rawdb.NewLevelDBDatabaseWithFreezer(datadir, 0, 0, datadir, "")
 	if err != nil {
 		t.Fatalf("Failed to reopen persistent database: %v", err)
 	}
 	defer db.Close()
-
-	chain, err = NewBlockChain(db, nil, params.AllEthashProtocolChanges, engine, vm.Config{}, nil, nil)
+	chain, err = NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}

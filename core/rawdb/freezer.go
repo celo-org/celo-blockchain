@@ -294,7 +294,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		hash := ReadHeadBlockHash(nfdb)
 		if hash == (common.Hash{}) {
 			log.Debug("Current full block hash unavailable") // new chain, empty database
-			time.Sleep(freezerRecheckInterval)
+			backoff = true
 			continue
 		}
 		number := ReadHeaderNumber(nfdb, hash)
@@ -303,7 +303,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		switch {
 		case number == nil:
 			log.Error("Current full block number unavailable", "hash", hash)
-			time.Sleep(freezerRecheckInterval)
+			backoff = true
 			continue
 
 		case *number < threshold:
@@ -313,13 +313,13 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 
 		case *number-threshold <= f.frozen:
 			log.Debug("Ancient blocks frozen already", "number", *number, "hash", hash, "frozen", f.frozen)
-			time.Sleep(freezerRecheckInterval)
+			backoff = true
 			continue
 		}
 		head := ReadHeader(nfdb, hash, *number)
 		if head == nil {
 			log.Error("Current full block unavailable", "number", *number, "hash", hash)
-			time.Sleep(freezerRecheckInterval)
+			backoff = true
 			continue
 		}
 		// Seems we have data ready to be frozen, process in usable batches
@@ -445,7 +445,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 
 		// Avoid database thrashing with tiny writes
 		if f.frozen-first < freezerBatchLimit {
-			time.Sleep(freezerRecheckInterval)
+			backoff = true
 		}
 	}
 }

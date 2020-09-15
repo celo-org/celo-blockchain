@@ -22,13 +22,12 @@ package core
 import (
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
+	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -517,144 +516,6 @@ func TestShortNewlyForkedFastSyncingSetHead(t *testing.T) {
 	testSetHead(t, &rewindTest{
 		canonicalBlocks:    10,
 		sidechainBlocks:    8,
-		freezeThreshold:    16,
-		commitBlock:        0,
-		pivotBlock:         uint64ptr(4),
-		setheadBlock:       7,
-		expCanonicalBlocks: 7,
-		expSidechainBlocks: 7,
-		expFrozen:          0,
-		expHeadHeader:      7,
-		expHeadFastBlock:   7,
-		expHeadBlock:       0,
-	})
-}
-
-// Tests a sethead for a short canonical chain and a longer side chain, where a
-// recent block was already committed to disk and then sethead was called. In this
-// case we expect the canonical full chain to be rolled back to the committed block.
-// All data above the sethead point should be deleted. In between the committed
-// block and the requested head the data can remain as "fast sync" data to avoid
-// having to redownload it. The side chain should be truncated to the head set.
-//
-// The side chain could be left to be if the fork point was before the new head
-// we are deleting to, but it would be exceedingly hard to detect that case and
-// properly handle it, so we'll trade extra work in exchange for simpler code.
-func TestShortReorgedSetHead(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G, C4
-	// Pivot : none
-	//
-	// SetHead(7)
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7
-	//   └->S1->S2->S3->S4->S5->S6->S7
-	//
-	// Expected head header    : C7
-	// Expected head fast block: C7
-	// Expected head block     : C4
-	testSetHead(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
-		freezeThreshold:    16,
-		commitBlock:        4,
-		pivotBlock:         nil,
-		setheadBlock:       7,
-		expCanonicalBlocks: 7,
-		expSidechainBlocks: 7,
-		expFrozen:          0,
-		expHeadHeader:      7,
-		expHeadFastBlock:   7,
-		expHeadBlock:       4,
-	})
-}
-
-// Tests a sethead for a short canonical chain and a longer side chain, where
-// the fast sync pivot point was already committed to disk and then sethead was
-// called. In this case we expect the canonical full chain to be rolled back to
-// the committed block. All data above the sethead point should be deleted. In
-// between the committed block and the requested head the data can remain as
-// "fast sync" data to avoid having to redownload it. The side chain should be
-// truncated to the head set.
-//
-// The side chain could be left to be if the fork point was before the new head
-// we are deleting to, but it would be exceedingly hard to detect that case and
-// properly handle it, so we'll trade extra work in exchange for simpler code.
-func TestShortReorgedFastSyncedSetHead(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G, C4
-	// Pivot : C4
-	//
-	// SetHead(7)
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7
-	//   └->S1->S2->S3->S4->S5->S6->S7
-	//
-	// Expected head header    : C7
-	// Expected head fast block: C7
-	// Expected head block     : C4
-	testSetHead(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
-		freezeThreshold:    16,
-		commitBlock:        4,
-		pivotBlock:         uint64ptr(4),
-		setheadBlock:       7,
-		expCanonicalBlocks: 7,
-		expSidechainBlocks: 7,
-		expFrozen:          0,
-		expHeadHeader:      7,
-		expHeadFastBlock:   7,
-		expHeadBlock:       4,
-	})
-}
-
-// Tests a sethead for a short canonical chain and a longer side chain, where
-// the fast sync pivot point was not yet committed, but sethead was called. In
-// this case we expect the chain to detect that it was fast syncing and delete
-// everything from the new head, since we can just pick up fast syncing from
-// there.
-//
-// The side chain could be left to be if the fork point was before the new head
-// we are deleting to, but it would be exceedingly hard to detect that case and
-// properly handle it, so we'll trade extra work in exchange for simpler code.
-func TestShortReorgedFastSyncingSetHead(t *testing.T) {
-	// Chain:
-	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
-	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
-	//
-	// Frozen: none
-	// Commit: G
-	// Pivot : C4
-	//
-	// SetHead(7)
-	//
-	// ------------------------------
-	//
-	// Expected in leveldb:
-	//   G->C1->C2->C3->C4->C5->C6->C7
-	//   └->S1->S2->S3->S4->S5->S6->S7
-	//
-	// Expected head header    : C7
-	// Expected head fast block: C7
-	// Expected head block     : G
-	testSetHead(t, &rewindTest{
-		canonicalBlocks:    8,
-		sidechainBlocks:    10,
 		freezeThreshold:    16,
 		commitBlock:        0,
 		pivotBlock:         uint64ptr(4),
@@ -1477,6 +1338,145 @@ func TestLongNewerForkedFastSyncingDeepSetHead(t *testing.T) {
 	})
 }
 
+/*
+// Tests a sethead for a short canonical chain and a longer side chain, where a
+// recent block was already committed to disk and then sethead was called. In this
+// case we expect the canonical full chain to be rolled back to the committed block.
+// All data above the sethead point should be deleted. In between the committed
+// block and the requested head the data can remain as "fast sync" data to avoid
+// having to redownload it. The side chain should be truncated to the head set.
+//
+// The side chain could be left to be if the fork point was before the new head
+// we are deleting to, but it would be exceedingly hard to detect that case and
+// properly handle it, so we'll trade extra work in exchange for simpler code.
+func TestShortReorgedSetHead(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G, C4
+	// Pivot : none
+	//
+	// SetHead(7)
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7
+	//   └->S1->S2->S3->S4->S5->S6->S7
+	//
+	// Expected head header    : C7
+	// Expected head fast block: C7
+	// Expected head block     : C4
+	testSetHead(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        4,
+		pivotBlock:         nil,
+		setheadBlock:       7,
+		expCanonicalBlocks: 7,
+		expSidechainBlocks: 7,
+		expFrozen:          0,
+		expHeadHeader:      7,
+		expHeadFastBlock:   7,
+		expHeadBlock:       4,
+	})
+}
+
+// Tests a sethead for a short canonical chain and a longer side chain, where
+// the fast sync pivot point was already committed to disk and then sethead was
+// called. In this case we expect the canonical full chain to be rolled back to
+// the committed block. All data above the sethead point should be deleted. In
+// between the committed block and the requested head the data can remain as
+// "fast sync" data to avoid having to redownload it. The side chain should be
+// truncated to the head set.
+//
+// The side chain could be left to be if the fork point was before the new head
+// we are deleting to, but it would be exceedingly hard to detect that case and
+// properly handle it, so we'll trade extra work in exchange for simpler code.
+func TestShortReorgedFastSyncedSetHead(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G, C4
+	// Pivot : C4
+	//
+	// SetHead(7)
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7
+	//   └->S1->S2->S3->S4->S5->S6->S7
+	//
+	// Expected head header    : C7
+	// Expected head fast block: C7
+	// Expected head block     : C4
+	testSetHead(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        4,
+		pivotBlock:         uint64ptr(4),
+		setheadBlock:       7,
+		expCanonicalBlocks: 7,
+		expSidechainBlocks: 7,
+		expFrozen:          0,
+		expHeadHeader:      7,
+		expHeadFastBlock:   7,
+		expHeadBlock:       4,
+	})
+}
+
+// Tests a sethead for a short canonical chain and a longer side chain, where
+// the fast sync pivot point was not yet committed, but sethead was called. In
+// this case we expect the chain to detect that it was fast syncing and delete
+// everything from the new head, since we can just pick up fast syncing from
+// there.
+//
+// The side chain could be left to be if the fork point was before the new head
+// we are deleting to, but it would be exceedingly hard to detect that case and
+// properly handle it, so we'll trade extra work in exchange for simpler code.
+func TestShortReorgedFastSyncingSetHead(t *testing.T) {
+	// Chain:
+	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
+	//   └->S1->S2->S3->S4->S5->S6->S7->S8->S9->S10
+	//
+	// Frozen: none
+	// Commit: G
+	// Pivot : C4
+	//
+	// SetHead(7)
+	//
+	// ------------------------------
+	//
+	// Expected in leveldb:
+	//   G->C1->C2->C3->C4->C5->C6->C7
+	//   └->S1->S2->S3->S4->S5->S6->S7
+	//
+	// Expected head header    : C7
+	// Expected head fast block: C7
+	// Expected head block     : G
+	testSetHead(t, &rewindTest{
+		canonicalBlocks:    8,
+		sidechainBlocks:    10,
+		freezeThreshold:    16,
+		commitBlock:        0,
+		pivotBlock:         uint64ptr(4),
+		setheadBlock:       7,
+		expCanonicalBlocks: 7,
+		expSidechainBlocks: 7,
+		expFrozen:          0,
+		expHeadHeader:      7,
+		expHeadFastBlock:   7,
+		expHeadBlock:       0,
+	})
+}
+
 // Tests a sethead for a long canonical chain with frozen blocks and a longer side
 // chain, where a recent block - newer than the ancient limit - was already committed
 // to disk and then sethead was called. In this case the freezer will delete the
@@ -1743,6 +1743,7 @@ func TestLongReorgedFastSyncingDeepSetHead(t *testing.T) {
 		expHeadBlock:       0,
 	})
 }
+*/
 
 func testSetHead(t *testing.T, tt *rewindTest) {
 	// It's hard to follow the test case, visualize the input
@@ -1765,9 +1766,9 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	// Initialize a fresh chain
 	var (
 		genesis = new(Genesis).MustCommit(db)
-		engine  = ethash.NewFullFaker()
+		engine  = mockEngine.NewFaker()
 	)
-	chain, err := NewBlockChain(db, nil, params.AllEthashProtocolChanges, engine, vm.Config{}, nil, nil)
+	chain, err := NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -1783,13 +1784,13 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	}
 	canonblocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.canonicalBlocks, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0x02})
-		b.SetDifficulty(big.NewInt(1000000))
+		// b.SetDifficulty(big.NewInt(1000000))
 	})
 	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if tt.commitBlock > 0 {
-		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true, nil)
+		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
 	}
 	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
@@ -1845,6 +1846,7 @@ func verifyNoGaps(t *testing.T, chain *BlockChain, canonical bool, inserted type
 	var end uint64
 	for i := uint64(0); i <= uint64(len(inserted)); i++ {
 		header := chain.GetHeaderByNumber(i)
+		// fmt.Printf("header %v\n", header);
 		if header == nil && end == 0 {
 			end = i
 		}
@@ -1860,6 +1862,7 @@ func verifyNoGaps(t *testing.T, chain *BlockChain, canonical bool, inserted type
 	end = 0
 	for i := uint64(0); i <= uint64(len(inserted)); i++ {
 		block := chain.GetBlockByNumber(i)
+		// fmt.Printf("block %v\n", block);
 		if block == nil && end == 0 {
 			end = i
 		}
@@ -1875,6 +1878,7 @@ func verifyNoGaps(t *testing.T, chain *BlockChain, canonical bool, inserted type
 	end = 0
 	for i := uint64(1); i <= uint64(len(inserted)); i++ {
 		receipts := chain.GetReceiptsByHash(inserted[i-1].Hash())
+		// fmt.Printf("receipt %v\n", receipts);
 		if receipts == nil && end == 0 {
 			end = i
 		}
