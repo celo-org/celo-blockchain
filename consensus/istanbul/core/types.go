@@ -95,6 +95,6 @@ type msgSigCacheKey struct {
 }
 
 // EncodeRLP serializes key into the Ethereum RLP format.
-func (key *msgSigCacheKey) EncodeRLP(w io.Writer) error {
+func (key msgSigCacheKey) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{key.msgData, key.msgSig})
 }

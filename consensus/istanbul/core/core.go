@@ -711,9 +711,9 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	// Check if the signer is within the current validator set
 	if _, val := c.current.ValidatorSet().GetByAddress(signerAddress); val != nil {
 		return val.Address(), nil
+	} else {
+		return common.Address{}, istanbul.ErrUnauthorizedAddress
 	}
-
-	return common.Address{}, istanbul.ErrUnauthorizedAddress
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
