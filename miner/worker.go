@@ -85,8 +85,8 @@ var (
 	randomSeedString = []byte("Randomness seed string")
 	randomSeed       []byte
 
-	// Timer used to measure block finalization time from created to finalized
-	blockFinalizationTimer = metrics.NewRegisteredTimer("miner/block/finalization", nil)
+	// Gauge used to measure block finalization time from created to after written to chain.
+	blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -597,7 +597,7 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
-			blockFinalizationTimer.UpdateSince(time.Unix(int64(block.Time()), 0))
+			blockFinalizationTimeGauge.Update(time.Now().Unix() - int64(block.Time()))
 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
