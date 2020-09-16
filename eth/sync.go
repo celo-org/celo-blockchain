@@ -191,7 +191,9 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 
 	if mode == downloader.FastSync {
 		// Make sure the peer's total difficulty we are synchronizing is higher.
-		if pm.blockchain.GetTdByHash(pm.blockchain.CurrentFastBlock().Hash()).Cmp(pTd) >= 0 {
+		currentBlock := pm.blockchain.CurrentFastBlock().Hash()
+		td := pm.blockchain.GetTdByHash(currentBlock)
+		if td.Cmp(pTd) >= 0 {
 			return
 		}
 	}

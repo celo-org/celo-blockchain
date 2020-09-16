@@ -134,6 +134,26 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	return sb.verifyCascadingFields(chain, header, parents)
 }
 
+func (sb *Backend) sanityCheck(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+	number := header.Number.Uint64()
+	// Check that latest epoch block is available
+	epoch := istanbul.GetEpochNumber(number, sb.config.Epoch)
+	first := istanbul.GetEpochLastBlockNumber(epoch-1, sb.config.Epoch)
+	if number == first {
+		first = istanbul.GetEpochLastBlockNumber(epoch-2, sb.config.Epoch)
+	}
+	for _, hdr := range(parents) {
+		if hdr.Number.Uint64() == first {
+			return nil
+		}
+	}
+	parent := chain.GetHeaderByNumber(first)
+	if parent == nil || parent.Number.Uint64() != first {
+		return consensus.ErrUnknownAncestor
+	}
+	return nil
+}
+
 // verifyCascadingFields verifies all the header fields that are not standalone,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
@@ -151,7 +171,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if chain.Config().FullHeaderChainAvailable {
+	if chain.Config().FullHeaderChainAvailable /* || !istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) */ {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 			return consensus.ErrUnknownAncestor
@@ -163,6 +183,8 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		if err := sb.verifySigner(chain, header, parents); err != nil {
 			return err
 		}
+	} else if err:= sb.sanityCheck(chain, header, parents); err != nil {
+		return err
 	}
 
 	return sb.verifyAggregatedSeals(chain, header, parents)
@@ -762,8 +784,9 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 		if (blockHash != common.Hash{}) {
 			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
-				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
+				log.Info("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
 				snap = s
+				sb.recentSnapshots.Add(numberIter, snap)
 				break
 			}
 		}

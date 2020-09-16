@@ -528,8 +528,14 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		num := hdr.Number.Uint64()
 
 		// Rewind block chain to new head.
+		var nums []uint64
 		parent := hc.GetHeader(hdr.ParentHash, num-1)
 		if parent == nil {
+			if !hc.config.FullHeaderChainAvailable {
+				for i := hc.config.Istanbul.Epoch; i < num; i += hc.config.Istanbul.Epoch {
+					nums = append(nums, i)
+				}
+			}
 			parent = hc.genesisHeader
 		}
 		parentHash = hdr.ParentHash
@@ -560,7 +566,6 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 
 		// If this is the first iteration, wipe any leftover data upwards too so
 		// we don't end up with dangling daps in the database
-		var nums []uint64
 		if origin {
 			for n := num + 1; len(rawdb.ReadAllHashes(hc.chainDb, n)) > 0; n++ {
 				nums = append([]uint64{n}, nums...) // suboptimal, but we don't really expect this path
@@ -568,6 +573,8 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 			origin = false
 		}
 		nums = append(nums, num)
+
+		log.Info("removing", "nums", nums)
 
 		// Remove the related data from the database on all sidechains
 		for _, num := range nums {

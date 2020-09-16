@@ -217,6 +217,8 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		return storedcfg, stored, nil
 	}
 
+	log.Info("reading head hash", "hash", rawdb.ReadHeadHeaderHash(db).String())
+
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
 	height := rawdb.ReadHeaderNumber(db, rawdb.ReadHeadHeaderHash(db))
