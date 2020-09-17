@@ -192,11 +192,10 @@ func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignm
 	for val, proxyID := range valAssignments.valToProxy {
 		newProxyID := ch.c.LocateKey(val.Bytes())
 
-		valReassigned := false
 		if newProxyID == nil {
 			logger.Trace("Unassigning validator", "validator", val)
 			valAssignments.unassignValidator(val)
-			valReassigned = true
+			anyAssignmentsChanged = true
 		} else if proxyID == nil || newProxyID.String() != proxyID.String() {
 			proxyIDStr := "nil"
 			if proxyID != nil {
@@ -206,10 +205,6 @@ func (ch *consistentHashingPolicy) reassignValidators(valAssignments *valAssignm
 
 			valAssignments.unassignValidator(val)
 			valAssignments.assignValidator(val, enode.HexID(newProxyID.String()))
-			valReassigned = true
-		}
-
-		if !anyAssignmentsChanged && valReassigned {
 			anyAssignmentsChanged = true
 		}
 	}
