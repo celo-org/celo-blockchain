@@ -24,11 +24,14 @@ import (
 )
 
 func TestIsPrimaryForSeq(t *testing.T) {
+	rsdb, _ := OpenReplicaStateDB("")
 
 	t.Run("Is primary & startStop disabled", func(t *testing.T) {
+
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
 		rs := &replicaStateImpl{
-			mu: new(sync.RWMutex),
+			mu:   new(sync.RWMutex),
+			rsdb: rsdb,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -44,6 +47,7 @@ func TestIsPrimaryForSeq(t *testing.T) {
 		rs := &replicaStateImpl{
 			isReplica: true,
 			mu:        new(sync.RWMutex),
+			rsdb:      rsdb,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -61,6 +65,7 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			enabled:              true,
 			startValidatingBlock: big.NewInt(200),
 			mu:                   new(sync.RWMutex),
+			rsdb:                 rsdb,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -88,6 +93,7 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			stopValidatingBlock:  big.NewInt(210),
 			startValidatingBlock: big.NewInt(200),
 			mu:                   new(sync.RWMutex),
+			rsdb:                 rsdb,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -121,6 +127,7 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			enabled:             true,
 			stopValidatingBlock: big.NewInt(210),
 			mu:                  new(sync.RWMutex),
+			rsdb:                rsdb,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -143,12 +150,14 @@ func TestIsPrimaryForSeq(t *testing.T) {
 }
 
 func TestSetStartValidatingBlock(t *testing.T) {
+	rsdb, _ := OpenReplicaStateDB("")
 
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
 		rs := &replicaStateImpl{
 			enabled:             true,
 			stopValidatingBlock: big.NewInt(10),
 			mu:                  new(sync.RWMutex),
+			rsdb:                rsdb,
 		}
 		err := rs.SetStartValidatingBlock(big.NewInt(11))
 		if err == nil {
@@ -164,6 +173,7 @@ func TestSetStartValidatingBlock(t *testing.T) {
 }
 
 func TestSetStopValidatingBlock(t *testing.T) {
+	rsdb, _ := OpenReplicaStateDB("")
 
 	//start <= seq < stop
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
@@ -171,6 +181,7 @@ func TestSetStopValidatingBlock(t *testing.T) {
 			enabled:              true,
 			startValidatingBlock: big.NewInt(10),
 			mu:                   new(sync.RWMutex),
+			rsdb:                 rsdb,
 		}
 		err := rs.SetStopValidatingBlock(big.NewInt(9))
 		if err == nil {

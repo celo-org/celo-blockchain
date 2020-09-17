@@ -228,9 +228,6 @@ type replicaStateRLP struct {
 // recommended to write only a single value but writing multiple
 // values or no value at all is also permitted.
 func (rs *replicaStateImpl) EncodeRLP(w io.Writer) error {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
-
 	entry := replicaStateRLP{
 		IsReplica:            rs.isReplica,
 		Enabled:              rs.enabled,
