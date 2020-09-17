@@ -233,6 +233,10 @@ func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal)
 	return self.peers
 }
 
+func (self *testSystemBackend) UpdateReplicaState() bool {
+	return false
+}
+
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
 	data, err := self.engine.(*core).finalizeMessage(msg)
