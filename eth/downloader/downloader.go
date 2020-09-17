@@ -49,19 +49,20 @@ var (
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
 	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
 
-	rttMinEstimate   = 2 * time.Second  // Minimum round-trip time to target for download requests
-	rttMaxEstimate   = 20 * time.Second // Maximum round-trip time to target for download requests
-	rttMinConfidence = 0.1              // Worse confidence factor in our estimated RTT value
-	ttlScaling       = 3                // Constant scaling factor for RTT -> TTL conversion
-	ttlLimit         = time.Minute      // Maximum TTL allowance to prevent reaching crazy timeouts
+	rttMinEstimate     = 2 * time.Second  // Minimum round-trip time to target for download requests
+	rttMaxEstimate     = 20 * time.Second // Maximum round-trip time to target for download requests
+	rttDefaultEstimate = 5 * time.Second  // Maximum round-trip time to target for download requests
+	rttMinConfidence   = 0.1              // Worse confidence factor in our estimated RTT value
+	ttlScaling         = 3                // Constant scaling factor for RTT -> TTL conversion
+	ttlLimit           = time.Minute      // Maximum TTL allowance to prevent reaching crazy timeouts
 
 	qosTuningPeers   = 5    // Number of peers to tune based on (best peers)
 	qosConfidenceCap = 10   // Number of peers above which not to modify RTT confidence
 	qosTuningImpact  = 0.25 // Impact that a new tuning target has on the previous value
 
-	maxQueuedHeaders         = 32 * 1024                    // [eth/62] Maximum number of headers to queue for import (DOS protection)
-	maxHeadersProcess        = 2048                         // Number of header download results to import at once into the chain
-	maxResultsProcess        = 2048                         // Number of content download results to import at once into the chain
+	maxQueuedHeaders         = 32 * 1024                        // [eth/62] Maximum number of headers to queue for import (DOS protection)
+	maxHeadersProcess        = 2048                             // Number of header download results to import at once into the chain
+	maxResultsProcess        = 2048                             // Number of content download results to import at once into the chain
 	maxForkAncestry   uint64 = params.FullImmutabilityThreshold // Maximum chain reorganisation (locally redeclared so tests can reduce it)
 
 	reorgProtThreshold   = 48 // Threshold number of recent blocks to disable mini reorg protection
@@ -247,7 +248,7 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		checkpoint:     checkpoint,
 		queue:          newQueue(),
 		peers:          newPeerSet(),
-		rttEstimate:    uint64(rttMaxEstimate),
+		rttEstimate:    uint64(rttDefaultEstimate),
 		rttConfidence:  uint64(1000000),
 		blockchain:     chain,
 		lightchain:     lightchain,
@@ -485,10 +486,10 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	pivot := uint64(0)
 	if d.Mode == FastSync {
 		pivot = d.calcPivot(height)
+		rawdb.WriteLastPivotNumber(d.stateDB, pivot)
 		if pivot == 0 {
 			origin = 0
 		} else if pivot <= origin {
-			rawdb.WriteLastPivotNumber(d.stateDB, pivot)
 			origin = pivot - 1
 		}
 	}
@@ -528,6 +529,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		}
 		// Rewind the ancient store and blockchain if reorg happens.
 		if origin+1 < frozen {
+			log.Info("Setting head", "target", origin+1)
 			if err := d.lightchain.SetHead(origin + 1); err != nil {
 				return err
 			}
@@ -1491,6 +1493,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				lastFastBlock = d.blockchain.CurrentFastBlock().Number()
 				lastBlock = d.blockchain.CurrentBlock().Number()
 			}
+			log.Info("Setting head (rollback)", "target", rollback-1)
 			if err := d.lightchain.SetHead(rollback - 1); err != nil { // -1 to target the parent of the first uncertain block
 				// We're already unwinding the stack, only print the error to make it more visible
 				log.Error("Failed to roll back chain segment", "head", rollback-1, "err", err)

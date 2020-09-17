@@ -407,11 +407,13 @@ func (bc *BlockChain) SetHead(head uint64) error {
 	// current freezer limit to start nuking id underflown
 	pivot := rawdb.ReadLastPivotNumber(bc.db)
 	frozen, _ := bc.db.Ancients()
+	log.Info("Pivot", "pivot", pivot)
 
 	updateFn := func(db ethdb.KeyValueWriter, header *types.Header) (uint64, bool) {
 		// Rewind the block chain, ensuring we don't end up with a stateless head
 		// block. Note, depth equality is permitted to allow using SetHead as a
 		// chain reparation mechanism without deleting any data!
+		log.Info("updatefn", "frozen", frozen, "header", header.Number)
 		if currentBlock := bc.CurrentBlock(); currentBlock != nil && header.Number.Uint64() <= currentBlock.NumberU64() {
 			newHeadBlock := bc.GetBlock(header.Hash(), header.Number.Uint64())
 			if newHeadBlock == nil {
@@ -421,7 +423,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 				// Block exists, keep rewinding until we find one with state
 				for {
 					if _, err := state.New(newHeadBlock.Root(), bc.stateCache); err != nil {
-						log.Trace("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
+						log.Info("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 						if pivot == nil || newHeadBlock.NumberU64() > *pivot {
 							newHeadBlock = bc.GetBlock(newHeadBlock.ParentHash(), newHeadBlock.NumberU64()-1)
 							continue
@@ -430,7 +432,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 							newHeadBlock = bc.genesisBlock
 						}
 					}
-					log.Debug("Rewound to block with state", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
+					log.Info("Rewound to block with state", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 					break
 				}
 			}
@@ -458,8 +460,11 @@ func (bc *BlockChain) SetHead(head uint64) error {
 			// to low, so it's safe the update in-memory markers directly.
 			bc.currentFastBlock.Store(newHeadFastBlock)
 			headFastBlockGauge.Update(int64(newHeadFastBlock.NumberU64()))
+			log.Info("Rewound fast block", "number", newHeadFastBlock.NumberU64())
 		}
 		head := bc.CurrentBlock().NumberU64()
+
+		log.Info("updatefn2", "frozen", frozen, "head", head)
 
 		// If setHead underflown the freezer threshold and the block processing
 		// intent afterwards is full block importing, delete the chain segment
@@ -1359,6 +1364,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
+		log.Info("getting total difficulty")
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -2186,6 +2192,8 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		return i, err
 	}
 
+	log.Info("Inserting validated headers", "freq", checkFreq, "num", len(chain))
+
 	// Make sure only one thread manipulates the chain at once
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
@@ -2197,7 +2205,9 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		_, err := bc.hc.WriteHeader(header)
 		return err
 	}
-	return bc.hc.InsertHeaderChain(chain, whFunc, start)
+	res, err := bc.hc.InsertHeaderChain(chain, whFunc, start)
+	log.Info("Inserted")
+	return res, err
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The

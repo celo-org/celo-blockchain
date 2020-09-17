@@ -152,9 +152,11 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	// Calculate the total difficulty of the header.
 	// ptd seems to be abbreviation of "parent total difficulty".
 	// In IBFT, the announced td (total difficulty) is 1 + block number.
+	log.Info("Write header", "num", number)
 	ptd := hc.GetTd(header.ParentHash, number-1)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {
+			log.Info("td header")
 			return NonStatTy, consensus.ErrUnknownAncestor
 		} else {
 			localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
@@ -322,7 +324,9 @@ func (hc *HeaderChain) InsertHeaderChain(chain []*types.Header, writeHeader WhCa
 		if hc.HasHeader(hash, header.Number.Uint64()) {
 			externTd := hc.GetTd(hash, header.Number.Uint64())
 			localTd := hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-			if externTd == nil || externTd.Cmp(localTd) <= 0 {
+			log.Info("Had header", "num", header.Number.Uint64(), "td", externTd, "numbered", hc.numberCache.Contains(hash), "cached", hc.headerCache.Contains(hash))
+			// if it has no difficulty, it wasn't stored properly
+			if externTd != nil && externTd.Cmp(localTd) <= 0 {
 				stats.ignored++
 				continue
 			}

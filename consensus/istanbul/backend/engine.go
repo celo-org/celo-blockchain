@@ -142,13 +142,14 @@ func (sb *Backend) sanityCheck(chain consensus.ChainReader, header *types.Header
 	if number == first {
 		first = istanbul.GetEpochLastBlockNumber(epoch-2, sb.config.Epoch)
 	}
-	for _, hdr := range(parents) {
+	for _, hdr := range parents {
 		if hdr.Number.Uint64() == first {
 			return nil
 		}
 	}
 	parent := chain.GetHeaderByNumber(first)
 	if parent == nil || parent.Number.Uint64() != first {
+		log.Info("insane???")
 		return consensus.ErrUnknownAncestor
 	}
 	return nil
@@ -174,6 +175,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if chain.Config().FullHeaderChainAvailable /* || !istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) */ {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+			log.Info("verify: didnt find parent")
 			return consensus.ErrUnknownAncestor
 		}
 		if parent.Time+sb.config.BlockPeriod > header.Time {
@@ -183,7 +185,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		if err := sb.verifySigner(chain, header, parents); err != nil {
 			return err
 		}
-	} else if err:= sb.sanityCheck(chain, header, parents); err != nil {
+	} else if err := sb.sanityCheck(chain, header, parents); err != nil {
 		return err
 	}
 
@@ -208,6 +210,7 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 			}
 
 			if err != nil {
+				log.Info("got error", "err", err)
 				errored = true
 			}
 
