@@ -14,30 +14,24 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package replicastate
+package replica
 
 import (
-	"fmt"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/db"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Keys in the node database.
 const (
 	replicaStateDBVersion = 1
+	replicaStateKey       = "replicaState" // Info about start/stop state
+
 )
 
 // ReplicaStateDB represents a Map that can be accessed either
@@ -53,7 +47,7 @@ type ReplicaStateDB struct {
 func OpenReplicaStateDB(path string) (*ReplicaStateDB, error) {
 	logger := log.New("db", "ReplicaStateDB")
 
-	gdb, err := db.NewGenericDB(int64(replicaStateDB), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := db.NewGenericDB(int64(replicaStateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
@@ -67,6 +61,8 @@ func OpenReplicaStateDB(path string) (*ReplicaStateDB, error) {
 
 // Close flushes and closes the database files.
 func (rsdb *ReplicaStateDB) Close() error {
+	rsdb.lock.Lock()
+	defer rsdb.lock.Unlock()
 	return rsdb.gdb.Close()
 }
 
@@ -89,8 +85,11 @@ func (rsdb *ReplicaStateDB) Close() error {
 // 	return b.String()
 // }
 
-func (rsdb *ReplicaStateDB) GetReplicaState() (ReplicaState, error) {
-	rawEntry, err := rsdb.gdb.Get([]byte(replicaStateKey), nil)
+func (rsdb *ReplicaStateDB) GetReplicaState() (State, error) {
+	rsdb.lock.Lock()
+	defer rsdb.lock.Unlock()
+
+	rawEntry, err := rsdb.gdb.Get([]byte(replicaStateKey))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +102,9 @@ func (rsdb *ReplicaStateDB) GetReplicaState() (ReplicaState, error) {
 }
 
 // StoreReplicaState will store the latest replica state
-func (rsdb *ReplicaStateDB) StoreReplicaState(rs ReplicaState) error {
+func (rsdb *ReplicaStateDB) StoreReplicaState(rs State) error {
+	rsdb.lock.Lock()
+	defer rsdb.lock.Unlock()
 	logger := rsdb.logger.New("func", "UpdateReplicaState")
 
 	entryBytes, err := rlp.EncodeToBytes(rs)
@@ -114,7 +115,7 @@ func (rsdb *ReplicaStateDB) StoreReplicaState(rs ReplicaState) error {
 
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(replicaStateKey), entryBytes)
-	err = rsdb.gdb.Write(batch, nil)
+	err = rsdb.gdb.Write(batch)
 	if err != nil {
 		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
 	}

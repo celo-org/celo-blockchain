@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package replicastate
+package replica
 
 import (
 	"errors"
@@ -22,10 +22,11 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-type ReplicaState interface {
+type State interface {
 	// mutation functions
 	SetStartValidatingBlock(blockNumber *big.Int) error
 	SetStopValidatingBlock(blockNumber *big.Int) error
@@ -45,19 +46,26 @@ type replicaStateImpl struct {
 	startValidatingBlock *big.Int
 	stopValidatingBlock  *big.Int
 
-	mu *sync.RWMutex
+	rsdb *ReplicaStateDB
+	mu   *sync.RWMutex
 }
 
-func newReplicaState(isReplica bool) ReplicaState {
+func NewState(isReplica bool, path string) State {
+	db, err := OpenReplicaStateDB(path)
+	if err != nil {
+		log.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", path)
+	}
 	return &replicaStateImpl{
 		isReplica: isReplica,
 		mu:        new(sync.RWMutex),
+		rsdb:      db,
 	}
 }
 
 func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+	defer rs.rsdb.StoreReplicaState(rs)
 
 	if blockNumber == nil {
 		rs.startValidatingBlock = nil
@@ -76,6 +84,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+	defer rs.rsdb.StoreReplicaState(rs)
 
 	if blockNumber == nil {
 		rs.stopValidatingBlock = nil
@@ -100,6 +109,8 @@ func (rs *replicaStateImpl) MakeReplica() {
 
 // Must be called w/ rs.mu held
 func (rs *replicaStateImpl) makeReplica() {
+	defer rs.rsdb.StoreReplicaState(rs)
+
 	rs.isReplica = true
 	rs.enabled = false
 	rs.startValidatingBlock = nil
@@ -115,6 +126,8 @@ func (rs *replicaStateImpl) MakePrimary() {
 
 // Must be called w/ rs.mu held
 func (rs *replicaStateImpl) makePrimary() {
+	defer rs.rsdb.StoreReplicaState(rs)
+
 	rs.isReplica = false
 	rs.enabled = false
 	rs.startValidatingBlock = nil
@@ -126,6 +139,7 @@ func (rs *replicaStateImpl) makePrimary() {
 func (rs *replicaStateImpl) UpdateReplicaState(newSeq *big.Int) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+
 	// Transition to Primary/Replica
 	if !rs.enabled {
 		return
