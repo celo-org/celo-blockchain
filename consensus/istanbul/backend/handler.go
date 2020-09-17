@@ -256,9 +256,9 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 }
 
 // Actions triggered by a new block being added to the chain.
-func (sb *Backend) NewChainHead(newBlock *types.Block) {
+func (sb *Backend) newChainHead(newBlock *types.Block) {
 
-	sb.logger.Trace("Start NewChainHead", "number", newBlock.Number().Uint64())
+	sb.logger.Trace("Start newChainHead", "number", newBlock.Number().Uint64())
 
 	// Update metrics for whether we were elected and signed the parent of this block.
 	sb.UpdateMetricsForParentOfBlock(newBlock)
@@ -290,16 +290,16 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 }
 
 // Actions triggeted by a new block being added to the chain (no buffering)
-func (sb *Backend) NewChainEvent(newBlock *types.Block) {
+func (sb *Backend) newChainEvent(newBlock *types.Block) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if !sb.coreStarted {
 		return
 	}
 	if sb.IsElectedValidator() && !sb.IsValidating() {
-		sb.logger.Warn("Checking round state", "func", "NewChainEvent", "newBlock", newBlock.Number(), "cur_seq", sb.core.CurrentView().Sequence)
+		sb.logger.Warn("Checking round state", "func", "newChainEvent", "newBlock", newBlock.Number(), "cur_seq", sb.core.CurrentView().Sequence)
 		if newBlock.Number().Cmp(sb.core.CurrentView().Sequence) > 0 {
-			sb.logger.Warn("Posting final committed event", "func", "NewChainEvent")
+			sb.logger.Warn("Posting final committed event", "func", "newChainEvent")
 			go sb.EventMux().Post(istanbul.FinalCommittedEvent{})
 		}
 	}

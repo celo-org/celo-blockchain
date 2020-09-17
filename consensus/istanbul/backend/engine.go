@@ -29,6 +29,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	ethCore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -560,6 +561,41 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
+
+	if bc, ok := chain.(*ethCore.BlockChain); ok {
+		// Start listeners
+		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
+		go func() {
+			defer chainHeadSub.Unsubscribe()
+
+			for {
+				select {
+				case chainHeadEvent := <-chainHeadCh:
+					sb.newChainHead(chainHeadEvent.Block)
+				case err := <-chainHeadSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+					return
+				}
+			}
+		}()
+
+		chainEventCh := make(chan ethCore.ChainEvent, 10)
+		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+		go func() {
+			defer chainEventSub.Unsubscribe()
+
+			for {
+				select {
+				case chainEvent := <-chainEventCh:
+					sb.newChainEvent(chainEvent.Block)
+				case err := <-chainEventSub.Err():
+					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+					return
+				}
+			}
+		}()
+	}
 }
 
 // StartValidating implements consensus.Istanbul.StartValidating
