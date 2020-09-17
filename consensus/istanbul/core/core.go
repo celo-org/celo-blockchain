@@ -99,7 +99,7 @@ type CoreBackend interface {
 	// IsElectedValidator returns true if instance is an elected validator
 	IsElectedValidator() bool
 
-	UpdateReplicaState()
+	UpdateReplicaState() bool
 }
 
 type core struct {
@@ -465,7 +465,7 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Inform the backend that a new sequence has started & bail if the backed stopped the core
 	if round.Cmp(common.Big0) == 0 {
-		if c.backend.UpdateReplicaState() {
+		if disabledCore := c.backend.UpdateReplicaState(); disabledCore {
 			return nil
 		}
 	}

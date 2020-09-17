@@ -126,7 +126,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	backend.replicaState = replica.NewState(false, "replicastate")
+	backend.replicaState = replica.NewState(config.Replica, config.ReplicaStateDBPath)
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -305,10 +305,10 @@ func (sb *Backend) IsProxiedValidator() bool {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
+	// TODO: Maybe a little laggy, but primary / replica should track the core
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	// TODO: remove references to core here
-	return sb.coreStarted && sb.replicaState.IsPrimaryForSeq(sb.core.CurrentView().Sequence)
+	return sb.coreStarted
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)
@@ -955,6 +955,14 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 	}
 }
 
-func (sb *Backend) UpdateReplicaState() {
-	// pass
+func (sb *Backend) UpdateReplicaState() bool {
+	blockNum := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
+	if sb.replicaState.ShouldSwitchToPrimary(blockNum) {
+		sb.MakePrimary()
+		return true
+	} else if sb.replicaState.ShouldSwitchToReplica(blockNum) {
+		sb.MakeReplica()
+		return true
+	}
+	return false
 }

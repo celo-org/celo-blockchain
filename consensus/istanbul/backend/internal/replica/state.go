@@ -32,13 +32,12 @@ type State interface {
 	SetStopValidatingBlock(blockNumber *big.Int) error
 	MakeReplica()
 	MakePrimary()
-	UpdateReplicaState(newSeq *big.Int)
 
 	// view functions
 	IsPrimaryForSeq(seq *big.Int) bool
 	Summary() *ReplicaStateSummary
-	// ShouldSwitchToPrimary() bool
-	// ShouldSwitchToReplica() bool
+	ShouldSwitchToPrimary(blockNumber *big.Int) bool
+	ShouldSwitchToReplica(blockNumber *big.Int) bool
 }
 
 // ReplicaState stores info on this node being a primary or replica
@@ -105,12 +104,6 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 func (rs *replicaStateImpl) MakeReplica() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-
-	rs.makeReplica()
-}
-
-// Must be called w/ rs.mu held
-func (rs *replicaStateImpl) makeReplica() {
 	defer rs.rsdb.StoreReplicaState(rs)
 
 	rs.isReplica = true
@@ -123,11 +116,6 @@ func (rs *replicaStateImpl) MakePrimary() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	rs.makePrimary()
-}
-
-// Must be called w/ rs.mu held
-func (rs *replicaStateImpl) makePrimary() {
 	defer rs.rsdb.StoreReplicaState(rs)
 
 	rs.isReplica = false
@@ -136,27 +124,32 @@ func (rs *replicaStateImpl) makePrimary() {
 	rs.stopValidatingBlock = nil
 }
 
-// UpdateReplicaState will clear start/stop state and transition the validator
-// to being a replica/primary if it enters/leaves a start-stop range.
-func (rs *replicaStateImpl) UpdateReplicaState(newSeq *big.Int) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-
-	// Transition to Primary/Replica
+func (rs *replicaStateImpl) ShouldSwitchToPrimary(blockNumber *big.Int) bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
 	if !rs.enabled {
-		return
+		return false
 	}
 	// start <= seq w/ no stop -> primary
-	if rs.startValidatingBlock != nil && newSeq.Cmp(rs.startValidatingBlock) > 0 {
+	if rs.startValidatingBlock != nil && blockNumber.Cmp(rs.startValidatingBlock) > 0 {
 		if rs.stopValidatingBlock == nil {
-			rs.makePrimary()
+			return true
 		}
 	}
-	// start <= stop <= seq -> replica
-	if rs.stopValidatingBlock != nil && newSeq.Cmp(rs.stopValidatingBlock) > 0 {
-		rs.makeReplica()
-	}
 
+	return false
+}
+func (rs *replicaStateImpl) ShouldSwitchToReplica(blockNumber *big.Int) bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	if !rs.enabled {
+		return false
+	}
+	// start <= stop <= seq -> replica
+	if rs.stopValidatingBlock != nil && blockNumber.Cmp(rs.stopValidatingBlock) > 0 {
+		return true
+	}
+	return false
 }
 
 // IsPrimaryForSeq determines is this node is the primary validator.

@@ -619,7 +619,52 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	sb.processBlock = processBlock
 	sb.validateState = validateState
 
+	// Don't start core if we're a replica
+	blockNum := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
+	if !sb.replicaState.IsPrimaryForSeq(blockNum) {
+		return nil
+	}
+
 	sb.logger.Info("Starting istanbul.Engine validating")
+	if err := sb.core.Start(); err != nil {
+		return err
+	}
+
+	// Having coreStarted as false at this point guarantees that announce versions
+	// will be updated by the time announce messages in the announceThread begin
+	// being generated
+	if !sb.IsProxiedValidator() {
+		sb.UpdateAnnounceVersion()
+	}
+
+	sb.coreStarted = true
+
+	// coreStarted must be true by this point for validator peers to be successfully added
+	if !sb.config.Proxied {
+		if err := sb.RefreshValPeers(); err != nil {
+			sb.logger.Warn("Error refreshing validator peers", "err", err)
+		}
+	}
+
+	return nil
+}
+
+// RestartValidating restarts validating from validating.stop
+func (sb *Backend) restartValidating() error {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+	if sb.coreStarted {
+		return istanbul.ErrStartedEngine
+	}
+
+	// clear previous data
+	sb.proposedBlockHash = common.Hash{}
+	if sb.commitCh != nil {
+		close(sb.commitCh)
+	}
+	sb.commitCh = make(chan *types.Block, 1)
+
+	sb.logger.Info("Re-Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
 		return err
 	}
@@ -733,12 +778,17 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 
 // MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() {
-	// sb.core.MakeReplica()
+	sb.logger.Warn("MakeReplica")
+	sb.StopValidating()
+	sb.replicaState.MakeReplica()
 }
 
 // MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() {
-	// sb.core.MakePrimary()
+	sb.logger.Warn("MakePrimary")
+	// start core
+	sb.restartValidating()
+	sb.replicaState.MakePrimary()
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -959,13 +1009,11 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 }
 
 func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
-	// return sb.core.SetStartValidatingBlock(blockNumber)
-	return nil
+	return sb.replicaState.SetStartValidatingBlock(blockNumber)
 }
 
 func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
-	// return sb.core.SetStopValidatingBlock(blockNumber)
-	return nil
+	return sb.replicaState.SetStopValidatingBlock(blockNumber)
 }
 
 // FIXME: Need to update this for Istanbul

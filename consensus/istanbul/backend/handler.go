@@ -340,18 +340,7 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 // Actions triggeted by a new block being added to the chain (no buffering)
 func (sb *Backend) newChainEvent(newBlock *types.Block) {
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
-		return
-	}
-	if sb.IsElectedValidator() && !sb.IsValidating() {
-		sb.logger.Warn("Checking round state", "func", "newChainEvent", "newBlock", newBlock.Number(), "cur_seq", sb.core.CurrentView().Sequence)
-		if newBlock.Number().Cmp(sb.core.CurrentView().Sequence) > 0 {
-			sb.logger.Warn("Posting final committed event", "func", "newChainEvent")
-			go sb.EventMux().Post(istanbul.FinalCommittedEvent{})
-		}
-	}
+	sb.UpdateReplicaState()
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {

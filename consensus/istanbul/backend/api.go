@@ -241,9 +241,6 @@ func (api *API) StopValidating() error {
 // StartValidatingAtBlock starts the consensus engine on the given
 // block number.
 func (api *API) StartValidatingAtBlock(blockNumber int64) error {
-	if !api.istanbul.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
 	if blockNumber <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
@@ -254,9 +251,7 @@ func (api *API) StartValidatingAtBlock(blockNumber int64) error {
 // StopValidatingAtBlock stops the consensus engine from participating in consensus
 // on the given block number.
 func (api *API) StopValidatingAtBlock(blockNumber int64) error {
-	if !api.istanbul.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
+
 	if blockNumber <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
@@ -271,9 +266,5 @@ func (api *API) IsValidating() bool {
 
 // GetCurrentRoundState retrieves the current replica state
 func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
-	if !api.istanbul.coreStarted {
-		return nil, istanbul.ErrStoppedEngine
-	}
-	return nil, nil
-	// return api.istanbul.core.CurrentReplicaState().Summary(), nil
+	return api.istanbul.replicaState.Summary(), nil
 }

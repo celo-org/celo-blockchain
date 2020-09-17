@@ -38,6 +38,7 @@ type Config struct {
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	LookbackWindow              uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
+	ReplicaStateDBPath          string         `toml:",omitempty"` // The location for the validator replica state DB
 	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
 	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
 	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
@@ -67,6 +68,7 @@ var DefaultConfig = &Config{
 	ProposerPolicy:                 ShuffledRoundRobin,
 	Epoch:                          30000,
 	LookbackWindow:                 12,
+	ReplicaStateDBPath:             "replicastate",
 	ValidatorEnodeDBPath:           "validatorenodes",
 	VersionCertificateDBPath:       "versioncertificates",
 	RoundStateDBPath:               "roundstates",
