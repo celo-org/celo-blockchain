@@ -37,6 +37,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""

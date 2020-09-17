@@ -250,6 +250,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	address := crypto.PubkeyToAddress(testBankKey.PublicKey)
 
 	config := istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""

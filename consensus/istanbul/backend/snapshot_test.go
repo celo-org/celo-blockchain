@@ -242,6 +242,7 @@ func TestValSetChange(t *testing.T) {
 		db := rawdb.NewMemoryDatabase()
 
 		config := istanbul.DefaultConfig
+		config.ReplicaStateDBPath = ""
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
