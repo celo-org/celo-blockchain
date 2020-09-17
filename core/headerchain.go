@@ -578,7 +578,7 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		}
 		nums = append(nums, num)
 
-		log.Info("removing", "nums", nums)
+		// log.Info("removing", "nums", nums)
 
 		// Remove the related data from the database on all sidechains
 		for _, num := range nums {

@@ -413,7 +413,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 		// Rewind the block chain, ensuring we don't end up with a stateless head
 		// block. Note, depth equality is permitted to allow using SetHead as a
 		// chain reparation mechanism without deleting any data!
-		log.Info("updatefn", "frozen", frozen, "header", header.Number)
+		// log.Info("updatefn", "frozen", frozen, "header", header.Number)
 		if currentBlock := bc.CurrentBlock(); currentBlock != nil && header.Number.Uint64() <= currentBlock.NumberU64() {
 			newHeadBlock := bc.GetBlock(header.Hash(), header.Number.Uint64())
 			if newHeadBlock == nil {
@@ -464,7 +464,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 		}
 		head := bc.CurrentBlock().NumberU64()
 
-		log.Info("updatefn2", "frozen", frozen, "head", head)
+		// log.Info("updatefn2", "frozen", frozen, "head", head)
 
 		// If setHead underflown the freezer threshold and the block processing
 		// intent afterwards is full block importing, delete the chain segment
