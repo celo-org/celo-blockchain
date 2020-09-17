@@ -98,6 +98,8 @@ type CoreBackend interface {
 
 	// IsElectedValidator returns true if instance is an elected validator
 	IsElectedValidator() bool
+
+	UpdateReplicaState()
 }
 
 type core struct {
@@ -117,8 +119,7 @@ type core struct {
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
-	replicaState ReplicaState
-	backlog      MsgBacklog
+	backlog MsgBacklog
 
 	rsdb      RoundStateDB
 	current   RoundState
@@ -141,7 +142,6 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
-	replicaState := newReplicaState(config.Replica)
 
 	c := &core{
 		config:             config,
@@ -150,7 +150,6 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
 		handlerWg:          new(sync.WaitGroup),
 		backend:            backend,
-		replicaState:       replicaState,
 		pendingRequests:    prque.New(nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
@@ -464,6 +463,13 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) error {
 
+	// Inform the backend that a new sequence has started & bail if the backed stopped the core
+	if round.Cmp(common.Big0) == 0 {
+		if c.backend.UpdateReplicaState() {
+			return nil
+		}
+	}
+
 	roundChange := false
 	// Try to get most recent block
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
@@ -526,11 +532,6 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	if err != nil {
 		return err
-	}
-
-	// Update replica state
-	if !roundChange {
-		c.replicaState.UpdateReplicaState(newView.Sequence)
 	}
 
 	// Process backlog
@@ -616,29 +617,6 @@ func (c *core) createRoundState() (RoundState, error) {
 	}
 
 	return withSavingDecorator(c.rsdb, roundState), nil
-}
-
-func (c *core) loadReplicaState() error {
-	logger := c.newLogger("func", "createReplicaState")
-
-	if c.current != nil {
-		return fmt.Errorf("BUG? Attempting to Start() core with existing c.current")
-	}
-
-	savedReplicaState, err := c.rsdb.GetReplicaState()
-
-	if err != nil && err != leveldb.ErrNotFound {
-		logger.Error("Failed to fetch lastStoredView", "err", err)
-		return err
-	}
-
-	if err == leveldb.ErrNotFound {
-		logger.Info("Using existing replica state", "reason", "No storedReplicaState found")
-	} else {
-		logger.Info("Using stored replica state")
-		c.replicaState = savedReplicaState
-	}
-	return nil
 }
 
 // resetRoundState will modify the RoundState to either start a new round or a new sequence

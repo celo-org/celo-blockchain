@@ -37,6 +37,8 @@ type State interface {
 	// view functions
 	IsPrimaryForSeq(seq *big.Int) bool
 	Summary() *ReplicaStateSummary
+	// ShouldSwitchToPrimary() bool
+	// ShouldSwitchToReplica() bool
 }
 
 // ReplicaState stores info on this node being a primary or replica

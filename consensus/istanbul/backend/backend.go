@@ -307,7 +307,8 @@ func (sb *Backend) IsProxiedValidator() bool {
 func (sb *Backend) IsValidating() bool {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	return sb.coreStarted && sb.core.IsPrimaryForSeq(sb.core.CurrentView().Sequence)
+	// TODO: remove references to core here
+	return sb.coreStarted && sb.replicaState.IsPrimaryForSeq(sb.core.CurrentView().Sequence)
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)
@@ -952,4 +953,8 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 
 		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
 	}
+}
+
+func (sb *Backend) UpdateReplicaState() {
+	// pass
 }

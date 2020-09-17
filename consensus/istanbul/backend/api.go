@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/replica"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -269,9 +270,10 @@ func (api *API) IsValidating() bool {
 }
 
 // GetCurrentRoundState retrieves the current replica state
-func (api *API) GetCurrentReplicaState() (*core.ReplicaStateSummary, error) {
+func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
 	if !api.istanbul.coreStarted {
 		return nil, istanbul.ErrStoppedEngine
 	}
-	return api.istanbul.core.CurrentReplicaState().Summary(), nil
+	return nil, nil
+	// return api.istanbul.core.CurrentReplicaState().Summary(), nil
 }

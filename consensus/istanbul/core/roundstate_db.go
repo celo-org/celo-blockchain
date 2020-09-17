@@ -36,11 +36,10 @@ import (
 )
 
 const (
-	dbVersion       = 3
-	dbVersionKey    = "version"      // Version of the database to flush if changes
-	lastViewKey     = "lastView"     // Last View that we know of
-	replicaStateKey = "replicaState" // Info about start/stop state
-	rsKey           = "rs"           // Database Key Pefix for RoundState
+	dbVersion    = 2
+	dbVersionKey = "version"  // Version of the database to flush if changes
+	lastViewKey  = "lastView" // Last View that we know of
+	rsKey        = "rs"       // Database Key Pefix for RoundState
 )
 
 type RoundStateDB interface {
@@ -50,8 +49,6 @@ type RoundStateDB interface {
 	GetOldestValidView() (*istanbul.View, error)
 	GetRoundStateFor(view *istanbul.View) (RoundState, error)
 	UpdateLastRoundState(rs RoundState) error
-	GetReplicaState() (ReplicaState, error)
-	UpdateReplicaState(rs ReplicaState) error
 	Close() error
 }
 
@@ -231,39 +228,6 @@ func (rsdb *roundStateDBImpl) GetRoundStateFor(view *istanbul.View) (RoundState,
 		return nil, err
 	}
 	return &entry, nil
-}
-
-func (rsdb *roundStateDBImpl) GetReplicaState() (ReplicaState, error) {
-	rawEntry, err := rsdb.db.Get([]byte(replicaStateKey), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var entry replicaStateImpl
-	if err = rlp.DecodeBytes(rawEntry, &entry); err != nil {
-		return nil, err
-	}
-	return &entry, err
-}
-
-// UpdateReplicaState will store the latest replica state
-func (rsdb *roundStateDBImpl) UpdateReplicaState(rs ReplicaState) error {
-	logger := rsdb.logger.New("func", "UpdateReplicaState")
-
-	entryBytes, err := rlp.EncodeToBytes(rs)
-	if err != nil {
-		logger.Error("Failed to save roundState", "reason", "rlp encoding", "err", err)
-		return err
-	}
-
-	batch := new(leveldb.Batch)
-	batch.Put([]byte(replicaStateKey), entryBytes)
-	err = rsdb.db.Write(batch, nil)
-	if err != nil {
-		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
-	}
-
-	return err
 }
 
 func (rsdb *roundStateDBImpl) Close() error {

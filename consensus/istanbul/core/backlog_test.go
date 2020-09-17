@@ -38,9 +38,6 @@ func TestCheckMessage(t *testing.T) {
 		events: new(event.TypeMux),
 	}
 	valSet := newTestValidatorSet(4)
-	rs := &replicaStateImpl{
-		mu: new(sync.RWMutex),
-	}
 	c := &core{
 		logger:  testLogger,
 		backend: backend,
@@ -222,10 +219,6 @@ func TestCheckMessageAsReplica(t *testing.T) {
 		events: new(event.TypeMux),
 	}
 	valSet := newTestValidatorSet(4)
-	rs := &replicaStateImpl{
-		isReplica: true,
-		mu:        new(sync.RWMutex),
-	}
 	c := &core{
 		logger:  testLogger,
 		backend: backend,
@@ -233,7 +226,6 @@ func TestCheckMessageAsReplica(t *testing.T) {
 			Sequence: big.NewInt(2),
 			Round:    big.NewInt(2),
 		}, valSet, valSet.GetByIndex(0)),
-		replicaState: rs,
 	}
 
 	t.Run("invalid view format", func(t *testing.T) {

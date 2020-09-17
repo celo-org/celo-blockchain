@@ -17,8 +17,6 @@
 package core
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -36,21 +34,6 @@ type Engine interface {
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
-	// SetStartValidatingBlock sets start in the range start <= seq < stop for which
-	// we are the primary validator
-	SetStartValidatingBlock(blockNumber *big.Int) error
-	// SetStopValidatingBlock sets stop in the range start <= seq < stop for which
-	// we are the primary validator
-	SetStopValidatingBlock(blockNumber *big.Int) error
-	// IsPrimaryForSeq returns true if the node is set as the primary or the seq
-	// number is in the range start <= seq < stop
-	IsPrimaryForSeq(seq *big.Int) bool
-	// MakeReplica clears the start/stop state & stops this node from participating in consensus
-	MakeReplica()
-	// MakePrimary clears the start/stop state & makes this node participate in consensus
-	MakePrimary()
-	// CurrentReplicaState returns info on the start/stop state
-	CurrentReplicaState() ReplicaState
 }
 
 // State represents the IBFT state
