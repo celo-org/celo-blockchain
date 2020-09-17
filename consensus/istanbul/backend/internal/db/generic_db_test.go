@@ -1,4 +1,4 @@
-package enodes
+package db
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 type mockEntry struct{}
 
 func TestUpsert(t *testing.T) {
-	vedb, err := newGenericDB(int64(0), "", log.New(), nil)
+	vedb, err := NewGenericDB(int64(0), "", log.New(), nil)
 	if err != nil {
 		t.Fatal("Failed to create DB")
 	}
@@ -51,29 +51,29 @@ func TestUpsert(t *testing.T) {
 	}
 }
 
-func upsertEntry(vedb *genericDB, existingEntry *mockEntry, newEntry *mockEntry) (bool, bool, error) {
+func upsertEntry(vedb *GenericDB, existingEntry *mockEntry, newEntry *mockEntry) (bool, bool, error) {
 	var (
 		onExistingEntryCalled bool
 		onNewEntryCalled      bool
 	)
 
-	getExistingEntry := func(_ genericEntry) (genericEntry, error) {
+	getExistingEntry := func(_ GenericEntry) (GenericEntry, error) {
 		if existingEntry == nil {
 			return nil, leveldb.ErrNotFound
 		}
 		return existingEntry, nil
 	}
-	onExistingEntry := func(_ *leveldb.Batch, _ genericEntry, _ genericEntry) error {
+	onExistingEntry := func(_ *leveldb.Batch, _ GenericEntry, _ GenericEntry) error {
 		onExistingEntryCalled = true
 		return nil
 	}
-	onNewEntry := func(_ *leveldb.Batch, _ genericEntry) error {
+	onNewEntry := func(_ *leveldb.Batch, _ GenericEntry) error {
 		onNewEntryCalled = true
 		return nil
 	}
 
 	err := vedb.Upsert(
-		[]genericEntry{genericEntry(newEntry)},
+		[]GenericEntry{GenericEntry(newEntry)},
 		getExistingEntry,
 		onExistingEntry,
 		onNewEntry,

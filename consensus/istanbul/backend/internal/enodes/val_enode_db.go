@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/db"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -54,7 +55,7 @@ type ValidatorEnodeHandler interface {
 	ClearValidatorPeers()
 }
 
-func addressEntryFromGenericEntry(entry genericEntry) (*istanbul.AddressEntry, error) {
+func addressEntryFromGenericEntry(entry db.GenericEntry) (*istanbul.AddressEntry, error) {
 	addressEntry, ok := entry.(*istanbul.AddressEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
@@ -65,7 +66,7 @@ func addressEntryFromGenericEntry(entry genericEntry) (*istanbul.AddressEntry, e
 // ValidatorEnodeDB represents a Map that can be accessed either
 // by address or enode
 type ValidatorEnodeDB struct {
-	gdb     *genericDB
+	gdb     *db.GenericDB
 	lock    sync.RWMutex
 	handler ValidatorEnodeHandler
 	logger  log.Logger
@@ -76,7 +77,7 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	logger := log.New("db", "ValidatorEnodeDB")
 
-	gdb, err := newGenericDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := db.NewGenericDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
@@ -199,7 +200,7 @@ func (vet *ValidatorEnodeDB) GetValEnodes(valAddresses []common.Address) (map[co
 func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*istanbul.AddressEntry) error {
 	logger := vet.logger.New("func", "UpsertHighestKnownVersion")
 
-	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+	onNewEntry := func(batch *leveldb.Batch, entry db.GenericEntry) error {
 		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
@@ -215,7 +216,7 @@ func (vet *ValidatorEnodeDB) UpsertHighestKnownVersion(valEnodeEntries []*istanb
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error {
 		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
 		if err != nil {
 			return err
@@ -259,7 +260,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.A
 	peersToRemove := make([]*enode.Node, 0, len(valEnodeEntries))
 	peersToAdd := make(map[common.Address]*enode.Node)
 
-	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+	onNewEntry := func(batch *leveldb.Batch, entry db.GenericEntry) error {
 		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
@@ -276,7 +277,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.A
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error {
 		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
 		if err != nil {
 			return err
@@ -334,7 +335,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.A
 func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.AddressEntry) error {
 	logger := vet.logger.New("func", "UpdateEnodeQueryStats")
 
-	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+	onNewEntry := func(batch *leveldb.Batch, entry db.GenericEntry) error {
 		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
@@ -350,7 +351,7 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.A
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error {
 		existingAddressEntry, err := addressEntryFromGenericEntry(existingEntry)
 		if err != nil {
 			return err
@@ -390,13 +391,13 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.A
 //        and/or connect the corresponding validator connenctions.  The validator connections
 //        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
 func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*istanbul.AddressEntry,
-	onNewEntry func(batch *leveldb.Batch, entry genericEntry) error,
-	onUpdatedEntry func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error) error {
+	onNewEntry func(batch *leveldb.Batch, entry db.GenericEntry) error,
+	onUpdatedEntry func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error) error {
 	logger := vet.logger.New("func", "Upsert")
 	vet.lock.Lock()
 	defer vet.lock.Unlock()
 
-	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
+	getExistingEntry := func(entry db.GenericEntry) (db.GenericEntry, error) {
 		addressEntry, err := addressEntryFromGenericEntry(entry)
 		if err != nil {
 			return entry, err
@@ -404,9 +405,9 @@ func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*istanbul.AddressEntry,
 		return vet.getAddressEntry(addressEntry.Address)
 	}
 
-	entries := make([]genericEntry, len(valEnodeEntries))
+	entries := make([]db.GenericEntry, len(valEnodeEntries))
 	for i, valEnodeEntry := range valEnodeEntries {
-		entries[i] = genericEntry(valEnodeEntry)
+		entries[i] = db.GenericEntry(valEnodeEntry)
 	}
 
 	if err := vet.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {
