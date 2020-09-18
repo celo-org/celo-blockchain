@@ -149,7 +149,6 @@ func (sb *Backend) sanityCheck(chain consensus.ChainReader, header *types.Header
 	}
 	parent := chain.GetHeaderByNumber(first)
 	if parent == nil || parent.Number.Uint64() != first {
-		log.Info("insane???")
 		return consensus.ErrUnknownAncestor
 	}
 	return nil
@@ -172,10 +171,9 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-	if chain.Config().FullHeaderChainAvailable /* || !istanbul.IsLastBlockOfEpoch(number, sb.config.Epoch) */ {
+	if chain.Config().FullHeaderChainAvailable {
 
 		if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-			log.Info("verify: didnt find parent")
 			return consensus.ErrUnknownAncestor
 		}
 		if parent.Time+sb.config.BlockPeriod > header.Time {
@@ -210,7 +208,6 @@ func (sb *Backend) VerifyHeaders(chain consensus.ChainReader, headers []*types.H
 			}
 
 			if err != nil {
-				log.Info("got error", "err", err)
 				errored = true
 			}
 
@@ -787,7 +784,7 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 
 		if (blockHash != common.Hash{}) {
 			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
-				log.Info("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
+				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
 				snap = s
 				sb.recentSnapshots.Add(numberIter, snap)
 				break

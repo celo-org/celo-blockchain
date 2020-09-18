@@ -407,13 +407,11 @@ func (bc *BlockChain) SetHead(head uint64) error {
 	// current freezer limit to start nuking id underflown
 	pivot := rawdb.ReadLastPivotNumber(bc.db)
 	frozen, _ := bc.db.Ancients()
-	log.Info("Pivot", "pivot", pivot)
 
 	updateFn := func(db ethdb.KeyValueWriter, header *types.Header) (uint64, bool) {
 		// Rewind the block chain, ensuring we don't end up with a stateless head
 		// block. Note, depth equality is permitted to allow using SetHead as a
 		// chain reparation mechanism without deleting any data!
-		// log.Info("updatefn", "frozen", frozen, "header", header.Number)
 		if currentBlock := bc.CurrentBlock(); currentBlock != nil && header.Number.Uint64() <= currentBlock.NumberU64() {
 			newHeadBlock := bc.GetBlock(header.Hash(), header.Number.Uint64())
 			if newHeadBlock == nil {
@@ -463,8 +461,6 @@ func (bc *BlockChain) SetHead(head uint64) error {
 			log.Info("Rewound fast block", "number", newHeadFastBlock.NumberU64())
 		}
 		head := bc.CurrentBlock().NumberU64()
-
-		// log.Info("updatefn2", "frozen", frozen, "head", head)
 
 		// If setHead underflown the freezer threshold and the block processing
 		// intent afterwards is full block importing, delete the chain segment
@@ -1364,7 +1360,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
-		log.Info("getting total difficulty")
 		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -2192,8 +2187,6 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		return i, err
 	}
 
-	log.Info("Inserting validated headers", "freq", checkFreq, "num", len(chain))
-
 	// Make sure only one thread manipulates the chain at once
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
@@ -2206,7 +2199,6 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		return err
 	}
 	res, err := bc.hc.InsertHeaderChain(chain, whFunc, start)
-	log.Info("Inserted")
 	return res, err
 }
 
