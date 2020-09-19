@@ -332,54 +332,47 @@ func (g *G1) ClearCofactor(p *PointG1) {
 // (P_0, e_0), (P_1, e_1), ... (P_n, e_n) calculates r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n
 // Length of points and scalars are expected to be equal, otherwise an error is returned.
 // Result is assigned to point at first argument.
-func (g *G1) MultiExp(r *PointG1, points []*PointG1, powers []*big.Int) (*PointG1, error) {
-	if len(points) != len(powers) {
+func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*PointG1, error) {
+	if len(points) != len(scalars) {
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
-	var c uint32 = 3
-	if len(powers) >= 32 {
-		c = uint32(math.Ceil(math.Log10(float64(len(powers)))))
+
+	c := 3
+	if len(scalars) >= 32 {
+		c = int(math.Ceil(math.Log(float64(len(scalars)))))
 	}
-	bucketSize, numBits := (1<<c)-1, uint32(g.Q().BitLen())
-	windows := make([]*PointG1, numBits/c+1)
-	bucket := make([]*PointG1, bucketSize)
-	acc, sum := g.New(), g.New()
-	for i := 0; i < bucketSize; i++ {
-		bucket[i] = g.New()
-	}
-	mask := (uint64(1) << c) - 1
-	j := 0
-	var cur uint32
-	for cur <= numBits {
-		acc.Zero()
-		bucket = make([]*PointG1, (1<<c)-1)
-		for i := 0; i < len(bucket); i++ {
-			bucket[i] = g.New()
+
+	bucketSize := (1 << c) - 1
+	windows := make([]PointG1, SCALAR_FIELD_BIT_SIZE/c+1)
+	bucket := make([]PointG1, bucketSize)
+
+	for j := 0; j < len(windows); j++ {
+
+		for i := 0; i < bucketSize; i++ {
+			bucket[i].Zero()
 		}
-		for i := 0; i < len(powers); i++ {
-			s0 := powers[i].Uint64()
-			index := uint(s0 & mask)
+
+		for i := 0; i < len(scalars); i++ {
+			index := bucketSize & int(new(big.Int).Rsh(scalars[i], uint(c*j)).Int64())
 			if index != 0 {
-				g.Add(bucket[index-1], bucket[index-1], points[i])
+				g.Add(&bucket[index-1], &bucket[index-1], points[i])
 			}
-			powers[i] = new(big.Int).Rsh(powers[i], uint(c))
 		}
-		sum.Zero()
-		for i := len(bucket) - 1; i >= 0; i-- {
-			g.Add(sum, sum, bucket[i])
+
+		acc, sum := g.New(), g.New()
+		for i := bucketSize - 1; i >= 0; i-- {
+			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
-		windows[j] = g.New()
 		windows[j].Set(acc)
-		j++
-		cur += c
 	}
-	acc.Zero()
+
+	acc := g.New()
 	for i := len(windows) - 1; i >= 0; i-- {
-		for j := uint32(0); j < c; j++ {
+		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, windows[i])
+		g.Add(acc, acc, &windows[i])
 	}
 	return r.Set(acc), nil
 }
