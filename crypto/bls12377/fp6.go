@@ -31,19 +31,19 @@ func newFp6(f *fp2) *fp6 {
 }
 
 func (e *fp6) fromBytes(b []byte) (*fe6, error) {
-	if len(b) != 288 {
+	if len(b) != 6*FE_BYTE_SIZE {
 		return nil, errors.New("input string should be larger than 288 bytes")
 	}
 	fp2 := e.fp2
-	u0, err := fp2.fromBytes(b[:96])
+	u0, err := fp2.fromBytes(b[:2*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	u1, err := fp2.fromBytes(b[96:192])
+	u1, err := fp2.fromBytes(b[2*FE_BYTE_SIZE : 4*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	u2, err := fp2.fromBytes(b[192:])
+	u2, err := fp2.fromBytes(b[4*FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
@@ -52,10 +52,10 @@ func (e *fp6) fromBytes(b []byte) (*fe6, error) {
 
 func (e *fp6) toBytes(a *fe6) []byte {
 	fp2 := e.fp2
-	out := make([]byte, 288)
-	copy(out[:96], fp2.toBytes(&a[0]))
-	copy(out[96:192], fp2.toBytes(&a[1]))
-	copy(out[192:], fp2.toBytes(&a[2]))
+	out := make([]byte, 6*FE_BYTE_SIZE)
+	copy(out[:2*FE_BYTE_SIZE], fp2.toBytes(&a[0]))
+	copy(out[2*FE_BYTE_SIZE:4*FE_BYTE_SIZE], fp2.toBytes(&a[1]))
+	copy(out[4*FE_BYTE_SIZE:], fp2.toBytes(&a[2]))
 	return out
 }
 

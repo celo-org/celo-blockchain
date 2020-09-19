@@ -11,7 +11,7 @@ func TestPairingExpected(t *testing.T) {
 	GT := bls.GT()
 	expected, err := GT.FromBytes(
 		fromHex(
-			48,
+			FE_BYTE_SIZE,
 			"0x00b718ff624a95f189bfb44bcd6d6556226837c1f74d1afbf4bea573b71c17d3a243cae41d966e2164aad0991fd790cc",
 			"0x0197261459eb50c526a28ebbdbd4b5b33d4c55b759d8c926289c96e4ea032783da4f1994ed09ee68fd791367c8b54d87",
 			"0x00756970de5e545d91121e151ce96c26ad820ebe4ffbc9dee234351401925eaa4193e377135ced4d3845057c0c39ecd6",
@@ -89,7 +89,7 @@ func TestPairingNonDegeneracy(t *testing.T) {
 	{
 		expected, err := GT.FromBytes(
 			fromHex(
-				48,
+				FE_BYTE_SIZE,
 				"0x00b718ff624a95f189bfb44bcd6d6556226837c1f74d1afbf4bea573b71c17d3a243cae41d966e2164aad0991fd790cc",
 				"0x0197261459eb50c526a28ebbdbd4b5b33d4c55b759d8c926289c96e4ea032783da4f1994ed09ee68fd791367c8b54d87",
 				"0x00756970de5e545d91121e151ce96c26ad820ebe4ffbc9dee234351401925eaa4193e377135ced4d3845057c0c39ecd6",
