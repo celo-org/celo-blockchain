@@ -63,41 +63,27 @@ func (g *G2) Q() *big.Int {
 	return new(big.Int).Set(q)
 }
 
-func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
-	p0, err := g.f.fromBytes(in[:96])
-	if err != nil {
-		return nil, err
-	}
-	p1, err := g.f.fromBytes(in[96:])
-	if err != nil {
-		return nil, err
-	}
-	p2 := new(fe2).one()
-	return &PointG2{*p0, *p1, *p2}, nil
-}
-
 // FromBytes constructs a new point given uncompressed byte input.
-// Byte input expected to be at least 192 bytes.
-// First 192 bytes should be concatenation of x and y values
+// Input string expected to be 192 bytes and concatenation of x and y values
 // Point (0, 0) is considered as infinity.
 func (g *G2) FromBytes(in []byte) (*PointG2, error) {
-	if len(in) != 192 {
-		return nil, errors.New("input string should be equal or larger than 192")
+	if len(in) != 4*FE_BYTE_SIZE {
+		return nil, errors.New("input string should be 192 bytes")
 	}
-	p0, err := g.f.fromBytes(in[:96])
+	x, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := g.f.fromBytes(in[96:])
+	y, err := g.f.fromBytes(in[2*FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
 	// check if given input points to infinity
-	if p0.isZero() && p1.isZero() {
+	if x.isZero() && y.isZero() {
 		return g.Zero(), nil
 	}
-	p2 := new(fe2).one()
-	p := &PointG2{*p0, *p1, *p2}
+	z := new(fe2).one()
+	p := &PointG2{*x, *y, *z}
 	if !g.IsOnCurve(p) {
 		return nil, errors.New("point is not on curve")
 	}
@@ -106,43 +92,43 @@ func (g *G2) FromBytes(in []byte) (*PointG2, error) {
 
 // DecodePoint given encoded (x, y) coordinates in 256 bytes returns a valid G1 Point.
 func (g *G2) DecodePoint(in []byte) (*PointG2, error) {
-	if len(in) != 256 {
+	if len(in) != 4*ENCODED_FIELD_ELEMENT_SIZE {
 		return nil, errors.New("invalid g2 point length")
 	}
-	pointBytes := make([]byte, 192)
-	x0Bytes, err := decodeFieldElement(in[:64])
+	pointBytes := make([]byte, 4*FE_BYTE_SIZE)
+	x0Bytes, err := decodeFieldElement(in[:ENCODED_FIELD_ELEMENT_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	x1Bytes, err := decodeFieldElement(in[64:128])
+	x1Bytes, err := decodeFieldElement(in[ENCODED_FIELD_ELEMENT_SIZE : 2*ENCODED_FIELD_ELEMENT_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	y0Bytes, err := decodeFieldElement(in[128:192])
+	y0Bytes, err := decodeFieldElement(in[2*ENCODED_FIELD_ELEMENT_SIZE : 3*ENCODED_FIELD_ELEMENT_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	y1Bytes, err := decodeFieldElement(in[192:])
+	y1Bytes, err := decodeFieldElement(in[3*ENCODED_FIELD_ELEMENT_SIZE:])
 	if err != nil {
 		return nil, err
 	}
-	copy(pointBytes[:48], x1Bytes)
-	copy(pointBytes[48:96], x0Bytes)
-	copy(pointBytes[96:144], y1Bytes)
-	copy(pointBytes[144:192], y0Bytes)
+	copy(pointBytes[:FE_BYTE_SIZE], x0Bytes)
+	copy(pointBytes[FE_BYTE_SIZE:2*FE_BYTE_SIZE], x1Bytes)
+	copy(pointBytes[2*FE_BYTE_SIZE:3*FE_BYTE_SIZE], y0Bytes)
+	copy(pointBytes[3*FE_BYTE_SIZE:], y1Bytes)
 	return g.FromBytes(pointBytes)
 }
 
 // ToBytes serializes a point into bytes in uncompressed form,
 // returns (0, 0) if point is at infinity.
 func (g *G2) ToBytes(p *PointG2) []byte {
-	out := make([]byte, 192)
+	out := make([]byte, 4*FE_BYTE_SIZE)
 	if g.IsZero(p) {
 		return out
 	}
 	g.Affine(p)
-	copy(out[:96], g.f.toBytes(&p[0]))
-	copy(out[96:], g.f.toBytes(&p[1]))
+	copy(out[:2*FE_BYTE_SIZE], g.f.toBytes(&p[0]))
+	copy(out[2*FE_BYTE_SIZE:], g.f.toBytes(&p[1]))
 	return out
 }
 
@@ -150,13 +136,13 @@ func (g *G2) ToBytes(p *PointG2) []byte {
 func (g *G2) EncodePoint(p *PointG2) []byte {
 	// outRaw is 96 bytes
 	outRaw := g.ToBytes(p)
-	out := make([]byte, 256)
+	out := make([]byte, 4*ENCODED_FIELD_ELEMENT_SIZE)
 	// encode x
-	copy(out[16:16+48], outRaw[48:96])
-	copy(out[80:80+48], outRaw[:48])
+	copy(out[ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:ENCODED_FIELD_ELEMENT_SIZE], outRaw[:FE_BYTE_SIZE])
+	copy(out[2*ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:2*ENCODED_FIELD_ELEMENT_SIZE], outRaw[FE_BYTE_SIZE:2*FE_BYTE_SIZE])
 	// encode y
-	copy(out[144:144+48], outRaw[144:])
-	copy(out[208:208+48], outRaw[96:144])
+	copy(out[3*ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:3*ENCODED_FIELD_ELEMENT_SIZE], outRaw[2*FE_BYTE_SIZE:3*FE_BYTE_SIZE])
+	copy(out[4*ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:], outRaw[3*FE_BYTE_SIZE:])
 	return out
 }
 

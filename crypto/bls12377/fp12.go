@@ -45,15 +45,15 @@ func (e *fp12) fp2() *fp2 {
 }
 
 func (e *fp12) fromBytes(in []byte) (*fe12, error) {
-	if len(in) != 576 {
-		return nil, errors.New("input string should be larger than 96 bytes")
+	if len(in) != 12*FE_BYTE_SIZE {
+		return nil, errors.New("input string should be larger than 576 bytes")
 	}
 	fp6 := e.fp6
-	c0, err := fp6.fromBytes(in[:288])
+	c0, err := fp6.fromBytes(in[:6*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	c1, err := fp6.fromBytes(in[288:])
+	c1, err := fp6.fromBytes(in[6*FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +62,9 @@ func (e *fp12) fromBytes(in []byte) (*fe12, error) {
 
 func (e *fp12) toBytes(a *fe12) []byte {
 	fp6 := e.fp6
-	out := make([]byte, 576)
-	copy(out[:288], fp6.toBytes(&a[0]))
-	copy(out[288:], fp6.toBytes(&a[1]))
+	out := make([]byte, 12*FE_BYTE_SIZE)
+	copy(out[:6*FE_BYTE_SIZE], fp6.toBytes(&a[0]))
+	copy(out[6*FE_BYTE_SIZE:], fp6.toBytes(&a[1]))
 	return out
 }
 
