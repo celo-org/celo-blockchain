@@ -5,6 +5,7 @@ const FE_BYTE_SIZE = 48
 const FE_BIT_SIZE = 377
 const SIX_WORD_BIT_SIZE = 384
 const SCALAR_FIELD_BIT_SIZE = 253
+const ENCODED_FIELD_ELEMENT_SIZE = 64
 
 /*
  Field

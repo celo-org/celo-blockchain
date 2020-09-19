@@ -11,29 +11,28 @@ import (
 // fe is base field element representation
 type fe /***			***/ [6]uint64
 
-// fe2 is element representation of 'fp2' which is quadratic extention of base field 'fp'
+// fe2 is element representation of 'fp2' which is quadratic extension of base field 'fp'
 // Representation follows c[0] + c[1] * u encoding order.
 type fe2 /**			***/ [2]fe
 
-// fe6 is element representation of 'fp6' field which is cubic extention of 'fp2'
+// fe6 is element representation of 'fp6' field which is cubic extension of 'fp2'
 // Representation follows c[0] + c[1] * v + c[2] * v^2 encoding order.
 type fe6 /**			***/ [3]fe2
 
-// fe12 is element representation of 'fp12' field which is quadratic extention of 'fp6'
+// fe12 is element representation of 'fp12' field which is quadratic extension of 'fp6'
 // Representation follows c[0] + c[1] * w encoding order.
 type fe12 /**			***/ [2]fe6
 
 func (fe *fe) setBytes(in []byte) *fe {
-	size := 48
 	l := len(in)
-	if l >= size {
-		l = size
+	if l >= FE_BYTE_SIZE {
+		l = FE_BYTE_SIZE
 	}
-	padded := make([]byte, size)
-	copy(padded[size-l:], in[:])
+	padded := make([]byte, FE_BYTE_SIZE)
+	copy(padded[FE_BYTE_SIZE-l:], in[:])
 	var a int
 	for i := 0; i < 6; i++ {
-		a = size - i*8
+		a = FE_BYTE_SIZE - i*8
 		fe[i] = uint64(padded[a-1]) | uint64(padded[a-2])<<8 |
 			uint64(padded[a-3])<<16 | uint64(padded[a-4])<<24 |
 			uint64(padded[a-5])<<32 | uint64(padded[a-6])<<40 |
@@ -68,10 +67,10 @@ func (fe *fe) set(fe2 *fe) *fe {
 }
 
 func (fe *fe) bytes() []byte {
-	out := make([]byte, 48)
+	out := make([]byte, FE_BYTE_SIZE)
 	var a int
 	for i := 0; i < 6; i++ {
-		a = 48 - i*8
+		a = FE_BYTE_SIZE - i*8
 		out[a-1] = byte(fe[i])
 		out[a-2] = byte(fe[i] >> 8)
 		out[a-3] = byte(fe[i] >> 16)

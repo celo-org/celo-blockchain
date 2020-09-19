@@ -54,18 +54,17 @@ func (g *G1) Q() *big.Int {
 }
 
 // FromBytes constructs a new point given uncompressed byte input.
-// Byte input expected to be at least 96 bytes.
-// First 96 bytes should be concatenation of x and y values.
-// Point (0, 0) is considered as infinity.
+// Input string is expected to be equal to 96 bytes and concatenation of x and y cooridanates.
+// (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
-	if len(in) != 96 {
+	if len(in) != 2*FE_BYTE_SIZE {
 		return nil, errors.New("input string should be equal or larger than 96")
 	}
-	p0, err := fromBytes(in[:48])
+	p0, err := fromBytes(in[:FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := fromBytes(in[48:])
+	p1, err := fromBytes(in[FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
@@ -83,45 +82,46 @@ func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 
 // DecodePoint given encoded (x, y) coordinates in 128 bytes returns a valid G1 Point.
 func (g *G1) DecodePoint(in []byte) (*PointG1, error) {
-	if len(in) != 128 {
+	if len(in) != 2*ENCODED_FIELD_ELEMENT_SIZE {
 		return nil, errors.New("invalid g1 point length")
 	}
-	pointBytes := make([]byte, 96)
+	pointBytes := make([]byte, 2*FE_BYTE_SIZE)
 	// decode x
-	xBytes, err := decodeFieldElement(in[:64])
+	xBytes, err := decodeFieldElement(in[:ENCODED_FIELD_ELEMENT_SIZE])
 	if err != nil {
 		return nil, err
 	}
 	// decode y
-	yBytes, err := decodeFieldElement(in[64:])
+	yBytes, err := decodeFieldElement(in[ENCODED_FIELD_ELEMENT_SIZE:])
 	if err != nil {
 		return nil, err
 	}
-	copy(pointBytes[:48], xBytes)
-	copy(pointBytes[48:], yBytes)
+	copy(pointBytes[:FE_BYTE_SIZE], xBytes)
+	copy(pointBytes[FE_BYTE_SIZE:], yBytes)
 	return g.FromBytes(pointBytes)
 }
 
 // ToBytes serializes a point into bytes in uncompressed form. Returns (0, 0) if point is infinity.
 func (g *G1) ToBytes(p *PointG1) []byte {
-	out := make([]byte, 96)
+	out := make([]byte, 2*FE_BYTE_SIZE)
 	if g.IsZero(p) {
 		return out
 	}
 	g.Affine(p)
-	copy(out[:48], toBytes(&p[0]))
-	copy(out[48:], toBytes(&p[1]))
+	copy(out[:FE_BYTE_SIZE], toBytes(&p[0]))
+	copy(out[FE_BYTE_SIZE:], toBytes(&p[1]))
 	return out
 }
 
 // EncodePoint encodes a point into 128 bytes.
 func (g *G1) EncodePoint(p *PointG1) []byte {
 	outRaw := g.ToBytes(p)
-	out := make([]byte, 128)
+	out := make([]byte, 2*ENCODED_FIELD_ELEMENT_SIZE)
 	// encode x
-	copy(out[16:], outRaw[:48])
+
+	copy(out[ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:], outRaw[:FE_BYTE_SIZE])
 	// encode y
-	copy(out[64+16:], outRaw[48:])
+	copy(out[2*ENCODED_FIELD_ELEMENT_SIZE-FE_BYTE_SIZE:], outRaw[FE_BYTE_SIZE:])
 	return out
 }
 
