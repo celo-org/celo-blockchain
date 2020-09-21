@@ -96,9 +96,6 @@ type CoreBackend interface {
 	// IsValidating return true if this instance is validating
 	IsValidating() bool
 
-	// IsElectedValidator returns true if instance is an elected validator
-	IsElectedValidator() bool
-
 	// UpdateReplicaState starts/stop the core if the validator should start or stop. Returns true on change.
 	UpdateReplicaState() bool
 }
