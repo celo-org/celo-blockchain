@@ -380,6 +380,9 @@ func (sb *Backend) Close() error {
 	if err := sb.versionCertificateTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
+	if err := sb.replicaState.Close(); err != nil {
+		errs = append(errs, err)
+	}
 	var concatenatedErrs error
 	for i, err := range errs {
 		if i == 0 {

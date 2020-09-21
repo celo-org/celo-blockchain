@@ -33,6 +33,7 @@ type State interface {
 	MakeReplica()
 	MakePrimary()
 	UpdateReplicaState(blockNumber *big.Int)
+	Close() error
 
 	// view functions
 	IsPrimary() bool
@@ -61,6 +62,12 @@ func NewState(isReplica bool, path string) State {
 		mu:        new(sync.RWMutex),
 		rsdb:      db,
 	}
+}
+
+func (rs *replicaStateImpl) Close() error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	return rs.rsdb.Close()
 }
 
 func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error {
