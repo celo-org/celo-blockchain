@@ -242,6 +242,9 @@ func (api *API) StartValidatingAtBlock(blockNumber int64) error {
 		return errors.New("blockNumber must be > 0")
 	}
 	seq := big.NewInt(blockNumber)
+	if seq.Cmp(api.istanbul.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
 	return api.istanbul.SetStartValidatingBlock(seq)
 }
 
@@ -252,6 +255,9 @@ func (api *API) StopValidatingAtBlock(blockNumber int64) error {
 		return errors.New("blockNumber must be > 0")
 	}
 	seq := big.NewInt(blockNumber)
+	if seq.Cmp(api.istanbul.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
 	return api.istanbul.SetStopValidatingBlock(seq)
 }
 
