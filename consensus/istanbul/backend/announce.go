@@ -606,13 +606,6 @@ func (sb *Backend) generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams 
 func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleQueryEnodeMsg")
 
-	// Since this is a gossiped messaged, mark that the peer gossiped it and check to see if this node already gossiped it
-	sb.markMessageProcessedByPeer(addr, payload)
-	if sb.checkIfMessageProcessedBySelf(payload) {
-		return nil
-	}
-	defer sb.markMessageProcessedBySelf(payload)
-
 	msg := new(istanbul.Message)
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
