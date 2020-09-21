@@ -795,11 +795,11 @@ web3._extend({
 			getter: 'istanbul_getCurrentRoundState',
 		}),
 		new web3._extend.Property({
-		    name: 'proxies',
+			name: 'proxies',
 			getter: 'istanbul_getProxiesInfo',
 		}),
 		new web3._extend.Property({
-		    name: 'proxiedValidators',
+			name: 'proxiedValidators',
 			getter: 'istanbul_getProxiedValidators',
 		}),
 		new web3._extend.Property({
