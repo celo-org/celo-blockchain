@@ -127,9 +127,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		// Handle messages as replica validator
 		switch msg.Code {
 		case istanbul.ConsensusMsg:
-			go sb.istanbulEventMux.Post(istanbul.MessageEvent{
-				Payload: data,
-			})
+			// Ignore consensus messages
 			return true, nil
 		case istanbul.DelegateSignMsg:
 			if sb.shouldHandleDelegateSign(peer) {
