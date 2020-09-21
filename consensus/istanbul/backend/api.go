@@ -221,9 +221,6 @@ func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
 
 // StartValidating starts the consensus engine
 func (api *API) StartValidating() error {
-	if !api.istanbul.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
 	api.istanbul.MakePrimary()
 	return nil
 }
@@ -251,7 +248,6 @@ func (api *API) StartValidatingAtBlock(blockNumber int64) error {
 // StopValidatingAtBlock stops the consensus engine from participating in consensus
 // on the given block number.
 func (api *API) StopValidatingAtBlock(blockNumber int64) error {
-
 	if blockNumber <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
