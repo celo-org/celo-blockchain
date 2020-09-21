@@ -87,10 +87,6 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
-func (self *testSystemBackend) IsElectedValidator() bool {
-	return true
-}
-
 func (self *testSystemBackend) IsValidating() bool {
 	return true
 }

@@ -125,7 +125,7 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldQuery = sb.IsElectedValidator()
+			shouldQuery = sb.isElectedValidatorForAnnounce()
 			shouldAnnounce = shouldQuery && sb.IsValidating()
 
 			if shouldQuery && !querying {
@@ -662,7 +662,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Only validators processes the queryEnode message
-	if sb.IsElectedValidator() {
+	if sb.isElectedValidatorForAnnounce() {
 		logger.Trace("Processing an queryEnode message", "queryEnode records", qeData.EncryptedEnodeURLs)
 		for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
 			// Only process an encEnodURL intended for this node
@@ -1035,7 +1035,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 
-	if sb.IsElectedValidator() {
+	if sb.isElectedValidatorForAnnounce() {
 		// Update entries in val enode db
 		var valEnodeEntries []*istanbul.AddressEntry
 		for _, entry := range entries {
@@ -1277,7 +1277,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	if !sb.IsElectedValidator() {
+	if !sb.isElectedValidatorForAnnounce() {
 		logger.Debug("This node should not save validator enode urls, ignoring enodeCertificate")
 		return nil
 	}

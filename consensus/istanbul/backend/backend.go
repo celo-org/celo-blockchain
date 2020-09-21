@@ -316,8 +316,8 @@ func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
 }
 
-//  IsElectedValidator returns true if instance is an elected validator
-func (sb *Backend) IsElectedValidator() bool {
+// isElectedValidatorForAnnounce returns true if instance is an elected or nearly elected validator.
+func (sb *Backend) isElectedValidatorForAnnounce() bool {
 	// Check if this node is in the validator connection set
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
