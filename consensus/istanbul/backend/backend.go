@@ -956,13 +956,19 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 }
 
 func (sb *Backend) UpdateReplicaState() bool {
+	// First check if the core needs to be started or stopped
 	blockNum := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
-	if sb.replicaState.ShouldSwitchToPrimary(blockNum) {
-		sb.MakePrimary()
-		return true
-	} else if sb.replicaState.ShouldSwitchToReplica(blockNum) {
+	if sb.replicaState.IsPrimary() && !sb.replicaState.IsPrimaryForSeq(blockNum) {
+		// disable
 		sb.MakeReplica()
 		return true
+	} else if !sb.replicaState.IsPrimary() && sb.replicaState.IsPrimaryForSeq(blockNum) {
+		// enable
+		sb.MakePrimary()
+		return true
 	}
+	// Then potentially update internal replica state (mainly clears rs.enabled)
+	sb.replicaState.UpdateReplicaState(blockNum)
+
 	return false
 }

@@ -32,12 +32,12 @@ type State interface {
 	SetStopValidatingBlock(blockNumber *big.Int) error
 	MakeReplica()
 	MakePrimary()
+	UpdateReplicaState(blockNumber *big.Int)
 
 	// view functions
+	IsPrimary() bool
 	IsPrimaryForSeq(seq *big.Int) bool
 	Summary() *ReplicaStateSummary
-	ShouldSwitchToPrimary(blockNumber *big.Int) bool
-	ShouldSwitchToReplica(blockNumber *big.Int) bool
 }
 
 // ReplicaState stores info on this node being a primary or replica
@@ -107,26 +107,17 @@ func (rs *replicaStateImpl) MakeReplica() {
 	defer rs.rsdb.StoreReplicaState(rs)
 
 	rs.isReplica = true
-	rs.enabled = false
-	rs.startValidatingBlock = nil
-	rs.stopValidatingBlock = nil
 }
 
 func (rs *replicaStateImpl) MakePrimary() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-
 	defer rs.rsdb.StoreReplicaState(rs)
 
 	rs.isReplica = false
-	rs.enabled = false
-	rs.startValidatingBlock = nil
-	rs.stopValidatingBlock = nil
 }
 
-func (rs *replicaStateImpl) ShouldSwitchToPrimary(blockNumber *big.Int) bool {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
+func (rs *replicaStateImpl) shouldSwitchToPrimary(blockNumber *big.Int) bool {
 	if !rs.enabled {
 		return false
 	}
@@ -139,9 +130,7 @@ func (rs *replicaStateImpl) ShouldSwitchToPrimary(blockNumber *big.Int) bool {
 
 	return false
 }
-func (rs *replicaStateImpl) ShouldSwitchToReplica(blockNumber *big.Int) bool {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
+func (rs *replicaStateImpl) shouldSwitchToReplica(blockNumber *big.Int) bool {
 	if !rs.enabled {
 		return false
 	}
@@ -170,6 +159,27 @@ func (rs *replicaStateImpl) IsPrimaryForSeq(seq *big.Int) bool {
 		return false
 	}
 	return true
+}
+
+func (rs *replicaStateImpl) IsPrimary() bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return !rs.isReplica
+}
+
+// UpdateReplicaState clears replica state when a node is only ever a replica or a primary into the future.
+func (rs *replicaStateImpl) UpdateReplicaState(seq *big.Int) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if rs.isReplica && rs.shouldSwitchToReplica(seq) {
+		rs.enabled = false
+		rs.startValidatingBlock = nil
+		rs.stopValidatingBlock = nil
+	} else if !rs.isReplica && rs.shouldSwitchToPrimary(seq) {
+		rs.enabled = false
+		rs.startValidatingBlock = nil
+		rs.stopValidatingBlock = nil
+	}
 }
 
 type ReplicaStateSummary struct {
