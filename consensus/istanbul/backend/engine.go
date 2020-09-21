@@ -579,7 +579,7 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 				}
 			}
 		}()
-
+		// Unbatched event listener
 		chainEventCh := make(chan ethCore.ChainEvent, 10)
 		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
 		go func() {
@@ -587,8 +587,8 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 
 			for {
 				select {
-				case chainEvent := <-chainEventCh:
-					sb.newChainEvent(chainEvent.Block)
+				case <-chainEventCh:
+					sb.UpdateReplicaState()
 				case err := <-chainEventSub.Err():
 					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
 					return

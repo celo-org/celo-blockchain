@@ -335,12 +335,7 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
 	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
-	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
-}
-
-// Actions triggeted by a new block being added to the chain (no buffering)
-func (sb *Backend) newChainEvent(newBlock *types.Block) {
-	sb.UpdateReplicaState()
+	sb.logger.Trace("End newChainHead", "number", newBlock.Number().Uint64())
 }
 
 func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
