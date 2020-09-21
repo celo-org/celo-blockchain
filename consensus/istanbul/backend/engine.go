@@ -563,39 +563,48 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 	sb.stateAt = stateAt
 
 	if bc, ok := chain.(*ethCore.BlockChain); ok {
-		// Start listeners
-		chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
-		chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
-		go func() {
-			defer chainHeadSub.Unsubscribe()
-
-			for {
-				select {
-				case chainHeadEvent := <-chainHeadCh:
-					sb.newChainHead(chainHeadEvent.Block)
-				case err := <-chainHeadSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-					return
-				}
-			}
-		}()
-		// Unbatched event listener
-		chainEventCh := make(chan ethCore.ChainEvent, 10)
-		chainEventSub := bc.SubscribeChainEvent(chainEventCh)
-		go func() {
-			defer chainEventSub.Unsubscribe()
-
-			for {
-				select {
-				case <-chainEventCh:
-					sb.UpdateReplicaState()
-				case err := <-chainEventSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
-					return
-				}
-			}
-		}()
+		sb.newChainHeadLoop(bc)
+		sb.updateReplicaStateLoop(bc)
 	}
+
+}
+
+func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
+	// Batched. For stats & announce
+	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
+	go func() {
+		defer chainHeadSub.Unsubscribe()
+
+		for {
+			select {
+			case chainHeadEvent := <-chainHeadCh:
+				sb.newChainHead(chainHeadEvent.Block)
+			case err := <-chainHeadSub.Err():
+				log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+				return
+			}
+		}
+	}()
+}
+
+func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
+	// Unbatched event listener
+	chainEventCh := make(chan ethCore.ChainEvent, 10)
+	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+	go func() {
+		defer chainEventSub.Unsubscribe()
+
+		for {
+			select {
+			case <-chainEventCh:
+				sb.UpdateReplicaState()
+			case err := <-chainEventSub.Err():
+				log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+				return
+			}
+		}
+	}()
 }
 
 // StartValidating implements consensus.Istanbul.StartValidating
