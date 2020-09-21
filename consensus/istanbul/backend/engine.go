@@ -649,45 +649,6 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	return nil
 }
 
-// RestartValidating restarts validating from validating.stop
-func (sb *Backend) restartValidating() error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
-		return istanbul.ErrStartedEngine
-	}
-
-	// clear previous data
-	sb.proposedBlockHash = common.Hash{}
-	if sb.commitCh != nil {
-		close(sb.commitCh)
-	}
-	sb.commitCh = make(chan *types.Block, 1)
-
-	sb.logger.Info("Re-Starting istanbul.Engine validating")
-	if err := sb.core.Start(); err != nil {
-		return err
-	}
-
-	// Having coreStarted as false at this point guarantees that announce versions
-	// will be updated by the time announce messages in the announceThread begin
-	// being generated
-	if !sb.IsProxiedValidator() {
-		sb.UpdateAnnounceVersion()
-	}
-
-	sb.coreStarted = true
-
-	// coreStarted must be true by this point for validator peers to be successfully added
-	if !sb.config.Proxied {
-		if err := sb.RefreshValPeers(); err != nil {
-			sb.logger.Warn("Error refreshing validator peers", "err", err)
-		}
-	}
-
-	return nil
-}
-
 // StopValidating implements consensus.Istanbul.StopValidating
 func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
@@ -778,16 +739,16 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 
 // MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() {
-	sb.logger.Warn("MakeReplica")
+	sb.logger.Info("MakeReplica")
 	sb.StopValidating()
 	sb.replicaState.MakeReplica()
 }
 
 // MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() {
-	sb.logger.Warn("MakePrimary")
+	sb.logger.Info("MakePrimary")
 	// start core
-	sb.restartValidating()
+	sb.StartValidating(sb.hasBadBlock, sb.processBlock, sb.validateState)
 	sb.replicaState.MakePrimary()
 }
 
