@@ -93,9 +93,6 @@ type CoreBackend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
 
-	// IsValidating return true if this instance is validating
-	IsValidating() bool
-
 	// UpdateReplicaState starts/stop the core if the validator should start or stop. Returns true on change.
 	UpdateReplicaState() bool
 }
