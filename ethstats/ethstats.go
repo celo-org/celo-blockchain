@@ -99,13 +99,13 @@ type blockChain interface {
 // Service implements an Ethereum netstats reporting daemon that pushes local
 // chain statistics up to a monitoring server.
 type Service struct {
-	server  *p2p.Server              // Peer-to-peer server to retrieve networking infos
-	eth     *eth.Ethereum            // Full Ethereum service if monitoring a full node
-	les     *les.LightEthereum       // Light Ethereum service if monitoring a light node
-	engine  consensus.Engine         // Consensus engine to retrieve variadic block fields
-	backend *istanbulBackend.Backend // Istanbul consensus backend
-	node    string                   // Name of the node to display on the monitoring page
-	host    string                   // Remote address of the monitoring service
+	server        *p2p.Server              // Peer-to-peer server to retrieve networking infos
+	eth           *eth.Ethereum            // Full Ethereum service if monitoring a full node
+	les           *les.LightEthereum       // Light Ethereum service if monitoring a light node
+	engine        consensus.Engine         // Consensus engine to retrieve variadic block fields
+	backend       *istanbulBackend.Backend // Istanbul consensus backend
+	nodeName      string                   // Name of the node to display on the monitoring page
+	celostatsHost string                   // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -122,9 +122,9 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	// Assemble and return the stats service
 	var (
 		engine consensus.Engine
-		id     string
+		name     string
 	)
-	id = parts[1]
+	name = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
 	} else {
@@ -134,14 +134,14 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	backend := engine.(*istanbulBackend.Backend)
 
 	return &Service{
-		eth:     ethServ,
-		les:     lesServ,
-		engine:  engine,
-		backend: backend,
-		node:    id,
-		host:    parts[2],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
+		eth:           ethServ,
+		les:           lesServ,
+		engine:        engine,
+		backend:       backend,
+		nodeName:      name,
+		celostatsHost: parts[2],
+		pongCh:        make(chan struct{}),
+		histCh:        make(chan []uint64, 1),
 	}, nil
 }
 
@@ -272,7 +272,7 @@ func (s *Service) loop() {
 			}
 		} else {
 			// Resolve the URL, defaulting to TLS, but falling back to none too
-			path := fmt.Sprintf("%s/api", s.host)
+			path := fmt.Sprintf("%s/api", s.celostatsHost)
 			urls := []string{path}
 
 			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
@@ -379,9 +379,9 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
 	auth := &authMsg{
-		ID: s.node,
+		ID: s.backend.ValidatorAddress().String(),
 		Info: nodeInfo{
-			Name:     s.node,
+			Name:     s.nodeName,
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
 			Network:  network,
@@ -546,7 +546,10 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Info("Ping from websocket server", "msg", msg)
 			// Primus server might want to have a pong or it closes the connection
 			var serverTime = fmt.Sprintf("primus::pong::%d", time.Now().UnixNano()/int64(time.Millisecond))
-			conn.WriteJSON(serverTime)
+			err := conn.WriteMessage(websocket.TextMessage, []byte(serverTime))
+			if err != nil {
+				log.Error("Sending pong failed!", "err", err)
+			}
 		}
 	}
 }
@@ -599,7 +602,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	start := time.Now()
 
 	ping := map[string]interface{}{
-		"id":         s.node,
+		"id":         s.backend.ValidatorAddress().String(),
 		"clientTime": start.String(),
 	}
 	if err := s.sendStats(conn, actionNodePing, ping); err != nil {
@@ -627,7 +630,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	log.Trace("Sending measured latency to ethstats", "latency", latency)
 
 	stats := map[string]interface{}{
-		"id":      s.node,
+		"id":      s.backend.ValidatorAddress().String(),
 		"latency": latency,
 	}
 	return s.sendStats(conn, actionLatency, stats)
@@ -741,7 +744,6 @@ func (s *Service) sendStats(conn *websocket.Conn, action string, stats interface
 		}()
 		return nil
 	}
-
 	signedStats, err := s.signStats(stats)
 	if err != nil {
 		return err
@@ -762,7 +764,7 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	log.Trace("Sending new block to ethstats", "number", details.Number, "hash", details.Hash)
 
 	stats := map[string]interface{}{
-		"id":    s.node,
+		"id":    s.backend.ValidatorAddress().String(),
 		"block": details,
 	}
 	return s.sendStats(conn, actionBlock, stats)
@@ -773,11 +775,11 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header *types.Header
-		state  *state.StateDB
-		td     *big.Int
-		txs    []txStats
-		valSet validatorSet
+		header  *types.Header
+		stateDB *state.StateDB
+		td      *big.Int
+		txs     []txStats
+		valSet  validatorSet
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -785,7 +787,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			block = s.eth.BlockChain().CurrentBlock()
 		}
 		header = block.Header()
-		state, _ = s.eth.BlockChain().State()
+		stateDB, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
 		txs = make([]txStats, len(block.Transactions()))
@@ -799,7 +801,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		} else {
 			header = s.les.BlockChain().CurrentHeader()
 		}
-		state, _ = s.les.BlockChain().State()
+		stateDB, _ = s.les.BlockChain().State()
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -811,11 +813,11 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	blockRemain := epochSize - istanbul.GetNumberWithinEpoch(header.Number.Uint64(), epochSize)
 
 	// only assemble every valSetInterval blocks
-	if block.Number().Uint64()%valSetInterval == 0 {
-		valSet = s.assembleValidatorSet(block, state)
+	if block != nil && block.Number().Uint64()%valSetInterval == 0 {
+		valSet = s.assembleValidatorSet(block, stateDB)
 	}
 
-	gasLimit := core.CalcGasLimit(block, state)
+	gasLimit := core.CalcGasLimit(block, stateDB)
 
 	return &blockStats{
 		Number:      header.Number,
@@ -946,7 +948,7 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 		log.Trace("No history to send to stats server")
 	}
 	stats := map[string]interface{}{
-		"id":      s.node,
+		"id":      s.backend.ValidatorAddress().String(),
 		"history": history,
 	}
 	return s.sendStats(conn, actionHistory, stats)
@@ -971,7 +973,7 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 	log.Trace("Sending pending transactions to ethstats", "count", pending)
 
 	stats := map[string]interface{}{
-		"id": s.node,
+		"id": s.backend.ValidatorAddress().String(),
 		"stats": &pendStats{
 			Pending: pending,
 		},
@@ -997,16 +999,16 @@ type nodeStats struct {
 func (s *Service) reportStats(conn *websocket.Conn) error {
 	// Gather the syncing and mining infos from the local miner instance
 	var (
-		etherBase common.Address
-		mining    bool
-		proxy     bool
-		elected   bool
-		hashrate  int
-		syncing   bool
-		gasprice  int
+		validatorAddress common.Address
+		mining           bool
+		proxy            bool
+		elected          bool
+		hashrate         int
+		syncing          bool
+		gasprice         int
 	)
 	if s.eth != nil {
-		etherBase, _ = s.eth.Etherbase()
+		validatorAddress = s.backend.ValidatorAddress()
 		block := s.eth.BlockChain().CurrentBlock()
 
 		proxy = s.backend.IsProxy()
@@ -1017,7 +1019,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
 
 		for i := range valsElected {
-			if valsElected[i].Address() == etherBase {
+			if valsElected[i].Address() == validatorAddress {
 				elected = true
 			}
 		}
@@ -1035,8 +1037,8 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	log.Trace("Sending node details to ethstats")
 
 	stats := map[string]interface{}{
-		"id":      s.node,
-		"address": etherBase,
+		"id":      s.backend.ValidatorAddress().String(),
+		"address": validatorAddress,
 		"stats": &nodeStats{
 			Active:   true,
 			Mining:   mining,

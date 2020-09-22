@@ -49,7 +49,7 @@ func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	if p.proxiedValidator != nil {
 		p.backend.Unicast(p.proxiedValidator, msg, istanbul.DelegateSignMsg)
 		return nil
-	} else {
-		return ErrNoProxiedValidator
 	}
+	
+	return ErrNoProxiedValidator
 }
