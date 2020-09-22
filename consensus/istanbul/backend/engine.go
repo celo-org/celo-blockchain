@@ -749,23 +749,22 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 // MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() error {
 	logger := sb.logger.New("func", "MakeReplica")
+	sb.replicaState.MakeReplica()
 	if err := sb.StopValidating(); err != nil {
 		logger.Warn("Error in stop validating", "err", err)
 		return err
 	}
-	sb.replicaState.MakeReplica()
 	return nil
 }
 
 // MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() error {
 	logger := sb.logger.New("func", "MakePrimary")
+	sb.replicaState.MakePrimary()
 	if err := sb.StartValidating(sb.hasBadBlock, sb.processBlock, sb.validateState); err != nil {
 		logger.Warn("Error in starting validating", "err", err)
 		return err
 	}
-	// start core
-	sb.replicaState.MakePrimary()
 	return nil
 }
 

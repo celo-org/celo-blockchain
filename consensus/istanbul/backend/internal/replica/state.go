@@ -210,7 +210,7 @@ func (rs *replicaStateImpl) shouldSwitchToReplica(blockNumber *big.Int) bool {
 		return false
 	}
 	// start <= stop < seq -> replica
-	if rs.stopValidatingBlock != nil && rs.stopValidatingBlock.Cmp(blockNumber) < 0 {
+	if rs.stopValidatingBlock != nil && rs.stopValidatingBlock.Cmp(blockNumber) <= 0 {
 		return true
 	}
 	return false
