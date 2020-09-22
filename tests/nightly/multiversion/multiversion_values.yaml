@@ -13,9 +13,9 @@ genesis:
   networkId: 1102
 geth:
   account:
-    secret: u4V73ajMLLM1PDyyHO&L4YTY
+    secret: secret
   blocktime: 5
-  diskSizeGB: 10
+  diskSizeGB: 2
   faultyValidatorType: 1
   faultyValidators: 0
   image:
@@ -23,15 +23,17 @@ geth:
     tag: 13a3406014e7df867b8d7305a0adef51b5d48211-8a44c2cd92200bdffce595c7558e84a39ea2bc15
   in_memory_discovery_table: false
   istanbulrequesttimeout: 3000
-  oldValidators: 1
+  oldValidators: 2
   ping_ip_from_packet: false
   private_tx_nodes: 0
   resources:
     requests:
       cpu: 400m
-      memory: 1800M
+      memory: 800M
   ssd_disks: true
-  tx_nodes: 3
+  tx_nodes: 1
+  use_gstorage_data: true
+  gstorage_data_bucket: testnet_sample_chain
   validators: 4
   verbosity: 2
   vmodule: ""

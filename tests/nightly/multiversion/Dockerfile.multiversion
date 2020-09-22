@@ -5,4 +5,3 @@ FROM us.gcr.io/celo-testnet/geth:${COMMIT1}
 FROM us.gcr.io/celo-testnet/geth:${COMMIT2}
 COPY --from=0 /usr/local/bin/geth /usr/local/bin/geth-0
 RUN echo ${COMMIT1} > /commit1 && echo ${COMMIT2} > /commit2
-
