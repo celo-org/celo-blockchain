@@ -1511,7 +1511,7 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
 				InternalNode: proxyInternalNode,
 				ExternalNode: proxyExternalNode,
-				StatsHandler: ctx.GlobalIsSet(ProxyCeloStatsFlag.Name) && ProxyCeloStatsFlag.Name == proxyInternalNode.String(),
+				StatsHandler: ctx.GlobalIsSet(ProxyCeloStatsFlag.Name) && ctx.GlobalString(ProxyCeloStatsFlag.Name) == proxyInternalNode.String(),
 			}
 		}
 
