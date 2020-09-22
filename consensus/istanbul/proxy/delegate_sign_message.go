@@ -29,12 +29,7 @@ func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 
 	for _, proxy := range proxies {
 		if proxy.peer != nil {
-			isStatsProxy, err := pv.IsStatsProxy(proxy.peer.Node().ID())
-			if err != nil {
-				return err
-			}
-
-			if isStatsProxy {
+			if proxy.statsHandler {
 				pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
 			}
 			return nil
