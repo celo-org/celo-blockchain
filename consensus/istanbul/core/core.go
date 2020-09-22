@@ -93,8 +93,8 @@ type CoreBackend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
 
-	// UpdateReplicaState starts/stop the core if the validator should start or stop. Returns true on change.
-	UpdateReplicaState() bool
+	// UpdateReplicaState updates the replica state with the latest seq and return if the node is a primary for that seq.
+	UpdateReplicaState(seq *big.Int) bool
 }
 
 type core struct {
@@ -457,14 +457,6 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
 func (c *core) startNewRound(round *big.Int) error {
-
-	// Inform the backend that a new sequence has started & bail if the backed stopped the core
-	if round.Cmp(common.Big0) == 0 {
-		if disabledCore := c.backend.UpdateReplicaState(); disabledCore {
-			return nil
-		}
-	}
-
 	roundChange := false
 	// Try to get most recent block
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
@@ -519,6 +511,13 @@ func (c *core) startNewRound(round *big.Int) error {
 		}
 		valSet = c.backend.Validators(headBlock)
 		c.roundChangeSet = newRoundChangeSet(valSet)
+	}
+
+	// Inform the backend that a new sequence has started & bail if the backed stopped the core
+	if !roundChange {
+		if primary := c.backend.UpdateReplicaState(newView.Sequence); !primary {
+			return nil
+		}
 	}
 
 	// Calculate new proposer

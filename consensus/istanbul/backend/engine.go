@@ -597,8 +597,10 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 
 		for {
 			select {
-			case <-chainEventCh:
-				sb.UpdateReplicaState()
+			case chainEvent := <-chainEventCh:
+				if !sb.coreStarted {
+					sb.replicaState.NewChainHead(chainEvent.Block.Number())
+				}
 			case err := <-chainEventSub.Err():
 				log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
 				return
@@ -629,8 +631,8 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	sb.validateState = validateState
 
 	// Don't start core if we're a replica
-	blockNum := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
-	if !sb.replicaState.IsPrimaryForSeq(blockNum) {
+	// TODO: wrap calls to StartValidating with this check instead of the other way around
+	if !sb.replicaState.IsPrimary() {
 		return nil
 	}
 
@@ -748,24 +750,12 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 
 // MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() error {
-	logger := sb.logger.New("func", "MakeReplica")
-	sb.replicaState.MakeReplica()
-	if err := sb.StopValidating(); err != nil {
-		logger.Warn("Error in stop validating", "err", err)
-		return err
-	}
-	return nil
+	return sb.replicaState.MakeReplica()
 }
 
 // MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() error {
-	logger := sb.logger.New("func", "MakePrimary")
-	sb.replicaState.MakePrimary()
-	if err := sb.StartValidating(sb.hasBadBlock, sb.processBlock, sb.validateState); err != nil {
-		logger.Warn("Error in starting validating", "err", err)
-		return err
-	}
-	return nil
+	return sb.replicaState.MakePrimary()
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,

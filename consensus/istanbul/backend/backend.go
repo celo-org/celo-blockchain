@@ -126,7 +126,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	backend.replicaState = replica.NewState(config.Replica, config.ReplicaStateDBPath)
+	backend.replicaState = replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StopValidating, backend.StopValidating)
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -958,23 +958,8 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 	}
 }
 
-func (sb *Backend) UpdateReplicaState() bool {
-	// Should Start/Stop core also modifies replica state
-	blockNumber := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
-	if sb.replicaState.ShouldStopCore(blockNumber) {
-		// disable
-		if err := sb.StopValidating(); err != nil {
-			sb.logger.Warn("Error in stop validating", "func", "UpdateReplicaState", "err", err)
-			return true
-		}
-		return true
-	} else if sb.replicaState.ShouldStartCore(blockNumber) {
-		// enable
-		if err := sb.StartValidating(sb.hasBadBlock, sb.processBlock, sb.validateState); err != nil {
-			sb.logger.Warn("Error in start validating", "func", "UpdateReplicaState", "err", err)
-			return true
-		}
-		return true
-	}
-	return false
+// UpdateReplicaState updates the replica state with the latest seq and return if the node is a primary for that seq.
+func (sb *Backend) UpdateReplicaState(seq *big.Int) bool {
+	sb.replicaState.NewChainHead(seq)
+	return sb.replicaState.IsPrimary()
 }
