@@ -126,7 +126,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	backend.replicaState = replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StopValidating, backend.StopValidating)
+	backend.replicaState = replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -956,6 +956,10 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 
 		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
 	}
+}
+
+func (sb *Backend) IsPrimary() bool {
+	return sb.replicaState.IsPrimary()
 }
 
 // UpdateReplicaState updates the replica state with the latest seq and return if the node is a primary for that seq.

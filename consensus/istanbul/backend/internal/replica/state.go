@@ -222,6 +222,7 @@ func (rs *replicaStateImpl) IsPrimary() bool {
 	return rs.state == primaryPermanent || rs.state == primaryInRange
 }
 
+
 type ReplicaStateSummary struct {
 	State                string   `json:"state"`
 	IsPrimary            bool     `json:"isPrimary"`
@@ -248,7 +249,7 @@ func (rs *replicaStateImpl) Summary() *ReplicaStateSummary {
 
 	summary := &ReplicaStateSummary{
 		State:                state,
-		IsPrimary:            rs.IsPrimary(),
+		IsPrimary:            rs.state == primaryPermanent || rs.state == primaryInRange,
 		StartValidatingBlock: rs.startValidatingBlock,
 		StopValidatingBlock:  rs.stopValidatingBlock,
 	}

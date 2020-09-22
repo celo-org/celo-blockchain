@@ -609,8 +609,8 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	}()
 }
 
-// StartValidating implements consensus.Istanbul.StartValidating
-func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
+// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
+func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -619,22 +619,31 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return istanbul.ErrStartedEngine
 	}
 
+	sb.hasBadBlock = hasBadBlock
+	sb.processBlock = processBlock
+	sb.validateState = validateState
+
+	return nil
+}
+
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating() error {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+	if sb.coreStarted {
+		return istanbul.ErrStartedEngine
+	}
+
+	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
+		return errors.New("Must SetBlockProcessors prior to StartValidating")
+	}
+
 	// clear previous data
 	sb.proposedBlockHash = common.Hash{}
 	if sb.commitCh != nil {
 		close(sb.commitCh)
 	}
 	sb.commitCh = make(chan *types.Block, 1)
-
-	sb.hasBadBlock = hasBadBlock
-	sb.processBlock = processBlock
-	sb.validateState = validateState
-
-	// Don't start core if we're a replica
-	// TODO: wrap calls to StartValidating with this check instead of the other way around
-	if !sb.replicaState.IsPrimary() {
-		return nil
-	}
 
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
