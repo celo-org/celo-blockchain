@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 type State interface {
@@ -48,9 +49,8 @@ type replicaStateImpl struct {
 	startValidatingBlock *big.Int
 	stopValidatingBlock  *big.Int
 
-	rsdb           *ReplicaStateDB
-	mu             *sync.RWMutex
-	haveSavedState bool
+	rsdb *ReplicaStateDB
+	mu   *sync.RWMutex
 }
 
 // NewState creates a replicaState in the given replica state and opens or creates the replica state DB at `path`.
@@ -60,14 +60,15 @@ func NewState(isReplica bool, path string) State {
 		log.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", path)
 	}
 	rs, err := db.GetReplicaState()
-	if err != nil {
-		log.Crit("Can't read ReplicaStateDB at startup", "err", err, "dbpath", path)
+	if err == lvlerrors.ErrNotFound {
+		rs = &replicaStateImpl{
+			isReplica: isReplica,
+			mu:        new(sync.RWMutex),
+		}
+	} else if err != nil {
+		log.Warn("Can't read ReplicaStateDB at startup", "err", err, "dbpath", path)
 	}
 	rs.rsdb = db
-	// Override DB on first start up
-	if !rs.haveSavedState {
-		rs.isReplica = isReplica
-	}
 	db.StoreReplicaState(rs)
 	return rs
 }
@@ -269,7 +270,6 @@ func (rs *replicaStateImpl) Summary() *ReplicaStateSummary {
 }
 
 type replicaStateRLP struct {
-	HaveSavedState       bool
 	IsReplica            bool
 	Enabled              bool
 	StartValidatingBlock *big.Int
@@ -286,7 +286,6 @@ type replicaStateRLP struct {
 // values or no value at all is also permitted.
 func (rs *replicaStateImpl) EncodeRLP(w io.Writer) error {
 	entry := replicaStateRLP{
-		HaveSavedState:       true,
 		IsReplica:            rs.isReplica,
 		Enabled:              rs.enabled,
 		StartValidatingBlock: rs.startValidatingBlock,
@@ -306,7 +305,6 @@ func (rs *replicaStateImpl) DecodeRLP(stream *rlp.Stream) error {
 	}
 
 	rs.mu = new(sync.RWMutex)
-	rs.haveSavedState = data.HaveSavedState
 	rs.isReplica = data.IsReplica
 	rs.enabled = data.Enabled
 	rs.startValidatingBlock = data.StartValidatingBlock

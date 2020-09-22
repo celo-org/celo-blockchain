@@ -86,7 +86,7 @@ func (rsdb *ReplicaStateDB) GetReplicaState() (*replicaStateImpl, error) {
 func (rsdb *ReplicaStateDB) StoreReplicaState(rs State) error {
 	rsdb.lock.Lock()
 	defer rsdb.lock.Unlock()
-	logger := rsdb.logger.New("func", "UpdateReplicaState")
+	logger := rsdb.logger.New("func", "StoreReplicaState")
 
 	entryBytes, err := rlp.EncodeToBytes(rs)
 	if err != nil {
