@@ -959,19 +959,22 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 }
 
 func (sb *Backend) UpdateReplicaState() bool {
-	// First check if the core needs to be started or stopped
-	blockNum := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
-	if sb.replicaState.IsPrimary() && !sb.replicaState.IsPrimaryForSeq(blockNum) {
+	// Should Start/Stop core also modifies replica state
+	blockNumber := new(big.Int).Add(common.Big1, sb.currentBlock().Number())
+	if sb.replicaState.ShouldStopCore(blockNumber) {
 		// disable
-		sb.MakeReplica()
+		if err := sb.StopValidating(); err != nil {
+			sb.logger.Warn("Error in stop validating", "func", "UpdateReplicaState", "err", err)
+			return true
+		}
 		return true
-	} else if !sb.replicaState.IsPrimary() && sb.replicaState.IsPrimaryForSeq(blockNum) {
+	} else if sb.replicaState.ShouldStartCore(blockNumber) {
 		// enable
-		sb.MakePrimary()
+		if err := sb.StartValidating(sb.hasBadBlock, sb.processBlock, sb.validateState); err != nil {
+			sb.logger.Warn("Error in start validating", "func", "UpdateReplicaState", "err", err)
+			return true
+		}
 		return true
 	}
-	// Then potentially update internal replica state (mainly clears rs.enabled)
-	sb.replicaState.UpdateReplicaState(blockNum)
-
 	return false
 }

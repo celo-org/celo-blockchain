@@ -224,11 +224,8 @@ func (api *API) StartValidating() error {
 	return api.istanbul.MakePrimary()
 }
 
-// StartValidating stops the consensus engine from participating in consensus
+// StopValidating stops the consensus engine from participating in consensus
 func (api *API) StopValidating() error {
-	if !api.istanbul.coreStarted {
-		return istanbul.ErrStoppedEngine
-	}
 	return api.istanbul.MakeReplica()
 }
 

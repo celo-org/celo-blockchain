@@ -66,26 +66,7 @@ func (rsdb *ReplicaStateDB) Close() error {
 	return rsdb.gdb.Close()
 }
 
-// TODO: Fix
-// func (vet *ReplicaStateDB) String() string {
-// 	vet.lock.RLock()
-// 	defer vet.lock.RUnlock()
-// 	var b strings.Builder
-// 	b.WriteString("ValEnodeTable:")
-
-// 	err := vet.iterateOverAddressEntries(func(address common.Address, entry *istanbul.AddressEntry) error {
-// 		fmt.Fprintf(&b, " [%s => %s]", address.String(), entry.String())
-// 		return nil
-// 	})
-
-// 	if err != nil {
-// 		vet.logger.Error("ReplicaStateDB.String error", "err", err)
-// 	}
-
-// 	return b.String()
-// }
-
-func (rsdb *ReplicaStateDB) GetReplicaState() (State, error) {
+func (rsdb *ReplicaStateDB) GetReplicaState() (*replicaStateImpl, error) {
 	rsdb.lock.Lock()
 	defer rsdb.lock.Unlock()
 

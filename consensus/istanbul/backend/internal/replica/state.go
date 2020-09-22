@@ -30,13 +30,13 @@ type State interface {
 	// mutation functions
 	SetStartValidatingBlock(blockNumber *big.Int) error
 	SetStopValidatingBlock(blockNumber *big.Int) error
+	ShouldStartCore(seq *big.Int) bool
+	ShouldStopCore(seq *big.Int) bool
 	MakeReplica()
 	MakePrimary()
-	UpdateReplicaState(blockNumber *big.Int)
 	Close() error
 
 	// view functions
-	IsPrimary() bool
 	IsPrimaryForSeq(seq *big.Int) bool
 	Summary() *ReplicaStateSummary
 }
@@ -48,28 +48,38 @@ type replicaStateImpl struct {
 	startValidatingBlock *big.Int
 	stopValidatingBlock  *big.Int
 
-	rsdb *ReplicaStateDB
-	mu   *sync.RWMutex
+	rsdb           *ReplicaStateDB
+	mu             *sync.RWMutex
+	haveSavedState bool
 }
 
+// NewState creates a replicaState in the given replica state and opens or creates the replica state DB at `path`.
 func NewState(isReplica bool, path string) State {
 	db, err := OpenReplicaStateDB(path)
 	if err != nil {
 		log.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", path)
 	}
-	return &replicaStateImpl{
-		isReplica: isReplica,
-		mu:        new(sync.RWMutex),
-		rsdb:      db,
+	rs, err := db.GetReplicaState()
+	if err != nil {
+		log.Crit("Can't read ReplicaStateDB at startup", "err", err, "dbpath", path)
 	}
+	rs.rsdb = db
+	// Override DB on first start up
+	if !rs.haveSavedState {
+		rs.isReplica = isReplica
+	}
+	db.StoreReplicaState(rs)
+	return rs
 }
 
+// Close closes the replica state database
 func (rs *replicaStateImpl) Close() error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return rs.rsdb.Close()
 }
 
+// SetStartValidatingBlock sets the start block in the range [start, stop)
 func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
@@ -89,6 +99,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	return nil
 }
 
+// SetStopValidatingBlock sets the stop block in the range [start, stop)
 func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
@@ -108,41 +119,63 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	return nil
 }
 
+// MakeReplica makes this node a replica & clears all start/stop blocks.
 func (rs *replicaStateImpl) MakeReplica() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	defer rs.rsdb.StoreReplicaState(rs)
 
+	rs.enabled = false
+	rs.startValidatingBlock = nil
+	rs.stopValidatingBlock = nil
 	rs.isReplica = true
 }
 
+// MakePrimary makes this node a primary & clears all start/stop blocks.
 func (rs *replicaStateImpl) MakePrimary() {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	defer rs.rsdb.StoreReplicaState(rs)
 
+	rs.enabled = false
+	rs.startValidatingBlock = nil
+	rs.stopValidatingBlock = nil
 	rs.isReplica = false
 }
 
-func (rs *replicaStateImpl) shouldSwitchToPrimary(blockNumber *big.Int) bool {
-	if !rs.enabled {
-		return false
-	}
-	// start <= seq w/ no stop -> primary
-	if rs.startValidatingBlock != nil && blockNumber.Cmp(rs.startValidatingBlock) > 0 {
-		if rs.stopValidatingBlock == nil {
-			return true
-		}
-	}
+// ShouldStartCore returns true if the backend should start the istanbul core.
+// Also updates replica state if the core should start.
+func (rs *replicaStateImpl) ShouldStartCore(seq *big.Int) bool {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if rs.isPrimaryForSeq(seq) && rs.isReplica {
+		defer rs.rsdb.StoreReplicaState(rs)
 
+		if rs.shouldSwitchToPrimary(seq) {
+			rs.enabled = false
+			rs.startValidatingBlock = nil
+			rs.stopValidatingBlock = nil
+		}
+		rs.isReplica = false
+		return true
+	}
 	return false
 }
-func (rs *replicaStateImpl) shouldSwitchToReplica(blockNumber *big.Int) bool {
-	if !rs.enabled {
-		return false
-	}
-	// start <= stop <= seq -> replica
-	if rs.stopValidatingBlock != nil && blockNumber.Cmp(rs.stopValidatingBlock) > 0 {
+
+// ShouldStopCore returns true if the backend should stop the istanbul core.
+// Also updates replica state if the core should stop.
+func (rs *replicaStateImpl) ShouldStopCore(seq *big.Int) bool {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if !rs.isPrimaryForSeq(seq) && !rs.isReplica {
+		defer rs.rsdb.StoreReplicaState(rs)
+
+		if rs.shouldSwitchToReplica(seq) {
+			rs.enabled = false
+			rs.startValidatingBlock = nil
+			rs.stopValidatingBlock = nil
+		}
+		rs.isReplica = true
 		return true
 	}
 	return false
@@ -155,6 +188,38 @@ func (rs *replicaStateImpl) shouldSwitchToReplica(blockNumber *big.Int) bool {
 func (rs *replicaStateImpl) IsPrimaryForSeq(seq *big.Int) bool {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
+	return rs.isPrimaryForSeq(seq)
+}
+
+func (rs *replicaStateImpl) shouldSwitchToPrimary(blockNumber *big.Int) bool {
+	if !rs.enabled {
+		return false
+	}
+	// start <= seq w/ no stop -> primary
+	if rs.startValidatingBlock != nil && rs.startValidatingBlock.Cmp(blockNumber) <= 0 {
+		if rs.stopValidatingBlock == nil {
+			return true
+		}
+	}
+
+	return false
+}
+func (rs *replicaStateImpl) shouldSwitchToReplica(blockNumber *big.Int) bool {
+	if !rs.enabled {
+		return false
+	}
+	// start <= stop < seq -> replica
+	if rs.stopValidatingBlock != nil && rs.stopValidatingBlock.Cmp(blockNumber) < 0 {
+		return true
+	}
+	return false
+}
+
+// isPrimaryForSeq determines is this node is the primary validator.
+// If start/stop checking is enabled (via a call to start/stop at block)
+// determine if start <= seq < stop. If not enabled, check if this was
+// set up with replica mode.
+func (rs *replicaStateImpl) isPrimaryForSeq(seq *big.Int) bool {
 	if !rs.enabled {
 		return !rs.isReplica
 	}
@@ -166,27 +231,6 @@ func (rs *replicaStateImpl) IsPrimaryForSeq(seq *big.Int) bool {
 		return false
 	}
 	return true
-}
-
-func (rs *replicaStateImpl) IsPrimary() bool {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
-	return !rs.isReplica
-}
-
-// UpdateReplicaState clears replica state when a node is only ever a replica or a primary into the future.
-func (rs *replicaStateImpl) UpdateReplicaState(seq *big.Int) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-	if rs.isReplica && rs.shouldSwitchToReplica(seq) {
-		rs.enabled = false
-		rs.startValidatingBlock = nil
-		rs.stopValidatingBlock = nil
-	} else if !rs.isReplica && rs.shouldSwitchToPrimary(seq) {
-		rs.enabled = false
-		rs.startValidatingBlock = nil
-		rs.stopValidatingBlock = nil
-	}
 }
 
 type ReplicaStateSummary struct {
@@ -225,6 +269,7 @@ func (rs *replicaStateImpl) Summary() *ReplicaStateSummary {
 }
 
 type replicaStateRLP struct {
+	HaveSavedState       bool
 	IsReplica            bool
 	Enabled              bool
 	StartValidatingBlock *big.Int
@@ -241,6 +286,7 @@ type replicaStateRLP struct {
 // values or no value at all is also permitted.
 func (rs *replicaStateImpl) EncodeRLP(w io.Writer) error {
 	entry := replicaStateRLP{
+		HaveSavedState:       true,
 		IsReplica:            rs.isReplica,
 		Enabled:              rs.enabled,
 		StartValidatingBlock: rs.startValidatingBlock,
@@ -260,6 +306,7 @@ func (rs *replicaStateImpl) DecodeRLP(stream *rlp.Stream) error {
 	}
 
 	rs.mu = new(sync.RWMutex)
+	rs.haveSavedState = data.HaveSavedState
 	rs.isReplica = data.IsReplica
 	rs.enabled = data.Enabled
 	rs.startValidatingBlock = data.StartValidatingBlock
