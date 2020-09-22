@@ -8,7 +8,7 @@ steps:
      --build-arg COMMIT1=$$COMMIT1
      --build-arg COMMIT2=$$COMMIT2
      -t gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
-     -f Dockerfile.multiversion
+     -f tests/nightly/multiversion/Dockerfile.multiversion
      . '
   env:
   - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
@@ -37,9 +37,9 @@ steps:
      install celo/testnet
      --name nightlygethmultiversion
      --namespace nightlygethmultiversion
-     --values multiversion_values.yaml
+     --values tests/nightly/multiversion/multiversion_values.yaml
      --set geth.image.tag=$$COMMIT1-$$COMMIT2 
-     --set-file genesis.genesisFile=../genesis.json
+     --set-file genesis.genesisFile=tests/nightly/genesis.json
      '
   waitFor:
   - 'push'
