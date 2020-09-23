@@ -126,18 +126,12 @@ type Service struct {
 
 // New returns a monitoring service ready for stats reporting.
 func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Service, error) {
-	// Parse the netstats connection url
-	re := regexp.MustCompile("([^:@]*)?@(.+)")
-	parts := re.FindStringSubmatch(url)
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
-	}
 	// Assemble and return the stats service
 	var (
-		engine consensus.Engine
-		name     string
+		engine        consensus.Engine
+		name          string
+		celostatsHost string 
 	)
-	name = parts[1]
 	if ethServ != nil {
 		engine = ethServ.Engine()
 	} else {
@@ -145,6 +139,16 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	}
 
 	backend := engine.(*istanbulBackend.Backend)
+	if !backend.IsProxiedValidator() {
+		// Parse the netstats connection url
+		re := regexp.MustCompile("([^:@]*)?@(.+)")
+		parts := re.FindStringSubmatch(url)
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+		}
+		name = parts[1]
+		celostatsHost = parts[2]
+	}
 
 	return &Service{
 		eth:           ethServ,
@@ -152,7 +156,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		engine:        engine,
 		backend:       backend,
 		nodeName:      name,
-		celostatsHost: parts[2],
+		celostatsHost: celostatsHost,
 		pongCh:        make(chan struct{}),
 		histCh:        make(chan []uint64, 1),
 	}, nil
