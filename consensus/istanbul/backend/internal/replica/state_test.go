@@ -23,53 +23,76 @@ import (
 	"testing"
 )
 
+func noop() error {
+	return nil
+}
+
 func TestIsPrimaryForSeq(t *testing.T) {
 	rsdb, _ := OpenReplicaStateDB("")
 
-	t.Run("Is primary & startStop disabled", func(t *testing.T) {
+	t.Run("permanent primary", func(t *testing.T) {
 
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
 		rs := &replicaStateImpl{
-			mu:   new(sync.RWMutex),
-			rsdb: rsdb,
+			state:   primaryPermanent,
+			mu:      new(sync.RWMutex),
+			rsdb:    rsdb,
+			startFn: noop,
+			stopFn:  noop,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
 			}
 		}
 	})
 
-	t.Run("Is replica & startStop disabled", func(t *testing.T) {
+	t.Run("permanent replica", func(t *testing.T) {
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
 		rs := &replicaStateImpl{
-			isReplica: true,
-			mu:        new(sync.RWMutex),
-			rsdb:      rsdb,
+			state:   replicaPermanent,
+			mu:      new(sync.RWMutex),
+			rsdb:    rsdb,
+			startFn: noop,
+			stopFn:  noop,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if primary {
+				t.Errorf("expected to be replica for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
 		}
 	})
 
-	t.Run("Is replica & startStop enabled", func(t *testing.T) {
+	t.Run("replica waiting", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
 		rs := &replicaStateImpl{
-			isReplica:            true,
-			enabled:              true,
+			state:                replicaWaiting,
 			startValidatingBlock: big.NewInt(200),
 			mu:                   new(sync.RWMutex),
 			rsdb:                 rsdb,
+			startFn:              noop,
+			stopFn:               noop,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+			if primary {
+				t.Errorf("expected to be replica for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
@@ -78,6 +101,12 @@ func TestIsPrimaryForSeq(t *testing.T) {
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if !primary {
+				t.Errorf("expected to be primary for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
 			}
@@ -85,19 +114,26 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	})
 
-	t.Run("Is replica & transition through start stop range", func(t *testing.T) {
+	t.Run("replica waiting to primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
 		rs := &replicaStateImpl{
-			isReplica:            true,
-			enabled:              true,
+			state:                replicaWaiting,
 			stopValidatingBlock:  big.NewInt(210),
 			startValidatingBlock: big.NewInt(200),
 			mu:                   new(sync.RWMutex),
 			rsdb:                 rsdb,
+			startFn:              noop,
+			stopFn:               noop,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if primary {
+				t.Errorf("expected to be replica for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
@@ -106,6 +142,15 @@ func TestIsPrimaryForSeq(t *testing.T) {
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+			if rs.state != primaryInRange {
+				t.Errorf("expected rs.state to be %v, got %v", primaryInRange, rs.state)
+			}
+
+			if !primary {
+				t.Errorf("expected to be primary for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
 			}
@@ -114,24 +159,37 @@ func TestIsPrimaryForSeq(t *testing.T) {
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if primary {
+				t.Errorf("expected to be replica for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
 		}
 	})
 
-	t.Run("Is primary & transition through start stop range", func(t *testing.T) {
+	t.Run("primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128, 209}
 		rs := &replicaStateImpl{
-			isReplica:           false,
-			enabled:             true,
+			state:               primaryInRange,
 			stopValidatingBlock: big.NewInt(210),
 			mu:                  new(sync.RWMutex),
 			rsdb:                rsdb,
+			startFn:             noop,
+			stopFn:              noop,
 		}
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if !primary {
+				t.Errorf("expected to be primary for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
 			}
@@ -141,6 +199,12 @@ func TestIsPrimaryForSeq(t *testing.T) {
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
+			rs.NewChainHead(n)
+
+			if primary {
+				t.Errorf("expected to be replica for seq %v", seq)
+			}
+			primary = rs.IsPrimary()
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
@@ -154,7 +218,7 @@ func TestSetStartValidatingBlock(t *testing.T) {
 
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
 		rs := &replicaStateImpl{
-			enabled:             true,
+			state:               replicaWaiting,
 			stopValidatingBlock: big.NewInt(10),
 			mu:                  new(sync.RWMutex),
 			rsdb:                rsdb,
@@ -178,7 +242,7 @@ func TestSetStopValidatingBlock(t *testing.T) {
 	//start <= seq < stop
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
 		rs := &replicaStateImpl{
-			enabled:              true,
+			state:                replicaWaiting,
 			startValidatingBlock: big.NewInt(10),
 			mu:                   new(sync.RWMutex),
 			rsdb:                 rsdb,
