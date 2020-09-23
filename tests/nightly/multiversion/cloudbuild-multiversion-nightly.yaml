@@ -5,14 +5,11 @@ steps:
   args:
   - '-c'
   - 'docker build
-     --build-arg COMMIT1=$$COMMIT1
-     --build-arg COMMIT2=$$COMMIT2
-     -t gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+     --build-arg COMMIT1=${_COMMIT_1}
+     --build-arg COMMIT2=${_COMMIT_2}
+     -t gcr.io/$PROJECT_ID/geth-multi:${_COMMIT_1}-${_COMMIT_2}
      -f tests/nightly/multiversion/Dockerfile.multiversion
      . '
-  env:
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
 
 - name: 'gcr.io/cloud-builders/docker'
   id: push
@@ -20,13 +17,10 @@ steps:
   args:
   - '-c'
   - 'docker push
-     gcr.io/$PROJECT_ID/geth-multi:$$COMMIT1-$$COMMIT2
+     gcr.io/$PROJECT_ID/geth-multi:${_COMMIT_1}-${_COMMIT_2}
      '
   waitFor:
   - 'build'
-  env:
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
 
 - name: 'gcr.io/$PROJECT_ID/helm'
   id: deploy
@@ -38,7 +32,7 @@ steps:
      --name nightlygethmultiversion
      --namespace nightlygethmultiversion
      --values tests/nightly/multiversion/multiversion_values.yaml
-     --set geth.image.tag=$$COMMIT1-$$COMMIT2 
+     --set geth.image.tag=${_COMMIT_1}-${_COMMIT_2} 
      --set-file genesis.genesisFile=tests/nightly/genesis.json
      '
   waitFor:
@@ -48,8 +42,6 @@ steps:
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
   - 'HELM_REPO_NAME=celo'
   - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
   - 'TILLERLESS=true'
   - 'TILLER_NAMESPACE=tillercimultiversion'
   - 'DEBUG=true'
@@ -103,5 +95,9 @@ steps:
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
+
+substitutions:
+  _COMMIT_1: 1.0.1 # default value
+  _COMMIT_2: master # default value
 
 timeout: 2700s
