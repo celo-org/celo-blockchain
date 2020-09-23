@@ -97,7 +97,7 @@ steps:
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
 
 substitutions:
-  _COMMIT_1: 1.0.1 # default value
+  _COMMIT_1: e1260e31f774b68132e5d53c7846d87cfc2cb2bd # default value, 1.0.1 commit
   _COMMIT_2: master # default value
 
 timeout: 2700s
