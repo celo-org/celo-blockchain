@@ -125,7 +125,7 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldQuery = sb.isElectedValidatorForAnnounce()
+			shouldQuery = sb.shouldParticipateInAnnounceAnnounce()
 			shouldAnnounce = shouldQuery && sb.IsValidating()
 
 			if shouldQuery && !querying {
@@ -280,6 +280,16 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
 	default:
 	}
+}
+
+// shouldParticipateInAnnounceAnnounce returns true if instance is an elected or nearly elected validator.
+func (sb *Backend) shouldParticipateInAnnounceAnnounce() bool {
+	// Check if this node is in the validator connection set
+	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	if err != nil {
+		return false
+	}
+	return validatorConnSet[sb.Address()]
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -662,7 +672,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Only validators processes the queryEnode message
-	if sb.isElectedValidatorForAnnounce() {
+	if sb.shouldParticipateInAnnounceAnnounce() {
 		logger.Trace("Processing an queryEnode message", "queryEnode records", qeData.EncryptedEnodeURLs)
 		for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
 			// Only process an encEnodURL intended for this node
@@ -1035,7 +1045,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 
-	if sb.isElectedValidatorForAnnounce() {
+	if sb.shouldParticipateInAnnounceAnnounce() {
 		// Update entries in val enode db
 		var valEnodeEntries []*istanbul.AddressEntry
 		for _, entry := range entries {
@@ -1277,7 +1287,7 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	if !sb.isElectedValidatorForAnnounce() {
+	if !sb.shouldParticipateInAnnounceAnnounce() {
 		logger.Debug("This node should not save validator enode urls, ignoring enodeCertificate")
 		return nil
 	}
