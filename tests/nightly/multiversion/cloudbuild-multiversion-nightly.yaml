@@ -75,7 +75,7 @@ steps:
       gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
       kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
       sleep 5
-      /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 500 --first-block 2000 --last-block 2505
+      /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 500 --first-block 2222 --last-block 2505
   waitFor:
   - 'download'
   env:
