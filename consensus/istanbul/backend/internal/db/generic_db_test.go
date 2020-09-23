@@ -10,7 +10,7 @@ import (
 type mockEntry struct{}
 
 func TestUpsert(t *testing.T) {
-	vedb, err := NewGenericDB(int64(0), "", log.New(), nil)
+	gdb, err := New(int64(0), "", log.New(), nil)
 	if err != nil {
 		t.Fatal("Failed to create DB")
 	}
@@ -38,7 +38,7 @@ func TestUpsert(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		onExistingEntryCalled, onNewEntryCalled, err := upsertEntry(vedb, testCase.ExistingEntry, testCase.NewEntry)
+		onExistingEntryCalled, onNewEntryCalled, err := upsertEntry(gdb, testCase.ExistingEntry, testCase.NewEntry)
 		if err != nil {
 			t.Fatal("Failed to upsert entry")
 		}
@@ -51,7 +51,7 @@ func TestUpsert(t *testing.T) {
 	}
 }
 
-func upsertEntry(vedb *GenericDB, existingEntry *mockEntry, newEntry *mockEntry) (bool, bool, error) {
+func upsertEntry(gdb *GenericDB, existingEntry *mockEntry, newEntry *mockEntry) (bool, bool, error) {
 	var (
 		onExistingEntryCalled bool
 		onNewEntryCalled      bool
@@ -72,7 +72,7 @@ func upsertEntry(vedb *GenericDB, existingEntry *mockEntry, newEntry *mockEntry)
 		return nil
 	}
 
-	err := vedb.Upsert(
+	err := gdb.Upsert(
 		[]GenericEntry{GenericEntry(newEntry)},
 		getExistingEntry,
 		onExistingEntry,

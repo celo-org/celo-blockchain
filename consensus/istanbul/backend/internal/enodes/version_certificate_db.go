@@ -97,7 +97,7 @@ func (entry *VersionCertificateEntry) String() string {
 func OpenVersionCertificateDB(path string) (*VersionCertificateDB, error) {
 	logger := log.New("db", "VersionCertificateDB")
 
-	gdb, err := db.NewGenericDB(int64(versionCertificateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := db.New(int64(versionCertificateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
