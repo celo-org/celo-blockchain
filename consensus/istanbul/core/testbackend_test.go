@@ -95,6 +95,10 @@ func (self *testSystemBackend) IsPrimary() bool {
 	return true
 }
 
+func (self *testSystemBackend) IsPrimaryForSeq(seq *big.Int) bool {
+	return true
+}
+
 func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
 	//This doesn't really return the next block validators
 	return self.peers, nil
@@ -233,9 +237,7 @@ func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal)
 	return self.peers
 }
 
-func (self *testSystemBackend) UpdateReplicaState() bool {
-	return false
-}
+func (self *testSystemBackend) UpdateReplicaState(seq *big.Int) { /* pass */ }
 
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
