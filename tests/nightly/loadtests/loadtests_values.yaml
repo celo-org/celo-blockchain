@@ -1,47 +1,18 @@
-bootnode:
-  image:
-    repository: us.gcr.io/celo-testnet/geth-all
-    tag: master
+blockscout:
+  measurePercent: 0
+  url: https://nightlygethmultiversion-blockscout.celo-networks-dev.org
 celotool:
   image:
     repository: gcr.io/celo-testnet/celo-monorepo
     tag: celotool-3753ec8910a8b53b011c6863dd0d7e15dc4790c1
-domain:
-  name: celo-networks-dev
-genesis:
-  genesisFile: ""
-  networkId: 1101
+delay: 5000
+environment: nightlyloadtests
 geth:
-  account:
-    secret: u4V73ajMLLM1PDyyHO&L4YTY
-  blocktime: 5
-  diskSizeGB: 2
-  faultyValidatorType: 1
-  faultyValidators: 0
   image:
     repository: us.gcr.io/celo-testnet/geth
     tag: master
-  in_memory_discovery_table: false
-  istanbulrequesttimeout: 3000
-  ping_ip_from_packet: false
-  private_tx_nodes: 0
-  resources:
-    requests:
-      cpu: 400m
-      memory: 800M
-  ssd_disks: true
-  tx_nodes: 1
-  use_gstorage_data: true
-  gstorage_data_bucket: testnet_sample_chain
-  validators: 4
-  verbosity: 2
-  vmodule: ""
-metrics: false
-mnemonic: loud guess job aunt yard eyebrow begin cake section share plate avocado
-  train school salon giggle point crisp theme diet wrong risk filter ill
-pprof:
-  enabled: false
-promtosd:
-  export_interval: 120m
-  scrape_interval: 120m
+  networkID: 1101
+  verbosity: 1
+replicas: 5
+threads: 5
 

@@ -2,6 +2,12 @@
 
 This folder contains different nighly tests run by Cloud Build
 
+## Repositories and artifacts
+
+1. celo-blockchain: Contains the cloudbuild job definitions and the helm value files.
+1. celo-infrastructure: Contains the helm charts and helm artifacts using in the tests.
+1. kliento: Contains the health-check script used in the multiversion test.
+
 ## Trigger executor
 
 The cloudbuilds cron jobs are triggered using a Kubernetes cronjob in `celo-networks-dev` cluster and `nightly-tools` namespace.

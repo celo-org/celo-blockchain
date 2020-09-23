@@ -8,8 +8,7 @@ steps:
      install celo/testnet
      --name nightlyloadtests
      --namespace nightlyloadtests
-     --values loadtests_values.yaml
-     --set-file genesis.genesisFile=../genesis.json
+     --values tests/nightly/loadtests/testnet_values.yaml
      '
   waitFor:
   - 'push'
@@ -18,10 +17,30 @@ steps:
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
   - 'HELM_REPO_NAME=celo'
   - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
-  - 'COMMIT1=13a3406014e7df867b8d7305a0adef51b5d48211'
-  - 'COMMIT2=e1260e31f774b68132e5d53c7846d87cfc2cb2bd'
   - 'TILLERLESS=true'
-  - 'TILLER_NAMESPACE=tillercimultiversion'
+  - 'TILLER_NAMESPACE=tillerciloadtests'
+  - 'DEBUG=true'
+
+- name: 'gcr.io/$PROJECT_ID/helm'
+  id: deploy
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - '/builder/helm.bash
+     install celo/load-test
+     --name nightlyloadtests-loadtests
+     --namespace nightlyloadtests
+     --values tests/nightly/loadtests/loadtests_values.yaml
+     '
+  waitFor:
+  - 'push'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
+  - 'HELM_REPO_NAME=celo'
+  - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
+  - 'TILLERLESS=true'
+  - 'TILLER_NAMESPACE=tillerciloadtests'
   - 'DEBUG=true'
 
 - name: 'ubuntu'
