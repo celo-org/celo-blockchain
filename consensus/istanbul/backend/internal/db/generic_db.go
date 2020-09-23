@@ -57,15 +57,15 @@ func New(dbVersion int64, path string, logger log.Logger, writeOptions *opt.Writ
 }
 
 // Close flushes and closes the database files.
-func (vedb *GenericDB) Close() error {
-	return vedb.db.Close()
+func (gdb *GenericDB) Close() error {
+	return gdb.db.Close()
 }
 
 // Upsert iterates through each provided entry and determines if the entry is
 // new. If there is an existing entry in the db, `onUpdatedEntry` is called.
 // If there is no existing entry, `onNewEntry` is called. Db content modifications are left to those functions
 // by providing a leveldb Batch that is written after all entries are processed.
-func (vedb *GenericDB) Upsert(
+func (gdb *GenericDB) Upsert(
 	entries []GenericEntry,
 	getExistingEntry func(entry GenericEntry) (GenericEntry, error),
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry GenericEntry, newEntry GenericEntry) error,
@@ -90,7 +90,7 @@ func (vedb *GenericDB) Upsert(
 	}
 
 	if batch.Len() > 0 {
-		err := vedb.Write(batch)
+		err := gdb.Write(batch)
 		if err != nil {
 			return err
 		}
@@ -99,20 +99,20 @@ func (vedb *GenericDB) Upsert(
 }
 
 // Get gets the bytes at a given key in the db
-func (vedb *GenericDB) Get(key []byte) ([]byte, error) {
-	return vedb.db.Get(key, nil)
+func (gdb *GenericDB) Get(key []byte) ([]byte, error) {
+	return gdb.db.Get(key, nil)
 }
 
 // Write writes a Batch to modify the db
-func (vedb *GenericDB) Write(batch *leveldb.Batch) error {
-	return vedb.db.Write(batch, vedb.writeOptions)
+func (gdb *GenericDB) Write(batch *leveldb.Batch) error {
+	return gdb.db.Write(batch, gdb.writeOptions)
 }
 
 // Iterate will iterate through each entry in the db whose key has the prefix
 // keyPrefix, and call `onEntry` with the bytes of the key (without the prefix)
 // and the bytes of the value
-func (vedb *GenericDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
-	iter := vedb.db.NewIterator(util.BytesPrefix(keyPrefix), nil)
+func (gdb *GenericDB) Iterate(keyPrefix []byte, onEntry func([]byte, []byte) error) error {
+	iter := gdb.db.NewIterator(util.BytesPrefix(keyPrefix), nil)
 	defer iter.Release()
 
 	for iter.Next() {
