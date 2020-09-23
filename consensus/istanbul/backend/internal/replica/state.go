@@ -243,14 +243,17 @@ func (rs *replicaStateImpl) IsPrimaryForSeq(seq *big.Int) bool {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
-	// Return start <= seq < stop with start/stop at +-inf if nil
-	if rs.startValidatingBlock != nil && seq.Cmp(rs.startValidatingBlock) < 0 {
+	switch rs.state {
+	case primaryPermanent:
+		return true
+	case replicaPermanent:
 		return false
+	case replicaWaiting:
+		return seq.Cmp(rs.startValidatingBlock) >= 0
+	case primaryInRange:
+		return seq.Cmp(rs.stopValidatingBlock) < 0
 	}
-	if rs.stopValidatingBlock != nil && seq.Cmp(rs.stopValidatingBlock) >= 0 {
-		return false
-	}
-	return true
+	return false
 }
 
 type ReplicaStateSummary struct {
@@ -323,13 +326,13 @@ func (rs *replicaStateImpl) DecodeRLP(stream *rlp.Stream) error {
 
 	rs.mu = new(sync.RWMutex)
 	rs.state = data.State
-	if data.StartValidatingBlock.Cmp(common.Big0) == 0{
+	if data.StartValidatingBlock.Cmp(common.Big0) == 0 {
 		rs.startValidatingBlock = nil
 	} else {
 		rs.startValidatingBlock = data.StartValidatingBlock
 
 	}
-	if data.StopValidatingBlock.Cmp(common.Big0) == 0{
+	if data.StopValidatingBlock.Cmp(common.Big0) == 0 {
 		rs.stopValidatingBlock = nil
 	} else {
 		rs.stopValidatingBlock = data.StopValidatingBlock
