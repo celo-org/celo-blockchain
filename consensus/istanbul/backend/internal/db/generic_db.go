@@ -42,10 +42,10 @@ type GenericDB struct {
 
 type GenericEntry interface{}
 
-// NewGenericDB will open a new db at the given file path with the given version.
+// New will open a new db at the given file path with the given version.
 // If the path is empty, the db will be created in memory.
 // If there is a version mismatch in the existing db, the contents are flushed.
-func NewGenericDB(dbVersion int64, path string, logger log.Logger, writeOptions *opt.WriteOptions) (*GenericDB, error) {
+func New(dbVersion int64, path string, logger log.Logger, writeOptions *opt.WriteOptions) (*GenericDB, error) {
 	db, err := NewDB(dbVersion, path, logger)
 	if err != nil {
 		return nil, err

@@ -10,7 +10,7 @@ import (
 type mockEntry struct{}
 
 func TestUpsert(t *testing.T) {
-	vedb, err := NewGenericDB(int64(0), "", log.New(), nil)
+	vedb, err := New(int64(0), "", log.New(), nil)
 	if err != nil {
 		t.Fatal("Failed to create DB")
 	}

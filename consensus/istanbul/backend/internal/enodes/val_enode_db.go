@@ -77,7 +77,7 @@ type ValidatorEnodeDB struct {
 func OpenValidatorEnodeDB(path string, handler ValidatorEnodeHandler) (*ValidatorEnodeDB, error) {
 	logger := log.New("db", "ValidatorEnodeDB")
 
-	gdb, err := db.NewGenericDB(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := db.New(int64(valEnodeDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
