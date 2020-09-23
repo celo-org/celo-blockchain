@@ -17,11 +17,12 @@ package proxy
 
 import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
+func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
 	proxies, _, err := pv.GetProxiesAndValAssignments()
 	if err != nil {
 		return err
@@ -29,7 +30,8 @@ func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
 
 	for _, proxy := range proxies {
 		if proxy.peer != nil {
-			if proxy.statsHandler {
+			// Searches the proxy-peer that sent the message to be signed
+			if proxy.peer.Node().ID() == peerID {
 				pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
 			}
 			return nil

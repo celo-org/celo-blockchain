@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -59,7 +60,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 
 		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
+					PeerID: peer.Node().ID(), 
+					Payload: data,
+				})
 				return true, nil
 			}
 			logger.Error("Delegate Sign message sent to node that is not designated to handle celostats", "peer", peer)
@@ -114,9 +118,9 @@ func (sb *Backend) shouldHandleDelegateSign(peer consensus.Peer) bool {
 	if sb.IsProxy() {
 		return true
 	} else if sb.IsProxiedValidator() {
-		isStatsProxy, err := sb.proxiedValidatorEngine.IsStatsProxy(peer.Node().ID())
+		isStatsProxy, err := sb.proxiedValidatorEngine.IsProxyPeer(peer.Node().ID())
 		if err != nil {
-			sb.logger.Warn("Error when checking if peer is stats proxy", "err", err)
+			sb.logger.Warn("Error when checking if peer handling delegateSign is a proxy", "err", err)
 		}
 		return isStatsProxy
 	}
@@ -125,7 +129,7 @@ func (sb *Backend) shouldHandleDelegateSign(peer consensus.Peer) bool {
 }
 
 // SubscribeNewDelegateSignEvent subscribes a channel to any new delegate sign messages
-func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageEvent) event.Subscription {
+func (sb *Backend) SubscribeNewDelegateSignEvent(ch chan<- istanbul.MessageWithPeerIDEvent) event.Subscription {
 	return sb.delegateSignScope.Track(sb.delegateSignFeed.Subscribe(ch))
 }
 

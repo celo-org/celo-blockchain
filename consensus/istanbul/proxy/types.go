@@ -102,7 +102,7 @@ type ProxiedValidatorEngine interface {
 
 	// SendDelegateSignMsgToProxy will send a delegate sign message back to the proxy that is designated to
 	// handle celostats.
-	SendDelegateSignMsgToProxy(msg []byte) error
+	SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error
 
 	// SendForwardMsg will send a forward message to all of the proxies.
 	SendForwardMsgToAllProxies(finalDestAddresses []common.Address, ethMsgCode uint64, payload []byte) error
@@ -121,8 +121,8 @@ type ProxiedValidatorEngine interface {
 	// the proxy to validator assignments.
 	GetProxiesAndValAssignments() ([]*Proxy, map[enode.ID][]common.Address, error)
 
-	// IsStatsProxy will check if the peerID is the designated proxy to communicate with celo stats.
-	IsStatsProxy(peerID enode.ID) (bool, error)
+	// IsProxyPeer will check if the peerID is a proxy.
+	IsProxyPeer(peerID enode.ID) (bool, error)
 }
 
 // ==============================================
