@@ -232,26 +232,14 @@ func (api *API) StopValidating() error {
 // StartValidatingAtBlock starts the consensus engine on the given
 // block number.
 func (api *API) StartValidatingAtBlock(blockNumber int64) error {
-	if blockNumber <= 0 {
-		return errors.New("blockNumber must be > 0")
-	}
 	seq := big.NewInt(blockNumber)
-	if seq.Cmp(api.istanbul.currentBlock().Number()) < 0 {
-		return errors.New("blockNumber should be greater than the current block number")
-	}
 	return api.istanbul.SetStartValidatingBlock(seq)
 }
 
 // StopValidatingAtBlock stops the consensus engine from participating in consensus
 // on the given block number.
 func (api *API) StopValidatingAtBlock(blockNumber int64) error {
-	if blockNumber <= 0 {
-		return errors.New("blockNumber must be > 0")
-	}
 	seq := big.NewInt(blockNumber)
-	if seq.Cmp(api.istanbul.currentBlock().Number()) < 0 {
-		return errors.New("blockNumber should be greater than the current block number")
-	}
 	return api.istanbul.SetStopValidatingBlock(seq)
 }
 

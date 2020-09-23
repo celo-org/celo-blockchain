@@ -982,10 +982,16 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 }
 
 func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
 	return sb.replicaState.SetStartValidatingBlock(blockNumber)
 }
 
 func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
 	return sb.replicaState.SetStopValidatingBlock(blockNumber)
 }
 

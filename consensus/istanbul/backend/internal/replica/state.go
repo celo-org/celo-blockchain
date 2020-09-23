@@ -145,6 +145,9 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	defer rs.mu.Unlock()
 	defer rs.rsdb.StoreReplicaState(rs)
 
+	if blockNumber <= 0 {
+		return errors.New("blockNumber must be > 0")
+	}
 	if rs.stopValidatingBlock != nil && !(blockNumber.Cmp(rs.stopValidatingBlock) < 0) {
 		return errors.New("Start block number should be less than the stop block number")
 	}
@@ -168,6 +171,9 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	defer rs.mu.Unlock()
 	defer rs.rsdb.StoreReplicaState(rs)
 
+	if blockNumber <= 0 {
+		return errors.New("blockNumber must be > 0")
+	}
 	if rs.startValidatingBlock != nil && !(blockNumber.Cmp(rs.startValidatingBlock) > 0) {
 		return errors.New("Stop block number should be greater than the start block number")
 	}
