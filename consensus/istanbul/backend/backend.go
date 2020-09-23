@@ -958,12 +958,15 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 	}
 }
 
+func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
+	return sb.replicaState.IsPrimaryForSeq(seq)
+}
+
 func (sb *Backend) IsPrimary() bool {
 	return sb.replicaState.IsPrimary()
 }
 
-// UpdateReplicaState updates the replica state with the latest seq and return if the node is a primary for that seq.
-func (sb *Backend) UpdateReplicaState(seq *big.Int) bool {
+// UpdateReplicaState updates the replica state with the latest seq.
+func (sb *Backend) UpdateReplicaState(seq *big.Int) {
 	sb.replicaState.NewChainHead(seq)
-	return sb.replicaState.IsPrimary()
 }

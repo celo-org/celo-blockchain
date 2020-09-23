@@ -93,8 +93,8 @@ type CoreBackend interface {
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
 
-	// UpdateReplicaState updates the replica state with the latest seq and return if the node is a primary for that seq.
-	UpdateReplicaState(seq *big.Int) bool
+	IsPrimaryForSeq(seq *big.Int) bool
+	UpdateReplicaState(seq *big.Int)
 }
 
 type core struct {
@@ -515,7 +515,13 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Inform the backend that a new sequence has started & bail if the backed stopped the core
 	if !roundChange {
-		if primary := c.backend.UpdateReplicaState(newView.Sequence); !primary {
+		if primary := c.backend.IsPrimaryForSeq(newView.Sequence); !primary {
+			// We need to run UpdateReplicaState outside of the core b/c when it stops the core
+			// it runs c.handlerWg.Wait(). To empty that wait group, we need to return from this
+			// function. We unsubscribe from events to stop the core from processing more events
+			// prior to being fully shut down.
+			c.unsubscribeEvents()
+			go c.backend.UpdateReplicaState(newView.Sequence)
 			return nil
 		}
 	}

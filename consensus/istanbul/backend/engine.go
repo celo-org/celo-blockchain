@@ -599,7 +599,8 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 			select {
 			case chainEvent := <-chainEventCh:
 				if !sb.coreStarted {
-					sb.replicaState.NewChainHead(chainEvent.Block.Number())
+					n := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+					sb.replicaState.NewChainHead(n)
 				}
 			case err := <-chainEventSub.Err():
 				log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)

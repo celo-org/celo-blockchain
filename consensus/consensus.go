@@ -172,6 +172,9 @@ type Istanbul interface {
 	// IsPrimary returns true if this node is the primary validator
 	IsPrimary() bool
 
+	// IsPrimaryForSeq returns true if this node is the primary validator for the sequence
+	IsPrimaryForSeq(seq *big.Int) bool
+
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 

@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	lvlerrors "github.com/syndtr/goleveldb/leveldb/errors"
@@ -48,6 +49,7 @@ type State interface {
 
 	// view functions
 	IsPrimary() bool
+	IsPrimaryForSeq(blockNumber *big.Int) bool
 	Summary() *ReplicaStateSummary
 }
 
@@ -102,27 +104,32 @@ func (rs *replicaStateImpl) Close() error {
 
 // NewChainHead updates replica state and starts/stops the core if needed
 func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
+	logger := log.New("func", "NewChainHead", "seq", blockNumber)
 	switch rs.state {
 	case primaryInRange:
-		if blockNumber.Cmp(rs.stopValidatingBlock) > 0 {
+		if blockNumber.Cmp(rs.stopValidatingBlock) >= 0 {
+			logger.Info("About to stop validating")
 			if err := rs.stopFn(); err != nil {
+				logger.Warn("Error stopping core", "err", err)
 				return err
 			}
-			rs.state = primaryPermanent
+			rs.state = replicaPermanent
 			rs.startValidatingBlock = nil
 			rs.stopValidatingBlock = nil
-
 		}
 	case replicaWaiting:
 		if blockNumber.Cmp(rs.startValidatingBlock) >= 0 {
 			if err := rs.startFn(); err != nil {
+				logger.Warn("Error starting core", "err", err)
 				return err
 			}
 			if rs.stopValidatingBlock == nil {
+				logger.Info("Switching to primary (permanent)")
 				rs.state = primaryPermanent
 				rs.startValidatingBlock = nil
 				rs.stopValidatingBlock = nil
 			} else {
+				logger.Info("Switching to primary in range")
 				rs.state = primaryInRange
 			}
 		}
@@ -222,6 +229,23 @@ func (rs *replicaStateImpl) IsPrimary() bool {
 	return rs.state == primaryPermanent || rs.state == primaryInRange
 }
 
+// IsPrimaryForSeq determines is this node is the primary validator.
+// If start/stop checking is enabled (via a call to start/stop at block)
+// determine if start <= seq < stop. If not enabled, check if this was
+// set up with replica mode.
+func (rs *replicaStateImpl) IsPrimaryForSeq(seq *big.Int) bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	// Return start <= seq < stop with start/stop at +-inf if nil
+	if rs.startValidatingBlock != nil && seq.Cmp(rs.startValidatingBlock) < 0 {
+		return false
+	}
+	if rs.stopValidatingBlock != nil && seq.Cmp(rs.stopValidatingBlock) >= 0 {
+		return false
+	}
+	return true
+}
 
 type ReplicaStateSummary struct {
 	State                string   `json:"state"`
@@ -289,11 +313,21 @@ func (rs *replicaStateImpl) DecodeRLP(stream *rlp.Stream) error {
 	if err != nil {
 		return err
 	}
+	log.Warn("decode replica state RLP", "startValidatingBlock", data.StartValidatingBlock, "stopValidatingBlock", data.StopValidatingBlock)
 
 	rs.mu = new(sync.RWMutex)
 	rs.state = data.State
-	rs.startValidatingBlock = data.StartValidatingBlock
-	rs.stopValidatingBlock = data.StopValidatingBlock
+	if data.StartValidatingBlock.Cmp(common.Big0) == 0{
+		rs.startValidatingBlock = nil
+	} else {
+		rs.startValidatingBlock = data.StartValidatingBlock
+
+	}
+	if data.StopValidatingBlock.Cmp(common.Big0) == 0{
+		rs.stopValidatingBlock = nil
+	} else {
+		rs.stopValidatingBlock = data.StopValidatingBlock
+	}
 
 	return nil
 }
