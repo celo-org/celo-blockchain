@@ -18,7 +18,9 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
@@ -122,12 +124,74 @@ var mockEVM = &EVM{
 	),
 }
 
+func loadJson(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledTestFromJson
+	err = json.Unmarshal(data, &jsonTests)
+	testcases := make([]precompiledTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledTest{input: jsonTest.Input, expected: jsonTest.Expected, name: jsonTest.Name, errorExpected: false, noBenchmark: jsonTest.NoBenchmark}
+	}
+	return testcases, err
+}
+
+func loadJsonFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/fail-%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var testcases []precompiledFailureTest
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
+func testJson(name, addr string, t *testing.T) {
+	tests, err := loadJson(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
+	}
+}
+
+func testJsonFail(name, addr string, t *testing.T) {
+	tests, err := loadJsonFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
+}
+
+func benchJson(name, addr string, b *testing.B) {
+	tests, err := loadJson(name)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, test := range tests {
+		benchmarkPrecompiled(addr, test, b)
+	}
+}
+
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
 	name            string
 	noBenchmark     bool // Benchmark primarily the worst-cases
 	errorExpected   bool
+}
+
+type precompiledTestFromJson struct {
+	Input, Expected string
+	Name            string
+	NoBenchmark     bool // Benchmark primarily the worst-cases
+	ErrorExpected   bool
 }
 
 // precompiledFailureTest defines the input/error pairs for precompiled
@@ -982,4 +1046,32 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 	for _, test := range getVerifiedSealBitmapTests {
 		testPrecompiled("f4", test, t)
 	}
+}
+
+func TestPrecompiledBLS12377G1Add(t *testing.T) {
+	testJson("bls12377G1Add", "f3", t)
+}
+
+func TestPrecompiledBLS12377G1Mul(t *testing.T) {
+	testJson("bls12377G1Mul", "f2", t)
+}
+
+func TestPrecompiledBLS12377G1MultiExp(t *testing.T) {
+	testJson("bls12377G1MultiExp", "f1", t)
+}
+
+func TestPrecompiledBLS12377G2Add(t *testing.T) {
+	testJson("bls12377G2Add", "f0", t)
+}
+
+func TestPrecompiledBLS12377G2Mul(t *testing.T) {
+	testJson("bls12377G2Mul", "ef", t)
+}
+
+func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
+	testJson("bls12377G2MultiExp", "ee", t)
+}
+
+func TestPrecompiledBLS12377Pairing(t *testing.T) {
+	testJson("bls12377Pairing", "ed", t)
 }
