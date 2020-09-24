@@ -130,7 +130,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	var (
 		engine        consensus.Engine
 		name          string
-		celostatsHost string 
+		celostatsHost string
 	)
 	if ethServ != nil {
 		engine = ethServ.Engine()
@@ -253,7 +253,7 @@ func (s *Service) loop() {
 				delegateSignMessage.PeerID = delegateSignMsg.PeerID
 				err := json.Unmarshal(delegateSignMsg.Payload, &delegateSignMessage.Payload)
 				if err != nil {
-				 	break HandleLoop
+					break HandleLoop
 				}
 				if s.backend.IsProxy() {
 					// proxy should send to websocket

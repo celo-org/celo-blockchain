@@ -60,7 +60,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 		if msg.Code == istanbul.DelegateSignMsg {
 			if sb.shouldHandleDelegateSign(peer) {
 				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
-					PeerID: peer.Node().ID(), 
+					PeerID:  peer.Node().ID(),
 					Payload: data,
 				})
 				return true, nil
