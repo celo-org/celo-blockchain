@@ -56,8 +56,8 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
 
-	// TODO(victor): Replace false with a check that the hard fork is inactive.
-	if false {
+	// TODO(victor): Replace true with a check that the hard fork is inactive.
+	if true {
 		return blscrypto.EncodeEpochSnarkDataWithoutEntropy(
 			blsPubKeys, maxNonSigners,
 			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
