@@ -1049,29 +1049,36 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 }
 
 func TestPrecompiledBLS12377G1Add(t *testing.T) {
-	testJson("bls12377G1Add", "f3", t)
+	testJson("bls12377G1Add_matter", "f3", t)
+	testJson("bls12377G1Add_zexe", "f3", t)
 }
 
 func TestPrecompiledBLS12377G1Mul(t *testing.T) {
-	testJson("bls12377G1Mul", "f2", t)
+	testJson("bls12377G1Mul_matter", "f2", t)
+	testJson("bls12377G1Add_zexe", "f3", t)
 }
 
-func TestPrecompiledBLS12377G1MultiExp(t *testing.T) {
-	testJson("bls12377G1MultiExp", "f1", t)
+func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
+	testJson("bls12377G1MultiExp_matter", "f1", t)
+	testJson("bls12377G1MultiExp_zexe", "f1", t)
 }
 
 func TestPrecompiledBLS12377G2Add(t *testing.T) {
-	testJson("bls12377G2Add", "f0", t)
+	testJson("bls12377G2Add_matter", "f0", t)
+	testJson("bls12377G2Add_zexe", "f0", t)
 }
 
 func TestPrecompiledBLS12377G2Mul(t *testing.T) {
-	testJson("bls12377G2Mul", "ef", t)
+	testJson("bls12377G2Mul_matter", "ef", t)
+	testJson("bls12377G2Mul_zexe", "ef", t)
 }
 
 func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
-	testJson("bls12377G2MultiExp", "ee", t)
+	testJson("bls12377G2MultiExp_matter", "ee", t)
+	testJson("bls12377G2MultiExp_zexe", "ee", t)
 }
 
 func TestPrecompiledBLS12377Pairing(t *testing.T) {
-	testJson("bls12377Pairing", "ed", t)
+	testJson("bls12377Pairing_matter", "ed", t)
+	testJson("bls12377Pairing_zexe", "ed", t)
 }

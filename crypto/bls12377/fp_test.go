@@ -3,7 +3,6 @@ package bls12377
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"testing"
 )
@@ -881,7 +880,6 @@ func TestFp6MultiplicationProperties(t *testing.T) {
 		field.mul(c2, cx, b)
 		field.mul(c2, c2, a)
 		if !c1.equal(c2) {
-			fmt.Println(i)
 			t.Fatal("(a * b) * c == (a * c) * b")
 		}
 		field.square(a, zero)
