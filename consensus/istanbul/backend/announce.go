@@ -98,11 +98,12 @@ func (sb *Backend) announceThread() {
 	var updateAnnounceVersionTicker *time.Ticker
 	var updateAnnounceVersionTickerCh <-chan time.Time
 
-	// Elected but non validating validators listen & query for enodes
-	// Elected and validating validators annouce (updateAnnounceVersion)
+	// Replica validators listen & query for enodes       (query true, announce false)
+	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
+	// Replicas need to query to populate their validator enode table, but don't want to
+	// update the proxie's validator assignments at the same time as the primary.
 	var shouldQuery, shouldAnnounce bool
 	var querying, announcing bool
-	// States: validator -> (elected & second, elected & primary, not elected) OR proxy
 
 	updateAnnounceVersionFunc := func() {
 		version := getTimestamp()
