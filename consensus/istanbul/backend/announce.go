@@ -126,7 +126,8 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldQuery, err := sb.shouldParticipateInAnnounce()
+			var err error
+			shouldQuery, err = sb.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
