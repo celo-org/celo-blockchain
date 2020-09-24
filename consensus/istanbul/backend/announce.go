@@ -126,13 +126,11 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			// shouldQuery, err := sb.shouldParticipateInAnnounce()
-			shouldQuery := sb.shouldParticipateInAnnounce()
-
-			// if err != nil {
-			// 	logger.Warn("Error in checking if should announce", err)
-			// 	break
-			// }
+			shouldQuery, err := sb.shouldParticipateInAnnounce()
+			if err != nil {
+				logger.Warn("Error in checking if should announce", err)
+				break
+			}
 			shouldAnnounce = shouldQuery && sb.IsValidating()
 
 			if shouldQuery && !querying {
@@ -290,16 +288,15 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 }
 
 // shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.
-// func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
-func (sb *Backend) shouldParticipateInAnnounce() bool {
+func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
 
 	// Check if this node is in the validator connection set
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {
-		return false //, err
+		return false, err
 	}
 
-	return validatorConnSet[sb.Address()] //, nil
+	return validatorConnSet[sb.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -682,12 +679,10 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Only elected or nearly elected validators processes the queryEnode message
-	// shouldProcess, err := sb.shouldParticipateInAnnounce()
-	shouldProcess := sb.shouldParticipateInAnnounce()
-
-	// if err != nil {
-	// 	logger.Warn("Error in checking if should process queryEnode", err)
-	// }
+	shouldProcess, err := sb.shouldParticipateInAnnounce()
+	if err != nil {
+		logger.Warn("Error in checking if should process queryEnode", err)
+	}
 
 	if shouldProcess {
 		logger.Trace("Processing an queryEnode message", "queryEnode records", qeData.EncryptedEnodeURLs)
@@ -1061,12 +1056,10 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 
 func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
-	// shouldProcess, err := sb.shouldParticipateInAnnounce()
-	shouldProcess := sb.shouldParticipateInAnnounce()
-
-	// if err != nil {
-	// 	logger.Warn("Error in checking if should process queryEnode", err)
-	// }
+	shouldProcess, err := sb.shouldParticipateInAnnounce()
+	if err != nil {
+		logger.Warn("Error in checking if should process queryEnode", err)
+	}
 
 	if shouldProcess {
 		// Update entries in val enode db
@@ -1310,13 +1303,11 @@ func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	// shouldSave, err := sb.shouldParticipateInAnnounce()
-	shouldSave := sb.shouldParticipateInAnnounce()
-
-	// if err != nil {
-	// 	logger.Error("Error checking if should save received validator enode url", "err", err)
-	// 	return err
-	// }
+	shouldSave, err := sb.shouldParticipateInAnnounce()
+	if err != nil {
+		logger.Error("Error checking if should save received validator enode url", "err", err)
+		return err
+	}
 	if !shouldSave {
 		logger.Debug("This node should not save validator enode urls, ignoring enodeCertificate")
 		return nil
