@@ -149,7 +149,9 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 	if len(parents) > 0 {
 		parent = parents[len(parents)-1]
 	} else {
-		parent = chain.GetHeader(header.ParentHash, number-1)
+		// Retreive header by number, even though we have the parent hash, because we only want
+		// to consider blocks which are direct children of the canonical chain.
+		parent = chain.GetHeaderByNumber(number - 1)
 	}
 	if chain.Config().FullHeaderChainAvailable {
 
