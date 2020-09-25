@@ -286,16 +286,16 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
-func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
+func (sb *Backend) RegisterPeer(peer consensus.Peer, peerIsInternal bool) error {
 	// TODO - For added security, we may want the node keys of the proxied validators to be
 	//        registered with the proxy, and verify that all newly connected proxied peer has
 	//        the correct node key
 	logger := sb.logger.New("func", "RegisterPeer")
 
-	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
+	logger.Trace("RegisterPeer called", "peer", peer, "fromInternal", peerIsInternal)
 
 	// Check to see if this connecting peer is a proxied validator
-	if sb.IsProxy() && isProxiedPeer {
+	if sb.IsProxy() && peerIsInternal {
 		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
 		if err := sb.proxiedValidatorEngine.RegisterProxyPeer(peer); err != nil {
@@ -310,8 +310,8 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	return nil
 }
 
-func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
-	if sb.IsProxy() && isProxiedPeer {
+func (sb *Backend) UnregisterPeer(peer consensus.Peer, peerIsInternal bool) {
+	if sb.IsProxy() && peerIsInternal {
 		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
 		sb.proxiedValidatorEngine.UnregisterProxyPeer(peer)
@@ -319,7 +319,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 }
 
 // Handshake allows the initiating peer to identify itself as a validator
-func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
+func (sb *Backend) Handshake(peer consensus.Peer, peerIsInternal bool) (bool, error) {
 	// Only written to if there was a non-nil error when sending or receiving
 	errCh := make(chan error)
 	isValidatorCh := make(chan bool)
@@ -328,7 +328,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		var msg *istanbul.Message
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
-		if peerIsValidator {
+		if peerIsValidator || peerIsInternal {
 			msgMap := sb.RetrieveEnodeCertificateMsgMap()
 			if msgMap != nil {
 				enodeCertMsg := msgMap[sb.SelfNode().ID()]
@@ -357,7 +357,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		isValidatorCh <- peerIsValidator
 	}
 	readHandshake := func() {
-		isValidator, err := sb.readValidatorHandshakeMessage(peer)
+		isValidator, err := sb.readValidatorHandshakeMessage(peer, peerIsInternal)
 		if err != nil {
 			errCh <- err
 			return
@@ -386,7 +386,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 
 // readValidatorHandshakeMessage reads a validator handshake message.
 // Returns if the peer is a validator or if an error occurred.
-func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, error) {
+func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer, peerIsInternal bool) (bool, error) {
 	logger := sb.logger.New("func", "readValidatorHandshakeMessage")
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
@@ -407,6 +407,18 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	if err != nil {
 		return false, err
 	}
+
+	// If peer is from proxied validator, check if its address matches ProxiedValidatorAddress
+	// which is configured by --proxy.proxiedvalidatoraddress on this proxy
+	if peerIsInternal {
+		if sb.config.ProxiedValidatorAddress != msg.Address {
+			logger.Error("connecting proxied validator doesn't contain correct address configured in this proxy node",
+				"expected", sb.config.ProxiedValidatorAddress, "actual", msg.Address)
+			return false, errors.New("incorrect address from internal peer")
+		}
+		return true, nil
+	}
+
 	// If the Signature is empty, the peer has decided not to reveal its info
 	if len(msg.Signature) == 0 {
 		return false, nil

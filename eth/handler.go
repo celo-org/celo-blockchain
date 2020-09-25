@@ -102,8 +102,8 @@ type ProtocolManager struct {
 
 	engine consensus.Engine
 
-	server      *p2p.Server
-	proxyServer *p2p.Server
+	server         *p2p.Server
+	internalServer *p2p.Server
 }
 
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
@@ -113,20 +113,20 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
-		networkID:   networkID,
-		forkFilter:  forkid.NewFilter(blockchain),
-		eventMux:    mux,
-		txpool:      txpool,
-		blockchain:  blockchain,
-		peers:       newPeerSet(),
-		whitelist:   whitelist,
-		newPeerCh:   make(chan *peer),
-		noMorePeers: make(chan struct{}),
-		txsyncCh:    make(chan *txsync),
-		quitSync:    make(chan struct{}),
-		engine:      engine,
-		server:      server,
-		proxyServer: proxyServer,
+		networkID:      networkID,
+		forkFilter:     forkid.NewFilter(blockchain),
+		eventMux:       mux,
+		txpool:         txpool,
+		blockchain:     blockchain,
+		peers:          newPeerSet(),
+		whitelist:      whitelist,
+		newPeerCh:      make(chan *peer),
+		noMorePeers:    make(chan struct{}),
+		txsyncCh:       make(chan *txsync),
+		quitSync:       make(chan struct{}),
+		engine:         engine,
+		server:         server,
+		internalServer: proxyServer,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -256,7 +256,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 		log.Error("Peer removal from downloader failed", "peed", id, "err", err)
 	}
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		handler.UnregisterPeer(peer, peer.Peer.Server == pm.proxyServer)
+		handler.UnregisterPeer(peer, peer.Peer.Server == pm.internalServer)
 	}
 	if err := pm.peers.Unregister(id); err != nil {
 		log.Error("Peer removal failed", "peer", id, "err", err)
@@ -320,11 +320,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Execute the Ethereum handshake
 	var (
-		genesis = pm.blockchain.Genesis()
-		head    = pm.blockchain.CurrentHeader()
-		hash    = head.Hash()
-		number  = head.Number.Uint64()
-		td      = pm.blockchain.GetTd(hash, number)
+		genesis        = pm.blockchain.Genesis()
+		head           = pm.blockchain.CurrentHeader()
+		hash           = head.Hash()
+		number         = head.Number.Uint64()
+		td             = pm.blockchain.GetTd(hash, number)
+		peerIsInternal = p.Peer.Server == pm.internalServer
 	)
 	if err := p.Handshake(pm.networkID, td, hash, genesis.Hash(), forkid.NewID(pm.blockchain), pm.forkFilter); err != nil {
 		p.Log().Info("Ethereum handshake failed", "err", err)
@@ -332,7 +333,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	forcePeer := false
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		isValidator, err := handler.Handshake(p)
+		isValidator, err := handler.Handshake(p, peerIsInternal)
 		if err != nil {
 			p.Log().Warn("Istanbul handshake failed", "err", err)
 			return err
@@ -342,7 +343,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	// Ignore max peer and max inbound peer check if:
 	//  - this is a trusted or statically dialed peer
-	//  - the peer is from from the proxy server (e.g. peers connected to this node's internal network interface)
+	//  - the peer is from the proxy server (e.g. peers connected to this node's internal network interface)
 	//  - forcePeer is true
 	if !forcePeer {
 		// KJUE - Remove the server not nil check after restoring peer check in server.go
@@ -355,7 +356,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		// (eth and les) exceeds the total max peers. This checks if the number
 		// of eth peers exceeds the eth max peers.
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
-		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && p.Peer.Server != pm.proxyServer {
+		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && !peerIsInternal {
 			return p2p.DiscTooManyPeers
 		}
 	}
@@ -377,7 +378,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Register the peer with the consensus engine.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		if err := handler.RegisterPeer(p, p.Peer.Server == pm.proxyServer); err != nil {
+		if err := handler.RegisterPeer(p, peerIsInternal); err != nil {
 			return err
 		}
 	}
