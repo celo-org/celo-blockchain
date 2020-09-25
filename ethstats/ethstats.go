@@ -418,15 +418,9 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 
 	if s.backend.IsProxy() {
 		// Proxy needs a delegate send here to get ACK
-		select {
-		case signedMessage := <-sendCh:
-			err := s.handleDelegateSend(conn, signedMessage)
-			if err != nil {
-				return err
-			}
-		case <-time.After(delegateSignTimeout * time.Second):
-			// Login timeout, abort
-			return errors.New("delegation of login timed out")
+		err := s.waitAndDelegateMessageWithTimeout(conn, sendCh)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -459,6 +453,19 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 		return errors.New("unauthorized")
 	}
 
+	return nil
+}
+
+func (s *Service) waitAndDelegateMessageWithTimeout(conn *websocket.Conn, sendCh chan *StatsPayload) error {
+	select {
+	case signedMessage := <-sendCh:
+		err := s.handleDelegateSend(conn, signedMessage)
+		if err != nil {
+			return err
+		}
+	case <-time.After(delegateSignTimeout * time.Second):
+		return errors.New("delegation sign timeout")
+	}
 	return nil
 }
 
@@ -599,7 +606,7 @@ type authMsg struct {
 func (s *Service) report(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	if err := s.reportLatency(conn, sendCh); err != nil {
 		log.Warn("Latency failed to report", "err", err)
-		return nil
+		return err
 	}
 	if err := s.reportBlock(conn, nil); err != nil {
 		return err
@@ -628,8 +635,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	}
 	// Proxy needs a delegate send here to get ACK
 	if s.backend.IsProxy() {
-		signedMessage := <-sendCh
-		err := s.handleDelegateSend(conn, signedMessage)
+		err := s.waitAndDelegateMessageWithTimeout(conn, sendCh)
 		if err != nil {
 			return err
 		}
