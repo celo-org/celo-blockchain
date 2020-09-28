@@ -101,16 +101,6 @@ func (e *fp6) double(c, a *fe6) {
 	fp2.double(&c[2], &a[2])
 }
 
-func (e *fp6) ldouble(c, a *fe6) {
-	fp2 := e.fp2
-	// c0 = 2a0
-	// c1 = 2a1
-	// c2 = 2a2
-	fp2.ldouble(&c[0], &a[0])
-	fp2.ldouble(&c[1], &a[1])
-	fp2.ldouble(&c[2], &a[2])
-}
-
 func (e *fp6) sub(c, a, b *fe6) {
 	fp2 := e.fp2
 	// c0 = a0 - b0
@@ -129,16 +119,6 @@ func (e *fp6) neg(c, a *fe6) {
 	fp2.neg(&c[0], &a[0])
 	fp2.neg(&c[1], &a[1])
 	fp2.neg(&c[2], &a[2])
-}
-
-func (e *fp6) conjugate(c, a *fe6) {
-	// c0 = a0
-	// c1 = -a1
-	// c2 = a2
-	fp2 := e.fp2
-	c[0].set(&a[0])
-	fp2.neg(&c[1], &a[1])
-	c[0].set(&a[2])
 }
 
 func (e *fp6) mul1(c, a *fe6, b1 *fe2) {
