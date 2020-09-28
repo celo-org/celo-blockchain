@@ -16,8 +16,12 @@ const ENCODED_FIELD_ELEMENT_SIZE = 64
 // modulus = p
 var modulus = fe{0x8508c00000000001, 0x170b5d4430000000, 0x1ef3622fba094800, 0x1a22d9f300f5138f, 0xc63b05c06ca1493b, 0x01ae3a4617c510ea}
 
-// -p^(-1) mod 2^64
-var inp uint64 = 0x8508bfffffffffff
+var (
+	// -p^(-1) mod 2^64
+	inp uint64 = 0x8508bfffffffffff
+	// Suppress linter warning: This variable is used in assembly code
+	_ = inp
+)
 
 // r1 = r mod p
 var r1 = &fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a}
