@@ -10,7 +10,7 @@ domain:
   name: celo-networks-dev
 genesis:
   genesisFile: ""
-  networkId: 1102
+  networkId: 1101
 geth:
   account:
     secret: secret
@@ -33,13 +33,14 @@ geth:
   ssd_disks: true
   tx_nodes: 1
   use_gstorage_data: true
-  gstorage_data_bucket: testnet_sample_chain
-  validators: 4
-  verbosity: 2
-  vmodule: ""
+  gstorage_data_bucket: "nighyly-chain-backups/20_validators_28sept"
+  validators: 20
+  verbosity: 3
+  vmodule: "consensus/*=2"
 metrics: false
-mnemonic: loud guess job aunt yard eyebrow begin cake section share plate avocado
-  train school salon giggle point crisp theme diet wrong risk filter ill
+#mnemonic: loud guess job aunt yard eyebrow begin cake section share plate avocado
+#  train school salon giggle point crisp theme diet wrong risk filter ill
+mnemonic: merry tell above life chaos boss
 pprof:
   enabled: false
 promtosd:

@@ -1,6 +1,6 @@
 steps:
 - name: 'gcr.io/$PROJECT_ID/helm'
-  id: deploy
+  id: deploy_testnet
   entrypoint: 'sh'
   args:
   - '-c'
@@ -9,31 +9,8 @@ steps:
      --name nightlyloadtests
      --namespace nightlyloadtests
      --values tests/nightly/loadtests/testnet_values.yaml
+     --set-file genesis.genesisFile=tests/nightly/loadtests/genesis.json
      '
-  waitFor:
-  - 'push'
-  env:
-  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
-  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
-  - 'HELM_REPO_NAME=celo'
-  - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
-  - 'TILLERLESS=true'
-  - 'TILLER_NAMESPACE=tillerciloadtests'
-  - 'DEBUG=true'
-
-- name: 'gcr.io/$PROJECT_ID/helm'
-  id: deploy
-  entrypoint: 'sh'
-  args:
-  - '-c'
-  - '/builder/helm.bash
-     install celo/load-test
-     --name nightlyloadtests-loadtests
-     --namespace nightlyloadtests
-     --values tests/nightly/loadtests/loadtests_values.yaml
-     '
-  waitFor:
-  - 'push'
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
   - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
@@ -44,12 +21,42 @@ steps:
   - 'DEBUG=true'
 
 - name: 'ubuntu'
-  id: sleep
+  id: sleep1
   args:
   - sleep
-  - '600'
+  - '200'
   waitFor:
-  - 'deploy'
+  - 'deploy_testnet'
+
+- name: 'gcr.io/$PROJECT_ID/helm'
+  id: deploy_loadtest
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - '/builder/helm.bash
+     install celo/load-test
+     --name nightlyloadtests-loadtests
+     --namespace nightlyloadtests
+     --values tests/nightly/loadtests/loadtests_values.yaml
+     '
+  waitFor:
+  - 'sleep1'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-west1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=celo-networks-dev'
+  - 'HELM_REPO_NAME=celo'
+  - 'HELM_REPO_URL=https://celo-org.github.io/infrastructure/helm-charts'
+  - 'TILLERLESS=true'
+  - 'TILLER_NAMESPACE=tillerciloadtests'
+  - 'DEBUG=true'
+
+- name: 'ubuntu'
+  id: sleep2
+  args:
+  - sleep
+  - '200'
+  waitFor:
+  - 'deploy_loadtest'
 
 - name: 'alpine'
   id: download
@@ -61,7 +68,7 @@ steps:
       wget -O /workspace/health_check https://storage.googleapis.com/jcortejoso_temp_bucket/health_check
       chmod +x /workspace/health_check
   waitFor:
-  - 'sleep'
+  - 'sleep2'
 
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: check
@@ -70,9 +77,9 @@ steps:
   - "-c"
   - |
       gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
-      kubectl port-forward -n nightlygethmultiversion nightlygethmultiversion-validators-0 8545 &
+      kubectl port-forward -n nightlyloadtests nightlyloadtests-validators-0 8545 &
       sleep 5
-      /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 280 --first-block 1 --last-block 281
+      /workspace/health_check --rpc http://127.0.0.1:8545 --epoch 280 --first-block 700 --last-block 1000
   waitFor:
   - 'download'
   env:
@@ -86,7 +93,7 @@ steps:
   - "-c"
   - |
       gcloud container clusters get-credentials $$CLOUDSDK_CONTAINER_CLUSTER --region $$CLOUDSDK_COMPUTE_ZONE
-      kubectl delete ns tillercimultiversion nightlygethmultiversion
+      kubectl delete ns tillerciloadtests nightlyloadtests
   waitFor:
   - 'check'
   env:
