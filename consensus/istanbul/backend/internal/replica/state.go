@@ -18,6 +18,7 @@ package replica
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"sync"
@@ -164,7 +165,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	if blockNumber.Cmp(common.Big0) <= 0 {
 		return errors.New("blockNumber must be > 0")
 	}
-	if rs.stopValidatingBlock != nil && !(blockNumber.Cmp(rs.stopValidatingBlock) < 0) {
+	if rs.stopValidatingBlock != nil && blockNumber.Cmp(rs.stopValidatingBlock) >= 0 {
 		return errors.New("Start block number should be less than the stop block number")
 	}
 
@@ -174,7 +175,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	case replicaWaiting:
 		// pass. Changed start block while waiting to start.
 	default:
-		// todo error
+		return errors.New(fmt.Sprintf("Can't change set start validating block when primary (%v)", rs.state))
 	}
 	rs.startValidatingBlock = blockNumber
 
@@ -200,8 +201,7 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	case primaryInRange:
 		// pass. Changes stop block while waiting to stop.
 	case replicaPermanent:
-		// TODO: don't allow this / error
-		// Doesn't make sense, but not previously disallowed
+		return errors.New("Can't change stop validating block when permanent replica")
 	case replicaWaiting:
 		// pass. Changed stop block while waiting to start.
 	}
