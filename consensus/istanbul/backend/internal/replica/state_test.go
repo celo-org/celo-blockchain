@@ -18,8 +18,8 @@ package replica
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
-	"sync"
 	"testing"
 )
 
@@ -27,23 +27,52 @@ func noop() error {
 	return nil
 }
 
-func TestIsPrimaryForSeq(t *testing.T) {
-	rsdb, _ := OpenReplicaStateDB("")
+func (rs *replicaStateImpl) CheckRSDB() error {
+	// load DB
+	loaded, err := rs.rsdb.GetReplicaState()
+	if err != nil {
+		return err
+	}
+	if loaded == nil {
+		return errors.New("Could not load rsdb")
+	}
+	if loaded.state != rs.state {
+		return errors.New(fmt.Sprintf("Expected loaded state to equal rs. loaded: %v; rs: %v.", loaded.state, rs.state))
+	}
+	hasLoadedStart := loaded.startValidatingBlock != nil
+	hasRsStart := rs.startValidatingBlock != nil
+	hasLoadedStop := loaded.stopValidatingBlock != nil
+	hasRsStop := rs.stopValidatingBlock != nil
 
+	if !hasLoadedStart && !hasRsStart {
+		// pass
+	} else if !hasLoadedStart || !hasRsStart {
+		return errors.New(fmt.Sprintf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock))
+	} else if loaded.startValidatingBlock.Cmp(rs.startValidatingBlock) != 0 {
+		return errors.New(fmt.Sprintf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock))
+	}
+	if !hasLoadedStop && !hasRsStop {
+		// pass
+	} else if !hasLoadedStop || !hasRsStop {
+		return errors.New(fmt.Sprintf("Expected loaded stop block to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock))
+	} else if loaded.stopValidatingBlock.Cmp(rs.stopValidatingBlock) != 0 {
+		return errors.New(fmt.Sprintf("Expected loaded stop bloc to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock))
+	}
+	return nil
+}
+
+func TestIsPrimaryForSeq(t *testing.T) {
 	t.Run("permanent primary", func(t *testing.T) {
 
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
-		rs := &replicaStateImpl{
-			state:   primaryPermanent,
-			mu:      new(sync.RWMutex),
-			rsdb:    rsdb,
-			startFn: noop,
-			stopFn:  noop,
-		}
+		rs := NewState(false, "", noop, noop).(*replicaStateImpl)
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
@@ -53,17 +82,14 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("permanent replica", func(t *testing.T) {
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
-		rs := &replicaStateImpl{
-			state:   replicaPermanent,
-			mu:      new(sync.RWMutex),
-			rsdb:    rsdb,
-			startFn: noop,
-			stopFn:  noop,
-		}
+		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
@@ -77,18 +103,16 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("replica waiting", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
-		rs := &replicaStateImpl{
-			state:                replicaWaiting,
-			startValidatingBlock: big.NewInt(200),
-			mu:                   new(sync.RWMutex),
-			rsdb:                 rsdb,
-			startFn:              noop,
-			stopFn:               noop,
-		}
+		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rs.SetStartValidatingBlock(big.NewInt(200))
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
+
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
 			}
@@ -102,6 +126,9 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
@@ -116,19 +143,17 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("replica waiting to primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
-		rs := &replicaStateImpl{
-			state:                replicaWaiting,
-			stopValidatingBlock:  big.NewInt(210),
-			startValidatingBlock: big.NewInt(200),
-			mu:                   new(sync.RWMutex),
-			rsdb:                 rsdb,
-			startFn:              noop,
-			stopFn:               noop,
-		}
+		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rs.SetStartValidatingBlock(big.NewInt(200))
+		rs.SetStopValidatingBlock(big.NewInt(210))
+
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
@@ -143,6 +168,10 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
+
 			if rs.state != primaryInRange {
 				t.Errorf("expected rs.state to be %v, got %v", primaryInRange, rs.state)
 			}
@@ -160,6 +189,9 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
@@ -173,18 +205,16 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128, 209}
-		rs := &replicaStateImpl{
-			state:               primaryInRange,
-			stopValidatingBlock: big.NewInt(210),
-			mu:                  new(sync.RWMutex),
-			rsdb:                rsdb,
-			startFn:             noop,
-			stopFn:              noop,
-		}
+		rs := NewState(false, "", noop, noop).(*replicaStateImpl)
+		rs.SetStopValidatingBlock(big.NewInt(210))
+
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if !primary {
 				t.Errorf("expected to be primary for seq %v", seq)
@@ -200,6 +230,9 @@ func TestIsPrimaryForSeq(t *testing.T) {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
 			rs.NewChainHead(n)
+			if err := rs.CheckRSDB(); err != nil {
+				t.Errorf("expected RSDB to be the same for seq %v, err: %v", seq, err)
+			}
 
 			if primary {
 				t.Errorf("expected to be replica for seq %v", seq)
@@ -214,15 +247,12 @@ func TestIsPrimaryForSeq(t *testing.T) {
 }
 
 func TestSetStartValidatingBlock(t *testing.T) {
-	rsdb, _ := OpenReplicaStateDB("")
 
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
-		rs := &replicaStateImpl{
-			state:               replicaWaiting,
-			stopValidatingBlock: big.NewInt(10),
-			mu:                  new(sync.RWMutex),
-			rsdb:                rsdb,
-		}
+		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rs.state = replicaWaiting
+		rs.SetStopValidatingBlock(big.NewInt(10))
+
 		err := rs.SetStartValidatingBlock(big.NewInt(11))
 		if err == nil {
 			t.Errorf("error mismatch: have %v, want %v", err, errors.New("Start block number should be less than the stop block number"))
@@ -237,16 +267,12 @@ func TestSetStartValidatingBlock(t *testing.T) {
 }
 
 func TestSetStopValidatingBlock(t *testing.T) {
-	rsdb, _ := OpenReplicaStateDB("")
 
 	//start <= seq < stop
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
-		rs := &replicaStateImpl{
-			state:                replicaWaiting,
-			startValidatingBlock: big.NewInt(10),
-			mu:                   new(sync.RWMutex),
-			rsdb:                 rsdb,
-		}
+		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rs.SetStartValidatingBlock(big.NewInt(10))
+
 		err := rs.SetStopValidatingBlock(big.NewInt(9))
 		if err == nil {
 			t.Errorf("error mismatch: have %v, want %v", err, errors.New("Stop block number should be greater than the start block number"))
