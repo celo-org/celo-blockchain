@@ -212,7 +212,7 @@ func (e *NoRewardEngine) VerifyPlumoProofs(proofs []types.PlumoProof) error {
 	return e.inner.VerifyPlumoProofs(proofs)
 }
 
-func (e *NoRewardEngine) VerifyLightPlumoProofs(lightProofs []types.LightPlumoProof) error {
+func (e *NoRewardEngine) VerifyLightPlumoProofs(lightProofs []istanbul.LightPlumoProof) error {
 	return e.inner.VerifyLightPlumoProofs(lightProofs)
 }
 

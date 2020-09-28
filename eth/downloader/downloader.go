@@ -139,12 +139,14 @@ type Downloader struct {
 	ancientLimit    uint64 // The maximum block number which can be regarded as ancient data.
 
 	// Channels
-	headerCh      chan dataPack        // [eth/62] Channel receiving inbound block headers
-	bodyCh        chan dataPack        // [eth/62] Channel receiving inbound block bodies
-	receiptCh     chan dataPack        // [eth/63] Channel receiving inbound receipts
-	bodyWakeCh    chan bool            // [eth/62] Channel to signal the block body fetcher of new tasks
-	receiptWakeCh chan bool            // [eth/63] Channel to signal the receipt fetcher of new tasks
-	headerProcCh  chan []*types.Header // [eth/62] Channel to feed the header processor new tasks
+	headerCh         chan dataPack                   // [eth/62] Channel receiving inbound block headers
+	plumoProofCh     chan dataPack                   // [celo/66] Channel receiving inbound plumo proofs
+	bodyCh           chan dataPack                   // [eth/62] Channel receiving inbound block bodies
+	receiptCh        chan dataPack                   // [eth/63] Channel receiving inbound receipts
+	bodyWakeCh       chan bool                       // [eth/62] Channel to signal the block body fetcher of new tasks
+	receiptWakeCh    chan bool                       // [eth/63] Channel to signal the receipt fetcher of new tasks
+	headerProcCh     chan []*types.Header            // [eth/62] Channel to feed the header processor new tasks
+	plumoProofProcCh chan []istanbul.LightPlumoProof // [celo/66] Channel to feed the plumo proof processor new tasks
 
 	// for stateFetcher
 	stateSyncStart chan *stateSync
@@ -185,6 +187,8 @@ type LightChain interface {
 
 	// InsertHeaderChain inserts a batch of headers into the local chain.
 	InsertHeaderChain([]*types.Header, int, bool) (int, error)
+
+	InsertPlumoProofs([]istanbul.LightPlumoProof)
 
 	// Rollback removes a few recently added elements from the local chain.
 	Rollback([]common.Hash, bool)
@@ -243,26 +247,28 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 	}
 
 	dl := &Downloader{
-		stateDB:        stateDb,
-		stateBloom:     stateBloom,
-		mux:            mux,
-		checkpoint:     checkpoint,
-		queue:          newQueue(),
-		peers:          newPeerSet(),
-		rttEstimate:    uint64(rttMaxEstimate),
-		rttConfidence:  uint64(1000000),
-		blockchain:     chain,
-		lightchain:     lightchain,
-		dropPeer:       dropPeer,
-		headerCh:       make(chan dataPack, 1),
-		bodyCh:         make(chan dataPack, 1),
-		receiptCh:      make(chan dataPack, 1),
-		bodyWakeCh:     make(chan bool, 1),
-		receiptWakeCh:  make(chan bool, 1),
-		headerProcCh:   make(chan []*types.Header, 1),
-		quitCh:         make(chan struct{}),
-		stateCh:        make(chan dataPack),
-		stateSyncStart: make(chan *stateSync),
+		stateDB:          stateDb,
+		stateBloom:       stateBloom,
+		mux:              mux,
+		checkpoint:       checkpoint,
+		queue:            newQueue(),
+		peers:            newPeerSet(),
+		rttEstimate:      uint64(rttMaxEstimate),
+		rttConfidence:    uint64(1000000),
+		blockchain:       chain,
+		lightchain:       lightchain,
+		dropPeer:         dropPeer,
+		headerCh:         make(chan dataPack, 1),
+		plumoProofCh:     make(chan dataPack, 1),
+		bodyCh:           make(chan dataPack, 1),
+		receiptCh:        make(chan dataPack, 1),
+		bodyWakeCh:       make(chan bool, 1),
+		receiptWakeCh:    make(chan bool, 1),
+		headerProcCh:     make(chan []*types.Header, 1),
+		plumoProofProcCh: make(chan []istanbul.LightPlumoProof, 1),
+		quitCh:           make(chan struct{}),
+		stateCh:          make(chan dataPack),
+		stateSyncStart:   make(chan *stateSync),
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
@@ -407,7 +413,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 		default:
 		}
 	}
-	for _, ch := range []chan dataPack{d.headerCh, d.bodyCh, d.receiptCh} {
+	for _, ch := range []chan dataPack{d.headerCh, d.plumoProofCh, d.bodyCh, d.receiptCh} {
 		for empty := false; !empty; {
 			select {
 			case <-ch:
@@ -419,6 +425,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 	for empty := false; !empty; {
 		select {
 		case <-d.headerProcCh:
+		case <-d.plumoProofCh:
 		default:
 			empty = true
 		}
@@ -550,6 +557,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		fetchers = append(fetchers, func() error { return d.processFastSyncContent(latest) })
 	} else if d.Mode == FullSync {
 		fetchers = append(fetchers, d.processFullSyncContent)
+	}
+	if d.Mode == LightestSync {
+		fetchers = append(fetchers, func() error { return d.processPlumoProofs(origin+1, pivot, td) })
 	}
 	return d.spawnSync(fetchers)
 }
@@ -1007,7 +1017,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
-		p.log.Error("Fetching proofs")
+		p.log.Error("Fetching proofs", "from", from)
 		skip := int(epoch - 1)
 		go p.peer.RequestPlumoProofsAndHeaders(from, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
 		// go p.peer.RequestProofs()
@@ -1190,6 +1200,55 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				}
 			}
 
+		case packet := <-d.plumoProofCh:
+			// Make sure the active peer is responding with proofs
+			if packet.PeerId() != p.id {
+				log.Error("Received plumo proof from incorrect peer", "peer", packet.PeerId())
+				d.plumoProofProcCh <- nil
+				break
+			}
+
+			if packet.Items() == 0 {
+				log.Error("Packet empty, end of sequence?")
+				select {
+				case d.plumoProofProcCh <- nil:
+					return nil
+				case <-d.cancelCh:
+					return errCanceled
+				}
+			}
+
+			lightProofs := packet.(*plumoProofPack).lightProofs
+
+			// Insert all the new proofs and fetch the next batch
+			if len(lightProofs) > 0 {
+				p.log.Error("Scheduling new proofs", "count", len(lightProofs), "from", from)
+				select {
+				case d.plumoProofProcCh <- lightProofs:
+				case <-d.cancelCh:
+					return errCanceled
+				}
+				var lastEpoch uint64
+				for _, lightProof := range lightProofs {
+					if uint64(lightProof.LastEpoch.Index) > lastEpoch {
+						lastEpoch = uint64(lightProof.LastEpoch.Index)
+					}
+				}
+				from = lastEpoch
+				getProofs(from)
+				log.Error("getProofs#downloadMoreProofs", "from", from)
+			} else {
+				// No plumo proofs delivered, or all of them being delayed, sleep a bit and retry
+				p.log.Error("All plumo proofs delayed, waiting")
+				select {
+				case <-time.After(fsHeaderContCheck):
+					getProofs(from)
+					continue
+				case <-d.cancelCh:
+					return errCanceled
+				}
+			}
+
 		case <-timeout.C:
 			if d.dropPeer == nil {
 				// The dropPeer method is nil when `--copydb` is used for a local copy.
@@ -1211,6 +1270,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			}
 			select {
 			case d.headerProcCh <- nil:
+			case d.plumoProofProcCh <- nil:
 			case <-d.cancelCh:
 			}
 			return errBadPeer
@@ -1667,6 +1727,53 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 	}
 }
 
+func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int) error {
+	// Wait for batches of proofs to process
+	// gotProofs := false
+	log.Error("Processing Plumo Proofs")
+
+	for {
+		select {
+		case <-d.cancelCh:
+			log.Error("CANCELLING PLUMO PROOF CH")
+			return errCanceled
+
+		case lightProofs := <-d.plumoProofProcCh:
+			log.Error("Processing some light proofs", "light proof len", len(lightProofs))
+			if len(lightProofs) == 0 {
+				log.Error("Stalling peer?")
+				return errStallingPeer
+			}
+			// gotProofs = true
+
+			for len(lightProofs) > 0 {
+				// Terminate if something failed in between processing chunks
+				select {
+				case <-d.cancelCh:
+					return errCanceled
+				default:
+				}
+
+				// TODO
+				limit := maxHeadersProcess
+				if limit > len(lightProofs) {
+					limit = len(lightProofs)
+				}
+				chunk := lightProofs[:limit]
+				unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
+				for _, lightProof := range chunk {
+					unknown = append(unknown, lightProof)
+				}
+				d.lightchain.InsertPlumoProofs(chunk)
+				log.Error("Finished inserting plumo proofs")
+
+				lightProofs = lightProofs[limit:]
+				origin += uint64(limit)
+			}
+		}
+	}
+}
+
 func headersToNumbers(headers []*types.Header) []*big.Int {
 	headerNumbers := make([]*big.Int, 0)
 	for _, header := range headers {
@@ -1929,6 +2036,10 @@ func (d *Downloader) commitPivotBlock(result *fetchResult) error {
 // node into the download schedule.
 func (d *Downloader) DeliverHeaders(id string, headers []*types.Header) (err error) {
 	return d.deliver(id, d.headerCh, &headerPack{id, headers}, headerInMeter, headerDropMeter)
+}
+
+func (d *Downloader) DeliverPlumoProofs(id string, proofs []istanbul.LightPlumoProof) (err error) {
+	return d.deliver(id, d.plumoProofCh, &plumoProofPack{id, proofs}, plumoProofInMeter, plumoProofDropMeter)
 }
 
 // DeliverBodies injects a new batch of block bodies received from a remote node.

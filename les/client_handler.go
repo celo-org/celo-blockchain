@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
@@ -476,7 +477,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 		p.Log().Error("Recieved PlumoProofsMsg response")
 		var resp struct {
 			ReqID, BV   uint64
-			LightProofs []types.LightPlumoProof
+			LightProofs []istanbul.LightPlumoProof
 		}
 		if err := msg.Decode(&resp); err != nil {
 			p.Log().Error("Error decoding")
@@ -485,7 +486,9 @@ func (h *clientHandler) handleMsg(p *peer) error {
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.Log().Error("Received requested proofs", "light_proofs", resp.LightProofs)
-		h.fetcher.chain.InsertPlumoProofs(resp.LightProofs)
+		if err := h.downloader.DeliverPlumoProofs(p.id, resp.LightProofs); err != nil {
+			log.Error("Failed to deliver proofs", "err", err)
+		}
 
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)

@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -501,7 +502,7 @@ func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoPro
 }
 
 // ReplyPlumoProofs creates a reply with the requested proofs
-func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []types.LightPlumoProof) *reply {
+func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []istanbul.LightPlumoProof) *reply {
 	data, _ := rlp.EncodeToBytes(proofs)
 	p.Log().Error("Replying requested proofs", "data", data)
 	return &reply{p.rw, PlumoProofsMsg, reqID, data}

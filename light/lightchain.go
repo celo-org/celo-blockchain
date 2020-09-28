@@ -29,6 +29,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -425,7 +426,7 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	return i, err
 }
 
-func (lc *LightChain) InsertPlumoProofs(lightProofs []types.LightPlumoProof) {
+func (lc *LightChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) {
 	// TODO: any further info here? Or can this be pulled out
 	lc.engine.VerifyLightPlumoProofs(lightProofs)
 }

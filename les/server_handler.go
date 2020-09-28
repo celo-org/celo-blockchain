@@ -933,7 +933,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				proofs := make([]types.LightPlumoProof, len(req.ProofsMetadata))
+				proofs := make([]istanbul.LightPlumoProof, len(req.ProofsMetadata))
 				for i, metadata := range req.ProofsMetadata {
 					if i != 0 && !task.waitOrStop() {
 						sendResponse(req.ReqID, 0, nil, task.servingTime)
@@ -945,7 +945,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					// Could try and fetch roundstate here... but curiously never happens anywhere else.
 					firstEpochValSet := backend.GetValidatorSet(uint64(metadata.FirstEpoch), common.Hash{})
 					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
-					lastEpochBlock := types.LightEpochBlock{
+					lastEpochBlock := istanbul.LightEpochBlock{
 						Index:         metadata.LastEpoch,
 						MaxNonSigners: uint(lastEpochValSet.MinQuorumSize()),
 					}
@@ -959,15 +959,14 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					}
 
 					valPositions, addedValidators := istanbul.SnarkValidatorSetDiff(firstEpochValData, lastEpochValData)
-					_, addedValidatorPubKeys := istanbul.SeparateValidatorDataIntoIstanbulExtra(addedValidators)
 
-					proofs[i] = types.LightPlumoProof{
+					proofs[i] = istanbul.LightPlumoProof{
 						Proof:              proofBytes,
 						FirstEpoch:         metadata.FirstEpoch,
 						LastEpoch:          lastEpochBlock,
 						VersionNumber:      metadata.VersionNumber,
 						FirstHashToField:   []byte{},
-						NewValidators:      addedValidatorPubKeys,
+						NewValidators:      addedValidators,
 						ValidatorPositions: valPositions,
 					}
 				}

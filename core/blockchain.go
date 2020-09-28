@@ -2238,6 +2238,10 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	return bc.hc.InsertHeaderChain(chain, whFunc, start)
 }
 
+func (bc *BlockChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) {
+	panic("This should not be called on a full sync blockchain.")
+}
+
 // CurrentHeader retrieves the current head header of the canonical chain. The
 // header is retrieved from the HeaderChain's internal cache.
 func (bc *BlockChain) CurrentHeader() *types.Header {

@@ -40,4 +40,7 @@ var (
 
 	stateInMeter   = metrics.NewRegisteredMeter("eth/downloader/states/in", nil)
 	stateDropMeter = metrics.NewRegisteredMeter("eth/downloader/states/drop", nil)
+
+	plumoProofInMeter   = metrics.NewRegisteredMeter("eth/downloader/plumoproofs/in", nil)
+	plumoProofDropMeter = metrics.NewRegisteredMeter("eth/downloader/plumoproofs/drop", nil)
 )
