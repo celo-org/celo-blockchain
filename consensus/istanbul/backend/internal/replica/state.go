@@ -32,6 +32,10 @@ import (
 type state uint64
 
 // Different possible states for validators wrt replica/primary
+// Set start & stop block to the range [start, stop)
+// Permanant primary / replica when the node will not change state in the future
+// primaryInRange when inside the range [start, stop)
+// replicaWaiting when before the startValidatingBlock
 const (
 	primaryPermanent state = iota
 	primaryInRange
