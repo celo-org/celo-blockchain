@@ -98,7 +98,7 @@ func (rsdb *ReplicaStateDB) StoreReplicaState(rs State) error {
 	batch.Put([]byte(replicaStateKey), entryBytes)
 	err = rsdb.gdb.Write(batch)
 	if err != nil {
-		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err, "func")
+		logger.Error("Failed to save roundState", "reason", "levelDB write", "err", err)
 	}
 
 	return err

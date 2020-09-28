@@ -127,6 +127,7 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 				logger.Warn("Error stopping core", "err", err)
 				return err
 			}
+			defer rs.rsdb.StoreReplicaState(rs)
 			rs.state = replicaPermanent
 			rs.startValidatingBlock = nil
 			rs.stopValidatingBlock = nil
@@ -137,6 +138,7 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 				logger.Warn("Error starting core", "err", err)
 				return err
 			}
+			defer rs.rsdb.StoreReplicaState(rs)
 			if rs.stopValidatingBlock == nil {
 				logger.Info("Switching to primary (permanent)")
 				rs.state = primaryPermanent
