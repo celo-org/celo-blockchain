@@ -981,6 +981,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 	return writeAggregatedSeal(header, createParentSeal(), true)
 }
 
+// SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
 func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
@@ -988,6 +989,7 @@ func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 	return sb.replicaState.SetStartValidatingBlock(blockNumber)
 }
 
+// SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
 func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
