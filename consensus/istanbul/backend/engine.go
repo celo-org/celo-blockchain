@@ -569,6 +569,7 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 
 }
 
+// Loop to run on new chain head events. Chain head events may be batched.
 func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
 	// Batched. For stats & announce
 	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
@@ -586,6 +587,7 @@ func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
 	}
 }
 
+// Loop to update replica state. Listens to chain events to avoid batching.
 func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	// Unbatched event listener
 	chainEventCh := make(chan ethCore.ChainEvent, 10)
