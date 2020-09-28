@@ -1142,10 +1142,9 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 }
 
 var (
-	errBLS12377InvalidInputLength          = errors.New("invalid input length")
-	errBLS12377InvalidFieldElementTopBytes = errors.New("invalid field element top bytes")
-	errBLS12377G1PointSubgroup             = errors.New("g1 point is not on correct subgroup")
-	errBLS12377G2PointSubgroup             = errors.New("g2 point is not on correct subgroup")
+	errBLS12377InvalidInputLength = errors.New("invalid input length")
+	errBLS12377G1PointSubgroup    = errors.New("g1 point is not on correct subgroup")
+	errBLS12377G2PointSubgroup    = errors.New("g2 point is not on correct subgroup")
 )
 
 // bls12377G1Add implements EIP-2537 G1Add precompile.
@@ -1470,21 +1469,4 @@ func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas
 		out[31] = 1
 	}
 	return out, gas, nil
-}
-
-// decodeBLS12377FieldElement decodes BLS12-377 elliptic curve field element.
-// Removes top 16 bytes of 64 byte input.
-func decodeBLS12377FieldElement(in []byte) ([]byte, error) {
-	if len(in) != 64 {
-		return nil, errors.New("invalid field element length")
-	}
-	// check top bytes
-	for i := 0; i < 16; i++ {
-		if in[i] != byte(0x00) {
-			return nil, errBLS12377InvalidFieldElementTopBytes
-		}
-	}
-	out := make([]byte, 48)
-	copy(out[:], in[16:])
-	return out, nil
 }

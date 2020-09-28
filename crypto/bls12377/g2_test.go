@@ -21,10 +21,6 @@ func (g *G2) rand() *PointG2 {
 	return g.MulScalar(&PointG2{}, g.one(), k)
 }
 
-func (g *G2) randAffine() *PointG2 {
-	return g.Affine(g.rand())
-}
-
 func (g *G2) new() *PointG2 {
 	return g.Zero()
 }

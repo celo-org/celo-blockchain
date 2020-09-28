@@ -33,9 +33,6 @@ var r2 = &fe{
 	0xb786686c9400cd22, 0x0329fcaab00431b1, 0x22a5f11162d6b46d, 0xbfdf7d03827dc3ac, 0x837e92f041790bf9, 0x006dfccb1e914b88,
 }
 
-// negativeOne = -r mod p
-var negativeOne = &fe{0x823ac00000000099, 0xc5cabdc0b000004f, 0x7f75ae862f8c080d, 0x9ed4423b9278b089, 0x79467000ec64c452, 0x0120d3e434c71c50}
-
 // twoInv = 2 ^ (-1)
 var twoInv = &fe{0x8166ffffffffffb4, 0x28a04fc1bfffffd8, 0xcfbed9d4c53e9ff9, 0x3da74bdbb73e3182, 0x267a4adfc01e4274, 0x0046b330f17efa4d}
 

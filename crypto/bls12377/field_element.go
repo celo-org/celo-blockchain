@@ -153,19 +153,6 @@ func (fe *fe) equal(fe2 *fe) bool {
 	return fe2[0] == fe[0] && fe2[1] == fe[1] && fe2[2] == fe[2] && fe2[3] == fe[3] && fe2[4] == fe[4] && fe2[5] == fe[5]
 }
 
-func (e *fe) signBE() bool {
-	negZ, z := new(fe), new(fe)
-	fromMont(z, e)
-	neg(negZ, z)
-	return negZ.cmp(z) > -1
-}
-
-func (e *fe) sign() bool {
-	r := new(fe)
-	fromMont(r, e)
-	return r[0]&1 == 0
-}
-
 func (fe *fe) div2(e uint64) {
 	fe[0] = fe[0]>>1 | fe[1]<<63
 	fe[1] = fe[1]>>1 | fe[2]<<63
@@ -226,23 +213,6 @@ func (e *fe2) isZero() bool {
 
 func (e *fe2) equal(e2 *fe2) bool {
 	return e[0].equal(&e2[0]) && e[1].equal(&e2[1])
-}
-
-func (e *fe2) signBE() bool {
-	if !e[1].isZero() {
-		return e[1].signBE()
-	}
-	return e[0].signBE()
-}
-
-func (e *fe2) sign() bool {
-	r := new(fe)
-	if !e[0].isZero() {
-		fromMont(r, &e[0])
-		return r[0]&1 == 0
-	}
-	fromMont(r, &e[1])
-	return r[0]&1 == 0
 }
 
 func (e *fe6) zero() *fe6 {

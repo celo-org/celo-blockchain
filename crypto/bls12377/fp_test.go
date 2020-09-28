@@ -724,16 +724,6 @@ func TestFp2NonResidue(t *testing.T) {
 			t.Fatal("element is not quadratic non residue")
 		}
 	}
-	// for i := 0; i < fuz; i++ {
-	// 	a, _ := new(fe2).rand(rand.Reader)
-	// 	if !field.sqrt(new(fe2), a) {
-	// 		if !field.isQuadraticNonResidue(a) {
-	// 			t.Fatal("element is quadratic non residue, 2", i)
-	// 		}
-	// 	} else {
-	// 		i -= 1
-	// 	}
-	// }
 }
 
 func TestFp2MulByNonResidue(t *testing.T) {
@@ -821,6 +811,24 @@ func TestFp6AdditionProperties(t *testing.T) {
 		field.sub(c2, c2, b)
 		if !c1.equal(c2) {
 			t.Fatal("(a - b) - c == (a - c ) -b")
+		}
+	}
+}
+func TestFp6LazyOperations(t *testing.T) {
+	field := newFp6(nil)
+	for i := 0; i < fuz; i++ {
+		a, _ := new(fe6).rand(rand.Reader)
+		b, _ := new(fe6).rand(rand.Reader)
+		c, _ := new(fe6).rand(rand.Reader)
+		c0 := new(fe6)
+		c1 := new(fe6)
+		field.ladd(c0, a, b)
+		field.add(c1, a, b)
+		field.mul(c0, c0, c)
+		field.mul(c1, c1, c)
+		if !c0.equal(c1) {
+			// l+ operator stands for lazy addition
+			t.Fatal("(a + b) * c == (a l+ b) * c")
 		}
 	}
 }

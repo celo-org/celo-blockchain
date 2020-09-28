@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"math/big"
+	"os"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestMain(m *testing.M) {
 	_fuz := flag.Int("fuzz", 10, "# of iterations")
 	flag.Parse()
 	fuz = *_fuz
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func randScalar(max *big.Int) *big.Int {
@@ -24,18 +25,6 @@ func randScalar(max *big.Int) *big.Int {
 		panic(errors.New(""))
 	}
 	return a
-}
-
-func randScalars(max *big.Int, size int) []*big.Int {
-	var scalars []*big.Int
-	for i := 0; i < size; i++ {
-		a, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			panic(errors.New(""))
-		}
-		scalars = append(scalars, a)
-	}
-	return scalars
 }
 
 func fromHex(size int, hexStrs ...string) []byte {
