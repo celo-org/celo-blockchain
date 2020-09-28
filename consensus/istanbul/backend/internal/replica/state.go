@@ -50,7 +50,7 @@ func (s state) String() string {
 	case replicaWaiting:
 		return "Replica waiting to start"
 	}
-	return "Unkown"
+	return "Unknown"
 }
 
 type State interface {
@@ -175,7 +175,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	case replicaWaiting:
 		// pass. Changed start block while waiting to start.
 	default:
-		return errors.New(fmt.Sprintf("Can't change set start validating block when primary (%v)", rs.state))
+		return fmt.Errorf("Can't change set start validating block when primary (%v)", rs.state)
 	}
 	rs.startValidatingBlock = blockNumber
 

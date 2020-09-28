@@ -37,7 +37,7 @@ func (rs *replicaStateImpl) CheckRSDB() error {
 		return errors.New("Could not load rsdb")
 	}
 	if loaded.state != rs.state {
-		return errors.New(fmt.Sprintf("Expected loaded state to equal rs. loaded: %v; rs: %v.", loaded.state, rs.state))
+		return fmt.Errorf("Expected loaded state to equal rs. loaded: %v; rs: %v.", loaded.state, rs.state)
 	}
 	hasLoadedStart := loaded.startValidatingBlock != nil
 	hasRsStart := rs.startValidatingBlock != nil
@@ -47,16 +47,16 @@ func (rs *replicaStateImpl) CheckRSDB() error {
 	if !hasLoadedStart && !hasRsStart {
 		// pass
 	} else if !hasLoadedStart || !hasRsStart {
-		return errors.New(fmt.Sprintf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock))
+		return fmt.Errorf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock)
 	} else if loaded.startValidatingBlock.Cmp(rs.startValidatingBlock) != 0 {
-		return errors.New(fmt.Sprintf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock))
+		return fmt.Errorf("Expected loaded start block to equal rs. loaded: %v; rs: %v.", loaded.startValidatingBlock, rs.startValidatingBlock)
 	}
 	if !hasLoadedStop && !hasRsStop {
 		// pass
 	} else if !hasLoadedStop || !hasRsStop {
-		return errors.New(fmt.Sprintf("Expected loaded stop block to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock))
+		return fmt.Errorf("Expected loaded stop block to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock)
 	} else if loaded.stopValidatingBlock.Cmp(rs.stopValidatingBlock) != 0 {
-		return errors.New(fmt.Sprintf("Expected loaded stop bloc to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock))
+		return fmt.Errorf("Expected loaded stop bloc to equal rs. loaded: %v; rs: %v.", loaded.stopValidatingBlock, rs.stopValidatingBlock)
 	}
 	return nil
 }
