@@ -38,6 +38,20 @@ const (
 	replicaWaiting
 )
 
+func (s state) String() string {
+	switch s {
+	case primaryPermanent:
+		return "Primary"
+	case primaryInRange:
+		return "Primary in given range"
+	case replicaPermanent:
+		return "Replica"
+	case replicaWaiting:
+		return "Replica waiting to start"
+	}
+	return "Unkown"
+}
+
 type State interface {
 	// SetStartValidatingBlock
 	SetStartValidatingBlock(blockNumber *big.Int) error
