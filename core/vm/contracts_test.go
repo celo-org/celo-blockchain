@@ -187,16 +187,6 @@ func testJsonFail(name, addr string, t *testing.T) {
 	}
 }
 
-func benchJson(name, addr string, b *testing.B) {
-	tests, err := loadJson(name)
-	if err != nil {
-		b.Fatal(err)
-	}
-	for _, test := range tests {
-		benchmarkPrecompiled(addr, test, b)
-	}
-}
-
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
