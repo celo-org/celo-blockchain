@@ -203,10 +203,6 @@ func (s *Service) loop() {
 	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
 	defer txSub.Unsubscribe()
 
-	istDelegateSignCh := make(chan istanbul.MessageWithPeerIDEvent, istDelegateSignChanSize)
-	istDelegateSignSub := s.backend.SubscribeNewDelegateSignEvent(istDelegateSignCh)
-	defer istDelegateSignSub.Unsubscribe()
-
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
 		quitCh = make(chan struct{})
@@ -215,6 +211,9 @@ func (s *Service) loop() {
 		signCh = make(chan *DelegateSignMessage, 1)
 		sendCh = make(chan *StatsPayload, 1)
 	)
+
+	go s.delegateSignMessagesRouter(sendCh, signCh, quitCh)
+
 	go func() {
 		var lastTx mclock.AbsTime
 
@@ -248,34 +247,6 @@ func (s *Service) loop() {
 				break HandleLoop
 			case <-headSub.Err():
 				break HandleLoop
-			case delegateSignMsg := <-istDelegateSignCh:
-				var delegateSignMessage DelegateSignMessage
-				delegateSignMessage.PeerID = delegateSignMsg.PeerID
-				err := json.Unmarshal(delegateSignMsg.Payload, &delegateSignMessage.Payload)
-				if err != nil {
-					break HandleLoop
-				}
-				if s.backend.IsProxy() {
-					// proxy should send to websocket
-					select {
-					case sendCh <- &delegateSignMessage.Payload:
-					default:
-					}
-				} else if s.backend.IsProxiedValidator() {
-					// proxied validator should sign
-					select {
-					case signCh <- &delegateSignMessage:
-					default:
-					}
-				} else {
-					var channel chan *StatsPayload
-					// TODO: This is a hacky measure to avoid blocking here if the
-					// channel is not consuming
-					select {
-					case channel <- &delegateSignMessage.Payload:
-					default:
-					}
-				}
 			}
 		}
 		close(quitCh)
@@ -459,14 +430,10 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 func (s *Service) waitAndDelegateMessageWithTimeout(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	select {
 	case signedMessage := <-sendCh:
-		err := s.handleDelegateSend(conn, signedMessage)
-		if err != nil {
-			return err
-		}
+		return s.handleDelegateSend(conn, signedMessage)
 	case <-time.After(delegateSignTimeout * time.Second):
 		return errors.New("delegation sign timeout")
 	}
-	return nil
 }
 
 func (s *Service) handleDelegateSign(messageToSign *StatsPayload, peerID enode.ID) error {
@@ -491,6 +458,43 @@ func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsP
 		"emit": {signedMessage.Action, signedMessage.Stats},
 	}
 	return conn.WriteJSON(report)
+}
+
+func (s *Service) delegateSignMessagesRouter(sendCh chan *StatsPayload, signCh chan *DelegateSignMessage, quitCh chan struct{}) {
+	ch := make(chan istanbul.MessageWithPeerIDEvent, istDelegateSignChanSize)
+	subscription := s.backend.SubscribeNewDelegateSignEvent(ch)
+	defer subscription.Unsubscribe()
+
+	for {
+		select {
+		case msg := <-ch:
+			var delegateSignMessage DelegateSignMessage
+			delegateSignMessage.PeerID = msg.PeerID
+			if err := json.Unmarshal(msg.Payload, &delegateSignMessage.Payload); err != nil {
+				continue
+			}
+			if s.backend.IsProxy() {
+				// proxy should send to websocket
+				select {
+				case sendCh <- &delegateSignMessage.Payload:
+				default:
+				}
+			} else if s.backend.IsProxiedValidator() {
+				// proxied validator should sign
+				select {
+				case signCh <- &delegateSignMessage:
+				default:
+				}
+			} else {
+				continue
+			}
+		case err := <- subscription.Err():
+			log.Error("Subscription for handle sign messages failed", "err", err)
+			return
+		case <- quitCh:
+			return
+		}
+	}
 }
 
 // readLoop loops as long as the connection is alive and retrieves data packets
@@ -635,8 +639,7 @@ func (s *Service) reportLatency(conn *websocket.Conn, sendCh chan *StatsPayload)
 	}
 	// Proxy needs a delegate send here to get ACK
 	if s.backend.IsProxy() {
-		err := s.waitAndDelegateMessageWithTimeout(conn, sendCh)
-		if err != nil {
+		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh); err != nil {
 			return err
 		}
 	}

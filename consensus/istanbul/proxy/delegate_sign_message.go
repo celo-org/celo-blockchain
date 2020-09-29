@@ -23,23 +23,18 @@ import (
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
-	proxies, _, err := pv.GetProxiesAndValAssignments()
+	proxy, err := pv.getProxy(peerID)
 	if err != nil {
 		return err
 	}
 
-	for _, proxy := range proxies {
-		if proxy.peer != nil {
-			// Searches the proxy-peer that sent the message to be signed
-			if proxy.peer.Node().ID() == peerID {
-				pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
-			}
-			return nil
-		}
+	if proxy == nil {
+		// If we got here, then the proxy that sent the message to be signed is not up anymore
+		return ErrNoCelostatsProxy
 	}
 
-	// If we got here, then there is no designated proxy for the ethstats messages
-	return ErrNoEthstatsProxy
+	pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
+	return nil
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
