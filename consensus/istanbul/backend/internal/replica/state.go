@@ -287,21 +287,8 @@ func (rs *replicaStateImpl) Summary() *ReplicaStateSummary {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
-	// String explanation of replica state
-	var state string
-	switch rs.state {
-	case primaryPermanent:
-		state = "Primary"
-	case primaryInRange:
-		state = "Primary in given range"
-	case replicaPermanent:
-		state = "Replica"
-	case replicaWaiting:
-		state = "Replica waiting to start"
-	}
-
 	summary := &ReplicaStateSummary{
-		State:                state,
+		State:                rs.state.String(),
 		IsPrimary:            rs.state == primaryPermanent || rs.state == primaryInRange,
 		StartValidatingBlock: rs.startValidatingBlock,
 		StopValidatingBlock:  rs.stopValidatingBlock,
