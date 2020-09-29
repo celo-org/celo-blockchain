@@ -10,7 +10,7 @@ domain:
   name: celo-networks-dev
 genesis:
   genesisFile: ""
-  networkId: 1102
+  networkId: 1101
 geth:
   account:
     secret: secret
