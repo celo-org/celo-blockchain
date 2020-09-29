@@ -30,7 +30,7 @@ geth:
       cpu: 400m
       memory: 800M
   ssd_disks: true
-  tx_nodes: 1 
+  tx_nodes: 1
   use_gstorage_data: true
   gstorage_data_bucket: "nighyly-chain-backups/20_validators_28sept"
   validators: 20

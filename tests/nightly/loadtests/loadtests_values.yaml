@@ -4,9 +4,9 @@ blockscout:
 celotool:
   image:
     repository: gcr.io/celo-testnet/celo-monorepo
-    tag: celotool-loadtests2
+    tag: celotool-loadtests3
 delay: 5000
-environment: nightlyloadtests2
+environment: nightlyloadtests
 geth:
   image:
     repository: us.gcr.io/celo-testnet/geth
