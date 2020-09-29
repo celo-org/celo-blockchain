@@ -137,10 +137,24 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 				logger.Warn("Error stopping core", "err", err)
 				return err
 			}
-			defer rs.rsdb.StoreReplicaState(rs)
+			oldState := rs.state
+			oldStart := rs.startValidatingBlock
+			oldStop := rs.stopValidatingBlock
+
 			rs.state = replicaPermanent
 			rs.startValidatingBlock = nil
 			rs.stopValidatingBlock = nil
+
+			if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+				if startErr := rs.startFn(); startErr != nil {
+					// Stopped, but could not restart
+					return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to replica: %v. Tried to restart core, but failed with: %v.", err, startErr)
+				}
+				rs.state = oldState
+				rs.startValidatingBlock = oldStart
+				rs.stopValidatingBlock = oldStop
+				return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to replica. err: %v", err)
+			}
 		}
 	case replicaWaiting:
 		if blockNumber.Cmp(rs.startValidatingBlock) >= 0 {
@@ -148,7 +162,10 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 				logger.Warn("Error starting core", "err", err)
 				return err
 			}
-			defer rs.rsdb.StoreReplicaState(rs)
+			oldState := rs.state
+			oldStart := rs.startValidatingBlock
+			oldStop := rs.stopValidatingBlock
+
 			if rs.stopValidatingBlock == nil {
 				logger.Info("Switching to primary (permanent)")
 				rs.state = primaryPermanent
@@ -157,6 +174,17 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 			} else {
 				logger.Info("Switching to primary in range")
 				rs.state = primaryInRange
+			}
+
+			if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+				if stopErr := rs.stopFn(); stopErr != nil {
+					// Started, but could not stop
+					return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to primary: %v. Tried to stop core, but failed with: %v.", err, stopErr)
+				}
+				rs.state = oldState
+				rs.startValidatingBlock = oldStart
+				rs.stopValidatingBlock = oldStop
+				return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to primary. err: %v", err)
 			}
 		}
 	default:
