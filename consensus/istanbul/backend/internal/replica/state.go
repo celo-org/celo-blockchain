@@ -194,7 +194,7 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
 		rs.state = oldState
 		rs.startValidatingBlock = oldStart
-		return fmt.Errorf("Error when savings rsdb in SetStartValidatingBlock. err: %v", err)
+		return fmt.Errorf("Error when saving rsdb in SetStartValidatingBlock. err: %v", err)
 	}
 
 	return nil
@@ -231,7 +231,7 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
 		rs.state = oldState
 		rs.stopValidatingBlock = oldStop
-		return fmt.Errorf("Error when savings rsdb in SetStopValidatingBlock. err: %v", err)
+		return fmt.Errorf("Error when saving rsdb in SetStopValidatingBlock. err: %v", err)
 	}
 
 	return nil
@@ -241,7 +241,10 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 func (rs *replicaStateImpl) MakeReplica() error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	defer rs.rsdb.StoreReplicaState(rs)
+
+	oldState := rs.state
+	oldStart := rs.startValidatingBlock
+	oldStop := rs.stopValidatingBlock
 
 	if rs.state == primaryPermanent || rs.state == primaryInRange {
 		if err := rs.stopFn(); err != nil {
@@ -251,6 +254,17 @@ func (rs *replicaStateImpl) MakeReplica() error {
 	rs.startValidatingBlock = nil
 	rs.stopValidatingBlock = nil
 	rs.state = replicaPermanent
+
+	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+		if startErr := rs.startFn(); startErr != nil {
+			// Stopped, but could not restart
+			return fmt.Errorf("Error when saving rsdb in MakeReplica: %v. Tried to restart core, but failed with: %v.", err, startErr)
+		}
+		rs.state = oldState
+		rs.startValidatingBlock = oldStart
+		rs.stopValidatingBlock = oldStop
+		return fmt.Errorf("Error when saving rsdb in MakeReplica. err: %v", err)
+	}
 	return nil
 }
 
@@ -258,7 +272,10 @@ func (rs *replicaStateImpl) MakeReplica() error {
 func (rs *replicaStateImpl) MakePrimary() error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	defer rs.rsdb.StoreReplicaState(rs)
+
+	oldState := rs.state
+	oldStart := rs.startValidatingBlock
+	oldStop := rs.stopValidatingBlock
 
 	if rs.state == replicaPermanent || rs.state == replicaWaiting {
 		if err := rs.startFn(); err != nil {
@@ -268,6 +285,17 @@ func (rs *replicaStateImpl) MakePrimary() error {
 	rs.startValidatingBlock = nil
 	rs.stopValidatingBlock = nil
 	rs.state = primaryPermanent
+
+	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+		if stopErr := rs.stopFn(); stopErr != nil {
+			// Started, but could not stop
+			return fmt.Errorf("Error when saving rsdb in MakePrimary: %v. Tried to stop core, but failed with: %v.", err, stopErr)
+		}
+		rs.state = oldState
+		rs.startValidatingBlock = oldStart
+		rs.stopValidatingBlock = oldStop
+		return fmt.Errorf("Error when saving rsdb in MakePrimary. err: %v", err)
+	}
 	return nil
 }
 
