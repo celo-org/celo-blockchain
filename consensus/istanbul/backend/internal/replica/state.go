@@ -86,10 +86,11 @@ type replicaStateImpl struct {
 }
 
 // NewState creates a replicaState in the given replica state and opens or creates the replica state DB at `path`.
-func NewState(isReplica bool, path string, startFn, stopFn func() error) State {
+func NewState(isReplica bool, path string, startFn, stopFn func() error) (State, error) {
 	db, err := OpenReplicaStateDB(path)
 	if err != nil {
 		log.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", path)
+		return nil, err
 	}
 	rs, err := db.GetReplicaState()
 	// First startup
@@ -106,12 +107,16 @@ func NewState(isReplica bool, path string, startFn, stopFn func() error) State {
 		}
 	} else if err != nil {
 		log.Warn("Can't read ReplicaStateDB at startup", "err", err, "dbpath", path)
+		return nil, err
 	}
 	rs.rsdb = db
 	rs.startFn = startFn
 	rs.stopFn = stopFn
-	db.StoreReplicaState(rs)
-	return rs
+	if err := db.StoreReplicaState(rs); err != nil {
+		log.Warn("Can't store replica state to ReplicaStateDB", "err", err)
+		return rs, err
+	}
+	return rs, nil
 }
 
 // Close closes the replica state database

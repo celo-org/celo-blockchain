@@ -65,7 +65,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 	t.Run("permanent primary", func(t *testing.T) {
 
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
-		rs := NewState(false, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(false, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
@@ -82,7 +83,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("permanent replica", func(t *testing.T) {
 		seqs := []int64{0, 1, 2, 4, 8, 16, 32, 64, 128}
-		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(true, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
 			primary := rs.IsPrimaryForSeq(n)
@@ -103,7 +105,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("replica waiting", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
-		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(true, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		rs.SetStartValidatingBlock(big.NewInt(200))
 		for _, seq := range seqs {
 			n := big.NewInt(seq)
@@ -143,7 +146,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("replica waiting to primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128}
-		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(true, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		rs.SetStartValidatingBlock(big.NewInt(200))
 		rs.SetStopValidatingBlock(big.NewInt(210))
 
@@ -205,7 +209,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 
 	t.Run("primary in range to permanent replica", func(t *testing.T) {
 		seqs := []int64{1, 2, 4, 8, 16, 32, 64, 128, 209}
-		rs := NewState(false, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(false, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		rs.SetStopValidatingBlock(big.NewInt(210))
 
 		for _, seq := range seqs {
@@ -249,7 +254,8 @@ func TestIsPrimaryForSeq(t *testing.T) {
 func TestSetStartValidatingBlock(t *testing.T) {
 
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
-		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(true, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		rs.state = replicaWaiting
 		rs.SetStopValidatingBlock(big.NewInt(10))
 
@@ -270,7 +276,8 @@ func TestSetStopValidatingBlock(t *testing.T) {
 
 	//start <= seq < stop
 	t.Run("Respects start/stop block ordering", func(t *testing.T) {
-		rs := NewState(true, "", noop, noop).(*replicaStateImpl)
+		rsState, _ := NewState(true, "", noop, noop)
+		rs := rsState.(*replicaStateImpl)
 		rs.SetStartValidatingBlock(big.NewInt(10))
 
 		err := rs.SetStopValidatingBlock(big.NewInt(9))
