@@ -21,7 +21,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	_, engine2 := newBlockChainWithKeys(genesisCfg, nodeKeys, 2)
 
 	// Wait a bit so that the announce versions are generated for the engines
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	engine0Address := engine0.Address()
 	engine1Address := engine1.Address()
@@ -197,7 +197,7 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	_, engine := newBlockChainWithKeys(genesisCfg, nodeKeys, 0)
 
 	// Wait a bit so that the announce versions are generated for the engines
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
 	if err := engine.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
