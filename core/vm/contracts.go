@@ -1075,13 +1075,13 @@ type cip20HashFunctions struct{}
 func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 	switch input[0] {
 	case 0x00:
-		words := uint64(len(input) / 64)
+		words := uint64((len(input) - 1) / 64)
 		return params.Sha3_256BaseGas + (words * params.Sha3_256PerWordGas)
 	case 0x01:
-		words := uint64(len(input) / 64)
+		words := uint64((len(input) - 1) / 64)
 		return params.Sha3_512BaseGas + (words * params.Sha3_512PerWordGas)
 	case 0x02:
-		words := uint64(len(input) / 64)
+		words := uint64((len(input) - 1) / 64)
 		return params.Keccak512BaseGas + (words * params.Keccak512PerWordGas)
 	// case 0x10:
 	// TODO: blake2x
