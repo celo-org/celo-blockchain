@@ -148,6 +148,12 @@ const (
 	Ed25519VerifyGas         uint64 = 1500             // Gas needed for and Ed25519 signature verification
 	Sha2_512BaseGas          uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
 	Sha2_512PerWordGas       uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
+
+	Sha3_256BaseGas     uint64 = Sha3Gas     // Base price for a Sha3-256 operation
+	Sha3_256PerWordGas  uint64 = Sha3WordGas // Per-word price for a sha3-256 operation
+	Keccak512BaseGas    uint64 = Sha3Gas     // Per-word price for a Keccak512 operation
+	Keccak512PerWordGas uint64 = Sha3WordGas // Base price for a Keccak512 operation
+	InvalidCip20Gas     uint64 = 0           // Price of attempting to access an unsupported CIP20 hash function
 )
 
 var (
