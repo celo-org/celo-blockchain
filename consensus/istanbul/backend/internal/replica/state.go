@@ -164,7 +164,6 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	defer rs.rsdb.StoreReplicaState(rs)
 
 	if blockNumber.Cmp(common.Big0) <= 0 {
 		return errors.New("blockNumber must be > 0")
@@ -172,6 +171,10 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	if rs.stopValidatingBlock != nil && blockNumber.Cmp(rs.stopValidatingBlock) >= 0 {
 		return errors.New("Start block number should be less than the stop block number")
 	}
+
+	// Save state in case we need to revert on failing to store to db
+	oldState := rs.state
+	oldStart := rs.startValidatingBlock
 
 	switch rs.state {
 	case replicaPermanent:
@@ -183,6 +186,12 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 	}
 	rs.startValidatingBlock = blockNumber
 
+	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+		rs.state = oldState
+		rs.startValidatingBlock = oldStart
+		return fmt.Errorf("Error when savings rsdb in SetStartValidatingBlock. err: %v", err)
+	}
+
 	return nil
 }
 
@@ -190,7 +199,6 @@ func (rs *replicaStateImpl) SetStartValidatingBlock(blockNumber *big.Int) error 
 func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	defer rs.rsdb.StoreReplicaState(rs)
 
 	if blockNumber.Cmp(common.Big0) <= 0 {
 		return errors.New("blockNumber must be > 0")
@@ -198,6 +206,10 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 	if rs.startValidatingBlock != nil && !(blockNumber.Cmp(rs.startValidatingBlock) > 0) {
 		return errors.New("Stop block number should be greater than the start block number")
 	}
+
+	// Save state in case we need to revert on failing to store to db
+	oldState := rs.state
+	oldStop := rs.stopValidatingBlock
 
 	switch rs.state {
 	case primaryPermanent:
@@ -210,6 +222,12 @@ func (rs *replicaStateImpl) SetStopValidatingBlock(blockNumber *big.Int) error {
 		// pass. Changed stop block while waiting to start.
 	}
 	rs.stopValidatingBlock = blockNumber
+
+	if err := rs.rsdb.StoreReplicaState(rs); err != nil {
+		rs.state = oldState
+		rs.stopValidatingBlock = oldStop
+		return fmt.Errorf("Error when savings rsdb in SetStopValidatingBlock. err: %v", err)
+	}
 
 	return nil
 }
