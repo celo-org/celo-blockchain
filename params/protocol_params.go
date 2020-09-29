@@ -143,6 +143,14 @@ const (
 	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
 	// May take a bit more time with 100 validators, need to bench that
 	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
+
+	Sha3_256BaseGas     uint64 = Sha3Gas     // Base price for a Sha3-256 operation
+	Sha3_256PerWordGas  uint64 = Sha3WordGas // Per-word price for a sha3-256 operation
+	Sha3_512BaseGas     uint64 = Sha3Gas     // Base price for a Sha3-512 operation
+	Sha3_512PerWordGas  uint64 = Sha3WordGas // Per-word price for a Sha3-512 operation
+	Keccak512BaseGas    uint64 = Sha3Gas     // Per-word price for a Keccak512 operation
+	Keccak512PerWordGas uint64 = Sha3WordGas // Base price for a Keccak512 operation
+	InvalidCip20Gas     uint64 = 0           // Price of attempting to access an unsupported CIP20 hash function
 )
 
 var (
