@@ -158,6 +158,7 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 		}
 	case replicaWaiting:
 		if blockNumber.Cmp(rs.startValidatingBlock) >= 0 {
+			logger.Info("About to start validating")
 			if err := rs.startFn(); err != nil {
 				logger.Warn("Error starting core", "err", err)
 				return err
