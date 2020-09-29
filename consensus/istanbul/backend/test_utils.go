@@ -31,10 +31,10 @@ import (
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 
-	return newBlockChainWithKeys(genesis, nodeKeys)
+	return newBlockChainWithKeys(genesis, nodeKeys, 0)
 }
 
-func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) (*core.BlockChain, *Backend) {
+func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey, keyIndex int) (*core.BlockChain, *Backend) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := istanbul.DefaultConfig
 	config.ReplicaStateDBPath = ""
@@ -42,10 +42,11 @@ func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) 
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
 	// Use the first key as private key
-	publicKey := nodeKeys[0].PublicKey
+	publicKey := nodeKeys[keyIndex].PublicKey
 	address := crypto.PubkeyToAddress(publicKey)
-	signerFn := SignFn(nodeKeys[0])
-	signerBLSFn := SignBLSFn(nodeKeys[0])
+	decryptFn := DecryptFn(nodeKeys[keyIndex])
+	signerFn := SignFn(nodeKeys[keyIndex])
+	signerBLSFn := SignBLSFn(nodeKeys[keyIndex])
 
 	b, _ := New(config, memDB).(*Backend)
 	b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
@@ -66,7 +67,7 @@ func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) 
 		},
 	)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(consensustest.NewMockP2PServer())
+	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 	b.StartAnnouncing()
 	b.SetBlockProcessors(blockchain.HasBadBlock,
 		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
@@ -229,10 +230,15 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	ecdsaKey, _ := generatePrivateKey()
-	eciesKey := ecies.ImportECDSA(ecdsaKey)
-	return eciesKey.Decrypt(c, s1, s2)
+func DecryptFn(key *ecdsa.PrivateKey) istanbul.DecryptFn {
+	if key == nil {
+		key, _ = generatePrivateKey()
+	}
+
+	return func(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+		eciesKey := ecies.ImportECDSA(key)
+		return eciesKey.Decrypt(c, s1, s2)
+	}
 }
 
 func SignFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
@@ -321,6 +327,6 @@ func newBackend() (b *Backend) {
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
-	b.Authorize(address, address, &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
+	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key))
 	return
 }

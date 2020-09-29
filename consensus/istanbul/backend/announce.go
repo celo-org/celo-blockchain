@@ -247,7 +247,7 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if err := sb.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := sb.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -454,7 +454,7 @@ func (sb *Backend) getValProxyAssignments(valAddresses []common.Address) (map[co
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) error {
+func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
@@ -462,7 +462,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	// for the queryEnode message
 	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	valAddresses := make([]common.Address, len(valEnodeEntries))
@@ -471,7 +471,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	}
 	valProxyAssignments, err := sb.getValProxyAssignments(valAddresses)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam
@@ -489,33 +489,35 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		}
 	}
 
+	var qeMsg *istanbul.Message
 	if len(queryEnodeEncryptedEnodeURLParams) > 0 {
-		istMsg, err := sb.generateQueryEnodeMsg(version, queryEnodeEncryptedEnodeURLParams)
+		var err error
+		qeMsg, err = sb.generateQueryEnodeMsg(version, queryEnodeEncryptedEnodeURLParams)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		if istMsg == nil {
-			return nil
+		if qeMsg == nil {
+			return nil, nil
 		}
 
 		// Convert to payload
-		payload, err := istMsg.Payload()
+		payload, err := qeMsg.Payload()
 		if err != nil {
-			logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", istMsg.String(), "err", err)
-			return err
+			logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", qeMsg.String(), "err", err)
+			return nil, err
 		}
 
-		if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
-			return err
+		if err = sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+			return nil, err
 		}
 
-		if err := sb.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
-			return err
+		if err = sb.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
+			return nil, err
 		}
 	}
 
-	return err
+	return qeMsg, err
 }
 
 func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*istanbul.AddressEntry, error) {
@@ -650,7 +652,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 		logger.Error("Error in decoding received Istanbul Announce message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
-	logger.Trace("Handling an IstanbulAnnounce message", "from", msg.Address)
+	logger.Trace("Handling a queryEnode message", "from", msg.Address)
 
 	// Check if the sender is within the validator connection set
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
@@ -1210,7 +1212,7 @@ func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Enode
 }
 
 // getEnodeCertNodesAndDestAddresses will retrieve all the external facing external nodes for this validator
-// (one for each of it's proxies, of itself for standalone validators) for the purposes of generating enode certificates
+// (one for each of it's proxies, or itself for standalone validators) for the purposes of generating enode certificates
 // for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
 // `nil` value, then that means that the associated enode certificate should be sent to all of the connected validators.
 func (sb *Backend) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
@@ -1278,7 +1280,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
-func (sb *Backend) handleEnodeCertificateMsg(peer consensus.Peer, payload []byte) error {
+func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
 	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
