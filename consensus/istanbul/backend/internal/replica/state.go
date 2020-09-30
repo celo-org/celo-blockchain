@@ -58,12 +58,16 @@ func (s state) String() string {
 }
 
 type State interface {
-	// SetStartValidatingBlock
+	// Functions exposed through to the management RPC.
 	SetStartValidatingBlock(blockNumber *big.Int) error
 	SetStopValidatingBlock(blockNumber *big.Int) error
-	NewChainHead(blockNumber *big.Int)
 	MakeReplica() error
 	MakePrimary() error
+
+	// Internal functions
+	// Updates replica state given the current block undergoing consensus.
+	NewChainHead(blockNumber *big.Int)
+	// Closes the replica state database.
 	Close() error
 
 	// view functions
