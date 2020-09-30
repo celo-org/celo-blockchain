@@ -485,13 +485,11 @@ func (s *Service) delegateSignMessagesRouter(sendCh chan *StatsPayload, signCh c
 				case signCh <- &delegateSignMessage:
 				default:
 				}
-			} else {
-				continue
 			}
-		case err := <- subscription.Err():
+		case err := <-subscription.Err():
 			log.Error("Subscription for handle sign messages failed", "err", err)
 			return
-		case <- quitCh:
+		case <-quitCh:
 			return
 		}
 	}
