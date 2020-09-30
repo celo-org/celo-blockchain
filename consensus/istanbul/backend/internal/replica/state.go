@@ -61,7 +61,7 @@ type State interface {
 	// SetStartValidatingBlock
 	SetStartValidatingBlock(blockNumber *big.Int) error
 	SetStopValidatingBlock(blockNumber *big.Int) error
-	NewChainHead(blockNumber *big.Int) error
+	NewChainHead(blockNumber *big.Int)
 	MakeReplica() error
 	MakePrimary() error
 	Close() error
@@ -127,7 +127,7 @@ func (rs *replicaStateImpl) Close() error {
 }
 
 // NewChainHead updates replica state and starts/stops the core if needed
-func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
+func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) {
 	logger := log.New("func", "NewChainHead", "seq", blockNumber)
 	switch rs.state {
 	case primaryInRange:
@@ -135,7 +135,7 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 			logger.Info("About to stop validating")
 			if err := rs.stopFn(); err != nil {
 				logger.Warn("Error stopping core", "err", err)
-				return err
+				return
 			}
 			oldState := rs.state
 			oldStart := rs.startValidatingBlock
@@ -148,12 +148,13 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 			if err := rs.rsdb.StoreReplicaState(rs); err != nil {
 				if startErr := rs.startFn(); startErr != nil {
 					// Stopped, but could not restart
-					return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to replica: %v. Tried to restart core, but failed with: %v.", err, startErr)
+					logger.Crit("Error when saving rsdb in NewChainHead in transition to replica. Tried to restart core, but that also failed", "rsdb_err", err, "start_err", startErr)
+					return
 				}
 				rs.state = oldState
 				rs.startValidatingBlock = oldStart
 				rs.stopValidatingBlock = oldStop
-				return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to replica. err: %v", err)
+				logger.Crit("Error when saving rsdb in NewChainHead in transition to replica. Rolled back transition.", "err", err)
 			}
 		}
 	case replicaWaiting:
@@ -161,7 +162,7 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 			logger.Info("About to start validating")
 			if err := rs.startFn(); err != nil {
 				logger.Warn("Error starting core", "err", err)
-				return err
+				return
 			}
 			oldState := rs.state
 			oldStart := rs.startValidatingBlock
@@ -180,18 +181,19 @@ func (rs *replicaStateImpl) NewChainHead(blockNumber *big.Int) error {
 			if err := rs.rsdb.StoreReplicaState(rs); err != nil {
 				if stopErr := rs.stopFn(); stopErr != nil {
 					// Started, but could not stop
-					return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to primary: %v. Tried to stop core, but failed with: %v.", err, stopErr)
+					logger.Crit("Error when saving rsdb in NewChainHead in transition to primary. Tried to stop core, but that also failed", "rsdb_err", err, "stop_err", stopErr)
+					return
 				}
 				rs.state = oldState
 				rs.startValidatingBlock = oldStart
 				rs.stopValidatingBlock = oldStop
-				return fmt.Errorf("Error when saving rsdb in NewChainHead in transition to primary. err: %v", err)
+
+				logger.Crit("Error when saving rsdb in NewChainHead in transition to primary. Rolled back transition.", "err", err)
 			}
 		}
 	default:
 		// pass
 	}
-	return nil
 }
 
 // SetStartValidatingBlock sets the start block in the range [start, stop)
