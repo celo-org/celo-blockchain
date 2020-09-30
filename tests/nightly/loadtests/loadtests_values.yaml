@@ -5,7 +5,7 @@ celotool:
   image:
     repository: gcr.io/celo-testnet/celo-monorepo
     tag: celotool-loadtests3
-delay: 5000
+delay: 4000
 environment: nightlyloadtests
 geth:
   image:
@@ -13,5 +13,5 @@ geth:
     tag: master
   networkID: 1101
   verbosity: 1
-replicas: 5
-threads: 5
+replicas: 15
+threads: 10
