@@ -33,7 +33,7 @@ steps:
      --namespace nightlygethmultiversion
      --values tests/nightly/multiversion/multiversion_values.yaml
      --set geth.image.tag=${_COMMIT_1}-${_COMMIT_2} 
-     --set-file genesis.genesisFile=tests/nightly/genesis.json
+     --set-file genesis.genesisFile=tests/nightly/multiversion/genesis.json
      '
   waitFor:
   - 'push'
