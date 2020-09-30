@@ -22,7 +22,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -78,8 +77,7 @@ type freezer struct {
 
 	trigger chan chan struct{} // Manual blocking freeze trigger, test determinism
 
-	quit      chan struct{}
-	closeOnce sync.Once
+	quit chan struct{}
 }
 
 // newFreezer creates a chain freezer that moves ancient chain data into

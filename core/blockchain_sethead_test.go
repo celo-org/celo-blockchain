@@ -51,7 +51,7 @@ type rewindTest struct {
 	expHeadBlock       uint64 // Block number of the expected head full block
 }
 
-func (tt *rewindTest) dump(crash bool) string {
+func (tt *rewindTest) Dump(crash bool) string {
 	buffer := new(strings.Builder)
 
 	fmt.Fprint(buffer, "Chain:\n  G")

@@ -1645,14 +1645,6 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 	}
 }
 
-func headersToNumbers(headers []*types.Header) []*big.Int {
-	headerNumbers := make([]*big.Int, 0)
-	for _, header := range headers {
-		headerNumbers = append(headerNumbers, header.Number)
-	}
-	return headerNumbers
-}
-
 // processFullSyncContent takes fetch results from the queue and imports them into the chain.
 func (d *Downloader) processFullSyncContent() error {
 	for {
