@@ -142,9 +142,7 @@ jobs:
             git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
             cd celo-monorepo
             yarn install || yarn install
-            PACKAGES=$(cat dependency-graph.json | python -c 'import json,sys;obj=json.load(sys.stdin);print "\n".join(str(obj[x]["location"]) for x in obj["@celo/celotool"]["dependencies"][::-1])')
-            for i in $PACKAGES; do yarn --cwd $i build; done
-            yarn --cwd packages/celotool build
+            yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
           name: Setup Go language
           command: |
