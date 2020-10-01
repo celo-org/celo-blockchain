@@ -59,6 +59,9 @@ type BackendForProxyEngine interface {
 	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
 	// validator connection set and that the message's address field matches the message's signature's signer
 	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
+
+	// GetProxy returns the proxy engine created for this Backend.  Note: This should be only used for the unit tests.
+	GetProxyEngine() ProxyEngine
 }
 
 type proxyEngine struct {
