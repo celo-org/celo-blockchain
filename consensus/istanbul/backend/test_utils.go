@@ -93,6 +93,10 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
 			})
+
+		if isProxied {
+			b.StartProxiedValidatorEngine()
+		}
 	}
 
 	contract_comm.SetInternalEVMHandler(blockchain)

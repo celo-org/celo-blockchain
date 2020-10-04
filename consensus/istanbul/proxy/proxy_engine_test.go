@@ -17,13 +17,20 @@
 package proxy
 
 import (
+	"crypto/ecdsa"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/backendtest"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 func TestHandleValEnodeShare(t *testing.T) {
@@ -35,14 +42,14 @@ func TestHandleValEnodeShare(t *testing.T) {
 
 	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
 	val0BE := val0BEi.(BackendForProxiedValidatorEngine)
-	val0Peer := consensustest.NewMockPeer(val0BE.SelfNode())
+	val0Peer := consensustest.NewMockPeer(val0BE.SelfNode(), p2p.AnyPurpose)
 
 	proxyBEi, _ := backendtest.NewTestBackend(true, val0BE.Address(), false, genesisCfg, nil)
 	proxyBE := proxyBEi.(BackendForProxyEngine)
 
 	val1BEi, _ := backendtest.NewTestBackend(false, common.Address{}, false, genesisCfg, nodeKeys[1])
 	val1BE := val1BEi.(BackendForProxiedValidatorEngine)
-	val1Peer := consensustest.NewMockPeer(val1BE.SelfNode())
+	val1Peer := consensustest.NewMockPeer(val1BE.SelfNode(), p2p.AnyPurpose)
 
 	// Get the proxied validator engine object
 	pvi := val0BE.GetProxiedValidatorEngine()
@@ -108,18 +115,270 @@ func TestHandleValEnodeShare(t *testing.T) {
 	}
 }
 
-func TestHandleEnodeMessageFromRemoteVal(t *testing.T) {
+func TestHandleEnodeCertificateMessage(t *testing.T) {
+	// Create two validators and one proxy backend.
+	// 1) Proxied validator (val0)
+	// 2) Non proxied validator (val1)
+	numValidators := 2
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+
+	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
+	val0BE := val0BEi.(BackendForProxiedValidatorEngine)
+	val0Peer := consensustest.NewMockPeer(val0BE.SelfNode(), p2p.AnyPurpose)
+
+	proxyBEi, _ := backendtest.NewTestBackend(true, val0BE.Address(), false, genesisCfg, nil)
+	proxyBE := proxyBEi.(BackendForProxyEngine)
+	proxyPeer := consensustest.NewMockPeer(proxyBE.SelfNode(), p2p.ProxyPurpose)
+
+	// Get the proxied validator engine object
+	pvi := val0BE.GetProxiedValidatorEngine()
+	pv := pvi.(*proxiedValidatorEngine)
+
+	// Add the proxy to the proxied validator
+	pv.AddProxy(proxyBE.SelfNode(), proxyBE.SelfNode())
+	pv.RegisterProxyPeer(proxyPeer)
+
+	// Register the proxied validator with the proxy object
+	pi := proxyBE.GetProxyEngine()
+	p := pi.(*proxyEngine)
+	p.RegisterProxiedValidatorPeer(val0Peer)
+
+	val1BEi, _ := backendtest.NewTestBackend(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	val1BE := val1BEi.(BackendForProxiedValidatorEngine)
+	val1Peer := consensustest.NewMockPeer(val1BE.SelfNode(), p2p.ValidatorPurpose)
+
+	// Create a non elected validator
+	unelectedValKey, _ := crypto.GenerateKey()
+	unelectedValBEi, _ := backendtest.NewTestBackend(false, common.Address{}, false, genesisCfg, unelectedValKey)
+	unelectedValBE := unelectedValBEi.(BackendForProxiedValidatorEngine)
+	unelectedValPeer := consensustest.NewMockPeer(unelectedValBE.SelfNode(), p2p.AnyPurpose)
+
+	// Sleep for 5 seconds so that val1BE will generate it's enode certificate.
+	time.Sleep(5 * time.Second)
+
 	// Test that the node will forward a message from val within val connection set
+	testEnodeCertFromRemoteVal(t, val1BE, val1Peer, proxyBEi)
 
 	// Test that the node will not forward a message not within val connetion set
+	testEnodeCertFromUnelectedRemoteVal(t, unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
+
+	// Test that the proxy will save the enode certificate into it's enode certificate msg map
+	// when it's proxy sends it.
+	testEnodeCertFromProxiedVal(t, val0BE, val0Peer, proxyBEi, proxyBE)
 }
 
-func TestHandleEnodeMessageFromProxiedVal(t *testing.T) {
-	// Test that the node will save the enode certificate into it's enode certificate msg map
+func testEnodeCertFromRemoteVal(t *testing.T, valBE BackendForProxiedValidatorEngine, valPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
+	valEnodeCertMap := valBE.RetrieveEnodeCertificateMsgMap()
+	valEnodeCert := valEnodeCertMap[valBE.SelfNode().ID()].Msg
+	valEnodeCertPayload, _ := valEnodeCert.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.EnodeCertificateMsg, valEnodeCertPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, err := proxyBEi.HandleMsg(valBE.Address(),
+		p2pMsg,
+		valPeer)
+	if !handled || err != nil {
+		t.Errorf("Error in handling enode certificate msg.  Handled: %v, Error: %v", handled, err)
+	}
+}
+
+func testEnodeCertFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
+	unelectedValEC := &istanbul.EnodeCertificate{
+		EnodeURL: unelectedValBE.SelfNode().URLv4(),
+		Version:  1,
+	}
+	ecBytes, err := rlp.EncodeToBytes(unelectedValEC)
+	if err != nil {
+		t.Errorf("Error in encoding enode certificate.  Error: %v", err)
+	}
+	ecMsg := &istanbul.Message{
+		Code:    istanbul.EnodeCertificateMsg,
+		Address: unelectedValBE.Address(),
+		Msg:     ecBytes,
+	}
+	// Sign the message
+	if err := ecMsg.Sign(func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), unelectedValKey)
+	}); err != nil {
+		t.Errorf("Error in signing enode certificate message.  Error: %v", err)
+	}
+
+	ecMsgPayload, _ := ecMsg.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.EnodeCertificateMsg, ecMsgPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, err := proxyBEi.HandleMsg(unelectedValBE.Address(),
+		p2pMsg,
+		unelectedValPeer)
+	if !handled || err != istanbul.ErrUnauthorizedAddress {
+		t.Errorf("Error in handling enode certificate msg.  Handled: %v, Error: %v", handled, err)
+	}
+}
+
+func testEnodeCertFromProxiedVal(t *testing.T, proxiedValBE BackendForProxiedValidatorEngine, proxiedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface, proxyBE BackendForProxyEngine) {
+	valEnodeCertMap := proxiedValBE.RetrieveEnodeCertificateMsgMap()
+	fmt.Printf("valEnodeCertMap: %v\n", valEnodeCertMap)
+	valEnodeCert := valEnodeCertMap[proxyBE.SelfNode().ID()].Msg
+	valEnodeCertPayload, _ := valEnodeCert.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.EnodeCertificateMsg, valEnodeCertPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, err := proxyBEi.HandleMsg(proxiedValBE.Address(),
+		p2pMsg,
+		proxiedValPeer)
+	if !handled || err != nil {
+		t.Errorf("Error in handling enode certificate msg.  Handled: %v, Error: %v", handled, err)
+	}
+
+	// Sleep for a bit since the handling of the val enode share message is done in a separate thread
+	time.Sleep(1 * time.Second)
+
+	// Verify that the proxy has val1's enode in it's enode certificate msg map
+	msgMap := proxyBE.RetrieveEnodeCertificateMsgMap()
+
+	if len(msgMap) != 1 {
+		t.Errorf("Incorrect number of val enode table entries.  Have %d, Want: 1", len(msgMap))
+	}
+
+	if msgMap[proxyBE.SelfNode().ID()] == nil {
+		t.Errorf("Proxy enode cert message map has incorrect entry.  Want: %v, Have: %v", proxyBE.SelfNode().ID(), reflect.ValueOf(msgMap).MapKeys()[0])
+	}
 }
 
 func TestHandleConsensusMsg(t *testing.T) {
-	// Test that the node will forward a consensus message from a val within val set
+	// Create two validators and one proxy backend.
+	// 1) Proxied validator (val0)
+	// 2) Non proxied validator (val1)
+	numValidators := 2
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
 
-	// Test that the ndoe will not forward a consensus message from a val not within val set
+	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
+	val0BE := val0BEi.(BackendForProxiedValidatorEngine)
+	val0Peer := consensustest.NewMockPeer(val0BE.SelfNode(), p2p.AnyPurpose)
+
+	proxyBEi, _ := backendtest.NewTestBackend(true, val0BE.Address(), false, genesisCfg, nil)
+	proxyBE := proxyBEi.(BackendForProxyEngine)
+	proxyPeer := consensustest.NewMockPeer(proxyBE.SelfNode(), p2p.ProxyPurpose)
+
+	// Get the proxied validator engine object
+	pvi := val0BE.GetProxiedValidatorEngine()
+	pv := pvi.(*proxiedValidatorEngine)
+
+	// Add the proxy to the proxied validator
+	pv.AddProxy(proxyBE.SelfNode(), proxyBE.SelfNode())
+	pv.RegisterProxyPeer(proxyPeer)
+
+	// Register the proxied validator with the proxy object
+	pi := proxyBE.GetProxyEngine()
+	p := pi.(*proxyEngine)
+	p.RegisterProxiedValidatorPeer(val0Peer)
+
+	val1BEi, _ := backendtest.NewTestBackend(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	val1BE := val1BEi.(BackendForProxiedValidatorEngine)
+	val1Peer := consensustest.NewMockPeer(val1BE.SelfNode(), p2p.ValidatorPurpose)
+
+	// Create a non elected validator
+	unelectedValKey, _ := crypto.GenerateKey()
+	unelectedValBEi, _ := backendtest.NewTestBackend(false, common.Address{}, false, genesisCfg, unelectedValKey)
+	unelectedValBE := unelectedValBEi.(BackendForProxiedValidatorEngine)
+	unelectedValPeer := consensustest.NewMockPeer(unelectedValBE.SelfNode(), p2p.AnyPurpose)
+
+	// Sleep for 5 seconds so that val1BE will generate it's enode certificate.
+	time.Sleep(5 * time.Second)
+
+	// Test that the node will forward a consensus message from val within val connection set
+	testConsensusMsgFromRemoteVal(t, val1BE, nodeKeys[1], val1Peer, proxyBEi)
+
+	// Test that the node will not forward a consensus message not within val connetion set
+	testConsensusMsgFromUnelectedRemoteVal(t, unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
+
+	// Test that the proxy will not handle a consensus message from the proxied validator
+	testConsensusMsgFromProxiedVal(t, val0BE, nodeKeys[0], val0Peer, proxyBEi)
+}
+
+func testConsensusMsgFromRemoteVal(t *testing.T, valBE BackendForProxiedValidatorEngine, valKey *ecdsa.PrivateKey, valPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
+	consMsg := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Address: valBE.Address(),
+		Msg:     []byte{},
+	}
+	// Sign the message
+	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), valKey)
+	}); err != nil {
+		t.Errorf("Error in signing consensus message.  Error: %v", err)
+	}
+
+	consMsgPayload, _ := consMsg.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.ConsensusMsg, consMsgPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, err := proxyBEi.HandleMsg(valBE.Address(),
+		p2pMsg,
+		valPeer)
+	if !handled || err != nil {
+		t.Errorf("Error in handling consensus msg.  Handled: %v, Error: %v", handled, err)
+	}
+}
+
+func testConsensusMsgFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
+	consMsg := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Address: unelectedValBE.Address(),
+		Msg:     []byte{},
+	}
+	// Sign the message
+	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), unelectedValKey)
+	}); err != nil {
+		t.Errorf("Error in signing consensus message.  Error: %v", err)
+	}
+
+	consMsgPayload, _ := consMsg.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.ConsensusMsg, consMsgPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, err := proxyBEi.HandleMsg(unelectedValBE.Address(),
+		p2pMsg,
+		unelectedValPeer)
+	if !handled || err != istanbul.ErrUnauthorizedAddress {
+		t.Errorf("Error in handling consensus msg.  Handled: %v, Error: %v", handled, err)
+	}
+}
+
+func testConsensusMsgFromProxiedVal(t *testing.T, proxiedValBE BackendForProxiedValidatorEngine, proxiedValKey *ecdsa.PrivateKey, proxiedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
+	consMsg := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Address: proxiedValBE.Address(),
+		Msg:     []byte{},
+	}
+	// Sign the message
+	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), proxiedValKey)
+	}); err != nil {
+		t.Errorf("Error in signing consensus message.  Error: %v", err)
+	}
+
+	consMsgPayload, _ := consMsg.Payload()
+
+	p2pMsg, err := backendtest.CreateP2PMsg(istanbul.ConsensusMsg, consMsgPayload)
+	if err != nil {
+		t.Errorf("Error in creating p2p message.  Error: %v", err)
+	}
+	handled, _ := proxyBEi.HandleMsg(proxiedValBE.Address(),
+		p2pMsg,
+		proxiedValPeer)
+	if handled {
+		t.Errorf("Unexpectedly handled a consensus message from the proxied validator")
+	}
 }
