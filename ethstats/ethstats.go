@@ -1032,6 +1032,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		syncing          bool
 		gasprice         int
 	)
+	// Eth will be nil only if it is a light client
 	if s.eth != nil {
 		validatorAddress = s.backend.ValidatorAddress()
 		block := s.eth.BlockChain().CurrentBlock()
