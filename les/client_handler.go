@@ -297,7 +297,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 			h.fetcher.announce(p, &req)
 		}
 	case BlockHeadersMsg:
-		p.Log().Trace("Received block header response message")
+		p.Log().Error("Received block header response message")
 		var resp struct {
 			ReqID, BV uint64
 			Headers   []*types.Header
@@ -674,31 +674,31 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		}
 	}
 	// This does seem to work in some ways, testing proofs now
-	// for _, headerGap := range headerGaps {
-	// 	log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
-	// 	headerReq := &distReq{
-	// 		getCost: func(dp distPeer) uint64 {
-	// 			peer := dp.(*peer)
-	// 			return peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
-	// 		},
-	// 		canSend: func(dp distPeer) bool {
-	// 			return dp.(*peer) == pc.peer
-	// 		},
-	// 		request: func(dp distPeer) func() {
-	// 			reqID := genReqID()
-	// 			peer := dp.(*peer)
-	// 			cost := peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
-	// 			peer.fcServer.QueuedRequest(reqID, cost)
-	// 			return func() {
-	// 				peer.RequestHeadersByNumber(reqID, cost, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
-	// 			}
-	// 		},
-	// 	}
-	// 	_, ok := <-pc.handler.backend.reqDist.queue(headerReq)
-	// 	if !ok {
-	// 		return light.ErrNoPeers
-	// 	}
-	// }
+	for _, headerGap := range headerGaps {
+		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
+		headerReq := &distReq{
+			getCost: func(dp distPeer) uint64 {
+				peer := dp.(*peer)
+				return peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+			},
+			canSend: func(dp distPeer) bool {
+				return dp.(*peer) == pc.peer
+			},
+			request: func(dp distPeer) func() {
+				reqID := genReqID()
+				peer := dp.(*peer)
+				cost := peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+				peer.fcServer.QueuedRequest(reqID, cost)
+				return func() {
+					peer.RequestHeadersByNumber(reqID, cost, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
+				}
+			},
+		}
+		_, ok := <-pc.handler.backend.reqDist.queue(headerReq)
+		if !ok {
+			return light.ErrNoPeers
+		}
+	}
 	return nil
 }
 

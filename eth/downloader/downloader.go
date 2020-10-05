@@ -953,7 +953,7 @@ func (d *Downloader) findAncestor(p *peerConnection, remoteHeader *types.Header)
 // the origin is dropped.
 // height = latest block announced by the peers.
 func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, height uint64) error {
-	p.log.Debug("fetchHeaders", "origin", from, "pivot", pivot, "height", height)
+	p.log.Error("fetchHeaders", "origin", from, "pivot", pivot, "height", height)
 	defer p.log.Debug("Header download terminated")
 
 	// Create a timeout timer, and the associated header fetcher
@@ -983,42 +983,33 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 	}
 
 	// getEpochHeaders := func(fromEpochBlock uint64) {
-	// 	if d.Mode != LightestSync {
-	// 		panic("This method should be called only in LightestSync mode")
-	// 	}
-	// 	if fromEpochBlock%epoch != 0 {
-	// 		panic(fmt.Sprintf(
-	// 			"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
-	// 			fromEpochBlock, epoch))
-	// 	}
 
-	// 	request = time.Now()
-
-	// 	ttl = d.requestTTL()
-	// 	timeout.Reset(ttl)
-
-	// 	// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
-	// 	// 1000, 1101, 1202, 1303 ...
-	// 	// So, skip has to be epoch - 1 to get the right set of blocks.
 	// 	skip := int(epoch - 1)
-	// 	count := MaxEpochHeaderFetch
-	// 	log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-	// 	p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
 	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
 	// }
 
-	getProofs := func(from uint64) {
-		log.Error("GETTING PROOFS")
+	getProofs := func(fromEpochBlock uint64) {
 		if d.Mode != LightestSync {
 			panic("This method should be called only in LightestSync mode")
 		}
+		if fromEpochBlock%epoch != 0 {
+			panic(fmt.Sprintf(
+				"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
+				fromEpochBlock, epoch))
+		}
+		log.Error("GETTING PROOFS")
 
 		request = time.Now()
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
 		p.log.Error("Fetching proofs", "from", from)
+		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
+		// 1000, 1101, 1202, 1303 ...
+		// So, skip has to be epoch - 1 to get the right set of blocks.
 		skip := int(epoch - 1)
+		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
+		p.log.Trace("Fetching Proofs and headers", "from", fromEpochBlock)
 		go p.peer.RequestPlumoProofsAndHeaders(from, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
 		// go p.peer.RequestProofs()
 		// go p.peer.RequestPlumoProofInventory()
@@ -1026,31 +1017,27 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
 	getEpochOrNormalHeaders := func(from uint64) bool {
-		// Request proof
-		getProofs(from)
-		return true
-		// // Download the epoch headers including and beyond the current head.
-		// nextEpochBlock := (from-1)/epoch*epoch + epoch
-		// // If we're still not synced up to the latest epoch, sync only epoch headers.
-		// // Otherwise, sync block headers as we would normally in light sync.
+		// Download the epoch headers including and beyond the current head.
+		nextEpochBlock := (from-1)/epoch*epoch + epoch
+		// If we're still not synced up to the latest epoch, sync only epoch headers.
+		// Otherwise, sync block headers as we would normally in light sync.
 
-		// TODO (lucas): add this back in
-
-		// log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
-		// if nextEpochBlock < height {
-		// 	getEpochHeaders(nextEpochBlock)
-		// 	return true
-		// } else if from <= height {
-		// 	getHeaders(height)
-		// 	return true
-		// } else {
-		// 	// During repeated invocations, "from" can be more than height since the blocks could have
-		// 	// created after this method was invoked and in that case, the from which is one beyond the
-		// 	// last fetched header number can be more than the height.
-		// 	// If we have already fetched a block header >= height block header then we declare that the sync
-		// 	// is finished and stop.
-		// 	return false
-		// }
+		log.Error("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
+		if nextEpochBlock < height {
+			getProofs(nextEpochBlock)
+			// getEpochHeaders(nextEpochBlock)
+			return true
+		} else if from <= height {
+			getHeaders(height)
+			return true
+		} else {
+			// During repeated invocations, "from" can be more than height since the blocks could have
+			// created after this method was invoked and in that case, the from which is one beyond the
+			// last fetched header number can be more than the height.
+			// If we have already fetched a block header >= height block header then we declare that the sync
+			// is finished and stop.
+			return false
+		}
 	}
 	// Start pulling the header chain skeleton until all is done
 	ancestor := from
@@ -1116,6 +1103,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			// If we received a skeleton batch, resolve internals concurrently
 			if skeleton {
 				filled, proced, err := d.fillHeaderSkeleton(from, headers)
+				log.Error("Processing skeleton", "filled", filled)
 				if err != nil {
 					p.log.Debug("Skeleton chain invalid", "err", err)
 					return errInvalidChain
@@ -1159,7 +1147,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			}
 			// Insert all the new headers and fetch the next batch
 			if len(headers) > 0 {
-				p.log.Trace("Scheduling new headers", "count", len(headers), "from", from)
+				p.log.Error("Scheduling new headers", "count", len(headers), "from", from)
 				select {
 				case d.headerProcCh <- headers:
 				case <-d.cancelCh:
@@ -1169,6 +1157,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				// In the lightest sync mode, increment the value by epoch instead.
 				if d.Mode == LightestSync {
 					lastFetchedHeaderNumber := headers[len(headers)-1].Number.Uint64()
+					log.Error("Get epoch or normal Headers", "lastFetchedHeaderNumber", lastFetchedHeaderNumber)
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
 						p.log.Debug("No more headers available")
@@ -1181,7 +1170,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					}
 				} else {
 					from += uint64(len(headers))
-					log.Trace("getHeaders#downloadMoreHeaders", "from", from)
+					log.Error("getHeaders#downloadMoreHeaders", "from", from)
 					getHeaders(from)
 				}
 			} else {
@@ -1228,13 +1217,9 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				case <-d.cancelCh:
 					return errCanceled
 				}
-				var lastEpoch uint64
-				for _, lightProof := range lightProofs {
-					if uint64(lightProof.LastEpoch.Index) > lastEpoch {
-						lastEpoch = uint64(lightProof.LastEpoch.Index)
-					}
-				}
-				from = lastEpoch
+				// TODO(lucas): This will need work
+				epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch
+				from += uint64(epochRange)*epoch - 1
 				getProofs(from)
 				log.Error("getProofs#downloadMoreProofs", "from", from)
 			} else {
@@ -2071,6 +2056,7 @@ func (d *Downloader) deliver(id string, destCh chan dataPack, packet dataPack, i
 	cancel := d.cancelCh
 	d.cancelLock.RUnlock()
 	if cancel == nil {
+		log.Error("Cancel channel is null")
 		return errNoSyncActive
 	}
 	select {
