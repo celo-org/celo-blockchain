@@ -480,7 +480,7 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 	subscription := txpool.SubscribeNewTxsEvent(ch)
 	defer subscription.Unsubscribe()
 
-  for {
+	for {
 		select {
 		// Notify of new transaction events, but drop if too frequent
 		case <-ch:
