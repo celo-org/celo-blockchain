@@ -51,6 +51,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -124,6 +125,17 @@ type Service struct {
 	histCh chan []uint64 // History request block numbers are fed into this channel
 }
 
+func parseStatsConnectionURL(url string, name *string, host *string) error {
+	re := regexp.MustCompile("([^:@]*)?@(.+)")
+	parts := re.FindStringSubmatch(url)
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+	}
+	*name = parts[1]
+	*host = parts[2]
+	return nil
+}
+
 // New returns a monitoring service ready for stats reporting.
 func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Service, error) {
 	// Assemble and return the stats service
@@ -141,13 +153,9 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 	backend := engine.(*istanbulBackend.Backend)
 	if !backend.IsProxiedValidator() {
 		// Parse the netstats connection url
-		re := regexp.MustCompile("([^:@]*)?@(.+)")
-		parts := re.FindStringSubmatch(url)
-		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+		if err := parseStatsConnectionURL(url, &name, &celostatsHost); err != nil {
+			return nil, err
 		}
-		name = parts[1]
-		celostatsHost = parts[2]
 	}
 
 	return &Service{
@@ -199,144 +207,117 @@ func (s *Service) loop() {
 		txpool = s.les.TxPool()
 	}
 
-	txEventCh := make(chan core.NewTxsEvent, txChanSize)
-	txSub := txpool.SubscribeNewTxsEvent(txEventCh)
-	defer txSub.Unsubscribe()
-
 	// Start a goroutine that exhausts the subsciptions to avoid events piling up
 	var (
-		quitCh = make(chan struct{})
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
 		signCh = make(chan *DelegateSignMessage, 1)
 		sendCh = make(chan *StatsPayload, 1)
 	)
 
-	go s.delegateSignMessagesRouter(sendCh, signCh, quitCh)
+	group, ctx := errgroup.WithContext(context.Background())
+	group.Go(func() error { return s.handleDelegateSignEvents(ctx, sendCh, signCh) })
+	group.Go(func() error { return s.handleNewTransactionEvents(ctx, txCh, txpool) })
+	group.Go(func() error { return s.handleChainHeadEvents(ctx, headCh, blockchain) })
+	if s.backend.IsProxiedValidator() {
+		group.Go(func() error {
+			for {
+				select{
+				case delegateSignMsg := <-signCh:
+					if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
+						log.Warn("Delegate sign failed", "err", err)
+					}
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		})
+	} else {
+		group.Go(func() error {
+			// Loop reporting until termination
+			for {
+				// Resolve the URL, defaulting to TLS, but falling back to none too
+				path := fmt.Sprintf("%s/api", s.celostatsHost)
+				urls := []string{path}
 
-	go func() {
-		var lastTx mclock.AbsTime
-
-		chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-		headSub := blockchain.SubscribeChainHeadEvent(chainHeadCh)
-		defer headSub.Unsubscribe()
-
-	HandleLoop:
-		for {
-			select {
-			// Notify of chain head events, but drop if too frequent
-			case head := <-chainHeadCh:
-				select {
-				case headCh <- head.Block:
-				default:
+				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+				if !strings.Contains(path, "://") {
+					urls = []string{"wss://" + path, "ws://" + path}
+				}
+				// Establish a websocket connection to the server on any supported URL
+				var (
+					conn *websocket.Conn
+					err  error
+				)
+				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+				header := make(http.Header)
+				for _, url := range urls {
+					conn, _, err = dialer.Dial(url, header)
+					if err == nil {
+						break
+					}
 				}
 
-			// Notify of new transaction events, but drop if too frequent
-			case <-txEventCh:
-				if time.Duration(mclock.Now()-lastTx) < time.Second {
+				if err != nil {
+					log.Warn("Stats server unreachable", "err", err)
+					time.Sleep(connectionTimeout * time.Second)
 					continue
 				}
-				lastTx = mclock.Now()
-
-				select {
-				case txCh <- struct{}{}:
-				default:
-				}
-			// node stopped
-			case <-txSub.Err():
-				break HandleLoop
-			case <-headSub.Err():
-				break HandleLoop
-			}
-		}
-		close(quitCh)
-	}()
-
-	// Loop reporting until termination
-	for {
-		if s.backend.IsProxiedValidator() {
-			delegateSignMsg := <-signCh
-			if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
-				log.Warn("Delegate sign failed", "err", err)
-			}
-		} else {
-			// Resolve the URL, defaulting to TLS, but falling back to none too
-			path := fmt.Sprintf("%s/api", s.celostatsHost)
-			urls := []string{path}
-
-			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-			if !strings.Contains(path, "://") {
-				urls = []string{"wss://" + path, "ws://" + path}
-			}
-			// Establish a websocket connection to the server on any supported URL
-			var (
-				conn *websocket.Conn
-				err  error
-			)
-			dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-			header := make(http.Header)
-			for _, url := range urls {
-				conn, _, err = dialer.Dial(url, header)
-				if err == nil {
-					break
-				}
-			}
-
-			if err != nil {
-				log.Warn("Stats server unreachable", "err", err)
-				time.Sleep(connectionTimeout * time.Second)
-				continue
-			}
-			// Authenticate the client with the server
-			if err = s.login(conn, sendCh); err != nil {
-				log.Warn("Stats login failed", "err", err)
-				conn.Close()
-				time.Sleep(connectionTimeout * time.Second)
-				continue
-			}
-			go s.readLoop(conn)
-
-			// Send the initial stats so our node looks decent from the get go
-			if err = s.report(conn, sendCh); err != nil {
-				log.Warn("Initial stats report failed", "err", err)
-				conn.Close()
-				continue
-			}
-			// Keep sending status updates until the connection breaks
-			fullReport := time.NewTicker(statusUpdateInterval * time.Second)
-
-			for err == nil {
-				select {
-				case <-quitCh:
+				// Authenticate the client with the server
+				if err = s.login(conn, sendCh); err != nil {
+					log.Warn("Stats login failed", "err", err)
 					conn.Close()
-					return
+					time.Sleep(connectionTimeout * time.Second)
+					continue
+				}
+				go s.readLoop(conn)
 
-				case <-fullReport.C:
-					if err = s.report(conn, sendCh); err != nil {
-						log.Warn("Full stats report failed", "err", err)
-					}
-				case list := <-s.histCh:
-					if err = s.reportHistory(conn, list); err != nil {
-						log.Warn("Requested history report failed", "err", err)
-					}
-				case head := <-headCh:
-					if err = s.reportBlock(conn, head); err != nil {
-						log.Warn("Block stats report failed", "err", err)
-					}
-				case <-txCh:
-					if err = s.reportPending(conn); err != nil {
-						log.Warn("Transaction stats report failed", "err", err)
-					}
-				case signedMessage := <-sendCh:
-					if err = s.handleDelegateSend(conn, signedMessage); err != nil {
-						log.Warn("Delegate send failed", "err", err)
+				// Send the initial stats so our node looks decent from the get go
+				if err = s.report(conn, sendCh); err != nil {
+					log.Warn("Initial stats report failed", "err", err)
+					conn.Close()
+					continue
+				}
+				// Keep sending status updates until the connection breaks
+				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
+
+				for err == nil {
+					select {
+					case <-ctx.Done():
+						conn.Close()
+						return ctx.Err()
+
+					case <-fullReport.C:
+						if err = s.report(conn, sendCh); err != nil {
+							log.Warn("Full stats report failed", "err", err)
+						}
+					case list := <-s.histCh:
+						if err = s.reportHistory(conn, list); err != nil {
+							log.Warn("Requested history report failed", "err", err)
+						}
+					case head := <-headCh:
+						if err = s.reportBlock(conn, head); err != nil {
+							log.Warn("Block stats report failed", "err", err)
+						}
+					case <-txCh:
+						if err = s.reportPending(conn); err != nil {
+							log.Warn("Transaction stats report failed", "err", err)
+						}
+					case signedMessage := <-sendCh:
+						if err = s.handleDelegateSend(conn, signedMessage); err != nil {
+							log.Warn("Delegate send failed", "err", err)
+						}
 					}
 				}
+				// Make sure the connection is closed
+				conn.Close()
+				return err
 			}
-			// Make sure the connection is closed
-			conn.Close()
-		}
+		})
 	}
+
+	group.Wait()
+	return 
 }
 
 // login tries to authorize the client at the remote server.
@@ -389,8 +370,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 
 	if s.backend.IsProxy() {
 		// Proxy needs a delegate send here to get ACK
-		err := s.waitAndDelegateMessageWithTimeout(conn, sendCh)
-		if err != nil {
+		if err := s.waitAndDelegateMessageWithTimeout(conn, sendCh); err != nil {
 			return err
 		}
 	}
@@ -460,7 +440,7 @@ func (s *Service) handleDelegateSend(conn *websocket.Conn, signedMessage *StatsP
 	return conn.WriteJSON(report)
 }
 
-func (s *Service) delegateSignMessagesRouter(sendCh chan *StatsPayload, signCh chan *DelegateSignMessage, quitCh chan struct{}) {
+func (s *Service) handleDelegateSignEvents(ctx context.Context, sendCh chan *StatsPayload, signCh chan *DelegateSignMessage) error {
 	ch := make(chan istanbul.MessageWithPeerIDEvent, istDelegateSignChanSize)
 	subscription := s.backend.SubscribeNewDelegateSignEvent(ch)
 	defer subscription.Unsubscribe()
@@ -487,10 +467,60 @@ func (s *Service) delegateSignMessagesRouter(sendCh chan *StatsPayload, signCh c
 				}
 			}
 		case err := <-subscription.Err():
-			log.Error("Subscription for handle sign messages failed", "err", err)
-			return
-		case <-quitCh:
-			return
+			log.Error("Subscription for handle signing messages failed", "err", err)
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan struct{}, txpool txPool) error {
+	var lastTx mclock.AbsTime
+	ch := make(chan core.NewTxsEvent, txChanSize)
+	subscription := txpool.SubscribeNewTxsEvent(ch)
+	defer subscription.Unsubscribe()
+
+  for {
+		select {
+		// Notify of new transaction events, but drop if too frequent
+		case <-ch:
+			if time.Duration(mclock.Now()-lastTx) < time.Second {
+				continue
+			}
+			lastTx = mclock.Now()
+
+			select {
+			case txChan <- struct{}{}:
+			default:
+			}
+		case err := <-subscription.Err():
+			log.Error("Subscription for handle new transactions failed", "err", err)
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.Block, blockchain blockChain) error {
+	ch := make(chan core.ChainHeadEvent, chainHeadChanSize)
+	subscription := blockchain.SubscribeChainHeadEvent(ch)
+	defer subscription.Unsubscribe()
+
+	for {
+		select {
+		// Notify of chain head events, but drop if too frequent
+		case head := <-ch:
+			select {
+			case headCh <- head.Block:
+			default:
+			}
+		case err := <-subscription.Err():
+			log.Error("Subscription for handle chain head failed", "err", err)
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 }
