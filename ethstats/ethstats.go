@@ -222,7 +222,7 @@ func (s *Service) loop() {
 	if s.backend.IsProxiedValidator() {
 		group.Go(func() error {
 			for {
-				select{
+				select {
 				case delegateSignMsg := <-signCh:
 					if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
 						log.Warn("Delegate sign failed", "err", err)
@@ -317,7 +317,6 @@ func (s *Service) loop() {
 	}
 
 	group.Wait()
-	return 
 }
 
 // login tries to authorize the client at the remote server.
