@@ -68,6 +68,9 @@ type BackendForProxiedValidatorEngine interface {
 
 	// RemovePeer will remove a static peer
 	RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
+
+	// GetProxiedValidatorEngine returns the proxied validator engine created for this Backend.  This should only be used for the unit tests.
+	GetProxiedValidatorEngine() ProxiedValidatorEngine
 }
 
 type fwdMsgInfo struct {

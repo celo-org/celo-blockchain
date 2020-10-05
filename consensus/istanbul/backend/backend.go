@@ -294,9 +294,21 @@ func (sb *Backend) IsProxy() bool {
 	return sb.config.Proxy
 }
 
+// GetProxyEngine returns the proxy engine object
+func (sb *Backend) GetProxyEngine() proxy.ProxyEngine {
+	return sb.proxyEngine
+}
+
 // IsProxiedValidator returns true if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
 	return sb.config.Proxied && sb.IsValidator()
+}
+
+// GetProxiedValidatorEngine returns the proxied validator engine object
+func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
+	sb.proxiedValidatorEngineMu.RLock()
+	defer sb.proxiedValidatorEngineMu.RUnlock()
+	return sb.proxiedValidatorEngine
 }
 
 // IsValidating return true if instance is validating

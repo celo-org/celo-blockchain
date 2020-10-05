@@ -89,11 +89,12 @@ func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeF
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
 type MockPeer struct {
-	node *enode.Node
+	node     *enode.Node
+	purposes p2p.PurposeFlag
 }
 
-func NewMockPeer(node *enode.Node) *MockPeer {
-	mockPeer := &MockPeer{node: node}
+func NewMockPeer(node *enode.Node, purposes p2p.PurposeFlag) *MockPeer {
+	mockPeer := &MockPeer{node: node, purposes: purposes}
 
 	return mockPeer
 }
