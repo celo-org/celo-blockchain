@@ -120,6 +120,8 @@ type Service struct {
 	backend       *istanbulBackend.Backend // Istanbul consensus backend
 	nodeName      string                   // Name of the node to display on the monitoring page
 	celostatsHost string                   // Remote address of the monitoring service
+	ctx           context.Context          // Context
+	cancelFn      context.CancelFunc       // Close ctx Done channel
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -158,6 +160,8 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Service{
 		eth:           ethServ,
 		les:           lesServ,
@@ -165,6 +169,8 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		backend:       backend,
 		nodeName:      name,
 		celostatsHost: celostatsHost,
+		ctx:           ctx,
+		cancelFn:      cancel,
 		pongCh:        make(chan struct{}),
 		histCh:        make(chan []uint64, 1),
 	}, nil
@@ -190,6 +196,7 @@ func (s *Service) Start(server *p2p.Server) error {
 // Stop implements node.Service, terminating the monitoring and reporting daemon.
 func (s *Service) Stop() error {
 	log.Info("Stats daemon stopped")
+	s.cancelFn()
 	return nil
 }
 
@@ -215,7 +222,7 @@ func (s *Service) loop() {
 		sendCh = make(chan *StatsPayload, 1)
 	)
 
-	group, ctx := errgroup.WithContext(context.Background())
+	group, ctx := errgroup.WithContext(s.ctx)
 	group.Go(func() error { return s.handleDelegateSignEvents(ctx, sendCh, signCh) })
 	group.Go(func() error { return s.handleNewTransactionEvents(ctx, txCh, txpool) })
 	group.Go(func() error { return s.handleChainHeadEvents(ctx, headCh, blockchain) })
