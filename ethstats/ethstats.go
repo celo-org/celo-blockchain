@@ -311,7 +311,6 @@ func (s *Service) loop() {
 				}
 				// Make sure the connection is closed
 				conn.Close()
-				return err
 			}
 		})
 	}
