@@ -120,8 +120,7 @@ type Service struct {
 	backend       *istanbulBackend.Backend // Istanbul consensus backend
 	nodeName      string                   // Name of the node to display on the monitoring page
 	celostatsHost string                   // Remote address of the monitoring service
-	ctx           context.Context          // Context
-	cancelFn      context.CancelFunc       // Close ctx Done channel
+	stopFn        context.CancelFunc       // Close ctx Done channel
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -160,8 +159,6 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Service{
 		eth:           ethServ,
 		les:           lesServ,
@@ -169,8 +166,7 @@ func New(url string, ethServ *eth.Ethereum, lesServ *les.LightEthereum) (*Servic
 		backend:       backend,
 		nodeName:      name,
 		celostatsHost: celostatsHost,
-		ctx:           ctx,
-		cancelFn:      cancel,
+		stopFn:        nil,
 		pongCh:        make(chan struct{}),
 		histCh:        make(chan []uint64, 1),
 	}, nil
@@ -186,8 +182,14 @@ func (s *Service) APIs() []rpc.API { return nil }
 
 // Start implements node.Service, starting up the monitoring and reporting daemon.
 func (s *Service) Start(server *p2p.Server) error {
+	// TODO add lock to avoid starting twice or starting an already started service
 	s.server = server
-	go s.loop()
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		s.stopFn = cancel
+		s.loop(ctx)
+	}()
 
 	log.Info("Stats daemon started")
 	return nil
@@ -195,14 +197,20 @@ func (s *Service) Start(server *p2p.Server) error {
 
 // Stop implements node.Service, terminating the monitoring and reporting daemon.
 func (s *Service) Stop() error {
-	log.Info("Stats daemon stopped")
-	s.cancelFn()
+	// TODO don't stop if already stopped
+	// TODO use lock
+	if s.stopFn != nil {
+		log.Info("Stats daemon stopped")
+		s.stopFn()
+		s.stopFn = nil
+	}
+	// TODO use WaitGroup to wait for loop to finish (or use errgroup for it)
 	return nil
 }
 
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
-func (s *Service) loop() {
+func (s *Service) loop(ctx context.Context) {
 	// Subscribe to chain events to execute updates on
 	var blockchain blockChain
 	var txpool txPool
@@ -222,10 +230,11 @@ func (s *Service) loop() {
 		sendCh = make(chan *StatsPayload, 1)
 	)
 
-	group, ctx := errgroup.WithContext(s.ctx)
-	group.Go(func() error { return s.handleDelegateSignEvents(ctx, sendCh, signCh) })
-	group.Go(func() error { return s.handleNewTransactionEvents(ctx, txCh, txpool) })
-	group.Go(func() error { return s.handleChainHeadEvents(ctx, headCh, blockchain) })
+	group, ctxGroup := errgroup.WithContext(ctx)
+	group.Go(func() error { return s.handleDelegateSignEvents(ctxGroup, sendCh, signCh) })
+	group.Go(func() error { return s.handleNewTransactionEvents(ctxGroup, txCh, txpool) })
+	group.Go(func() error { return s.handleChainHeadEvents(ctxGroup, headCh, blockchain) })
+	
 	if s.backend.IsProxiedValidator() {
 		group.Go(func() error {
 			for {
@@ -234,28 +243,30 @@ func (s *Service) loop() {
 					if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
 						log.Warn("Delegate sign failed", "err", err)
 					}
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-ctxGroup.Done():
+					return ctxGroup.Err()
 				}
 			}
 		})
 	} else {
 		group.Go(func() error {
+			// Resolve the URL, defaulting to TLS, but falling back to none too
+			path := fmt.Sprintf("%s/api", s.celostatsHost)
+			urls := []string{path}
+
+			// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
+			if !strings.Contains(path, "://") {
+				urls = []string{"wss://" + path, "ws://" + path}
+			}
+			
+			// Establish a websocket connection to the server on any supported URL
+			var (
+				conn *websocket.Conn
+				err  error
+			)
+			
 			// Loop reporting until termination
 			for {
-				// Resolve the URL, defaulting to TLS, but falling back to none too
-				path := fmt.Sprintf("%s/api", s.celostatsHost)
-				urls := []string{path}
-
-				// url.Parse and url.IsAbs is unsuitable (https://github.com/golang/go/issues/19779)
-				if !strings.Contains(path, "://") {
-					urls = []string{"wss://" + path, "ws://" + path}
-				}
-				// Establish a websocket connection to the server on any supported URL
-				var (
-					conn *websocket.Conn
-					err  error
-				)
 				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
 				header := make(http.Header)
 				for _, url := range urls {
@@ -270,6 +281,7 @@ func (s *Service) loop() {
 					time.Sleep(connectionTimeout * time.Second)
 					continue
 				}
+
 				// Authenticate the client with the server
 				if err = s.login(conn, sendCh); err != nil {
 					log.Warn("Stats login failed", "err", err)
@@ -277,6 +289,8 @@ func (s *Service) loop() {
 					time.Sleep(connectionTimeout * time.Second)
 					continue
 				}
+
+				// This go routine will close when the connection gets closed/lost
 				go s.readLoop(conn)
 
 				// Send the initial stats so our node looks decent from the get go
@@ -285,14 +299,15 @@ func (s *Service) loop() {
 					conn.Close()
 					continue
 				}
+				
 				// Keep sending status updates until the connection breaks
 				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
 				for err == nil {
 					select {
-					case <-ctx.Done():
+					case <-ctxGroup.Done():
 						conn.Close()
-						return ctx.Err()
+						return ctxGroup.Err()
 
 					case <-fullReport.C:
 						if err = s.report(conn, sendCh); err != nil {
@@ -318,6 +333,7 @@ func (s *Service) loop() {
 				}
 				// Make sure the connection is closed
 				conn.Close()
+				// Continues with the for, and tries to login again until the ctx was cancelled
 			}
 		})
 	}
