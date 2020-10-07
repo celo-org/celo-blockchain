@@ -234,7 +234,7 @@ func (s *Service) loop(ctx context.Context) {
 	group.Go(func() error { return s.handleDelegateSignEvents(ctxGroup, sendCh, signCh) })
 	group.Go(func() error { return s.handleNewTransactionEvents(ctxGroup, txCh, txpool) })
 	group.Go(func() error { return s.handleChainHeadEvents(ctxGroup, headCh, blockchain) })
-	
+
 	if s.backend.IsProxiedValidator() {
 		group.Go(func() error {
 			for {
@@ -258,13 +258,13 @@ func (s *Service) loop(ctx context.Context) {
 			if !strings.Contains(path, "://") {
 				urls = []string{"wss://" + path, "ws://" + path}
 			}
-			
+
 			// Establish a websocket connection to the server on any supported URL
 			var (
 				conn *websocket.Conn
 				err  error
 			)
-			
+
 			// Loop reporting until termination
 			for {
 				dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
@@ -299,7 +299,7 @@ func (s *Service) loop(ctx context.Context) {
 					conn.Close()
 					continue
 				}
-				
+
 				// Keep sending status updates until the connection breaks
 				fullReport := time.NewTicker(statusUpdateInterval * time.Second)
 
