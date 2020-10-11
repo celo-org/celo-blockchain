@@ -176,7 +176,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 		t.Errorf("Error getting payload of empty msg %v", err)
 	}
 	peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, emptyMsgPayload)
-	isValidator, err := backend.readValidatorHandshakeMessage(peer)
+	isValidator, err := backend.readValidatorHandshakeMessage(peer, false)
 	if err != nil {
 		t.Errorf("Error from readValidatorHandshakeMessage %v", err)
 	}
@@ -214,7 +214,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	// set backend to a different validator
 	backend.address = valSet.GetByIndex(1).Address()
 
-	isValidator, err = backend.readValidatorHandshakeMessage(peer)
+	isValidator, err = backend.readValidatorHandshakeMessage(peer, false)
 	if err != nil {
 		t.Errorf("Error from readValidatorHandshakeMessage with valid message %v", err)
 	}
