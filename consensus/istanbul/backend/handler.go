@@ -408,20 +408,15 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer, peerIsInte
 		return false, err
 	}
 
-	// If peer is from proxied validator, check if its address matches ProxiedValidatorAddress
-	// which is configured by --proxy.proxiedvalidatoraddress on this proxy
+	// If peer is from proxied validator through internal network interface
+	//this proxy checks if its address matches ProxiedValidatorAddress configured via --proxy.proxiedvalidatoraddress
 	if peerIsInternal {
 		if sb.config.ProxiedValidatorAddress != msg.Address {
 			logger.Error("connecting proxied validator doesn't contain correct address configured in this proxy node",
 				"expected", sb.config.ProxiedValidatorAddress, "actual", msg.Address)
-			return false, errors.New("incorrect address from internal peer")
+			return false, errors.New("message not authorized by proxied validator")
 		}
 		return true, nil
-	}
-
-	// If the Signature is empty, the peer has decided not to reveal its info
-	if len(msg.Signature) == 0 {
-		return false, nil
 	}
 
 	var enodeCertificate istanbul.EnodeCertificate
