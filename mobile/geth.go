@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
@@ -62,6 +63,9 @@ type NodeConfig struct {
 	// set to zero, then only the configured static and trusted peers can connect.
 	MaxPeers int
 
+	// NoDiscovery indicates whether the node should not participate in p2p discovery
+	NoDiscovery bool
+
 	// EthereumEnabled specifies whether the node should run the Ethereum protocol.
 	EthereumEnabled bool
 
@@ -82,6 +86,29 @@ type NodeConfig struct {
 	//
 	// It has the form "nodename:secret@host:port"
 	EthereumNetStats string
+
+	// HTTPHost is the host interface on which to start the HTTP RPC server. If this
+	// field is empty, no HTTP API endpoint will be started.
+	HTTPHost string
+
+	// HTTPPort is the TCP port number on which to start the HTTP RPC server. The
+	// default zero value is/ valid and will pick a port number randomly (useful
+	// for ephemeral nodes).
+	HTTPPort int
+
+	// HTTPVirtualHosts is a comma separated list of virtual hostnames which are allowed on incoming requests.
+	// This is by default {'localhost'}. Using this prevents attacks like
+	// DNS rebinding, which bypasses SOP by simply masquerading as being within the same
+	// origin. These attacks do not utilize CORS, since they are not cross-domain.
+	// By explicitly checking the Host-header, the server will not allow requests
+	// made against the server with a malicious host domain.
+	// Requests using ip address directly are not affected
+	HTTPVirtualHosts string
+
+	// HTTPModules is a comma separated list of API modules to expose via the HTTP RPC interface.
+	// If the module list is empty, all RPC API endpoints designated public will be
+	// exposed.
+	HTTPModules string
 
 	// WhisperEnabled specifies whether the node should run the Whisper protocol.
 	WhisperEnabled bool
@@ -111,6 +138,7 @@ type NodeConfig struct {
 var defaultNodeConfig = &NodeConfig{
 	BootstrapNodes:        FoundationBootnodes(),
 	MaxPeers:              25,
+	NoDiscovery:           true,
 	EthereumEnabled:       true,
 	EthereumNetworkID:     1,
 	EthereumDatabaseCache: 16,
@@ -137,6 +165,16 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		config.BootstrapNodes = defaultNodeConfig.BootstrapNodes
 	}
 
+	// gomobile doesn't allow arrays to be passed in, so comma separated strings are used
+	var httpVirtualHosts []string
+	if config.HTTPVirtualHosts != "" {
+		httpVirtualHosts = strings.Split(config.HTTPVirtualHosts, ",")
+	}
+	var httpModules []string
+	if config.HTTPModules != "" {
+		httpModules = strings.Split(config.HTTPModules, ",")
+	}
+
 	if config.PprofAddress != "" {
 		debug.StartPProf(config.PprofAddress)
 	}
@@ -149,14 +187,19 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		KeyStoreDir:       filepath.Join(datadir, "keystore"), // Mobile should never use internal keystores!
 		UseLightweightKDF: config.UseLightweightKDF,
 		IPCPath:           config.IPCPath,
+		HTTPHost:          config.HTTPHost,
+		HTTPPort:          config.HTTPPort,
+		HTTPVirtualHosts:  httpVirtualHosts,
+		HTTPModules:       httpModules,
 		P2P: p2p.Config{
-			NoDiscovery:      true,
-			DiscoveryV5:      false,
+			NoDiscovery:      config.NoDiscovery,
+			DiscoveryV5:      !config.NoDiscovery,
 			BootstrapNodesV5: config.BootstrapNodes.nodes,
 			ListenAddr:       ":0",
 			NAT:              nat.Any(),
 			MaxPeers:         config.MaxPeers,
 		},
+		NoUSB: true,
 	}
 
 	rawStack, err := node.New(nodeConf)
