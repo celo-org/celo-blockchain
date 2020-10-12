@@ -419,6 +419,11 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer, peerIsInte
 		return true, nil
 	}
 
+	// If the Signature is empty, the peer has decided not to reveal its info
+	if len(msg.Signature) == 0 {
+		return false, nil
+	}
+
 	var enodeCertificate istanbul.EnodeCertificate
 	err = rlp.DecodeBytes(msg.Msg, &enodeCertificate)
 	if err != nil {
