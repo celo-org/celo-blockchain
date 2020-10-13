@@ -409,6 +409,7 @@ func (pool *serverPool) eventLoop() {
 			}
 			pool.knownQueue.setLatest(entry)
 			entry.shortRetry = shortRetryCnt
+			pool.saveNodes()
 			close(req.done)
 
 		case req := <-pool.disconnCh:
@@ -530,11 +531,9 @@ func parseTrustedNodes(trustedNodes []string) map[enode.ID]*enode.Node {
 // saveNodes saves known nodes and their statistics into the database. Nodes are
 // ordered from least to most recently connected.
 func (pool *serverPool) saveNodes() {
-	list := make([]*poolEntry, len(pool.knownQueue.queue))
-	for i := range list {
-		list[i] = pool.knownQueue.fetchOldest()
-	}
-	enc, err := rlp.EncodeToBytes(list)
+	nodes := pool.knownQueue.list()
+	log.Debug("Saving serverPool nodes", "length", len(nodes))
+	enc, err := rlp.EncodeToBytes(nodes)
 	if err == nil {
 		pool.db.Put(pool.dbKey, enc)
 	}
@@ -658,12 +657,46 @@ func (pool *serverPool) checkDialTimeout(entry *poolEntry) {
 	pool.setRetryDial(entry)
 }
 
+func (pool *serverPool) Info() []*poolEntryInfo {
+	entryInfos := make([]*poolEntryInfo, 0)
+	for _, entry := range pool.entries {
+		entryInfos = append(entryInfos, &poolEntryInfo{
+			Peered:             entry.peer != nil,
+			Node:               entry.node,
+			Known:              entry.known,
+			KnownSelected:      entry.knownSelected,
+			Trusted:            entry.trusted,
+			LastDiscoveredTime: entry.lastDiscovered,
+			RegisteredTime:     entry.regTime,
+			State:              entry.state.String(),
+		})
+	}
+	return entryInfos
+}
+
+type poolEntryState int
+
 const (
-	psNotConnected = iota
+	psNotConnected = poolEntryState(iota)
 	psDialed
 	psConnected
 	psRegistered
 )
+
+func (e poolEntryState) String() string {
+	switch e {
+	case psNotConnected:
+		return "NotConnected"
+	case psDialed:
+		return "Dialed"
+	case psConnected:
+		return "Connected"
+	case psRegistered:
+		return "Registered"
+	default:
+		return fmt.Sprintf("poolEntryState(%d)", e)
+	}
+}
 
 // poolEntry represents a server node and stores its current state and statistics.
 type poolEntry struct {
@@ -677,13 +710,24 @@ type poolEntry struct {
 	known, knownSelected, trusted bool
 	connectStats, delayStats      poolStats
 	responseStats, timeoutStats   poolStats
-	state                         int
+	state                         poolEntryState
 	regTime                       mclock.AbsTime
 	queueIdx                      int
 	removed                       bool
 
 	delayedRetry bool
 	shortRetry   int
+}
+
+type poolEntryInfo struct {
+	Peered             bool           `json:"peered"`
+	Node               *enode.Node    `json:"node"`
+	Known              bool           `json:"known"`
+	KnownSelected      bool           `json:"knownSelected"`
+	Trusted            bool           `json:"trusted"`
+	LastDiscoveredTime mclock.AbsTime `json:"lastDiscoveredTime"`
+	RegisteredTime     mclock.AbsTime `json:"registeredTime"`
+	State              string         `json:"state"`
 }
 
 // poolEntryEnc is the RLP encoding of poolEntry.
@@ -903,4 +947,25 @@ func (q *poolEntryQueue) setLatest(entry *poolEntry) {
 	entry.queueIdx = q.newPtr
 	q.queue[entry.queueIdx] = entry
 	q.newPtr++
+}
+
+// traverses the queue and returns it as an array ordered oldest -> newest
+func (q *poolEntryQueue) list() []*poolEntry {
+	if len(q.queue) == 0 {
+		return nil
+	}
+	list := make([]*poolEntry, len(q.queue))
+	ptr := q.oldPtr
+	for i := range list {
+	queueTraverser:
+		for {
+			if e := q.queue[ptr]; e != nil {
+				ptr++
+				list[i] = e
+				break queueTraverser
+			}
+			ptr++
+		}
+	}
+	return list
 }

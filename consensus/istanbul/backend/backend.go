@@ -325,9 +325,9 @@ func (sb *Backend) IsValidator() bool {
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
+func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
 	if sb.IsProxiedValidator() {
-		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg)
+		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg, peerID)
 	} else {
 		return errors.New("No Proxy found")
 	}
