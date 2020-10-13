@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -221,7 +220,6 @@ func testEnodeCertFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendFor
 
 func testEnodeCertFromProxiedVal(t *testing.T, proxiedValBE BackendForProxiedValidatorEngine, proxiedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface, proxyBE BackendForProxyEngine) {
 	valEnodeCertMap := proxiedValBE.RetrieveEnodeCertificateMsgMap()
-	fmt.Printf("valEnodeCertMap: %v\n", valEnodeCertMap)
 	valEnodeCert := valEnodeCertMap[proxyBE.SelfNode().ID()].Msg
 	valEnodeCertPayload, _ := valEnodeCert.Payload()
 
