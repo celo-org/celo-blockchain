@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
@@ -56,9 +57,9 @@ func TestProxySet(t *testing.T) {
 	proxy1ID := proxy1Config.InternalNode.ID()
 	proxy2ID := proxy2Config.InternalNode.ID()
 
-	proxy0Peer := consensustest.NewMockPeer(proxy0Config.InternalNode)
-	proxy1Peer := consensustest.NewMockPeer(proxy1Config.InternalNode)
-	proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode)
+	proxy0Peer := consensustest.NewMockPeer(proxy0Config.InternalNode, p2p.ProxyPurpose)
+	proxy1Peer := consensustest.NewMockPeer(proxy1Config.InternalNode, p2p.ProxyPurpose)
+	proxy2Peer := consensustest.NewMockPeer(proxy2Config.InternalNode, p2p.ProxyPurpose)
 
 	proxy0 := &Proxy{node: proxy0Config.InternalNode,
 		externalNode: proxy0Config.ExternalNode,

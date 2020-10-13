@@ -17,32 +17,24 @@ package proxy
 
 import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte) error {
-	proxies, _, err := pv.GetProxiesAndValAssignments()
+func (pv *proxiedValidatorEngine) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
+	proxy, err := pv.getProxy(peerID)
 	if err != nil {
 		return err
 	}
 
-	for _, proxy := range proxies {
-		if proxy.peer != nil {
-			isStatsProxy, err := pv.IsStatsProxy(proxy.peer.Node().ID())
-			if err != nil {
-				return err
-			}
-
-			if isStatsProxy {
-				pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
-			}
-			return nil
-		}
+	if proxy == nil {
+		// If we got here, then the proxy that sent the message to be signed is not up anymore
+		return ErrNoCelostatsProxy
 	}
 
-	// If we got here, then there is no designated proxy for the ethstats messages
-	return ErrNoEthstatsProxy
+	pv.backend.Unicast(proxy.peer, msg, istanbul.DelegateSignMsg)
+	return nil
 }
 
 // SendDelegateSignMsgToProxiedValidator sends an istanbulDelegateSign message to a
@@ -51,11 +43,12 @@ func (p *proxyEngine) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 	p.proxiedValidatorsMu.RLock()
 	defer p.proxiedValidatorsMu.RUnlock()
 
-	if len(p.proxiedValidators) == 0 {
-		return ErrNoProxiedValidator
+	if len(p.proxiedValidators) != 0 {
+		for proxiedValidator := range p.proxiedValidators {
+			p.backend.Unicast(proxiedValidator, msg, istanbul.DelegateSignMsg)
+		}
+		return nil
+
 	}
-	for proxiedValidator := range p.proxiedValidators {
-		p.backend.Unicast(proxiedValidator, msg, istanbul.DelegateSignMsg)
-	}
-	return nil
+	return ErrNoProxiedValidator
 }
