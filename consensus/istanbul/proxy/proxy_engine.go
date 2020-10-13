@@ -53,6 +53,9 @@ type BackendForProxyEngine interface {
 	// SetEnodeCertificateMsgs will set this node's enodeCertificate to be used for connection handshakes
 	SetEnodeCertificateMsgMap(enodeCertificateMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error
 
+	// RetrieveEnodeCertificateMsgMap will retrieve this node's handshake enodeCertificate
+	RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg
+
 	// VerifyPendingBlockValidatorSignature is a message validation function to verify that a message's sender is within the validator set
 	// of the current pending block and that the message's address field matches the message's signature's signer
 	VerifyPendingBlockValidatorSignature(data []byte, sig []byte) (common.Address, error)
@@ -60,6 +63,9 @@ type BackendForProxyEngine interface {
 	// VerifyValidatorConnectionSetSignature is a message validation function to verify that a message's sender is within the
 	// validator connection set and that the message's address field matches the message's signature's signer
 	VerifyValidatorConnectionSetSignature(data []byte, sig []byte) (common.Address, error)
+
+	// GetProxy returns the proxy engine created for this Backend.  Note: This should be only used for the unit tests.
+	GetProxyEngine() ProxyEngine
 }
 
 type proxyEngine struct {

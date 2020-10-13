@@ -294,9 +294,21 @@ func (sb *Backend) IsProxy() bool {
 	return sb.config.Proxy
 }
 
+// GetProxyEngine returns the proxy engine object
+func (sb *Backend) GetProxyEngine() proxy.ProxyEngine {
+	return sb.proxyEngine
+}
+
 // IsProxiedValidator returns true if instance has proxied validator flag
 func (sb *Backend) IsProxiedValidator() bool {
 	return sb.config.Proxied && sb.IsValidator()
+}
+
+// GetProxiedValidatorEngine returns the proxied validator engine object
+func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
+	sb.proxiedValidatorEngineMu.RLock()
+	defer sb.proxiedValidatorEngineMu.RUnlock()
+	return sb.proxiedValidatorEngine
 }
 
 // IsValidating return true if instance is validating
@@ -313,9 +325,9 @@ func (sb *Backend) IsValidator() bool {
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
-func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte) error {
+func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
 	if sb.IsProxiedValidator() {
-		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg)
+		return sb.proxiedValidatorEngine.SendDelegateSignMsgToProxy(msg, peerID)
 	} else {
 		return errors.New("No Proxy found")
 	}

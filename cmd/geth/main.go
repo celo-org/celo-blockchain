@@ -152,7 +152,6 @@ var (
 		utils.ProxyEnodeURLPairsFlag,
 		utils.ProxyEnodeURLPairsLegacyFlag,
 		utils.ProxyAllowPrivateIPFlag,
-		utils.ProxyCeloStatsFlag,
 	}
 
 	rpcFlags = []cli.Flag{
