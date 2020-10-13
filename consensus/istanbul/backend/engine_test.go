@@ -49,7 +49,7 @@ func TestPrepare(t *testing.T) {
 func TestMakeBlockWithSignature(t *testing.T) {
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys, 0)
+	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	genesis := chain.Genesis()
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
 	if err != nil {
@@ -199,7 +199,7 @@ func TestVerifyHeader(t *testing.T) {
 func TestVerifySeal(t *testing.T) {
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys, 0)
+	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	genesis := chain.Genesis()
 
 	// cannot verify genesis
@@ -257,7 +257,7 @@ func TestVerifySeal(t *testing.T) {
 func TestVerifyHeaders(t *testing.T) {
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine := newBlockChainWithKeys(genesisCfg, nodeKeys, 0)
+	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	genesis := chain.Genesis()
 
 	// success case

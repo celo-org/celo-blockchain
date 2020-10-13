@@ -241,8 +241,12 @@ func TestValSetChange(t *testing.T) {
 		genesis.ExtraData = h.Extra
 		db := rawdb.NewMemoryDatabase()
 
-		config := istanbul.DefaultConfig
+		config := *istanbul.DefaultConfig
 		config.ReplicaStateDBPath = ""
+		config.Validator = true
+		config.ValidatorEnodeDBPath = ""
+		config.VersionCertificateDBPath = ""
+		config.RoundStateDBPath = ""
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
@@ -251,7 +255,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		engine := New(config, db).(*Backend)
+		engine := New(&config, db).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)

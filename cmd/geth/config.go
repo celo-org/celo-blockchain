@@ -170,7 +170,7 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		utils.RegisterGraphQLService(stack, cfg.Node.GraphQLEndpoint(), cfg.Node.GraphQLCors, cfg.Node.GraphQLVirtualHosts, cfg.Node.HTTPTimeouts)
 	}
 	// Add the Ethereum Stats daemon if requested.
-	if cfg.Ethstats.URL != "" {
+	if cfg.Ethstats.URL != "" || cfg.Eth.Istanbul.Proxied {
 		utils.RegisterEthStatsService(stack, cfg.Ethstats.URL)
 	}
 	return stack

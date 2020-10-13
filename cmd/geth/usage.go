@@ -250,7 +250,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.ProxyEnodeURLPairsFlag,
 			utils.ProxyEnodeURLPairsLegacyFlag,
 			utils.ProxyAllowPrivateIPFlag,
-			utils.ProxyCeloStatsFlag,
 		},
 	},
 	{

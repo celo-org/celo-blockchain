@@ -784,11 +784,6 @@ var (
 		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
 	}
 
-	ProxyCeloStatsFlag = cli.StringFlag{
-		Name:  "proxy.proxycelostats",
-		Usage: "Internal facing enode URL of proxy responsible for communicating with celostats",
-	}
-
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -1521,7 +1516,6 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
 				InternalNode: proxyInternalNode,
 				ExternalNode: proxyExternalNode,
-				StatsHandler: ctx.GlobalIsSet(ProxyCeloStatsFlag.Name) && ProxyCeloStatsFlag.Name == proxyInternalNode.String(),
 			}
 		}
 
