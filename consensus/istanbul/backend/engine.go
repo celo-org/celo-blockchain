@@ -134,7 +134,7 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	return sb.verifyCascadingFields(chain, header, parents)
 }
 
-// A sanity check for lightest mode. Checks that the correct epoch block exists for this header 
+// A sanity check for lightest mode. Checks that the correct epoch block exists for this header
 func (sb *Backend) checkEpochBlockExists(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// Check that latest epoch block is available
