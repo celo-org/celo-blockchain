@@ -60,6 +60,9 @@ type BackendForProxiedValidatorEngine interface {
 	// UpdateAnnounceVersion will notify the announce protocol that this validator's valEnodeTable entry has been updated
 	UpdateAnnounceVersion()
 
+	// GetAnnounceVersion will retrieve the current node's announce version
+	GetAnnounceVersion() uint
+
 	// RetrieveEnodeCertificateMsgMap will retrieve this node's handshake enodeCertificate
 	RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg
 
