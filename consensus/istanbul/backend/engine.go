@@ -134,21 +134,22 @@ func (sb *Backend) verifyHeader(chain consensus.ChainReader, header *types.Heade
 	return sb.verifyCascadingFields(chain, header, parents)
 }
 
-func (sb *Backend) sanityCheck(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+// A sanity check for lightest mode. Checks that the correct epoch block exists for this header 
+func (sb *Backend) checkEpochBlockExists(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 	number := header.Number.Uint64()
 	// Check that latest epoch block is available
 	epoch := istanbul.GetEpochNumber(number, sb.config.Epoch)
-	first := istanbul.GetEpochLastBlockNumber(epoch-1, sb.config.Epoch)
-	if number == first {
-		first = istanbul.GetEpochLastBlockNumber(epoch-2, sb.config.Epoch)
+	epochBlockNumber := istanbul.GetEpochLastBlockNumber(epoch-1, sb.config.Epoch)
+	if number == epochBlockNumber {
+		epochBlockNumber = istanbul.GetEpochLastBlockNumber(epoch-2, sb.config.Epoch)
 	}
 	for _, hdr := range parents {
-		if hdr.Number.Uint64() == first {
+		if hdr.Number.Uint64() == epochBlockNumber {
 			return nil
 		}
 	}
-	parent := chain.GetHeaderByNumber(first)
-	if parent == nil || parent.Number.Uint64() != first {
+	parent := chain.GetHeaderByNumber(epochBlockNumber)
+	if parent == nil || parent.Number.Uint64() != epochBlockNumber {
 		return consensus.ErrUnknownAncestor
 	}
 	return nil
@@ -183,7 +184,7 @@ func (sb *Backend) verifyCascadingFields(chain consensus.ChainReader, header *ty
 		if err := sb.verifySigner(chain, header, parents); err != nil {
 			return err
 		}
-	} else if err := sb.sanityCheck(chain, header, parents); err != nil {
+	} else if err := sb.checkEpochBlockExists(chain, header, parents); err != nil {
 		return err
 	}
 
