@@ -290,7 +290,6 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 		dl.ownHashes = append(dl.ownHashes, hash)
 		dl.ownHeaders[hash] = header
 
-		td := dl.getTd(header.ParentHash)
 		dl.ownChainTd[hash] = new(big.Int).Add(header.Number, big.NewInt(1))
 	}
 	return len(headers), nil
