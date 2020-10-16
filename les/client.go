@@ -114,7 +114,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
 		serverPool:     newServerPool(chainDb, config.UltraLightServers),
 	}
 
@@ -129,9 +128,10 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
 	// If the full chain is not available then indexing each block header isn't possible.
 	if fullChainAvailable {
+		leth.bloomIndexer = eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
 		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
+		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
 	}
-	leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
 	leth.odr.SetIndexers(leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer)
 
 	checkpoint := config.Checkpoint
@@ -159,11 +159,13 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.oracle = checkpointoracle.New(oracle, leth.localCheckpoint)
 
 	// Note: AddChildIndexer starts the update process for the child
-	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
+	if leth.bloomIndexer != nil && leth.bloomTrieIndexer != nil {
+		leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
+		leth.bloomIndexer.Start(leth.blockchain)
+	}
 	if leth.chtIndexer != nil {
 		leth.chtIndexer.Start(leth.blockchain)
 	}
-	leth.bloomIndexer.Start(leth.blockchain)
 
 	// TODO mcortesi (needs etherbase & gatewayFee?)
 	log.Error("Starting client handler")
@@ -307,7 +309,9 @@ func (s *LightEthereum) Stop() error {
 	s.reqDist.close()
 	s.odr.Stop()
 	s.relay.Stop()
-	s.bloomIndexer.Close()
+	if s.bloomIndexer != nil {
+		s.bloomIndexer.Close()
+	}
 	if s.chtIndexer != nil {
 		s.chtIndexer.Close()
 	}
