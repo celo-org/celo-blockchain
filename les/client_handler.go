@@ -314,6 +314,7 @@ func (h *clientHandler) handleMsg(p *peer) error {
 			h.backend.retriever.lock.RUnlock()
 			if headerRequested != nil {
 				contiguousHeaders := h.syncMode != downloader.LightestSync
+				log.Error("Inserting header chain")
 				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
 					return err
 				}
@@ -623,7 +624,6 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 			}
 		}
 		// No more proofs to add, break
-		// TODO else case
 		if maxRange == 0 && currFrom < earliestMatch {
 			// TODO check height
 			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
@@ -647,6 +647,9 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 			headerGaps = append(headerGaps, gap)
 		}
 		proofsToRequest = append(proofsToRequest, chosenProofMetadata)
+		if len(proofsToRequest) >= maxPlumoProofFetch {
+			break
+		}
 		currFrom = chosenProofMetadata.LastEpoch
 	}
 

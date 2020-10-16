@@ -988,8 +988,9 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		} else {
 			header = chain.GetHeaderByNumber(numberIter)
 			if header == nil {
-				log.Error("The header retrieved from the chain is nil", "block num", numberIter)
-				return nil, errUnknownBlock
+				// TODO resolve this better
+				// return nil, errUnknownBlock
+				break
 			}
 		}
 

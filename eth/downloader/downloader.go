@@ -982,13 +982,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		}
 	}
 
-	// getEpochHeaders := func(fromEpochBlock uint64) {
-
-	// 	skip := int(epoch - 1)
-	// 	go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
-	// }
-
-	getProofs := func(fromEpochBlock uint64) {
+	getEpochHeaders := func(fromEpochBlock uint64) {
 		if d.Mode != LightestSync {
 			panic("This method should be called only in LightestSync mode")
 		}
@@ -997,20 +991,19 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				"Logic error: getEpochHeaders received a request to fetch non-epoch block %d with epoch %d",
 				fromEpochBlock, epoch))
 		}
-		log.Error("GETTING PROOFS")
 
 		request = time.Now()
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
-		p.log.Error("Fetching proofs", "from", from)
+		p.log.Error("Fetching proofs", "from", fromEpochBlock)
 		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
 		// 1000, 1101, 1202, 1303 ...
 		// So, skip has to be epoch - 1 to get the right set of blocks.
 		skip := int(epoch - 1)
 		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
-		p.log.Trace("Fetching Proofs and headers", "from", fromEpochBlock)
-		go p.peer.RequestPlumoProofsAndHeaders(from, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
+		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
 		// go p.peer.RequestProofs()
 		// go p.peer.RequestPlumoProofInventory()
 	}
@@ -1024,8 +1017,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 
 		log.Error("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 		if nextEpochBlock < height {
-			getProofs(nextEpochBlock)
-			// getEpochHeaders(nextEpochBlock)
+			getEpochHeaders(nextEpochBlock)
 			return true
 		} else if from <= height {
 			getHeaders(height)
@@ -1160,9 +1152,10 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					log.Error("Get epoch or normal Headers", "lastFetchedHeaderNumber", lastFetchedHeaderNumber)
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
-						p.log.Debug("No more headers available")
+						// TODO this may be inadequately dealing with concurrent proof/header requests
+						d.headerProcCh <- nil
 						select {
-						case d.headerProcCh <- nil:
+						case d.plumoProofProcCh <- nil:
 							return nil
 						case <-d.cancelCh:
 							return errCanceled
@@ -1191,6 +1184,11 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 
 		case packet := <-d.plumoProofCh:
 			// Make sure the active peer is responding with proofs
+			if d.Mode != LightestSync {
+				log.Error("Received Plumo proof when not on lightest sync")
+				d.plumoProofProcCh <- nil
+				break
+			}
 			if packet.PeerId() != p.id {
 				log.Error("Received plumo proof from incorrect peer", "peer", packet.PeerId())
 				d.plumoProofProcCh <- nil
@@ -1218,16 +1216,27 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					return errCanceled
 				}
 				// TODO(lucas): This will need work
-				epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch
-				from += uint64(epochRange)*epoch - 1
-				getProofs(from)
-				log.Error("getProofs#downloadMoreProofs", "from", from)
+				// lastFetchedEpochNumber := uint64(lightProofs[len(lightProofs)-1].LastEpoch.Index)
+				// moreEpochFetchesPending := getEpochOrNormalHeaders(lastFetchedEpochNumber)
+				// if !moreEpochFetchesPending {
+				// }
+				// epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch + 1
+				// from += uint64(epochRange)*epoch - 1
+				// getEpochHeaders(from)
+				p.log.Debug("No more proofs available")
+				select {
+				case d.plumoProofProcCh <- nil:
+					// TODO what exactly to do here
+					// return nil
+				case <-d.cancelCh:
+					return errCanceled
+				}
 			} else {
 				// No plumo proofs delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Error("All plumo proofs delayed, waiting")
 				select {
 				case <-time.After(fsHeaderContCheck):
-					getProofs(from)
+					getEpochOrNormalHeaders(from)
 					continue
 				case <-d.cancelCh:
 					return errCanceled
@@ -1253,8 +1262,9 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				case <-d.cancelCh:
 				}
 			}
+			// TODO how to do both?
+			d.headerProcCh <- nil
 			select {
-			case d.headerProcCh <- nil:
 			case d.plumoProofProcCh <- nil:
 			case <-d.cancelCh:
 			}
@@ -1658,6 +1668,7 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
 					}
+					log.Error("Inserting header chain within process Headers", "First header", chunk[0], "last Header", chunk[len(chunk)-1])
 					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
 						// If some headers were inserted, add them too to the rollback list
 						if n > 0 {
@@ -1726,8 +1737,7 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 		case lightProofs := <-d.plumoProofProcCh:
 			log.Error("Processing some light proofs", "light proof len", len(lightProofs))
 			if len(lightProofs) == 0 {
-				log.Error("Stalling peer?")
-				return errStallingPeer
+				return nil
 			}
 			// gotProofs = true
 
