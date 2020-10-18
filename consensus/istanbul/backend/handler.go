@@ -331,13 +331,23 @@ func (sb *Backend) Handshake(peer consensus.Peer, peerIsInternal bool) (bool, er
 		var msg *istanbul.Message
 		var err error
 		peerIsValidator := peer.PurposeIsSet(p2p.ValidatorPurpose)
-		if peerIsValidator || peerIsInternal {
+		if peerIsValidator {
 			msgMap := sb.RetrieveEnodeCertificateMsgMap()
 			if msgMap != nil {
 				enodeCertMsg := msgMap[sb.SelfNode().ID()]
 				if enodeCertMsg != nil {
 					msg = enodeCertMsg.Msg
 				}
+			}
+		} else if sb.IsProxiedValidator() {
+			msg = &istanbul.Message{
+				Code:    istanbul.ValidatorHandshakeMsg,
+				Msg:     nil,
+				Address: sb.Address(),
+			}
+			if err := msg.Sign(sb.Sign); err != nil {
+				errCh <- err
+				return
 			}
 		}
 		// Even if we decide not to identify ourselves,
@@ -412,10 +422,10 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer, peerIsInte
 	}
 
 	// If peer is from proxied validator through internal network interface
-	//this proxy checks if its address matches ProxiedValidatorAddress configured via --proxy.proxiedvalidatoraddress
+	// this proxy checks if its address matches ProxiedValidatorAddress configured via --proxy.proxiedvalidatoraddress
 	if peerIsInternal {
 		if sb.config.ProxiedValidatorAddress != msg.Address {
-			logger.Error("connecting proxied validator doesn't contain correct address configured in this proxy node",
+			logger.Error("connecting proxied validator's address is incorrect",
 				"expected", sb.config.ProxiedValidatorAddress, "actual", msg.Address)
 			return false, errors.New("message not authorized by proxied validator")
 		}
