@@ -233,6 +233,25 @@ func (g *G2) Affine(p *PointG2) *PointG2 {
 	return p
 }
 
+// AffineBatch given multiple of points returns affine representations
+func (g *G2) AffineBatch(p []*PointG2) {
+	inverses := make([]fe2, len(p))
+	for i := 0; i < len(p); i++ {
+		inverses[i].set(&p[i][2])
+	}
+	g.f.inverseBatch(inverses)
+	t := g.t
+	for i := 0; i < len(p); i++ {
+		if !g.IsAffine(p[i]) && !g.IsZero(p[i]) {
+			g.f.square(t[1], &inverses[i])
+			g.f.mul(&p[i][0], &p[i][0], t[1])
+			g.f.mul(t[0], &inverses[i], t[1])
+			g.f.mul(&p[i][1], &p[i][1], t[0])
+			p[i][2].one()
+		}
+	}
+}
+
 // Add adds two G2 points p1, p2 and assigns the result to point at first argument.
 func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	// http://www.hyperelliptic.org/EFD/gp/auto-shortw-jacobian-0.html#addition-add-2007-bl
@@ -279,6 +298,50 @@ func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	g.f.sub(t[0], t[0], t[7])
 	g.f.sub(t[0], t[0], t[8])
 	g.f.mul(&r[2], t[0], t[1])
+	return r
+}
+
+// Add adds two G1 points p1, p2 and assigns the result to point at first argument.
+// Expects point p2 in affine form.
+func (g *G2) AddMixed(r, p1, p2 *PointG2) *PointG2 {
+	// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-madd-2007-bl
+	if g.IsZero(p1) {
+		return r.Set(p2)
+	}
+	if g.IsZero(p2) {
+		return r.Set(p1)
+	}
+	t := g.t
+	g.f.square(t[7], &p1[2])    // z1z1
+	g.f.mul(t[1], &p2[0], t[7]) // u2 = x2 * z1z1
+	g.f.mul(t[2], &p1[2], t[7]) // z1z1 * z1
+	g.f.mul(t[0], &p2[1], t[2]) // s2 = y2 * z1z1 * z1
+
+	if p1[0].equal(t[1]) && p1[1].equal(t[0]) {
+		return g.Double(r, p1)
+	}
+
+	g.f.sub(t[1], t[1], &p1[0]) // h = u2 - x1
+	g.f.square(t[2], t[1])      // hh
+	g.f.double(t[4], t[2])
+	g.f.double(t[4], t[4])      // 4hh
+	g.f.mul(t[5], t[1], t[4])   // j = h*i
+	g.f.sub(t[0], t[0], &p1[1]) // s2 - y1
+	g.f.double(t[0], t[0])      // r = 2*(s2 - y1)
+	g.f.square(t[6], t[0])      // r^2
+	g.f.sub(t[6], t[6], t[5])   // r^2 - j
+	g.f.mul(t[3], &p1[0], t[4]) // v = x1 * i
+	g.f.double(t[4], t[3])      // 2*v
+	g.f.sub(&r[0], t[6], t[4])  // x3 = r^2 - j - 2*v
+	g.f.sub(t[4], t[3], &r[0])  // v - x3
+	g.f.mul(t[6], &p1[1], t[5]) // y1 * j
+	g.f.double(t[6], t[6])      // 2 * y1 * j
+	g.f.mul(t[0], t[0], t[4])   // r * (v - x3)
+	g.f.sub(&r[1], t[0], t[6])  // y3 = r * (v - x3) - (2 * y1 * j)
+	g.f.add(t[0], &p1[2], t[1]) // z1 + h
+	g.f.square(t[0], t[0])      // (z1 + h)^2
+	g.f.sub(t[0], t[0], t[7])   // (z1 + h)^2 - z1z1
+	g.f.sub(&r[2], t[0], t[2])  // z3 = (z1 + z2)^2 - z1z1 - hh
 	return r
 }
 
@@ -349,7 +412,7 @@ func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
 	return g.wnafMul(p, p, cofactorG2)
 }
 
-// MultiExp calculates multi exponentiation. Given pairs of G2 point and scalar values
+// MultiExp calculates multi exponentiation. Given pairs of G1 point and scalar values
 // (P_0, e_0), (P_1, e_1), ... (P_n, e_n) calculates r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n
 // Length of points and scalars are expected to be equal, otherwise an error is returned.
 // Result is assigned to point at first argument.
@@ -358,13 +421,15 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
 
+	g.AffineBatch(points)
+
 	c := 3
 	if len(scalars) >= 32 {
 		c = int(math.Ceil(math.Log(float64(len(scalars)))))
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG2, SCALAR_FIELD_BIT_SIZE/c+1)
+	windows := make([]*PointG2, SCALAR_FIELD_BIT_SIZE/c+1)
 	bucket := make([]PointG2, bucketSize)
 
 	for j := 0; j < len(windows); j++ {
@@ -376,7 +441,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		for i := 0; i < len(scalars); i++ {
 			index := bucketSize & int(new(big.Int).Rsh(scalars[i], uint(c*j)).Int64())
 			if index != 0 {
-				g.Add(&bucket[index-1], &bucket[index-1], points[i])
+				g.AddMixed(&bucket[index-1], &bucket[index-1], points[i])
 			}
 		}
 
@@ -385,15 +450,17 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
-		windows[j].Set(acc)
+		windows[j] = g.New().Set(acc)
 	}
+
+	g.AffineBatch(windows)
 
 	acc := g.New()
 	for i := len(windows) - 1; i >= 0; i-- {
 		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, &windows[i])
+		g.AddMixed(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
 }
