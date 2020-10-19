@@ -255,6 +255,9 @@ func (g *G2) AffineBatch(p []*PointG2) {
 // Add adds two G2 points p1, p2 and assigns the result to point at first argument.
 func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	// http://www.hyperelliptic.org/EFD/gp/auto-shortw-jacobian-0.html#addition-add-2007-bl
+	if g.IsAffine(p2) {
+		return g.addMixed(r, p1, p2)
+	}
 	if g.IsZero(p1) {
 		return r.Set(p2)
 	}
@@ -303,7 +306,7 @@ func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 
 // Add adds two G1 points p1, p2 and assigns the result to point at first argument.
 // Expects point p2 in affine form.
-func (g *G2) AddMixed(r, p1, p2 *PointG2) *PointG2 {
+func (g *G2) addMixed(r, p1, p2 *PointG2) *PointG2 {
 	// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-madd-2007-bl
 	if g.IsZero(p1) {
 		return r.Set(p2)
@@ -441,7 +444,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		for i := 0; i < len(scalars); i++ {
 			index := bucketSize & int(new(big.Int).Rsh(scalars[i], uint(c*j)).Int64())
 			if index != 0 {
-				g.AddMixed(&bucket[index-1], &bucket[index-1], points[i])
+				g.addMixed(&bucket[index-1], &bucket[index-1], points[i])
 			}
 		}
 
@@ -460,7 +463,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.AddMixed(acc, acc, windows[i])
+		g.addMixed(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
 }

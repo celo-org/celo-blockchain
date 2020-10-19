@@ -170,11 +170,11 @@ func TestG2MixedAdd(t *testing.T) {
 	t0, a := g.New(), g.rand()
 	zero := g.Zero()
 
-	g.AddMixed(t0, a, zero)
+	g.addMixed(t0, a, zero)
 	if !g.Equal(t0, a) {
 		t.Fatal("a + 0 == a")
 	}
-	g.AddMixed(a, t0, zero)
+	g.addMixed(a, t0, zero)
 	if !g.Equal(t0, a) {
 		t.Fatal("a + 0 == a")
 	}
@@ -192,13 +192,13 @@ func TestG2MixedAdd(t *testing.T) {
 		g.Affine(bAffine)
 		r0, r1 := g.New(), g.New()
 		g.Add(r0, a, b)
-		g.AddMixed(r1, a, bAffine)
+		g.addMixed(r1, a, bAffine)
 		if !g.Equal(r0, r1) {
 			t.Fatal("mixed addition failed")
 		}
 		aAffine := g.New().Set(a)
 		g.Affine(aAffine)
-		g.AddMixed(r0, a, aAffine)
+		g.addMixed(r0, a, aAffine)
 		g.Double(r1, a)
 		if !g.Equal(r0, r1) {
 			t.Fatal("mixed addition must double where points are equal")
@@ -362,7 +362,7 @@ func BenchmarkG2AddMixed(t *testing.B) {
 	a, b, c := g2.rand(), g2.rand(), PointG2{}
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
-		g2.AddMixed(&c, a, b)
+		g2.addMixed(&c, a, b)
 	}
 }
 
