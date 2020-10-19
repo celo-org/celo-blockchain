@@ -127,10 +127,10 @@ func (e *fp12) square(c, a *fe12) {
 
 	fp6, t := e.fp6, e.t6
 
-	fp6.ladd(t[0], &a[0], &a[1])     // a0 + a1
+	fp6.add(t[0], &a[0], &a[1])      // a0 + a1
 	fp6.mul(t[2], &a[0], &a[1])      // v0 = a0a1
 	fp6.mulByNonResidue(t[1], &a[1]) // βa1
-	fp6.ladd(t[1], t[1], &a[0])      // a0 + βa1
+	fp6.add(t[1], t[1], &a[0])       // a0 + βa1
 	fp6.double(&c[1], t[2])          // c1 = 2v0
 	fp6.mulByNonResidue(t[3], t[2])  // βa0a1
 	fp6.mul(t[0], t[0], t[1])        // (a0 + a1)(a0 + βa1)
@@ -172,8 +172,8 @@ func (e *fp12) mul(c, a, b *fe12) {
 
 	fp6.mul(t[1], &a[0], &b[0])     // v0 = a0b0
 	fp6.mul(t[2], &a[1], &b[1])     // v1 = a1b1
-	fp6.ladd(t[0], &a[0], &a[1])    // a0 + a1
-	fp6.ladd(t[3], &b[0], &b[1])    // b0 + b1
+	fp6.add(t[0], &a[0], &a[1])     // a0 + a1
+	fp6.add(t[3], &b[0], &b[1])     // b0 + b1
 	fp6.mul(t[0], t[0], t[3])       // (a0 + a1)(b0 + b1)
 	fp6.sub(t[0], t[0], t[1])       // (a0 + a1)(b0 + b1) - v0
 	fp6.sub(&c[1], t[0], t[2])      // c1 = (a0 + a1)(b0 + b1) - v0 - v1

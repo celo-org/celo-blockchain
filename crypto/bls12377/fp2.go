@@ -67,25 +67,11 @@ func (e *fp2) add(c, a, b *fe2) {
 	add(&c[1], &a[1], &b[1])
 }
 
-func (e *fp2) ladd(c, a, b *fe2) {
-	// c0 = a0 * b0
-	// c1 = a1 * b1
-	ladd(&c[0], &a[0], &b[0])
-	ladd(&c[1], &a[1], &b[1])
-}
-
 func (e *fp2) double(c, a *fe2) {
 	// c0 = a0 * 2
 	// c1 = a1 * 2
 	double(&c[0], &a[0])
 	double(&c[1], &a[1])
-}
-
-func (e *fp2) ldouble(c, a *fe2) {
-	// c0 = a0 * 2
-	// c1 = a1 * 2
-	ldouble(&c[0], &a[0])
-	ldouble(&c[1], &a[1])
 }
 
 func (e *fp2) sub(c, a, b *fe2) {
@@ -115,16 +101,16 @@ func (e *fp2) mul(c, a, b *fe2) {
 
 	t := e.t
 
-	mul(t[1], &a[0], &b[0])  // a0b0
-	mul(t[2], &a[1], &b[1])  // a1b1
-	add(t[0], t[1], t[2])    // v0 + v1
-	double(t[3], t[2])       // 2a1b1
-	doubleAssign(t[3])       // 4a1b1
-	addAssign(t[2], t[3])    // 5(a1 + b1)
-	sub(t[3], t[1], t[2])    // a0b0 - 5(a1 + b1)
-	ladd(t[1], &a[0], &a[1]) // a0 + a1
-	ladd(t[2], &b[0], &b[1]) // b0 + b1
-	mul(t[1], t[1], t[2])    // (a0 + a1)(b0 + b1)
+	mul(t[1], &a[0], &b[0]) // a0b0
+	mul(t[2], &a[1], &b[1]) // a1b1
+	add(t[0], t[1], t[2])   // v0 + v1
+	double(t[3], t[2])      // 2a1b1
+	doubleAssign(t[3])      // 4a1b1
+	addAssign(t[2], t[3])   // 5(a1 + b1)
+	sub(t[3], t[1], t[2])   // a0b0 - 5(a1 + b1)
+	add(t[1], &a[0], &a[1]) // a0 + a1
+	add(t[2], &b[0], &b[1]) // b0 + b1
+	mul(t[1], t[1], t[2])   // (a0 + a1)(b0 + b1)
 	c[0].set(t[3])
 	sub(&c[1], t[1], t[0]) // (a0 + a1)(b0 + b1) - (a0b0 + a1b1)
 }
@@ -141,13 +127,13 @@ func (e *fp2) square(c, a *fe2) {
 	t := e.t
 
 	sub(t[0], &a[0], &a[1]) // (a0 - a1)
-	ldouble(t[1], &a[1])    // 2a1
+	double(t[1], &a[1])     // 2a1
 	mul(t[2], t[1], &a[0])  // 2a0a1
 	c[1].set(t[2])
 	double(t[3], t[1])     // 4a1
 	addAssign(t[1], t[3])  // 6a1
 	doubleAssign(t[2])     // 4a0a1
-	laddAssign(t[1], t[0]) // (a0 + 5a1)
+	addAssign(t[1], t[0])  // (a0 + 5a1)
 	mul(t[0], t[0], t[1])  // (a0 - a1)(a0 - 5a1)
 	sub(&c[0], t[0], t[2]) // (a0 - a1)(a0 - 5a1) - 4a1a0
 }
