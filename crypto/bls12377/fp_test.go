@@ -383,6 +383,31 @@ func TestFpInversion(t *testing.T) {
 	}
 }
 
+func TestFpBatchInversion(t *testing.T) {
+	n := 20
+	for i := 0; i < n; i++ {
+		e0 := make([]fe, n)
+		e1 := make([]fe, n)
+		for j := 0; j < n; j++ {
+			if j != i {
+				e, err := new(fe).rand(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				e0[j].set(e)
+			}
+			inverse(&e1[j], &e0[j])
+		}
+
+		inverseBatch(e0)
+		for j := 0; j < n; j++ {
+			if !e0[j].equal(&e1[j]) {
+				t.Fatal("batch inversion failed")
+			}
+		}
+	}
+}
+
 func TestFpSquareRoot(t *testing.T) {
 	r := new(fe)
 	if sqrt(r, nonResidue1) {
@@ -639,6 +664,31 @@ func TestFp2Inversion(t *testing.T) {
 		field.mul(u, u, a)
 		if !u.equal(one) {
 			t.Fatal("(r * a) * r * (a ^ -1) == r)")
+		}
+	}
+}
+
+func TestFp2BatchInversion(t *testing.T) {
+	field := newFp2()
+	n := 20
+	for i := 0; i < n; i++ {
+		e0 := make([]fe2, n)
+		e1 := make([]fe2, n)
+		for j := 0; j < n; j++ {
+			if j != i {
+				e, err := new(fe2).rand(rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				e0[j].set(e)
+			}
+			field.inverse(&e1[j], &e0[j])
+		}
+		field.inverseBatch(e0)
+		for j := 0; j < n; j++ {
+			if !e0[j].equal(&e1[j]) {
+				t.Fatal("batch inversion failed")
+			}
 		}
 	}
 }
