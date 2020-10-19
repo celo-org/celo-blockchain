@@ -137,6 +137,52 @@ func inverse(inv, e *fe) {
 	inv.set(u)
 }
 
+func inverseBatch(in []fe) {
+
+	n, N, setFirst := 0, len(in), false
+
+	for i := 0; i < len(in); i++ {
+		if !in[i].isZero() {
+			n++
+		}
+	}
+
+	tA := make([]fe, n)
+	tB := make([]fe, n)
+
+	for i, j := 0, 0; i < N; i++ {
+		if !in[i].isZero() {
+			if !setFirst {
+				setFirst = true
+				tA[j].set(&in[i])
+			} else {
+				mul(&tA[j], &in[i], &tA[j-1])
+			}
+			j = j + 1
+		}
+	}
+
+	inverse(&tB[n-1], &tA[n-1])
+	for i, j := N-1, n-1; j != 0; i-- {
+		if !in[i].isZero() {
+			mul(&tB[j-1], &tB[j], &in[i])
+			j = j - 1
+		}
+	}
+
+	for i, j := 0, 0; i < N; i++ {
+		if !in[i].isZero() {
+			if setFirst {
+				setFirst = false
+				in[i].set(&tB[j])
+			} else {
+				mul(&in[i], &tA[j-1], &tB[j])
+			}
+			j = j + 1
+		}
+	}
+}
+
 func isQuadraticNonResidue(elem *fe) bool {
 	result := new(fe)
 	exp(result, elem, pMinus1Over2)
