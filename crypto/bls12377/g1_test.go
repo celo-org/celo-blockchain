@@ -98,6 +98,26 @@ func TestG1IsOnCurve(t *testing.T) {
 	}
 }
 
+func TestG1BatchAffine(t *testing.T) {
+	n := 20
+	g := NewG1()
+	points0 := make([]*PointG1, n)
+	points1 := make([]*PointG1, n)
+	for i := 0; i < n; i++ {
+		points0[i] = g.rand()
+		points1[i] = g.New().Set(points0[i])
+		if g.IsAffine(points0[i]) {
+			t.Fatal("expect non affine point")
+		}
+	}
+	g.AffineBatch(points0)
+	for i := 0; i < n; i++ {
+		if !g.Equal(points0[i], points1[i]) {
+			t.Fatal("batch affine failed")
+		}
+	}
+}
+
 func TestG1AdditiveProperties(t *testing.T) {
 	g := NewG1()
 	t0, t1 := g.New(), g.New()
@@ -167,6 +187,48 @@ func TestG1AdditiveProperties(t *testing.T) {
 	}
 }
 
+func TestG1MixedAdd(t *testing.T) {
+	g := NewG1()
+
+	t0, a := g.New(), g.rand()
+	zero := g.Zero()
+
+	g.AddMixed(t0, a, zero)
+	if !g.Equal(t0, a) {
+		t.Fatal("a + 0 == a")
+	}
+	g.AddMixed(a, t0, zero)
+	if !g.Equal(t0, a) {
+		t.Fatal("a + 0 == a")
+	}
+	g.Add(t0, zero, zero)
+	if !g.Equal(t0, zero) {
+		t.Fatal("0 + 0 == 0")
+	}
+
+	for i := 0; i < fuz; i++ {
+		a, b := g.rand(), g.rand()
+		if g.IsAffine(a) || g.IsAffine(b) {
+			t.Fatal("expect non affine points")
+		}
+		bAffine := g.New().Set(b)
+		g.Affine(bAffine)
+		r0, r1 := g.New(), g.New()
+		g.Add(r0, a, b)
+		g.AddMixed(r1, a, bAffine)
+		if !g.Equal(r0, r1) {
+			t.Fatal("mixed addition failed")
+		}
+		aAffine := g.New().Set(a)
+		g.Affine(aAffine)
+		g.AddMixed(r0, a, aAffine)
+		g.Double(r1, a)
+		if !g.Equal(r0, r1) {
+			t.Fatal("mixed addition must double where points are equal")
+		}
+	}
+}
+
 func TestG1MultiplicativeProperties(t *testing.T) {
 	g := NewG1()
 	t0, t1 := g.New(), g.New()
@@ -223,26 +285,27 @@ func TestG1MultiExpExpected(t *testing.T) {
 
 func TestG1MultiExp(t *testing.T) {
 	g := NewG1()
-	n := 100
-	bases := make([]*PointG1, n)
-	scalars := make([]*big.Int, n)
-	var err error
-	for i := 0; i < n; i++ {
-		scalars[i], err = rand.Int(rand.Reader, q)
-		if err != nil {
-			t.Fatal(err)
+	for n := 1; n < 1024+1; n = n * 2 {
+		bases := make([]*PointG1, n)
+		scalars := make([]*big.Int, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = rand.Int(rand.Reader, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
 		}
-		bases[i] = g.rand()
-	}
-	expected, tmp := g.New(), g.New()
-	for i := 0; i < n; i++ {
-		g.MulScalar(tmp, bases[i], scalars[i])
-		g.Add(expected, expected, tmp)
-	}
-	result := g.New()
-	_, _ = g.MultiExp(result, bases, scalars)
-	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		expected, tmp := g.New(), g.New()
+		for i := 0; i < n; i++ {
+			g.MulScalar(tmp, bases[i], scalars[i])
+			g.Add(expected, expected, tmp)
+		}
+		result := g.New()
+		_, _ = g.MultiExp(result, bases, scalars)
+		if !g.Equal(expected, result) {
+			t.Fatal("multi-exponentiation failed")
+		}
 	}
 }
 
@@ -252,6 +315,16 @@ func BenchmarkG1Add(t *testing.B) {
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 		g1.Add(&c, a, b)
+	}
+}
+
+func BenchmarkG1AddMixed(t *testing.B) {
+	g1 := NewG1()
+	a, b, c := g1.rand(), g1.rand(), PointG1{}
+	g1.Affine(b)
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		g1.AddMixed(&c, a, b)
 	}
 }
 
