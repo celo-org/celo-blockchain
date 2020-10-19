@@ -85,16 +85,6 @@ func addAssign(x, y *fe) {
 	}
 }
 
-func ladd(z, x, y *fe) {
-	var carry uint64
-	z[0], carry = bits.Add64(x[0], y[0], 0)
-	z[1], carry = bits.Add64(x[1], y[1], carry)
-	z[2], carry = bits.Add64(x[2], y[2], carry)
-	z[3], carry = bits.Add64(x[3], y[3], carry)
-	z[4], carry = bits.Add64(x[4], y[4], carry)
-	z[5], _ = bits.Add64(x[5], y[5], carry)
-}
-
 func laddAssign(x, y *fe) {
 	var carry uint64
 	x[0], carry = bits.Add64(x[0], y[0], 0)
@@ -149,17 +139,6 @@ func doubleAssign(z *fe) {
 		z[4], b = bits.Sub64(z[4], 0xc63b05c06ca1493b, b)
 		z[5], _ = bits.Sub64(z[5], 0x01ae3a4617c510ea, b)
 	}
-}
-
-func ldouble(z, x *fe) {
-	var carry uint64
-
-	z[0], carry = bits.Add64(x[0], x[0], 0)
-	z[1], carry = bits.Add64(x[1], x[1], carry)
-	z[2], carry = bits.Add64(x[2], x[2], carry)
-	z[3], carry = bits.Add64(x[3], x[3], carry)
-	z[4], carry = bits.Add64(x[4], x[4], carry)
-	z[5], _ = bits.Add64(x[5], x[5], carry)
 }
 
 func sub(z, x, y *fe) {
