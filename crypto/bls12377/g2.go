@@ -466,40 +466,46 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 }
 
 func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
-	windowSize := uint(6)
-	precompTable := make([]*PointG2, (1 << (windowSize - 1)))
-	for i := 0; i < len(precompTable); i++ {
-		precompTable[i] = g.New()
+	windowSize := 6
+
+	l := (1 << (windowSize - 1))
+	tablePositive := make([]PointG2, l)
+	tableNegative := make([]PointG2, l)
+
+	twoP, acc := g.New(), new(PointG2).Set(p)
+	g.Double(twoP, p)
+
+	// p
+	tablePositive[0].Set(acc)
+	// -p
+	g.Neg(&tableNegative[0], acc)
+
+	for i := 1; i < l; i++ {
+		g.Add(acc, acc, twoP)
+		// 3p, 5p, 7p ...
+		tablePositive[i].Set(acc)
+		// -3p, -5p, -7p ...
+		g.Neg(&tableNegative[i], acc)
 	}
-	var indexForPositive uint64 = (1 << (windowSize - 2))
-	precompTable[indexForPositive].Set(p)
-	g.Neg(precompTable[indexForPositive-1], p)
-	doubled, precomp := g.New(), g.New()
-	g.Double(doubled, p)
-	precomp.Set(p)
-	for i := uint64(1); i < indexForPositive; i++ {
-		g.Add(precomp, precomp, doubled)
-		precompTable[indexForPositive+i].Set(precomp)
-		g.Neg(precompTable[indexForPositive-1-i], precomp)
-	}
-	wnaf := wnaf(e, windowSize)
+
+	wnaf := toWNAF(e, windowSize)
+
 	q := g.Zero()
-	found := false
-	var idx uint64
+
 	for i := len(wnaf) - 1; i >= 0; i-- {
-		if found {
+
+		if wnaf[i] > 0 {
+
+			g.Add(q, q, &tablePositive[wnaf[i]>>1])
+		} else if wnaf[i] < 0 {
+
+			g.Add(q, q, &tableNegative[(-wnaf[i])>>1])
+		}
+
+		if i != 0 {
 			g.Double(q, q)
 		}
-		if wnaf[i] != 0 {
-			found = true
-			if wnaf[i] > 0 {
-				idx = uint64(wnaf[i] >> 1)
-				g.Add(q, q, precompTable[indexForPositive+idx])
-			} else {
-				idx = uint64(((0 - wnaf[i]) >> 1))
-				g.Add(q, q, precompTable[indexForPositive-1-idx])
-			}
-		}
+
 	}
 	return c.Set(q)
 }
