@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/log"
@@ -170,22 +171,33 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 	currentBlock := pm.blockchain.CurrentBlock()
 	td := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
 
-	pHead, pTd := peer.Head()
-	if pTd.Cmp(td) <= 0 {
-		return
-	}
 	// Otherwise try to sync with the downloader
 	mode := downloader.FullSync
 	if atomic.LoadUint32(&pm.fastSync) == 1 {
 		// Fast sync was explicitly requested, and explicitly granted
 		mode = downloader.FastSync
+	} else if pivot := rawdb.ReadLastPivotNumber(pm.chaindb); pivot != nil {
+		if currentBlock.NumberU64() < *pivot {
+			block := pm.blockchain.CurrentFastBlock()
+			td = pm.blockchain.GetTdByHash(block.Hash())
+			mode = downloader.FastSync
+		}
 	}
+
+	pHead, pTd := peer.Head()
+	if pTd.Cmp(td) <= 0 {
+		return
+	}
+
 	if mode == downloader.FastSync {
 		// Make sure the peer's total difficulty we are synchronizing is higher.
-		if pm.blockchain.GetTdByHash(pm.blockchain.CurrentFastBlock().Hash()).Cmp(pTd) >= 0 {
+		currentBlock := pm.blockchain.CurrentFastBlock().Hash()
+		td := pm.blockchain.GetTdByHash(currentBlock)
+		if td.Cmp(pTd) >= 0 {
 			return
 		}
 	}
+
 	// Run the sync cycle, and disable fast sync if we've went past the pivot block
 	if err := pm.downloader.Synchronise(peer.id, pHead, pTd, mode); err != nil {
 		return
