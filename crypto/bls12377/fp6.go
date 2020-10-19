@@ -81,16 +81,6 @@ func (e *fp6) add(c, a, b *fe6) {
 	fp2.add(&c[2], &a[2], &b[2])
 }
 
-func (e *fp6) ladd(c, a, b *fe6) {
-	fp2 := e.fp2
-	// c0 = a0 + b0
-	// c1 = a1 + b1
-	// c2 = a2 + b2
-	fp2.ladd(&c[0], &a[0], &b[0])
-	fp2.ladd(&c[1], &a[1], &b[1])
-	fp2.ladd(&c[2], &a[2], &b[2])
-}
-
 func (e *fp6) double(c, a *fe6) {
 	fp2 := e.fp2
 	// c0 = 2a0
@@ -159,20 +149,20 @@ func (e *fp6) mul(c, a, b *fe6) {
 	fp2.mulByNonResidue(t[3], t[3]) // ((a1 + a2)(b1 + b2) - v1 - v2)β
 	fp2.add(t[5], t[0], t[3])       // c0 = ((a1 + a2)(b1 + b2) - v1 - v2)β + v0
 
-	fp2.ladd(t[3], &a[0], &a[1])    // a0 + a1
-	fp2.ladd(t[4], &b[0], &b[1])    // b0 + b1
+	fp2.add(t[3], &a[0], &a[1])     // a0 + a1
+	fp2.add(t[4], &b[0], &b[1])     // b0 + b1
 	fp2.mul(t[3], t[3], t[4])       // (a0 + a1)(b0 + b1)
 	fp2.add(t[4], t[0], t[1])       // v0 + v1
 	fp2.sub(t[3], t[3], t[4])       // (a0 + a1)(b0 + b1) - v0 - v1
 	fp2.mulByNonResidue(t[4], t[2]) // βv2
 	fp2.add(&c[1], t[3], t[4])      // c1 = (a0 + a1)(b0 + b1) - v0 - v1 + βv2
 
-	fp2.ladd(t[3], &a[0], &a[2]) // a0 + a2
-	fp2.ladd(t[4], &b[0], &b[2]) // b0 + b2
-	fp2.mul(t[3], t[3], t[4])    // (a0 + a2)(b0 + b2)
-	fp2.add(t[4], t[0], t[2])    // v0 + v2
-	fp2.sub(t[3], t[3], t[4])    // (a0 + a2)(b0 + b2) - v0 - v2
-	fp2.add(&c[2], t[1], t[3])   // c2 = (a0 + a2)(b0 + b2) - v0 - v2 + v1
+	fp2.add(t[3], &a[0], &a[2]) // a0 + a2
+	fp2.add(t[4], &b[0], &b[2]) // b0 + b2
+	fp2.mul(t[3], t[3], t[4])   // (a0 + a2)(b0 + b2)
+	fp2.add(t[4], t[0], t[2])   // v0 + v2
+	fp2.sub(t[3], t[3], t[4])   // (a0 + a2)(b0 + b2) - v0 - v2
+	fp2.add(&c[2], t[1], t[3])  // c2 = (a0 + a2)(b0 + b2) - v0 - v2 + v1
 	c[0].set(t[5])
 }
 
@@ -187,16 +177,16 @@ func (e *fp6) mul01(c, a *fe6, b0, b1 *fe2) {
 
 	fp2.mul(t[0], &a[0], b0)        // v0 = b0a0
 	fp2.mul(t[1], &a[1], b1)        // v1 = a1b1
-	fp2.ladd(t[5], &a[1], &a[2])    // a1 + a2
+	fp2.add(t[5], &a[1], &a[2])     // a1 + a2
 	fp2.mul(t[2], b1, t[5])         // b1(a1 + a2)
 	fp2.sub(t[2], t[2], t[1])       // b1(a1 + a2) - v1
 	fp2.mulByNonResidue(t[2], t[2]) // (b1(a1 + a2) - v1)β
-	fp2.ladd(t[5], &a[0], &a[2])    // a0 + a2
+	fp2.add(t[5], &a[0], &a[2])     // a0 + a2
 	fp2.mul(t[3], b0, t[5])         // b0(a0 + a2)
 	fp2.sub(t[3], t[3], t[0])       // b0(a0 + a2) - v0
 	fp2.add(&c[2], t[3], t[1])      // b0(a0 + a2) - v0 + v1
-	fp2.ladd(t[4], b0, b1)          // (b0 + b1)
-	fp2.ladd(t[5], &a[0], &a[1])    // (a0 + a1)
+	fp2.add(t[4], b0, b1)           // (b0 + b1)
+	fp2.add(t[5], &a[0], &a[1])     // (a0 + a1)
 	fp2.mul(t[4], t[4], t[5])       // (a0 + a1)(b0 + b1)
 	fp2.sub(t[4], t[4], t[0])       // (a0 + a1)(b0 + b1) - v0
 	fp2.sub(&c[1], t[4], t[1])      // (a0 + a1)(b0 + b1) - v0 - v1
