@@ -97,9 +97,9 @@ func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
 	}
 	ethConf := &eth.Config{
 		Genesis:        core.DeveloperGenesisBlock(15, common.Address{}),
-		TxFeeRecipient: common.HexToAddress(testAddress),
 		Miner: miner.Config{
 			Validator: common.HexToAddress(testAddress),
+			TxFeeRecipient: common.HexToAddress(testAddress),
 		},
 	}
 	if confOverride != nil {

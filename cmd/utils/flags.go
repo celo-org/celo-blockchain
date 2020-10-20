@@ -1110,30 +1110,31 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	}
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-// `Etherbase` is the public address earned block transaction fees are sent to.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current txFeeRecipient, new flag overriding legacy etherbase
+	var txFeeRecipient string
 	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+		txFeeRecipient = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if txFeeRecipient != "" {
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
+		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
+	}
+	// Convert the txFeeRecipient into an address and configure it
+	if txFeeRecipient != "" {
+		account, err := MakeAddress(ks, txFeeRecipient)
+		if err != nil {
+			Fatalf("Invalid txFeeRecipient: %v", err)
+		}
+		cfg.TxFeeRecipient = account.Address
 	}
 }
 

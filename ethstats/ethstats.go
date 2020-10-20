@@ -650,12 +650,12 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	msgHash := crypto.Keccak256Hash(msg)
 
-	etherBase, errEtherbase := s.eth.Etherbase()
-	if errEtherbase != nil {
-		return nil, errEtherbase
+	validator, errValidator := s.eth.Validator()
+	if errValidator != nil {
+		return nil, errValidator
 	}
 
-	account := accounts.Account{Address: etherBase}
+	account := accounts.Account{Address: validator}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
 		return nil, errWallet
@@ -674,7 +674,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 
 	proof := map[string]interface{}{
 		"signature": hexutil.Encode(signature),
-		"address":   etherBase,
+		"address":   validator,
 		"publicKey": hexutil.Encode(pubkeyBytes),
 		"msgHash":   msgHash.Hex(),
 	}
@@ -978,7 +978,7 @@ type nodeStats struct {
 func (s *Service) reportStats(conn *websocket.Conn) error {
 	// Gather the syncing and mining infos from the local miner instance
 	var (
-		etherBase common.Address
+		validator common.Address
 		mining    bool
 		proxy     bool
 		elected   bool
@@ -987,7 +987,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		gasprice  int
 	)
 	if s.eth != nil {
-		etherBase, _ = s.eth.Etherbase()
+		validator, _ = s.eth.Validator()
 		block := s.eth.BlockChain().CurrentBlock()
 
 		proxy = s.backend.IsProxy()
@@ -998,7 +998,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
 
 		for i := range valsElected {
-			if valsElected[i].Address() == etherBase {
+			if valsElected[i].Address() == validator {
 				elected = true
 			}
 		}
@@ -1017,7 +1017,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 
 	stats := map[string]interface{}{
 		"id":      s.node,
-		"address": etherBase,
+		"address": validator,
 		"stats": &nodeStats{
 			Active:   true,
 			Mining:   mining,
