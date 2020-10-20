@@ -82,7 +82,6 @@ const (
 var (
 	randomSeedString = []byte("Randomness seed string")
 	randomSeed       []byte
-
 	// Gauge used to measure block finalization time from created to after written to chain.
 	blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
 )
