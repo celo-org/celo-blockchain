@@ -188,7 +188,7 @@ func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) bool {
 		proxy := ps.getProxy(proxyID)
 		if proxy != nil && proxy.peer == nil && time.Since(proxy.disconnectTS) >= minAge {
 			logger.Debug("Unassigning disconnected proxy", "proxy", proxy.String())
-			valsReassigned = ps.valAssigner.removeProxy(proxy, ps.valAssignments)
+			valsReassigned = ps.valAssigner.removeProxy(proxy, ps.valAssignments) || valsReassigned
 		}
 	}
 
