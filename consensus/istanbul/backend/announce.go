@@ -445,7 +445,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 		return nil, err
 	}
 
-	var queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam
+	var enodeQueries []*enodeQuery
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			externalEnode := valProxyAssignments[valEnodeEntry.Address]
@@ -454,16 +454,18 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			}
 
 			externalEnodeURL := externalEnode.URLv4()
-			queryEnodeEncryptedEnodeURLParams = append(queryEnodeEncryptedEnodeURLParams, &genEncryptedEnodeURLParam{destAddress: valEnodeEntry.Address,
-				publicKey: valEnodeEntry.PublicKey,
-				enodeURL:  externalEnodeURL})
+			enodeQueries = append(enodeQueries, &enodeQuery{
+				recipientAddress:   valEnodeEntry.Address,
+				recipientPublicKey: valEnodeEntry.PublicKey,
+				enodeURL:           externalEnodeURL,
+			})
 		}
 	}
 
 	var qeMsg *istanbul.Message
-	if len(queryEnodeEncryptedEnodeURLParams) > 0 {
+	if len(enodeQueries) > 0 {
 		var err error
-		qeMsg, err = sb.generateQueryEnodeMsg(version, queryEnodeEncryptedEnodeURLParams)
+		qeMsg, err = sb.generateQueryEnodeMsg(version, enodeQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -531,10 +533,16 @@ func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*is
 }
 
 // generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
-func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam) (*istanbul.Message, error) {
+// A query enode message contains a number of individual enode queries, each of which is intended
+// for a single recipient validator. A query contains of this nodes external enode URL, to which
+// the recipient validator is intended to connect, and is ECIES encrypted with the recipient's
+// public key, from which their validator signer address is derived.
+// Note: It is referred to as a "query" because the sender does not know the recipients enode.
+// The recipient is expected to respond by opening a direct connection with an enode certificate.
+func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
 	logger := sb.logger.New("func", "generateQueryEnodeMsg")
 
-	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams)
+	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(enodeQueries)
 	if err != nil {
 		logger.Warn("Error generating encrypted enodeURLs", "err", err)
 		return nil, err
@@ -573,22 +581,20 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, queryEnodeEncryptedEnodeU
 	return msg, nil
 }
 
-type genEncryptedEnodeURLParam struct {
-	destAddress common.Address
-	publicKey   *ecdsa.PublicKey
-	enodeURL    string
+type enodeQuery struct {
+	recipientAddress   common.Address
+	recipientPublicKey *ecdsa.PublicKey
+	enodeURL           string
 }
 
-// generateEncryptedEnodeURLs returns the encryptedEnodeURLs intended for validators
-// whose entries in the val enode table do not exist or are outdated when compared
-// to the version certificate table.
-func (sb *Backend) generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams []*genEncryptedEnodeURLParam) ([]*encryptedEnodeURL, error) {
+// generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
+func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*encryptedEnodeURL, error) {
 	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
 
 	var encryptedEnodeURLs []*encryptedEnodeURL
-	for _, param := range queryEnodeEncryptedEnodeURLParams {
-		logger.Info("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.publicKey)
-		publicKey := ecies.ImportECDSAPublic(param.publicKey)
+	for _, param := range enodeQueries {
+		logger.Info("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
+		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
 		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
 		if err != nil {
 			logger.Error("Error in encrypting enodeURL", "enodeURL", param.enodeURL, "publicKey", publicKey)
@@ -596,7 +602,7 @@ func (sb *Backend) generateEncryptedEnodeURLs(queryEnodeEncryptedEnodeURLParams 
 		}
 
 		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
-			DestAddress:       param.destAddress,
+			DestAddress:       param.recipientAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
 	}
@@ -1084,7 +1090,11 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
 func (sb *Backend) UpdateAnnounceVersion() {
-	sb.updateAnnounceVersionCh <- struct{}{}
+	// Send to the channel iff it does not already have a message.
+	select {
+	case sb.updateAnnounceVersionCh <- struct{}{}:
+	default:
+	}
 }
 
 // GetAnnounceVersion will retrieve the current announce version.
@@ -1098,8 +1108,9 @@ func (sb *Backend) GetAnnounceVersion() uint {
 // and shares them with relevant nodes.
 // It will:
 //  1) Generate a new enode certificate
-//  2) Multicast the new enode certificate to all peers in the validator conn set (note that if this is a proxied validator, it's multicast
-//     message will be wrapped within a forward message to the proxy (which will in turn send the enode certificate to remote validators).
+//  2) Multicast the new enode certificate to all peers in the validator conn set
+//	   * Note: If this is a proxied validator, it's multicast message will be wrapped within a forward
+//       message to the proxy, which will in turn send the enode certificate to remote validators.
 //  3) Generate a new version certificate
 //  4) Gossip the new version certificate to all peers
 func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
@@ -1172,7 +1183,7 @@ func getTimestamp() uint {
 	return uint(time.Now().Unix())
 }
 
-// RetrieveEnodeCertificateMsgs gets the most recent enode certificate messages.
+// RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
 func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
@@ -1211,9 +1222,11 @@ func (sb *Backend) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode
 	return externalEnodes, valDestinations, nil
 }
 
-// generateEnodeCertificateMsg generates an enode certificate message with the enode
-// this node is publicly accessible at. If this node is proxied, the proxy's
-// public enode is used.
+// generateEnodeCertificateMsgs generates a map of enode certificate messages.
+// One certificate message is generated for each external enode this node possesses generated for
+// each external enode this node possesses. A unproxied validator will have one enode, while a
+// proxied validator may have one for each proxy.. Each enode is a key in the returned map, and the
+// value is the certificate message.
 func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
 	logger := sb.logger.New("func", "generateEnodeCertificateMsgs")
 
@@ -1310,7 +1323,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	return nil
 }
 
-// This function will set this nodes enode certificate msgs field.
+// SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
 func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
 	logger := sb.logger.New("func", "SetEnodeCertificateMsgMap")
 	var enodeCertVersion *uint
