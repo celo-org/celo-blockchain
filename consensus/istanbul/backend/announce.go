@@ -1192,31 +1192,6 @@ func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Enode
 	return sb.enodeCertificateMsgMap
 }
 
-// GenerateEnodeCertificateMsg creates an enode certificate message with given enode.
-func (sb *Backend) GenerateEnodeCertificateMsg(enodeURL string) (*istanbul.Message, error) {
-	version := sb.GetAnnounceVersion()
-
-	enodeCertificate := &istanbul.EnodeCertificate{
-		EnodeURL: enodeURL,
-		Version:  version,
-	}
-	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
-	if err != nil {
-		return nil, err
-	}
-	msg := &istanbul.Message{
-		Code:    istanbul.EnodeCertificateMsg,
-		Address: sb.Address(),
-		Msg:     enodeCertificateBytes,
-	}
-	// Sign the message
-	if err := msg.Sign(sb.Sign); err != nil {
-		return nil, err
-	}
-
-	return msg, nil
-}
-
 // getEnodeCertNodesAndDestAddresses will retrieve all the external facing external nodes for this validator
 // (one for each of it's proxies, or itself for standalone validators) for the purposes of generating enode certificates
 // for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
