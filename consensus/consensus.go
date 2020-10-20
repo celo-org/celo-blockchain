@@ -144,14 +144,14 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, peerFromInternal bool) error
+	RegisterPeer(peer Peer, internalServerPeer bool) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
-	UnregisterPeer(peer Peer, peerFromInternal bool)
+	UnregisterPeer(peer Peer, internalServerPeer bool)
 
 	// Handshake will begin a handshake with a new peer. It returns if the peer
 	// has identified itself as a validator and should bypass any max peer checks.
-	Handshake(peer Peer, peerFromInternal bool) (bool, error)
+	Handshake(peer Peer, internalServerPeer bool) (bool, error)
 }
 
 // PoW is a consensus engine based on proof-of-work.

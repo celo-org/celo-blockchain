@@ -320,12 +320,12 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Execute the Ethereum handshake
 	var (
-		genesis          = pm.blockchain.Genesis()
-		head             = pm.blockchain.CurrentHeader()
-		hash             = head.Hash()
-		number           = head.Number.Uint64()
-		td               = pm.blockchain.GetTd(hash, number)
-		peerFromInternal = p.Peer.Server == pm.internalServer
+		genesis            = pm.blockchain.Genesis()
+		head               = pm.blockchain.CurrentHeader()
+		hash               = head.Hash()
+		number             = head.Number.Uint64()
+		td                 = pm.blockchain.GetTd(hash, number)
+		internalServerPeer = p.Peer.Server == pm.internalServer
 	)
 	if err := p.Handshake(pm.networkID, td, hash, genesis.Hash(), forkid.NewID(pm.blockchain), pm.forkFilter); err != nil {
 		p.Log().Info("Ethereum handshake failed", "err", err)
@@ -333,7 +333,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	forcePeer := false
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		isValidator, err := handler.Handshake(p, peerFromInternal)
+		isValidator, err := handler.Handshake(p, internalServerPeer)
 		if err != nil {
 			p.Log().Warn("Istanbul handshake failed", "err", err)
 			return err
@@ -356,7 +356,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		// (eth and les) exceeds the total max peers. This checks if the number
 		// of eth peers exceeds the eth max peers.
 		isStaticOrTrusted := p.Peer.Info().Network.Trusted || p.Peer.Info().Network.Static
-		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && !peerFromInternal {
+		if !isStaticOrTrusted && pm.peers.Len() >= pm.maxPeers && !internalServerPeer {
 			return p2p.DiscTooManyPeers
 		}
 	}
@@ -378,7 +378,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 
 	// Register the peer with the consensus engine.
 	if handler, ok := pm.engine.(consensus.Handler); ok {
-		if err := handler.RegisterPeer(p, peerFromInternal); err != nil {
+		if err := handler.RegisterPeer(p, internalServerPeer); err != nil {
 			return err
 		}
 	}
