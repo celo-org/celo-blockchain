@@ -174,7 +174,6 @@ func (lc *LightChain) loadLastState() error {
 func (lc *LightChain) SetHead(head uint64) error {
 	lc.chainmu.Lock()
 	defer lc.chainmu.Unlock()
-
 	lc.hc.SetHead(head, nil, nil)
 	return lc.loadLastState()
 }
