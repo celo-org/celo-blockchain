@@ -418,7 +418,7 @@ func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
 func (srv *Server) RemovePeer(node *enode.Node, purpose PurposeFlag) {
 	select {
 	case srv.removestatic <- &nodeArgs{node: node, purpose: purpose}:
-		<- srv.removestaticDone
+		<-srv.removestaticDone
 	case <-srv.quit:
 	}
 }
