@@ -43,7 +43,7 @@ func TestConsoleWelcome(t *testing.T) {
 	// Start a geth console, make sure it's cleaned up and terminate the console
 	geth := runGeth(t,
 		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
-		"--etherbase", coinbase, "--shh",
+		"--tx-fee-recipient", coinbase, "--shh",
 		"console")
 
 	// Gather all the infos the welcome message needs to contain
@@ -59,7 +59,7 @@ func TestConsoleWelcome(t *testing.T) {
 Welcome to the Celo JavaScript console!
 
 instance: celo/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
-coinbase: {{.Etherbase}}
+coinbase: {{.TxFeeRecipient}}
 at block: 0 ({{niltime}})
  datadir: {{.Datadir}}
  modules: {{apis}}
@@ -85,7 +85,7 @@ func TestIPCAttachWelcome(t *testing.T) {
 	// list of ipc modules and shh is included there.
 	geth := runGeth(t,
 		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
-		"--etherbase", coinbase, "--shh", "--ipcpath", ipc)
+		"--tx-fee-recipient", coinbase, "--shh", "--ipcpath", ipc)
 
 	defer func() {
 		geth.Interrupt()
@@ -102,7 +102,7 @@ func TestHTTPAttachWelcome(t *testing.T) {
 	port := strconv.Itoa(trulyRandInt(1024, 65536)) // Yeah, sometimes this will fail, sorry :P
 	geth := runGeth(t,
 		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
-		"--etherbase", coinbase, "--rpc", "--rpcport", port)
+		"--tx-fee-recipient", coinbase, "--rpc", "--rpcport", port)
 	defer func() {
 		geth.Interrupt()
 		geth.ExpectExit()
@@ -119,7 +119,7 @@ func TestWSAttachWelcome(t *testing.T) {
 
 	geth := runGeth(t,
 		"--port", "0", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--light.maxpeers", "0",
-		"--etherbase", coinbase, "--ws", "--wsport", port)
+		"--tx-fee-recipient", coinbase, "--ws", "--wsport", port)
 	defer func() {
 		geth.Interrupt()
 		geth.ExpectExit()
@@ -141,7 +141,7 @@ func testAttachWelcome(t *testing.T, geth *testgeth, endpoint, apis string) {
 	attach.SetTemplateFunc("goarch", func() string { return runtime.GOARCH })
 	attach.SetTemplateFunc("gover", runtime.Version)
 	attach.SetTemplateFunc("gethver", func() string { return params.VersionWithCommit("", "") })
-	attach.SetTemplateFunc("etherbase", func() string { return geth.Etherbase })
+	attach.SetTemplateFunc("tx-fee-recipient", func() string { return geth.TxFeeRecipient })
 	attach.SetTemplateFunc("niltime", func() string { return time.Unix(0x5ea06a00, 0).Format(time.RFC1123) })
 	attach.SetTemplateFunc("ipc", func() bool { return strings.HasPrefix(endpoint, "ipc") })
 	attach.SetTemplateFunc("datadir", func() string { return geth.Datadir })
@@ -152,7 +152,7 @@ func testAttachWelcome(t *testing.T, geth *testgeth, endpoint, apis string) {
 Welcome to the Celo JavaScript console!
 
 instance: celo/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
-coinbase: {{etherbase}}
+coinbase: {{tx-fee-recipient}}
 at block: 0 ({{niltime}}){{if ipc}}
  datadir: {{datadir}}{{end}}
  modules: {{apis}}

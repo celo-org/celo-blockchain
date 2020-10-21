@@ -51,14 +51,14 @@ func NewPublicEthereumAPI(e *Ethereum) *PublicEthereumAPI {
 	return &PublicEthereumAPI{e}
 }
 
-// Validator is the address that will sign messages and recieve validator rewards.
+// Validator is the address that will sign messages and receive validator rewards.
 func (api *PublicEthereumAPI) Validator() (common.Address, error) {
-	return api.Validator()
+	return api.e.Validator()
 }
 
 // TxFeeRecipient is the address that mining fees will be sent to.
 func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
-	return api.TxFeeRecipient()
+	return api.e.TxFeeRecipient()
 }
 
 // Etherbase is the address that mining rewards will be send to
