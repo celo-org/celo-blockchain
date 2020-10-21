@@ -243,9 +243,6 @@ func TestValSetChange(t *testing.T) {
 
 		config := *istanbul.DefaultConfig
 		config.Validator = true
-		config.ValidatorEnodeDBPath = ""
-		config.VersionCertificateDBPath = ""
-		config.RoundStateDBPath = ""
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
