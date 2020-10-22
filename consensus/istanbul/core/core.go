@@ -683,10 +683,9 @@ func (c *core) resendRoundChangeMessage() {
 	c.resetResendRoundChangeTimer()
 }
 
-func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+func (c *core) checkValidatorSignature(data []byte, sig []byte) (signerAddress common.Address, err error) {
 	logger := c.newLogger("func", "checkValidatorSignature")
 
-	var signerAddress common.Address
 	cacheKey := msgSigCacheKey{msgData: data, msgSig: sig}
 	cacheKeyBytes, err := rlp.EncodeToBytes(cacheKey)
 	if err != nil {
@@ -697,23 +696,11 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	// Check if the cache has the signer
 	if signer, ok := c.msgSigCache[string(cacheKeyBytes)]; ok {
 		signerAddress = signer
-	} else { // Call the GetSignatureAddress function
-		signer, err := istanbul.GetSignatureAddress(data, sig)
-		if err != nil {
-			logger.Error("Failed to get signer address", "err", err)
-			return common.Address{}, err
-		}
-
-		signerAddress = signer
-		c.msgSigCache[string(cacheKeyBytes)] = signerAddress
+	} else { // Call the istanbul.CheckValidatorSignature function
+		signerAddress, err = istanbul.CheckValidatorSignature(c.current.ValidatorSet(), string(cacheKeyBytes), c.msgSigCache, data, sig)
 	}
 
-	// Check if the signer is within the current validator set
-	if _, val := c.current.ValidatorSet().GetByAddress(signerAddress); val != nil {
-		return val.Address(), nil
-	} else {
-		return common.Address{}, istanbul.ErrUnauthorizedAddress
-	}
+	return signerAddress, err
 }
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {

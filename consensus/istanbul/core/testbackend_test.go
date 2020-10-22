@@ -175,7 +175,7 @@ func (self *testSystemBackend) CheckSignature([]byte, common.Address, []byte) er
 }
 
 func (self *testSystemBackend) CheckValidatorSignature(data []byte, sig []byte) (common.Address, error) {
-	return istanbul.CheckValidatorSignature(self.peers, data, sig)
+	return istanbul.CheckValidatorSignature(self.peers, "", nil, data, sig)
 }
 
 func (self *testSystemBackend) Hash(b interface{}) common.Hash {

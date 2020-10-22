@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -77,7 +76,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
 		// CheckValidatorSignature should succeed
-		addr, err := istanbul.CheckValidatorSignature(vset, data, sig)
+		addr, err := istanbul.CheckValidatorSignature(vset, "", nil, data, sig)
 		if err != nil {
 			t.Errorf("error mismatch: have %v, want nil", err)
 		}
@@ -99,8 +98,8 @@ func TestCheckValidatorSignature(t *testing.T) {
 	}
 
 	// CheckValidatorSignature should return ErrUnauthorizedAddress
-	addr, err := istanbul.CheckValidatorSignature(vset, data, sig)
-	expectedErr := fmt.Errorf("not an elected validator %s", crypto.PubkeyToAddress(key.PublicKey).Hex())
+	addr, err := istanbul.CheckValidatorSignature(vset, "", nil, data, sig)
+	expectedErr := istanbul.ErrUnauthorizedAddress
 	if err.Error() != expectedErr.Error() {
 		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
 	}
