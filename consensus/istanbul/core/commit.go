@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -56,8 +57,8 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
 
-	// TODO(victor): Replace true with a check that the hard fork is inactive.
-	if true {
+	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
+	if !c.backend.ChainConfig().IsCelo1(big.NewInt(int64(blockNumber))) {
 		return blscrypto.EncodeEpochSnarkDataWithoutEntropy(
 			blsPubKeys, maxNonSigners,
 			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),

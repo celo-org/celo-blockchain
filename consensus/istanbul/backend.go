@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
@@ -45,6 +46,9 @@ type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.Seriali
 type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address
+
+	// ChainConfig retrieves the blockchain's chain configuration.
+	ChainConfig() *params.ChainConfig
 
 	// Validators returns the validator set
 	Validators(proposal Proposal) ValidatorSet

@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -312,6 +313,11 @@ func (sb *Backend) IsProxiedValidator() bool {
 // IsValidator return if instance is a validator (either proxied or standalone)
 func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
+}
+
+// ChainConfig returns the configuration from the embedded blockchain reader.
+func (sb *Backend) ChainConfig() *params.ChainConfig {
+	return sb.chain.Config()
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
