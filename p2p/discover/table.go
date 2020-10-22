@@ -362,10 +362,12 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 	}
 	// No reply received, pick a replacement or delete the node if there aren't
 	// any replacements.
-	if r := tab.replace(b, last); r != nil {
-		tab.log.Debug("Replaced dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
-	} else {
+	if r := tab.replace(b, last); r == nil {
 		tab.log.Debug("Removed dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks)
+	} else if r == last {
+		tab.log.Debug("Left dead node in bucket", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
+	} else {
+		tab.log.Debug("Replaced dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
 	}
 }
 
@@ -598,6 +600,7 @@ func (tab *Table) addReplacement(b *bucket, n *node) {
 // replace removes n from the replacement list and replaces 'last' with it if it is the
 // last entry in the bucket. If 'last' isn't the last entry, it has either been replaced
 // with someone else or became active.
+// If last is the only node in the bucket and there are no replacements, leave it there.
 func (tab *Table) replace(b *bucket, last *node) *node {
 	if len(b.entries) == 0 || b.entries[len(b.entries)-1].ID() != last.ID() {
 		// Entry has moved, don't replace it.
@@ -605,6 +608,9 @@ func (tab *Table) replace(b *bucket, last *node) *node {
 	}
 	// Still the last entry.
 	if len(b.replacements) == 0 {
+		if len(b.entries) == 1 {
+			return last
+		}
 		tab.deleteInBucket(b, last)
 		return nil
 	}
