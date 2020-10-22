@@ -45,7 +45,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	config.Proxy = isProxy
 	config.ProxiedValidatorAddress = proxiedValAddress
 	config.Proxied = isProxied
-  config.Validator = !isProxy
+	config.Validator = !isProxy
 
 	b, _ := New(&config, memDB).(*Backend)
 

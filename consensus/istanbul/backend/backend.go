@@ -782,9 +782,6 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 	// wait period in blocks
 	waitPeriod := uint64(20)
-	if sb.config.Epoch <= 10 {
-		waitPeriod = 1
-	}
 
 	// wait period in seconds
 	waitPeriodSec := 60 * time.Second
@@ -792,7 +789,7 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 	// Check to see if there is a cached validator conn set
 	if sb.cachedValidatorConnSet != nil {
 		currentBlockNum := sb.currentBlock().Number().Uint64()
-		pendingBlockNum := currentBlockNum
+		pendingBlockNum := currentBlockNum + 1
 
 		// We want to get the val conn set that is meant to validate the pending block
 		desiredValSetEpochNum := istanbul.GetEpochNumber(pendingBlockNum, sb.config.Epoch)
@@ -802,7 +799,7 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
 		// blocks of the pending block.
-		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
+		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) > currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
 			defer sb.cachedValidatorConnSetMu.RUnlock()
 			return sb.cachedValidatorConnSet, nil
 		}
