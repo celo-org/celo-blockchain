@@ -111,7 +111,7 @@ type dialScheduler struct {
 
 	// The static map tracks all static dial tasks. The subset of usable static dial tasks
 	// (i.e. those passing checkDial) is kept in staticPool. The scheduler prefers
-	// launching random static tasks from the pool over launching dynamic dials from the
+	// launching static tasks from the pool over launching dynamic dials from the
 	// iterator.
 	static     map[enode.ID]*dialTask
 	staticPool []*dialTask
