@@ -778,6 +778,8 @@ func (sb *Backend) ValidatorAddress() common.Address {
 // cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
+	var valConnSetToReturn map[common.Address]bool = nil
+
 	sb.cachedValidatorConnSetMu.RLock()
 
 	// wait period in blocks
@@ -800,19 +802,27 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
 		// blocks of the pending block.
 		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) > currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
-			defer sb.cachedValidatorConnSetMu.RUnlock()
-			return sb.cachedValidatorConnSet, nil
+			valConnSetToReturn = sb.cachedValidatorConnSet
 		}
 	}
-	sb.cachedValidatorConnSetMu.RUnlock()
 
-	if err := sb.updateCachedValidatorConnSet(); err != nil {
-		return nil, err
+	if valConnSetToReturn == nil {
+		sb.cachedValidatorConnSetMu.RUnlock()
+
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			return nil, err
+		}
+
+		sb.cachedValidatorConnSetMu.RLock()
+		valConnSetToReturn = sb.cachedValidatorConnSet
 	}
 
-	sb.cachedValidatorConnSetMu.RLock()
+	valConnSetCopy := make(map[common.Address]bool)
+	for address, inSet := range valConnSetToReturn {
+		valConnSetCopy[address] = inSet
+	}
 	defer sb.cachedValidatorConnSetMu.RUnlock()
-	return sb.cachedValidatorConnSet, nil
+	return valConnSetCopy, nil
 }
 
 // retrieveCachedValidatorConnSet returns the most recently cached validator conn set.
