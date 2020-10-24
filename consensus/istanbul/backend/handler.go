@@ -111,7 +111,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 		checkValidatorSignature := func(data []byte, sig []byte) (common.Address, error) {
 			block := sb.currentBlock()
 			valSet := sb.getValidators(block.Number().Uint64(), block.Hash())
-			return istanbul.CheckValidatorSignature(valSet, data, sig)
+			return istanbul.CheckValidatorSignature(valSet, "", nil, data, sig)
 		}
 		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
 			sb.logger.Warn("Got a consensus message signed by a non validator", "err", err)

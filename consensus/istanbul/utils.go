@@ -19,7 +19,6 @@ package istanbul
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math/big"
 
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -51,12 +50,16 @@ func GetSignatureAddress(data []byte, sig []byte) (common.Address, error) {
 	return crypto.PubkeyToAddress(*pubkey), nil
 }
 
-func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (common.Address, error) {
+func CheckValidatorSignature(valSet ValidatorSet, cacheKey string, msgSigCache map[string]common.Address, data []byte, sig []byte) (common.Address, error) {
 	// 1. Get signature address
 	signer, err := GetSignatureAddress(data, sig)
 	if err != nil {
 		log.Error("Failed to get signer address", "err", err)
 		return common.Address{}, err
+	}
+	// Handle the msgSigCache when func CheckValidatorSignature is called by core engine rather than proxy
+	if msgSigCache != nil {
+		msgSigCache[cacheKey] = signer
 	}
 
 	// 2. Check validator
@@ -64,7 +67,7 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 		return val.Address(), nil
 	}
 
-	return common.Address{}, fmt.Errorf("not an elected validator %s", signer.Hex())
+	return common.Address{}, ErrUnauthorizedAddress
 }
 
 // Retrieves the block number within an epoch.  The return value will be 1-based.
