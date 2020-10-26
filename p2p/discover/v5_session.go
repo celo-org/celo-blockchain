@@ -42,7 +42,7 @@ type sessionID struct {
 type session struct {
 	writeKey     []byte
 	readKey      []byte
-	nonceCounter uint32
+	nonceCounter uint32 //nolint:unused
 }
 
 func newSessionCache(maxItems int, clock mclock.Clock) *sessionCache {
@@ -58,7 +58,7 @@ func newSessionCache(maxItems int, clock mclock.Clock) *sessionCache {
 }
 
 // nextNonce creates a nonce for encrypting a message to the given session.
-func (sc *sessionCache) nextNonce(id enode.ID, addr string) []byte {
+func (sc *sessionCache) nextNonce(id enode.ID, addr string) []byte { //nolint:unused
 	n := make([]byte, gcmNonceSize)
 	crand.Read(n)
 	return n
