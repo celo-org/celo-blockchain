@@ -80,7 +80,7 @@ type Config struct {
 	Validator common.Address `toml:",omitempty"`
 	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
 	TxFeeRecipient common.Address `toml:",omitempty"`
-	BLSbase   common.Address `toml:",omitempty"`
+	BLSbase        common.Address `toml:",omitempty"`
 
 	// Ultra Light client options
 	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers
