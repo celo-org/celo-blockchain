@@ -184,6 +184,11 @@ func U256(x *big.Int) *big.Int {
 	return x.And(x, tt256m1)
 }
 
+// PaddedU256 converts a big Int into a 256bit EVM number.
+func PaddedU256(n *big.Int) []byte {
+	return PaddedBigBytes(U256(n), 32)
+}
+
 // S256 interprets x as a two's complement number.
 // x must not exceed 256 bits (the result is undefined if it does) and is not modified.
 //
