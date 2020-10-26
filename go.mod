@@ -17,11 +17,14 @@ require (
 	github.com/cloudflare/cloudflare-go v0.10.2-0.20190916151808-a80f83b9add9
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
+	github.com/dlclark/regexp2 v1.2.0 // indirect
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
+	github.com/dop251/goja v0.0.0-20200106141417-aaec0e7bde29
 	github.com/elastic/gosigar v0.10.5
 	github.com/fatih/color v1.3.0
 	github.com/fjl/memsize v0.0.0-20180418122429-ca190fb6ffbc
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff
+	github.com/go-sourcemap/sourcemap v2.1.2+incompatible // indirect
 	github.com/go-stack/stack v1.8.0
 	github.com/golang/protobuf v1.3.2-0.20190517061210-b285ee9cfc6c
 	github.com/golang/snappy v0.0.1
@@ -45,7 +48,6 @@ require (
 	github.com/peterh/liner v1.1.1-0.20190123174540-a2c9a5303de7
 	github.com/prometheus/tsdb v0.6.2-0.20190402121629-4f204dcbc150
 	github.com/rjeczalik/notify v0.9.1
-	github.com/robertkrimen/otto v0.0.0-20170205013659-6a77b7cbc37d
 	github.com/rs/cors v0.0.0-20160617231935-a62a804a8a00
 	github.com/rs/xhandler v0.0.0-20160618193221-ed27b6fd6521 // indirect
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
