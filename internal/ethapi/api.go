@@ -446,15 +446,10 @@ func (s *PrivateAccountAPI) SignTypedData(ctx context.Context, typedData typedda
 	if err != nil {
 		return nil, err
 	}
-	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	rawData, err := typedData.EIP712Bytes()
 	if err != nil {
 		return nil, err
 	}
-	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
-	if err != nil {
-		return nil, err
-	}
-	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 	signature, err := wallet.SignDataWithPassphrase(account, passwd, accounts.MimetypeTypedData, rawData)
 	if err != nil {
 		log.Warn("Failed typeddata sign attempt", "address", addr, "err", err)

@@ -96,6 +96,20 @@ type TypedDataDomain struct {
 
 var typedDataReferenceTypeRegexp = regexp.MustCompile(`^[A-Z](\w*)(\[\])?$`)
 
+// EIP712Bytes returns as a bytes array encoded compliant to EIP-712
+func (typedData *TypedData) EIP712Bytes() ([]byte, error) {
+	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	if err != nil {
+		return nil, err
+	}
+	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
+	if err != nil {
+		return nil, err
+	}
+	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
+	return rawData, nil
+}
+
 // HashStruct generates a keccak256 hash of the encoding of the provided data
 func (typedData *TypedData) HashStruct(primaryType string, data TypedDataMessage) (hexutil.Bytes, error) {
 	encodedData, err := typedData.EncodeData(primaryType, data, 1)

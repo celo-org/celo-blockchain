@@ -200,15 +200,10 @@ func SignTextValidator(validatorData ValidatorData) (hexutil.Bytes, string) {
 // SignTypedData signs EIP-712 conformant typed data
 // hash = keccak256("\x19${byteVersion}${domainSeparator}${hashStruct(message)}")
 func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAddress, typedData TypedData) (hexutil.Bytes, error) {
-	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	rawData, err := typedData.EIP712Bytes()
 	if err != nil {
 		return nil, err
 	}
-	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
-	if err != nil {
-		return nil, err
-	}
-	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 	sighash := crypto.Keccak256(rawData)
 	messages, err := typedData.Format()
 	if err != nil {
