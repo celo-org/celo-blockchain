@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +52,22 @@ func (frdb *freezerdb) Close() error {
 		return fmt.Errorf("%v", errs)
 	}
 	return nil
+}
+
+// Freeze is a helper method used for external testing to trigger and block until
+// a freeze cycle completes, without having to sleep for a minute to trigger the
+// automatic background run.
+func (frdb *freezerdb) Freeze(threshold uint64) {
+	// Set the freezer threshold to a temporary value
+	defer func(old uint64) {
+		atomic.StoreUint64(&frdb.AncientStore.(*freezer).threshold, old)
+	}(atomic.LoadUint64(&frdb.AncientStore.(*freezer).threshold))
+	atomic.StoreUint64(&frdb.AncientStore.(*freezer).threshold, threshold)
+
+	// Trigger a freeze cycle and block until it's done
+	trigger := make(chan struct{}, 1)
+	frdb.AncientStore.(*freezer).trigger <- trigger
+	<-trigger
 }
 
 // nofreezedb is a database wrapper that disables freezer data retrievals.
@@ -150,11 +167,10 @@ func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace st
 				}
 				// Database contains only older data than the freezer, this happens if the
 				// state was wiped and reinited from an existing freezer.
-				// } else {
-				// Key-value store continues where the freezer left off, all is fine. We might
-				// have duplicate blocks (crash after freezer write but before kay-value store
-				// deletion, but that's fine).
 			}
+			// Otherwise, key-value store continues where the freezer left off, all is fine.
+			// We might have duplicate blocks (crash after freezer write but before key-value
+			// store deletion, but that's fine).
 		} else {
 			// If the freezer is empty, ensure nothing was moved yet from the key-value
 			// store, otherwise we'll end up missing data. We check block #1 to decide
@@ -167,9 +183,9 @@ func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace st
 					return nil, errors.New("ancient chain segments already extracted, please set --datadir.ancient to the correct path")
 				}
 				// Block #1 is still in the database, we're allowed to init a new feezer
-				// } else {
-				// The head header is still the genesis, we're allowed to init a new feezer
 			}
+			// Otherwise, the head header is still the genesis, we're allowed to init a new
+			// feezer.
 		}
 	}
 	// Freezer is consistent with the key-value database, permit combining the two

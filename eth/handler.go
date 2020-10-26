@@ -77,6 +77,7 @@ type ProtocolManager struct {
 
 	txpool     txPool
 	blockchain *core.BlockChain
+	chaindb    ethdb.Database
 	maxPeers   int
 
 	downloader *downloader.Downloader
@@ -118,6 +119,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		eventMux:    mux,
 		txpool:      txpool,
 		blockchain:  blockchain,
+		chaindb:     chaindb,
 		peers:       newPeerSet(),
 		whitelist:   whitelist,
 		newPeerCh:   make(chan *peer),
@@ -759,6 +761,10 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		var request newBlockData
 		if err := msg.Decode(&request); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+		if hash := types.DeriveSha(request.Block.Transactions()); hash != request.Block.TxHash() {
+			log.Warn("Propagated block has invalid body", "have", hash, "exp", request.Block.TxHash())
+			break // TODO(karalabe): return error eventually, but wait a few releases
 		}
 		if err := request.sanityCheck(); err != nil {
 			return err

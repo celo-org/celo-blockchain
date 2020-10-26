@@ -101,5 +101,5 @@ type Backend interface {
 	RefreshValPeers() error
 
 	// Authorize injects a private key into the consensus engine.
-	Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signBLSFn BLSSignerFn)
+	Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn DecryptFn, signFn SignerFn, signBLSFn BLSSignerFn)
 }

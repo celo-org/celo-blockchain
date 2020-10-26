@@ -83,7 +83,7 @@ var (
 func init() {
 	testTxPoolConfig = core.DefaultTxPoolConfig
 	testTxPoolConfig.Journal = ""
-	istanbulChainConfig = params.DefaultChainConfig
+	istanbulChainConfig = params.IstanbulTestChainConfig
 	istanbulChainConfig.Istanbul = &params.IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
@@ -165,9 +165,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 func (b *testWorkerBackend) AccountManager() *accounts.Manager { return b.accountManager }
 func (b *testWorkerBackend) BlockChain() *core.BlockChain      { return b.chain }
 func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool }
-func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
-	b.chain.PostChainEvents(events, nil)
-}
 
 func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
 	var tx *types.Transaction
@@ -195,7 +192,7 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	chainConfig = params.DefaultChainConfig
+	chainConfig = params.IstanbulTestChainConfig
 	engine = mockEngine.NewFaker()
 
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
@@ -250,6 +247,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 	signerFn := backend.SignFn(testBankKey)
 	signBLSFn := backend.SignBLSFn(testBankKey)
+	address := crypto.PubkeyToAddress(testBankKey.PublicKey)
 
 	config := istanbul.DefaultConfig
 	config.RoundStateDBPath = ""
@@ -259,7 +257,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
-	engine.(*istanbulBackend.Backend).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }
@@ -307,9 +305,7 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 	w.skipSealHook = func(task *task) bool { return true }
 	w.fullTaskHook = func() {
-		// Aarch64 unit tests are running in a VM on travis, they must
-		// be given more time to execute.
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 	w.start() // Start mining!
 	expectedTasksLen := 1
@@ -368,6 +364,7 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 
 	w.start()
 	// expect one work
+
 	select {
 	case <-taskCh:
 	case <-time.NewTimer(time.Second).C:

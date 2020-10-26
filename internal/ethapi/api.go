@@ -435,6 +435,24 @@ func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr c
 	return signature, nil
 }
 
+// Decrypt will decrypt a given ciphertext with the given account via ECIES
+func (s *PrivateAccountAPI) Decrypt(ctx context.Context, ciphertext hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
+	// Look up the wallet containing the requested signer
+	account := accounts.Account{Address: addr}
+
+	wallet, err := s.b.AccountManager().Find(account)
+	if err != nil {
+		return nil, err
+	}
+	// Decrypt the data with the wallet
+	plaintext, err := wallet.Decrypt(account, ciphertext, nil, nil)
+	if err != nil {
+		log.Warn("Failed data decryption attempt", "address", addr, "err", err)
+		return nil, err
+	}
+	return plaintext, nil
+}
+
 // EcRecover returns the address for the account that was used to create the signature.
 // Note, this function is compatible with eth_sign and personal_sign. As such it recovers
 // the address of:
@@ -490,7 +508,7 @@ func (s *PrivateAccountAPI) InitializeWallet(ctx context.Context, url string) (s
 	case *scwallet.Wallet:
 		return mnemonic, wallet.Initialize(seed)
 	default:
-		return "", fmt.Errorf("Specified wallet does not support initialization")
+		return "", fmt.Errorf("specified wallet does not support initialization")
 	}
 }
 
@@ -505,7 +523,7 @@ func (s *PrivateAccountAPI) Unpair(ctx context.Context, url string, pin string) 
 	case *scwallet.Wallet:
 		return wallet.Unpair([]byte(pin))
 	default:
-		return fmt.Errorf("Specified wallet does not support pairing")
+		return fmt.Errorf("specified wallet does not support pairing")
 	}
 }
 
@@ -646,7 +664,7 @@ func (s *PublicBlockChainAPI) GetBlockByNumber(ctx context.Context, number rpc.B
 		response, err := s.rpcMarshalBlock(block, true, fullTx)
 		if err == nil && number == rpc.PendingBlockNumber {
 			// Pending blocks need to nil out a few fields
-			for _, field := range []string{"hash", "nonce", "miner"} {
+			for _, field := range []string{"hash", "nonce", "miner", "number"} {
 				response[field] = nil
 			}
 		}
@@ -1047,6 +1065,15 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool) (map[string]i
 		"revealed":  hexutil.Bytes(block.Randomness().Revealed.Bytes()),
 		"committed": hexutil.Bytes(block.Randomness().Committed.Bytes()),
 	}
+	epochSnarkData := block.EpochSnarkData()
+	if epochSnarkData != nil && !epochSnarkData.IsEmpty() {
+		fields["epochSnarkData"] = map[string]interface{}{
+			"bitmap":    hexutil.Bytes(block.EpochSnarkData().Bitmap.Bytes()),
+			"signature": hexutil.Bytes(block.EpochSnarkData().Signature),
+		}
+	} else {
+		fields["epochSnarkData"] = nil
+	}
 
 	if inclTx {
 		formatTx := func(tx *types.Transaction) (interface{}, error) {
@@ -1086,7 +1113,9 @@ func (s *PublicBlockChainAPI) rpcMarshalBlock(b *types.Block, inclTx bool, fullT
 	if err != nil {
 		return nil, err
 	}
-	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(b.Hash()))
+	if inclTx {
+		fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(b.Hash()))
+	}
 	return fields, err
 }
 
@@ -1420,7 +1449,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		args.Nonce = (*hexutil.Uint64)(&nonce)
 	}
 	if args.Data != nil && args.Input != nil && !bytes.Equal(*args.Data, *args.Input) {
-		return errors.New(`Both "data" and "input" are set and not equal. Please use "input" to pass transaction call data.`)
+		return errors.New(`both "data" and "input" are set and not equal. Please use "input" to pass transaction call data`)
 	}
 	if args.To == nil {
 		// Contract creation
@@ -1687,7 +1716,7 @@ func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs SendTxAr
 		}
 	}
 
-	return common.Hash{}, fmt.Errorf("Transaction %#x not found", matchTx.Hash())
+	return common.Hash{}, fmt.Errorf("transaction %#x not found", matchTx.Hash())
 }
 
 // PublicDebugAPI is the collection of Ethereum APIs exposed over the public

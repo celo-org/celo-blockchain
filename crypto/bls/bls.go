@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 
 	//nolint:goimports
 	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -18,8 +20,44 @@ const (
 	SIGNATUREBYTES = bls.SIGNATUREBYTES
 )
 
+var (
+	serializedPublicKeyT = reflect.TypeOf(SerializedPublicKey{})
+	serializedSignatureT = reflect.TypeOf(SerializedSignature{})
+)
+
 type SerializedPublicKey [PUBLICKEYBYTES]byte
+
+// MarshalText returns the hex representation of pk.
+func (pk SerializedPublicKey) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(pk[:]).MarshalText()
+}
+
+// UnmarshalText parses a BLS public key in hex syntax.
+func (pk *SerializedPublicKey) UnmarshalText(input []byte) error {
+	return hexutil.UnmarshalFixedText("SerializedPublicKey", input, pk[:])
+}
+
+// UnmarshalJSON parses a BLS public key in hex syntax.
+func (pk *SerializedPublicKey) UnmarshalJSON(input []byte) error {
+	return hexutil.UnmarshalFixedJSON(serializedPublicKeyT, input, pk[:])
+}
+
 type SerializedSignature [SIGNATUREBYTES]byte
+
+// MarshalText returns the hex representation of sig.
+func (sig SerializedSignature) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(sig[:]).MarshalText()
+}
+
+// UnmarshalText parses a BLS signature in hex syntax.
+func (sig *SerializedSignature) UnmarshalText(input []byte) error {
+	return hexutil.UnmarshalFixedText("SerializedSignature", input, sig[:])
+}
+
+// UnmarshalJSON parses a BLS signature in hex syntax.
+func (sig *SerializedSignature) UnmarshalJSON(input []byte) error {
+	return hexutil.UnmarshalFixedJSON(serializedSignatureT, input, sig[:])
+}
 
 func ECDSAToBLS(privateKeyECDSA *ecdsa.PrivateKey) ([]byte, error) {
 	for i := 0; i < 256; i++ {

@@ -161,7 +161,6 @@ func (lc *LightChain) loadLastState() error {
 			lc.hc.SetCurrentHeader(header)
 		}
 	}
-
 	// Issue a status log and return
 	header := lc.hc.CurrentHeader()
 	headerTd := lc.GetTd(header.Hash(), header.Number.Uint64())
@@ -175,7 +174,6 @@ func (lc *LightChain) loadLastState() error {
 func (lc *LightChain) SetHead(head uint64) error {
 	lc.chainmu.Lock()
 	defer lc.chainmu.Unlock()
-
 	lc.hc.SetHead(head, nil, nil)
 	return lc.loadLastState()
 }
@@ -195,9 +193,13 @@ func (lc *LightChain) ResetWithGenesisBlock(genesis *types.Block) {
 	defer lc.chainmu.Unlock()
 
 	// Prepare the genesis block and reinitialise the chain
-	rawdb.WriteTd(lc.chainDb, genesis.Hash(), genesis.NumberU64(), genesis.TotalDifficulty())
-	rawdb.WriteBlock(lc.chainDb, genesis)
-
+	batch := lc.chainDb.NewBatch()
+	rawdb.WriteTd(batch, genesis.Hash(), genesis.NumberU64(), genesis.TotalDifficulty())
+	rawdb.WriteBlock(batch, genesis)
+	rawdb.WriteHeadHeaderHash(batch, genesis.Hash())
+	if err := batch.Write(); err != nil {
+		log.Crit("Failed to reset genesis block", "err", err)
+	}
 	lc.genesisBlock = genesis
 	lc.hc.SetGenesis(lc.genesisBlock.Header())
 	lc.hc.SetCurrentHeader(lc.genesisBlock.Header())
@@ -330,19 +332,28 @@ func (lc *LightChain) Rollback(chain []common.Hash, fullHeaderChainAvailable boo
 	lc.chainmu.Lock()
 	defer lc.chainmu.Unlock()
 
+	batch := lc.chainDb.NewBatch()
 	for i := len(chain) - 1; i >= 0; i-- {
 		hash := chain[i]
 
+		// Degrade the chain markers if they are explicitly reverted.
+		// In theory we should update all in-memory markers in the
+		// last step, however the direction of rollback is from high
+		// to low, so it's safe the update in-memory markers directly.
 		if head := lc.hc.CurrentHeader(); head.Hash() == hash {
 			parentHeader := lc.GetHeader(head.ParentHash, head.Number.Uint64()-1)
 			// In all sync modes except LightestSync, a complete header chain is available.
 			// Maintain the old behavior in those cases.
 			if parentHeader != nil {
+				rawdb.WriteHeadHeaderHash(batch, head.ParentHash)
 				lc.hc.SetCurrentHeader(parentHeader)
 			} else {
 				log.Warn(fmt.Sprintf("Cannot rollback current head %v, parent block is missing", head))
 			}
 		}
+	}
+	if err := batch.Write(); err != nil {
+		log.Crit("Failed to rollback light chain", "error", err)
 	}
 }
 
@@ -509,6 +520,7 @@ func (lc *LightChain) SyncCheckpoint(ctx context.Context, checkpoint *params.Tru
 		// Ensure the chain didn't move past the latest block while retrieving it
 		if lc.hc.CurrentHeader().Number.Uint64() < header.Number.Uint64() {
 			log.Info("Updated latest header based on CHT", "number", header.Number, "hash", header.Hash(), "age", common.PrettyAge(time.Unix(int64(header.Time), 0)))
+			rawdb.WriteHeadHeaderHash(lc.chainDb, header.Hash())
 			lc.hc.SetCurrentHeader(header)
 		}
 		return true

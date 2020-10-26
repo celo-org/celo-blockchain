@@ -5629,6 +5629,13 @@ var methods = function () {
         inputFormatter: [null]
     });
 
+    var decrypt = new Method({
+        name: 'decrypt',
+		call: 'personal_decrypt',
+		params: 2,
+		inputFormatter: [null, formatters.inputAddressFormatter]
+    });
+
     var importRawKey = new Method({
         name: 'importRawKey',
 		call: 'personal_importRawKey',
@@ -5671,6 +5678,7 @@ var methods = function () {
 
     return [
         newAccount,
+        decrypt,
         importRawKey,
         unlockAccount,
         ecRecover,

@@ -187,43 +187,46 @@ func makeRegistryId(contractName string) [32]byte {
 }
 
 const (
+	thousand = 1000
+	million  = 1000 * 1000
+
 	// Default intrinsic gas cost of transactions paying for gas in alternative currencies.
 	// Calculated to estimate 1 balance read, 1 debit, and 4 credit transactions.
-	IntrinsicGasForAlternativeFeeCurrency uint64 = 50000
+	IntrinsicGasForAlternativeFeeCurrency uint64 = 50 * thousand
 
 	// Contract communication gas limits
-	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2000000
-	MaxGasForCommitments                           uint64 = 2000000
-	MaxGasForComputeCommitment                     uint64 = 2000000
-	MaxGasForBlockRandomness                       uint64 = 2000000
-	MaxGasForDebitGasFeesTransactions              uint64 = 1000000
-	MaxGasForCreditGasFeesTransactions             uint64 = 1000000
-	MaxGasForDistributeEpochPayment                uint64 = 1 * 1000000
-	MaxGasForDistributeEpochRewards                uint64 = 1 * 1000000
-	MaxGasForElectValidators                       uint64 = 50 * 1000000
-	MaxGasForElectNValidatorSigners                uint64 = 50 * 1000000
-	MaxGasForGetAddressFor                         uint64 = 1 * 100000
-	MaxGasForGetElectableValidators                uint64 = 1 * 100000
-	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * 1000000
-	MaxGasForGetGasPriceMinimum                    uint64 = 2000000
-	MaxGasForGetGroupEpochRewards                  uint64 = 500 * 1000
-	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * 1000000
-	MaxGasForGetOrComputeTobinTax                  uint64 = 1000000
-	MaxGasForGetRegisteredValidators               uint64 = 2000000
-	MaxGasForGetValidator                          uint64 = 100 * 1000
-	MaxGasForGetWhiteList                          uint64 = 200000
-	MaxGasForGetTransferWhitelist                  uint64 = 2000000
-	MaxGasForIncreaseSupply                        uint64 = 50 * 1000
-	MaxGasForIsFrozen                              uint64 = 20000
-	MaxGasForMedianRate                            uint64 = 100000
-	MaxGasForReadBlockchainParameter               uint64 = 20000
-	MaxGasForRevealAndCommit                       uint64 = 2000000
-	MaxGasForUpdateGasPriceMinimum                 uint64 = 2000000
-	MaxGasForUpdateTargetVotingYield               uint64 = 2000000
-	MaxGasForUpdateValidatorScore                  uint64 = 1 * 1000000
-	MaxGasForTotalSupply                           uint64 = 50 * 1000
-	MaxGasForMintGas                               uint64 = 50 * 100000
-	MaxGasToReadErc20Balance                       uint64 = 100000
-	MaxGasForIsReserveLow                          uint64 = 1000000
-	MaxGasForGetCarbonOffsettingPartner            uint64 = 20000
+	MaxGasForCalculateTargetEpochPaymentAndRewards uint64 = 2 * million
+	MaxGasForCommitments                           uint64 = 2 * million
+	MaxGasForComputeCommitment                     uint64 = 2 * million
+	MaxGasForBlockRandomness                       uint64 = 2 * million
+	MaxGasForDebitGasFeesTransactions              uint64 = 1 * million
+	MaxGasForCreditGasFeesTransactions             uint64 = 1 * million
+	MaxGasForDistributeEpochPayment                uint64 = 1 * million
+	MaxGasForDistributeEpochRewards                uint64 = 1 * million
+	MaxGasForElectValidators                       uint64 = 50 * million
+	MaxGasForElectNValidatorSigners                uint64 = 50 * million
+	MaxGasForGetAddressFor                         uint64 = 100 * thousand
+	MaxGasForGetElectableValidators                uint64 = 100 * thousand
+	MaxGasForGetEligibleValidatorGroupsVoteTotals  uint64 = 1 * million
+	MaxGasForGetGasPriceMinimum                    uint64 = 2 * million
+	MaxGasForGetGroupEpochRewards                  uint64 = 500 * thousand
+	MaxGasForGetMembershipInLastEpoch              uint64 = 1 * million
+	MaxGasForGetOrComputeTobinTax                  uint64 = 1 * million
+	MaxGasForGetRegisteredValidators               uint64 = 2 * million
+	MaxGasForGetValidator                          uint64 = 100 * thousand
+	MaxGasForGetWhiteList                          uint64 = 200 * thousand
+	MaxGasForGetTransferWhitelist                  uint64 = 2 * million
+	MaxGasForIncreaseSupply                        uint64 = 50 * thousand
+	MaxGasForIsFrozen                              uint64 = 20 * thousand
+	MaxGasForMedianRate                            uint64 = 100 * thousand
+	MaxGasForReadBlockchainParameter               uint64 = 20 * thousand
+	MaxGasForRevealAndCommit                       uint64 = 2 * million
+	MaxGasForUpdateGasPriceMinimum                 uint64 = 2 * million
+	MaxGasForUpdateTargetVotingYield               uint64 = 2 * million
+	MaxGasForUpdateValidatorScore                  uint64 = 1 * million
+	MaxGasForTotalSupply                           uint64 = 50 * thousand
+	MaxGasForMintGas                               uint64 = 5 * million
+	MaxGasToReadErc20Balance                       uint64 = 100 * thousand
+	MaxGasForIsReserveLow                          uint64 = 1 * million
+	MaxGasForGetCarbonOffsettingPartner            uint64 = 20 * thousand
 )

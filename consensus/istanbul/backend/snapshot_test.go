@@ -228,7 +228,7 @@ func TestValSetChange(t *testing.T) {
 
 		// Create the genesis block with the initial set of validators
 		genesis := &core.Genesis{
-			Config: params.DefaultChainConfig,
+			Config: params.IstanbulTestChainConfig,
 		}
 		extra, _ := rlp.EncodeToBytes(&types.IstanbulExtra{})
 		genesis.ExtraData = append(make([]byte, types.IstanbulExtraVanity), extra...)
@@ -255,7 +255,7 @@ func TestValSetChange(t *testing.T) {
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
 
-		engine.Authorize(address, &privateKey.PublicKey, decryptFn, SignFn(privateKey), SignBLSFn(privateKey))
+		engine.Authorize(address, address, &privateKey.PublicKey, decryptFn, SignFn(privateKey), SignBLSFn(privateKey))
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

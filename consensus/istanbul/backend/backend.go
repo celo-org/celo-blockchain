@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
 	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
@@ -47,7 +46,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -125,6 +123,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksTotalSigsGauge:               metrics.NewRegisteredGauge("consensus/istanbul/blocks/totalsigs", nil),
 		blocksValSetSizeGauge:              metrics.NewRegisteredGauge("consensus/istanbul/blocks/validators", nil),
 		blocksTotalMissedRoundsMeter:       metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedrounds", nil),
+		blocksMissedRoundsAsProposerMeter:  metrics.NewRegisteredMeter("consensus/istanbul/blocks/missedroundsasproposer", nil),
+		blocksElectedButNotSignedGauge:     metrics.NewRegisteredGauge("consensus/istanbul/blocks/missedbyusinarow", nil),
+		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
+		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
+		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -166,12 +169,13 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address   common.Address       // Ethereum address of the signing key
-	publicKey *ecdsa.PublicKey     // The signer public key
-	decryptFn istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn    istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu  sync.RWMutex         // Protects the signer fields
+	address    common.Address       // Ethereum address of the ECDSA signing key
+	blsAddress common.Address       // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey     // The signer public key
+	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	signFnMu   sync.RWMutex         // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -254,14 +258,27 @@ type Backend struct {
 	blocksElectedButNotSignedMeter metrics.Meter
 	blocksElectedAndProposedMeter  metrics.Meter
 
+	// Gauge for how many blocks that we missed while elected in a row.
+	blocksElectedButNotSignedGauge metrics.Gauge
+	// Meter for downtime events when we did not sign 12+ blocks in a row.
+	blocksDowntimeEventMeter metrics.Meter
+
 	// Gauge for total signatures in parentSeal of last received block (how much better than quorum are we doing)
 	blocksTotalSigsGauge metrics.Gauge
 
 	// Gauge for validator set size of grandparent of last received block (maximum value for blocksTotalSigsGauge)
 	blocksValSetSizeGauge metrics.Gauge
 
-	// Meter counting cumulative number of round changes that had to happen to get blocks agreed.
-	blocksTotalMissedRoundsMeter metrics.Meter
+	// Meter counting cumulative number of round changes that had to happen to get blocks agreed
+	// for all blocks & when are the proposer.
+	blocksTotalMissedRoundsMeter      metrics.Meter
+	blocksMissedRoundsAsProposerMeter metrics.Meter
+
+	// Gauge counting the transactions in the last block
+	blocksFinalizedTransactionsGauge metrics.Gauge
+
+	// Gauge counting the gas used in the last block
+	blocksFinalizedGasUsedGauge metrics.Gauge
 
 	istanbulAnnounceMsgHandlers map[uint64]announceMsgHandler
 
@@ -320,16 +337,17 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(address common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
-	sb.address = address
+	sb.address = ecdsaAddress
+	sb.blsAddress = blsAddress
 	sb.publicKey = publicKey
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
-	sb.core.SetAddress(address)
+	sb.core.SetAddress(ecdsaAddress)
 }
 
 // Address implements istanbul.Backend.Address
@@ -414,6 +432,18 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return errInvalidProposal
 	}
 
+	// If the current block occurred before the Celo1 hard fork, check that the author and coinbase are equal.
+	if !sb.chain.Config().IsCelo1(block.Number()) {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when Celo1 hard fork is active")
+			return errInvalidCoinbase
+		}
+	}
+
 	h := block.Header()
 	// Append seals into extra-data
 	err := writeAggregatedSeal(h, aggregatedSeal, false)
@@ -471,26 +501,19 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// Introduced support for setting `header.Coinbase` != `Author(header)` in `1.1.0`
-	isSupported, isOk, err := blockchain_parameters.IsMinimumVersionAtLeast(1, 1, 0)
-	if err != nil {
-		return 0, err
-	}
-	version := &params.VersionInfo{Major: 1, Minor: 1, Patch: 0}
-	// If we were unable to check the minimum version (ex: BlockchainParameters contract not yet published)
-	// then fallback to checking our client's version.
-	if !isSupported || (!isOk && params.CurrentVersionInfo.Cmp(version) == -1) {
+	// If the current block occurred before the Celo1 hard fork, check that the author and coinbase are equal.
+	if !sb.chain.Config().IsCelo1(block.Number()) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
-			sb.logger.Error("Could not recover orignal author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
 			return 0, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
-			sb.logger.Error("Block proposal author and coinbase must be the same when the minimum client version is less than or equal to 1.1.0")
+			sb.logger.Error("Block proposal author and coinbase must be the same when Celo1 hard fork is active")
 			return 0, errInvalidCoinbase
 		}
 	}
 
-	err = sb.VerifyHeader(sb.chain, block.Header(), false)
+	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
@@ -606,7 +629,7 @@ func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscry
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.address}, data, extra, useComposite)
+	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

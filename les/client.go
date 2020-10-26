@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/les/checkpointoracle"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -89,7 +90,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideIstanbul)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis,
+		config.OverrideIstanbul)
 	if _, isCompat := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !isCompat {
 		return nil, genesisErr
 	}
@@ -112,7 +114,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		bloomIndexer:   eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable),
 		serverPool:     newServerPool(chainDb, config.UltraLightServers),
 	}
 
@@ -127,9 +128,10 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
 	// If the full chain is not available then indexing each block header isn't possible.
 	if fullChainAvailable {
+		leth.bloomIndexer = eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
 		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
+		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
 	}
-	leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
 	leth.odr.SetIndexers(leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer)
 
 	checkpoint := config.Checkpoint
@@ -154,14 +156,16 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if oracle == nil {
 		oracle = params.CheckpointOracles[genesisHash]
 	}
-	leth.oracle = newCheckpointOracle(oracle, leth.localCheckpoint)
+	leth.oracle = checkpointoracle.New(oracle, leth.localCheckpoint)
 
 	// Note: AddChildIndexer starts the update process for the child
-	leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
+	if leth.bloomIndexer != nil && leth.bloomTrieIndexer != nil {
+		leth.bloomIndexer.AddChildIndexer(leth.bloomTrieIndexer)
+		leth.bloomIndexer.Start(leth.blockchain)
+	}
 	if leth.chtIndexer != nil {
 		leth.chtIndexer.Start(leth.blockchain)
 	}
-	leth.bloomIndexer.Start(leth.blockchain)
 
 	// TODO mcortesi (needs etherbase & gatewayFee?)
 	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
@@ -232,8 +236,8 @@ func (s *LightEthereum) APIs() []rpc.API {
 		}, {
 			Namespace: "les",
 			Version:   "1.0",
-			Service:   NewLightClientAPI(s),
-			Public:    true,
+			Service:   NewPrivateLightClientAPI(s),
+			Public:    false,
 		}, {
 			Namespace: "eth",
 			Version:   "1.0",
@@ -304,7 +308,9 @@ func (s *LightEthereum) Stop() error {
 	s.reqDist.close()
 	s.odr.Stop()
 	s.relay.Stop()
-	s.bloomIndexer.Close()
+	if s.bloomIndexer != nil {
+		s.bloomIndexer.Close()
+	}
 	if s.chtIndexer != nil {
 		s.chtIndexer.Close()
 	}
@@ -325,5 +331,5 @@ func (s *LightEthereum) SetContractBackend(backend bind.ContractBackend) {
 	if s.oracle == nil {
 		return
 	}
-	s.oracle.start(backend)
+	s.oracle.Start(backend)
 }

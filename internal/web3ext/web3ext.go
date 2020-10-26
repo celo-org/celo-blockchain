@@ -92,8 +92,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'exportChain',
 			call: 'admin_exportChain',
-			params: 1,
-			inputFormatter: [null]
+			params: 3,
+			inputFormatter: [null, null, null]
 		}),
 		new web3._extend.Method({
 			name: 'importChain',
@@ -128,20 +128,20 @@ web3._extend({
 	],
 	properties: [
 		new web3._extend.Property({
-			name: 'nodeInfo',
-			getter: 'admin_nodeInfo'
+			name: 'datadir',
+			getter: 'admin_datadir'
 		}),
 		new web3._extend.Property({
 			name: 'discoverTableInfo',
 			getter: 'admin_discoverTableInfo'
 		}),
 		new web3._extend.Property({
-			name: 'peers',
-			getter: 'admin_peers'
+			name: 'nodeInfo',
+			getter: 'admin_nodeInfo'
 		}),
 		new web3._extend.Property({
-			name: 'datadir',
-			getter: 'admin_datadir'
+			name: 'peers',
+			getter: 'admin_peers'
 		}),
 	]
 });
@@ -151,6 +151,11 @@ const DebugJs = `
 web3._extend({
 	property: 'debug',
 	methods: [
+		new web3._extend.Method({
+			name: 'accountRange',
+			call: 'debug_accountRange',
+			params: 2
+		}),
 		new web3._extend.Method({
 			name: 'printBlock',
 			call: 'debug_printBlock',
@@ -537,6 +542,12 @@ web3._extend({
 	property: 'personal',
 	methods: [
 		new web3._extend.Method({
+			name: 'decrypt',
+			call: 'personal_decrypt',
+			params: 2,
+			inputFormatter: [null, web3._extend.formatters.inputAddressFormatter]
+		}),
+		new web3._extend.Method({
 			name: 'importRawKey',
 			call: 'personal_importRawKey',
 			params: 2
@@ -734,6 +745,12 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
+			name: 'getValidatorsBLSPublicKeys',
+			call: 'istanbul_getValidatorsBLSPublicKeys',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
 			name: 'getProposer',
 			call: 'istanbul_getProposer',
 			params: 2,
@@ -847,6 +864,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFeeCache',
 			getter: 'les_gatewayFeeCache'
+		}),
+		new web3._extend.Property({
+			name: 'serverPoolEntries',
+			getter: 'les_serverPoolEntries'
 		})
 	]
 });

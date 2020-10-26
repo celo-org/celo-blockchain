@@ -47,6 +47,18 @@ import (
 const (
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
+
+	// txSlotSize is used to calculate how many data slots a single transaction
+	// takes up based on its size. The slots are used as DoS protection, ensuring
+	// that validating a new transaction remains a constant operation (in reality
+	// O(maxslots), where max slots are 4 currently).
+	txSlotSize = 32 * 1024
+
+	// txMaxSize is the maximum size a single transaction can have. This field has
+	// non-trivial consequences: larger transactions are significantly harder and
+	// more expensive to propagate; larger transactions also take more resources
+	// to validate whether they fit into the pool or not.
+	txMaxSize = 2 * txSlotSize // 64KB, don't bump without EIP-2464 support
 )
 
 var (
@@ -111,6 +123,7 @@ var (
 	queuedReplaceMeter   = metrics.NewRegisteredMeter("txpool/queued/replace", nil)
 	queuedRateLimitMeter = metrics.NewRegisteredMeter("txpool/queued/ratelimit", nil) // Dropped due to rate limiting
 	queuedNofundsMeter   = metrics.NewRegisteredMeter("txpool/queued/nofunds", nil)   // Dropped due to out-of-funds
+	queuedEvictionMeter  = metrics.NewRegisteredMeter("txpool/queued/eviction", nil)  // Dropped due to lifetime
 
 	// General tx metrics
 	knownTxMeter       = metrics.NewRegisteredMeter("txpool/known", nil)
@@ -121,6 +134,7 @@ var (
 	pendingGauge = metrics.NewRegisteredGauge("txpool/pending", nil)
 	queuedGauge  = metrics.NewRegisteredGauge("txpool/queued", nil)
 	localGauge   = metrics.NewRegisteredGauge("txpool/local", nil)
+	slotsGauge   = metrics.NewRegisteredGauge("txpool/slots", nil)
 )
 
 // TxStatus is the current status of a transaction as seen by the pool.
@@ -394,9 +408,11 @@ func (pool *TxPool) loop() {
 				}
 				// Any non-locals old enough should be removed
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
-					for _, tx := range pool.queue[addr].Flatten() {
+					list := pool.queue[addr].Flatten()
+					for _, tx := range list {
 						pool.removeTx(tx.Hash(), true)
 					}
+					queuedEvictionMeter.Mark(int64(len(list)))
 				}
 			}
 			pool.mu.Unlock()
@@ -573,8 +589,8 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	// Heuristic limit, reject transactions over MaxCodeSize to prevent DOS attacks
-	if tx.Size() > params.MaxCodeSize {
+	// Reject transactions over defined size to prevent DOS attacks
+	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
 	}
 	// Transactions can't be negative. This may never happen using RLP decoded
@@ -689,7 +705,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 			return false, ErrUnderpriced
 		}
 		// New transaction is better than our worse ones, make room for it
-		drop := pool.priced.Discard(pool.all.Count()-int(pool.config.GlobalSlots+pool.config.GlobalQueue-1), pool.locals)
+		drop := pool.priced.Discard(pool.all.Slots()-int(pool.config.GlobalSlots+pool.config.GlobalQueue)+numSlots(tx), pool.locals)
 		for _, tx := range drop {
 			log.Debug("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
 			underpricedTxMeter.Mark(1)
@@ -716,6 +732,9 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
+
+		// Successful promotion, bump the heartbeat
+		pool.beats[from] = time.Now()
 		return old != nil, nil
 	}
 	// New transaction isn't replacing a pending one, push into queue
@@ -767,6 +786,10 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 		pool.all.Add(tx)
 		pool.priced.Put(tx)
 	}
+	// If we never record the heartbeat, do it right now.
+	if _, exist := pool.beats[from]; !exist {
+		pool.beats[from] = time.Now()
+	}
 	return old != nil, nil
 }
 
@@ -798,7 +821,6 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 		// An older transaction was better, discard this
 		pool.all.Remove(hash)
 		pool.priced.Removed(1)
-
 		pendingDiscardMeter.Mark(1)
 		return false
 	}
@@ -806,7 +828,6 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 	if old != nil {
 		pool.all.Remove(old.Hash())
 		pool.priced.Removed(1)
-
 		pendingReplaceMeter.Mark(1)
 	} else {
 		// Nothing was replaced, bump the pending counter
@@ -818,9 +839,10 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 		pool.priced.Put(tx)
 	}
 	// Set the potentially new pending nonce and notify any subsystems of the new tx
-	pool.beats[addr] = time.Now()
 	pool.pendingNonces.set(addr, tx.Nonce()+1)
 
+	// Successful promotion, bump the heartbeat
+	pool.beats[addr] = time.Now()
 	return true
 }
 
@@ -981,7 +1003,6 @@ func (pool *TxPool) removeTx(hash common.Hash, outofbound bool) {
 			// If no more pending transactions are left, remove the list
 			if pending.Empty() {
 				delete(pool.pending, addr)
-				delete(pool.beats, addr)
 			}
 			// Postpone any invalidated transactions
 			for _, tx := range invalids {
@@ -1002,6 +1023,7 @@ func (pool *TxPool) removeTx(hash common.Hash, outofbound bool) {
 		}
 		if future.Empty() {
 			delete(pool.queue, addr)
+			delete(pool.beats, addr)
 		}
 	}
 }
@@ -1318,6 +1340,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		// Delete the entire queue entry if it became empty.
 		if list.Empty() {
 			delete(pool.queue, addr)
+			delete(pool.beats, addr)
 		}
 	}
 	return promoted
@@ -1499,10 +1522,9 @@ func (pool *TxPool) demoteUnexecutables() {
 			}
 			pendingGauge.Dec(int64(len(gapped)))
 		}
-		// Delete the entire queue entry if it became empty.
+		// Delete the entire pending entry if it became empty.
 		if list.Empty() {
 			delete(pool.pending, addr)
-			delete(pool.beats, addr)
 		}
 	}
 }
@@ -1632,6 +1654,7 @@ type txLookup struct {
 	all                       map[common.Hash]*types.Transaction
 	nonNilCurrencyTxCurrCount map[common.Address]uint64
 	nilCurrencyTxCurrCount    uint64
+	slots                     int
 	lock                      sync.RWMutex
 }
 
@@ -1671,6 +1694,14 @@ func (t *txLookup) Count() int {
 	return len(t.all)
 }
 
+// Slots returns the current number of slots used in the lookup.
+func (t *txLookup) Slots() int {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+
+	return t.slots
+}
+
 // Add adds a transaction to the lookup.
 func (t *txLookup) Add(tx *types.Transaction) {
 	t.lock.Lock()
@@ -1681,6 +1712,10 @@ func (t *txLookup) Add(tx *types.Transaction) {
 	} else {
 		t.nonNilCurrencyTxCurrCount[*tx.FeeCurrency()]++
 	}
+
+	t.slots += numSlots(tx)
+	slotsGauge.Update(int64(t.slots))
+
 	t.all[tx.Hash()] = tx
 }
 
@@ -1695,5 +1730,13 @@ func (t *txLookup) Remove(hash common.Hash) {
 		t.nonNilCurrencyTxCurrCount[*t.all[hash].FeeCurrency()]--
 	}
 
+	t.slots -= numSlots(t.all[hash])
+	slotsGauge.Update(int64(t.slots))
+
 	delete(t.all, hash)
+}
+
+// numSlots calculates the number of slots needed for a single transaction.
+func numSlots(tx *types.Transaction) int {
+	return int((tx.Size() + txSlotSize - 1) / txSlotSize)
 }

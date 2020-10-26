@@ -75,6 +75,17 @@ SUBCOMMANDS:
 {{range $categorized.Flags}}{{"\t"}}{{.}}
 {{end}}
 {{end}}{{end}}`
+
+	OriginCommandHelpTemplate = `{{.Name}}{{if .Subcommands}} command{{end}}{{if .Flags}} [command options]{{end}} [arguments...]
+{{if .Description}}{{.Description}}
+{{end}}{{if .Subcommands}}
+SUBCOMMANDS:
+	{{range .Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
+	{{end}}{{end}}{{if .Flags}}
+OPTIONS:
+{{range $.Flags}}{{"\t"}}{{.}}
+{{end}}
+{{end}}`
 )
 
 func init() {
@@ -1021,6 +1032,10 @@ func setLes(ctx *cli.Context, cfg *eth.Config) {
 	if ctx.GlobalIsSet(UltraLightOnlyAnnounceFlag.Name) {
 		cfg.UltraLightOnlyAnnounce = ctx.GlobalBool(UltraLightOnlyAnnounceFlag.Name)
 	}
+	if ctx.GlobalBool(DeveloperFlag.Name) {
+		// --dev mode can't use p2p networking.
+		cfg.LightPeers = 0
+	}
 }
 
 // makeDatabaseHandles raises out the number of allowed file handles per process
@@ -1673,7 +1688,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if accs := ks.Accounts(); len(accs) > 0 {
 			developer = ks.Accounts()[0]
 		} else {
-			developer, err = ks.NewAccount("")
+			key, _ := crypto.HexToECDSA("add67e37fdf5c26743d295b1af6d9b50f2785a6b60bc83a8f05bd1dd4b385c6c")
+			developer, err = ks.ImportECDSA(key, "")
 			if err != nil {
 				Fatalf("Failed to create developer account: %v", err)
 			}

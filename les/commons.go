@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/les/checkpointoracle"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discv5"
@@ -61,7 +62,7 @@ type lesCommons struct {
 	peers                        *peerSet
 	chainReader                  chainReader
 	chtIndexer, bloomTrieIndexer *core.ChainIndexer
-	oracle                       *checkpointOracle
+	oracle                       *checkpointoracle.CheckpointOracle
 
 	closeCh chan struct{}
 	wg      sync.WaitGroup
@@ -114,13 +115,18 @@ func (c *lesCommons) nodeInfo() interface{} {
 // section index and head hash as a local checkpoint package.
 func (c *lesCommons) latestLocalCheckpoint() params.TrustedCheckpoint {
 	var sections uint64
+	var sections2 uint64
 	if c.chtIndexer == nil {
 		sections = 0
 	} else {
 		sections, _, _ = c.chtIndexer.Sections()
 
 	}
-	sections2, _, _ := c.bloomTrieIndexer.Sections()
+	if c.bloomTrieIndexer == nil {
+		sections2 = 0
+	} else {
+		sections2, _, _ = c.bloomTrieIndexer.Sections()
+	}
 	// Cap the section index if the two sections are not consistent.
 	if sections > sections2 {
 		sections = sections2

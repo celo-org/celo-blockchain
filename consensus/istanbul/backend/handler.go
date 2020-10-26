@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -113,7 +114,7 @@ func (sb *Backend) handleConsensusMsg(peer consensus.Peer, payload []byte) error
 			return istanbul.CheckValidatorSignature(valSet, data, sig)
 		}
 		if err := msg.FromPayload(payload, checkValidatorSignature); err != nil {
-			sb.logger.Error("Got a consensus message signed by a non validator.", "err", err)
+			sb.logger.Warn("Got a consensus message signed by a non validator", "err", err)
 			return errNonValidatorMessage
 		}
 
@@ -251,24 +252,50 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	// elected?
 	elected := gpValSetIndex >= 0
 	if !elected {
+		sb.blocksElectedButNotSignedGauge.Update(0)
 		return
 	}
 	sb.blocksElectedMeter.Mark(1)
 
 	// The following metrics are only tracked if the validator is elected.
 
-	// proposed?
+	// proposed the block that was finalized?
 	if parentHeader.Coinbase == sb.ValidatorAddress() {
 		sb.blocksElectedAndProposedMeter.Mark(1)
+	} else {
+		// could have proposed a block that was not finalized?
+		// This is a could, not did because the consensus algo may have forced the proposer
+		// to re-propose an existing block, thus not placing it's own signature on it.
+		gpAuthor := sb.AuthorForBlock(number - 2)
+		for i := int64(0); i < missedRounds; i++ {
+			proposer := validator.GetProposerSelector(sb.config.ProposerPolicy)(gpValSet, gpAuthor, uint64(i))
+			if sb.ValidatorAddress() == proposer.Address() {
+				sb.blocksMissedRoundsAsProposerMeter.Mark(1)
+				break
+			}
+		}
 	}
 
 	// signed, or missed?
 	inParentSeal := childExtra.ParentAggregatedSeal.Bitmap.Bit(gpValSetIndex) != 0
 	if inParentSeal {
 		sb.blocksElectedAndSignedMeter.Mark(1)
+		sb.blocksElectedButNotSignedGauge.Update(0)
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
-		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+		sb.blocksElectedButNotSignedGauge.Update(sb.blocksElectedButNotSignedGauge.Value() + 1)
+		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
+	}
+
+	// Report downtime events
+	if sb.blocksElectedButNotSignedGauge.Value() >= int64(sb.config.LookbackWindow) {
+		sb.blocksDowntimeEventMeter.Mark(1)
+		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
+	}
+
+	// Clear downtime counter on end of epoch.
+	if istanbul.IsLastBlockOfEpoch(number-1, sb.config.Epoch) {
+		sb.blocksElectedButNotSignedGauge.Update(0)
 	}
 }
 
@@ -301,6 +328,8 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 		}
 	}
 
+	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))
+	sb.blocksFinalizedGasUsedGauge.Update(int64(newBlock.GasUsed()))
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
