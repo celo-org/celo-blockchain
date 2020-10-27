@@ -231,6 +231,53 @@ func TestServerRemovePeerDisconnect(t *testing.T) {
 	}
 }
 
+// This test checks that RemovePeer returns if trying to remove a peer we're not connected to
+func TestServerRemovePeerNotConnected(t *testing.T) {
+	srv := &Server{Config: Config{
+		PrivateKey:  newkey(),
+		MaxPeers:    1,
+		NoDiscovery: true,
+		Logger:      testlog.Logger(t, log.LvlTrace).New("server", "1"),
+	}}
+	srv.Start()
+	defer srv.Stop()
+
+	peer := enode.NewV4(&newkey().PublicKey, net.IP{127, 0, 0, 1}, 1, 1)
+	srv.RemovePeer(peer, ValidatorPurpose)
+}
+
+
+// This test checks that RemovePeer returns (without disconnecting the peer) if the peer still has a purpose
+func TestServerRemovePeerNoDisconnect(t *testing.T) {
+	srv1 := &Server{Config: Config{
+		PrivateKey:  newkey(),
+		MaxPeers:    1,
+		NoDiscovery: true,
+		Logger:      testlog.Logger(t, log.LvlTrace).New("server", "1"),
+	}}
+	srv2 := &Server{Config: Config{
+		PrivateKey:  newkey(),
+		MaxPeers:    1,
+		NoDiscovery: true,
+		NoDial:      true,
+		ListenAddr:  "127.0.0.1:0",
+		Logger:      testlog.Logger(t, log.LvlTrace).New("server", "2"),
+	}}
+	srv1.Start()
+	defer srv1.Stop()
+	srv2.Start()
+	defer srv2.Stop()
+
+	if !syncAddPeer(srv1, srv2.Self()) {
+		t.Fatal("peer not connected")
+	}
+
+	srv1.RemovePeer(srv2.Self(), ValidatorPurpose)
+	if srv1.PeerCount() == 0 {
+		t.Fatal("peer was removed, but shouldn't have been")
+	}
+}
+
 // This test checks that connections are disconnected just after the encryption handshake
 // when the server is at capacity. Trusted connections should still be accepted.
 func TestServerAtCap(t *testing.T) {
