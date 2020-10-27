@@ -199,8 +199,7 @@ type Server struct {
 	// Channels into the run loop.
 	quit                    chan struct{}
 	addstatic               chan *nodeArgs
-	removestatic            chan *nodeArgs
-	removestaticDone        chan struct{}
+	removestatic            chan removestaticArgs
 	addtrusted              chan *nodeArgs
 	removetrusted           chan *nodeArgs
 	peerOp                  chan peerOpFunc
@@ -274,6 +273,11 @@ func (pf PurposeFlag) String() string {
 type nodeArgs struct {
 	node    *enode.Node
 	purpose PurposeFlag
+}
+
+type removestaticArgs struct {
+	*nodeArgs
+	doneCh chan struct{}
 }
 
 type peerDrop struct {
@@ -416,9 +420,10 @@ func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
 
 // RemovePeer disconnects from the given node
 func (srv *Server) RemovePeer(node *enode.Node, purpose PurposeFlag) {
+	doneCh := make(chan struct{})
 	select {
-	case srv.removestatic <- &nodeArgs{node: node, purpose: purpose}:
-		<-srv.removestaticDone
+	case srv.removestatic <- removestaticArgs{nodeArgs: &nodeArgs{node: node, purpose: purpose}, doneCh: doneCh}:
+		<-doneCh
 	case <-srv.quit:
 	}
 }
@@ -545,8 +550,7 @@ func (srv *Server) Start() (err error) {
 	srv.checkpointPostHandshake = make(chan *conn)
 	srv.checkpointAddPeer = make(chan *conn)
 	srv.addstatic = make(chan *nodeArgs)
-	srv.removestatic = make(chan *nodeArgs)
-	srv.removestaticDone = make(chan struct{})
+	srv.removestatic = make(chan removestaticArgs)
 	srv.addtrusted = make(chan *nodeArgs)
 	srv.removetrusted = make(chan *nodeArgs)
 	srv.peerOp = make(chan peerOpFunc)
@@ -815,7 +819,7 @@ func (srv *Server) run() {
 		srv.dialsched.addStatic(n)
 	}
 
-	removeStatic := func(n *enode.Node, purpose PurposeFlag) {
+	removeStatic := func(n *enode.Node, purpose PurposeFlag, doneCh chan struct{}) {
 		newPurpose := static[n.ID()].Remove(purpose)
 
 		var (
@@ -833,7 +837,7 @@ func (srv *Server) run() {
 					defer sub.Unsubscribe()
 					for ev := range ch {
 						if ev.Peer == n.ID() && ev.Type == PeerEventTypeDrop {
-							srv.removestaticDone <- struct{}{}
+							doneCh <- struct{}{}
 							return
 						}
 					}
@@ -849,7 +853,7 @@ func (srv *Server) run() {
 		}
 		if ch == nil {
 			// Didn't disconnect, so no need to wait for anything further
-			srv.removestaticDone <- struct{}{}
+			doneCh <- struct{}{}
 		}
 	}
 
@@ -899,7 +903,7 @@ running:
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			srv.log.Trace("Removing static node", "node", removeStaticArgs.node, "purpose", removeStaticArgs.purpose)
-			removeStatic(removeStaticArgs.node, removeStaticArgs.purpose)
+			removeStatic(removeStaticArgs.node, removeStaticArgs.purpose, removeStaticArgs.doneCh)
 		case addTrustedArgs := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
