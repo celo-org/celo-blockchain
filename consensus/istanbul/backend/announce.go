@@ -1390,7 +1390,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 	// Already have a more recent enodeCertificate
 	if *enodeCertVersion < sb.enodeCertificateMsgVersion {
 		logger.Error("Ignoring enode certificate msgs since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", sb.enodeCertificateMsgVersion)
-		return errInvalidEnodeCertMsgMapOldVersion
+		return istanbul.ErrInvalidEnodeCertMsgMapOldVersion
 	} else if *enodeCertVersion == sb.enodeCertificateMsgVersion {
 		// This function may be called with the same enode certificate.
 		// Proxied validators will periodically send the same enode certificate to it's proxies,
