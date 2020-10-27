@@ -277,7 +277,7 @@ type nodeArgs struct {
 
 type removestaticArgs struct {
 	*nodeArgs
-	doneCh chan struct{}
+	done chan<- struct{}
 }
 
 type peerDrop struct {
@@ -420,10 +420,10 @@ func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
 
 // RemovePeer disconnects from the given node
 func (srv *Server) RemovePeer(node *enode.Node, purpose PurposeFlag) {
-	doneCh := make(chan struct{})
+	done := make(chan struct{})
 	select {
-	case srv.removestatic <- removestaticArgs{nodeArgs: &nodeArgs{node: node, purpose: purpose}, doneCh: doneCh}:
-		<-doneCh
+	case srv.removestatic <- removestaticArgs{nodeArgs: &nodeArgs{node: node, purpose: purpose}, done: done}:
+		<-done
 	case <-srv.quit:
 	}
 }
@@ -819,7 +819,7 @@ func (srv *Server) run() {
 		srv.dialsched.addStatic(n)
 	}
 
-	removeStatic := func(n *enode.Node, purpose PurposeFlag, doneCh chan struct{}) {
+	removeStatic := func(n *enode.Node, purpose PurposeFlag, done chan<- struct{}) {
 		newPurpose := static[n.ID()].Remove(purpose)
 
 		var (
@@ -837,7 +837,7 @@ func (srv *Server) run() {
 					defer sub.Unsubscribe()
 					for ev := range ch {
 						if ev.Peer == n.ID() && ev.Type == PeerEventTypeDrop {
-							doneCh <- struct{}{}
+							close(done)
 							return
 						}
 					}
@@ -853,7 +853,7 @@ func (srv *Server) run() {
 		}
 		if ch == nil {
 			// Didn't disconnect, so no need to wait for anything further
-			doneCh <- struct{}{}
+			close(done)
 		}
 	}
 
@@ -903,7 +903,7 @@ running:
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.
 			srv.log.Trace("Removing static node", "node", removeStaticArgs.node, "purpose", removeStaticArgs.purpose)
-			removeStatic(removeStaticArgs.node, removeStaticArgs.purpose, removeStaticArgs.doneCh)
+			removeStatic(removeStaticArgs.node, removeStaticArgs.purpose, removeStaticArgs.done)
 		case addTrustedArgs := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add an enode
 			// to the trusted node set.
