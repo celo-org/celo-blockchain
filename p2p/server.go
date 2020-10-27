@@ -821,22 +821,19 @@ func (srv *Server) run() {
 
 	removeStatic := func(n *enode.Node, purpose PurposeFlag, done chan<- struct{}) {
 		newPurpose := static[n.ID()].Remove(purpose)
-
-		var (
-			ch  chan *PeerEvent
-			sub event.Subscription
-		)
+		disconnecting := false
 		if newPurpose.HasNoPurpose() {
 			srv.dialsched.removeStatic(n)
 			delete(static, n.ID())
 			if p, ok := peers[n.ID()]; ok {
-				ch = make(chan *PeerEvent, 1)
-				sub = srv.peerFeed.Subscribe(ch)
+				disconnecting = true
+				ch := make(chan *PeerEvent, 1)
+				sub := srv.peerFeed.Subscribe(ch)
 				// Wait for the peer connection to end, in a new thread
 				go func() {
-					defer sub.Unsubscribe()
 					for ev := range ch {
 						if ev.Peer == n.ID() && ev.Type == PeerEventTypeDrop {
+							sub.Unsubscribe()
 							close(done)
 							return
 						}
@@ -851,8 +848,8 @@ func (srv *Server) run() {
 				p.RemovePurpose(purpose)
 			}
 		}
-		if ch == nil {
-			// Didn't disconnect, so no need to wait for anything further
+		if !disconnecting {
+			// We aren't disconnecting the peer, so no need to wait for anything further
 			close(done)
 		}
 	}
