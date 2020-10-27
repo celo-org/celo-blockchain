@@ -10,7 +10,7 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.13.7"
-      CELO_MONOREPO_BRANCH_TO_TEST: kevjue/e2e_test_key_rotation_increase_blocks
+      CELO_MONOREPO_BRANCH_TO_TEST: master
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
