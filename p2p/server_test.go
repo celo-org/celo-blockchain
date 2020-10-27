@@ -246,7 +246,6 @@ func TestServerRemovePeerNotConnected(t *testing.T) {
 	srv.RemovePeer(peer, ValidatorPurpose)
 }
 
-
 // This test checks that RemovePeer returns (without disconnecting the peer) if the peer still has a purpose
 func TestServerRemovePeerNoDisconnect(t *testing.T) {
 	srv1 := &Server{Config: Config{
