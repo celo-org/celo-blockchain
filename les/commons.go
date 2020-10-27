@@ -115,13 +115,18 @@ func (c *lesCommons) nodeInfo() interface{} {
 // section index and head hash as a local checkpoint package.
 func (c *lesCommons) latestLocalCheckpoint() params.TrustedCheckpoint {
 	var sections uint64
+	var sections2 uint64
 	if c.chtIndexer == nil {
 		sections = 0
 	} else {
 		sections, _, _ = c.chtIndexer.Sections()
 
 	}
-	sections2, _, _ := c.bloomTrieIndexer.Sections()
+	if c.bloomTrieIndexer == nil {
+		sections2 = 0
+	} else {
+		sections2, _, _ = c.bloomTrieIndexer.Sections()
+	}
 	// Cap the section index if the two sections are not consistent.
 	if sections > sections2 {
 		sections = sections2

@@ -154,7 +154,12 @@ func (dl *downloadTester) HasFastBlock(hash common.Hash, number uint64) bool {
 func (dl *downloadTester) GetHeaderByHash(hash common.Hash) *types.Header {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
+	return dl.getHeaderByHash(hash)
+}
 
+// getHeaderByHash returns the header if found either within ancients or own blocks)
+// This method assumes that the caller holds at least the read-lock (dl.lock)
+func (dl *downloadTester) getHeaderByHash(hash common.Hash) *types.Header {
 	header := dl.ancientHeaders[hash]
 	if header != nil {
 		return header
@@ -242,6 +247,13 @@ func (dl *downloadTester) GetTd(hash common.Hash, number uint64) *big.Int {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
 
+	return dl.getTd(hash)
+}
+
+// getTd retrieves the block's total difficulty if found either within
+// ancients or own blocks).
+// This method assumes that the caller holds at least the read-lock (dl.lock)
+func (dl *downloadTester) getTd(hash common.Hash) *big.Int {
 	if td := dl.ancientChainTd[hash]; td != nil {
 		return td
 	}
@@ -252,27 +264,33 @@ func (dl *downloadTester) GetTd(hash common.Hash, number uint64) *big.Int {
 func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq int, contiguousHeaders bool) (i int, err error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
-
 	// Do a quick check, as the blockchain.InsertHeaderChain doesn't insert anything in case of errors
-	if _, ok := dl.ownHeaders[headers[0].ParentHash]; !ok {
-		return 0, errors.New("unknown parent")
+	if dl.getHeaderByHash(headers[0].ParentHash) == nil {
+		return 0, fmt.Errorf("InsertHeaderChain: unknown parent at first position, parent of number %d", headers[0].Number)
 	}
+	var hashes []common.Hash
 	for i := 1; i < len(headers); i++ {
+		hash := headers[i-1].Hash()
 		if headers[i].ParentHash != headers[i-1].Hash() {
-			return i, errors.New("unknown parent")
+			return i, fmt.Errorf("non-contiguous import at position %d", i)
 		}
+		hashes = append(hashes, hash)
 	}
+	hashes = append(hashes, headers[len(headers)-1].Hash())
 	// Do a full insert if pre-checks passed
 	for i, header := range headers {
-		if _, ok := dl.ownHeaders[header.Hash()]; ok {
+		hash := hashes[i]
+		if dl.getHeaderByHash(hash) != nil {
 			continue
 		}
-		if _, ok := dl.ownHeaders[header.ParentHash]; !ok {
-			return i, errors.New("unknown parent")
+		if dl.getHeaderByHash(header.ParentHash) == nil {
+			// This _should_ be impossible, due to precheck and induction
+			return i, fmt.Errorf("InsertHeaderChain: unknown parent at position %d", i)
 		}
-		dl.ownHashes = append(dl.ownHashes, header.Hash())
-		dl.ownHeaders[header.Hash()] = header
-		dl.ownChainTd[header.Hash()] = new(big.Int).Add(header.Number, big.NewInt(1))
+		dl.ownHashes = append(dl.ownHashes, hash)
+		dl.ownHeaders[hash] = header
+
+		dl.ownChainTd[hash] = new(big.Int).Add(header.Number, big.NewInt(1))
 	}
 	return len(headers), nil
 }
@@ -281,12 +299,11 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 func (dl *downloadTester) InsertChain(blocks types.Blocks) (i int, err error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
-
 	for i, block := range blocks {
 		if parent, ok := dl.ownBlocks[block.ParentHash()]; !ok {
-			return i, errors.New("unknown parent")
+			return i, fmt.Errorf("InsertChain: unknown parent at position %d / %d", i, len(blocks))
 		} else if _, err := dl.stateDb.Get(parent.Root().Bytes()); err != nil {
-			return i, fmt.Errorf("unknown parent state %x: %v", parent.Root(), err)
+			return i, fmt.Errorf("InsertChain: unknown parent state %x: %v", parent.Root(), err)
 		}
 		if _, ok := dl.ownHeaders[block.Hash()]; !ok {
 			dl.ownHashes = append(dl.ownHashes, block.Hash())
@@ -311,7 +328,7 @@ func (dl *downloadTester) InsertReceiptChain(blocks types.Blocks, receipts []typ
 		}
 		if _, ok := dl.ancientBlocks[blocks[i].ParentHash()]; !ok {
 			if _, ok := dl.ownBlocks[blocks[i].ParentHash()]; !ok {
-				return i, errors.New("unknown parent")
+				return i, errors.New("InsertReceiptChain: unknown parent")
 			}
 		}
 		if blocks[i].NumberU64() <= ancientLimit {
@@ -332,25 +349,52 @@ func (dl *downloadTester) InsertReceiptChain(blocks types.Blocks, receipts []typ
 	return len(blocks), nil
 }
 
-// Rollback removes some recently added elements from the chain.
-func (dl *downloadTester) Rollback(hashes []common.Hash, fullHeaderChainAvailable bool) {
+// SetHead rewinds the local chain to a new head.
+func (dl *downloadTester) SetHead(head uint64) error {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	for i := len(hashes) - 1; i >= 0; i-- {
-		if dl.ownHashes[len(dl.ownHashes)-1] == hashes[i] {
-			dl.ownHashes = dl.ownHashes[:len(dl.ownHashes)-1]
+	// Find the hash of the head to reset to
+	var hash common.Hash
+	for h, header := range dl.ownHeaders {
+		if header.Number.Uint64() == head {
+			hash = h
 		}
-		delete(dl.ownChainTd, hashes[i])
-		delete(dl.ownHeaders, hashes[i])
-		delete(dl.ownReceipts, hashes[i])
-		delete(dl.ownBlocks, hashes[i])
-
-		delete(dl.ancientChainTd, hashes[i])
-		delete(dl.ancientHeaders, hashes[i])
-		delete(dl.ancientReceipts, hashes[i])
-		delete(dl.ancientBlocks, hashes[i])
 	}
+	for h, header := range dl.ancientHeaders {
+		if header.Number.Uint64() == head {
+			hash = h
+		}
+	}
+	if hash == (common.Hash{}) {
+		return fmt.Errorf("unknown head to set: %d", head)
+	}
+	// Find the offset in the header chain
+	var offset int
+	for o, h := range dl.ownHashes {
+		if h == hash {
+			offset = o
+			break
+		}
+	}
+	// Remove all the hashes and associated data afterwards
+	for i := offset + 1; i < len(dl.ownHashes); i++ {
+		delete(dl.ownChainTd, dl.ownHashes[i])
+		delete(dl.ownHeaders, dl.ownHashes[i])
+		delete(dl.ownReceipts, dl.ownHashes[i])
+		delete(dl.ownBlocks, dl.ownHashes[i])
+
+		delete(dl.ancientChainTd, dl.ownHashes[i])
+		delete(dl.ancientHeaders, dl.ownHashes[i])
+		delete(dl.ancientReceipts, dl.ownHashes[i])
+		delete(dl.ancientBlocks, dl.ownHashes[i])
+	}
+	dl.ownHashes = dl.ownHashes[:offset+1]
+	return nil
+}
+
+// Rollback removes some recently added elements from the chain.
+func (dl *downloadTester) Rollback(hashes []common.Hash) {
 }
 
 // newPeer registers a new block download source into the downloader.
