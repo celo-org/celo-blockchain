@@ -779,6 +779,7 @@ func (sb *Backend) ValidatorAddress() common.Address {
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 	var valConnSetToReturn map[common.Address]bool = nil
+
 	sb.cachedValidatorConnSetMu.RLock()
 
 	// wait period in blocks

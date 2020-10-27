@@ -446,7 +446,6 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	}
 
 	var enodeQueries []*enodeQuery
-
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			externalEnode := valProxyAssignments[valEnodeEntry.Address]
