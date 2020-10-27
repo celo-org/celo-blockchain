@@ -117,7 +117,7 @@ func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload
 		go func() {
 			logger.Trace("Sending istanbul message(s) to peer", "peer", peer)
 			if err := peer.Send(ethMsgCode, payload); err != nil {
-				logger.Warn("Error in sending message", "peer", peer, "ethMsgCode", ethMsgCode)
+				logger.Warn("Error in sending message", "peer", peer, "ethMsgCode", ethMsgCode, "err", err)
 			}
 		}()
 	}

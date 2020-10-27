@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -72,10 +73,10 @@ type proxyEngine struct {
 	logger  log.Logger
 	backend BackendForProxyEngine
 
-	// Proxy's validator
-	// Right now, we assume that there is at most one proxied peer for a proxy
-	proxiedValidator   consensus.Peer
-	proxiedValidatorMu sync.RWMutex
+	// Proxied Validators peers and IDs
+	proxiedValidators   map[consensus.Peer]bool
+	proxiedValidatorIDs map[enode.ID]bool
+	proxiedValidatorsMu sync.RWMutex
 }
 
 // NewProxyEngine creates a new proxy engine.
@@ -85,9 +86,11 @@ func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (Pro
 	}
 
 	p := &proxyEngine{
-		config:  config,
-		logger:  log.New(),
-		backend: backend,
+		config:              config,
+		logger:              log.New(),
+		backend:             backend,
+		proxiedValidators:   make(map[consensus.Peer]bool),
+		proxiedValidatorIDs: make(map[enode.ID]bool),
 	}
 
 	return p, nil
@@ -102,9 +105,10 @@ func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []b
 		return p.handleConsensusMsg(peer, payload)
 	} else if msgCode == istanbul.EnodeCertificateMsg {
 		// See if the message is coming from the proxied validator
-		p.proxiedValidatorMu.RLock()
-		msgFromProxiedVal := p.proxiedValidator != nil && p.proxiedValidator.Node().ID() == peer.Node().ID()
-		p.proxiedValidatorMu.RUnlock()
+		p.proxiedValidatorsMu.RLock()
+		msgFromProxiedVal := p.proxiedValidatorIDs[peer.Node().ID()]
+		p.proxiedValidatorsMu.RUnlock()
+
 		if msgFromProxiedVal {
 			return p.handleEnodeCertificateMsgFromProxiedValidator(peer, payload)
 		} else {
@@ -115,50 +119,64 @@ func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []b
 	return false, nil
 }
 
+// Callback once validator dials us and is properly registered.
 func (p *proxyEngine) RegisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
-	p.proxiedValidatorMu.Lock()
-	defer p.proxiedValidatorMu.Unlock()
-	p.proxiedValidator = proxiedValidatorPeer
+	p.proxiedValidatorsMu.Lock()
+	defer p.proxiedValidatorsMu.Unlock()
+
+	logger := p.logger.New("func", "RegisterProxiedValidatorPeer")
+	logger.Info("Validator connected to proxy", "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
+
+	p.proxiedValidators[proxiedValidatorPeer] = true
+	p.proxiedValidatorIDs[proxiedValidatorPeer.Node().ID()] = true
+
 }
 
 func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consensus.Peer) {
-	p.proxiedValidatorMu.RLock()
-	defer p.proxiedValidatorMu.RUnlock()
-	if p.proxiedValidator != nil && proxiedValidatorPeer.Node().ID() == p.proxiedValidator.Node().ID() {
-		p.proxiedValidator = nil
-	}
+	p.proxiedValidatorsMu.Lock()
+	defer p.proxiedValidatorsMu.Unlock()
+
+	logger := p.logger.New("func", "UnregisterProxiedValidatorPeer")
+	logger.Info("Removing validator", "ID", proxiedValidatorPeer.Node().ID(), "enode", proxiedValidatorPeer.Node())
+
+	delete(p.proxiedValidators, proxiedValidatorPeer)
+	delete(p.proxiedValidatorIDs, proxiedValidatorPeer.Node().ID())
+
 }
 
 func (p *proxyEngine) GetProxiedValidatorsInfo() ([]*ProxiedValidatorInfo, error) {
-	p.proxiedValidatorMu.RLock()
-	defer p.proxiedValidatorMu.RUnlock()
-	if p.proxiedValidator != nil {
-		return []*ProxiedValidatorInfo{{
-			Address:  p.config.ProxiedValidatorAddress,
+	p.proxiedValidatorsMu.RLock()
+	defer p.proxiedValidatorsMu.RUnlock()
+
+	proxiedValidatorsInfo := []*ProxiedValidatorInfo{}
+	for proxiedValidatorPeer := range p.proxiedValidators {
+		pubKey := proxiedValidatorPeer.Node().Pubkey()
+		addr := crypto.PubkeyToAddress(*pubKey)
+		proxiedValidatorInfo := &ProxiedValidatorInfo{
+			Address:  addr,
 			IsPeered: true,
-			Node:     p.proxiedValidator.Node(),
-		}}, nil
-	} else {
-		return nil, nil
+			Node:     proxiedValidatorPeer.Node()}
+		proxiedValidatorsInfo = append(proxiedValidatorsInfo, proxiedValidatorInfo)
 	}
+	return proxiedValidatorsInfo, nil
 }
 
-// SendMsgToProxiedValidator will send a `celo` message to the proxied validator.
-func (p *proxyEngine) SendMsgToProxiedValidator(msgCode uint64, msg *istanbul.Message) error {
-	logger := p.logger.New("func", "SendMsgToProxiedValidator")
-	p.proxiedValidatorMu.RLock()
-	defer p.proxiedValidatorMu.RUnlock()
-
-	if p.proxiedValidator != nil {
-		payload, err := msg.Payload()
-		if err != nil {
-			logger.Error("Error getting payload of message", "err", err)
-			return err
-		}
-		p.backend.Unicast(p.proxiedValidator, payload, msgCode)
-		return nil
-	} else {
+// SendMsgToProxiedValidators will send a `celo` message to the proxied validators.
+func (p *proxyEngine) SendMsgToProxiedValidators(msgCode uint64, msg *istanbul.Message) error {
+	logger := p.logger.New("func", "SendMsgToProxiedValidators")
+	p.proxiedValidatorsMu.RLock()
+	defer p.proxiedValidatorsMu.RUnlock()
+	if len(p.proxiedValidators) == 0 {
 		logger.Warn("Proxy has no connected proxied validator.  Not sending message.")
 		return nil
 	}
+	payload, err := msg.Payload()
+	if err != nil {
+		logger.Error("Error getting payload of message", "err", err)
+		return err
+	}
+	for proxiedValidator := range p.proxiedValidators {
+		p.backend.Unicast(proxiedValidator, payload, msgCode)
+	}
+	return nil
 }
