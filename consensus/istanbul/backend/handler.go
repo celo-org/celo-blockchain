@@ -288,15 +288,15 @@ func (sb *Backend) NewChainHead(newBlock *types.Block) {
 	sb.logger.Trace("End NewChainHead", "number", newBlock.Number().Uint64())
 }
 
-func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
+func (sb *Backend) RegisterPeer(peer consensus.Peer, internalServerPeer bool) error {
 	// TODO: For added security, we may want verify that all newly connected proxied peer has the
 	// correct validator key
 	logger := sb.logger.New("func", "RegisterPeer")
 
-	logger.Trace("RegisterPeer called", "peer", peer, "isProxiedPeer", isProxiedPeer)
+	logger.Trace("RegisterPeer called", "peer", peer, "internalServerPeer", internalServerPeer)
 
 	// Check to see if this connecting peer is a proxied validator
-	if sb.IsProxy() && isProxiedPeer {
+	if sb.IsProxy() && internalServerPeer {
 		sb.proxyEngine.RegisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
 		if err := sb.proxiedValidatorEngine.RegisterProxyPeer(peer); err != nil {
@@ -311,8 +311,8 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 	return nil
 }
 
-func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
-	if sb.IsProxy() && isProxiedPeer {
+func (sb *Backend) UnregisterPeer(peer consensus.Peer, internalServerPeer bool) {
+	if sb.IsProxy() && internalServerPeer {
 		sb.proxyEngine.UnregisterProxiedValidatorPeer(peer)
 	} else if sb.IsProxiedValidator() {
 		sb.proxiedValidatorEngine.UnregisterProxyPeer(peer)
@@ -320,7 +320,7 @@ func (sb *Backend) UnregisterPeer(peer consensus.Peer, isProxiedPeer bool) {
 }
 
 // Handshake allows the initiating peer to identify itself as a validator
-func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
+func (sb *Backend) Handshake(peer consensus.Peer, internalServerPeer bool) (bool, error) {
 	// Only written to if there was a non-nil error when sending or receiving
 	errCh := make(chan error)
 	isValidatorCh := make(chan bool)
@@ -333,6 +333,16 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 			enodeCertMsg := sb.RetrieveEnodeCertificateMsgMap()[sb.SelfNode().ID()]
 			if enodeCertMsg != nil {
 				msg = enodeCertMsg.Msg
+			}
+		} else if sb.IsProxiedValidator() {
+			msg = &istanbul.Message{
+				Code:    istanbul.ValidatorHandshakeMsg,
+				Msg:     nil,
+				Address: sb.Address(),
+			}
+			if err := msg.Sign(sb.Sign); err != nil {
+				errCh <- err
+				return
 			}
 		}
 		// Even if we decide not to identify ourselves,
@@ -355,7 +365,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 		isValidatorCh <- peerIsValidator
 	}
 	readHandshake := func() {
-		isValidator, err := sb.readValidatorHandshakeMessage(peer)
+		isValidator, err := sb.readValidatorHandshakeMessage(peer, internalServerPeer)
 		if err != nil {
 			errCh <- err
 			return
@@ -384,7 +394,7 @@ func (sb *Backend) Handshake(peer consensus.Peer) (bool, error) {
 
 // readValidatorHandshakeMessage reads a validator handshake message.
 // Returns if the peer is a validator or if an error occurred.
-func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, error) {
+func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer, internalServerPeer bool) (bool, error) {
 	logger := sb.logger.New("func", "readValidatorHandshakeMessage")
 	peerMsg, err := peer.ReadMsg()
 	if err != nil {
@@ -405,6 +415,18 @@ func (sb *Backend) readValidatorHandshakeMessage(peer consensus.Peer) (bool, err
 	if err != nil {
 		return false, err
 	}
+
+	// If peer is from proxied validator through internal network interface
+	// this proxy checks if its address matches ProxiedValidatorAddress configured via --proxy.proxiedvalidatoraddress
+	if internalServerPeer {
+		if sb.config.ProxiedValidatorAddress != msg.Address {
+			logger.Error("connecting proxied validator's address is incorrect",
+				"expected", sb.config.ProxiedValidatorAddress, "actual", msg.Address)
+			return false, errors.New("message not authorized by proxied validator")
+		}
+		return true, nil
+	}
+
 	// If the Signature is empty, the peer has decided not to reveal its info
 	if len(msg.Signature) == 0 {
 		return false, nil
