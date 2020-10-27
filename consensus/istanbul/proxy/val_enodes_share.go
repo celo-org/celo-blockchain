@@ -118,7 +118,6 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 	}
 
 	p.proxiedValidatorsMu.RUnlock()
-
 	msg := new(istanbul.Message)
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -153,7 +152,7 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 	}
 
 	if err := p.backend.RewriteValEnodeTableEntries(valEnodeEntries); err != nil {
-		logger.Warn("Error in upserting a batch to the valEnodeTable", "IstanbulMsg", msg.String(), "valEnodeEntries", valEnodeEntries, "error", err)
+		logger.Warn("Error in rewriting the valEnodeTable", "IstanbulMsg", msg.String(), "valEnodeEntries", valEnodeEntries, "error", err)
 	}
 
 	return true, nil

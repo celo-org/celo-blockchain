@@ -134,7 +134,7 @@ func (vph *validatorPeerHandler) ReplaceValidatorPeers(newNodes []*enode.Node) {
 	}
 
 	// Remove old Validator Peers
-	for existingPeerID, existingPeer := range vph.sb.broadcaster.FindPeers(nodeIDSet, p2p.ValidatorPurpose) {
+	for existingPeerID, existingPeer := range vph.sb.broadcaster.FindPeers(nil, p2p.ValidatorPurpose) {
 		if !nodeIDSet[existingPeerID] {
 			vph.RemoveValidatorPeer(existingPeer.Node())
 		}

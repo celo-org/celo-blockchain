@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// This type defines the set of proxies that the validator is aware of and
+// proxySet defines the set of proxies that the validator is aware of and
 // validator/proxy assignments.
 // WARNING:  None of this object's functions are threadsafe, so it's
 //           the user's responsibility to ensure that.
@@ -74,7 +74,7 @@ func (ps *proxySet) getProxy(proxyID enode.ID) *Proxy {
 	return nil
 }
 
-// addProxy removes a proxy with ID proxyID from the proxySet and valAssigner.
+// removeProxy removes a proxy with ID proxyID from the proxySet and valAssigner.
 // Will return true if any of the validators got reassigned to a different proxy.
 func (ps *proxySet) removeProxy(proxyID enode.ID) bool {
 	proxy := ps.getProxy(proxyID)
@@ -188,11 +188,7 @@ func (ps *proxySet) unassignDisconnectedProxies(minAge time.Duration) bool {
 		proxy := ps.getProxy(proxyID)
 		if proxy != nil && proxy.peer == nil && time.Since(proxy.disconnectTS) >= minAge {
 			logger.Debug("Unassigning disconnected proxy", "proxy", proxy.String())
-			reassigned := ps.valAssigner.removeProxy(proxy, ps.valAssignments)
-
-			if !valsReassigned && reassigned {
-				valsReassigned = true
-			}
+			valsReassigned = ps.valAssigner.removeProxy(proxy, ps.valAssignments) || valsReassigned
 		}
 	}
 

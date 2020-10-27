@@ -79,23 +79,19 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create known messages cache", "err", err)
 	}
 	backend := &Backend{
-		config:                        config,
-		istanbulEventMux:              new(event.TypeMux),
-		logger:                        logger,
-		db:                            db,
-		commitCh:                      make(chan *types.Block, 1),
-		recentSnapshots:               recentSnapshots,
-		coreStarted:                   false,
-		announceRunning:               false,
-		peerRecentMessages:            peerRecentMessages,
-		selfRecentMessages:            selfRecentMessages,
-		announceThreadWg:              new(sync.WaitGroup),
-		generateAndGossipQueryEnodeCh: make(chan struct{}, 1),
-
-		// Ideally, the updateAnnounceVersionCh should be an unbounded non blocking channel, but
-		// golang doesn't natively support that.  Here's a suggested implementation:
-		// https://medium.com/capital-one-tech/building-an-unbounded-channel-in-go-789e175cd2cd
-		updateAnnounceVersionCh:            make(chan struct{}, 100),
+		config:                             config,
+		istanbulEventMux:                   new(event.TypeMux),
+		logger:                             logger,
+		db:                                 db,
+		commitCh:                           make(chan *types.Block, 1),
+		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
+		announceRunning:                    false,
+		peerRecentMessages:                 peerRecentMessages,
+		selfRecentMessages:                 selfRecentMessages,
+		announceThreadWg:                   new(sync.WaitGroup),
+		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
+		updateAnnounceVersionCh:            make(chan struct{}, 1),
 		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
@@ -782,13 +778,11 @@ func (sb *Backend) ValidatorAddress() common.Address {
 // cached entry. In the event of a cache miss, this may block for a
 // couple seconds while retrieving the uncached set.
 func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
+	var valConnSetToReturn map[common.Address]bool = nil
 	sb.cachedValidatorConnSetMu.RLock()
 
 	// wait period in blocks
 	waitPeriod := uint64(20)
-	if sb.config.Epoch <= 10 {
-		waitPeriod = 1
-	}
 
 	// wait period in seconds
 	waitPeriodSec := 60 * time.Second
@@ -796,7 +790,7 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 	// Check to see if there is a cached validator conn set
 	if sb.cachedValidatorConnSet != nil {
 		currentBlockNum := sb.currentBlock().Number().Uint64()
-		pendingBlockNum := currentBlockNum
+		pendingBlockNum := currentBlockNum + 1
 
 		// We want to get the val conn set that is meant to validate the pending block
 		desiredValSetEpochNum := istanbul.GetEpochNumber(pendingBlockNum, sb.config.Epoch)
@@ -806,20 +800,28 @@ func (sb *Backend) RetrieveValidatorConnSet() (map[common.Address]bool, error) {
 
 		// Returned the cached entry if it's within the same current epoch and that it's within waitPeriod
 		// blocks of the pending block.
-		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) <= currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
-			defer sb.cachedValidatorConnSetMu.RUnlock()
-			return sb.cachedValidatorConnSet, nil
+		if cachedEntryEpochNum == desiredValSetEpochNum && (sb.cachedValidatorConnSetBlockNum+waitPeriod) > currentBlockNum && time.Since(sb.cachedValidatorConnSetTS) <= waitPeriodSec {
+			valConnSetToReturn = sb.cachedValidatorConnSet
 		}
 	}
-	sb.cachedValidatorConnSetMu.RUnlock()
 
-	if err := sb.updateCachedValidatorConnSet(); err != nil {
-		return nil, err
+	if valConnSetToReturn == nil {
+		sb.cachedValidatorConnSetMu.RUnlock()
+
+		if err := sb.updateCachedValidatorConnSet(); err != nil {
+			return nil, err
+		}
+
+		sb.cachedValidatorConnSetMu.RLock()
+		valConnSetToReturn = sb.cachedValidatorConnSet
 	}
 
-	sb.cachedValidatorConnSetMu.RLock()
+	valConnSetCopy := make(map[common.Address]bool)
+	for address, inSet := range valConnSetToReturn {
+		valConnSetCopy[address] = inSet
+	}
 	defer sb.cachedValidatorConnSetMu.RUnlock()
-	return sb.cachedValidatorConnSet, nil
+	return valConnSetCopy, nil
 }
 
 // retrieveCachedValidatorConnSet returns the most recently cached validator conn set.

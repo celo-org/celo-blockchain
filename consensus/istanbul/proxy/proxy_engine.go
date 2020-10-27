@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -79,17 +80,16 @@ type proxyEngine struct {
 	proxiedValidatorsMu sync.RWMutex
 }
 
-// New creates a new proxy engine.
+// NewProxyEngine creates a new proxy engine.
 func NewProxyEngine(backend BackendForProxyEngine, config *istanbul.Config) (ProxyEngine, error) {
 	if !backend.IsProxy() {
 		return nil, ErrNodeNotProxy
 	}
 
 	p := &proxyEngine{
-		config:  config,
-		logger:  log.New(),
-		backend: backend,
-
+		config:              config,
+		logger:              log.New(),
+		backend:             backend,
 		proxiedValidators:   make(map[consensus.Peer]bool),
 		proxiedValidatorIDs: make(map[enode.ID]bool),
 	}
@@ -109,6 +109,7 @@ func (p *proxyEngine) HandleMsg(peer consensus.Peer, msgCode uint64, payload []b
 		p.proxiedValidatorsMu.RLock()
 		msgFromProxiedVal := p.proxiedValidatorIDs[peer.Node().ID()]
 		p.proxiedValidatorsMu.RUnlock()
+
 		if msgFromProxiedVal {
 			return p.handleEnodeCertificateMsgFromProxiedValidator(peer, payload)
 		} else {
@@ -144,15 +145,15 @@ func (p *proxyEngine) UnregisterProxiedValidatorPeer(proxiedValidatorPeer consen
 
 }
 
-func (p *proxyEngine) GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error) {
+func (p *proxyEngine) GetProxiedValidatorsInfo() ([]*ProxiedValidatorInfo, error) {
 	p.proxiedValidatorsMu.RLock()
 	defer p.proxiedValidatorsMu.RUnlock()
 
-	proxiedValidatorsInfo := []ProxiedValidatorInfo{}
+	proxiedValidatorsInfo := []*ProxiedValidatorInfo{}
 	for proxiedValidatorPeer := range p.proxiedValidators {
 		pubKey := proxiedValidatorPeer.Node().Pubkey()
 		addr := crypto.PubkeyToAddress(*pubKey)
-		proxiedValidatorInfo := ProxiedValidatorInfo{
+		proxiedValidatorInfo := &ProxiedValidatorInfo{
 			Address:  addr,
 			IsPeered: true,
 			Node:     proxiedValidatorPeer.Node()}
