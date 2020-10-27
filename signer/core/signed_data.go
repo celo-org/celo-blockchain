@@ -34,16 +34,16 @@ type SigFormat = typeddata.SigFormat
 
 var (
 	IntendedValidator = SigFormat{
-		accounts.MimetypeDataWithValidator,
-		0x00,
+		Mime:        accounts.MimetypeDataWithValidator,
+		ByteVersion: 0x00,
 	}
 	DataTyped = SigFormat{
-		accounts.MimetypeTypedData,
-		0x01,
+		Mime:        accounts.MimetypeTypedData,
+		ByteVersion: 0x01,
 	}
 	TextPlain = SigFormat{
-		accounts.MimetypeTextPlain,
-		0x45,
+		Mime:        accounts.MimetypeTextPlain,
+		ByteVersion: 0x45,
 	}
 )
 
@@ -216,12 +216,6 @@ func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAd
 		return nil, err
 	}
 	return signature, nil
-}
-
-// dataMismatchError generates an error for a mismatch between
-// the provided type and data
-func dataMismatchError(encType string, encValue interface{}) error {
-	return fmt.Errorf("provided data '%v' doesn't match type '%s'", encValue, encType)
 }
 
 // EcRecover recovers the address associated with the given sig.

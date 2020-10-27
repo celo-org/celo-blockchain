@@ -153,11 +153,11 @@ var jsonTypedData = `
 const primaryType = "Mail"
 
 var domainStandard = core.TypedDataDomain{
-	"Ether Mail",
-	"1",
-	math.NewHexOrDecimal256(1),
-	"0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
-	"",
+	Name:              "Ether Mail",
+	Version:           "1",
+	ChainId:           math.NewHexOrDecimal256(1),
+	VerifyingContract: "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+	Salt:              "",
 }
 
 var messageStandard = map[string]interface{}{
