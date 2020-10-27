@@ -18,6 +18,7 @@ package light
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -225,6 +226,10 @@ func (pool *TxPool) rollbackTxs(hash common.Hash, txc txStateChanges) {
 func (pool *TxPool) reorgOnNewHead(ctx context.Context, newHeader *types.Header) (txStateChanges, error) {
 	txc := make(txStateChanges)
 	oldh := pool.chain.GetHeaderByHash(pool.head)
+	if oldh == nil {
+		pool.head = newHeader.Hash()
+		return nil, errors.New("Old header lost")
+	}
 	newh := newHeader
 	// find common ancestor, create list of rolled back and new block hashes
 	var oldHashes, newHashes []common.Hash
@@ -310,7 +315,10 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	ctx, cancel := context.WithTimeout(context.Background(), blockCheckTimeout)
 	defer cancel()
 
-	txc, _ := pool.reorgOnNewHead(ctx, head)
+	txc, err := pool.reorgOnNewHead(ctx, head)
+	if err != nil {
+		log.Warn("Cannot reorg", "err", err)
+	}
 	m, r := txc.getLists()
 	pool.relay.NewHead(pool.head, m, r)
 

@@ -32,11 +32,11 @@ import (
 var (
 	// errUnauthorizedMessageFromProxiedValidator is returned when the received message expected to be signed
 	// by the proxied validator, but signed from another key
-	errUnauthorizedMessageFromProxiedValidator = errors.New("message not authorized by proxied validator")
+	errUnauthorizedMessageFromProxiedValidator = errors.New("message not signed by proxied validator")
 
 	// errUnauthorizedProxiedValidator is returned if the peer connecting is not the
 	// authorized proxied validator
-	errUnauthorizedProxiedValidator = errors.New("unauthorized proxied validator")
+	errUnauthorizedProxiedValidator = errors.New("connection from unauthorized unauthorized peer")
 
 	// ErrNodeNotProxiedValidator is returned if this node is not a proxied validator
 	ErrNodeNotProxiedValidator = errors.New("node not a proxied validator")
@@ -72,7 +72,7 @@ type ProxyEngine interface {
 	SendMsgToProxiedValidators(msgCode uint64, msg *istanbul.Message) error
 
 	// GetProxiedValidatorsInfo will return information about the proxied validators.
-	GetProxiedValidatorsInfo() ([]ProxiedValidatorInfo, error)
+	GetProxiedValidatorsInfo() ([]*ProxiedValidatorInfo, error)
 }
 
 type ProxiedValidatorEngine interface {

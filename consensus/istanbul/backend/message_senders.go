@@ -123,8 +123,7 @@ func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload
 	}
 }
 
-// Unicast is basically a helper function to asynchronously send a message (via asyncMulticast)
-// to a single peer.
+// Unicast asynchronously sends a message to a single peer.
 func (sb *Backend) Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64) {
 	peerMap := map[enode.ID]consensus.Peer{peer.Node().ID(): peer}
 	sb.asyncMulticast(peerMap, payload, ethMsgCode)

@@ -17,6 +17,7 @@
 package proxy
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -85,7 +86,7 @@ func TestAddProxy(t *testing.T) {
 		externalNode: proxyBE.SelfNode(),
 		peer:         proxyPeer}
 
-	if len(proxies) != 1 || proxies[0].node.URLv4() != expectedProxy.node.URLv4() || proxies[0].externalNode.URLv4() != expectedProxy.externalNode.URLv4() || proxies[0].peer != expectedProxy.peer {
+	if len(proxies) != 1 || reflect.DeepEqual(proxies[0], expectedProxy.node.URLv4()) {
 		t.Errorf("Unexpected proxies value.  len(proxies): %d, proxy[0]: %v, expectedProxy: %v", len(proxies), proxies[0], expectedProxy)
 	}
 

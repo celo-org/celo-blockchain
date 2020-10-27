@@ -209,7 +209,7 @@ func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 // Note that we plan to support validators per proxy in the future, so this function
 // is plural and returns an array of proxied validators.  This is to prevent
 // future backwards compatibility issues.
-func (api *API) GetProxiedValidators() ([]proxy.ProxiedValidatorInfo, error) {
+func (api *API) GetProxiedValidators() ([]*proxy.ProxiedValidatorInfo, error) {
 	if api.istanbul.IsProxy() {
 		return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
 	} else {
