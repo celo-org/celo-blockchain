@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -139,7 +140,7 @@ func (api *API) AddProxy(url, externalUrl string) (bool, error) {
 		return false, fmt.Errorf("invalid external enode: %v", err)
 	}
 
-	err = api.istanbul.addProxy(node, externalNode)
+	err = api.istanbul.AddProxy(node, externalNode)
 	return true, err
 }
 
@@ -150,7 +151,10 @@ func (api *API) RemoveProxy(url string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid enode: %v", err)
 	}
-	api.istanbul.removeProxy(node)
+	if err = api.istanbul.RemoveProxy(node); err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
@@ -180,12 +184,35 @@ func (api *API) ForceRoundChange() (bool, error) {
 	return true, nil
 }
 
-// TODO(kevjue) - implement this
-// ProxyInfo retrieves all the information we know about each individual proxy node
-/* func (api *PublicAdminAPI) ProxyInfo() ([]*p2p.PeerInfo, error) {
-	server := api.node.Server()
-	if server == nil {
-		return nil, ErrNodeStopped
+// Proxies retrieves all the proxied validator's proxies' info
+func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
+	if api.istanbul.IsProxiedValidator() {
+		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()
+
+		if err != nil {
+			return nil, err
+		}
+
+		proxyInfoArray := make([]*proxy.ProxyInfo, 0, len(proxies))
+
+		for _, proxyObj := range proxies {
+			proxyInfoArray = append(proxyInfoArray, proxy.NewProxyInfo(proxyObj, valAssignments[proxyObj.ID()]))
+		}
+
+		return proxyInfoArray, nil
+	} else {
+		return nil, proxy.ErrNodeNotProxiedValidator
 	}
-	return server.ProxyInfo(), nil
-} */
+}
+
+// ProxiedValidators retrieves all of the proxies connected proxied validators.
+// Note that we plan to support validators per proxy in the future, so this function
+// is plural and returns an array of proxied validators.  This is to prevent
+// future backwards compatibility issues.
+func (api *API) GetProxiedValidators() ([]*proxy.ProxiedValidatorInfo, error) {
+	if api.istanbul.IsProxy() {
+		return api.istanbul.proxyEngine.GetProxiedValidatorsInfo()
+	} else {
+		return nil, proxy.ErrNodeNotProxy
+	}
+}

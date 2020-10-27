@@ -144,7 +144,7 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, fromProxiedNode bool)
+	RegisterPeer(peer Peer, fromProxiedNode bool) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
 	UnregisterPeer(peer Peer, fromProxiedNode bool)
@@ -166,6 +166,12 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// IsProxiedValidator returns true if this node is a proxied validator
+	IsProxiedValidator() bool
+
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
+
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
@@ -183,11 +189,11 @@ type Istanbul interface {
 	// StopAnnouncing stops the announcing
 	StopAnnouncing() error
 
-	// StartProxyHandler starts the proxy handler
-	StartProxyHandler() error
+	// StartProxiedValidatorEngine starts the proxied validator engine
+	StartProxiedValidatorEngine() error
 
-	// StopProxyHandler stops the proxy handler
-	StopProxyHandler() error
+	// StopProxiedValidatorEngine stops the proxied validator engine
+	StopProxiedValidatorEngine() error
 
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.

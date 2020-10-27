@@ -222,12 +222,11 @@ type PurposeFlag uint32
 
 const (
 	NoPurpose              PurposeFlag = 0
-	ExplicitStaticPurpose  PurposeFlag = 1 << 0
-	ExplicitTrustedPurpose PurposeFlag = 1 << 1
-	ValidatorPurpose       PurposeFlag = 1 << 2
-	ProxyPurpose           PurposeFlag = 1 << 3
-
-	AnyPurpose = ExplicitStaticPurpose | ExplicitTrustedPurpose | ValidatorPurpose | ProxyPurpose // This value should be the bitwise OR of all possible PurposeFlag values
+	ExplicitStaticPurpose              = 1 << 0
+	ExplicitTrustedPurpose             = 1 << 1
+	ValidatorPurpose                   = 1 << 2
+	ProxyPurpose                       = 1 << 3
+	AnyPurpose                         = ExplicitStaticPurpose | ExplicitTrustedPurpose | ValidatorPurpose | ProxyPurpose // This value should be the bitwise OR of all possible PurposeFlag values
 )
 
 func (pf PurposeFlag) Add(f PurposeFlag) PurposeFlag {

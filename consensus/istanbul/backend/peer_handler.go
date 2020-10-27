@@ -74,7 +74,7 @@ func (vph *validatorPeerHandler) thread() {
 	vph.threadWg.Add(1)
 	defer vph.threadWg.Done()
 
-	refreshValidatorPeersTicker := time.NewTicker(5 * time.Minute)
+	refreshValidatorPeersTicker := time.NewTicker(1 * time.Minute)
 
 	refreshValPeersFunc := func() {
 		if vph.MaintainValConnections() {
@@ -111,7 +111,7 @@ func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address comm
 
 	// Connect to the remote peer if it's part of the current epoch's valset and
 	// if this node is also part of the current epoch's valset
-	valConnSet, err := vph.sb.retrieveValidatorConnSet()
+	valConnSet, err := vph.sb.RetrieveValidatorConnSet()
 	if err != nil {
 		vph.sb.logger.Error("Error in retrieving val conn set in AddValidatorPeer", "err", err)
 		return
@@ -154,4 +154,12 @@ func (vph *validatorPeerHandler) ClearValidatorPeers() {
 		vph.sb.p2pserver.RemovePeer(peer.Node(), p2p.ValidatorPurpose)
 		vph.sb.p2pserver.RemoveTrustedPeer(peer.Node(), p2p.ValidatorPurpose)
 	}
+}
+
+func (sb *Backend) AddPeer(node *enode.Node, purpose p2p.PurposeFlag) {
+	sb.p2pserver.AddPeer(node, purpose)
+}
+
+func (sb *Backend) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag) {
+	sb.p2pserver.RemovePeer(node, purpose)
 }

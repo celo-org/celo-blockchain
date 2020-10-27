@@ -80,9 +80,6 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
-	// an unauthorized sender
-	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
 )
 
 var (
@@ -618,7 +615,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
 	if !sb.IsProxiedValidator() {
-		sb.updateAnnounceVersion()
+		sb.UpdateAnnounceVersion()
 	}
 
 	sb.coreStarted = true
@@ -652,14 +649,15 @@ func (sb *Backend) StopValidating() error {
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
 
 	go sb.announceThread()
 
+	sb.announceThreadQuit = make(chan struct{})
 	sb.announceRunning = true
-	sb.announceMu.Unlock()
 
 	if err := sb.vph.startThread(); err != nil {
 		sb.StopAnnouncing()
@@ -678,7 +676,7 @@ func (sb *Backend) StopAnnouncing() error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
-	sb.announceThreadQuit <- struct{}{}
+	close(sb.announceThreadQuit)
 	sb.announceThreadWg.Wait()
 
 	sb.announceRunning = false
@@ -686,52 +684,36 @@ func (sb *Backend) StopAnnouncing() error {
 	return sb.vph.stopThread()
 }
 
-// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
-func (sb *Backend) StartProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+// StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
+func (sb *Backend) StartProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if sb.proxyHandlerRunning {
-		return istanbul.ErrStartedProxyHandler
+	if sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStartedProxiedValidatorEngine
 	}
 
-	if !sb.IsProxiedValidator() {
+	if !sb.config.Proxied {
 		return istanbul.ErrValidatorNotProxied
 	}
 
-	// At this point, we can be sure that this node is a proxied validator.
-	if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-		if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-			sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-		}
-	}
-
-	go sb.valEnodesShareThread()
-
-	sb.proxyHandlerRunning = true
+	sb.proxiedValidatorEngine.Start()
+	sb.proxiedValidatorEngineRunning = true
 
 	return nil
 }
 
-// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
-func (sb *Backend) StopProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+// StopProxiedValidatorEngine implements consensus.Istanbul.StopProxiedValidatorEngine
+func (sb *Backend) StopProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if !sb.proxyHandlerRunning {
-		return istanbul.ErrStoppedProxyHandler
+	if !sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	if sb.IsProxiedValidator() {
-		sb.valEnodesShareThreadQuit <- struct{}{}
-		sb.valEnodesShareThreadWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
-	}
-
-	sb.proxyHandlerRunning = false
+	sb.proxiedValidatorEngine.Stop()
+	sb.proxiedValidatorEngineRunning = false
 
 	return nil
 }

@@ -48,9 +48,8 @@ type Config struct {
 	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
 
 	// Proxied Validator Configs
-	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
-	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+	Proxied      bool           `toml:",omitempty"` // Specifies if this node is proxied
+	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
@@ -76,4 +75,9 @@ var DefaultConfig = &Config{
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
 	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,
+}
+
+type ProxyConfig struct {
+	InternalNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will peer with
+	ExternalNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }
