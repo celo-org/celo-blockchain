@@ -58,8 +58,8 @@ func TestHandleValEnodeShare(t *testing.T) {
 	pi := proxyBE.GetProxyEngine()
 	p := pi.(*proxyEngine)
 
-	// Sleep for 5 seconds so that val1BE will generate it's enode certificate.
-	time.Sleep(5 * time.Second)
+	// Sleep for 6 seconds so that val1BE will generate it's enode certificate.
+	time.Sleep(6 * time.Second)
 
 	// Register the proxied validator with the proxy object
 	p.RegisterProxiedValidatorPeer(val0Peer)
