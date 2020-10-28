@@ -211,7 +211,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	return manager, nil
 }
 
-func (pm *ProtocolManager) makeProtocol(version uint, primary bool) p2p.Protocol {
+func (pm *ProtocolManager) makeProtocol(version uint) p2p.Protocol {
 	length, ok := istanbul.ProtocolLengths[version]
 	if !ok {
 		panic("makeProtocol for unknown version")
@@ -221,7 +221,7 @@ func (pm *ProtocolManager) makeProtocol(version uint, primary bool) p2p.Protocol
 		Name:    istanbul.ProtocolName,
 		Version: version,
 		Length:  length,
-		Primary: primary,
+		Primary: istanbul.IsPrimary(version),
 		Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 			peer := pm.newPeer(int(version), p, rw)
 			select {

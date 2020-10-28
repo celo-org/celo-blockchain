@@ -604,6 +604,9 @@ func (srv *Server) setupLocalNode() error {
 		}
 	}
 	if len(primaries) > 1 {
+		// It's ok for multiple versions of Istanbul to be marked as primary, since for a given peer
+		// connection only the latest version they both support will be used. But it's not ok if another
+		// protocol besides Istanbul is marked a primary, since then it's unclear which should be run.
 		srv.log.Crit("Multiple primary protocols specified", "names", primaries)
 	}
 	switch srv.NAT.(type) {
