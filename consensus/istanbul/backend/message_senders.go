@@ -110,12 +110,12 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 
 // sendMsg will asynchronously send the the Celo messages to all the peers in the destPeers param.
 func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload []byte, ethMsgCode uint64) {
-	logger := sb.logger.New("func", "AsyncMulticastCeloMsg")
+	logger := sb.logger.New("func", "AsyncMulticastCeloMsg", "msgCode", ethMsgCode)
 
 	for _, peer := range destPeers {
 		peer := peer // Create new instance of peer for the goroutine
 		go func() {
-			logger.Trace("Sending istanbul message(s) to peer", "peer", peer)
+			logger.Trace("Sending istanbul message(s) to peer", "peer", peer, "node", peer.Node())
 			if err := peer.Send(ethMsgCode, payload); err != nil {
 				logger.Warn("Error in sending message", "peer", peer, "ethMsgCode", ethMsgCode, "err", err)
 			}

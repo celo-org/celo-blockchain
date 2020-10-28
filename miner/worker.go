@@ -281,13 +281,16 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.StartValidating(w.chain.HasBadBlock,
+		istanbul.SetBlockProcessors(w.chain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, state, receipts, usedGas)
 			})
+		if istanbul.IsPrimary() {
+			istanbul.StartValidating()
+		}
 	}
 }
 

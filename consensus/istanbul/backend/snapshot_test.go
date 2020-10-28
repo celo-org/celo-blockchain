@@ -242,6 +242,7 @@ func TestValSetChange(t *testing.T) {
 		db := rawdb.NewMemoryDatabase()
 
 		config := *istanbul.DefaultConfig
+		config.ReplicaStateDBPath = ""
 		config.Validator = true
 		config.ValidatorEnodeDBPath = ""
 		config.VersionCertificateDBPath = ""

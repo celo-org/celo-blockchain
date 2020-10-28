@@ -72,8 +72,8 @@ func TestAddProxy(t *testing.T) {
 	// Connect the ProxyPeer
 	pv.RegisterProxyPeer(proxyPeer)
 
-	// Sleep for a sec since the registration of the proxy peer is asynchronous
-	time.Sleep(1 * time.Second)
+	// Sleep 6s since the registration of the proxy peer is asynchronous
+	time.Sleep(6 * time.Second)
 
 	// Make sure the added proxy is within the proxy set and assigned to the remote validator
 	proxies, assignments, err = pv.GetProxiesAndValAssignments()

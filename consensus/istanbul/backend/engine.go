@@ -29,6 +29,7 @@ import (
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
+	ethCore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
@@ -583,10 +584,55 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
+
+	if bc, ok := chain.(*ethCore.BlockChain); ok {
+		go sb.newChainHeadLoop(bc)
+		go sb.updateReplicaStateLoop(bc)
+	}
+
 }
 
-// StartValidating implements consensus.Istanbul.StartValidating
-func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
+// Loop to run on new chain head events. Chain head events may be batched.
+func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
+	// Batched. For stats & announce
+	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
+	defer chainHeadSub.Unsubscribe()
+
+	for {
+		select {
+		case chainHeadEvent := <-chainHeadCh:
+			sb.newChainHead(chainHeadEvent.Block)
+		case err := <-chainHeadSub.Err():
+			log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+			return
+		}
+	}
+}
+
+// Loop to update replica state. Listens to chain events to avoid batching.
+func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
+	// Unbatched event listener
+	chainEventCh := make(chan ethCore.ChainEvent, 10)
+	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+	defer chainEventSub.Unsubscribe()
+
+	for {
+		select {
+		case chainEvent := <-chainEventCh:
+			if !sb.coreStarted {
+				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+				sb.replicaState.NewChainHead(consensusBlock)
+			}
+		case err := <-chainEventSub.Err():
+			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+			return
+		}
+	}
+}
+
+// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
+func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -595,16 +641,31 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return istanbul.ErrStartedEngine
 	}
 
+	sb.hasBadBlock = hasBadBlock
+	sb.processBlock = processBlock
+	sb.validateState = validateState
+
+	return nil
+}
+
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating() error {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+	if sb.coreStarted {
+		return istanbul.ErrStartedEngine
+	}
+
+	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
+		return errors.New("Must SetBlockProcessors prior to StartValidating")
+	}
+
 	// clear previous data
 	sb.proposedBlockHash = common.Hash{}
 	if sb.commitCh != nil {
 		close(sb.commitCh)
 	}
 	sb.commitCh = make(chan *types.Block, 1)
-
-	sb.hasBadBlock = hasBadBlock
-	sb.processBlock = processBlock
-	sb.validateState = validateState
 
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
@@ -716,6 +777,16 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 	sb.proxiedValidatorEngineRunning = false
 
 	return nil
+}
+
+// MakeReplica clears the start/stop state & stops this node from participating in consensus
+func (sb *Backend) MakeReplica() error {
+	return sb.replicaState.MakeReplica()
+}
+
+// MakePrimary clears the start/stop state & makes this node participate in consensus
+func (sb *Backend) MakePrimary() error {
+	return sb.replicaState.MakePrimary()
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -934,6 +1005,22 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 	}
 
 	return writeAggregatedSeal(header, createParentSeal(), true)
+}
+
+// SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
+func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
+	return sb.replicaState.SetStartValidatingBlock(blockNumber)
+}
+
+// SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
+func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
+	return sb.replicaState.SetStopValidatingBlock(blockNumber)
 }
 
 // FIXME: Need to update this for Istanbul

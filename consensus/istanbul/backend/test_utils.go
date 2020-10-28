@@ -39,6 +39,7 @@ func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
 	memDB := rawdb.NewMemoryDatabase()
 	config := *istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
@@ -82,7 +83,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	b.StartAnnouncing()
 
 	if !isProxy {
-		b.StartValidating(blockchain.HasBadBlock,
+		b.SetBlockProcessors(blockchain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
@@ -93,6 +94,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		if isProxied {
 			b.StartProxiedValidatorEngine()
 		}
+		b.StartValidating()
 	}
 
 	contract_comm.SetInternalEVMHandler(blockchain)

@@ -140,6 +140,7 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
 		utils.IstanbulLookbackWindowFlag,
+		utils.IstanbulReplicaFlag,
 		utils.AnnounceQueryEnodeGossipPeriodFlag,
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		utils.PingIPFromPacketFlag,
@@ -415,6 +416,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
+		}
+	}
+	// Replicas only makes sense if we are mining
+	if ctx.GlobalBool(utils.IstanbulReplicaFlag.Name) {
+		if !(ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name)) {
+			utils.Fatalf("Must run a replica with mining enabled or in dev mode.")
 		}
 	}
 

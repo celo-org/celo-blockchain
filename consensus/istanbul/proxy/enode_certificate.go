@@ -90,6 +90,10 @@ func (p *proxyEngine) handleEnodeCertificateMsgFromProxiedValidator(peer consens
 		enodeCertMsgMap[selfNode.ID()] = &istanbul.EnodeCertMsg{Msg: msg}
 		if err := p.backend.SetEnodeCertificateMsgMap(enodeCertMsgMap); err != nil {
 			logger.Warn("Error in setting proxy's enode certificate", "err", err, "enodeCertificate", enodeCertificate)
+			// Don't drop validators when switching over.
+			if err == istanbul.ErrInvalidEnodeCertMsgMapOldVersion {
+				return true, nil
+			}
 			return true, err
 		}
 	}

@@ -19,11 +19,13 @@ package backend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/replica"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -215,4 +217,38 @@ func (api *API) GetProxiedValidators() ([]*proxy.ProxiedValidatorInfo, error) {
 	} else {
 		return nil, proxy.ErrNodeNotProxy
 	}
+}
+
+// StartValidating starts the consensus engine
+func (api *API) StartValidating() error {
+	return api.istanbul.MakePrimary()
+}
+
+// StopValidating stops the consensus engine from participating in consensus
+func (api *API) StopValidating() error {
+	return api.istanbul.MakeReplica()
+}
+
+// StartValidatingAtBlock starts the consensus engine on the given
+// block number.
+func (api *API) StartValidatingAtBlock(blockNumber int64) error {
+	seq := big.NewInt(blockNumber)
+	return api.istanbul.SetStartValidatingBlock(seq)
+}
+
+// StopValidatingAtBlock stops the consensus engine from participating in consensus
+// on the given block number.
+func (api *API) StopValidatingAtBlock(blockNumber int64) error {
+	seq := big.NewInt(blockNumber)
+	return api.istanbul.SetStopValidatingBlock(seq)
+}
+
+// IsValidating returns true if this node is participating in the consensus protocol
+func (api *API) IsValidating() bool {
+	return api.istanbul.IsValidating()
+}
+
+// GetCurrentRoundState retrieves the current replica state
+func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
+	return api.istanbul.replicaState.Summary(), nil
 }

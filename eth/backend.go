@@ -234,23 +234,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				stateRoot := eth.blockchain.GetHeaderByHash(hash).Root
 				return eth.blockchain.StateAt(stateRoot)
 			})
-
-		chainHeadCh := make(chan core.ChainHeadEvent, 10)
-		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
-
-		go func() {
-			defer chainHeadSub.Unsubscribe()
-
-			for {
-				select {
-				case chainHeadEvent := <-chainHeadCh:
-					istanbul.NewChainHead(chainHeadEvent.Block)
-				case err := <-chainHeadSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-					return
-				}
-			}
-		}()
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, &chainDb)

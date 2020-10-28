@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
@@ -121,6 +122,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
+	rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
+	if err != nil {
+		logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
+	}
+	backend.replicaState = rs
+
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
@@ -171,6 +178,7 @@ type Backend struct {
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
+	replicaState replica.State
 
 	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
@@ -309,6 +317,7 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
+	// TODO: Maybe a little laggy, but primary / replica should track the core
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	return sb.coreStarted
@@ -371,6 +380,9 @@ func (sb *Backend) Close() error {
 		errs = append(errs, err)
 	}
 	if err := sb.versionCertificateTable.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := sb.replicaState.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	var concatenatedErrs error
@@ -953,4 +965,17 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 
 		return istanbul.CheckValidatorSignature(validator.NewSet(validators), data, sig)
 	}
+}
+
+func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
+	return sb.replicaState.IsPrimaryForSeq(seq)
+}
+
+func (sb *Backend) IsPrimary() bool {
+	return sb.replicaState.IsPrimary()
+}
+
+// UpdateReplicaState updates the replica state with the latest seq.
+func (sb *Backend) UpdateReplicaState(seq *big.Int) {
+	sb.replicaState.NewChainHead(seq)
 }

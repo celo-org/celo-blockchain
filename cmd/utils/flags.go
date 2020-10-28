@@ -738,6 +738,10 @@ var (
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
+	IstanbulReplicaFlag = cli.BoolFlag{
+		Name:  "istanbul.replica",
+		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
+	}
 
 	// Announce settings
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
@@ -1408,10 +1412,12 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
 		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
 	}
+	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name)
+	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
@@ -1436,6 +1442,10 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		// Mining must not be set for proxies
 		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
+		}
+		// Replica must not be set for proxies
+		if ctx.GlobalIsSet(IstanbulReplicaFlag.Name) {
+			Fatalf("Option --%s must not be used if option --%s is used", IstanbulReplicaFlag.Name, ProxyFlag.Name)
 		}
 
 		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {

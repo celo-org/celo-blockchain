@@ -51,8 +51,6 @@ const (
 var (
 	errInvalidEnodeCertMsgMapInconsistentVersion = errors.New("invalid enode certificate message map because of inconsistent version")
 
-	errInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
-
 	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
 )
 
@@ -100,9 +98,12 @@ func (sb *Backend) announceThread() {
 	var updateAnnounceVersionTicker *time.Ticker
 	var updateAnnounceVersionTickerCh <-chan time.Time
 
-	var announcing bool
-	var shouldAnnounce bool
-	var err error
+	// Replica validators listen & query for enodes       (query true, announce false)
+	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
+	// Replicas need to query to populate their validator enode table, but don't want to
+	// update the proxie's validator assignments at the same time as the primary.
+	var shouldQuery, shouldAnnounce bool
+	var querying, announcing bool
 
 	updateAnnounceVersionFunc := func() {
 		version := getTimestamp()
@@ -125,14 +126,17 @@ func (sb *Backend) announceThread() {
 		case <-checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
-			shouldAnnounce, err = sb.shouldSaveAndPublishValEnodeURLs()
+			var err error
+			shouldQuery, err = sb.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
 			}
+			shouldAnnounce = shouldQuery && sb.IsValidating()
 
-			if shouldAnnounce && !announcing {
-				updateAnnounceVersionFunc()
+			if shouldQuery && !querying {
+				logger.Info("Starting to query")
+
 				// Gossip the announce after a minute.
 				// The delay allows for all receivers of the announce message to
 				// have a more up-to-date cached registered/elected valset, and
@@ -160,15 +164,32 @@ func (sb *Backend) announceThread() {
 				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
 				queryEnodeTickerCh = queryEnodeTicker.C
 
+				querying = true
+				logger.Trace("Enabled periodic gossiping of announce message (query mode)")
+
+			} else if !shouldQuery && querying {
+				logger.Info("Stopping querying")
+
+				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
+				queryEnodeTicker.Stop()
+				queryEnodeTickerCh = nil
+				querying = false
+				logger.Trace("Disabled periodic gossiping of announce message (query mode)")
+			}
+
+			if shouldAnnounce && !announcing {
+				logger.Info("Starting to announce")
+
+				updateAnnounceVersionFunc()
+
 				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
 				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
 
 				announcing = true
 				logger.Trace("Enabled periodic gossiping of announce message")
 			} else if !shouldAnnounce && announcing {
-				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
-				queryEnodeTicker.Stop()
-				queryEnodeTickerCh = nil
+				logger.Info("Stopping announcing")
+
 				// Disable periodic updating of announce version
 				updateAnnounceVersionTicker.Stop()
 				updateAnnounceVersionTickerCh = nil
@@ -191,13 +212,15 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-updateAnnounceVersionTickerCh:
-			updateAnnounceVersionFunc()
+			if shouldAnnounce {
+				updateAnnounceVersionFunc()
+			}
 
 		case <-queryEnodeTickerCh:
 			sb.startGossipQueryEnodeTask()
 
 		case <-sb.generateAndGossipQueryEnodeCh:
-			if shouldAnnounce {
+			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
 					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
@@ -230,7 +253,9 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.updateAnnounceVersionCh:
-			updateAnnounceVersionFunc()
+			if shouldAnnounce {
+				updateAnnounceVersionFunc()
+			}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
 			if err := sb.pruneAnnounceDataStructures(); err != nil {
@@ -240,8 +265,11 @@ func (sb *Backend) announceThread() {
 		case <-sb.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
-			if announcing {
+			if querying {
 				queryEnodeTicker.Stop()
+
+			}
+			if announcing {
 				updateAnnounceVersionTicker.Stop()
 			}
 			return
@@ -260,7 +288,8 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 	}
 }
 
-func (sb *Backend) shouldSaveAndPublishValEnodeURLs() (bool, error) {
+// shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.
+func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
 
 	// Check if this node is in the validator connection set
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
@@ -658,8 +687,8 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 		return err
 	}
 
-	// If this is an elected or nearly elected validator and core is started, then process the queryEnode message
-	shouldProcess, err := sb.shouldSaveAndPublishValEnodeURLs()
+	// Only elected or nearly elected validators processes the queryEnode message
+	shouldProcess, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
@@ -703,7 +732,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 // Regardless, the origin node will be upserted into the val enode table
 // to ensure this node designates the origin node as a ValidatorPurpose peer.
 func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
-	logger := sb.logger.New("func", "answerQueryEnodeMsg")
+	logger := sb.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
 	externalEnodeMap, err := sb.getValProxyAssignments([]common.Address{address})
@@ -712,7 +741,8 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 		return err
 	}
 
-	if externalEnode := externalEnodeMap[address]; externalEnode != nil {
+	// Only answer query when validating
+	if externalEnode := externalEnodeMap[address]; externalEnode != nil && sb.IsValidating() {
 		enodeCertificateMsgs := sb.RetrieveEnodeCertificateMsgMap()
 
 		enodeCertMsg := enodeCertificateMsgs[externalEnode.ID()]
@@ -775,7 +805,7 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 	return true, nil
 }
 
-// regossipQueryEnode will regossip a received querEnode message.
+// regossipQueryEnode will regossip a received queryEnode message.
 // If this node regossiped a queryEnode from the same source address within the last
 // 5 minutes, then it won't regossip. This is to prevent a malicious validator from
 // DOS'ing the network with very frequent announce messages.
@@ -1035,11 +1065,11 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 
 func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
-
-	shouldProcess, err := sb.shouldSaveAndPublishValEnodeURLs()
+	shouldProcess, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
+
 	if shouldProcess {
 		// Update entries in val enode db
 		var valEnodeEntries []*istanbul.AddressEntry
@@ -1289,7 +1319,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	shouldSave, err := sb.shouldSaveAndPublishValEnodeURLs()
+	shouldSave, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
@@ -1315,8 +1345,8 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 		return err
 	}
 
-	if sb.IsProxiedValidator() {
-		// Send a valEnodesShare message to the proxy
+	// Send a valEnodesShare message to the proxy when it's the primary
+	if sb.IsProxiedValidator() && sb.IsValidating() {
 		sb.proxiedValidatorEngine.SendValEnodesShareMsgToAllProxies()
 	}
 
@@ -1351,7 +1381,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 	// Already have a more recent enodeCertificate
 	if *enodeCertVersion < sb.enodeCertificateMsgVersion {
 		logger.Error("Ignoring enode certificate msgs since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", sb.enodeCertificateMsgVersion)
-		return errInvalidEnodeCertMsgMapOldVersion
+		return istanbul.ErrInvalidEnodeCertMsgMapOldVersion
 	} else if *enodeCertVersion == sb.enodeCertificateMsgVersion {
 		// This function may be called with the same enode certificate.
 		// Proxied validators will periodically send the same enode certificate to it's proxies,
