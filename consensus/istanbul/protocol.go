@@ -29,7 +29,8 @@ const (
 // protocolName is the official short name of the protocol used during capability negotiation.
 const ProtocolName = "istanbul"
 
-// ProtocolVersions are the supported versions of the istanbul protocol.
+// ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
+// (First is primary in the sense that it's the most current one supported, not in the sense of IsPrimary() below)
 var ProtocolVersions = []uint{Celo65, Celo64}
 
 // Returns whether this version of Istanbul should have Primary: true (a legacy property that was needed to work
