@@ -32,6 +32,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
+            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
   unit-tests:
     executor: golang
     steps:
@@ -127,8 +128,6 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
-      - restore_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
