@@ -18,7 +18,7 @@ jobs:
     resource_class: medium+
     steps:
       - checkout
-      - save_cache:
+      - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run:
