@@ -18,7 +18,7 @@ jobs:
     resource_class: medium+
     steps:
       - checkout
-      - restore_cache:
+      - save_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run:
@@ -129,7 +129,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/repos
-     - restore_cache:
+      - restore_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
