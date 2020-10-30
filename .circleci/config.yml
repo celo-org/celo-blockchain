@@ -32,7 +32,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - /go/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
+            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
   unit-tests:
     executor: golang
     steps:
@@ -125,7 +125,7 @@ jobs:
     docker:
       - image: circleci/node:10
         environment:
-          - GOPATH=/go
+          - GOPATH=$HOME/go
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
