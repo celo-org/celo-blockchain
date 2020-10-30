@@ -24,6 +24,7 @@ import (
 const (
 	Celo64 = 64
 	Celo65 = 65
+	Celo66 = 66
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
@@ -31,7 +32,7 @@ const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
 // (First is primary in the sense that it's the most current one supported, not in the sense of IsPrimary() below)
-var ProtocolVersions = []uint{Celo65, Celo64}
+var ProtocolVersions = []uint{Celo66, Celo65, Celo64}
 
 // Returns whether this version of Istanbul should have Primary: true (a legacy property that was needed to work
 // around an upstream bug in the LES protocol which prevented two LES servers from connecting to each other).
@@ -42,7 +43,7 @@ func IsPrimary(version uint) bool {
 }
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27}
+var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 27}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size

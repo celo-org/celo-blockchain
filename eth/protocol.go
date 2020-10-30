@@ -45,6 +45,13 @@ const (
 	NodeDataMsg        = 0x0e
 	GetReceiptsMsg     = 0x0f
 	ReceiptsMsg        = 0x10
+
+	// New protocol message codes introduced in eth65
+	//
+	// Previously these message ids(0x08, 0x09) were used by some
+	// legacy and unsupported eth protocols, reown them here.
+	NewPooledTransactionHashesMsg = 0x08
+	GetPooledTransactionsMsg      = 0x09
 )
 
 type errCode int
@@ -79,6 +86,14 @@ var errorToString = map[int]string{
 }
 
 type txPool interface {
+	// Has returns an indicator whether txpool has a transaction
+	// cached with the given hash.
+	Has(hash common.Hash) bool
+
+	// Get retrieves the transaction from local txpool with given
+	// tx hash.
+	Get(hash common.Hash) *types.Transaction
+
 	// AddRemotes should add the given transactions to the pool.
 	AddRemotes([]*types.Transaction) []error
 
