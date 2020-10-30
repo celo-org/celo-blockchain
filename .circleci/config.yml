@@ -123,6 +123,8 @@ jobs:
   publish-mobile-client:
     docker:
       - image: circleci/node:10
+        environment:
+          - GOPATH=/
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
@@ -263,20 +265,8 @@ workflows:
           requires:
             - android
             - ios
-            # Makes sure tests are all green before publishing
-            # Though these are not using the mobile built binaries
-            # they should be a good indicator
-            - unit-tests
-            - lightest-sync-test
-            - end-to-end-blockchain-parameters-test
-            - end-to-end-governance-test
-            - end-to-end-slashing-test
-            - end-to-end-sync-test
-            - end-to-end-transfer-test
-            - end-to-end-validator-order-test
-          filters:
-            branches:
-              only: master
+            - checkout-monorepo
+            - build-geth
       - lightest-sync-test:
           requires:
             - build-geth
