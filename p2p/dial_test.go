@@ -247,16 +247,18 @@ func TestDialSchedRemoveStatic(t *testing.T) {
 			},
 			wantNewDials: []*enode.Node{
 				newNode(uintID(0x01), "127.0.0.1:30303"),
-				newNode(uintID(0x02), "127.0.0.2:30303"),
 			},
 		},
-		// Dial to 0x01 fails.
+		// Dial to 0x01 fails, freeing up an active dial slot for 0x02
 		{
 			failed: []enode.ID{
 				uintID(0x01),
 			},
 			wantResolves: map[enode.ID]*enode.Node{
 				uintID(0x01): nil,
+			},
+			wantNewDials: []*enode.Node{
+				newNode(uintID(0x02), "127.0.0.2:30303"),
 			},
 		},
 		// All static nodes are removed. 0x01 is in history, 0x02 is being dialed
@@ -278,6 +280,43 @@ func TestDialSchedRemoveStatic(t *testing.T) {
 		},
 		// Since all static nodes are removed, they should not be dialed again.
 		{}, {}, {},
+	})
+}
+
+// This test checks that static dials are selected at random up to maxActiveDials limit
+func TestDialSchedManyStaticNodes(t *testing.T) {
+	t.Parallel()
+
+	config := dialConfig{maxDialPeers: 2, maxActiveDials: 2}
+	runDialTest(t, config, []dialTestRound{
+		{
+			update: func(d *dialScheduler) {
+				for id := uint16(0); id < 2000; id++ {
+					n := newNode(uintID(id), "127.0.0.1:30303")
+					d.addStatic(n)
+				}
+			},
+			// These are dialed in order, because it happens before others are added
+			wantNewDials: []*enode.Node{
+				newNode(uintID(0x0001), "127.0.0.1:30303"),
+				newNode(uintID(0x0002), "127.0.0.1:30303"),
+			},
+		},
+		{
+			failed: []enode.ID{
+				uintID(0x01),
+				uintID(0x02),
+			},
+			wantResolves: map[enode.ID]*enode.Node{
+				uintID(0x01): nil,
+				uintID(0x02): nil,
+			},
+			// These two will be dialed at random, because the pool has many nodes in it
+			wantNewDials: []*enode.Node{
+				newNode(uintID(0x0087), "127.0.0.1:30303"),
+				newNode(uintID(0x02de), "127.0.0.1:30303"),
+			},
+		},
 	})
 }
 
