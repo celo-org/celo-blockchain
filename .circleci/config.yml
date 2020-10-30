@@ -124,7 +124,7 @@ jobs:
     docker:
       - image: circleci/node:10
         environment:
-          - GOPATH=/
+          - GOPATH=/go
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
