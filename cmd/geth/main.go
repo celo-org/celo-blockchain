@@ -209,6 +209,7 @@ func init() {
 		copydbCommand,
 		removedbCommand,
 		dumpCommand,
+		dumpGenesisCommand,
 		inspectCommand,
 		// See accountcmd.go:
 		accountCommand,

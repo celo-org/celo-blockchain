@@ -81,6 +81,7 @@ type RetestethEthAPI interface {
 	SendRawTransaction(ctx context.Context, rawTx hexutil.Bytes) (common.Hash, error)
 	BlockNumber(ctx context.Context) (uint64, error)
 	GetBlockByNumber(ctx context.Context, blockNr math.HexOrDecimal64, fullTx bool) (map[string]interface{}, error)
+	GetBlockByHash(ctx context.Context, blockHash common.Hash, fullTx bool) (map[string]interface{}, error)
 	GetBalance(ctx context.Context, address common.Address, blockNr math.HexOrDecimal64) (*math.HexOrDecimal256, error)
 	GetCode(ctx context.Context, address common.Address, blockNr math.HexOrDecimal64) (hexutil.Bytes, error)
 	GetTransactionCount(ctx context.Context, address common.Address, blockNr math.HexOrDecimal64) (uint64, error)
@@ -346,7 +347,7 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 			ChainID:             chainId,
 			HomesteadBlock:      homesteadBlock,
 			DAOForkBlock:        daoForkBlock,
-			DAOForkSupport:      false,
+			DAOForkSupport:      true,
 			EIP150Block:         eip150Block,
 			EIP155Block:         eip155Block,
 			EIP158Block:         eip158Block,
@@ -559,6 +560,9 @@ func (api *RetestethAPI) RewindToBlock(ctx context.Context, newHead uint64) (boo
 	if err := api.blockchain.SetHead(newHead); err != nil {
 		return false, err
 	}
+	// When we rewind, the transaction pool should be cleaned out.
+	api.txMap = make(map[common.Address]map[uint64]*types.Transaction)
+	api.txSenders = make(map[common.Address]struct{})
 	return true, nil
 }
 
@@ -593,6 +597,20 @@ func (api *RetestethAPI) GetBlockByNumber(ctx context.Context, blockNr math.HexO
 		return response, err
 	}
 	return nil, fmt.Errorf("block %d not found", blockNr)
+}
+
+func (api *RetestethAPI) GetBlockByHash(ctx context.Context, blockHash common.Hash, fullTx bool) (map[string]interface{}, error) {
+	block := api.blockchain.GetBlockByHash(blockHash)
+	if block != nil {
+		response, err := RPCMarshalBlock(block, true, fullTx)
+		if err != nil {
+			return nil, err
+		}
+		response["author"] = response["miner"]
+		response["totalDifficulty"] = (*hexutil.Big)(api.blockchain.GetTd(block.Hash(), block.Number().Uint64()))
+		return response, err
+	}
+	return nil, fmt.Errorf("block 0x%x not found", blockHash)
 }
 
 func (api *RetestethAPI) AccountRange(ctx context.Context,
