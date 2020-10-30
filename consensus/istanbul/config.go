@@ -38,19 +38,20 @@ type Config struct {
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	LookbackWindow              uint64         `toml:",omitempty"` // The window of blocks in which a validator is forgived from voting
+	ReplicaStateDBPath          string         `toml:",omitempty"` // The location for the validator replica state DB
 	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
 	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
 	RoundStateDBPath            string         `toml:",omitempty"` // The location for the round states DB
-	Validator                   bool           `toml:",omitempty"` // Specified if this node is configured to validate (specifically if --mine command line is set)
+	Validator                   bool           `toml:",omitempty"` // Specified if this node is configured to validate  (specifically if --mine command line is set)
+	Replica                     bool           `toml:",omitempty"` // Specified if this node is configured to be a replica
 
 	// Proxy Configs
 	Proxy                   bool           `toml:",omitempty"` // Specifies if this node is a proxy
 	ProxiedValidatorAddress common.Address `toml:",omitempty"` // The address of the proxied validator
 
 	// Proxied Validator Configs
-	Proxied                 bool        `toml:",omitempty"` // Specifies if this node is proxied
-	ProxyInternalFacingNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will contect to
-	ProxyExternalFacingNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
+	Proxied      bool           `toml:",omitempty"` // Specifies if this node is proxied
+	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs
 	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
@@ -67,13 +68,20 @@ var DefaultConfig = &Config{
 	ProposerPolicy:                 ShuffledRoundRobin,
 	Epoch:                          30000,
 	LookbackWindow:                 12,
+	ReplicaStateDBPath:             "replicastate",
 	ValidatorEnodeDBPath:           "validatorenodes",
 	VersionCertificateDBPath:       "versioncertificates",
 	RoundStateDBPath:               "roundstates",
 	Validator:                      false,
+	Replica:                        false,
 	Proxy:                          false,
 	Proxied:                        false,
 	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
 	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
 	AnnounceAdditionalValidatorsToGossip:           10,
+}
+
+type ProxyConfig struct {
+	InternalNode *enode.Node `toml:",omitempty"` // The internal facing node of the proxy that this proxied validator will peer with
+	ExternalNode *enode.Node `toml:",omitempty"` // The external facing node of the proxy that the proxied validator will broadcast via the announce message
 }

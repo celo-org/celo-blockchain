@@ -200,8 +200,8 @@ func (n *Node) Start() error {
 		// discovery databases.
 		n.proxyServerConfig = n.config.ProxyP2P
 		n.proxyServerConfig.NoDiscovery = true
-		// There can only be 1 peer within the internal network
-		n.proxyServerConfig.MaxPeers = 1
+		// There can only up to 10 peers within the internal network
+		n.proxyServerConfig.MaxPeers = 10
 		n.proxyServerConfig.PrivateKey = n.config.NodeKey()
 		n.proxyServerConfig.Name = n.config.NodeName()
 		n.proxyServerConfig.Logger = n.log

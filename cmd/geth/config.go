@@ -126,8 +126,10 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)
 	}
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
-	if ctx.GlobalIsSet(utils.EthStatsURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
+	if ctx.GlobalIsSet(utils.CeloStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.CeloStatsURLFlag.Name)
+	} else if ctx.GlobalIsSet(utils.EthStatsLegacyURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsLegacyURLFlag.Name)
 	}
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
 
@@ -168,7 +170,7 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		utils.RegisterGraphQLService(stack, cfg.Node.GraphQLEndpoint(), cfg.Node.GraphQLCors, cfg.Node.GraphQLVirtualHosts, cfg.Node.HTTPTimeouts)
 	}
 	// Add the Ethereum Stats daemon if requested.
-	if cfg.Ethstats.URL != "" {
+	if cfg.Ethstats.URL != "" || cfg.Eth.Istanbul.Proxied {
 		utils.RegisterEthStatsService(stack, cfg.Ethstats.URL)
 	}
 	return stack

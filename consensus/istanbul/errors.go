@@ -32,14 +32,16 @@ var (
 	ErrStoppedAnnounce = errors.New("stopped announce")
 	// ErrStartedAnnounce is returned if announce is already started
 	ErrStartedAnnounce = errors.New("started announce")
-	// ErrStoppedAnnounce is returned if proxy handler is stopped
-	ErrStoppedProxyHandler = errors.New("stopped proxy handler")
-	// ErrStartedProxyHandler is returned if proxy handler is already started
-	ErrStartedProxyHandler = errors.New("started proxy handler")
+	// ErrStoppedProxiedValidatorEngine is returned if proxied validator engine is stopped
+	ErrStoppedProxiedValidatorEngine = errors.New("stopped proxied validator engine")
+	// ErrStartedProxiedValidatorEngine is returned if proxied validator engine is already started
+	ErrStartedProxiedValidatorEngine = errors.New("started proxied validator engine")
 	// ErrStoppedVPHThread is returned if validator peer handler thread is stopped
 	ErrStoppedVPHThread = errors.New("stopped validator peer handler thread")
 	// ErrStartedVPHThread is returned if validator peer handler thread is already started
 	ErrStartedVPHThread = errors.New("started validator peer handler thread")
 	// ErrValidatorNotProxied is returned if the validator is not configured to be proxied
 	ErrValidatorNotProxied = errors.New("validator not proxied")
+	// ErrInvalidEnodeCertMsgMapOldVersion is returned if a validator sends old enode certificate message
+	ErrInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
 )

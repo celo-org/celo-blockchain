@@ -161,43 +161,6 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 }
 
-func TestProxyConsensusForwarding(t *testing.T) {
-	_, backend := newBlockChain(1, true)
-	backend.config.Proxy = true
-
-	// generate one msg
-	data := []byte("data1")
-	bytes, err := rlp.EncodeToBytes(data)
-	if err != nil {
-		t.Fatalf("Error encoding consensus message bytes: %v", err)
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbul.ConsensusMsg,
-		Msg:       bytes,
-		Address:   backend.Address(),
-		Signature: []byte{},
-	}
-
-	// Test sending a message with no validator signature.
-	// Should fail because proxy expects consensus messages from validators.
-	payloadNoSig, _ := msg.Payload()
-	err = backend.handleConsensusMsg(&MockPeer{}, payloadNoSig)
-	if err != errNonValidatorMessage {
-		t.Errorf("Expected error sending message from non validator")
-	}
-
-	// Test sending a message with a legitimate validator signature.
-	// Should succeed now.
-	msg.Sign(backend.Sign)
-	payloadWithSig, _ := msg.Payload()
-	if err = backend.handleConsensusMsg(&MockPeer{}, payloadWithSig); err != nil {
-		t.Errorf("error %v", err)
-	}
-	// Set back to false for other tests
-	backend.config.Proxy = false
-}
-
 func TestReadValidatorHandshakeMessage(t *testing.T) {
 	_, backend := newBlockChain(2, true)
 
@@ -225,10 +188,11 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	// The enodeCertificate is not set synchronously. Wait until it's been set
 	for i := 0; i < 10; i++ {
 		// Test a legitimate message being sent
-		validMsg, err = backend.retrieveEnodeCertificateMsg()
-		if err != nil {
-			t.Errorf("Error from retrieveEnodeCertificateMsg %v", err)
+		enodeCertMsg := backend.RetrieveEnodeCertificateMsgMap()[backend.SelfNode().ID()]
+		if enodeCertMsg != nil {
+			validMsg = enodeCertMsg.Msg
 		}
+
 		if validMsg != nil {
 			break
 		}

@@ -39,6 +39,8 @@ github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpi
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6 h1:Eey/GGQ/E5Xp1P2Lyx1qj007hLZfbi0+CoVeJruGCtI=
 github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6/go.mod h1:Dmm/EzmjnCiweXmzRIAiUWCInVmPgjkzgv5k4tVyXiQ=
+github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72 h1:fUmDBbSvv1uOzo/t8WaxZMVb7BxJ8JECo5lGoR9c5bA=
+github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72/go.mod h1:OEE5igu/CDjGegM1Jn6ZMo7R6LlV/JChAkjfQQIRLpg=
 github.com/celo-org/bls-zexe v0.1.4 h1:BELl4NNkGjUUNE/4dNdjtoIDoGuiF+2BPJRiOIkb74s=
 github.com/celo-org/celo-bls-go v0.1.6 h1:S9hfmKp02Wbd6k3GkCwc/1uCeg68ZP6JZ7qFGHIhCB8=
 github.com/celo-org/celo-bls-go v0.1.6/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
