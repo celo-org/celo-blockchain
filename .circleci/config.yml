@@ -121,8 +121,8 @@ jobs:
             - geth/build/bin/Geth.framework.tgz
 
   publish-mobile-client:
-    executor: golang
-    working_directory: ~/repos/geth
+    docker:
+       - image: circleci/node:10
     steps:
       - attach_workspace:
           at: ~/repos
