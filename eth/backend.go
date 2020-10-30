@@ -569,7 +569,7 @@ func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPrun
 func (s *Ethereum) Protocols() []p2p.Protocol {
 	protos := make([]p2p.Protocol, len(istanbul.ProtocolVersions))
 	for i, vsn := range istanbul.ProtocolVersions {
-		protos[i] = s.protocolManager.makeProtocol(vsn, i == 0)
+		protos[i] = s.protocolManager.makeProtocol(vsn)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
 	}
 	if s.lesServer != nil {
