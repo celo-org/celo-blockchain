@@ -32,7 +32,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
+            - /go/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
   unit-tests:
     executor: golang
     steps:
