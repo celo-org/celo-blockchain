@@ -399,17 +399,11 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 
-	signalCh := make(chan error)
-
-	go func() {
-		signalCh <- conn.ReadJSON(&ack)
-	}()
-
 	select {
 	case <-time.After(loginTimeout * time.Second):
 		// Login timeout, abort
 		return errors.New("delegation of login timed out")
-	case err := <-signalCh:
+	case err := <-conn.ReadJSON(&ack):
 		if err != nil {
 			return errors.New("unauthorized, try registering your validator to get whitelisted")
 		}
