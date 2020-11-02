@@ -24,7 +24,7 @@ import (
 const (
 	Celo64 = 64
 	Celo65 = 65
-	Celo66 = 66
+	Celo66 = 66 // incorporates changes from eth/65 (EIP-2464)
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
