@@ -22,8 +22,8 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	Celo64 = 64
-	Celo65 = 65
+	Celo64 = 64 // eth/63 + the istanbul messages
+	Celo65 = 65 // incorporates changes from eth/64 (EIP)
 	Celo66 = 66 // incorporates changes from eth/65 (EIP-2464)
 )
 
