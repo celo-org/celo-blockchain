@@ -399,7 +399,7 @@ func (s *Service) login(conn *websocket.Conn, sendCh chan *StatsPayload) error {
 	// Retrieve the remote ack or connection termination
 	var ack map[string][]string
 
-	signalCh := make(chan error)
+	signalCh := make(chan error, 1)
 
 	go func() {
 		signalCh <- conn.ReadJSON(&ack)
