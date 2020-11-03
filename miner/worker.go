@@ -934,13 +934,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.txFeeRecipient, interrupt) {
+		if w.commitTransactions(txs, w.validator, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.txFeeRecipient, interrupt) {
+		if w.commitTransactions(txs, w.validator, interrupt) {
 			return
 		}
 	}
