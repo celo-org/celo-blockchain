@@ -945,6 +945,9 @@ running:
 				srv.dialsched.peerAdded(c)
 				if p.Inbound() {
 					inboundCount++
+					ingressConnectWithHandshakeMeter.Mark(1)
+				} else {
+					egressConnectWithHandshakeMeter.Mark(1)
 				}
 			}
 			c.cont <- err
