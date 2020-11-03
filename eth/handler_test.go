@@ -547,12 +547,12 @@ func TestBroadcastBlock(t *testing.T) {
 		broadcastExpected int
 	}{
 		{1, 1},
-		{2, 2},
-		{3, 3},
-		{4, 4},
-		{5, 4},
-		{9, 4},
-		{12, 4},
+		{2, 1},
+		{3, 1},
+		{4, 2},
+		{5, 2},
+		{9, 3},
+		{12, 3},
 		{16, 4},
 		{26, 5},
 		{100, 10},
@@ -585,6 +585,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	for i := 0; i < totalPeers; i++ {
 		peer, _ := newTestPeer(fmt.Sprintf("peer %d", i), istanbul.Celo64, pm, true)
 		defer peer.close()
+
 		peers = append(peers, peer)
 	}
 	chain, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
@@ -601,31 +602,23 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 			}
 		}(peer)
 	}
-	timeout := time.After(2 * time.Second)
-	var receivedCount int
-outer:
+	var received int
 	for {
 		select {
-		case err = <-errCh:
-			break outer
 		case <-doneCh:
-			receivedCount++
-			if receivedCount == totalPeers {
-				break outer
+			received++
+
+		case <-time.After(100 * time.Millisecond):
+			if received != broadcastExpected {
+				t.Errorf("broadcast count mismatch: have %d, want %d", received, broadcastExpected)
 			}
-		case <-timeout:
-			break outer
+			return
+
+		case err = <-errCh:
+			t.Fatalf("broadcast failed: %v", err)
 		}
 	}
-	for _, peer := range peers {
-		peer.app.Close()
-	}
-	if err != nil {
-		t.Errorf("error matching block by peer: %v", err)
-	}
-	if receivedCount != broadcastExpected {
-		t.Errorf("block broadcast to %d peers, expected %d", receivedCount, broadcastExpected)
-	}
+
 }
 
 // Tests that a propagated malformed block (uncles or transactions don't match
@@ -665,7 +658,7 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 	malformedTransactions.TxHash[0]++
 
 	// Keep listening to broadcasts and notify if any arrives
-	notify := make(chan struct{})
+	notify := make(chan struct{}, 1)
 	go func() {
 		if _, err := sink.app.ReadMsg(); err == nil {
 			notify <- struct{}{}
