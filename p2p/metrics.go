@@ -30,13 +30,13 @@ const (
 )
 
 var (
-	ingressConnectMeter = metrics.NewRegisteredMeter("p2p/serves", nil)
-	ingressConnectWithHandshakeMeter = metrics.NewRegisteredMeter("p2p/serves/handshakes", nil)  // Meter counting the ingress with successful handshake connections
-	ingressTrafficMeter = metrics.NewRegisteredMeter(ingressMeterName, nil)
-	egressConnectMeter  = metrics.NewRegisteredMeter("p2p/dials", nil)
-	egressConnectWithHandshakeMeter  = metrics.NewRegisteredMeter("p2p/dials/handshakes", nil)   // Meter counting the egress with successful handshake connections
-	egressTrafficMeter  = metrics.NewRegisteredMeter(egressMeterName, nil)
-	activePeerGauge     = metrics.NewRegisteredGauge("p2p/peers", nil)
+	ingressConnectMeter              = metrics.NewRegisteredMeter("p2p/serves", nil)
+	ingressConnectWithHandshakeMeter = metrics.NewRegisteredMeter("p2p/serves/handshakes", nil) // Meter counting the ingress with successful handshake connections
+	ingressTrafficMeter              = metrics.NewRegisteredMeter(ingressMeterName, nil)
+	egressConnectMeter               = metrics.NewRegisteredMeter("p2p/dials", nil)
+	egressConnectWithHandshakeMeter  = metrics.NewRegisteredMeter("p2p/dials/handshakes", nil) // Meter counting the egress with successful handshake connections
+	egressTrafficMeter               = metrics.NewRegisteredMeter(egressMeterName, nil)
+	activePeerGauge                  = metrics.NewRegisteredGauge("p2p/peers", nil)
 	activeValidatorsPeerGauge        = metrics.NewRegisteredGauge("p2p/peers/validators", nil)   // Gauge tracking the current validators peer count
 	activeProxiesPeerGauge           = metrics.NewRegisteredGauge("p2p/peers/proxies", nil)      // Gauge tracking the current proxies peer count
 	discoveredPeersCounter           = metrics.NewRegisteredCounter("p2p/peers/discovered", nil) // Counter of the total discovered peers
