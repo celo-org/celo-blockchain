@@ -40,21 +40,21 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, []byte, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
-		return nil, errNotLastBlockInEpoch
+		return nil, nil, errNotLastBlockInEpoch
 	}
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
 	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
+	epochData1, epochData2, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return epochData, nil
+	return epochData1, epochData2, nil
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -72,14 +72,14 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
+	epochValidatorSetData1, epochValidatorSetData2, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
 	}
 	var epochValidatorSetSeal blscrypto.SerializedSignature
 	if err == nil {
-		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData[:], []byte{}, true)
+		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData2, epochValidatorSetData1, true)
 		if err != nil {
 			logger.Error("Failed to sign epoch validator set seal", "err", err)
 			return
@@ -254,12 +254,12 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
+	epochData1, epochData2, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil
 		}
 		return err
 	}
-	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData[:], []byte{}, comSub.EpochValidatorSetSeal, true)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData2, epochData1, comSub.EpochValidatorSetSeal, true)
 }
