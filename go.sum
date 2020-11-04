@@ -60,6 +60,10 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:ma
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dchest/blake2s v1.0.0 h1:gHCBR8ecSImY/Nwk7X0Q2KJAJcpI/HSkUAQDi8MCP4Q=
+github.com/dchest/blake2s v1.0.0/go.mod h1:GrKn2Lc4hWqAwRrbneYuvZ6kugiJMrjk3HHtcJkEhbs=
+github.com/dchest/blake2xs v0.0.0-20170308103455-3b214a08f9ff h1:IfMAo+gVtaZXGLVcY1QpFzBLiKjLFS0fT46M4seBaBY=
+github.com/dchest/blake2xs v0.0.0-20170308103455-3b214a08f9ff/go.mod h1:pzw0CDi3O81X6e1sXfEZu0D5lKqr+6ig3dUmXJ0tfOU=
 github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea h1:j4317fAZh7X6GqbFowYdYdI0L9bwxL07jyPZIdepyZ0=
 github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea/go.mod h1:93vsz/8Wt4joVM7c2AVqh+YRMiUSc14yDtF28KmMOgQ=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=

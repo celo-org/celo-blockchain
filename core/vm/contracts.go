@@ -39,7 +39,6 @@ import (
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
-	"golang.org/x/crypto/sha3"
 )
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
@@ -1073,45 +1072,29 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 type cip20HashFunctions struct{}
 
 func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
-	switch input[0] {
-	case 0x00:
-		words := uint64((len(input) - 1) / 64)
-		return params.Sha3_256BaseGas + (words * params.Sha3_256PerWordGas)
-	case 0x01:
-		words := uint64((len(input) - 1) / 64)
-		return params.Sha3_512BaseGas + (words * params.Sha3_512PerWordGas)
-	case 0x02:
-		words := uint64((len(input) - 1) / 64)
-		return params.Keccak512BaseGas + (words * params.Keccak512PerWordGas)
-	// case 0x10:
-	// TODO: blake2x
-	default:
-		return params.InvalidCip20Gas
+
+	if h, ok := Cip20HashesDonut[input[0]]; ok {
+		return h.RequiredGas(input[1:])
 	}
 
+	return params.InvalidCip20Gas
 }
 
 func (c *cip20HashFunctions) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
+
 	if err != nil {
 		return nil, gas, err
 	}
 
-	var output []byte
-	switch input[0] {
-	case 0x00:
-		hasher := sha3.New256()
-		output = hasher.Sum(input[1:])
-	case 0x01:
-		hasher := sha3.New512()
-		output = hasher.Sum(input[1:])
-	case 0x02:
-		hasher := sha3.NewLegacyKeccak512()
-		output = hasher.Sum(input[1:])
-	// case 0x10:
-	// TODO: blake2x
-	default:
-		return nil, gas, fmt.Errorf("Input Error: invalid selector: %d", input[0])
+	if h, ok := Cip20HashesDonut[input[0]]; ok {
+		output, err := h.Run(input[1:]) // trim selector
+
+		if err != nil {
+			return nil, gas, err
+		}
+		return output, gas, nil
 	}
-	return output, gas, nil
+
+	return nil, gas, fmt.Errorf("Input Error: invalid CIP20 selector: %d", input[0])
 }
