@@ -50,7 +50,8 @@ func (c *Sha3_256) RequiredGas(input []byte) uint64 {
 // Run function for Sha3_256
 func (c *Sha3_256) Run(input []byte) ([]byte, error) {
 	hasher := sha3.New256()
-	output := hasher.Sum(input)
+	hasher.Write(input)
+	output := hasher.Sum(nil)
 	return output, nil
 }
 
@@ -66,7 +67,8 @@ func (c *Sha3_512) RequiredGas(input []byte) uint64 {
 // Run function for Sha3_512
 func (c *Sha3_512) Run(input []byte) ([]byte, error) {
 	hasher := sha3.New512()
-	output := hasher.Sum(input)
+	hasher.Write(input)
+	output := hasher.Sum(nil)
 	return output, nil
 }
 
@@ -82,7 +84,8 @@ func (c *Keccak512) RequiredGas(input []byte) uint64 {
 // Run function for Keccak512
 func (c *Keccak512) Run(input []byte) ([]byte, error) {
 	hasher := sha3.NewLegacyKeccak512()
-	output := hasher.Sum(input)
+	hasher.Write(input)
+	output := hasher.Sum(nil)
 	return output, nil
 }
 
@@ -107,6 +110,12 @@ func (c *Blake2s) Run(input []byte) ([]byte, error) {
 	return digest[:], nil
 }
 
+// The blake2s config is a 32-byte block that is XORed with the IV. It is
+// ocumented in the blake2 specification. The key is added to the state after it
+// is initialized with the config, and thus is technically not part of the
+// config, however, the underlying library requires the key with the config.
+//
+// NB: numbers longer than 1 byte are LE.
 func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 
 	if len(input) < blake2sConfigLen {
@@ -177,9 +186,8 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 }
 
 // this is exactly the same as previous, but with 1 extra byte, as digest
-// length is u16
+// length is u16 instead of u8
 func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
-
 	if len(input) < blake2xsConfigLen {
 		return nil, errors.New("Blake2xs unmarshalling error. Received fewer than 32 bytes")
 	}
