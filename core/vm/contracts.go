@@ -128,6 +128,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	cip20HashFunctionsAddress:    &cip20HashFunctions{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -1080,7 +1081,7 @@ func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 	return params.InvalidCip20Gas
 }
 
-func (c *cip20HashFunctions) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 
 	if err != nil {

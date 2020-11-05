@@ -983,3 +983,27 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 		testPrecompiled("f4", test, t)
 	}
 }
+
+var cip20Tests = []precompiledTest{
+	{
+		input:    "00616263",
+		expected: "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+		name:     "sha3-256 of 'abc'",
+	},
+	{
+		input:    "01616263",
+		expected: "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
+		name:     "sha3-512 of 'abc'",
+	},
+	{
+		input:    "02616263",
+		expected: "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d77aa511a9d00bb96",
+		name:     "keccak512 of 'abc'",
+	},
+}
+
+func TestCip20(t *testing.T) {
+	for _, test := range cip20Tests {
+		testPrecompiled("f3", test, t)
+	}
+}
