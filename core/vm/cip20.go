@@ -30,14 +30,6 @@ var Cip20HashesDonut = map[uint8]Cip20Hash{
 	0x11: &Blake2Xs{},
 }
 
-func debitCip20Gas(p Cip20Hash, input []byte, gas uint64) (uint64, error) {
-	requiredGas := p.RequiredGas(input)
-	if requiredGas > gas {
-		return gas, ErrOutOfGas
-	}
-	return gas - requiredGas, nil
-}
-
 // The Sha3_256 hash function
 type Sha3_256 struct{}
 
@@ -100,6 +92,9 @@ func (c *Blake2s) RequiredGas(input []byte) uint64 {
 // Run function for Blake2s
 func (c *Blake2s) Run(input []byte) ([]byte, error) {
 	config, err := unmarshalBlake2sConfig(input)
+	if err != nil {
+		return nil, err
+	}
 	h, err := blake2s.New(config)
 	if err != nil {
 		return nil, err
@@ -125,10 +120,10 @@ func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 	c := &blake2s.Config{
 		Tree: &blake2s.Tree{},
 	}
-	c.Size = uint8(input[0])
-	keySize := uint8(input[1])
-	c.Tree.Fanout = uint8(input[2])
-	c.Tree.MaxDepth = uint8(input[3])
+	c.Size = input[0]
+	keySize := input[1]
+	c.Tree.Fanout = input[2]
+	c.Tree.MaxDepth = input[3]
 
 	c.Tree.LeafSize |= uint32(input[4]) << 0
 	c.Tree.LeafSize |= uint32(input[5]) << 8
@@ -200,6 +195,7 @@ func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
 
 	// one extra byte on the front
 	// we will drop the size property from this
+	// and replace with the desired size
 	conf, err := unmarshalBlake2sConfig(input[1:])
 	if err != nil {
 		return nil, err
