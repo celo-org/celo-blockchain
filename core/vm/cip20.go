@@ -122,7 +122,9 @@ func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 		return nil, errors.New("Blake2s unmarshalling error. Received fewer than 32 bytes")
 	}
 
-	c := &blake2s.Config{}
+	c := &blake2s.Config{
+		Tree: &blake2s.Tree{},
+	}
 	c.Size = uint8(input[0])
 	keySize := uint8(input[1])
 	c.Tree.Fanout = uint8(input[2])
@@ -161,12 +163,8 @@ func (c *Blake2Xs) RequiredGas(input []byte) uint64 {
 
 // Run function for Blake2Xs
 func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
-	var desired uint32
-	desired |= uint32(input[0]) << 24
-	desired |= uint32(input[1]) << 16
-	desired |= uint32(input[2]) << 8
-	desired |= uint32(input[3]) << 0
-	config, err := unmarshalBlake2xsConfig(input[4:])
+
+	config, err := unmarshalBlake2xsConfig(input)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +174,11 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	output := make([]byte, desired)
+	offset := blake2xsConfigLen + len(config.Key)
+	body := input[offset:]
+	xof.Write(body)
+
+	output := make([]byte, config.Size)
 	written, err := xof.Read(output)
 	if err != nil {
 		return nil, err
@@ -192,33 +194,24 @@ func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
 		return nil, errors.New("Blake2xs unmarshalling error. Received fewer than 32 bytes")
 	}
 
-	c := &blake2xs.Config{}
-	c.Size |= uint16(input[0]) << 0
-	c.Size |= uint16(input[1]) << 8
+	var desired uint16
+	desired |= uint16(input[0]) << 0
+	desired |= uint16(input[1]) << 8
 
-	keySize := uint8(input[2])
-	c.Tree.Fanout = uint8(input[3])
-	c.Tree.MaxDepth = uint8(input[4])
-
-	c.Tree.LeafSize |= uint32(input[5]) << 0
-	c.Tree.LeafSize |= uint32(input[6]) << 8
-	c.Tree.LeafSize |= uint32(input[7]) << 16
-	c.Tree.LeafSize |= uint32(input[8]) << 24
-
-	for i := 0; i < 6; i++ {
-		c.Tree.NodeOffset |= uint64(input[i+9]) << (i * 8)
+	// one extra byte on the front
+	// we will drop the size property from this
+	conf, err := unmarshalBlake2sConfig(input[1:])
+	if err != nil {
+		return nil, err
 	}
 
-	c.Tree.NodeDepth = input[15]
-	c.Tree.InnerHashSize = input[16]
-	c.Salt = input[17:25]
-	c.Person = input[25:33]
-
-	if len(input) < blake2xsConfigLen+int(keySize) {
-		return nil, errors.New("Blake2xs unmarshalling error. Too few bytes to unmarshal Key")
+	c := &blake2xs.Config{
+		Size:   desired,
+		Key:    conf.Key,
+		Salt:   conf.Salt,
+		Person: conf.Person,
+		Tree:   conf.Tree,
 	}
-
-	c.Key = input[33 : 33+keySize]
 
 	return c, nil
 }
