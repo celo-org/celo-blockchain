@@ -92,7 +92,7 @@ func (pm *ProtocolManager) txsyncLoop64() {
 	// send starts a sending a pack of transactions from the sync.
 	send := func(s *txsync) {
 		if s.p.version >= istanbul.Celo66 {
-			panic("initial transaction syncer running on eth/65+ (celo/65+)")
+			panic("initial transaction syncer running on eth/65+ (celo/66+)")
 		}
 		// Fill pack with transactions up to the target size.
 		size := common.StorageSize(0)
