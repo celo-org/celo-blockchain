@@ -78,6 +78,8 @@ func (pm *ProtocolManager) syncTransactions(p *peer) {
 	}
 }
 
+// Needed for eth/64 (celo/65).  With eth/65+ (celo/66+), this runs but
+// won't get any messages through pm.txsyncCh and so won't do anything.
 // txsyncLoop64 takes care of the initial transaction sync for each new
 // connection. When a new peer appears, we relay all currently pending
 // transactions. In order to minimise egress bandwidth usage, we send
