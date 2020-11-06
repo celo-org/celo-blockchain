@@ -47,9 +47,9 @@ func enable1884(jt *JumpTable) {
 	// Gas cost changes
 	// Celo does not include these gas changes at genesis.
 	// It is planned to apply them at a later date.
+	// jt[SLOAD].constantGas = params.SloadGasEIP1884
 	// jt[BALANCE].constantGas = params.BalanceGasEIP1884
 	// jt[EXTCODEHASH].constantGas = params.ExtcodeHashGasEIP1884
-	// jt[SLOAD].constantGas = params.SloadGasEIP1884
 
 	// New opcode
 	jt[SELFBALANCE] = operation{
@@ -89,5 +89,6 @@ func opChainID(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memo
 
 // enable2200 applies EIP-2200 (Rebalance net-metered SSTORE)
 func enable2200(jt *JumpTable) {
+	jt[SLOAD].constantGas = params.SloadGasEIP2200
 	jt[SSTORE].dynamicGas = gasSStoreEIP2200
 }
