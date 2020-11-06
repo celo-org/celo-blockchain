@@ -6,10 +6,9 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
 	github.com/Azure/azure-storage-blob-go v0.7.0
 	github.com/Azure/go-autorest/autorest/adal v0.8.0 // indirect
-	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
-	github.com/VictoriaMetrics/fastcache v1.5.3
+	github.com/VictoriaMetrics/fastcache v1.5.2
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847
-	github.com/aws/aws-sdk-go v1.25.48
+	github.com/aws/aws-sdk-go v1.34.16
 	github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
 	github.com/celo-org/celo-bls-go v0.1.6
@@ -20,7 +19,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
-	github.com/elastic/gosigar v0.10.5
+	github.com/elastic/gosigar v0.8.1-0.20180330100440-37f05ff46ffa
 	github.com/fatih/color v1.3.0
 	github.com/fjl/memsize v0.0.0-20180418122429-ca190fb6ffbc
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff
@@ -53,15 +52,13 @@ require (
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
 	github.com/steakknife/hamming v0.0.0-20180906055917-c99c65617cd3 // indirect
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
 	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
-	golang.org/x/mobile v0.0.0-20200801112145-973feb4309de // indirect
-	golang.org/x/net v0.0.0-20190628185345-da137c7871d7 // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
+	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
@@ -71,3 +68,8 @@ require (
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+// Use our fork which contains the fix to build on iOS
+replace github.com/elastic/gosigar => github.com/celo-org/gosigar v0.10.5-celo1
+
+replace golang.org/x/sys => github.com/celo-org/sys v0.0.0-20200816232032-1d4c3212eaf2
