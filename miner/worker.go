@@ -821,11 +821,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	txFeeRecipient := w.txFeeRecipient
-	if !w.chainConfig.IsCelo1(header.Number) {
-		if w.txFeeRecipient != w.validator {
-			txFeeRecipient = w.validator
-			log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
-		}
+	if !w.chainConfig.IsCelo1(header.Number) && w.txFeeRecipient != w.validator {
+		txFeeRecipient = w.validator
+		log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
 	}
 
 

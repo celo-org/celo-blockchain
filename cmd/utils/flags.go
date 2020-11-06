@@ -1099,11 +1099,8 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		validator = ctx.GlobalString(MinerValidatorFlag.Name)
-
-		if !ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
-			Fatalf("`tx-fee-recipient` flag should be set if `miner.validator` flag is set")
-		}
 	}
+
 	// Convert the validator into an address and configure it
 	if validator != "" {
 		account, err := MakeAddress(ks, validator)
@@ -1131,10 +1128,6 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
-
-		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
-			Fatalf("`miner.validator` flag should be set if `tx-fee-recipient` is set")
-		}
 	}
 
 	// Convert the txFeeRecipient into an address and configure it
