@@ -99,8 +99,9 @@ func (c *Blake2s) Run(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	body := input[blake2sConfigLen+len(config.Key):]
-	digest := h.Sum(body)
+	preimage := input[blake2sConfigLen+len(config.Key):]
+	h.Write(preimage)
+	digest := h.Sum(nil)
 	return digest[:], nil
 }
 
@@ -155,6 +156,8 @@ func (c *Blake2Xs) RequiredGas(input []byte) uint64 {
 	return 0 // TODO: James to benchmark
 }
 
+// TODO(James): Account for isLastNode
+
 // Run function for Blake2Xs
 func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 
@@ -169,8 +172,8 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 	}
 
 	offset := blake2sConfigLen + len(config.Key)
-	body := input[offset:]
-	xof.Write(body)
+	preimage := input[offset:]
+	xof.Write(preimage)
 
 	output := make([]byte, config.Size)
 	written, err := xof.Read(output)
