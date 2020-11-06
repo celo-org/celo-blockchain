@@ -89,6 +89,10 @@ func opChainID(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memo
 
 // enable2200 applies EIP-2200 (Rebalance net-metered SSTORE)
 func enable2200(jt *JumpTable) {
-	jt[SLOAD].constantGas = params.SloadGasEIP2200
+	// This change to SLOAD was added upstream after the Istanbul fork, to make the EIP-2200
+	// implementation correct even apart from EIP-1884 (go-ethereum PR #20646).  But since
+	// for Celo we didn't adopt the EIP-1884 gas cost changes (see above in enable1884()),
+	// this change here must be commented out as well, to avoid an inadvertent Celo hard fork.
+	// jt[SLOAD].constantGas = params.SloadGasEIP2200
 	jt[SSTORE].dynamicGas = gasSStoreEIP2200
 }
