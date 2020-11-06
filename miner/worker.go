@@ -570,7 +570,11 @@ func (w *worker) resultLoop() {
 			// Commit block and state to database.
 			_, err := w.chain.WriteBlockWithState(block, receipts, logs, processResult.State, true)
 			if err != nil {
-				log.Error("Failed writing block to chain", "err", err)
+				if err == core.ErrKnownBlock {
+					log.Warn("Already inserted the block", "block hash", block.Hash(), "block number", block.NumberU64())
+				} else {
+					log.Error("Failed writing block to chain", "err", err)
+				}
 				continue
 			}
 			blockFinalizationTimeGauge.Update(time.Now().UnixNano() - int64(block.Time())*1000000000)

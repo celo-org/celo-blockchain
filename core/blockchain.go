@@ -1319,6 +1319,10 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
+	if bc.HasBlockAndState(block.Hash(), block.NumberU64()) {
+		return NonStatTy, ErrKnownBlock
+	}
+
 	// We are going to update the uptime tally.
 	// TODO find a better way of checking if it's istanbul
 	if _, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
