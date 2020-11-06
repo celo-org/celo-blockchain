@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	blake2sConfigLen  = 32
-	blake2xsConfigLen = 33
+	blake2sConfigLen = 32
 )
 
 // Cip20Hash is an interface for CIP20 hash functions. it is a trimmed down
@@ -169,7 +168,7 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	offset := blake2xsConfigLen + len(config.Key)
+	offset := blake2sConfigLen + len(config.Key)
 	body := input[offset:]
 	xof.Write(body)
 
@@ -185,24 +184,24 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 // this is exactly the same as previous, but with 1 extra byte, as digest
 // length is u16 instead of u8
 func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
-	if len(input) < blake2xsConfigLen {
+	if len(input) < blake2sConfigLen {
 		return nil, errors.New("Blake2xs unmarshalling error. Received fewer than 32 bytes")
 	}
 
-	var desired uint16
-	desired |= uint16(input[0]) << 0
-	desired |= uint16(input[1]) << 8
-
-	// one extra byte on the front
-	// we will drop the size property from this
-	// and replace with the desired size
-	conf, err := unmarshalBlake2sConfig(input[1:])
+	conf, err := unmarshalBlake2sConfig(input)
 	if err != nil {
 		return nil, err
 	}
 
+	var size uint16
+	size |= uint16(input[12]) << 0
+	size |= uint16(input[13]) << 8
+
+	// reduce by 2 bytes
+	conf.Tree.NodeOffset = uint64(uint32(conf.Tree.NodeOffset))
+
 	c := &blake2xs.Config{
-		Size:   desired,
+		Size:   size,
 		Key:    conf.Key,
 		Salt:   conf.Salt,
 		Person: conf.Person,
