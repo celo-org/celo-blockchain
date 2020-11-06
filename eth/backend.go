@@ -383,18 +383,6 @@ func (s *Ethereum) Validator() (val common.Address, err error) {
 	if validator != (common.Address{}) {
 		return validator, nil
 	}
-	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
-		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-			validator := accounts[0].Address
-
-			s.lock.Lock()
-			s.validator = validator
-			s.lock.Unlock()
-
-			log.Info("Validator automatically configured", "address", validator)
-			return validator, nil
-		}
-	}
 	return common.Address{}, fmt.Errorf("validator must be explicitly specified")
 }
 
@@ -405,18 +393,6 @@ func (s *Ethereum) TxFeeRecipient() (common.Address, error) {
 
 	if txFeeRecipient != (common.Address{}) {
 		return txFeeRecipient, nil
-	}
-	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
-		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-			txFeeRecipient := accounts[0].Address
-
-			s.lock.Lock()
-			s.txFeeRecipient = txFeeRecipient
-			s.lock.Unlock()
-
-			log.Info("TxFeeRecipient automatically configured", "address", txFeeRecipient)
-			return txFeeRecipient, nil
-		}
 	}
 	return common.Address{}, fmt.Errorf("txFeeRecipient must be explicitly specified")
 }

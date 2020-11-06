@@ -183,6 +183,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
 	w.setTxFeeRecipient(testBankAddress)
+	w.setValidator(testBankAddress)
 	return w, backend
 }
 

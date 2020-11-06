@@ -432,18 +432,6 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return errInvalidProposal
 	}
 
-	// If the current block occurred before the Celo1 hard fork, check that the author and coinbase are equal.
-	if !sb.chain.Config().IsCelo1(block.Number()) {
-		addr, err := sb.Author(block.Header())
-		if err != nil {
-			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return errInvalidProposal
-		} else if addr != block.Header().Coinbase {
-			sb.logger.Error("Block proposal author and coinbase must be the same when Celo1 hard fork is active")
-			return errInvalidCoinbase
-		}
-	}
-
 	h := block.Header()
 	// Append seals into extra-data
 	err := writeAggregatedSeal(h, aggregatedSeal, false)

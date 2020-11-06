@@ -229,7 +229,7 @@ var (
 	}
 	TxFeeRecipientFlag = cli.StringFlag{
 		Name:  "tx-fee-recipient",
-		Usage: "Public address for block transaction fees and gateway fees (default = first account)",
+		Usage: "Public address for block transaction fees and gateway fees",
 		Value: "0",
 	}
 	BLSbaseFlag = cli.StringFlag{
@@ -363,7 +363,7 @@ var (
 	}
 	MinerValidatorFlag = cli.StringFlag{
 		Name:  "miner.validator",
-		Usage: "Public address for participation in consensus (default = first account)",
+		Usage: "Public address for participation in consensus",
 		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
@@ -407,7 +407,7 @@ var (
 	}
 	MinerEtherbaseFlag = cli.StringFlag{
 		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
+		Usage: "Public address for block mining rewards, deprecated, use --tx-fee-recipient and --miner.validator",
 		Value: "0",
 	}
 	MinerLegacyEtherbaseFlag = cli.StringFlag{
@@ -1099,6 +1099,10 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		validator = ctx.GlobalString(MinerValidatorFlag.Name)
+
+		if !ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+			Fatalf("`tx-fee-recipient` flag should be set if `miner.validator` flag is set")
+		}
 	}
 	// Convert the validator into an address and configure it
 	if validator != "" {
@@ -1127,7 +1131,12 @@ func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config)
 			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
 		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
+
+		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+			Fatalf("`miner.validator` flag should be set if `tx-fee-recipient` is set")
+		}
 	}
+
 	// Convert the txFeeRecipient into an address and configure it
 	if txFeeRecipient != "" {
 		account, err := MakeAddress(ks, txFeeRecipient)

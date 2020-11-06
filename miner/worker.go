@@ -819,13 +819,23 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		Extra:      w.extra,
 		Time:       uint64(timestamp),
 	}
+
+	txFeeRecipient := w.txFeeRecipient
+	if !w.chainConfig.IsCelo1(header.Number) {
+		if w.txFeeRecipient != w.validator {
+			txFeeRecipient = w.validator
+			log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+		}
+	}
+
+
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
-		if w.txFeeRecipient == (common.Address{}) {
+		if txFeeRecipient == (common.Address{}) {
 			log.Error("Refusing to mine without etherbase")
 			return
 		}
-		header.Coinbase = w.txFeeRecipient
+		header.Coinbase = txFeeRecipient
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -934,13 +944,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.validator, interrupt) {
+		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.validator, interrupt) {
+		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
