@@ -73,15 +73,10 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// No error on skipped messages
 			return sb.proxyEngine.HandleMsg(peer, msg.Code, data)
 		case istanbul.DelegateSignMsg:
-			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
-					PeerID:  peer.Node().ID(),
-					Payload: data,
-				})
-				return true, nil
-			}
-			logger.Error("Delegate Sign message sent to node that is not designated to handle celostats", "peer", peer)
-			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
+			go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
+				PeerID:  peer.Node().ID(),
+				Payload: data,
+			})
 			return true, nil
 		case istanbul.QueryEnodeMsg:
 			go sb.handleQueryEnodeMsg(addr, peer, data)
@@ -106,10 +101,15 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, nil
 		case istanbul.DelegateSignMsg:
 			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
+					PeerID:  peer.Node().ID(),
+					Payload: data,
+				})
 				return true, nil
 			}
-			return true, errors.New("No proxy or proxied validator found")
+			logger.Error("Delegate Sign message sent from a node that is not a valid proxy", "peer", peer)
+			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
+			return true, nil
 		case istanbul.EnodeCertificateMsg:
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
@@ -134,10 +134,15 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return true, nil
 		case istanbul.DelegateSignMsg:
 			if sb.shouldHandleDelegateSign(peer) {
-				go sb.delegateSignFeed.Send(istanbul.MessageEvent{Payload: data})
+				go sb.delegateSignFeed.Send(istanbul.MessageWithPeerIDEvent{
+					PeerID:  peer.Node().ID(),
+					Payload: data,
+				})
 				return true, nil
 			}
-			return true, errors.New("No proxy or proxied validator found")
+			logger.Error("Delegate Sign message sent from a node that is not a valid proxy", "peer", peer)
+			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
+			return true, nil
 		case istanbul.EnodeCertificateMsg:
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
