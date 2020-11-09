@@ -20,6 +20,7 @@
 package geth
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"time"
 
@@ -223,4 +224,8 @@ func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount 
 		return nil, err
 	}
 	return &Account{account}, nil
+}
+
+func (ks *KeyStore) ComputeECDHSharedSecret(a Account, public ecdsa.PublicKey) ([]byte, error) {
+	return ks.keystore.ComputeECDHSharedSecret(a.account, public)
 }
