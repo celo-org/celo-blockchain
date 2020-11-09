@@ -626,7 +626,9 @@ func zeroKey(k *ecdsa.PrivateKey) {
 	}
 }
 
-func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public ecdsa.PublicKey) ([]byte, error) {
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) ([]byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
