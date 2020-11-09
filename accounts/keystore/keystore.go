@@ -638,7 +638,11 @@ func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) (
 		return nil, ErrLocked
 	}
 	gen := ecdh.NewEllipticECDH(crypto.S256())
-	secret, err := gen.GenerateSharedSecret(unlockedKey.PrivateKey, public)
+	pubKey, ok := gen.Unmarshal(public)
+	if !ok {
+		return nil, errors.New("Could not unmarshal public key from bytes")
+	}
+	secret, err := gen.GenerateSharedSecret(unlockedKey.PrivateKey, pubKey)
 	if err != nil {
 		return nil, err
 	}
