@@ -172,10 +172,19 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 	}
 
 	offset := blake2sConfigLen + len(config.Key)
-	preimage := input[offset:]
+
+	// Read BE U32
+	var desired uint16
+	desired = uint16(input[offset]) << 8
+	desired = uint16(input[offset+1]) << 0
+	if desired == 0 {
+		desired = config.Size
+	}
+
+	preimage := input[offset+2:]
 	xof.Write(preimage)
 
-	output := make([]byte, config.Size)
+	output := make([]byte, desired)
 	written, err := xof.Read(output)
 	if err != nil {
 		return nil, err
@@ -196,6 +205,7 @@ func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
 		return nil, err
 	}
 
+	// Read LE U16
 	var size uint16
 	size |= uint16(input[12]) << 0
 	size |= uint16(input[13]) << 8
