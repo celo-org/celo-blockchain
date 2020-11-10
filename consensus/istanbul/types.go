@@ -17,16 +17,52 @@
 package istanbul
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+type DecryptFn func(accounts.Account, []byte, []byte, []byte) ([]byte, error)
+
+// SignerFn is a signer callback function to request a header to be signed by a
+// backing account.
+type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
+
+// BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
+// backing account using BLS with a direct or composite hasher
+type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
+
+// UptimeEntry contains the uptime score of a validator during an epoch as well as the
+// last block they signed on
+type UptimeEntry struct {
+	ScoreTally      uint64
+	LastSignedBlock uint64
+}
+
+func (u *UptimeEntry) String() string {
+	return fmt.Sprintf("UptimeEntry { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
+}
+
+// Uptime contains the latest block for which uptime metrics were accounted for. It also contains
+// an array of Entries where the `i`th entry represents the uptime statistics of the `i`th validator
+// in the validator set for that epoch
+type Uptime struct {
+	LatestBlock uint64
+	Entries     []UptimeEntry
+}
 
 // Proposal supports retrieving height and serialized block to be used during Istanbul consensus.
 type Proposal interface {
@@ -309,7 +345,7 @@ type ForwardMessage struct {
 	DestAddresses []common.Address
 }
 
-// ## Message #################################################################
+// ## Consensus Message codes ##########################################################
 
 const (
 	MsgPreprepare uint64 = iota
@@ -416,4 +452,147 @@ type BlockProcessResult struct {
 	Logs      []*types.Log
 	State     *state.StateDB
 	CreatedAt time.Time
+
+// ## EnodeCertificate ######################################################################
+type EnodeCertificate struct {
+	EnodeURL string
+	Version  uint
+}
+
+// EncodeRLP serializes ec into the Ethereum RLP format.
+func (ec *EnodeCertificate) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ec.EnodeURL, ec.Version})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ec fields from a RLP stream.
+func (ec *EnodeCertificate) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EnodeURL string
+		Version  uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ec.EnodeURL, ec.Version = msg.EnodeURL, msg.Version
+	return nil
+}
+
+// ## EnodeCertMsg ######################################################################
+type EnodeCertMsg struct {
+	Msg           *Message
+	DestAddresses []common.Address
+}
+
+// ## AddressEntry ######################################################################
+// AddressEntry is an entry for the valEnodeTable.
+type AddressEntry struct {
+	Address                      common.Address
+	PublicKey                    *ecdsa.PublicKey
+	Node                         *enode.Node
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           *time.Time
+}
+
+func (ae *AddressEntry) String() string {
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	return fmt.Sprintf("{address: %v, enodeURL: %v, version: %v, highestKnownVersion: %v, numQueryAttempsForHKVersion: %v, LastQueryTimestamp: %v}", ae.Address.String(), nodeString, ae.Version, ae.HighestKnownVersion, ae.NumQueryAttemptsForHKVersion, ae.LastQueryTimestamp)
+}
+
+// Implement RLP Encode/Decode interface
+type AddressEntryRLP struct {
+	Address                      common.Address
+	CompressedPublicKey          []byte
+	EnodeURL                     string
+	Version                      uint
+	HighestKnownVersion          uint
+	NumQueryAttemptsForHKVersion uint
+	LastQueryTimestamp           []byte
+}
+
+// EncodeRLP serializes AddressEntry into the Ethereum RLP format.
+func (ae *AddressEntry) EncodeRLP(w io.Writer) error {
+	var nodeString string
+	if ae.Node != nil {
+		nodeString = ae.Node.String()
+	}
+	var publicKeyBytes []byte
+	if ae.PublicKey != nil {
+		publicKeyBytes = crypto.CompressPubkey(ae.PublicKey)
+	}
+	var lastQueryTimestampBytes []byte
+	if ae.LastQueryTimestamp != nil {
+		var err error
+		lastQueryTimestampBytes, err = ae.LastQueryTimestamp.MarshalBinary()
+		if err != nil {
+			return err
+		}
+	}
+
+	return rlp.Encode(w, AddressEntryRLP{Address: ae.Address,
+		CompressedPublicKey:          publicKeyBytes,
+		EnodeURL:                     nodeString,
+		Version:                      ae.Version,
+		HighestKnownVersion:          ae.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: ae.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestampBytes})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the AddressEntry fields from a RLP stream.
+func (ae *AddressEntry) DecodeRLP(s *rlp.Stream) error {
+	var entry AddressEntryRLP
+	var err error
+	if err := s.Decode(&entry); err != nil {
+		return err
+	}
+	var node *enode.Node
+	if len(entry.EnodeURL) > 0 {
+		node, err = enode.ParseV4(entry.EnodeURL)
+		if err != nil {
+			return err
+		}
+	}
+	var publicKey *ecdsa.PublicKey
+	if len(entry.CompressedPublicKey) > 0 {
+		publicKey, err = crypto.DecompressPubkey(entry.CompressedPublicKey)
+		if err != nil {
+			return err
+		}
+	}
+	lastQueryTimestamp := &time.Time{}
+	if len(entry.LastQueryTimestamp) > 0 {
+		err := lastQueryTimestamp.UnmarshalBinary(entry.LastQueryTimestamp)
+		if err != nil {
+			return err
+		}
+	}
+
+	*ae = AddressEntry{Address: entry.Address,
+		PublicKey:                    publicKey,
+		Node:                         node,
+		Version:                      entry.Version,
+		HighestKnownVersion:          entry.HighestKnownVersion,
+		NumQueryAttemptsForHKVersion: entry.NumQueryAttemptsForHKVersion,
+		LastQueryTimestamp:           lastQueryTimestamp}
+	return nil
+}
+
+// GetNode returns the address entry's node
+func (ae *AddressEntry) GetNode() *enode.Node {
+	return ae.Node
+}
+
+// GetVersion returns the addess entry's version
+func (ae *AddressEntry) GetVersion() uint {
+	return ae.Version
+}
+
+// GetAddess returns the addess entry's address
+func (ae *AddressEntry) GetAddress() common.Address {
+	return ae.Address
 }

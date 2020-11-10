@@ -234,23 +234,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 				stateRoot := eth.blockchain.GetHeaderByHash(hash).Root
 				return eth.blockchain.StateAt(stateRoot)
 			})
-
-		chainHeadCh := make(chan core.ChainHeadEvent, 10)
-		chainHeadSub := eth.blockchain.SubscribeChainHeadEvent(chainHeadCh)
-
-		go func() {
-			defer chainHeadSub.Unsubscribe()
-
-			for {
-				select {
-				case chainHeadEvent := <-chainHeadCh:
-					istanbul.NewChainHead(chainHeadEvent.Block)
-				case err := <-chainHeadSub.Err():
-					log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
-					return
-				}
-			}
-		}()
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, &chainDb)
@@ -505,6 +488,13 @@ func (s *Ethereum) StartMining(threads int) error {
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
 			istanbul.Authorize(eb, blsbase, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS)
+
+			if istanbul.IsProxiedValidator() {
+				if err := istanbul.StartProxiedValidatorEngine(); err != nil {
+					log.Error("Error in starting proxied validator engine", "err", err)
+					return err
+				}
+			}
 		}
 
 		// If mining is started, we can disable the transaction rejection mechanism
@@ -528,6 +518,15 @@ func (s *Ethereum) StopMining() {
 	}
 	// Stop the block creating itself
 	s.miner.Stop()
+
+	// Stop the proxied validator engine
+	if istanbul, isIstanbul := s.engine.(*istanbulBackend.Backend); isIstanbul {
+		if istanbul.IsProxiedValidator() {
+			if err := istanbul.StopProxiedValidatorEngine(); err != nil {
+				log.Warn("Error in stopping proxied validator engine", "err", err)
+			}
+		}
+	}
 }
 
 func (s *Ethereum) startAnnounce() error {
@@ -541,22 +540,6 @@ func (s *Ethereum) startAnnounce() error {
 func (s *Ethereum) stopAnnounce() error {
 	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
 		return istanbul.StopAnnouncing()
-	}
-
-	return nil
-}
-
-func (s *Ethereum) StartProxyHandler() error {
-	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StartProxyHandler()
-	}
-
-	return nil
-}
-
-func (s *Ethereum) StopProxyHandler() error {
-	if istanbul, ok := s.engine.(consensus.Istanbul); ok {
-		return istanbul.StopProxyHandler()
 	}
 
 	return nil
@@ -586,7 +569,7 @@ func (s *Ethereum) ArchiveMode() bool                   { return s.config.NoPrun
 func (s *Ethereum) Protocols() []p2p.Protocol {
 	protos := make([]p2p.Protocol, len(istanbul.ProtocolVersions))
 	for i, vsn := range istanbul.ProtocolVersions {
-		protos[i] = s.protocolManager.makeProtocol(vsn, i == 0)
+		protos[i] = s.protocolManager.makeProtocol(vsn)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
 	}
 	if s.lesServer != nil {

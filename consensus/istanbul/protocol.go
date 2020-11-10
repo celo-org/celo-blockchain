@@ -29,8 +29,17 @@ const (
 // protocolName is the official short name of the protocol used during capability negotiation.
 const ProtocolName = "istanbul"
 
-// ProtocolVersions are the supported versions of the eth protocol (first is primary).
+// ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
+// (First is primary in the sense that it's the most current one supported, not in the sense of IsPrimary() below)
 var ProtocolVersions = []uint{Celo65, Celo64}
+
+// Returns whether this version of Istanbul should have Primary: true (a legacy property that was needed to work
+// around an upstream bug in the LES protocol which prevented two LES servers from connecting to each other).
+// Versions up to Celo65 need to have it, for backwards compatibility. Newer versions don't need it, since the
+// upstream LES bug has now been fixed.
+func IsPrimary(version uint) bool {
+	return version <= Celo65
+}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
 var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27}
@@ -51,4 +60,9 @@ const (
 
 func IsIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
+}
+
+// IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).
+func IsGossipedMsg(msgCode uint64) bool {
+	return msgCode == QueryEnodeMsg || msgCode == VersionCertificatesMsg
 }

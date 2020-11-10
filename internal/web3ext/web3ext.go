@@ -766,6 +766,28 @@ web3._extend({
 			call: 'istanbul_removeProxy',
 			params: 1
 		}),
+		new web3._extend.Method({
+			name: 'startAtBlock',
+			call: 'istanbul_startValidatingAtBlock',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'stopAtBlock',
+			call: 'istanbul_stopValidatingAtBlock',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'start',
+			call: 'istanbul_startValidating',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'stop',
+			call: 'istanbul_stopValidating',
+			params: 0,
+		}),
 		new web3._extend.Property({
 			name: 'valEnodeTableInfo',
 			getter: 'istanbul_getValEnodeTable',
@@ -777,6 +799,22 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'currentRoundState',
 			getter: 'istanbul_getCurrentRoundState',
+		}),
+		new web3._extend.Property({
+			name: 'proxies',
+			getter: 'istanbul_getProxiesInfo',
+		}),
+		new web3._extend.Property({
+			name: 'proxiedValidators',
+			getter: 'istanbul_getProxiedValidators',
+		}),
+		new web3._extend.Property({
+			name: 'validating',
+			getter: 'istanbul_isValidating',
+		}),
+		new web3._extend.Property({
+			name: 'replicaState',
+			getter: 'istanbul_getCurrentReplicaState',
 		}),
 	],
 	properties: []

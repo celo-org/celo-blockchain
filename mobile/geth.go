@@ -237,6 +237,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.SyncMode = getSyncMode(config.SyncMode)
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
+		// Use an in memory DB for replica state
+		ethConf.Istanbul.ReplicaStateDBPath = ""
 		// Use an in memory DB for validatorEnode table
 		ethConf.Istanbul.ValidatorEnodeDBPath = ""
 		ethConf.Istanbul.VersionCertificateDBPath = ""
