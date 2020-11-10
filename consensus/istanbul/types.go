@@ -452,6 +452,7 @@ type BlockProcessResult struct {
 	Logs      []*types.Log
 	State     *state.StateDB
 	CreatedAt time.Time
+}
 
 // ## EnodeCertificate ######################################################################
 type EnodeCertificate struct {

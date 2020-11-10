@@ -59,11 +59,11 @@ type CoreBackend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
+	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbul.BlockProcessResult) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(istanbul.Proposal) (time.Duration, error)
+	Verify(istanbul.Proposal) (time.Duration, *istanbul.BlockProcessResult, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
