@@ -23,6 +23,8 @@ fi
 
 # TODO: Create an appropriate README for NPM
 rm README.md
+echo $GOPATH
+ls $GOPATH
 cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a .
 
 npm -f --no-git-tag-version version "$new_version"
