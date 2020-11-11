@@ -108,8 +108,8 @@ jobs:
           command: |
             HOMEBREW_NO_AUTO_UPDATE=1 brew install go
             # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.14"* ]]; then
-              echo "go1.14 is required"
+            if [[ "$(go version)" != "go version go1.13"* ]]; then
+              echo "go1.13 is required"
               exit 1
             fi
       - run:
