@@ -106,10 +106,10 @@ jobs:
       - run:
           name: Setup Go language
           command: |
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install go@1.14
-            HOMEBREW_NO_AUTO_UPDATE=1 brew unlink go
-            HOMEBREW_NO_AUTO_UPDATE=1 brew link go@1.14 --overwrite
+            brew install go
+            brew install go@1.14
+            brew unlink go
+            brew link go@1.14 --overwrite
             # Check that homebrew installed the expected go version
             if [[ "$(go version)" != "go version go1.14"* ]]; then
               echo "go1.14 is required"
