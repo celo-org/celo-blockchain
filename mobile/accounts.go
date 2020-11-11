@@ -224,3 +224,9 @@ func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount 
 	}
 	return &Account{account}, nil
 }
+
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+func (ks *KeyStore) ComputeECDHSharedSecret(a Account, public []byte) ([]byte, error) {
+	return ks.keystore.ComputeECDHSharedSecret(a.account, public)
+}
