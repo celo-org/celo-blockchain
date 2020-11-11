@@ -62,7 +62,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		Celo1Block:          nil,
+		ChurritoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -84,7 +84,7 @@ var (
 		ConstantinopleBlock: big.NewInt(4230000),
 		PetersburgBlock:     big.NewInt(4939394),
 		IstanbulBlock:       big.NewInt(6485846),
-		Celo1Block:          nil,
+		ChurritoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 0,
@@ -104,7 +104,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		Celo1Block:          nil,
+		ChurritoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -125,7 +125,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		Celo1Block:          nil,
+		ChurritoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -225,7 +225,7 @@ type ChainConfig struct {
 	PetersburgBlock     *big.Int `json:"petersburgBlock,omitempty"`     // Petersburg switch block (nil = same as Constantinople)
 	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
-	Celo1Block          *big.Int `json:"celo1Block,omitempty"`          // Celo1 switch block (nil = no fork, 0 = already activated)
+	ChurritoBlock       *big.Int `json:"churritoBlock,omitempty"`       // Churrito switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 
@@ -263,7 +263,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Celo1: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -275,7 +275,7 @@ func (c *ChainConfig) String() string {
 		c.ConstantinopleBlock,
 		c.PetersburgBlock,
 		c.IstanbulBlock,
-		c.Celo1Block,
+		c.ChurritoBlock,
 		engine,
 	)
 }
@@ -332,9 +332,9 @@ func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 	return isForked(c.EWASMBlock, num)
 }
 
-// IsCelo1 returns whether num represents a block number after the Celo1 fork
-func (c *ChainConfig) IsCelo1(num *big.Int) bool {
-	return isForked(c.Celo1Block, num)
+// IsChurrito returns whether num represents a block number after the Churrito fork
+func (c *ChainConfig) IsChurrito(num *big.Int) bool {
+	return isForked(c.ChurritoBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -372,7 +372,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{"constantinopleBlock", c.ConstantinopleBlock},
 		{"petersburgBlock", c.PetersburgBlock},
 		{"istanbulBlock", c.IstanbulBlock},
-		{"celo1Block", c.Celo1Block},
+		{"churritoBlock", c.ChurritoBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -429,8 +429,8 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.EWASMBlock, newcfg.EWASMBlock, head) {
 		return newCompatError("ewasm fork block", c.EWASMBlock, newcfg.EWASMBlock)
 	}
-	if isForkIncompatible(c.Celo1Block, newcfg.Celo1Block, head) {
-		return newCompatError("celo1 fork block", c.Celo1Block, newcfg.Celo1Block)
+	if isForkIncompatible(c.ChurritoBlock, newcfg.ChurritoBlock, head) {
+		return newCompatError("Churrito fork block", c.ChurritoBlock, newcfg.ChurritoBlock)
 	}
 	return nil
 }
@@ -496,9 +496,10 @@ func (err *ConfigCompatError) Error() string {
 // Rules is a one time interface meaning that it shouldn't be used in between transition
 // phases.
 type Rules struct {
-	ChainID                                                          *big.Int
-	IsHomestead, IsEIP150, IsEIP155, IsEIP158                        bool
-	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul, IsCelo1 bool
+	ChainID                                                 *big.Int
+	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
+	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
+	IsChurrito                                              bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -517,6 +518,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsConstantinople: c.IsConstantinople(num),
 		IsPetersburg:     c.IsPetersburg(num),
 		IsIstanbul:       c.IsIstanbul(num),
-		IsCelo1:          c.IsCelo1(num),
+		IsChurrito:       c.IsChurrito(num),
 	}
 }
