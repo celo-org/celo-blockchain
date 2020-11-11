@@ -32,7 +32,6 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
   unit-tests:
     executor: golang
     steps:
@@ -120,6 +119,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
+            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
 
   publish-mobile-client:
     docker:
