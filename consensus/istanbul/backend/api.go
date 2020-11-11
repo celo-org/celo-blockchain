@@ -250,5 +250,8 @@ func (api *API) IsValidating() bool {
 
 // GetCurrentRoundState retrieves the current replica state
 func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
-	return api.istanbul.replicaState.Summary(), nil
+	if api.istanbul.replicaState != nil {
+		return api.istanbul.replicaState.Summary(), nil
+	}
+	return &replica.ReplicaStateSummary{State: "Not a validator"}, nil
 }
