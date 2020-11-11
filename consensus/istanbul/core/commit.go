@@ -17,6 +17,8 @@
 package core
 
 import (
+	"errors"
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -49,12 +51,29 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istan
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
-	if err != nil {
-		return nil, err
+	// TODO(lucas): hardcode at first, but eventually make governable
+	maxValidators := uint32(120)
+
+	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
+	if !c.backend.ChainConfig().IsCelo1(big.NewInt(int64(blockNumber))) {
+		return blscrypto.EncodeEpochSnarkDataWithoutEntropy(
+			blsPubKeys, maxNonSigners, maxValidators,
+			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		)
 	}
 
-	return epochData, nil
+	// Retreive the block hash for the last block of the previous epoch.
+	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
+	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
+		return nil, errors.New("unknown block")
+	}
+
+	return blscrypto.EncodeEpochSnarkData(
+		blsPubKeys, maxNonSigners, maxValidators,
+		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		blscrypto.EpochEntropyFromHash(blockHash),
+		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
+	)
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
