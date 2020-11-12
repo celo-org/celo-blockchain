@@ -44,6 +44,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/wsddn/go-ecdh"
 )
 
 var (
@@ -623,4 +624,27 @@ func zeroKey(k *ecdsa.PrivateKey) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) ([]byte, error) {
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+	gen := ecdh.NewEllipticECDH(crypto.S256())
+	pubKey, ok := gen.Unmarshal(public)
+	if !ok {
+		return nil, errors.New("Could not unmarshal public key from bytes")
+	}
+	secret, err := gen.GenerateSharedSecret(unlockedKey.PrivateKey, pubKey)
+	if err != nil {
+		return nil, err
+	}
+	return secret, nil
 }

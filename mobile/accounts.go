@@ -106,6 +106,11 @@ func (ks *KeyStore) GetAccounts() *Accounts {
 	return &Accounts{ks.keystore.Accounts()}
 }
 
+// Decrypt decrypts an ECIES ciphertext.
+func (ks *KeyStore) Decrypt(account *Account, cipher []byte) ([]byte, error) {
+	return ks.keystore.Decrypt(account.account, cipher, nil, nil)
+}
+
 // DeleteAccount deletes the key matched by account if the passphrase is correct.
 // If a contains no filename, the address must match a unique key.
 func (ks *KeyStore) DeleteAccount(account *Account, passphrase string) error {
@@ -246,4 +251,10 @@ func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount 
 		return nil, err
 	}
 	return &Account{account}, nil
+}
+
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+func (ks *KeyStore) ComputeECDHSharedSecret(a Account, public []byte) ([]byte, error) {
+	return ks.keystore.ComputeECDHSharedSecret(a.account, public)
 }
