@@ -47,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -326,6 +327,11 @@ func (sb *Backend) IsValidating() bool {
 // IsValidator return if instance is a validator (either proxied or standalone)
 func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
+}
+
+// ChainConfig returns the configuration from the embedded blockchain reader.
+func (sb *Backend) ChainConfig() *params.ChainConfig {
+	return sb.chain.Config()
 }
 
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
@@ -657,13 +663,23 @@ func (sb *Backend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
-// AuthorForBlock implements istanbul.Backend.AuthorForBlock
+// AuthorForBlock returns the address of the block offer from a given number.
+// Implements istanbul.Backend.AuthorForBlock
 func (sb *Backend) AuthorForBlock(number uint64) common.Address {
 	if h := sb.chain.GetHeaderByNumber(number); h != nil {
 		a, _ := sb.Author(h)
 		return a
 	}
 	return common.ZeroAddress
+}
+
+// HashForBlock returns the block hash from the canonical chain for the given number.
+// Implements istanbul.Backend.HashForBlock
+func (sb *Backend) HashForBlock(number uint64) common.Hash {
+	if h := sb.chain.GetHeaderByNumber(number); h != nil {
+		return h.Hash()
+	}
+	return common.Hash{}
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
