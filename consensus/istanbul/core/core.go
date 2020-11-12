@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -41,6 +42,9 @@ import (
 type CoreBackend interface {
 	// Address returns the owner's address
 	Address() common.Address
+
+	// ChainConfig retrieves the blockchain's chain configuration.
+	ChainConfig() *params.ChainConfig
 
 	// Validators returns the validator set
 	Validators(proposal istanbul.Proposal) istanbul.ValidatorSet
@@ -89,6 +93,9 @@ type CoreBackend interface {
 
 	// AuthorForBlock returns the proposer of the given block height
 	AuthorForBlock(number uint64) common.Address
+
+	// HashForBlock returns the block header hash of the given block height
+	HashForBlock(number uint64) common.Hash
 
 	// ParentBlockValidators returns the validator set of the given proposal's parent block
 	ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet
