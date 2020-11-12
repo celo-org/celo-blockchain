@@ -112,6 +112,8 @@ jobs:
               echo "go1.13 is required"
               exit 1
             fi
+            echo $GOPATH
+            ls $GOPATH/pkg
       - run:
           name: Compile ios client
           command: make ios
