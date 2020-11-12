@@ -29,6 +29,8 @@ echo "ls ~"
 ls ~
 echo "ls ~/repos"
 ls ~/repos
+echo "ls ~/repos/golang"
+ls ~/repos/golang
 echo "ls /"
 ls /
 echo $GOPATH
