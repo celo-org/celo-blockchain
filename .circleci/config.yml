@@ -112,7 +112,8 @@ jobs:
               echo "go1.13 is required"
               exit 1
             fi
-            ls ~/go/pkg
+            ls ~
+            ls /
       - run:
           name: Compile ios client
           command: make ios
