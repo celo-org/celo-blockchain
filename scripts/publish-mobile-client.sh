@@ -25,7 +25,9 @@ fi
 rm README.md
 echo $GOPATH
 ls $GOPATH
+echo pkg
 ls $GOPATH/pkg
+echo pkg/mod
 ls $GOPATH/pkg/mod
 ls $GOPATH/pkg/mod/github.com/celo-org
 cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a .
