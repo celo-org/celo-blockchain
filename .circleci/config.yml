@@ -24,7 +24,7 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      -run:
+      - run:
           name: Info
           command: |
             echo $GOPATH
