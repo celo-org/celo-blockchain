@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/backendtest"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
@@ -31,23 +32,36 @@ import (
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 
-	return newBlockChainWithKeys(genesis, nodeKeys)
+	bc, be, _ := newBlockChainWithKeys(false, common.Address{}, false, genesis, nodeKeys[0])
+	return bc, be
 }
 
-func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) (*core.BlockChain, *Backend) {
+func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
 	memDB := rawdb.NewMemoryDatabase()
-	config := istanbul.DefaultConfig
+	config := *istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
-	// Use the first key as private key
-	publicKey := nodeKeys[0].PublicKey
-	address := crypto.PubkeyToAddress(publicKey)
-	signerFn := SignFn(nodeKeys[0])
-	signerBLSFn := SignBLSFn(nodeKeys[0])
+	config.Proxy = isProxy
+	config.ProxiedValidatorAddress = proxiedValAddress
+	config.Proxied = isProxied
+	config.Validator = !isProxy
 
-	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
+	b, _ := New(&config, memDB).(*Backend)
+
+	var publicKey ecdsa.PublicKey
+	if !isProxy {
+		publicKey = privateKey.PublicKey
+		address := crypto.PubkeyToAddress(publicKey)
+		decryptFn := DecryptFn(privateKey)
+		signerFn := SignFn(privateKey)
+		signerBLSFn := SignBLSFn(privateKey)
+		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
+	} else {
+		proxyNodeKey, _ := crypto.GenerateKey()
+		publicKey = proxyNodeKey.PublicKey
+	}
 
 	genesis.MustCommit(memDB)
 
@@ -65,19 +79,27 @@ func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) 
 		},
 	)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(consensustest.NewMockP2PServer())
+	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 	b.StartAnnouncing()
-	b.StartValidating(blockchain.HasBadBlock,
-		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
-			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
-		},
-		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
-		})
+
+	if !isProxy {
+		b.SetBlockProcessors(blockchain.HasBadBlock,
+			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
+			})
+
+		if isProxied {
+			b.StartProxiedValidatorEngine()
+		}
+		b.StartValidating()
+	}
 
 	contract_comm.SetInternalEVMHandler(blockchain)
 
-	return blockchain, b
+	return blockchain, b, &config
 }
 
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
@@ -227,10 +249,15 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	ecdsaKey, _ := generatePrivateKey()
-	eciesKey := ecies.ImportECDSA(ecdsaKey)
-	return eciesKey.Decrypt(c, s1, s2)
+func DecryptFn(key *ecdsa.PrivateKey) istanbul.DecryptFn {
+	if key == nil {
+		key, _ = generatePrivateKey()
+	}
+
+	return func(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+		eciesKey := ecies.ImportECDSA(key)
+		return eciesKey.Decrypt(c, s1, s2)
+	}
 }
 
 func SignFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
@@ -319,6 +346,22 @@ func newBackend() (b *Backend) {
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
-	b.Authorize(address, address, &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
+	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key))
 	return
+}
+
+type testBackendFactoryImpl struct{}
+
+// TestBackendFactory can be passed to backendtest.InitTestBackendFactory
+var TestBackendFactory backendtest.TestBackendFactory = testBackendFactoryImpl{}
+
+// New is part of TestBackendInterface.
+func (testBackendFactoryImpl) New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (backendtest.TestBackendInterface, *istanbul.Config) {
+	_, be, config := newBlockChainWithKeys(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
+	return be, config
+}
+
+// GetGenesisAndKeys is part of TestBackendInterface
+func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
+	return getGenesisAndKeys(numValidators, isFullChain)
 }

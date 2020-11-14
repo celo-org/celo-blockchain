@@ -131,9 +131,6 @@ type Handler interface {
 	// NewWork handles a new work event from the miner
 	NewWork() error
 
-	// NewChainHead handles a new head block
-	NewChainHead(*types.Block)
-
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
@@ -144,7 +141,7 @@ type Handler interface {
 	SetP2PServer(P2PServer)
 
 	// RegisterPeer will notify the consensus engine that a new peer has been added
-	RegisterPeer(peer Peer, fromProxiedNode bool)
+	RegisterPeer(peer Peer, fromProxiedNode bool) error
 
 	// UnregisterPeer will notify the consensus engine that a new peer has been removed
 	UnregisterPeer(peer Peer, fromProxiedNode bool)
@@ -166,13 +163,28 @@ type PoW interface {
 type Istanbul interface {
 	Engine
 
+	// IsProxiedValidator returns true if this node is a proxied validator
+	IsProxiedValidator() bool
+
+	// IsProxy returns true if this node is a proxy
+	IsProxy() bool
+
+	// IsPrimary returns true if this node is the primary validator
+	IsPrimary() bool
+
+	// IsPrimaryForSeq returns true if this node is the primary validator for the sequence
+	IsPrimaryForSeq(seq *big.Int) bool
+
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
-	// StartValidating starts the validating engine
-	StartValidating(hasBadBlock func(common.Hash) bool,
+	// SetBlockProcessors sets block processors
+	SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
+
+	// StartValidating starts the validating engine
+	StartValidating() error
 
 	// StopValidating stops the validating engine
 	StopValidating() error
@@ -183,11 +195,11 @@ type Istanbul interface {
 	// StopAnnouncing stops the announcing
 	StopAnnouncing() error
 
-	// StartProxyHandler starts the proxy handler
-	StartProxyHandler() error
+	// StartProxiedValidatorEngine starts the proxied validator engine
+	StartProxiedValidatorEngine() error
 
-	// StopProxyHandler stops the proxy handler
-	StopProxyHandler() error
+	// StopProxiedValidatorEngine stops the proxied validator engine
+	StopProxiedValidatorEngine() error
 
 	// This is only implemented for Istanbul.
 	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.

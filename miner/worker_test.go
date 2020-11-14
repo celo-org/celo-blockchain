@@ -251,13 +251,14 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	address := crypto.PubkeyToAddress(testBankKey.PublicKey)
 
 	config := istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
-	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
+	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer(nil))
 	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine

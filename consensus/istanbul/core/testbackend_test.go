@@ -87,6 +87,18 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 	return self.peers
 }
 
+func (self *testSystemBackend) IsValidating() bool {
+	return true
+}
+
+func (self *testSystemBackend) IsPrimary() bool {
+	return true
+}
+
+func (self *testSystemBackend) IsPrimaryForSeq(seq *big.Int) bool {
+	return true
+}
+
 func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
 	//This doesn't really return the next block validators
 	return self.peers, nil
@@ -224,6 +236,8 @@ func (self *testSystemBackend) AuthorForBlock(number uint64) common.Address {
 func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
 }
+
+func (self *testSystemBackend) UpdateReplicaState(seq *big.Int) { /* pass */ }
 
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
