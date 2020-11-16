@@ -166,7 +166,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
-	aggregatedEpochSnarkDataSeal := signEpochSnakData(keys, []byte("message"), []byte("extra data"))
+	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
 	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
 	if err != nil {
 		return nil, err
@@ -345,7 +345,7 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 
 // this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
 // an abtirary message
-func signEpochSnakData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
+func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
 	useComposite := true
 	cip22 := true
 	signatures := make([][]byte, len(keys))
