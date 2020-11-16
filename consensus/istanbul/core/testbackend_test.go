@@ -17,12 +17,16 @@
 package core
 
 import (
+	bytes2 "bytes"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/common"
@@ -61,6 +65,8 @@ type testSystemBackend struct {
 	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
 	// can inject in different proposal verification statuses.
 	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
+
+	celo1Block *big.Int
 }
 
 type testCommittedMsgs struct {
@@ -89,6 +95,20 @@ func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.V
 
 func (self *testSystemBackend) IsValidating() bool {
 	return true
+}
+
+func (self *testSystemBackend) ChainConfig() *params.ChainConfig {
+	return &params.ChainConfig{
+		Celo1Block: self.celo1Block,
+	}
+}
+
+func (self *testSystemBackend) HashForBlock(number uint64) common.Hash {
+	buffer := new(bytes2.Buffer)
+	_ = binary.Write(buffer, binary.LittleEndian, number)
+	hash := common.Hash{}
+	copy(hash[:], buffer.Bytes())
+	return hash
 }
 
 func (self *testSystemBackend) IsPrimary() bool {
@@ -133,11 +153,11 @@ func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return nil
 }
 
-func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
-	signature, _ := privateKey.SignMessage(data, extra, useComposite)
+	signature, _ := privateKey.SignMessage(data, extra, useComposite, cip22)
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
@@ -404,7 +424,40 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
-		backend := sys.NewBackend(i)
+		backend := sys.NewBackend(i, nil)
+		backend.peers = vset
+		backend.address = vset.GetByIndex(i).Address()
+		backend.key = *keys[i]
+		backend.blsKey = blsKeys[i]
+
+		core := New(backend, &config).(*core)
+		core.logger = testLogger
+		core.validateFn = backend.CheckValidatorSignature
+
+		backend.engine = core
+	}
+
+	return sys
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackendCelo1(n, f, epoch uint64, celo1Block int64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+
+	validators, blsKeys, keys := generateValidators(int(n))
+	sys := newTestSystem(n, f, blsKeys)
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = 300
+	config.TimeoutBackoffFactor = 100
+	config.MinResendRoundChangeTimeout = 1000
+	config.MaxResendRoundChangeTimeout = 10000
+	config.Epoch = epoch
+
+	for i := uint64(0); i < n; i++ {
+		vset := validator.NewSet(validators)
+		backend := sys.NewBackend(i, big.NewInt(celo1Block))
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
@@ -469,13 +522,14 @@ func (t *testSystem) Stop(core bool) {
 	}
 }
 
-func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
+func (t *testSystem) NewBackend(id uint64, celo1Block *big.Int) *testSystemBackend {
 	// assume always success
 	backend := &testSystemBackend{
-		id:     id,
-		sys:    t,
-		events: new(event.TypeMux),
-		db:     rawdb.NewMemoryDatabase(),
+		id:         id,
+		sys:        t,
+		events:     new(event.TypeMux),
+		db:         rawdb.NewMemoryDatabase(),
+		celo1Block: celo1Block,
 	}
 
 	t.backends[id] = backend

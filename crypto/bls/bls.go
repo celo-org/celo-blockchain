@@ -9,15 +9,17 @@ import (
 	"math/big"
 	"reflect"
 
-	//nolint:goimports
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	PUBLICKEYBYTES = bls.PUBLICKEYBYTES
-	SIGNATUREBYTES = bls.SIGNATUREBYTES
+	PUBLICKEYBYTES    = bls.PUBLICKEYBYTES
+	SIGNATUREBYTES    = bls.SIGNATUREBYTES
+	EPOCHENTROPYBYTES = bls.EPOCHENTROPYBYTES
 )
 
 var (
@@ -26,6 +28,13 @@ var (
 )
 
 type SerializedPublicKey [PUBLICKEYBYTES]byte
+
+// EpochEntropyFromHash truncates the given hash to the length of epoch SNARK entropy.
+func EpochEntropyFromHash(hash common.Hash) bls.EpochEntropy {
+	var entropy bls.EpochEntropy
+	copy(entropy[:], hash[:EPOCHENTROPYBYTES])
+	return entropy
+}
 
 // MarshalText returns the hex representation of pk.
 func (pk SerializedPublicKey) MarshalText() ([]byte, error) {
@@ -136,7 +145,7 @@ func PrivateToPublic(privateKeyBytes []byte) (SerializedPublicKey, error) {
 	return pubKeyBytesFixed, nil
 }
 
-func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher, cip22 bool) error {
 	publicKeyObjs := []*bls.PublicKey{}
 	for _, publicKey := range publicKeys {
 		publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
@@ -158,7 +167,7 @@ func VerifyAggregatedSignature(publicKeys []SerializedPublicKey, message []byte,
 	}
 	defer signatureObj.Destroy()
 
-	err = apk.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
+	err = apk.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher, cip22)
 	return err
 }
 
@@ -187,7 +196,7 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	return asigBytes, nil
 }
 
-func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher bool) error {
+func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher, shouldUseCIP22 bool) error {
 	publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 	if err != nil {
 		return err
@@ -200,23 +209,39 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 	}
 	defer signatureObj.Destroy()
 
-	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher)
+	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher, shouldUseCIP22)
 	return err
 }
 
-func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16) ([]byte, error) {
+func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16) ([]byte, []byte, error) {
 	pubKeys := []*bls.PublicKey{}
 	for _, pubKey := range newValSet {
 		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		defer publicKeyObj.Destroy()
 
 		pubKeys = append(pubKeys, publicKeyObj)
 	}
 
-	return bls.EncodeEpochToBytes(epochIndex, maximumNonSigners, pubKeys)
+	message, err := bls.EncodeEpochToBytes(epochIndex, maximumNonSigners, pubKeys)
+	return message, nil, err
+}
+
+func EncodeEpochSnarkDataCIP22(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16, blockHash, parentHash bls.EpochEntropy) ([]byte, []byte, error) {
+	pubKeys := []*bls.PublicKey{}
+	for _, pubKey := range newValSet {
+		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
+		if err != nil {
+			return nil, nil, err
+		}
+		defer publicKeyObj.Destroy()
+
+		pubKeys = append(pubKeys, publicKeyObj)
+	}
+
+	return bls.EncodeEpochToBytesCIP22(epochIndex, blockHash, parentHash, maximumNonSigners, pubKeys)
 }
 
 func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignature, error) {
