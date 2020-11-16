@@ -73,8 +73,10 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 		return nil, nil, false, errors.New("unknown block")
 	}
 
+	// TODO(lucas): hardcode at first, but eventually make governable
+	maxValidators := uint32(150)
 	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
-		blsPubKeys, maxNonSigners,
+		blsPubKeys, maxNonSigners, maxValidators,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),

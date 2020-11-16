@@ -71,3 +71,7 @@ require (
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+replace (
+	github.com/celo-org/celo-bls-go => ../celo-bls-go
+)

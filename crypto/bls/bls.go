@@ -229,7 +229,7 @@ func EncodeEpochSnarkData(newValSet []SerializedPublicKey, maximumNonSigners uin
 	return message, nil, err
 }
 
-func EncodeEpochSnarkDataCIP22(newValSet []SerializedPublicKey, maximumNonSigners uint32, epochIndex uint16, blockHash, parentHash bls.EpochEntropy) ([]byte, []byte, error) {
+func EncodeEpochSnarkDataCIP22(newValSet []SerializedPublicKey, maximumNonSigners, maxValidators uint32, epochIndex uint16, blockHash, parentHash bls.EpochEntropy) ([]byte, []byte, error) {
 	pubKeys := []*bls.PublicKey{}
 	for _, pubKey := range newValSet {
 		publicKeyObj, err := bls.DeserializePublicKeyCached(pubKey[:])
@@ -241,7 +241,7 @@ func EncodeEpochSnarkDataCIP22(newValSet []SerializedPublicKey, maximumNonSigner
 		pubKeys = append(pubKeys, publicKeyObj)
 	}
 
-	return bls.EncodeEpochToBytesCIP22(epochIndex, blockHash, parentHash, maximumNonSigners, pubKeys)
+	return bls.EncodeEpochToBytesCIP22(epochIndex, blockHash, parentHash, maximumNonSigners, maxValidators, pubKeys)
 }
 
 func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignature, error) {
