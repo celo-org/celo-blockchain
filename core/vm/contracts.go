@@ -75,6 +75,7 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+	getValidatorBLSAddress       = celoPrecompileAddress(14)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -126,6 +127,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+	getValidatorBLSAddress:       &getValidatorBLS{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -875,6 +877,60 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
+}
+
+type getValidatorBLS struct{}
+
+func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorBLSGas
+}
+
+// Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
+func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of two arguments:
+	//   index: 32 byte integer representing the index of the validator to get
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 64 {
+		return nil, gas, ErrInputLength
+	}
+
+	index := new(big.Int).SetBytes(input[0:32])
+
+	blockNumber := new(big.Int).SetBytes(input[32:64])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Validator set for the genesis block is empty, so any index is out of bounds.
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+
+	// Ensure index, which is guaranteed to be non-negative, is valid.
+	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+
+	publicKeyBytes := validators[index.Uint64()].BLSPublicKey()
+
+	publicKey, err := bls.DeserializePublicKeyCached(publicKeyBytes[:])
+	if err != nil {
+		return nil, gas, err
+	}
+
+	uncompressedBytes, err := publicKey.SerializeUncompressed()
+	if err != nil {
+		return nil, gas, err
+	}
+
+	return uncompressedBytes, gas, nil
 }
 
 type numberValidators struct{}
