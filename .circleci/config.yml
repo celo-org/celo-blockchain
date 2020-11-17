@@ -24,13 +24,6 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      - run:
-          name: Info
-          command: |
-            echo $GOPATH
-            ls $GOPATH
-            echo $GOPATH/pkg/mod
-            ls $GOPATH/pkg/mod
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -136,6 +129,9 @@ jobs:
           - GOPATH=/go
     working_directory: ~/repos/geth
     steps:
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
       - attach_workspace:
           at: ~/repos
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
