@@ -337,6 +337,12 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 				sb.logger.Warn("Error refreshing validator peers", "err", err)
 			}
 		}
+
+		if sb.IsProxiedValidator() {
+			if err := sb.proxiedValidatorEngine.NewEpoch(); err != nil {
+				sb.logger.Warn("Error while notifying proxied validator engine of new epoch", "err", err)
+			}
+		}
 	}
 
 	sb.blocksFinalizedTransactionsGauge.Update(int64(len(newBlock.Transactions())))

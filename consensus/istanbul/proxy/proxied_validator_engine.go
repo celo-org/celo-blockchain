@@ -356,6 +356,22 @@ func (pv *proxiedValidatorEngine) SendForwardMsgToAllProxies(finalDestAddresses 
 	return nil
 }
 
+// NewEpoch will notify the proxied validator's thread that a new epoch started
+func (pv *proxiedValidatorEngine) NewEpoch() error {
+	if !pv.Running() {
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
+
+	select {
+	case pv.newBlockchainEpoch <- struct{}{}:
+
+	case <-pv.quit:
+		return istanbul.ErrStoppedProxiedValidatorEngine
+	}
+
+	return nil
+}
+
 // run handles changes to proxies and validator assignments
 func (pv *proxiedValidatorEngine) threadRun() {
 	var (
