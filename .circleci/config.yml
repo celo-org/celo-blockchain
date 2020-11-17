@@ -24,6 +24,9 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
+      - run:
+          name: Move libbls
+          command: cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a ~/repo/geth/libbls_snark_sys.a
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -32,8 +35,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - ../../../go/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
-  unit-tests:
+   unit-tests:
     executor: golang
     steps:
       - attach_workspace:
