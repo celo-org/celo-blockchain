@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -237,6 +238,10 @@ func (h *clientHandler) handle(p *serverPeer) error {
 			}
 		}
 	}()
+
+	// Mark the peer starts to be served.
+	atomic.StoreUint32(&p.serving, 1)
+	defer atomic.StoreUint32(&p.serving, 0)
 
 	// Spawn a main loop to handle all incoming messages.
 	for {

@@ -22,7 +22,9 @@ package les
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math/big"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -346,7 +348,7 @@ func (p *testPeer) close() {
 	p.app.Close()
 }
 
-func newTestPeerPair(name string, version int, server *serverHandler, client *clientHandler) (*testPeer, <-chan error, *testPeer, <-chan error) {
+func newTestPeerPair(name string, version int, server *serverHandler, client *clientHandler) (*testPeer, *testPeer, error) {
 	// Create a message pipe to communicate through
 	app, net := p2p.MsgPipe()
 
@@ -370,11 +372,25 @@ func newTestPeerPair(name string, version int, server *serverHandler, client *cl
 	go func() {
 		select {
 		case <-client.closeCh:
-			errc1 <- p2p.DiscQuitting
-		case errc1 <- client.handle(peer2):
+			errc2 <- p2p.DiscQuitting
+		case errc2 <- client.handle(peer2):
 		}
 	}()
-	return &testPeer{cpeer: peer1, net: net, app: app}, errc1, &testPeer{speer: peer2, net: app, app: net}, errc2
+	// Ensure the connection is established or exits when any error occurs
+	for {
+		select {
+		case err := <-errc1:
+			return nil, nil, fmt.Errorf("Failed to establish protocol connection %v", err)
+		case err := <-errc2:
+			return nil, nil, fmt.Errorf("Failed to establish protocol connection %v", err)
+		default:
+		}
+		if atomic.LoadUint32(&peer1.serving) == 1 && atomic.LoadUint32(&peer2.serving) == 1 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return &testPeer{cpeer: peer1, net: net, app: app}, &testPeer{speer: peer2, net: app, app: net}, nil
 }
 
 // handshake simulates a trivial handshake that expects the same state from the
@@ -513,17 +529,20 @@ func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, 
 		callback(scIndexer, sbIndexer, sbtIndexer)
 	}
 	var (
+		err          error
 		speer, cpeer *testPeer
-		err1, err2   <-chan error
 	)
 	if connect {
-		cpeer, err1, speer, err2 = newTestPeerPair("peer", protocol, server, client)
+		done := make(chan struct{})
+		client.syncDone = func() { close(done) }
+		cpeer, speer, err = newTestPeerPair("peer", protocol, server, client)
+		if err != nil {
+			t.Fatalf("Failed to connect testing peers %v", err)
+		}
 		select {
-		case <-time.After(time.Millisecond * 300):
-		case err := <-err1:
-			t.Fatalf("peer 1 handshake error: %v", err)
-		case err := <-err2:
-			t.Fatalf("peer 2 handshake error: %v", err)
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("test peer did not connect and sync within 3s")
 		}
 	}
 	s := &testServer{
