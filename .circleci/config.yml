@@ -32,7 +32,6 @@ jobs:
           root: ~/repos
           paths:
             - geth
-  
   unit-tests:
     executor: golang
     steps:
@@ -129,11 +128,11 @@ jobs:
           - GOPATH=/go
     working_directory: ~/repos/geth
     steps:
+      - attach_workspace:
+          at: ~/repos
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - attach_workspace:
-          at: ~/repos
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
