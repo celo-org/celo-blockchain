@@ -39,10 +39,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
-      - persist_to_workspace:
-          root: $GOPATH
-            - pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
-
+  
   unit-tests:
     executor: golang
     steps:
