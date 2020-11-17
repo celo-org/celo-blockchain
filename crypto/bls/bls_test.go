@@ -34,7 +34,7 @@ func split(buf []byte, lim int) []SerializedPublicKey {
 	}
 	if len(buf) > 0 {
 		pubKeyBytesFixed := SerializedPublicKey{}
-		copy(pubKeyBytesFixed[:], buf[:len(buf)])
+		copy(pubKeyBytesFixed[:], buf)
 		chunks = append(chunks, pubKeyBytesFixed)
 	}
 	return chunks
