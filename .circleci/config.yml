@@ -39,7 +39,9 @@ jobs:
           root: ~/repos
           paths:
             - geth
-            - $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
+      - persist_to_workspace:
+          root: $GOPATH
+            - pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a
 
   unit-tests:
     executor: golang
@@ -121,8 +123,6 @@ jobs:
               echo "go1.13 is required"
               exit 1
             fi
-            ls ~
-            ls /
       - run:
           name: Compile ios client
           command: make ios
