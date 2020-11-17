@@ -405,10 +405,11 @@ func (d *dialScheduler) checkDial(n *enode.Node) error {
 	return nil
 }
 
-// startStaticDials starts static dials for all nodes in the static pool.
+// startStaticDials starts static dials nodes in the static pool, subject to the maxActiveDials limit
 func (d *dialScheduler) startStaticDials() (started int) {
-	for started = 0; len(d.staticPool) > 0; started++ {
-		idx := 0
+	limit := d.maxActiveDials - len(d.dialing)
+	for started = 0; started < limit && len(d.staticPool) > 0; started++ {
+		idx := d.rand.Intn(len(d.staticPool))
 		task := d.staticPool[idx]
 		d.startDial(task)
 		d.removeFromStaticPool(idx)

@@ -938,9 +938,6 @@ running:
 				purpose := static[c.node.ID()].Add(trusted[c.node.ID()])
 				p := srv.launchPeer(c, purpose)
 				peers[c.node.ID()] = p
-				if p.Inbound() {
-					inboundCount++
-				}
 				srv.log.Debug("Adding p2p peer", "peercount", len(peers), "id", p.ID(), "conn", c.flags, "addr", p.RemoteAddr(), "name", truncateName(c.name))
 				srv.dialsched.peerAdded(c)
 				if conn, ok := c.fd.(*meteredConn); ok {

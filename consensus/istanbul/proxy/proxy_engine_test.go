@@ -152,8 +152,8 @@ func TestHandleEnodeCertificateMessage(t *testing.T) {
 	unelectedValBE := unelectedValBEi.(BackendForProxiedValidatorEngine)
 	unelectedValPeer := consensustest.NewMockPeer(unelectedValBE.SelfNode(), p2p.AnyPurpose)
 
-	// Sleep for 5 seconds so that val1BE will generate it's enode certificate.
-	time.Sleep(5 * time.Second)
+	// Sleep for 6 seconds so that val1BE will generate it's enode certificate.
+	time.Sleep(6 * time.Second)
 
 	// Test that the node will forward a message from val within val connection set
 	testEnodeCertFromRemoteVal(t, val1BE, val1Peer, proxyBEi)

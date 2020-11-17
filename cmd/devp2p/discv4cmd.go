@@ -36,6 +36,7 @@ var (
 	discv4Command = cli.Command{
 		Name:  "discv4",
 		Usage: "Node Discovery v4 tools",
+		Flags: []cli.Flag{networkIdFlag},
 		Subcommands: []cli.Command{
 			discv4PingCommand,
 			discv4RequestRecordCommand,
