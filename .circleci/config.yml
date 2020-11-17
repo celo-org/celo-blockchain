@@ -126,8 +126,6 @@ jobs:
   publish-mobile-client:
     docker:
       - image: circleci/node:10
-        environment:
-          - GOPATH=/go
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
