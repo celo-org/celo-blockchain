@@ -122,7 +122,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
-  
+
   publish-mobile-client:
     docker:
       - image: circleci/node:10
@@ -279,9 +279,9 @@ workflows:
             - end-to-end-sync-test
             - end-to-end-transfer-test
             - end-to-end-validator-order-test
-           filters:
-             branches:
-               only: master
+          filters:
+            branches:
+              only: master
       - lightest-sync-test:
           requires:
             - build-geth
