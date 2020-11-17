@@ -112,7 +112,6 @@ func (c *Blake2s) Run(input []byte) ([]byte, error) {
 //
 // NB: numbers longer than 1 byte are LE.
 func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
-
 	if len(input) < blake2sConfigLen {
 		return nil, errors.New("Blake2s unmarshalling error. Received fewer than 32 bytes")
 	}
@@ -172,13 +171,19 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 	}
 
 	offset := blake2sConfigLen + len(config.Key)
+	if len(input) < offset+2 {
+		return nil, errors.New("Blake2Xs unmarshalling error. Missing desired output size")
+	}
 
 	// Read BE U32
 	var desired uint16
 	desired = uint16(input[offset]) << 8
 	desired = uint16(input[offset+1]) << 0
-	if desired == 0 {
+	if desired == 0 || desired > config.Size {
 		desired = config.Size
+	}
+	if desired > 4096 {
+		desired = 4096
 	}
 
 	preimage := input[offset+2:]
@@ -193,8 +198,6 @@ func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
 	return output[:written], nil
 }
 
-// this is exactly the same as previous, but with 1 extra byte, as digest
-// length is u16 instead of u8
 func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
 	if len(input) < blake2sConfigLen {
 		return nil, errors.New("Blake2xs unmarshalling error. Received fewer than 32 bytes")
