@@ -23,6 +23,7 @@ fi
 
 # TODO: Create an appropriate README for NPM
 rm README.md
+ls
 echo $GOPATH
 ls $GOPATH
 echo pkg
