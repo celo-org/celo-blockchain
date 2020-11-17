@@ -35,7 +35,7 @@ jobs:
           root: ~/repos
           paths:
             - geth
-   unit-tests:
+  unit-tests:
     executor: golang
     steps:
       - attach_workspace:
