@@ -62,7 +62,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       big.NewInt(3976252),
+		ChurritoBlock:       nil,
 		DonutBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
@@ -106,7 +106,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       big.NewInt(2598139),
+		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
@@ -128,7 +128,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       big.NewInt(2320192),
+		ChurritoBlock:       nil,
 		DonutBlock:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
