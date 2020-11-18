@@ -1243,6 +1243,9 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 type cip20HashFunctions struct{}
 
 func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
+	if len(input) == 0 {
+		return params.InvalidCip20Gas
+	}
 
 	if h, ok := Cip20HashesDonut[input[0]]; ok {
 		return h.RequiredGas(input[1:])
@@ -1254,7 +1257,7 @@ func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 
-	if err != nil {
+	if err != nil || len(input) == 0 {
 		return nil, gas, err
 	}
 
