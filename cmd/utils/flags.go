@@ -1667,13 +1667,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
 	}
-	if ctx.GlobalIsSet(DNSDiscoveryFlag.Name) {
-		urls := ctx.GlobalString(DNSDiscoveryFlag.Name)
-		if urls == "" {
-			cfg.DiscoveryURLs = []string{}
-		} else {
-			cfg.DiscoveryURLs = splitAndTrim(urls)
-		}
+	// Disable DNS discovery by default (by using the flag's value even if it hasn't been set and so
+	// has the default value ""), since we don't have DNS discovery set up for Celo.
+	// Note that passing --discovery.dns "" is the way the Geth docs specify for disabling DNS discovery,
+	// so here we just make that be the default.
+	if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
+		cfg.DiscoveryURLs = []string{}
+	} else {
+		cfg.DiscoveryURLs = splitAndTrim(urls)
 	}
 
 	// Override any default configs for hard coded networks.
