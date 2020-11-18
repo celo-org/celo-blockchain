@@ -320,7 +320,8 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
-	// * if this is a proxy or a non proxied validator, refresh the validator enode table.
+	// * If this is a proxy or a non proxied validator, refresh the validator enode table.
+	// * If this is a proxied validator, notify the proxied validator engine of a new epoch.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
 
 		sb.coreMu.RLock()
