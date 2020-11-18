@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/dchest/blake2s"
-	"github.com/dchest/blake2xs"
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/sha3"
 )
@@ -26,7 +25,6 @@ var Cip20HashesDonut = map[uint8]Cip20Hash{
 	1:    &Sha3_512{},
 	2:    &Keccak512{},
 	0x10: &Blake2s{},
-	0x11: &Blake2Xs{},
 }
 
 // The Sha3_256 hash function
@@ -143,86 +141,6 @@ func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 	}
 
 	c.Key = input[32 : 32+keySize]
-
-	return c, nil
-}
-
-// The Blake2Xs hash function
-type Blake2Xs struct{}
-
-// RequiredGas for Blake2Xs
-func (c *Blake2Xs) RequiredGas(input []byte) uint64 {
-	return 0 // TODO: James to benchmark
-}
-
-// TODO(James): Account for isLastNode
-
-// Run function for Blake2Xs
-func (c *Blake2Xs) Run(input []byte) ([]byte, error) {
-
-	config, err := unmarshalBlake2xsConfig(input)
-	if err != nil {
-		return nil, err
-	}
-
-	xof, err := blake2xs.NewXOF(config)
-	if err != nil {
-		return nil, err
-	}
-
-	offset := blake2sConfigLen + len(config.Key)
-	if len(input) < offset+2 {
-		return nil, errors.New("Blake2Xs unmarshalling error. Missing desired output size")
-	}
-
-	// Read BE U32
-	var desired uint16
-	desired = uint16(input[offset]) << 8
-	desired = uint16(input[offset+1]) << 0
-	if desired == 0 || desired > config.Size {
-		desired = config.Size
-	}
-	if desired > 4096 {
-		desired = 4096
-	}
-
-	preimage := input[offset+2:]
-	xof.Write(preimage)
-
-	output := make([]byte, desired)
-	written, err := xof.Read(output)
-	if err != nil {
-		return nil, err
-	}
-
-	return output[:written], nil
-}
-
-func unmarshalBlake2xsConfig(input []byte) (*blake2xs.Config, error) {
-	if len(input) < blake2sConfigLen {
-		return nil, errors.New("Blake2xs unmarshalling error. Received fewer than 32 bytes")
-	}
-
-	conf, err := unmarshalBlake2sConfig(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read LE U16
-	var size uint16
-	size |= uint16(input[12]) << 0
-	size |= uint16(input[13]) << 8
-
-	// reduce by 2 bytes
-	conf.Tree.NodeOffset = uint64(uint32(conf.Tree.NodeOffset))
-
-	c := &blake2xs.Config{
-		Size:   size,
-		Key:    conf.Key,
-		Salt:   conf.Salt,
-		Person: conf.Person,
-		Tree:   conf.Tree,
-	}
 
 	return c, nil
 }
