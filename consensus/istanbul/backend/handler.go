@@ -320,7 +320,8 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 
 	// If this is the last block of the epoch:
 	// * Print an easy to find log message giving our address and whether we're elected in next epoch.
-	// * if this is a proxy or a non proxied validator, refresh the validator enode table.
+	// * If this is a node maintaining validator connections (e.g. a proxy or a standalone validator), refresh the validator enode table.
+	// * If this is a proxied validator, notify the proxied validator engine of a new epoch.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
 
 		sb.coreMu.RLock()
@@ -335,6 +336,12 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 			sb.logger.Trace("At end of epoch and going to refresh validator peers", "new_block_number", newBlock.Number().Uint64())
 			if err := sb.RefreshValPeers(); err != nil {
 				sb.logger.Warn("Error refreshing validator peers", "err", err)
+			}
+		}
+
+		if sb.IsProxiedValidator() {
+			if err := sb.proxiedValidatorEngine.NewEpoch(); err != nil {
+				sb.logger.Warn("Error while notifying proxied validator engine of new epoch", "err", err)
 			}
 		}
 	}
