@@ -119,6 +119,11 @@ func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 	}
 	c.Size = input[0]
 	keySize := input[1]
+
+	if keySize > 32 {
+		return nil, errors.New("Blake2s unmarshalling error. Key size must be 32 bytes or fewer")
+	}
+
 	c.Tree.Fanout = input[2]
 	c.Tree.MaxDepth = input[3]
 
@@ -140,7 +145,7 @@ func unmarshalBlake2sConfig(input []byte) (*blake2s.Config, error) {
 		return nil, errors.New("Blake2s unmarshalling error. Too few bytes to unmarshal Key")
 	}
 
-	c.Key = input[32 : 32+keySize]
+	c.Key = input[blake2sConfigLen : blake2sConfigLen+keySize]
 
 	return c, nil
 }
