@@ -50,8 +50,8 @@ import (
 type LightEthereum struct {
 	lesCommons
 
-    peers       *serverPeerSet
-    reqDist     *requestDistributor
+	peers       *serverPeerSet
+	reqDist     *requestDistributor
 	retriever   *retrieveManager
 	odr         *LesOdr
 	relay       *lesTxRelay

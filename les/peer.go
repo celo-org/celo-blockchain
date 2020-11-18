@@ -1025,7 +1025,7 @@ func newClientPeerSet() *clientPeerSet {
 
 // subscribe adds a service to be notified about added or removed
 // peers and also register all active peers into the given service.
-func (ps *clientPeerSet) subscribe(sub clientPeerSubscriber) {
+func (ps *clientPeerSet) subscribe(sub clientPeerSubscriber) { // nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1036,7 +1036,7 @@ func (ps *clientPeerSet) subscribe(sub clientPeerSubscriber) {
 }
 
 // unSubscribe removes the specified service from the subscriber pool.
-func (ps *clientPeerSet) unSubscribe(sub clientPeerSubscriber) {
+func (ps *clientPeerSet) unSubscribe(sub clientPeerSubscriber) { // nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1087,7 +1087,7 @@ func (ps *clientPeerSet) unregister(id string) error {
 }
 
 // ids returns a list of all registered peer IDs
-func (ps *clientPeerSet) ids() []string {
+func (ps *clientPeerSet) ids() []string { // nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -1168,7 +1168,7 @@ func (ps *serverPeerSet) subscribe(sub serverPeerSubscriber) {
 }
 
 // unSubscribe removes the specified service from the subscriber pool.
-func (ps *serverPeerSet) unSubscribe(sub serverPeerSubscriber) {
+func (ps *serverPeerSet) unSubscribe(sub serverPeerSubscriber) { // nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1264,7 +1264,7 @@ func (ps *serverPeerSet) len() int {
 // bestPeer retrieves the known peer with the currently highest total difficulty.
 // If the peerset is "client peer set", then nothing meaningful will return. The
 // reason is client peer never send back their latest status to server.
-func (ps *serverPeerSet) bestPeer() *serverPeer {
+func (ps *serverPeerSet) bestPeer() *serverPeer { // nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
