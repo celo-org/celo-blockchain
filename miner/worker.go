@@ -896,7 +896,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 
-		lastRandomness, err := random.GetLastRandomness(w.validator, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		lastRandomness, err := random.GetLastRandomness(w.validator, w.db, w.current.header, w.current.state, w.chain, w.engine, randomSeed)
 		if err != nil {
 			log.Error("Failed to get last randomness", "err", err)
 			return

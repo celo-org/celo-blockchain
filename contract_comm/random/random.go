@@ -159,9 +159,9 @@ func IsRunning() bool {
 // looking up our last commitment in the smart contract, and then finding the
 // corresponding preimage in a (commitment => randomness) mapping we keep in the
 // database.
-func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *types.Header, state vm.StateDB, chain consensus.ChainReader, seed []byte) (common.Hash, error) {
+func GetLastRandomness(validator common.Address, db *ethdb.Database, header *types.Header, state vm.StateDB, chain consensus.ChainReader, engine consensus.Engine, seed []byte) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, params.MaxGasForCommitments, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{validator}, &lastCommitment, params.MaxGasForCommitments, header, state)
 	if err != nil {
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err
@@ -179,7 +179,11 @@ func GetLastRandomness(coinbase common.Address, db *ethdb.Database, header *type
 		for {
 			blockHeader := chain.GetHeaderByHash(parentBlockHash)
 			parentBlockHash = blockHeader.ParentHash
-			if blockHeader.Coinbase == coinbase {
+			author, aErr := engine.Author(blockHeader)
+			if aErr != nil {
+				log.Error("Failed to get header author", "err", aErr)
+			}
+			if author == validator {
 				break
 			}
 		}
