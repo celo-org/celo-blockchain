@@ -166,7 +166,8 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
-	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
+	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
+	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +276,7 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 		key, _ = generatePrivateKey()
 	}
 
-	return func(_ accounts.Account, data []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+	return func(_ accounts.Account, data []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 		if err != nil {
 			return blscrypto.SerializedSignature{}, err
@@ -287,7 +288,7 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(data, extraData, useComposite)
+		signature, err := privateKey.SignMessage(data, extraData, useComposite, cip22)
 		if err != nil {
 			return blscrypto.SerializedSignature{}, err
 		}
@@ -306,6 +307,7 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
 	extraData := []byte{}
 	useComposite := false
+	cip22 := false
 	round := big.NewInt(0)
 	headerHash := block.Header().Hash()
 	signatures := make([][]byte, len(keys))
@@ -314,7 +316,7 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 
 	for i, key := range keys {
 		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite)
+		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite, cip22)
 		if err != nil {
 			panic("could not sign msg")
 		}
@@ -335,6 +337,41 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 	asig := types.IstanbulAggregatedSeal{
 		Bitmap:    bitmap,
 		Round:     round,
+		Signature: asigBytes,
+	}
+
+	return asig
+}
+
+// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
+// an abtirary message
+func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
+	useComposite := true
+	cip22 := true
+	signatures := make([][]byte, len(keys))
+
+	for i, key := range keys {
+		signFn := SignBLSFn(key)
+		sig, err := signFn(accounts.Account{}, message, extraData, useComposite, cip22)
+		if err != nil {
+			panic("could not sign msg")
+		}
+		signatures[i] = sig[:]
+	}
+
+	asigBytes, err := blscrypto.AggregateSignatures(signatures)
+	if err != nil {
+		panic("could not aggregate sigs")
+	}
+
+	// create the bitmap from the validators
+	bitmap := big.NewInt(0)
+	for i := 0; i < len(keys); i++ {
+		bitmap.SetBit(bitmap, i, 1)
+	}
+
+	asig := types.IstanbulEpochValidatorSetSeal{
+		Bitmap:    bitmap,
 		Signature: asigBytes,
 	}
 

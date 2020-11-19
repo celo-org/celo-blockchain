@@ -23,6 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/ethereum/go-ethereum/common"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -170,4 +174,53 @@ func TestVerifyProposal(t *testing.T) {
 				}
 			})
 	}
+}
+
+func TestEpochSnarkData(t *testing.T) {
+	N := uint64(4)
+	F := uint64(1)
+
+	sys := NewTestSystemWithBackendCelo1(N, F, 1, 2)
+
+	close := sys.Run(true)
+	defer close()
+
+	request1 := makeBlock(1)
+	sys.backends[0].NewRequest(request1)
+
+	<-time.After(1 * time.Second)
+
+	request2 := makeBlock(2)
+	sys.backends[0].NewRequest(request2)
+
+	<-time.After(1 * time.Second)
+
+	backendCore := sys.backends[0].engine.(*core)
+	privateKey, _ := bls.DeserializePrivateKey(sys.backends[0].blsKey)
+	defer privateKey.Destroy()
+
+	serializedPrivateKey, _ := privateKey.Serialize()
+
+	publicKey, _ := blscrypto.PrivateToPublic(serializedPrivateKey)
+
+	message, extraData, cip22, _ := backendCore.generateEpochValidatorSetData(0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	if cip22 || len(extraData) > 0 {
+		t.Errorf("Unexpected cip22 (%t != false) or extraData length (%v > 0)", cip22, len(extraData))
+	}
+	epochValidatorSetSeal, _ := backendCore.backend.SignBLS(message, extraData, true, cip22)
+
+	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
+		t.Errorf("Failed verifying BLS signature")
+	}
+
+	message, extraData, cip22, _ = backendCore.generateEpochValidatorSetData(2, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	if !cip22 || len(extraData) == 0 {
+		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", cip22, len(extraData))
+	}
+	epochValidatorSetSeal, _ = backendCore.backend.SignBLS(message, extraData, true, cip22)
+
+	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
+		t.Errorf("Failed verifying BLS signature after Celo1")
+	}
+
 }
