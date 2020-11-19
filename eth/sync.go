@@ -193,8 +193,8 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 		return
 	}
 	// Make sure the peer's TD is higher than our own
-	currentBlock := pm.blockchain.CurrentBlock()
-	td := pm.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())
+	currentHeader := pm.blockchain.CurrentHeader()
+	td := pm.blockchain.GetTd(currentHeader.Hash(), currentHeader.Number.Uint64())
 
 	// Otherwise try to sync with the downloader
 	mode := downloader.FullSync
@@ -202,7 +202,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 		// Fast sync was explicitly requested, and explicitly granted
 		mode = downloader.FastSync
 	} else if pivot := rawdb.ReadLastPivotNumber(pm.chaindb); pivot != nil {
-		if currentBlock.NumberU64() < *pivot {
+		if currentHeader.Number.Uint64() < *pivot {
 			block := pm.blockchain.CurrentFastBlock()
 			td = pm.blockchain.GetTdByHash(block.Hash())
 			mode = downloader.FastSync
