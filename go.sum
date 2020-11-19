@@ -48,6 +48,8 @@ github.com/celo-org/celo-bls-go v0.2.1 h1:9S9rF2Lrsp8GFlDDVN3fX3U5ix7AhDqXu3lCI3
 github.com/celo-org/celo-bls-go v0.2.1/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/celo-bls-go v0.2.2 h1:9qhmOYijPCSqk3JsWrPoyzfmCszsHMlcNaNewWyeKjA=
 github.com/celo-org/celo-bls-go v0.2.2/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.3 h1:V9rVBDqxP3ntSFTXE6FKledEYEFqYFF3/NBDEw6AYtk=
+github.com/celo-org/celo-bls-go v0.2.3/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/gosigar v0.10.5-celo1 h1:LbhCsvNot586MAVvGFVF4cekBAo1pAYfUxktl8VuPas=
 github.com/celo-org/gosigar v0.10.5-celo1/go.mod h1:/kPo9MOBSowZbtkqUg0tJ048OJJVjG8dpaHKwAgBLz4=
 github.com/cespare/cp v0.1.0 h1:SE+dxFebS7Iik5LK0tsi1k9ZCxEaFX4AjQmoyA+1dJk=

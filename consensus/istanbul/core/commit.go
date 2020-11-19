@@ -44,7 +44,7 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 
 // Generates serialized epoch data for use in the Plumo SNARK circuit.
 // Block number and hash may be information for a pending block.
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
 		return nil, nil, false, errNotLastBlockInEpoch
 	}
@@ -78,6 +78,7 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
 		blsPubKeys, maxNonSigners, maxValidators,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		round,
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
@@ -100,7 +101,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, sub.Digest, newValSet)
+	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
@@ -282,7 +283,7 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, comSub.Subject.Digest, newValSet)
+	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil
