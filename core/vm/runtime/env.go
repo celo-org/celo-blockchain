@@ -17,7 +17,6 @@
 package runtime
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
@@ -25,7 +24,8 @@ func NewEnv(cfg *Config) *vm.EVM {
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
 		Transfer:    vm.Transfer,
-		GetHash:     func(uint64) common.Hash { return common.Hash{} },
+
+		GetHash: cfg.GetHashFn,
 
 		Origin:      cfg.Origin,
 		Coinbase:    cfg.Coinbase,
