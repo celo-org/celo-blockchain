@@ -306,6 +306,8 @@ func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, us
 		return blscrypto.SerializedSignature{}, err
 	}
 
+	// log.Warn("sign bls", "bytes", privateKeyBytes)
+
 	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err

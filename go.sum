@@ -30,8 +30,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6/go.mod h1:Dmm/EzmjnCiweXmzRIAiUWCInVmPgjkzgv5k4tVyXiQ=
 github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72 h1:fUmDBbSvv1uOzo/t8WaxZMVb7BxJ8JECo5lGoR9c5bA=
 github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72/go.mod h1:OEE5igu/CDjGegM1Jn6ZMo7R6LlV/JChAkjfQQIRLpg=
-github.com/celo-org/celo-bls-go v0.2.2 h1:9qhmOYijPCSqk3JsWrPoyzfmCszsHMlcNaNewWyeKjA=
-github.com/celo-org/celo-bls-go v0.2.2/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.4 h1:V1y92kM5IRJWQZ6DCwqiKLW7swmUA5y/dPJ9YbU4HfA=
+github.com/celo-org/celo-bls-go v0.2.4/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/cespare/cp v0.1.0 h1:SE+dxFebS7Iik5LK0tsi1k9ZCxEaFX4AjQmoyA+1dJk=
 github.com/cespare/cp v0.1.0/go.mod h1:SOGHArjBr4JWaSDEVpWpo/hNg6RoKrls6Oh40hiwW+s=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=

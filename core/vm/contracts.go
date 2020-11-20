@@ -1456,10 +1456,13 @@ func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas
 	// > - `256` bytes of G2 point encoding
 	// > Output is a `32` bytes where last single byte is `0x01` if pairing result is equal to multiplicative identity in a pairing target field and `0x00` otherwise
 	// > (which is equivalent of Big Endian encoding of Solidity values `uint256(1)` and `uin256(0)` respectively).
+	log.Warn("Pairing")
 	k := len(input) / 384
 	if len(input) == 0 || len(input)%384 != 0 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
+
+	log.Warn("Input len", "len", len(input), "input", input)
 
 	// Initialize BLS12-377 pairing engine
 	e := bls12377.NewPairingEngine()
@@ -1467,19 +1470,25 @@ func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas
 
 	// Decode pairs
 	for i := 0; i < k; i++ {
+		log.Warn("Pair 1")
+
 		off := 384 * i
 		t0, t1, t2 := off, off+128, off+384
 
 		// Decode G1 point
+		log.Warn("Decoding", "g1", input[t0:t1])
 		p1, err := g1.DecodePoint(input[t0:t1])
 		if err != nil {
+			log.Error("decoderror", "err", err)
 			return nil, gas, err
 		}
+		log.Warn("Decoded 1")
 		// Decode G2 point
 		p2, err := g2.DecodePoint(input[t1:t2])
 		if err != nil {
 			return nil, gas, err
 		}
+		log.Warn("Decoded 2")
 
 		// 'point is on curve' check already done,
 		// Here we need to apply subgroup checks.
@@ -1489,6 +1498,7 @@ func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas
 		if !g2.InCorrectSubgroup(p2) {
 			return nil, gas, errBLS12377G2PointSubgroup
 		}
+		log.Warn("Correct subgroup")
 
 		// Update pairing engine with G1 and G2 ponits
 		e.AddPair(p1, p2)
@@ -1498,6 +1508,7 @@ func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas
 
 	// Compute pairing and set the result
 	if e.Check() {
+		log.Warn("Was true")
 		out[31] = 1
 	}
 	return out, gas, nil
