@@ -127,7 +127,8 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
-	getValidatorBLSAddress:       &getValidatorBLS{},
+	// TODO(mrsmkl): there will probably be something like PrecompiledContractsDonut
+	getValidatorBLSAddress: &getValidatorBLS{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
