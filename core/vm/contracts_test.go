@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
@@ -54,7 +55,11 @@ func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Val
 	hash := sha3.Sum256(preimage)
 	var validators []istanbul.Validator
 	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
-		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), blscrypto.SerializedPublicKey{}))
+		key, _ := crypto.ToECDSA(hash[:])
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		validators = append(validators, validator.New(addr, blsPublicKey))
 	}
 	return validators
 }
@@ -579,12 +584,12 @@ var getValidatorTests = []precompiledTest{
 	},
 	{
 		input:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff",
-		expected: "000000000000000000000000fa55ba38ef5f98473db2771dd03c17c02bbe0fdc",
+		expected: "000000000000000000000000fbb697cf00d3de24bc81225b4b2a9e7e763f8136",
 		name:     "correct_block_0xff_index_0x0",
 	},
 	{
 		input:    "000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000ff",
-		expected: "00000000000000000000000068e2962e75d952ffabb71170783df3c2c85f7939",
+		expected: "0000000000000000000000003e70ba60978582c2770aa95579e542a521456668",
 		name:     "correct_block_0xff_index_0xa",
 	},
 	{
@@ -595,7 +600,50 @@ var getValidatorTests = []precompiledTest{
 	},
 	{
 		input:    "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
-		expected: "00000000000000000000000024e11f684408ce3e35772daa281facf81d8be157",
+		expected: "000000000000000000000000a7fdb33d85f63259ff56133b5be795ef669a5756",
+		name:     "correct_chain_head",
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002711",
+		expected:      "block number out of bounds",
+		name:          "invalid_future_block",
+		errorExpected: true,
+	},
+}
+
+var getValidatorBLSPublicKeyTests = []precompiledTest{
+	// Input is { validator index | block number }. Output is validator BLS public key.
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		expected:      "validator index out of bounds",
+		name:          "invalid_genesis_block",
+		errorExpected: true,
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "f977a5c1920d7233a6b490411dc878ba7dd73d7dc712d599abb1ef2072605236f3c6dcae165cd085b26dee7d8bd71f00c361943cac7dd9c8b17489b755e09e608017f481a8d1ed13f38d7da2a0fecdb6826a256ef1bcafa1fb650c377fbd21004c749f59b6624a73304250a85176af0685afda9fc24e0f5410928b35d14ba294539960053018fb435d040606c16663017e15d1473e11122f9bde4c5a5f8bab3341de45f00aed3e5c65b46628312fbc20ff624635cd82017ec92dca62359e2000",
+		name:     "correct_block_0xff_index_0x0",
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "c782dc077fb8588128fe5b1de7dcea0ab28b70a1ef120b74fefe3daa0c435bbd440ce42ccdc1edf7e505684c779853013a76707e0e774cb1fa712b146ba809ca33012a98e9ae94faeeb3a4b2c7ae2e62369e96db06e1d122a08f106fca3d0d00c32935785ebcf8944636b72dc07f899c72c3b9947e825336c2e488284b04b1f6461d429aecc9a95975989ef47f43ac0089f82e3c08504a73efe8abab2da03d690768413dabd0d3c5750d15547dd134d7d0d7af0e8ca0a99c1ceaddeb3195bc00",
+		name:     "correct_block_0xff_index_0xa",
+	},
+	{
+		input:         "000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000ff",
+		expected:      "validator index out of bounds",
+		name:          "invalid_index_out_of_bounds",
+		errorExpected: true,
+	},
+	{
+		input:    "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		expected: "13cc2ebc6ee91d0213d65d02a397759292574509da0cbe2e5653ecdd32686a446c7b9c623767178f7e758998ead17301c5d11f5c5f665cf1b38f673151783c78be4be5fae7487dcf42a5ebeb9f6d07cedc9bbd526c9edfb02883b8e8216786005c25658dd99667143d61aef541cd9d83e42ffe5bb6e4e78a9025ded1fa9789338e083e22e51cd337f830212312648a00f97f20cf8226fdcd32e1027d24b021fd5b7f96a94e2671f6123c42fa3f47a350f79f4661e9810bc3c892b36774d53900",
 		name:     "correct_chain_head",
 	},
 	{
@@ -946,6 +994,12 @@ func TestPrecompiledProofOfPossession(t *testing.T) {
 func TestGetValidator(t *testing.T) {
 	for _, test := range getValidatorTests {
 		testPrecompiled("fa", test, t)
+	}
+}
+
+func TestGetValidatorBLSPublicKey(t *testing.T) {
+	for _, test := range getValidatorBLSPublicKeyTests {
+		testPrecompiled("f1", test, t)
 	}
 }
 
