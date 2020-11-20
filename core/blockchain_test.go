@@ -2326,7 +2326,7 @@ func TestDeleteCreateRevert(t *testing.T) {
 func TestDeleteRecreateSlots(t *testing.T) {
 	var (
 		// Generate a canonical chain to act as the main dataset
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		db     = rawdb.NewMemoryDatabase()
 		// A sender who makes transactions, has some funds
 		key, _    = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -2408,11 +2408,11 @@ func TestDeleteRecreateSlots(t *testing.T) {
 		b.SetCoinbase(common.Address{1})
 		// One transaction to AA, to kill it
 		tx, _ := types.SignTx(types.NewTransaction(0, aa,
-			big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 50000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 		// One transaction to BB, to recreate AA
 		tx, _ = types.SignTx(types.NewTransaction(1, bb,
-			big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 100000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 	})
 	// Import the canonical chain
@@ -2453,7 +2453,7 @@ func TestDeleteRecreateSlots(t *testing.T) {
 func TestDeleteRecreateAccount(t *testing.T) {
 	var (
 		// Generate a canonical chain to act as the main dataset
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		db     = rawdb.NewMemoryDatabase()
 		// A sender who makes transactions, has some funds
 		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -2488,11 +2488,11 @@ func TestDeleteRecreateAccount(t *testing.T) {
 		b.SetCoinbase(common.Address{1})
 		// One transaction to AA, to kill it
 		tx, _ := types.SignTx(types.NewTransaction(0, aa,
-			big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 50000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 		// One transaction to AA, to recreate it (but without storage
 		tx, _ = types.SignTx(types.NewTransaction(1, aa,
-			big.NewInt(1), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(1), 100000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 	})
 	// Import the canonical chain
@@ -2529,7 +2529,7 @@ func TestDeleteRecreateAccount(t *testing.T) {
 func TestDeleteRecreateSlotsAcrossManyBlocks(t *testing.T) {
 	var (
 		// Generate a canonical chain to act as the main dataset
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		db     = rawdb.NewMemoryDatabase()
 		// A sender who makes transactions, has some funds
 		key, _    = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -2622,7 +2622,7 @@ func TestDeleteRecreateSlotsAcrossManyBlocks(t *testing.T) {
 	var expectations []*expectation
 	var newDestruct = func(e *expectation) *types.Transaction {
 		tx, _ := types.SignTx(types.NewTransaction(nonce, aa,
-			big.NewInt(0), 50000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 50000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		nonce++
 		if e.exist {
 			e.exist = false
@@ -2633,7 +2633,7 @@ func TestDeleteRecreateSlotsAcrossManyBlocks(t *testing.T) {
 	}
 	var newResurrect = func(e *expectation) *types.Transaction {
 		tx, _ := types.SignTx(types.NewTransaction(nonce, bb,
-			big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 100000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		nonce++
 		if !e.exist {
 			e.exist = true
@@ -2731,7 +2731,7 @@ func TestDeleteRecreateSlotsAcrossManyBlocks(t *testing.T) {
 func TestInitThenFailCreateContract(t *testing.T) {
 	var (
 		// Generate a canonical chain to act as the main dataset
-		engine = ethash.NewFaker()
+		engine = mockEngine.NewFaker()
 		db     = rawdb.NewMemoryDatabase()
 		// A sender who makes transactions, has some funds
 		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -2797,7 +2797,7 @@ func TestInitThenFailCreateContract(t *testing.T) {
 		b.SetCoinbase(common.Address{1})
 		// One transaction to BB
 		tx, _ := types.SignTx(types.NewTransaction(nonce, bb,
-			big.NewInt(0), 100000, big.NewInt(1), nil), types.HomesteadSigner{}, key)
+			big.NewInt(0), 100000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
 		b.AddTx(tx)
 		nonce++
 	})
