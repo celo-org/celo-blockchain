@@ -835,15 +835,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		misc.ApplyDAOHardFork(env.state)
 	}
 
-	if !noempty && !w.isIstanbulEngine() {
-		// Create an empty block based on temporary copied state for sealing in advance without waiting block
-		// execution finished.
-		w.commit(nil, false, tstart)
-	}
-
-	istanbulEmptyBlockCommit := func() {
+	istanbulEmptyBlockCommit := func(update bool) {
 		if !noempty && w.isIstanbulEngine() {
-			w.commit(nil, false, tstart)
+			w.commit(nil, update, tstart)
 		}
 	}
 
@@ -894,13 +888,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
-		istanbulEmptyBlockCommit()
+		istanbulEmptyBlockCommit(false)
 		return
 	}
 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
-		istanbulEmptyBlockCommit()
+		istanbulEmptyBlockCommit(true)
 		return
 	}
 	// Split the pending transactions into locals and remotes
