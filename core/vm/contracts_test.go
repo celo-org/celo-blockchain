@@ -18,7 +18,10 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
@@ -127,6 +130,63 @@ var mockEVM = &EVM{
 	),
 }
 
+func loadJson(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledTestFromJson
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledTest, len(jsonTests))
+	for i, jsonTest := range jsonTests {
+		testcases[i] = precompiledTest{input: jsonTest.Input, expected: jsonTest.Expected, name: jsonTest.Name, errorExpected: false, noBenchmark: jsonTest.NoBenchmark}
+	}
+	return testcases, err
+}
+
+func loadJsonFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledFailureTestFromJson
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledFailureTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledFailureTest{input: jsonTest.Input, expectedError: errors.New(jsonTest.ExpectedError), name: jsonTest.Name}
+	}
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
+func testJson(name, addr string, t *testing.T) {
+	tests, err := loadJson(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
+	}
+}
+
+func testJsonFail(name, addr string, t *testing.T) {
+	tests, err := loadJsonFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
+}
+
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
@@ -135,12 +195,27 @@ type precompiledTest struct {
 	errorExpected   bool
 }
 
+type precompiledTestFromJson struct {
+	Input, Expected string
+	Name            string
+	NoBenchmark     bool // Benchmark primarily the worst-cases
+	ErrorExpected   bool
+}
+
 // precompiledFailureTest defines the input/error pairs for precompiled
 // contract failure tests.
 type precompiledFailureTest struct {
 	input         string
 	expectedError error
 	name          string
+}
+
+// precompiledFailureTest defines the input/error pairs for precompiled
+// contract failure tests.
+type precompiledFailureTestFromJson struct {
+	Input         string
+	ExpectedError string
+	Name          string
 }
 
 // modexpTests are the test and benchmark data for the modexp precompiled contract.
@@ -759,6 +834,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.name, contract.Gas), func(t *testing.T) {
+
 		res, err := RunPrecompiledContract(p, in, contract, mockEVM)
 		if test.errorExpected {
 			if err == nil {
@@ -1036,4 +1112,123 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 	for _, test := range getVerifiedSealBitmapTests {
 		testPrecompiled("f4", test, t)
 	}
+}
+
+const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
+
+var cip20Tests = []precompiledTest{
+	{
+		input:    "00616263",
+		expected: "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+		name:     "sha3-256 of 'abc'",
+	},
+	{
+		input:    "01616263",
+		expected: "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
+		name:     "sha3-512 of 'abc'",
+	},
+	{
+		input:    "02616263",
+		expected: "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d77aa511a9d00bb96",
+		name:     "keccak512 of 'abc'",
+	},
+	{
+		input:    "10" + defaultBlake2sConfig,
+		expected: "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
+		name:     "default blake2s of empty string",
+	},
+	{
+		input:    "11" + "20000101" + "00000000" + "00000000" + "0100" + "0000" + "0000000000000000" + "0000000000000000" + "0000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+		expected: "99",
+		name:     "default blake2xs with output size 1",
+	},
+	{
+		input:    "11" + "20200101" + "00000000" + "00000000" + "1400" + "0000" + "0000000000000000" + "0000000000000000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f" + "0000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+		expected: "abb99c2e74a74556919040ca0cd857c95ec985e9",
+		name:     "keyed blake2xs with 32-byte key and 20-byte output",
+	},
+	{
+		input:    "11" + "20200101" + "00000000" + "00000000" + "1400" + "0000" + "0000000000000000" + "0000000000000000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f" + "0003" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+		expected: "abb99c",
+		name:     "keyed blake2xs with 32-byte key and 20-byte output, with only 3 bytes desired",
+	},
+	{
+		input:    "11" + "20200101" + "00000000" + "00000000" + "0001" + "0000" + "0000000000000000" + "0000000000000000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f" + "0000" + "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+		expected: "5784e614d538f7f26c803191deb464a884817002988c36448dcbecfad1997fe51ab0b3853c51ed49ce9f4e477522fb3f32cc50515b753c18fb89a8d965afcf1ed5e099b22c4225732baeb986f5c5bc88e4582d27915e2a19126d3d4555fab4f6516a6a156dbfeed9e982fc589e33ce2b9e1ba2b416e11852ddeab93025974267ac82c84f071c3d07f215f47e3565fd1d962c76e0d635892ea71488273765887d31f250a26c4ddc377ed89b17326e259f6cc1de0e63158e83aebb7f5a7c08c63c767876c8203639958a407acca096d1f606c04b4f4b3fd771781a5901b1c3cee7c04c3b6870226eee309b74f51edbf70a3817cc8da87875301e04d0416a65dc5d",
+		name:     "keyed blake2xs with 32-byte key and 256-byte output",
+	},
+	{
+		input:    "10" + "20000101" + "00000000" + "00000000" + "60000000" + "0000000000000000" + "0000000000000000",
+		expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
+		name:     "celo-bls-snark-rs test_crh_empty",
+	},
+}
+
+func TestCip20(t *testing.T) {
+	for _, test := range cip20Tests {
+		testPrecompiled("f3", test, t)
+	}
+}
+
+func TestPrecompiledBLS12377G1Add(t *testing.T) {
+	testJson("bls12377G1Add_matter", "f2", t)
+	testJson("bls12377G1Add_zexe", "f2", t)
+}
+
+func TestPrecompiledBLS12377G1Mul(t *testing.T) {
+	testJson("bls12377G1Mul_matter", "f1", t)
+	testJson("bls12377G1Mul_zexe", "f1", t)
+}
+
+func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
+	testJson("bls12377G1MultiExp_matter", "f0", t)
+	testJson("bls12377G1MultiExp_zexe", "f0", t)
+}
+
+func TestPrecompiledBLS12377G2Add(t *testing.T) {
+	testJson("bls12377G2Add_matter", "ef", t)
+	testJson("bls12377G2Add_zexe", "ef", t)
+}
+
+func TestPrecompiledBLS12377G2Mul(t *testing.T) {
+	testJson("bls12377G2Mul_matter", "ee", t)
+	testJson("bls12377G2Mul_zexe", "ee", t)
+}
+
+func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
+	testJson("bls12377G2MultiExp_matter", "ed", t)
+	testJson("bls12377G2MultiExp_zexe", "ed", t)
+}
+
+func TestPrecompiledBLS12377Pairing(t *testing.T) {
+	testJson("bls12377Pairing_matter", "ec", t)
+	testJson("bls12377Pairing_zexe", "ec", t)
+}
+
+func TestPrecompiledBLS12377G1AddFail(t *testing.T) {
+	testJsonFail("fail-bls12377G1Add", "f2", t)
+}
+
+func TestPrecompiledBLS12377G1MulFail(t *testing.T) {
+	testJsonFail("fail-bls12377G1Mul", "f1", t)
+}
+
+func TestPrecompiledBLS12377G1MultiexpFail(t *testing.T) {
+	testJsonFail("fail-bls12377G1Multiexp", "f0", t)
+}
+
+func TestPrecompiledBLS12377G2AddFail(t *testing.T) {
+	testJsonFail("fail-bls12377G2Add", "ef", t)
+}
+
+func TestPrecompiledBLS12377G2MulFail(t *testing.T) {
+	testJsonFail("fail-bls12377G2Mul", "ee", t)
+}
+
+func TestPrecompiledBLS12377G2MultiexpFail(t *testing.T) {
+	testJsonFail("fail-bls12377G2Multiexp", "ed", t)
+}
+
+func TestPrecompiledBLS12377PairingFail(t *testing.T) {
+	testJsonFail("fail-bls12377Pairing", "ec", t)
 }
