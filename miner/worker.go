@@ -854,9 +854,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, 
 		w.commit(nil, false, tstart, false)
 	}
 
-	istanbulEmptyBlockCommit := func() {
+	istanbulEmptyBlockCommit := func(update bool) {
 		if !noempty && w.isIstanbulEngine() {
-			w.commit(nil, false, tstart, false)
+			w.commit(nil, update, tstart, false)
 		}
 	}
 
@@ -907,13 +907,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64, 
 
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
-		istanbulEmptyBlockCommit()
+		istanbulEmptyBlockCommit(false)
 		return
 	}
 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
-		istanbulEmptyBlockCommit()
+		istanbulEmptyBlockCommit(true)
 		return
 	}
 	// Split the pending transactions into locals and remotes
