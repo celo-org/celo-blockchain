@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -100,14 +99,5 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 // ceil if the blocks are full. If the ceil is exceeded, it will always decrease
 // the gas allowance.
 func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
-	header := parent.Header()
-
-	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
-
-	// Already logged a warning in GetBlockGasLimit, just return.
-	if err != nil {
-		return params.DefaultGasLimit
-	}
-
-	return limit
+	return params.DefaultGasLimit
 }
