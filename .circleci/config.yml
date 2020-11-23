@@ -26,7 +26,7 @@ jobs:
           command: go run build/ci.go install
       - run:
           name: Save lib bls
-          command: echo $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@$(go list -m all | grep celo-bls-go | awk '{print $2}')/libs/universal/libbls_snark_sys.a ~/repos/geth/libbls_snark_sys.a
+          command: cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@$(go list -m all | grep celo-bls-go | awk '{print $2}')/libs/universal/libbls_snark_sys.a ~/repos/geth/libbls_snark_sys.a
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
