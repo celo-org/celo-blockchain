@@ -23,7 +23,9 @@ fi
 
 # TODO: Create an appropriate README for NPM
 rm README.md
-cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@v0.1.6/libs/universal/libbls_snark_sys.a .
+if [ -n "$GOPATH" ]; then
+  cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@$(go list -m all | grep celo-bls-go | awk '{print $2}')/libs/universal/libbls_snark_sys.a .
+fi
 
 npm -f --no-git-tag-version version "$new_version"
 npm publish --tag "$commit_sha_short" --access public -timeout=9999999
