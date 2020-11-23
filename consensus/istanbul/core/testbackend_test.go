@@ -66,7 +66,7 @@ type testSystemBackend struct {
 	// can inject in different proposal verification statuses.
 	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
 
-	celo1Block *big.Int
+	donutBlock *big.Int
 }
 
 type testCommittedMsgs struct {
@@ -99,7 +99,7 @@ func (self *testSystemBackend) IsValidating() bool {
 
 func (self *testSystemBackend) ChainConfig() *params.ChainConfig {
 	return &params.ChainConfig{
-		Celo1Block: self.celo1Block,
+		DonutBlock: self.donutBlock,
 	}
 }
 
@@ -441,7 +441,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 }
 
 // FIXME: int64 is needed for N and F
-func NewTestSystemWithBackendCelo1(n, f, epoch uint64, celo1Block int64) *testSystem {
+func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	validators, blsKeys, keys := generateValidators(int(n))
@@ -457,7 +457,7 @@ func NewTestSystemWithBackendCelo1(n, f, epoch uint64, celo1Block int64) *testSy
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
-		backend := sys.NewBackend(i, big.NewInt(celo1Block))
+		backend := sys.NewBackend(i, big.NewInt(donutBlock))
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
@@ -522,14 +522,14 @@ func (t *testSystem) Stop(core bool) {
 	}
 }
 
-func (t *testSystem) NewBackend(id uint64, celo1Block *big.Int) *testSystemBackend {
+func (t *testSystem) NewBackend(id uint64, donutBlock *big.Int) *testSystemBackend {
 	// assume always success
 	backend := &testSystemBackend{
 		id:         id,
 		sys:        t,
 		events:     new(event.TypeMux),
 		db:         rawdb.NewMemoryDatabase(),
-		celo1Block: celo1Block,
+		donutBlock: donutBlock,
 	}
 
 	t.backends[id] = backend
