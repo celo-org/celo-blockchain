@@ -57,13 +57,13 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
 
-	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
-	if !c.backend.ChainConfig().IsCelo1(big.NewInt(int64(blockNumber))) {
+	// Before the Donut fork, use the snark data encoding with epoch entropy.
+	if !c.backend.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
 		message, extraData, err := blscrypto.EncodeEpochSnarkData(
 			blsPubKeys, maxNonSigners,
 			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
 		)
-		// This is before the Celo1 hardfork, so signify this doesn't use CIP22.
+		// This is before the Donut hardfork, so signify this doesn't use CIP22.
 		return message, extraData, false, err
 	}
 
@@ -82,7 +82,7 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
-	// This is after the Celo1 hardfork, so signify this uses CIP22.
+	// This is after the Donut hardfork, so signify this uses CIP22.
 	return message, extraData, true, err
 }
 

@@ -180,7 +180,7 @@ func TestEpochSnarkData(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
 
-	sys := NewTestSystemWithBackendCelo1(N, F, 1, 2)
+	sys := NewTestSystemWithBackendDonut(N, F, 1, 2)
 
 	close := sys.Run(true)
 	defer close()
@@ -220,7 +220,7 @@ func TestEpochSnarkData(t *testing.T) {
 	epochValidatorSetSeal, _ = backendCore.backend.SignBLS(message, extraData, true, cip22)
 
 	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
-		t.Errorf("Failed verifying BLS signature after Celo1")
+		t.Errorf("Failed verifying BLS signature after Donut")
 	}
 
 }

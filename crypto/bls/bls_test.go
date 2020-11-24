@@ -48,7 +48,7 @@ func TestEncodeEpochSnarkData(t *testing.T) {
 
 	maxNonSigners := uint32(1)
 
-	// Before the Celo1 fork, use the snark data encoding without epoch entropy.
+	// Before the Donut fork, use the snark data encoding without epoch entropy.
 	encodedEpochBlock, encodedEpochBlockExtraData, err := EncodeEpochSnarkData(blsPubKeys, maxNonSigners, 1)
 	if err != nil {
 		t.Log("Error ", err)
