@@ -22,6 +22,7 @@ package keystore
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	crand "crypto/rand"
 	"errors"
 	"fmt"
@@ -44,7 +45,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/wsddn/go-ecdh"
 )
 
 var (
@@ -628,7 +628,10 @@ func zeroKey(k *ecdsa.PrivateKey) {
 
 // ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
 // private key and the public key provided. The account has to be unlocked first.
+// The public key format is a 65 byte array, with byte[0] == 4, 32 bytes for X,
+// and 32 bytes for Y (encoded in base256).
 func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) ([]byte, error) {
+	curve := crypto.S256()
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -637,14 +640,13 @@ func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) (
 	if !found {
 		return nil, ErrLocked
 	}
-	gen := ecdh.NewEllipticECDH(crypto.S256())
-	pubKey, ok := gen.Unmarshal(public)
-	if !ok {
+
+	var x, y *big.Int
+	x, y = elliptic.Unmarshal(curve, public)
+	if x == nil || y == nil {
 		return nil, errors.New("Could not unmarshal public key from bytes")
 	}
-	secret, err := gen.GenerateSharedSecret(unlockedKey.PrivateKey, pubKey)
-	if err != nil {
-		return nil, err
-	}
-	return secret, nil
+
+	shared, _ := crypto.S256().ScalarMult(x, y, unlockedKey.PrivateKey.D.Bytes())
+	return shared.Bytes(), nil
 }

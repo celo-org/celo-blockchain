@@ -255,6 +255,8 @@ func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount 
 
 // ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
 // private key and the public key provided. The account has to be unlocked first.
+// The public key format is a 65 byte array, with byte[0] == 4, 32 bytes for X,
+// and 32 bytes for Y (encoded in base256).
 func (ks *KeyStore) ComputeECDHSharedSecret(a *Account, publicKey []byte) ([]byte, error) {
 	return ks.keystore.ComputeECDHSharedSecret(a.account, publicKey)
 }
