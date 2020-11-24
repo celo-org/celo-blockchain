@@ -153,7 +153,7 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       nil,
+		ChurritoBlock:       big.NewInt(500),
 		DonutBlock:          big.NewInt(500),
 		Istanbul: &IstanbulConfig{
 			Epoch:          100,
