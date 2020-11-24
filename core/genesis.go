@@ -241,7 +241,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	case ghash == params.AlfajoresGenesisHash:
 		return params.AlfajoresChainConfig
 	default:
-		return params.MainnetChainConfig
+		return params.PlumoChainConfig
 	}
 }
 

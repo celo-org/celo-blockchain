@@ -36,6 +36,7 @@ var (
 	MainnetNetworkId   = uint64(42220)
 	BaklavaNetworkId   = uint64(62320)
 	AlfajoresNetworkId = uint64(44787)
+	PlumoNetworkId     = uint64(112420)
 )
 
 var NetworkIdHelp = fmt.Sprintf("Mainnet=%v, Baklava=%v, Alfajores=%v", MainnetNetworkId, BaklavaNetworkId, AlfajoresNetworkId)
@@ -128,6 +129,29 @@ var (
 		Celo1Block:          nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
+			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 10000,
+			LookbackWindow: 12,
+		},
+	}
+
+	// PlumoChainConfig contains the chain parameters to run a node on the Plumo test network.
+	PlumoChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(int64(PlumoNetworkId)),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		Celo1Block:          big.NewInt(500),
+		Istanbul: &IstanbulConfig{
+			Epoch:          100,
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
 			RequestTimeout: 10000,
