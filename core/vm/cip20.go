@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	blake2sConfigLen = 32
+	blake2sConfigLen        = 32
+	blake2sWordLength       = 32
+	keccakVariantWordLength = 64
 )
 
 // Cip20Hash is an interface for CIP20 hash functions. It is a trimmed down
@@ -32,7 +34,7 @@ type Sha3_256 struct{}
 
 // RequiredGas for Sha3_256
 func (c *Sha3_256) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / 64)
+	words := uint64(len(input) / keccakVariantWordLength)
 	return params.Sha3_256BaseGas + (words * params.Sha3_256PerWordGas)
 }
 
@@ -49,7 +51,7 @@ type Sha3_512 struct{}
 
 // RequiredGas for Sha3_512
 func (c *Sha3_512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / 64)
+	words := uint64(len(input) / keccakVariantWordLength)
 	return params.Sha3_512BaseGas + (words * params.Sha3_512PerWordGas)
 }
 
@@ -66,7 +68,7 @@ type Keccak512 struct{}
 
 // RequiredGas for Keccak512
 func (c *Keccak512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / 64)
+	words := uint64(len(input) / keccakVariantWordLength)
 	return params.Keccak512BaseGas + (words * params.Keccak512PerWordGas)
 }
 
@@ -83,7 +85,13 @@ type Blake2s struct{}
 
 // RequiredGas for Blake2s
 func (c *Blake2s) RequiredGas(input []byte) uint64 {
-	return 0 // TODO: James to benchmark
+	if len(input) < 32 {
+		return params.InvalidCip20Gas
+	}
+	// subtract 1 for the config block
+	words := uint64(len(input)/blake2sWordLength) - 1
+
+	return params.Blake2sBaseGas + (words * params.Blake2sPerWordGas)
 }
 
 // Run function for Blake2s

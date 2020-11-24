@@ -153,7 +153,11 @@ const (
 	Sha3_256PerWordGas  uint64 = Sha3WordGas // Per-word price for a sha3-256 operation
 	Keccak512BaseGas    uint64 = Sha3Gas     // Per-word price for a Keccak512 operation
 	Keccak512PerWordGas uint64 = Sha3WordGas // Base price for a Keccak512 operation
-	InvalidCip20Gas     uint64 = 0           // Price of attempting to access an unsupported CIP20 hash function
+
+	// TODO(james): Benchmark
+	Blake2sBaseGas    uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
+	Blake2sPerWordGas uint64 = Sha256PerWordGas // Base price for a Blake2s
+	InvalidCip20Gas   uint64 = 200              // Price of attempting to access an unsupported CIP20 hash function
 )
 
 var (
