@@ -3,7 +3,7 @@ package vm
 import (
 	"errors"
 
-	"github.com/dchest/blake2s"
+	"github.com/ethereum/go-ethereum/crypto/blake2s"
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/sha3"
 )
@@ -12,7 +12,7 @@ const (
 	blake2sConfigLen = 32
 )
 
-// Cip20Hash is an interface for CIP20 hash functions. it is a trimmed down
+// Cip20Hash is an interface for CIP20 hash functions. It is a trimmed down
 // version of the Precompile interface.
 type Cip20Hash interface {
 	RequiredGas(input []byte) uint64  // RequiredGas calculates the contract gas use
