@@ -17,6 +17,7 @@
 package keystore
 
 import (
+	"encoding/hex"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -81,6 +82,27 @@ func TestSign(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := ks.SignHash(accounts.Account{Address: a1.Address}, testSigData); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestComputeECDHSharedSecret(t *testing.T) {
+	keyHex := "044fb0a7e965176de5bbd615c5c9d5ca0927b74d914db881f7742362f2afda8a83b4e8e2cc87a98cdb5e2cf1c87b94a62ca9905de0e80676947166d4ae3d012691"
+	public := make([]byte, 65)
+	hex.Decode(public, []byte(keyHex))
+
+	dir, ks := tmpKeyStore(t, true)
+	defer os.RemoveAll(dir)
+
+	pass := "" // not used but required by API
+	a1, err := ks.NewAccount(pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ks.Unlock(a1, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ks.ComputeECDHSharedSecret(accounts.Account{Address: a1.Address}, public); err != nil {
 		t.Fatal(err)
 	}
 }
