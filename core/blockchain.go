@@ -905,7 +905,7 @@ func (bc *BlockChain) Stop() {
 			log.Error("Dangling trie nodes after full cleanup")
 		}
 	}
-	log.Info("Blockchain manager stopped")
+	log.Info("Blockchain stopped")
 }
 
 func (bc *BlockChain) procFutureBlocks() {
