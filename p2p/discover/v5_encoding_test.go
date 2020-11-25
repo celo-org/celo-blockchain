@@ -45,7 +45,7 @@ func TestDeriveKeysV5(t *testing.T) {
 		n2        = enode.ID{2}
 		challenge = &whoareyouV5{}
 		db, _     = enode.OpenDB("")
-		ln        = enode.NewLocalNode(db, testKeyA)
+		ln        = enode.NewLocalNode(db, testKeyA, testNetworkId)
 		c         = newWireCodec(ln, testKeyA, mclock.System{})
 	)
 	defer db.Close()
@@ -307,7 +307,7 @@ func (t *handshakeTest) close() {
 
 func (n *handshakeTestNode) init(key *ecdsa.PrivateKey, ip net.IP, clock mclock.Clock) {
 	db, _ := enode.OpenDB("")
-	n.ln = enode.NewLocalNode(db, key)
+	n.ln = enode.NewLocalNode(db, key, testNetworkId)
 	n.ln.SetStaticIP(ip)
 	n.c = newWireCodec(n.ln, key, clock)
 }
