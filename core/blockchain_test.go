@@ -1047,6 +1047,7 @@ func TestLogReorgs(t *testing.T) {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
 	timeout := time.NewTimer(1 * time.Second)
+	defer timeout.Stop()
 	select {
 	case ev := <-rmLogsCh:
 		if len(ev.Logs) == 0 {
