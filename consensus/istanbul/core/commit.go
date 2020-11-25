@@ -75,6 +75,7 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 
 	// TODO(lucas): hardcode at first, but eventually make governable
 	maxValidators := uint32(150)
+	maxNonSigners = maxValidators - uint32(newValSet.MinQuorumSize())
 	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
 		blsPubKeys, maxNonSigners, maxValidators,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
