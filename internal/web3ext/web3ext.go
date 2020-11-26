@@ -751,6 +751,12 @@ web3._extend({
 			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
+			name: 'getEpochValidatorSetData',
+			call: 'istanbul_getEpochValidatorSetData',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
 			name: 'getProposer',
 			call: 'istanbul_getProposer',
 			params: 2,
