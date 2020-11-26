@@ -44,4 +44,6 @@ var (
 	ErrValidatorNotProxied = errors.New("validator not proxied")
 	// ErrInvalidEnodeCertMsgMapOldVersion is returned if a validator sends old enode certificate message
 	ErrInvalidEnodeCertMsgMapOldVersion = errors.New("invalid enode certificate message map because of old version")
+	// ErrNotLastBlockInEpoch is returned when the block number was not the last block in the epoch
+	ErrNotLastBlockInEpoch = errors.New("not last block in epoch")
 )

@@ -170,43 +170,7 @@ func (api *API) GetEpochValidatorSetData(number *rpc.BlockNumber) (map[string]in
 	extra, err := types.ExtractIstanbulExtra(block.Header())
 	round := uint8(extra.AggregatedSeal.Round.Uint64())
 	newValSet := api.istanbul.Validators(block)
-	if !istanbul.IsLastBlockOfEpoch(blockNumber, api.istanbul.config.Epoch) {
-		return nil, errors.New("errNotLastBlockInEpoch")
-	}
-
-	// Serialize the public keys for the validators in the validator set.
-	blsPubKeys := []blscrypto.SerializedPublicKey{}
-	for _, v := range newValSet.List() {
-		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
-	}
-
-	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-
-	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
-	if !api.istanbul.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
-		message, extraData, err := blscrypto.EncodeEpochSnarkData(
-			blsPubKeys, maxNonSigners,
-			uint16(istanbul.GetEpochNumber(blockNumber, api.istanbul.config.Epoch)),
-		)
-		// This is before the Celo1 hardfork, so signify this doesn't use CIP22.
-		return map[string]interface{}{"message": message, "extraData": extraData}, err
-	}
-
-	// Retrieve the block hash for the last block of the previous epoch.
-	parentEpochBlockHash := api.istanbul.HashForBlock(blockNumber - api.istanbul.config.Epoch)
-	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
-		return nil, errors.New("unknown block")
-	}
-
-	// TODO(lucas): hardcode at first, but eventually make governable
-	maxValidators := uint32(150)
-	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
-		blsPubKeys, maxNonSigners, maxValidators,
-		uint16(istanbul.GetEpochNumber(blockNumber, api.istanbul.config.Epoch)),
-		round,
-		blscrypto.EpochEntropyFromHash(blockHash),
-		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
-	)
+	message, extraData, _, err := api.istanbul.GenerateEpochValidatorSetData(blockNumber, round, blockHash, newValSet)
 	return map[string]interface{}{"message": message, "extraData": extraData}, err
 }
 

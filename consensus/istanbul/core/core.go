@@ -102,6 +102,8 @@ type CoreBackend interface {
 
 	IsPrimaryForSeq(seq *big.Int) bool
 	UpdateReplicaState(seq *big.Int)
+
+	GenerateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error)
 }
 
 type core struct {
