@@ -984,17 +984,6 @@ func doXCodeFramework(cmdline []string) {
 
 	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-
-	// Patch gomobile to disable bitcode for now (rust generated bls lib output is not compatible)
-	listOutput, err := goTool("list", "-m", "-f", "{{ .Dir }}", "golang.org/x/mobile").Output()
-	if err != nil {
-		log.Fatal(err)
-	}
-	gomobileDir := strings.TrimSpace(string(listOutput))
-	gomobileEnvFile := filepath.Join(gomobileDir, "cmd/gomobile/env.go")
-	build.MustRunCommand("chmod", "+w", filepath.Join(gomobileEnvFile, ".."))
-	build.MustRunCommand("sed", "-i", "", `/^[[:space:]]*cflags += \" -fembed-bitcode\"$/s/^/\/\//`, gomobileEnvFile)
-
 	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
 
 	if *local {

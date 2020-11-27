@@ -73,3 +73,6 @@ require (
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 )
+
+// Use our fork which disables bitcode
+replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20201127114005-6a1221213dcf

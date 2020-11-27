@@ -71,7 +71,7 @@ android:
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
 ios:
-	$(GORUN) build/ci.go xcode --local
+	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
