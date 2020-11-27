@@ -73,6 +73,9 @@ android:
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
+	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
+	# in order to link it to the final app
+	# One day gomobile will probably support xcframework which would solve this ;-)
 	cp "$(shell go list -m -f "{{ .Dir }}" github.com/celo-org/celo-bls-go)/libs/universal/libbls_snark_sys.a" .
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
