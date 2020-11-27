@@ -73,6 +73,7 @@ android:
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
+	cp "$(shell go list -m -f "{{ .Dir }}" github.com/celo-org/celo-bls-go)/libs/universal/libbls_snark_sys.a" .
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
