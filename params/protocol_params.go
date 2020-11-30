@@ -145,12 +145,14 @@ const (
 	// May take a bit more time with 100 validators, need to bench that
 	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
 
-	Sha3_256BaseGas     uint64 = Sha3Gas     // Base price for a Sha3-256 operation
-	Sha3_256PerWordGas  uint64 = Sha3WordGas // Per-word price for a sha3-256 operation
-	Sha3_512BaseGas     uint64 = Sha3Gas     // Base price for a Sha3-512 operation
-	Sha3_512PerWordGas  uint64 = Sha3WordGas // Per-word price for a Sha3-512 operation
-	Keccak512BaseGas    uint64 = Sha3Gas     // Per-word price for a Keccak512 operation
-	Keccak512PerWordGas uint64 = Sha3WordGas // Base price for a Keccak512 operation
+	Sha3_256BaseGas     uint64 = Sha3Gas          // Base price for a Sha3-256 operation
+	Sha3_256PerWordGas  uint64 = Sha3WordGas      // Per-word price for a sha3-256 operation
+	Sha3_512BaseGas     uint64 = Sha3Gas          // Base price for a Sha3-512 operation
+	Sha3_512PerWordGas  uint64 = Sha3WordGas      // Per-word price for a Sha3-512 operation
+	Keccak512BaseGas    uint64 = Sha3Gas          // Per-word price for a Keccak512 operation
+	Keccak512PerWordGas uint64 = Sha3WordGas      // Base price for a Keccak512 operation
+	Sha2_512BaseGas     uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
+	Sha2_512PerWordGas  uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
 
 	// TODO(james): Benchmark
 	Blake2sBaseGas    uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
