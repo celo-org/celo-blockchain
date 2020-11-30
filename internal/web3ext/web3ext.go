@@ -32,6 +32,7 @@ var Modules = map[string]string{
 	"swarmfs":    SwarmfsJs,
 	"txpool":     TxpoolJs,
 	"les":        LESJs,
+	"lespay":     LESPayJs,
 }
 
 const ChequebookJs = `
@@ -907,6 +908,37 @@ web3._extend({
 			name: 'serverPoolEntries',
 			getter: 'les_serverPoolEntries'
 		})
+	]
+});
+`
+
+const LESPayJs = `
+web3._extend({
+	property: 'lespay',
+	methods:
+	[
+		new web3._extend.Method({
+			name: 'distribution',
+			call: 'lespay_distribution',
+			params: 2
+		}),
+		new web3._extend.Method({
+			name: 'timeout',
+			call: 'lespay_timeout',
+			params: 2
+		}),
+		new web3._extend.Method({
+			name: 'value',
+			call: 'lespay_value',
+			params: 2
+		}),
+	],
+	properties:
+	[
+		new web3._extend.Property({
+			name: 'requestStats',
+			getter: 'lespay_requestStats'
+		}),
 	]
 });
 `
