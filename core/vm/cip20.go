@@ -3,6 +3,8 @@ package vm
 import (
 	"errors"
 
+	"crypto/sha512"
+
 	"github.com/ethereum/go-ethereum/crypto/blake2s"
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/sha3"
@@ -26,6 +28,7 @@ var Cip20HashesDonut = map[uint8]Cip20Hash{
 	0:    &Sha3_256{},
 	1:    &Sha3_512{},
 	2:    &Keccak512{},
+	3:    &Sha2_512{},
 	0x10: &Blake2s{},
 }
 
@@ -75,6 +78,23 @@ func (c *Keccak512) RequiredGas(input []byte) uint64 {
 // Run function for Keccak512
 func (c *Keccak512) Run(input []byte) ([]byte, error) {
 	hasher := sha3.NewLegacyKeccak512()
+	hasher.Write(input)
+	output := hasher.Sum(nil)
+	return output, nil
+}
+
+// The Sha2_512 hash function
+type Sha2_512 struct{}
+
+// RequiredGas for Sha2_512
+func (c *Sha2_512) RequiredGas(input []byte) uint64 {
+	words := uint64(len(input) / keccakVariantWordLength)
+	return params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
+}
+
+// Run function for Sha2_512
+func (c *Sha2_512) Run(input []byte) ([]byte, error) {
+	hasher := sha512.New()
 	hasher.Write(input)
 	output := hasher.Sum(nil)
 	return output, nil
