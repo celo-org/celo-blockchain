@@ -1012,6 +1012,16 @@ var cip20Tests = []precompiledTest{
 		expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
 		name:     "celo-bls-snark-rs test_crh_empty",
 	},
+	{
+		input:    "03",
+		expected: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+		name:     "sha2-512 of empty string",
+	},
+	{
+		input:    "03616263",
+		expected: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+		name:     "sha2-512 of 'abc'",
+	},
 }
 
 func TestCip20(t *testing.T) {
