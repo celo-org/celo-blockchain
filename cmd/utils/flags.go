@@ -805,7 +805,7 @@ var (
 
 // MakeDataDir retrieves the currently requested data directory, terminating
 // if none (or the empty string) is specified. If the node is starting a testnet,
-// the a subdirectory of the specified datadir will be used.
+// then a subdirectory of the specified datadir will be used.
 func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.GlobalString(DataDirFlag.Name); path != "" {
 		if ctx.GlobalBool(BaklavaFlag.Name) {
