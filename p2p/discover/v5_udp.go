@@ -320,7 +320,7 @@ func (t *UDPv5) RequestENR(n *enode.Node) (*enode.Node, error) {
 }
 
 // requestTicket calls REQUESTTICKET on a node and waits for a TICKET response.
-func (t *UDPv5) requestTicket(n *enode.Node) ([]byte, error) {
+func (t *UDPv5) requestTicket(n *enode.Node) ([]byte, error) { //nolint:unused
 	resp := t.call(n, p_ticketV5, &pingV5{})
 	defer t.callDone(resp)
 	select {
