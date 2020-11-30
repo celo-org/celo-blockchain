@@ -117,12 +117,6 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		serverPool:     newServerPool(chainDb, config.UltraLightServers),
 	}
-
-	if syncMode == downloader.LightestSync && chainConfig.Istanbul == nil {
-		msg := fmt.Sprintf(
-			"To use 'lightest' sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
-		panic(msg)
-	}
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
 	leth.relay = newLesTxRelay(peers, leth.retriever)
 
