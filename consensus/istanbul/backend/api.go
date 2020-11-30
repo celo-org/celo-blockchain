@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	rawcrypto "github.com/celo-org/celo-bls-go/bls"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	vet "github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
@@ -171,7 +172,14 @@ func (api *API) GetEpochValidatorSetData(number *rpc.BlockNumber) (map[string]in
 	round := uint8(extra.AggregatedSeal.Round.Uint64())
 	newValSet := api.istanbul.Validators(block)
 	message, extraData, _, err := api.istanbul.GenerateEpochValidatorSetData(blockNumber, round, blockHash, newValSet)
-	return map[string]interface{}{"message": message, "extraData": extraData}, err
+	bhhash, _ := rawcrypto.HashCRH(message, 256)
+	_, attempts, _ := rawcrypto.HashCompositeCIP22(message, extraData)
+	return map[string]interface{}{
+		"message":   message,
+		"extraData": extraData,
+		"bhhash":    bhhash,
+		"attempts":  attempts,
+	}, err
 }
 
 // Retrieve the Validator Enode Table
