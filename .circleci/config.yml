@@ -24,9 +24,6 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      - run:
-          name: Save lib bls
-          command: cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@$(go list -m all | grep celo-bls-go | awk '{print $2}')/libs/universal/libbls_snark_sys.a ~/repos/geth/libbls_snark_sys.a
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -123,6 +120,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
+            - geth/libbls_snark_sys.a
 
   publish-mobile-client:
     docker:
