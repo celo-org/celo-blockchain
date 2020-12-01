@@ -947,17 +947,8 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
 
-	publicKeyBytes := validators[index.Uint64()].BLSPublicKey()
-
-	publicKey, err := bls.DeserializePublicKeyCached(publicKeyBytes[:])
-	if err != nil {
-		return nil, gas, err
-	}
-
-	uncompressedBytes, err := publicKey.SerializeUncompressed()
-	if err != nil {
-		return nil, gas, err
-	}
+	uncompressedBytes := validators[index.Uint64()].BLSPublicKeyUncompressed()
+	// log.Warn("got bytes", "bytes", uncompressedBytes)
 
 	result := make([]byte, 256)
 	for i := 0; i < 256; i++ {
@@ -1343,7 +1334,7 @@ func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 	// Implements EIP-2539 G2Add precompile.
 	// > G2 addition call expects `512` bytes as an input that is interpreted as byte concatenation of two G2 points (`256` bytes each).
 	// > Output is an encoding of addition operation result - single G2 point (`256` bytes).
-	log.Warn("Adding", "len", len(input), "input", input)
+	// log.Warn("Adding", "len", len(input), "input", input)
 	if len(input) != 512 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
@@ -1367,7 +1358,7 @@ func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 
 	// Compute r = p_0 + p_1
 	g.Add(r, p0, p1)
-	log.Warn("Adding", "a", p0, "b", p1, "res", r)
+	// log.Warn("Adding", "a", p0, "b", p1, "res", r)
 
 	// Encode the G2 point into 256 bytes
 	return g.EncodePoint(r), gas, nil
