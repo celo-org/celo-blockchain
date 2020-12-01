@@ -886,6 +886,12 @@ func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorBLSGas
 }
 
+func copyBEtoLE(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
+	for i := 0; i < 48; i++ {
+		result[63-i+offset] = uncompressedBytes[i+offset2]
+	}
+}
+
 // Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
 func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
@@ -931,7 +937,17 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, err
 	}
 
-	return uncompressedBytes, gas, nil
+	result := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		result[i] = 0
+	}
+
+	copyBEtoLE(result, 0, uncompressedBytes, 0)
+	copyBEtoLE(result, 64, uncompressedBytes, 48)
+	copyBEtoLE(result, 128, uncompressedBytes, 96)
+	copyBEtoLE(result, 192, uncompressedBytes, 144)
+
+	return result, gas, nil
 }
 
 type numberValidators struct{}
