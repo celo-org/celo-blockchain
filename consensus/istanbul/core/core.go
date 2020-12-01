@@ -18,6 +18,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -102,8 +103,6 @@ type CoreBackend interface {
 
 	IsPrimaryForSeq(seq *big.Int) bool
 	UpdateReplicaState(seq *big.Int)
-
-	GenerateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error)
 }
 
 type core struct {
@@ -206,6 +205,59 @@ func (c *core) ForceRoundChange() {
 	// timeout current DesiredView
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
+}
+
+// Generates serialized epoch data for use in the Plumo SNARK circuit.
+// Block number and hash may be information for a pending block.
+func (c *core) GenerateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
+	epoch := c.config.Epoch
+	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
+		return nil, nil, false, istanbul.ErrNotLastBlockInEpoch
+	}
+
+	// Serialize the public keys for the validators in the validator set.
+	blsPubKeys := []blscrypto.SerializedPublicKey{}
+	for _, v := range newValSet.List() {
+		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
+	}
+
+	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
+
+	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
+	if !c.backend.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
+		message, extraData, err := blscrypto.EncodeEpochSnarkData(
+			blsPubKeys, maxNonSigners,
+			uint16(istanbul.GetEpochNumber(blockNumber, epoch)),
+		)
+		// This is before the Celo1 hardfork, so signify this doesn't use CIP22.
+		return message, extraData, false, err
+	}
+
+	// Retrieve the block hash for the last block of the previous epoch.
+	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - epoch)
+	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
+		return nil, nil, false, errors.New("unknown block")
+	}
+
+	// TODO(lucas): hardcode at first, but eventually make governable
+	maxValidators := uint32(150)
+	// log.Warn("Encoding epoch snark data", "nonsigners", maxNonSigners, "epoch", uint16(istanbul.GetEpochNumber(blockNumber, sb.config.Epoch)))
+	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
+		blsPubKeys, maxNonSigners, maxValidators,
+		uint16(istanbul.GetEpochNumber(blockNumber, epoch)),
+		round,
+		blscrypto.EpochEntropyFromHash(blockHash),
+		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
+	)
+	/*
+		epochValidatorSetSeal, err := sb.SignBLS(message, extraData, true, true)
+		log.Warn("Epoch snark signature", "sig", epochValidatorSetSeal, "extra", extraData)
+			message[12] = message[12] + 1
+			epochValidatorSetSeal2, err := sb.SignBLS(message, extraData, true, true)
+			log.Warn("Epoch snark signature (double signed)", "sig", epochValidatorSetSeal2, "extra", extraData, "data", message)
+	*/
+	// This is after the Celo1 hardfork, so signify this uses CIP22.
+	return message, extraData, true, err
 }
 
 // PrepareCommittedSeal returns a committed seal for the given hash and round number.

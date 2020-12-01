@@ -203,7 +203,7 @@ func TestEpochSnarkData(t *testing.T) {
 
 	publicKey, _ := blscrypto.PrivateToPublic(serializedPrivateKey)
 
-	message, extraData, cip22, _ := backendCore.generateEpochValidatorSetData(0, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	message, extraData, cip22, _ := backendCore.GenerateEpochValidatorSetData(0, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
 	if cip22 || len(extraData) > 0 {
 		t.Errorf("Unexpected cip22 (%t != false) or extraData length (%v > 0)", cip22, len(extraData))
 	}
@@ -213,7 +213,7 @@ func TestEpochSnarkData(t *testing.T) {
 		t.Errorf("Failed verifying BLS signature")
 	}
 
-	message, extraData, cip22, _ = backendCore.generateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	message, extraData, cip22, _ = backendCore.GenerateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
 	if !cip22 || len(extraData) == 0 {
 		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", cip22, len(extraData))
 	}

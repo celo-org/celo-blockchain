@@ -34,6 +34,7 @@ type Engine interface {
 	ParentCommits() MessageSet
 	// ForceRoundChange will force round change to the current desiredRound + 1
 	ForceRoundChange()
+	GenerateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error)
 }
 
 // State represents the IBFT state

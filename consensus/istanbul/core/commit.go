@@ -55,7 +55,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.backend.GenerateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
+	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.GenerateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
 	if err != nil && err != istanbul.ErrNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
@@ -238,7 +238,7 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, epochExtraData, cip22, err := c.backend.GenerateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
+	epochData, epochExtraData, cip22, err := c.GenerateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
 	if err != nil {
 		if err == istanbul.ErrNotLastBlockInEpoch {
 			return nil
