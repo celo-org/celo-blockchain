@@ -490,9 +490,9 @@ func (sb *Backend) GenerateEpochValidatorSetData(blockNumber uint64, round uint8
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
+	epochValidatorSetSeal, err := sb.SignBLS(message, extraData, true, true)
+	log.Warn("Epoch snark signature", "sig", epochValidatorSetSeal, "extra", extraData)
 	/*
-		epochValidatorSetSeal, err := sb.SignBLS(message, extraData, true, true)
-		log.Warn("Epoch snark signature", "sig", epochValidatorSetSeal, "extra", extraData, "data", message)
 		message[12] = message[12] + 1
 		epochValidatorSetSeal2, err := sb.SignBLS(message, extraData, true, true)
 		log.Warn("Epoch snark signature (double signed)", "sig", epochValidatorSetSeal2, "extra", extraData, "data", message)

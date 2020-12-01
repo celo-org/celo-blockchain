@@ -171,6 +171,7 @@ func (api *API) GetEpochValidatorSetData(number *rpc.BlockNumber) (map[string]in
 	extra, err := types.ExtractIstanbulExtra(block.Header())
 	round := uint8(extra.AggregatedSeal.Round.Uint64())
 	newValSet := api.istanbul.Validators(block)
+	esData := block.EpochSnarkData()
 	message, extraData, _, err := api.istanbul.GenerateEpochValidatorSetData(blockNumber, round, blockHash, newValSet)
 	bhhash, _ := rawcrypto.HashCRH(message, 256)
 	_, attempts, _ := rawcrypto.HashCompositeCIP22(message, extraData)
@@ -179,6 +180,8 @@ func (api *API) GetEpochValidatorSetData(number *rpc.BlockNumber) (map[string]in
 		"extraData": extraData,
 		"bhhash":    bhhash,
 		"attempts":  attempts,
+		"sig":       esData.Signature,
+		"bitmap":    esData.Bitmap,
 	}, err
 }
 

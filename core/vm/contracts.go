@@ -912,6 +912,8 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, err
 	}
 
+	log.Warn("Getting address", "gas", gas)
+
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
 	//   blockNumber: 32 byte integer representing the block number to access
@@ -929,6 +931,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
+	log.Warn("Getting address", "inxed", index, "block", blockNumber)
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
 	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
@@ -950,6 +953,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, err
 	}
 
+	log.Warn("Getting address", "len", len(uncompressedBytes), "output", uncompressedBytes)
 	return uncompressedBytes, gas, nil
 }
 
@@ -1322,6 +1326,7 @@ func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 	// Implements EIP-2539 G2Add precompile.
 	// > G2 addition call expects `512` bytes as an input that is interpreted as byte concatenation of two G2 points (`256` bytes each).
 	// > Output is an encoding of addition operation result - single G2 point (`256` bytes).
+	log.Warn("Adding", "len", len(input), "input", input)
 	if len(input) != 512 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
@@ -1334,15 +1339,18 @@ func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 
 	// Decode G2 point p_0
 	if p0, err = g.DecodePoint(input[:256]); err != nil {
+		log.Warn("Decode 1", "err", err, "input", input[:256])
 		return nil, gas, err
 	}
 	// Decode G2 point p_1
 	if p1, err = g.DecodePoint(input[256:]); err != nil {
+		log.Warn("Decode 2", "err", err, "input", input[256:])
 		return nil, gas, err
 	}
 
 	// Compute r = p_0 + p_1
 	g.Add(r, p0, p1)
+	log.Warn("Adding", "a", p0, "b", p1, "res", r)
 
 	// Encode the G2 point into 256 bytes
 	return g.EncodePoint(r), gas, nil
