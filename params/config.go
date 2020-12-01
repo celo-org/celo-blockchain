@@ -365,12 +365,14 @@ func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 
 // IsChurrito returns whether num represents a block number after the Churrito fork
 func (c *ChainConfig) IsChurrito(num *big.Int) bool {
-	return isForked(c.ChurritoBlock, num)
+	return isForked(big.NewInt(499), num)
+	// return isForked(c.ChurritoBlock, num)
 }
 
 // IsDonut returns whether num represents a block number after the Donut fork
 func (c *ChainConfig) IsDonut(num *big.Int) bool {
-	return isForked(c.DonutBlock, num)
+	return isForked(big.NewInt(500), num)
+	// return isForked(c.DonutBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
