@@ -905,6 +905,12 @@ func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorBLSGas
 }
 
+func copyBEtoLE(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
+	for i := 0; i < 48; i++ {
+		result[63-i+offset] = uncompressedBytes[i+offset2]
+	}
+}
+
 // Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
 func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
@@ -912,7 +918,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, err
 	}
 
-	log.Warn("Getting address", "gas", gas)
+	// log.Warn("Getting address", "gas", gas)
 
 	// input is comprised of two arguments:
 	//   index: 32 byte integer representing the index of the validator to get
@@ -931,7 +937,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
-	log.Warn("Getting address", "inxed", index, "block", blockNumber)
+	// log.Warn("Getting address", "inxed", index, "block", blockNumber)
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
 	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
@@ -953,8 +959,19 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, err
 	}
 
-	log.Warn("Getting address", "len", len(uncompressedBytes), "output", uncompressedBytes)
-	return uncompressedBytes, gas, nil
+	result := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		result[i] = 0
+	}
+
+	copyBEtoLE(result, 0, uncompressedBytes, 0)
+	copyBEtoLE(result, 64, uncompressedBytes, 48)
+	copyBEtoLE(result, 128, uncompressedBytes, 96)
+	copyBEtoLE(result, 192, uncompressedBytes, 144)
+
+	// log.Warn("Getting address", "len", len(uncompressedBytes), "output", uncompressedBytes)
+	// log.Warn("Getting address", "len", len(result), "output", result)
+	return result, gas, nil
 }
 
 type numberValidators struct{}
