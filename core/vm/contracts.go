@@ -925,17 +925,8 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
 
-	publicKeyBytes := validators[index.Uint64()].BLSPublicKey()
-
-	publicKey, err := bls.DeserializePublicKeyCached(publicKeyBytes[:])
-	if err != nil {
-		return nil, gas, err
-	}
-
-	uncompressedBytes, err := publicKey.SerializeUncompressed()
-	if err != nil {
-		return nil, gas, err
-	}
+	uncompressedBytes := validators[index.Uint64()].BLSPublicKeyUncompressed()
+	// log.Warn("got bytes", "bytes", uncompressedBytes)
 
 	result := make([]byte, 256)
 	for i := 0; i < 256; i++ {

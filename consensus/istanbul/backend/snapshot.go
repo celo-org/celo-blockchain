@@ -59,6 +59,7 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 	if err != nil {
 		return nil, err
 	}
+	log.Warn("Loading snapshot", "blob", string(blob), "len", len(blob))
 	snap := new(Snapshot)
 	if err := json.Unmarshal(blob, snap); err != nil {
 		return nil, err
@@ -71,6 +72,7 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 // store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
 	blob, err := json.Marshal(s)
+	log.Warn("Storing snapshot", "blob", string(blob), "len", len(blob))
 	if err != nil {
 		return err
 	}
