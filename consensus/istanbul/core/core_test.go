@@ -180,7 +180,7 @@ func TestEpochSnarkData(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
 
-	sys := NewTestSystemWithBackendCelo1(N, F, 1, 2)
+	sys := NewTestSystemWithBackendDonut(N, F, 1, 2)
 
 	close := sys.Run(true)
 	defer close()
@@ -203,7 +203,7 @@ func TestEpochSnarkData(t *testing.T) {
 
 	publicKey, _ := blscrypto.PrivateToPublic(serializedPrivateKey)
 
-	message, extraData, cip22, _ := backendCore.generateEpochValidatorSetData(0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	message, extraData, cip22, _ := backendCore.generateEpochValidatorSetData(0, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
 	if cip22 || len(extraData) > 0 {
 		t.Errorf("Unexpected cip22 (%t != false) or extraData length (%v > 0)", cip22, len(extraData))
 	}
@@ -213,14 +213,14 @@ func TestEpochSnarkData(t *testing.T) {
 		t.Errorf("Failed verifying BLS signature")
 	}
 
-	message, extraData, cip22, _ = backendCore.generateEpochValidatorSetData(2, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	message, extraData, cip22, _ = backendCore.generateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
 	if !cip22 || len(extraData) == 0 {
 		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", cip22, len(extraData))
 	}
 	epochValidatorSetSeal, _ = backendCore.backend.SignBLS(message, extraData, true, cip22)
 
 	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
-		t.Errorf("Failed verifying BLS signature after Celo1")
+		t.Errorf("Failed verifying BLS signature after Donut")
 	}
 
 }

@@ -44,7 +44,7 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 
 // Generates serialized epoch data for use in the Plumo SNARK circuit.
 // Block number and hash may be information for a pending block.
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
 		return nil, nil, false, errNotLastBlockInEpoch
 	}
@@ -57,13 +57,13 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
 
-	// Before the Celo1 fork, use the snark data encoding with epoch entropy.
+	// Before the Donut fork, use the snark data encoding with epoch entropy.
 	if !c.backend.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
 		message, extraData, err := blscrypto.EncodeEpochSnarkData(
 			blsPubKeys, maxNonSigners,
 			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
 		)
-		// This is before the Celo1 hardfork, so signify this doesn't use CIP22.
+		// This is before the Donut hardfork, so signify this doesn't use CIP22.
 		return message, extraData, false, err
 	}
 
@@ -75,13 +75,15 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, blockHash commo
 
 	// TODO(lucas): hardcode at first, but eventually make governable
 	maxValidators := uint32(150)
+	maxNonSigners = maxValidators - uint32(newValSet.MinQuorumSize())
 	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
 		blsPubKeys, maxNonSigners, maxValidators,
 		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		round,
 		blscrypto.EpochEntropyFromHash(blockHash),
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
-	// This is after the Celo1 hardfork, so signify this uses CIP22.
+	// This is after the Donut hardfork, so signify this uses CIP22.
 	return message, extraData, true, err
 }
 
@@ -100,7 +102,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, sub.Digest, newValSet)
+	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
@@ -282,7 +284,7 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, comSub.Subject.Digest, newValSet)
+	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil

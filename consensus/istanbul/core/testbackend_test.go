@@ -441,7 +441,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 }
 
 // FIXME: int64 is needed for N and F
-func NewTestSystemWithBackendCelo1(n, f, epoch uint64, donutBlock int64) *testSystem {
+func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSystem {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	validators, blsKeys, keys := generateValidators(int(n))
