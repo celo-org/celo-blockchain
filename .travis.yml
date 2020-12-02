@@ -5,7 +5,7 @@ jobs:
   allow_failures:
     - stage: build
       os: osx
-      go: 1.13.x
+      go: 1.14.x
       env:
         - azure-osx
         - azure-ios
@@ -23,6 +23,16 @@ jobs:
         submodules: false # avoid cloning ethereum/tests
       script:
         - go run build/ci.go lint
+
+    - stage: build
+      os: linux
+      dist: xenial
+      go: 1.13.x
+      env:
+        - GO111MODULE=on
+      script:
+        - go run build/ci.go install
+        - go run build/ci.go test -coverage $TEST_PACKAGES
 
     - stage: build
       os: linux
