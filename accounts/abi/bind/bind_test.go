@@ -1622,7 +1622,7 @@ var bindTests = []struct {
 			key, _ := crypto.GenerateKey()
 			addr := crypto.PubkeyToAddress(key.PublicKey)
 	
-			sim := backends.NewSimulatedBackend(core.GenesisAlloc{addr: {Balance: big.NewInt(1000000000)}}, 1000000)
+			sim := backends.NewSimulatedBackend(core.GenesisAlloc{addr: {Balance: big.NewInt(1000000000)}})
 			defer sim.Close()
 	
 			opts := bind.NewKeyedTransactor(key)
