@@ -38,10 +38,14 @@ type defaultValidator struct {
 }
 
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
+	uncompressed := data.Uncompressed
+	if len(uncompressed) == 0 {
+		uncompressed = nil
+	}
 	return &defaultValidator{
 		address:      data.Address,
 		blsPublicKey: data.BLSPublicKey,
-		uncompressed: data.Uncompressed,
+		uncompressed: uncompressed,
 	}
 }
 

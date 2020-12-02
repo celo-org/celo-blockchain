@@ -115,6 +115,7 @@ func TestValSetDiff(t *testing.T) {
 			convertedInputOldValSet = append(convertedInputOldValSet, ValidatorData{
 				addr,
 				blscrypto.SerializedPublicKey{},
+				nil,
 			})
 		}
 		convertedInputNewValSet := []ValidatorData{}
@@ -122,6 +123,7 @@ func TestValSetDiff(t *testing.T) {
 			convertedInputNewValSet = append(convertedInputNewValSet, ValidatorData{
 				addr,
 				blscrypto.SerializedPublicKey{},
+				nil,
 			})
 		}
 		addedVals, removedVals := ValidatorSetDiff(convertedInputOldValSet, convertedInputNewValSet)
