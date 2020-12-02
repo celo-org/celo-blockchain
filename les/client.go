@@ -52,16 +52,16 @@ import (
 type LightEthereum struct {
 	lesCommons
 
-	peers       *serverPeerSet
-	reqDist     *requestDistributor
-	retriever   *retrieveManager
-	odr         *LesOdr
-	relay       *lesTxRelay
-	handler     *clientHandler
-	txPool      *light.TxPool
-	blockchain  *light.LightChain
-	serverPool  *serverPool
-	chainreader *LightChainReader
+	peers        *serverPeerSet
+	reqDist      *requestDistributor
+	retriever    *retrieveManager
+	odr          *LesOdr
+	relay        *lesTxRelay
+	handler      *clientHandler
+	txPool       *light.TxPool
+	blockchain   *light.LightChain
+	serverPool   *serverPool
+	chainreader  *LightChainReader
 	valueTracker *lpc.ValueTracker
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
