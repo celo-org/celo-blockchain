@@ -74,4 +74,3 @@ require (
 	gotest.tools v2.2.0+incompatible // indirect
 )
 
-// replace github.com/celo-org/celo-bls-go => /home/sami/celo-bls-go

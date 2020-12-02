@@ -224,35 +224,11 @@ func TestValidatorRLPEncoding(t *testing.T) {
 
 	var result *defaultValidator
 	if err = rlp.DecodeBytes(rawVal, &result); err != nil {
+		t.Errorf("Error %v", err)
 	}
 
-	/*
-		orig := val.BLSPublicKeyUncompressed()
-		next := result.BLSPublicKeyUncompressed()
-		if orig == nil {
-			t.Errorf("orig IS nil: have %v, want %v. %v %v", val, result, len(orig), orig)
-		}
-
-		if next == nil {
-			t.Errorf("next IS nil: have %v, want %v. %v %v", val, result, len(orig), orig)
-		}
-
-		//	if !reflect.DeepEqual(val.BLSPublicKeyUncompressed(), result.BLSPublicKeyUncompressed()) {
-		if !reflect.DeepEqual([]byte(nil), orig) {
-			t.Errorf("orig not nil: have %v, want %v. %v %v", val, result, len(orig), orig)
-		}
-		if !reflect.DeepEqual([]byte(nil), next) {
-			t.Errorf("next not nil: have %v, want %v. %v %v", val, result, len(next), next)
-		}
-		if !reflect.DeepEqual([]byte{}, next) {
-			t.Errorf("next not empty: have %v, want %v. %v %v", val, result, len(next), next)
-		}
-		if !reflect.DeepEqual(orig, next) {
-			t.Errorf("next not orig: have %v, want %v. %v %v", val, result, len(next), next)
-		}
-	*/
 	if !reflect.DeepEqual(val, result) {
-		t.Errorf("validator mismatch: have %v, want %v. %v %v", val, result, val.BLSPublicKeyUncompressed(), result.BLSPublicKeyUncompressed())
+		t.Errorf("validator mismatch: have %v, want %v", val, result)
 	}
 }
 
