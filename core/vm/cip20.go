@@ -14,6 +14,7 @@ const (
 	blake2sConfigLen        = 32
 	blake2sWordLength       = 32
 	keccakVariantWordLength = 64
+	sha2_512WordLength      = 64
 )
 
 // Cip20Hash is an interface for CIP20 hash functions. It is a trimmed down
@@ -88,7 +89,7 @@ type Sha2_512 struct{}
 
 // RequiredGas for Sha2_512
 func (c *Sha2_512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / keccakVariantWordLength)
+	words := uint64(len(input) / sha2_512WordLength)
 	return params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
 }
 
