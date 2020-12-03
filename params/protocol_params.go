@@ -154,7 +154,6 @@ const (
 	Sha2_512BaseGas     uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
 	Sha2_512PerWordGas  uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
 
-	// TODO(james): Benchmark
 	Blake2sBaseGas    uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
 	Blake2sPerWordGas uint64 = Sha256PerWordGas // Base price for a Blake2s
 	InvalidCip20Gas   uint64 = 200              // Price of attempting to access an unsupported CIP20 hash function
