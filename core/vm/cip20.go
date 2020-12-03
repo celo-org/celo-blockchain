@@ -33,13 +33,24 @@ var Cip20HashesDonut = map[uint8]Cip20Hash{
 	0x10: &Blake2s{},
 }
 
+func wordMeteredGasPrice(base, perWord, wordSize, inputLength uint64) uint64 {
+	// round up to next whole word
+	lengthCeil := inputLength + wordSize - 1
+	words := lengthCeil / wordSize
+	return base + perWord*words
+}
+
 // The Sha3_256 hash function
 type Sha3_256 struct{}
 
 // RequiredGas for Sha3_256
 func (c *Sha3_256) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / keccakVariantWordLength)
-	return params.Sha3_256BaseGas + (words * params.Sha3_256PerWordGas)
+	return wordMeteredGasPrice(
+		params.Sha3_256BaseGas,
+		params.Sha3_256PerWordGas,
+		keccakVariantWordLength,
+		uint64(len(input)),
+	)
 }
 
 // Run function for Sha3_256
@@ -55,8 +66,12 @@ type Sha3_512 struct{}
 
 // RequiredGas for Sha3_512
 func (c *Sha3_512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / keccakVariantWordLength)
-	return params.Sha3_512BaseGas + (words * params.Sha3_512PerWordGas)
+	return wordMeteredGasPrice(
+		params.Sha3_256BaseGas,
+		params.Sha3_256PerWordGas,
+		keccakVariantWordLength,
+		uint64(len(input)),
+	)
 }
 
 // Run function for Sha3_512
@@ -72,8 +87,12 @@ type Keccak512 struct{}
 
 // RequiredGas for Keccak512
 func (c *Keccak512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / keccakVariantWordLength)
-	return params.Keccak512BaseGas + (words * params.Keccak512PerWordGas)
+	return wordMeteredGasPrice(
+		params.Sha3_256BaseGas,
+		params.Sha3_256PerWordGas,
+		keccakVariantWordLength,
+		uint64(len(input)),
+	)
 }
 
 // Run function for Keccak512
@@ -89,8 +108,12 @@ type Sha2_512 struct{}
 
 // RequiredGas for Sha2_512
 func (c *Sha2_512) RequiredGas(input []byte) uint64 {
-	words := uint64(len(input) / sha2_512WordLength)
-	return params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
+	return wordMeteredGasPrice(
+		params.Sha256BaseGas,
+		params.Sha256PerWordGas,
+		sha2_512WordLength,
+		uint64(len(input)),
+	)
 }
 
 // Run function for Sha2_512
@@ -109,10 +132,14 @@ func (c *Blake2s) RequiredGas(input []byte) uint64 {
 	if len(input) < 32 {
 		return params.InvalidCip20Gas
 	}
-	// subtract 1 for the config block
-	words := uint64(len(input)/blake2sWordLength) - 1
 
-	return params.Blake2sBaseGas + (words * params.Blake2sPerWordGas)
+	// subtract 1 word for the config block
+	return wordMeteredGasPrice(
+		params.Blake2sBaseGas,
+		params.Blake2sPerWordGas,
+		blake2sWordLength,
+		uint64(len(input)-blake2sWordLength), // subtract 1 word for the config block
+	)
 }
 
 // Run function for Blake2s
