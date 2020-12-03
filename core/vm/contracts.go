@@ -75,7 +75,7 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
-	getValidatorBLSAddress       = celoPrecompileAddress(14)
+	getValidatorBLSAddress       = celoPrecompileAddress(20)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -951,7 +951,12 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 	}
 
 	uncompressedBytes := validators[index.Uint64()].BLSPublicKeyUncompressed()
-	// log.Warn("got bytes", "bytes", uncompressedBytes)
+	if len(uncompressedBytes) == 0 {
+		uncompressedBytes = blscrypto.UncompressKey(validators[index.Uint64()].BLSPublicKey())
+	}
+	if len(uncompressedBytes) != 192 {
+		return nil, gas, ErrUnexpected
+	}
 
 	result := make([]byte, 256)
 	for i := 0; i < 256; i++ {
