@@ -460,7 +460,7 @@ func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
 
 func (g *G2) glvMul(r, p0 *PointG2, e *big.Int) *PointG2 {
 
-	v := new(glvVectorBig).new(e)
+	v := new(glvVector).new(e)
 	w := glvMulWindowG2
 	l := 1 << (w - 1)
 

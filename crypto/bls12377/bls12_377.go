@@ -27,9 +27,6 @@ var (
 // r1 = r mod p
 var r1 = &fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a}
 
-// one = r mod p
-var one = r1
-
 // zer0 = 0
 var zero = &fe{}
 
