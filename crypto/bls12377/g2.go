@@ -11,6 +11,8 @@ import (
 // If z is equal to one the point is accounted as in affine form.
 type PointG2 [3]fe2
 
+var wnafMulWindowG2 uint = 6
+
 // Set copies valeus of one point to another.
 func (p *PointG2) Set(p2 *PointG2) *PointG2 {
 	p[0].set(&p2[0])
@@ -397,7 +399,11 @@ func (g *G2) Sub(c, a, b *PointG2) *PointG2 {
 }
 
 // MulScalar multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
-func (g *G2) MulScalar(c, p *PointG2, e *big.Int) *PointG2 {
+func (g *G2) MulScalar(r, p *PointG2, e *big.Int) *PointG2 {
+	return g.wnafMul(r, p, e)
+}
+
+func (g *G2) mulScalar(r, p *PointG2, e *big.Int) *PointG2 {
 	q, n := &PointG2{}, &PointG2{}
 	n.Set(p)
 	l := e.BitLen()
@@ -407,12 +413,43 @@ func (g *G2) MulScalar(c, p *PointG2, e *big.Int) *PointG2 {
 		}
 		g.Double(n, n)
 	}
-	return c.Set(q)
+	return r.Set(q)
 }
 
-// ClearCofactor maps given a G2 point to correct subgroup
-func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
-	return g.wnafMul(p, p, cofactorG2)
+func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
+
+	wnaf := toWNAF(e, wnafMulWindowG2)
+	l := (1 << (wnafMulWindowG2 - 1))
+
+	twoP, acc := g.New(), new(PointG2).Set(p)
+	g.Double(twoP, p)
+	g.Affine(twoP)
+
+	// table = {p, 3p, 5p, ..., -p, -3p, -5p}
+	table := make([]*PointG2, l*2)
+	table[0], table[l] = g.New(), g.New()
+	table[0].Set(p)
+	g.Neg(table[l], table[0])
+
+	for i := 1; i < l; i++ {
+		g.addMixed(acc, acc, twoP)
+		table[i], table[i+l] = g.New(), g.New()
+		table[i].Set(acc)
+		g.Neg(table[i+l], table[i])
+	}
+
+	z := g.Zero()
+	for i := len(wnaf) - 1; i >= 0; i-- {
+		if wnaf[i] > 0 {
+			g.Add(z, z, table[wnaf[i]>>1])
+		} else if wnaf[i] < 0 {
+			g.Add(z, z, table[((-wnaf[i])>>1)+l])
+		}
+		if i != 0 {
+			g.Double(z, z)
+		}
+	}
+	return c.Set(z)
 }
 
 // MultiExp calculates multi exponentiation. Given pairs of G1 point and scalar values
@@ -468,47 +505,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 	return r.Set(acc), nil
 }
 
-func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
-	windowSize := 6
-
-	l := (1 << (windowSize - 1))
-	tablePositive := make([]PointG2, l)
-	tableNegative := make([]PointG2, l)
-
-	twoP, acc := g.New(), new(PointG2).Set(p)
-	g.Double(twoP, p)
-
-	// p
-	tablePositive[0].Set(acc)
-	// -p
-	g.Neg(&tableNegative[0], acc)
-
-	for i := 1; i < l; i++ {
-		g.Add(acc, acc, twoP)
-		// 3p, 5p, 7p ...
-		tablePositive[i].Set(acc)
-		// -3p, -5p, -7p ...
-		g.Neg(&tableNegative[i], acc)
-	}
-
-	wnaf := toWNAF(e, windowSize)
-
-	q := g.Zero()
-
-	for i := len(wnaf) - 1; i >= 0; i-- {
-
-		if wnaf[i] > 0 {
-
-			g.Add(q, q, &tablePositive[wnaf[i]>>1])
-		} else if wnaf[i] < 0 {
-
-			g.Add(q, q, &tableNegative[(-wnaf[i])>>1])
-		}
-
-		if i != 0 {
-			g.Double(q, q)
-		}
-
-	}
-	return c.Set(q)
+// ClearCofactor maps given a G2 point to correct subgroup
+func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
+	return g.wnafMul(p, p, cofactorG2)
 }
