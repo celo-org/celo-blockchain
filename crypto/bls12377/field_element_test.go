@@ -164,10 +164,10 @@ func TestFieldElementSerialization(t *testing.T) {
 		in := make([]byte, 48)
 		fe := new(fe).setBytes(in)
 		if !fe.isZero() {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 		if !bytes.Equal(in, fe.bytes()) {
-			t.Fatal("bad serialization")
+			t.Fatal("serialization failed")
 		}
 	})
 	t.Run("bytes", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestFieldElementSerialization(t *testing.T) {
 			a, _ := new(fe).rand(rand.Reader)
 			b := new(fe).setBytes(a.bytes())
 			if !a.equal(b) {
-				t.Fatal("bad serialization")
+				t.Fatal("serialization failed")
 			}
 		}
 	})
@@ -184,7 +184,7 @@ func TestFieldElementSerialization(t *testing.T) {
 			a, _ := new(fe).rand(rand.Reader)
 			b := new(fe).setBig(a.big())
 			if !a.equal(b) {
-				t.Fatal("bad encoding or decoding")
+				t.Fatal("encoding or decoding failed")
 			}
 		}
 	})
@@ -196,7 +196,7 @@ func TestFieldElementSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !a.equal(b) {
-				t.Fatal("bad encoding or decoding")
+				t.Fatal("encoding or decoding failed")
 			}
 		}
 	})
@@ -207,24 +207,24 @@ func TestFieldElementByteInputs(t *testing.T) {
 	in := make([]byte, 0)
 	a := new(fe).setBytes(in)
 	if !a.equal(zero) {
-		t.Fatal("bad serialization")
+		t.Fatal("serialization failed")
 	}
 	in = make([]byte, 48)
 	a = new(fe).setBytes(in)
 	if !a.equal(zero) {
-		t.Fatal("bad serialization")
+		t.Fatal("serialization failed")
 	}
 	in = make([]byte, 64)
 	a = new(fe).setBytes(in)
 	if !a.equal(zero) {
-		t.Fatal("bad serialization")
+		t.Fatal("serialization failed")
 	}
 	in = make([]byte, 49)
 	in[47] = 1
 	normalOne := &fe{1, 0, 0, 0, 0, 0}
 	a = new(fe).setBytes(in)
 	if !a.equal(normalOne) {
-		t.Fatal("bad serialization")
+		t.Fatal("serialization failed")
 	}
 }
 
@@ -232,21 +232,21 @@ func TestFieldElementCopy(t *testing.T) {
 	a, _ := new(fe).rand(rand.Reader)
 	b := new(fe).set(a)
 	if !a.equal(b) {
-		t.Fatal("bad copy, 1")
+		t.Fatal("copy failed")
 	}
 	a2, _ := new(fe2).rand(rand.Reader)
 	b2 := new(fe2).set(a2)
 	if !a2.equal(b2) {
-		t.Fatal("bad copy, 2")
+		t.Fatal("copy failed")
 	}
 	a6, _ := new(fe6).rand(rand.Reader)
 	b6 := new(fe6).set(a6)
 	if !a6.equal(b6) {
-		t.Fatal("bad copy, 6")
+		t.Fatal("copy failed")
 	}
 	a12, _ := new(fe12).rand(rand.Reader)
 	b12 := new(fe12).set(a12)
 	if !a12.equal(b12) {
-		t.Fatal("bad copy, 12")
+		t.Fatal("copy failed")
 	}
 }

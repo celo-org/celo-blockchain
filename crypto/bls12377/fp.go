@@ -8,7 +8,7 @@ import (
 func fromBytes(in []byte) (*fe, error) {
 	fe := &fe{}
 	if len(in) != FE_BYTE_SIZE {
-		return nil, errors.New("input string should be equal 48 bytes")
+		return nil, errors.New("input string length must be equal 48 bytes")
 	}
 	fe.setBytes(in)
 	if !fe.isValid() {

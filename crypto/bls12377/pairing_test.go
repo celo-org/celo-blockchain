@@ -31,7 +31,7 @@ func TestPairingExpected(t *testing.T) {
 	}
 	r := bls.AddPair(G1.One(), G2.One()).Result()
 	if !r.Equal(expected) {
-		t.Fatal("bad pairing")
+		t.Fatal("pairing failed")
 	}
 	if !GT.IsValid(r) {
 		t.Fatal("element is not in correct subgroup")
@@ -113,7 +113,7 @@ func TestPairingNonDegeneracy(t *testing.T) {
 		bls.AddPair(g1One, g2One)
 		e := bls.Result()
 		if !e.Equal(expected) {
-			t.Fatal("bad pairing")
+			t.Fatal("pairing failed")
 		}
 	}
 }
@@ -134,7 +134,7 @@ func TestPairingBilinearity(t *testing.T) {
 		e1 := bls.AddPair(P1, P2).Result()
 		gt.Exp(e0, e0, c)
 		if !e0.Equal(e1) {
-			t.Fatal("bad pairing, 1")
+			t.Fatal("pairing failed")
 		}
 	}
 	// e(a * G1, b * G2) = e((a + b) * G1, G2)
@@ -153,7 +153,7 @@ func TestPairingBilinearity(t *testing.T) {
 		bls.AddPairInv(P1, P2)
 		// should be one
 		if !bls.Check() {
-			t.Fatal("bad pairing, 2")
+			t.Fatal("pairing failed")
 		}
 	}
 	// e(a * G1, b * G2) = e((a + b) * G1, G2)
@@ -172,7 +172,7 @@ func TestPairingBilinearity(t *testing.T) {
 		bls.AddPairInv(H1, H2)
 		// should be one
 		if !bls.Check() {
-			t.Fatal("bad pairing, 3")
+			t.Fatal("pairing failed")
 		}
 	}
 }
@@ -203,7 +203,7 @@ func TestPairingMulti(t *testing.T) {
 	g1.MulScalar(T1, T1, targetExp)
 	bls.AddPairInv(T1, T2)
 	if !bls.Check() {
-		t.Fatal("fail multi pairing")
+		t.Fatal("pairing failed")
 	}
 }
 
