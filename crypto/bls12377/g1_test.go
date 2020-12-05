@@ -58,7 +58,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 3")
+		t.Fatal("infinity serialization faled")
 	}
 	for i := 0; i < fuz; i++ {
 		a := g1.randAffine()
@@ -69,7 +69,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 3")
+			t.Fatal("serialization failed")
 		}
 	}
 	for i := 0; i < fuz; i++ {
@@ -80,7 +80,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization encode/decode")
+			t.Fatal("encoding or decoding failed")
 		}
 	}
 }
@@ -156,7 +156,7 @@ func TestG1AdditiveProperties(t *testing.T) {
 		g.Double(t0, a)
 		g.Sub(t0, t0, a)
 		if !g.Equal(t0, a) || !g.IsOnCurve(t0) {
-			t.Fatal(" (2 * a) - a == a")
+			t.Fatal("(2 * a) - a == a")
 		}
 		g.Add(t0, a, b)
 		g.Add(t1, b, a)
@@ -239,15 +239,15 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		sone := big.NewInt(1)
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == 0")
+			t.Fatal("0 ^ s == 0")
 		}
 		g.MulScalar(t0, a, sone)
 		if !g.Equal(t0, a) {
-			t.Fatal(" a ^ 1 == a")
+			t.Fatal("a ^ 1 == a")
 		}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == a")
+			t.Fatal("0 ^ s == a")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t0, t0, s2)
@@ -297,7 +297,7 @@ func TestG1MultiExpExpected(t *testing.T) {
 	g.MulScalar(expected, one, big.NewInt(5))
 	_, _ = g.MultiExp(result, bases[:], scalars[:])
 	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		t.Fatal("multi-exponentiation failed")
 	}
 }
 
@@ -359,7 +359,7 @@ func BenchmarkG1MulWNAF(t *testing.B) {
 	})
 	for i := 1; i < 8; i++ {
 		wnafMulWindowG1 = uint(i)
-		t.Run(fmt.Sprintf("Fr, window: %d", i), func(t *testing.B) {
+		t.Run(fmt.Sprintf("window: %d", i), func(t *testing.B) {
 			t.ResetTimer()
 			for i := 0; i < t.N; i++ {
 				g.wnafMul(res, p, s)

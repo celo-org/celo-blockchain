@@ -60,7 +60,7 @@ func (g *G1) Q() *big.Int {
 // (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	if len(in) != 2*FE_BYTE_SIZE {
-		return nil, errors.New("input string should be equal or larger than 96")
+		return nil, errors.New("input string lenght must be equal to 96 bytes")
 	}
 	p0, err := fromBytes(in[:FE_BYTE_SIZE])
 	if err != nil {
