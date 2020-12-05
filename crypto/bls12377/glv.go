@@ -35,16 +35,12 @@ var glvMulWindowG2 uint = 4
 // halfR = 2**256 / 2
 var halfR = bigFromHex("0x8000000000000000000000000000000000000000000000000000000000000000")
 
-type glvVector interface {
-	wnaf(w uint) (nafNumber, nafNumber)
-}
-
-type glvVectorBig struct {
+type glvVector struct {
 	k1 *big.Int
 	k2 *big.Int
 }
 
-func (v *glvVectorBig) wnaf(w uint) (nafNumber, nafNumber) {
+func (v *glvVector) wnaf(w uint) (nafNumber, nafNumber) {
 	naf1, naf2 := toWNAF(v.k1, w), toWNAF(v.k2, w)
 	zero := new(big.Int)
 	if v.k1.Cmp(zero) < 0 {
@@ -56,7 +52,7 @@ func (v *glvVectorBig) wnaf(w uint) (nafNumber, nafNumber) {
 	return naf1, naf2
 }
 
-func (v *glvVectorBig) new(m *big.Int) *glvVectorBig {
+func (v *glvVector) new(m *big.Int) *glvVector {
 	// Guide to Pairing Based Cryptography
 	// 6.3.2. Decompositions for the k = 12 BLS Family
 

@@ -60,7 +60,7 @@ func (g *G1) Q() *big.Int {
 // (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	if len(in) != 2*FE_BYTE_SIZE {
-		return nil, errors.New("input string lenght must be equal to 96 bytes")
+		return nil, errors.New("input string length must be equal to 96 bytes")
 	}
 	p0, err := fromBytes(in[:FE_BYTE_SIZE])
 	if err != nil {
@@ -439,7 +439,7 @@ func (g *G1) wnafMul(r, p *PointG1, e *big.Int) *PointG1 {
 
 func (g *G1) glvMul(r, p0 *PointG1, e *big.Int) *PointG1 {
 
-	v := new(glvVectorBig).new(e)
+	v := new(glvVector).new(e)
 	w := glvMulWindowG1
 	l := 1 << (w - 1)
 

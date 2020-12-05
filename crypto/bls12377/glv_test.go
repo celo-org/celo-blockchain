@@ -56,9 +56,9 @@ func TestGLVConstruction(t *testing.T) {
 	t.Run("Scalar Decomposition", func(t *testing.T) {
 		for i := 0; i < fuz; i++ {
 			m := randScalar(q)
-			var v *glvVectorBig
+			var v *glvVector
 			r128 := bigFromHex("0xffffffffffffffffffffffffffffffff")
-			v = new(glvVectorBig).new(m)
+			v = new(glvVector).new(m)
 			if new(big.Int).Abs(v.k1).Cmp(r128) >= 0 {
 				t.Fatal("bad scalar component, big k1")
 			}
