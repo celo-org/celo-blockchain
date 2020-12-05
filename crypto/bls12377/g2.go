@@ -192,7 +192,7 @@ func (g *G2) Equal(p1, p2 *PointG2) bool {
 // InCorrectSubgroup checks whether given point is in correct subgroup.
 func (g *G2) InCorrectSubgroup(p *PointG2) bool {
 	tmp := &PointG2{}
-	g.MulScalar(tmp, p, q)
+	g.wnafMul(tmp, p, q)
 	return g.IsZero(tmp)
 }
 
@@ -220,19 +220,25 @@ func (g *G2) IsAffine(p *PointG2) bool {
 
 // Affine calculates affine form of given G2 point.
 func (g *G2) Affine(p *PointG2) *PointG2 {
+	return g.affine(p, p)
+}
+
+func (g *G2) affine(r, p *PointG2) *PointG2 {
 	if g.IsZero(p) {
-		return p
+		return r.Zero()
 	}
 	if !g.IsAffine(p) {
 		t := g.t
-		g.f.inverse(t[0], &p[2])
-		g.f.square(t[1], t[0])
-		g.f.mul(&p[0], &p[0], t[1])
-		g.f.mul(t[0], t[0], t[1])
-		g.f.mul(&p[1], &p[1], t[0])
-		p[2].one()
+		g.f.inverse(t[0], &p[2])    // z^-1
+		g.f.square(t[1], t[0])      // z^-2
+		g.f.mul(&r[0], &r[0], t[1]) // x = x * z^-2
+		g.f.mul(t[0], t[0], t[1])   // z^-3
+		g.f.mul(&r[1], &r[1], t[0]) // y = y * z^-3
+		r[2].one()                  // z = 1
+	} else {
+		r.Set(p)
 	}
-	return p
+	return r
 }
 
 // AffineBatch given multiple of points returns affine representations
@@ -400,7 +406,7 @@ func (g *G2) Sub(c, a, b *PointG2) *PointG2 {
 
 // MulScalar multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
 func (g *G2) MulScalar(r, p *PointG2, e *big.Int) *PointG2 {
-	return g.wnafMul(r, p, e)
+	return g.glvMul(r, p, e)
 }
 
 func (g *G2) mulScalar(r, p *PointG2, e *big.Int) *PointG2 {
@@ -450,6 +456,71 @@ func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
 		}
 	}
 	return c.Set(z)
+}
+
+func (g *G2) glvMul(r, p0 *PointG2, e *big.Int) *PointG2 {
+
+	v := new(glvVectorBig).new(e)
+	w := glvMulWindowG2
+	l := 1 << (w - 1)
+
+	// prepare tables
+	// tableK1 = {P, 3P, 5P, ...}
+	// tableK2 = {λP, 3λP, 5λP, ...}
+	tableK1, tableK2 := make([]*PointG2, l), make([]*PointG2, l)
+	double := g.New()
+	g.Double(double, p0)
+	g.affine(double, double)
+	tableK1[0] = new(PointG2)
+	tableK1[0].Set(p0)
+	for i := 1; i < l; i++ {
+		tableK1[i] = new(PointG2)
+		g.addMixed(tableK1[i], tableK1[i-1], double)
+	}
+	g.AffineBatch(tableK1)
+	for i := 0; i < l; i++ {
+		tableK2[i] = new(PointG2)
+		g.glvEndomorphism(tableK2[i], tableK1[i])
+	}
+
+	// recode small scalars
+	naf1, naf2 := v.wnaf(w)
+	lenNAF1, lenNAF2 := len(naf1), len(naf2)
+	lenNAF := lenNAF1
+	if lenNAF2 > lenNAF {
+		lenNAF = lenNAF2
+	}
+
+	acc, p1 := g.New(), g.New()
+
+	// function for naf addition
+	add := func(table []*PointG2, naf int) {
+		if naf != 0 {
+			nafAbs := naf
+			if nafAbs < 0 {
+				nafAbs = -nafAbs
+			}
+			p1.Set(table[nafAbs>>1])
+			if naf < 0 {
+				g.Neg(p1, p1)
+			}
+			g.addMixed(acc, acc, p1)
+		}
+	}
+
+	// sliding
+	for i := lenNAF - 1; i >= 0; i-- {
+		if i < lenNAF1 {
+			add(tableK1, naf1[i])
+		}
+		if i < lenNAF2 {
+			add(tableK2, naf2[i])
+		}
+		if i != 0 {
+			g.Double(acc, acc)
+		}
+	}
+	return r.Set(acc)
 }
 
 // MultiExp calculates multi exponentiation. Given pairs of G1 point and scalar values

@@ -235,7 +235,7 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 		s3.Mul(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+			t.Fatal(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t1, a, s2)
@@ -243,7 +243,7 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 		s3.Add(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+			t.Fatal(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -254,12 +254,16 @@ func TestG2MultiplicationCross(t *testing.T) {
 
 		a := g.randAffine()
 		s := randScalar(q)
-		res0, res1 := g.New(), g.New()
+		res0, res1, res2 := g.New(), g.New(), g.New()
 
 		g.mulScalar(res0, a, s)
 		g.wnafMul(res1, a, s)
+		g.glvMul(res2, a, s)
 
 		if !g.Equal(res0, res1) {
+			t.Fatal("cross multiplication failed", i)
+		}
+		if !g.Equal(res0, res2) {
 			t.Fatal("cross multiplication failed", i)
 		}
 	}
@@ -362,10 +366,32 @@ func BenchmarkG2MulWNAF(t *testing.B) {
 	})
 	for i := 1; i < 8; i++ {
 		wnafMulWindowG2 = uint(i)
-		t.Run(fmt.Sprintf("Fr, window: %d", i), func(t *testing.B) {
+		t.Run(fmt.Sprintf("window: %d", i), func(t *testing.B) {
 			t.ResetTimer()
 			for i := 0; i < t.N; i++ {
 				g.wnafMul(res, p, s)
+			}
+		})
+	}
+}
+
+func BenchmarkG2MulGLV(t *testing.B) {
+	g := NewG2()
+	p := new(PointG2).Set(&g2One)
+	s := randScalar(q)
+	res := new(PointG2)
+	t.Run("Naive", func(t *testing.B) {
+		t.ResetTimer()
+		for i := 0; i < t.N; i++ {
+			g.mulScalar(res, p, s)
+		}
+	})
+	for i := 1; i < 8; i++ {
+		glvMulWindowG2 = uint(i)
+		t.Run(fmt.Sprintf("window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.glvMul(res, p, s)
 			}
 		})
 	}
