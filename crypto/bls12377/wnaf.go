@@ -9,6 +9,12 @@ type nafNumber []int
 var bigZero = big.NewInt(0)
 var bigOne = big.NewInt(1)
 
+func (n nafNumber) neg() {
+	for i := 0; i < len(n); i++ {
+		n[i] = -n[i]
+	}
+}
+
 func toWNAF(e *big.Int, w uint) nafNumber {
 	naf := nafNumber{}
 	if w == 0 {

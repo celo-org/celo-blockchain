@@ -234,7 +234,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 	t0, t1 := g.New(), g.New()
 	zero := g.Zero()
 	for i := 0; i < fuz; i++ {
-		a := g.rand()
+		a := g.randCorrect()
 		s1, s2, s3 := randScalar(q), randScalar(q), randScalar(q)
 		sone := big.NewInt(1)
 		g.MulScalar(t0, zero, s1)
@@ -254,7 +254,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		s3.Mul(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+			t.Fatal("(a ^ s1) ^ s2 == a ^ (s1 * s2)")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t1, a, s2)
@@ -262,7 +262,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		s3.Add(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+			t.Fatal("(a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -270,16 +270,17 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 func TestG1MultiplicationCross(t *testing.T) {
 	g := NewG1()
 	for i := 0; i < fuz; i++ {
-
 		a := g.randCorrect()
 		s := randScalar(q)
-		res0, res1 := g.New(), g.New()
-
+		res0, res1, res2 := g.New(), g.New(), g.New()
 		g.mulScalar(res0, a, s)
 		g.wnafMul(res1, a, s)
-
+		g.glvMul(res2, a, s)
 		if !g.Equal(res0, res1) {
-			t.Fatal("cross multiplication failed", i)
+			t.Fatal("cross multiplication failed, wnaf", i)
+		}
+		if !g.Equal(res0, res2) {
+			t.Fatal("cross multiplication failed, glv", i)
 		}
 	}
 }
@@ -315,7 +316,7 @@ func TestG1MultiExp(t *testing.T) {
 		}
 		expected, tmp := g.New(), g.New()
 		for i := 0; i < n; i++ {
-			g.MulScalar(tmp, bases[i], scalars[i])
+			g.mulScalar(tmp, bases[i], scalars[i])
 			g.Add(expected, expected, tmp)
 		}
 		result := g.New()
@@ -362,6 +363,28 @@ func BenchmarkG1MulWNAF(t *testing.B) {
 			t.ResetTimer()
 			for i := 0; i < t.N; i++ {
 				g.wnafMul(res, p, s)
+			}
+		})
+	}
+}
+
+func BenchmarkG1MulGLV(t *testing.B) {
+	g := NewG1()
+	p := new(PointG1).Set(&g1One)
+	s := randScalar(q)
+	res := new(PointG1)
+	t.Run("Naive", func(t *testing.B) {
+		t.ResetTimer()
+		for i := 0; i < t.N; i++ {
+			g.mulScalar(res, p, s)
+		}
+	})
+	for i := 1; i < 8; i++ {
+		glvMulWindowG1 = uint(i)
+		t.Run(fmt.Sprintf("window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.glvMul(res, p, s)
 			}
 		})
 	}
