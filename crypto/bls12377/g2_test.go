@@ -21,6 +21,10 @@ func (g *G2) rand() *PointG2 {
 	return g.MulScalar(&PointG2{}, g.one(), k)
 }
 
+func (g *G2) randAffine() *PointG2 {
+	return g.Affine(g.rand())
+}
+
 func (g *G2) new() *PointG2 {
 	return g.Zero()
 }
@@ -244,6 +248,23 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 	}
 }
 
+func TestG2MultiplicationCross(t *testing.T) {
+	g := NewG2()
+	for i := 0; i < fuz; i++ {
+
+		a := g.randAffine()
+		s := randScalar(q)
+		res0, res1 := g.New(), g.New()
+
+		g.mulScalar(res0, a, s)
+		g.wnafMul(res1, a, s)
+
+		if !g.Equal(res0, res1) {
+			t.Fatal("cross multiplication failed", i)
+		}
+	}
+}
+
 func TestWNAFMulAgainstNaive(t *testing.T) {
 	g2 := NewG2()
 	for i := 0; i < fuz; i++ {
@@ -254,44 +275,6 @@ func TestWNAFMulAgainstNaive(t *testing.T) {
 		g2.wnafMul(c1, a, e)
 		if !g2.Equal(c0, c1) {
 			t.Fatal("wnaf against naive failed")
-		}
-	}
-}
-
-func TestG2MultiplicativePropertiesWNAF(t *testing.T) {
-	g := NewG2()
-	t0, t1 := g.new(), g.new()
-	zero := g.Zero()
-	for i := 0; i < fuz; i++ {
-		a := g.rand()
-		s1, s2, s3 := randScalar(q), randScalar(q), randScalar(q)
-		sone := big.NewInt(1)
-		g.wnafMul(t0, zero, s1)
-		if !g.Equal(t0, zero) {
-			t.Fatalf(" 0 ^ s == 0")
-		}
-		g.wnafMul(t0, a, sone)
-		if !g.Equal(t0, a) {
-			t.Fatalf(" a ^ 1 == a")
-		}
-		g.wnafMul(t0, zero, s1)
-		if !g.Equal(t0, zero) {
-			t.Fatalf(" 0 ^ s == a")
-		}
-		g.wnafMul(t0, a, s1)
-		g.wnafMul(t0, t0, s2)
-		s3.Mul(s1, s2)
-		g.wnafMul(t1, a, s3)
-		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
-		}
-		g.wnafMul(t0, a, s1)
-		g.wnafMul(t1, a, s2)
-		g.Add(t0, t0, t1)
-		s3.Add(s1, s2)
-		g.wnafMul(t1, a, s3)
-		if !g.Equal(t0, t1) {
-			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -366,12 +349,25 @@ func BenchmarkG2AddMixed(t *testing.B) {
 	}
 }
 
-func BenchmarkG2Mul(t *testing.B) {
-	g2 := NewG2()
-	a, e, c := g2.rand(), q, PointG2{}
-	t.ResetTimer()
-	for i := 0; i < t.N; i++ {
-		g2.MulScalar(&c, a, e)
+func BenchmarkG2MulWNAF(t *testing.B) {
+	g := NewG2()
+	p := new(PointG2).Set(&g2One)
+	s := randScalar(q)
+	res := new(PointG2)
+	t.Run("Naive", func(t *testing.B) {
+		t.ResetTimer()
+		for i := 0; i < t.N; i++ {
+			g.mulScalar(res, p, s)
+		}
+	})
+	for i := 1; i < 8; i++ {
+		wnafMulWindowG2 = uint(i)
+		t.Run(fmt.Sprintf("Fr, window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.wnafMul(res, p, s)
+			}
+		})
 	}
 }
 
@@ -386,7 +382,7 @@ func BenchmarkG2MultiExp(t *testing.B) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bases[i] = g.rand()
+			bases[i] = g.randAffine()
 		}
 		return bases, scalars
 	}

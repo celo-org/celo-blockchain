@@ -8,44 +8,44 @@ import (
 )
 
 func (g *G1) one() *PointG1 {
-	one := g.New()
-	one.Set(&g1One)
-	return one
+	return g.New().Set(&g1One)
 }
 
 func (g *G1) rand() *PointG1 {
-	k, err := rand.Int(rand.Reader, q)
-	if err != nil {
-		panic(err)
-	}
-	return g.MulScalar(&PointG1{}, g.one(), k)
-}
-
-func (g *G1) rand2() *PointG1 {
+	p := &PointG1{}
+	z, _ := new(fe).rand(rand.Reader)
+	z6, bz6 := new(fe), new(fe)
+	square(z6, z)
+	square(z6, z6)
+	mul(z6, z6, z)
+	mul(z6, z6, z)
+	mul(bz6, z6, b)
 	for {
 		x, _ := new(fe).rand(rand.Reader)
 		y := new(fe)
 		square(y, x)
 		mul(y, y, x)
-		add(y, y, b)
+		add(y, y, bz6)
 		if sqrt(y, y) {
-			return &PointG1{*x, *y, *one}
+			p.Set(&PointG1{*x, *y, *z})
+			break
 		}
 	}
+	if !g.IsOnCurve(p) {
+		panic("rand point must be on curve")
+	}
+	if g.InCorrectSubgroup(p) {
+		panic("rand point must be out of correct subgroup")
+	}
+	return p
 }
 
-func TestG1ClearCofactor(t *testing.T) {
-	g1 := NewG1()
-	for i := 0; i < fuz; i++ {
-		a := g1.rand2()
-		if g1.InCorrectSubgroup(a) {
-			t.Fatal("near 0 probablity that this would occur")
-		}
-		g1.ClearCofactor(a)
-		if !g1.InCorrectSubgroup(a) {
-			t.Fatal("cofactor is not cleared")
-		}
-	}
+func (g *G1) randCorrect() *PointG1 {
+	return g.ClearCofactor(g.rand())
+}
+
+func (g *G1) randAffine() *PointG1 {
+	return g.Affine(g.randCorrect())
 }
 
 func TestG1Serialization(t *testing.T) {
@@ -61,7 +61,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal("bad infinity serialization 3")
 	}
 	for i := 0; i < fuz; i++ {
-		a := g1.rand()
+		a := g1.randAffine()
 		_ = a
 		uncompressed := g1.ToBytes(a)
 		b, err := g1.FromBytes(uncompressed)
@@ -267,6 +267,23 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 	}
 }
 
+func TestG1MultiplicationCross(t *testing.T) {
+	g := NewG1()
+	for i := 0; i < fuz; i++ {
+
+		a := g.randCorrect()
+		s := randScalar(q)
+		res0, res1 := g.New(), g.New()
+
+		g.mulScalar(res0, a, s)
+		g.wnafMul(res1, a, s)
+
+		if !g.Equal(res0, res1) {
+			t.Fatal("cross multiplication failed", i)
+		}
+	}
+}
+
 func TestG1MultiExpExpected(t *testing.T) {
 	g := NewG1()
 	one := g.one()
@@ -328,12 +345,25 @@ func BenchmarkG1AddMixed(t *testing.B) {
 	}
 }
 
-func BenchmarkG1Mul(t *testing.B) {
-	g1 := NewG1()
-	a, e, c := g1.rand(), q, PointG1{}
-	t.ResetTimer()
-	for i := 0; i < t.N; i++ {
-		g1.MulScalar(&c, a, e)
+func BenchmarkG1MulWNAF(t *testing.B) {
+	g := NewG1()
+	p := new(PointG1).Set(&g1One)
+	s := randScalar(q)
+	res := new(PointG1)
+	t.Run("Naive", func(t *testing.B) {
+		t.ResetTimer()
+		for i := 0; i < t.N; i++ {
+			g.mulScalar(res, p, s)
+		}
+	})
+	for i := 1; i < 8; i++ {
+		wnafMulWindowG1 = uint(i)
+		t.Run(fmt.Sprintf("Fr, window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.wnafMul(res, p, s)
+			}
+		})
 	}
 }
 
@@ -348,7 +378,7 @@ func BenchmarkG1MultiExp(t *testing.B) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bases[i] = g.rand()
+			bases[i] = g.randAffine()
 		}
 		return bases, scalars
 	}

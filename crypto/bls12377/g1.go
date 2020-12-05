@@ -11,6 +11,8 @@ import (
 // If z is equal to one the point is accounted as in affine form.
 type PointG1 [3]fe
 
+var wnafMulWindowG1 uint = 5
+
 func (p *PointG1) Set(p2 *PointG1) *PointG1 {
 	p[0].set(&p2[0])
 	p[1].set(&p2[1])
@@ -376,7 +378,11 @@ func (g *G1) Sub(c, a, b *PointG1) *PointG1 {
 }
 
 // MulScalar multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
-func (g *G1) MulScalar(c, p *PointG1, e *big.Int) *PointG1 {
+func (g *G1) MulScalar(r, p *PointG1, e *big.Int) *PointG1 {
+	return g.wnafMul(r, p, e)
+}
+
+func (g *G1) mulScalar(r, p *PointG1, e *big.Int) *PointG1 {
 	q, n := &PointG1{}, &PointG1{}
 	n.Set(p)
 	l := e.BitLen()
@@ -386,12 +392,43 @@ func (g *G1) MulScalar(c, p *PointG1, e *big.Int) *PointG1 {
 		}
 		g.Double(n, n)
 	}
-	return c.Set(q)
+	return r.Set(q)
 }
 
-// ClearCofactor maps given a G1 point to correct subgroup
-func (g *G1) ClearCofactor(p *PointG1) {
-	g.MulScalar(p, p, cofactorG1)
+func (g *G1) wnafMul(r, p *PointG1, e *big.Int) *PointG1 {
+
+	wnaf := toWNAF(e, wnafMulWindowG1)
+	l := (1 << (wnafMulWindowG1 - 1))
+
+	twoP, acc := g.New(), new(PointG1).Set(p)
+	g.Double(twoP, p)
+	g.Affine(twoP)
+
+	// table = {p, 3p, 5p, ..., -p, -3p, -5p}
+	table := make([]*PointG1, l*2)
+	table[0], table[l] = g.New(), g.New()
+	table[0].Set(p)
+	g.Neg(table[l], table[0])
+
+	for i := 1; i < l; i++ {
+		g.addMixed(acc, acc, twoP)
+		table[i], table[i+l] = g.New(), g.New()
+		table[i].Set(acc)
+		g.Neg(table[i+l], table[i])
+	}
+
+	q := g.Zero()
+	for i := len(wnaf) - 1; i >= 0; i-- {
+		if wnaf[i] > 0 {
+			g.Add(q, q, table[wnaf[i]>>1])
+		} else if wnaf[i] < 0 {
+			g.Add(q, q, table[((-wnaf[i])>>1)+l])
+		}
+		if i != 0 {
+			g.Double(q, q)
+		}
+	}
+	return r.Set(q)
 }
 
 // MultiExp calculates multi exponentiation. Given pairs of G1 point and scalar values
@@ -445,4 +482,9 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 		g.addMixed(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
+}
+
+// ClearCofactor maps given a G1 point to correct subgroup
+func (g *G1) ClearCofactor(p *PointG1) *PointG1 {
+	return g.wnafMul(p, p, cofactorG1)
 }
