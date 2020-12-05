@@ -179,6 +179,9 @@ func (e *fp2) inverseBatch(in []fe2) {
 			n++
 		}
 	}
+	if n == 0 {
+		return
+	}
 
 	tA := make([]fe2, n)
 	tB := make([]fe2, n)
