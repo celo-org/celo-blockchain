@@ -146,6 +146,9 @@ func inverseBatch(in []fe) {
 			n++
 		}
 	}
+	if n == 0 {
+		return
+	}
 
 	tA := make([]fe, n)
 	tB := make([]fe, n)
