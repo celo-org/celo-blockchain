@@ -18,7 +18,7 @@ package proxy
 
 import (
 	"github.com/buraksezer/consistent"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
