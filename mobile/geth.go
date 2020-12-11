@@ -212,7 +212,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	debug.Memsize.Add("node", rawStack)
 
 	var genesis *core.Genesis
-	var lesServ *les.LightEthereum
+	var nodeResponse = Node{}
+	nodeResponse.node = rawStack
 	if config.EthereumGenesis != "" {
 		// Parse the user supplied genesis spec if not mainnet
 		genesis = new(core.Genesis)
@@ -248,8 +249,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		// Use an in memory DB for roundState table
 		ethConf.Istanbul.RoundStateDBPath = ""
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			lesServ, err = les.New(ctx, &ethConf)
-			return lesServ, err
+			nodeResponse.les, err = les.New(ctx, &ethConf)
+			return nodeResponse.les, err
 		}); err != nil {
 			return nil, fmt.Errorf("ethereum init: %v", err)
 		}
@@ -258,7 +259,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 				var lesServ *les.LightEthereum
 				ctx.Service(&lesServ)
-
 				return ethstats.New(config.EthereumNetStats, nil, lesServ)
 			}); err != nil {
 				return nil, fmt.Errorf("netstats init: %v", err)
@@ -273,7 +273,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			return nil, fmt.Errorf("whisper init: %v", err)
 		}
 	}
-	return &Node{rawStack, lesServ}, nil
+	return &nodeResponse, nil
 }
 
 func getSyncMode(syncMode int) downloader.SyncMode {
@@ -333,20 +333,16 @@ func (n *Node) GetPeerInfos() *PeerInfos {
 	return &PeerInfos{n.node.Server().PeersInfo()}
 }
 
-// type BlockchainStats struct {
-// 	Syncing                  bool     `json:"syncing"`
-// 	HighestBlockNumber       uint64   `json:"highestBlockNumber"`
-// 	LastBlockNumber          uint64   `json:"lastBlockNumber"`
-// 	LastBlockTotalDifficulty *big.Int `json:"lastBlockTotalDifficulty"`
-// 	LastBlockTimestamp       *big.Int `json:"lastBlockTimestamp"`
-// }
-
-func (n *Node) GetGethStats() *Stats {
+func (n *Node) GetGethStats() (*Stats, error) {
 	stats := Stats{m: make(map[string]string)}
+	if n.les == nil {
+		return nil, fmt.Errorf("les was not initialised")
+	}
 
+	stats.syncToRegistryStats()
 	n.GetBlockchainStats(&stats)
 
-	return &stats
+	return &stats, nil
 }
 
 func (n *Node) GetBlockchainStats(stats *Stats) {
@@ -354,28 +350,7 @@ func (n *Node) GetBlockchainStats(stats *Stats) {
 	downloaderSync := n.les.Downloader().Progress()
 	lastBlockNumber := n.les.BlockChain().CurrentHeader().Number.Uint64()
 	stats.m["chain/syncing"] = strconv.FormatBool(lastBlockNumber >= downloaderSync.HighestBlock)
-	stats.m["chain/highestBlockNumber"] = strconv.FormatUint(downloaderSync.HighestBlock, 10)
-	stats.m["chain/lastBlockNumber"] = strconv.FormatUint(lastBlockNumber, 10)
+	stats.m["chain/downloader/highestBlockNumber"] = strconv.FormatUint(downloaderSync.HighestBlock, 10)
 	stats.m["chain/lastBlockTotalDifficulty"] = n.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64()).String()
 	stats.m["chain/lastBlockTimestamp"] = strconv.FormatUint(header.Time, 10)
 }
-
-// type TxPoolStats struct {
-// 	Pending int `json:"pending"`
-// }
-
-func (n *Node) GetTxPoolStats(stats *Stats) {
-	stats.m["txpool/pending"] = strconv.Itoa(n.les.TxPool().Stats())
-}
-
-// type ServerPoolStats struct {
-// 	Pending int `json:"pending"`
-// }
-
-// func (n *Node) GetServerPoolStats() *ServerPoolStats {
-// 	return &TxPoolStats{
-// 		Pending: n.les.ServerPool(),
-// 	}
-// }
-
-// GatewayFeeInformation?

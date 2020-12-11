@@ -66,12 +66,12 @@ all-musl:
 	$(GORUN) build/ci.go install -musl
 
 android:
-	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local
+	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
 ios:
-	$(GORUN) build/ci.go xcode --local
+	$(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."

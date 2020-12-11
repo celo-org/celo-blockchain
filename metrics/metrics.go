@@ -8,17 +8,25 @@ package metrics
 import (
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// This is required to be able of adding it as a ldflag at building time
+// ldflags -X only sets string values
+var EnabledDefaultValue = "false"
+
 // Enabled is checked by the constructor functions for all of the
 // standard metrics. If it is true, the metric returned is a stub.
 //
 // This global kill-switch helps quantify the observer effect and makes
 // for less cluttered pprof profiles.
+//
+// This boolean will be override with the value of Boolean(EnabledDefaultValue)
+// at the beginning of the init
 var Enabled = false
 
 // EnabledExpensive is a soft-flag meant for external packages to check if costly
@@ -36,6 +44,11 @@ var expensiveEnablerFlags = []string{"metrics.expensive"}
 // any other code gets to create meters and timers, we'll actually do an ugly hack
 // and peek into the command line args for the metrics flag.
 func init() {
+	var err error
+	Enabled, err = strconv.ParseBool(EnabledDefaultValue)
+	if err != nil {
+		log.Error("The EnabledDefaultValue set is not a string representing a boolean")
+	}
 	for _, arg := range os.Args {
 		flag := strings.TrimLeft(arg, "-")
 
