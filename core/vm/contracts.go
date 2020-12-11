@@ -905,7 +905,9 @@ type ed25519Verify struct{}
 func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
 	const sha2_512WordLength = 64
 
-	words := uint64(len(input) / sha2_512WordLength)
+	// round up to next whole word
+	lengthCeil := len(input) + sha2_512WordLength - 1
+	words := uint64(lengthCeil / sha2_512WordLength)
 	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
 }
 
