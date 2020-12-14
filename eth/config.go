@@ -32,7 +32,7 @@ import (
 var DefaultConfig = Config{
 	SyncMode:           downloader.FastSync,
 	NetworkId:          1,
-	LightPeers:         99,
+	LightPeers:         100,
 	LightServ:          50,
 	UltraLightFraction: 75,
 	DatabaseCache:      768,
