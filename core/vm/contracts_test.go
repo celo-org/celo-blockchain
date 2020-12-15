@@ -1098,21 +1098,33 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 
 const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
 
+const abcStringHex = "616263"
+
 var cip20Tests = []precompiledTest{
 	{
-		input:    "00616263",
+		input:    "00" + abcStringHex,
 		expected: "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
 		name:     "sha3-256 of 'abc'",
 	},
 	{
-		input:    "01616263",
+		input:    "01" + abcStringHex,
 		expected: "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
 		name:     "sha3-512 of 'abc'",
 	},
 	{
-		input:    "02616263",
+		input:    "02" + abcStringHex,
 		expected: "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d77aa511a9d00bb96",
 		name:     "keccak512 of 'abc'",
+	},
+	{
+		input:    "03" + abcStringHex,
+		expected: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+		name:     "sha2-512 of 'abc'",
+	},
+	{
+		input:    "03",
+		expected: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+		name:     "sha2-512 of empty string",
 	},
 	{
 		input:    "10" + defaultBlake2sConfig,
@@ -1123,16 +1135,6 @@ var cip20Tests = []precompiledTest{
 		input:    "10" + "20000101" + "00000000" + "00000000" + "60000000" + "0000000000000000" + "0000000000000000",
 		expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
 		name:     "celo-bls-snark-rs test_crh_empty",
-	},
-	{
-		input:    "03",
-		expected: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
-		name:     "sha2-512 of empty string",
-	},
-	{
-		input:    "03616263",
-		expected: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
-		name:     "sha2-512 of 'abc'",
 	},
 }
 

@@ -160,8 +160,8 @@ func (c *Blake2s) Run(input []byte) ([]byte, error) {
 }
 
 // The blake2s config is a 32-byte block that is XORed with the IV. It is
-// ocumented in the blake2 specification. The key is added to the state after it
-// is initialized with the config, and thus is technically not part of the
+// documented in the blake2 specification. The key is added to the state after
+// it is initialized with the config, and thus is technically not part of the
 // config, however, the underlying library requires the key with the config.
 //
 // NB: numbers longer than 1 byte are LE.
