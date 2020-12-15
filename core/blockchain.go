@@ -1267,6 +1267,8 @@ func popcount(x uint64) int {
 
 // updateUptime receives the currently accumulated uptime for all validators in an epoch and proceeds to update it
 // based on which validators signed on the provided block by inspecting the block's parent bitmap
+//
+// It expects a blockNumber with the signatures bitmap from the previous block (parent seal)
 func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *istanbul.Uptime {
 	if uptime == nil {
 		uptime = new(istanbul.Uptime)
@@ -1276,8 +1278,7 @@ func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, 
 		uptime.Entries = make([]istanbul.UptimeEntry, validatorsSizeUpperBound)
 	}
 
-	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
-	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
+	firstBlockToMonitor, lastBlockToMonitor := istanbul.GetUptimeMonitoringWindow(epochNum, epochSize, window)
 
 	// signedBlockWindowLastBlockNum is just the previous block
 	signedBlockWindowLastBlockNum := blockNumber - 1
@@ -1292,13 +1293,13 @@ func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, 
 
 		// If we are within the validator uptime tally window, then update the validator's score
 		// if its last signed block is within the lookback window
-		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
+		if blockNumber >= firstBlockToMonitor && blockNumber <= lastBlockToMonitor {
 			lastSignedBlock := uptime.Entries[i].LastSignedBlock
 
 			// Note that the second condition in the if condition is not necessary.  But it does
 			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
 			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
-			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
+			if lastSignedBlock >= signedBlockWindowFirstBlockNum && lastSignedBlock <= signedBlockWindowLastBlockNum {
 				uptime.Entries[i].ScoreTally++
 			}
 		}

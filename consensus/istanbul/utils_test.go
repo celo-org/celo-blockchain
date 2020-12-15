@@ -20,12 +20,11 @@ import (
 	"math/big"
 	"testing"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-
 	"github.com/ethereum/go-ethereum/common"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
-func TestValSetDiff(t *testing.T) {
+func TestValidatorSetDiff(t *testing.T) {
 	tests := []struct {
 		inputOldValset      []common.Address
 		inputNewValset      []common.Address
@@ -132,4 +131,185 @@ func TestValSetDiff(t *testing.T) {
 		}
 	}
 
+}
+
+func TestGetEpochFirstBlockNumber(t *testing.T) {
+	type args struct {
+		epochNumber uint64
+		epochSize   uint64
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    uint64
+		wantErr bool
+	}{
+		{"No epoch 0", args{0, 10}, 0, true},
+		{"epoch1", args{1, 10}, 1, false},
+		{"epoch2", args{2, 10}, 11, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetEpochFirstBlockNumber(tt.args.epochNumber, tt.args.epochSize)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetEpochFirstBlockNumber() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetEpochFirstBlockNumber() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEpochLastBlockNumber(t *testing.T) {
+	type args struct {
+		epochNumber uint64
+		epochSize   uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"epoch 0", args{0, 10}, 0},
+		{"epoch 1", args{1, 10}, 10},
+		{"epoch 2", args{2, 10}, 20},
+		{"epoch size 1", args{1, 1}, 1},
+		{"epoch size 2", args{1, 2}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetEpochLastBlockNumber(tt.args.epochNumber, tt.args.epochSize); got != tt.want {
+				t.Errorf("GetEpochLastBlockNumber() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetNumberWithinEpoch(t *testing.T) {
+	type args struct {
+		number    uint64
+		epochSize uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"block 0", args{0, 10}, 10},
+		{"block 0 other size", args{0, 15}, 15},
+		{"block 1", args{1, 10}, 1},
+		{"block 1 epoch 2", args{11, 10}, 1},
+		{"block 5 epoch 2", args{15, 10}, 5},
+		{"last block epoch 2", args{20, 10}, 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetNumberWithinEpoch(tt.args.number, tt.args.epochSize); got != tt.want {
+				t.Errorf("GetNumberWithinEpoch() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsLastBlockOfEpoch(t *testing.T) {
+	type args struct {
+		number    uint64
+		epochSize uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{"genesis block", args{0, 10}, true},
+		{"epoch 1, block 1", args{1, 10}, false},
+		{"epoch 2, block 3", args{13, 10}, false},
+		{"epoch 2, block 20", args{20, 10}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsLastBlockOfEpoch(tt.args.number, tt.args.epochSize); got != tt.want {
+				t.Errorf("IsLastBlockOfEpoch() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsFirstBlockOfEpoch(t *testing.T) {
+	type args struct {
+		number    uint64
+		epochSize uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{"genesis block", args{0, 10}, false},
+		{"epoch 1, block 1", args{1, 10}, true},
+		{"epoch 2, block 3", args{13, 10}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsFirstBlockOfEpoch(tt.args.number, tt.args.epochSize); got != tt.want {
+				t.Errorf("IsFirstBlockOfEpoch() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEpochNumber(t *testing.T) {
+	type args struct {
+		number    uint64
+		epochSize uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"genesis block", args{0, 10}, 0},
+		{"epoch 1 first block", args{1, 10}, 1},
+		{"epoch 1 last block", args{10, 10}, 1},
+		{"epoch 2 first lbock", args{11, 10}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetEpochNumber(tt.args.number, tt.args.epochSize); got != tt.want {
+				t.Errorf("GetEpochNumber() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetUptimeMonitoringWindow(t *testing.T) {
+	type args struct {
+		epochNumber        uint64
+		epochSize          uint64
+		lookbackWindowSize uint64
+	}
+	tests := []struct {
+		name  string
+		args  args
+		want  uint64
+		want1 uint64
+	}{
+		{"tally on first epoch", args{1, 10, 2}, 1 + 2, 9},
+		{"tally on second epoch", args{2, 10, 2}, 11 + 2, 19},
+		{"lookback window too big", args{1, 10, 10}, 11, 9},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := GetUptimeMonitoringWindow(tt.args.epochNumber, tt.args.epochSize, tt.args.lookbackWindowSize)
+			if got != tt.want {
+				t.Errorf("GetUptimeMonitoringWindow() got = %v, want %v", got, tt.want)
+			}
+			if got1 != tt.want1 {
+				t.Errorf("GetUptimeMonitoringWindow() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
 }

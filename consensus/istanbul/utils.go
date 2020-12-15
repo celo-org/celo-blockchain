@@ -67,38 +67,41 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	return common.Address{}, fmt.Errorf("not an elected validator %s", signer.Hex())
 }
 
-// Retrieves the block number within an epoch.  The return value will be 1-based.
-// There is a special case if the number == 0.  It is basically the last block of the 0th epoch, and should have a value of epochSize
+// GetNumberWithinEpoch retrieves the block number within an epoch.
+// The return value will be 1-based; thus first block of epoch is 1, and last block of epoch is `epochSize`
+// There is a special case if the number == 0. It is basically the last block of the 0th epoch, and should have a value of epochSize
 func GetNumberWithinEpoch(number uint64, epochSize uint64) uint64 {
 	number = number % epochSize
 	if number == 0 {
 		return epochSize
-	} else {
-		return number
 	}
+	return number
 }
 
+// IsLastBlockOfEpoch indicates if block number is the last block of its epoch
 func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
 	return GetNumberWithinEpoch(number, epochSize) == epochSize
 }
 
+// IsFirstBlockOfEpoch indicates if block number is the first block of its epoch
 func IsFirstBlockOfEpoch(number uint64, epochSize uint64) bool {
 	return GetNumberWithinEpoch(number, epochSize) == 1
 }
 
-// Retrieves the epoch number given the block number.
-// There is a special case if the number == 0 (the genesis block).  That block will be in the
-// 1st epoch.
+// GetEpochNumber retrieves the epoch number given the block number.
+// Epoch 0 is a special block that only contains the genesis block (block 0), epoch 1
+// starts at block 1
 func GetEpochNumber(number uint64, epochSize uint64) uint64 {
 	epochNumber := number / epochSize
 	if IsLastBlockOfEpoch(number, epochSize) {
 		return epochNumber
-	} else {
-		return epochNumber + 1
 	}
+	return epochNumber + 1
 }
 
+// GetEpochFirstBlockNumber retrieves first block of epoch.
 func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, error) {
+	// Epoch 0 is just the genesis block, it doesn't have a first block (only last)
 	if epochNumber == 0 {
 		return 0, errors.New("No first block for epoch 0")
 	}
@@ -106,33 +109,45 @@ func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, err
 	return ((epochNumber - 1) * epochSize) + 1, nil
 }
 
+// GetEpochLastBlockNumber retrieves last block of epoch
 func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	if epochNumber == 0 {
 		return 0
 	}
-
-	firstBlockNum, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
-	return firstBlockNum + (epochSize - 1)
+	// Epoch 0 is just the genesis bock, so epoch 1 starts at block 1 and ends at block epochSize
+	// And from then on, it's epochSize more for each epoch
+	return epochNumber * epochSize
 }
 
-func GetValScoreTallyFirstBlockNumber(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) uint64 {
+// GetUptimeMonitoringWindow retrieves the range [first block, last block] where uptime is to be monitored
+// for a give epoch. The range is inclusive.
+// First blocks of an epoch need to be skipped since we can't assess the last `lookbackWindow` block for validators
+// as those are froma different epoch.
+// Similarly, last block of epoch is skipped since we can't obtaine the signer for it; as they are in the next block
+func GetUptimeMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) (uint64, uint64) {
+	if epochNumber == 0 {
+		panic("no monitoring window for epoch 0")
+	}
+
+	epochFirstBlock, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
+	epochLastBlock := GetEpochLastBlockNumber(epochNumber, epochSize)
+
+	// first block to monitor:
 	// We need to wait for the completion of the first window with the start window's block being the
 	// 2nd block of the epoch, before we start tallying the validator score for epoch "epochNumber".
 	// We can't include the epoch's first block since it's aggregated parent seals
 	// is for the previous epoch's valset.
+	firstBlockToMonitor := epochFirstBlock + 1 + (lookbackWindowSize - 1)
 
-	epochFirstBlock, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
-	return epochFirstBlock + 1 + (lookbackWindowSize - 1)
-}
-
-func GetValScoreTallyLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
+	// last block to monitor:
 	// We stop tallying for epoch "epochNumber" at the second to last block of that epoch.
 	// We can't include that epoch's last block as part of the tally because the epoch val score is calculated
 	// using a tally that is updated AFTER a block is finalized.
 	// Note that it's possible to count up to the last block of the epoch, but it's much harder to implement
 	// than couting up to the second to last one.
+	lastBlockToMonitor := epochLastBlock - 1
 
-	return GetEpochLastBlockNumber(epochNumber, epochSize) - 1
+	return firstBlockToMonitor, lastBlockToMonitor
 }
 
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
@@ -169,7 +184,9 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	return addedValidators, removedValidatorsBitmap
 }
 
-// This function assumes that valSet1 and valSet2 are ordered in the same way
+// CompareValidatorSlices compares 2 validator slices and indicate if they are equal.
+// Equality is defined as: valseSet1[i] must be equal to valSet2[i] for every i.
+// (aka. order matters)
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
