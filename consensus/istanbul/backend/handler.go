@@ -237,30 +237,31 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
 	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
 
-	// Now check if in the "parent seal" (used for downtime calcs, on the child block)
+	// Now check if this validator signer is in the "parent seal" on the child block.
+	// The parent seal is used for downtime calculations.
 	childExtra, err := types.ExtractIstanbulExtra(child.Header())
 	if err != nil {
 		return
 	}
 
-	// total possible signatures
+	// valSetSize is the total number of possible signers.
 	valSetSize := gpValSet.Size()
 	sb.blocksValSetSizeGauge.Update(int64(valSetSize))
 
-	// signatures present
+	// countInParentSeal is the number of signers represented in the parent seal of the child block.
 	countInParentSeal := 0
 	for i := 0; i < gpValSet.Size(); i++ {
 		countInParentSeal += int(childExtra.ParentAggregatedSeal.Bitmap.Bit(i))
 	}
 	sb.blocksTotalSigsGauge.Update(int64(countInParentSeal))
 
-	// cumulative count of rounds missed (i.e sequences not agreed on round=0)
+	// Cumulative count of rounds missed (i.e sequences not agreed on round=0)
 	missedRounds := childExtra.ParentAggregatedSeal.Round.Int64()
 	if missedRounds > 0 {
 		sb.blocksTotalMissedRoundsMeter.Mark(missedRounds)
 	}
 
-	// elected?
+	// Is this validator signer elected?
 	elected := gpValSetIndex >= 0
 	if !elected {
 		sb.blocksElectedButNotSignedGauge.Update(0)
@@ -270,7 +271,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 
 	// The following metrics are only tracked if the validator is elected.
 
-	// proposed the block that was finalized?
+	// Did this validator propose the block that was finalized?
 	if parentHeader.Coinbase == sb.ValidatorAddress() {
 		sb.blocksElectedAndProposedMeter.Mark(1)
 	} else {
@@ -294,7 +295,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		sb.blocksElectedButNotSignedGauge.Update(0)
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
-		sb.blocksElectedButNotSignedGauge.Update(sb.blocksElectedButNotSignedGauge.Value() + 1)
+		sb.blocksElectedButNotSignedGauge.Inc(1)
 		if sb.blocksElectedButNotSignedGauge.Value() != 0 {
 			sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
 		} else {
@@ -303,7 +304,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 
 	}
 
-	// Report downtime events
+	// Report downtime events.
 	if sb.blocksElectedButNotSignedGauge.Value() >= int64(sb.config.LookbackWindow) {
 		sb.blocksDowntimeEventMeter.Mark(1)
 		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
