@@ -235,7 +235,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 
 	// Check validator in grandparent valset.
 	gpValSet := sb.getValidators(number-2, parentHeader.ParentHash)
-	gpValSetIndex, _ := gpValSet.GetByAddress(sb.ValidatorAddress())
+	gpValSetIndex, _ := gpValSet.GetByAddress(sb.Address())
 
 	// Now check if this validator signer is in the "parent seal" on the child block.
 	// The parent seal is used for downtime calculations.
@@ -272,7 +272,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	// The following metrics are only tracked if the validator is elected.
 
 	// Did this validator propose the block that was finalized?
-	if parentHeader.Coinbase == sb.ValidatorAddress() {
+	if parentHeader.Coinbase == sb.Address() {
 		sb.blocksElectedAndProposedMeter.Mark(1)
 	} else {
 		// could have proposed a block that was not finalized?
@@ -281,7 +281,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		gpAuthor := sb.AuthorForBlock(number - 2)
 		for i := int64(0); i < missedRounds; i++ {
 			proposer := validator.GetProposerSelector(sb.config.ProposerPolicy)(gpValSet, gpAuthor, uint64(i))
-			if sb.ValidatorAddress() == proposer.Address() {
+			if sb.Address() == proposer.Address() {
 				sb.blocksMissedRoundsAsProposerMeter.Mark(1)
 				break
 			}
@@ -296,13 +296,13 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
 		sb.blocksElectedButNotSignedGauge.Inc(1)
-		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
+		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.Address(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
 	}
 
 	// Report downtime events.
 	if sb.blocksElectedButNotSignedGauge.Value() >= int64(sb.config.LookbackWindow) {
 		sb.blocksDowntimeEventMeter.Mark(1)
-		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.ValidatorAddress())
+		sb.logger.Error("Elected but getting marked as down", "missed block count", sb.blocksElectedButNotSignedGauge.Value(), "number", number-1, "address", sb.Address())
 	}
 
 	// Clear downtime counter on end of epoch.
