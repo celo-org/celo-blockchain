@@ -34,6 +34,7 @@ jobs:
             - geth
   unit-tests:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -56,6 +57,7 @@ jobs:
 
   coverage:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
