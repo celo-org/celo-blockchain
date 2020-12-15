@@ -111,6 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
+
 	backend.core = istanbulCore.New(backend, backend.config)
 
 	backend.logger = istanbul.NewIstLogger(

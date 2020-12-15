@@ -27,7 +27,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -197,20 +197,20 @@ func TestUptimeStorage(t *testing.T) {
 		t.Fatalf("Non existent uptime returned: %v", entry)
 	}
 	// Write and verify the uptime in the database
-	uptimeEntries := make([]istanbul.UptimeEntry, 3)
-	uptimeEntries[0] = istanbul.UptimeEntry{
+	uptimeEntries := make([]uptime.UptimeEntry, 3)
+	uptimeEntries[0] = uptime.UptimeEntry{
 		ScoreTally:      0,
 		LastSignedBlock: 1,
 	}
-	uptimeEntries[1] = istanbul.UptimeEntry{
+	uptimeEntries[1] = uptime.UptimeEntry{
 		ScoreTally:      2,
 		LastSignedBlock: 2,
 	}
-	uptimeEntries[2] = istanbul.UptimeEntry{
+	uptimeEntries[2] = uptime.UptimeEntry{
 		ScoreTally:      8,
 		LastSignedBlock: 8,
 	}
-	uptime := &istanbul.Uptime{
+	uptime := &uptime.Uptime{
 		Entries:     uptimeEntries,
 		LatestBlock: 5,
 	}

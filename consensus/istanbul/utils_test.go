@@ -283,33 +283,3 @@ func TestGetEpochNumber(t *testing.T) {
 		})
 	}
 }
-
-func TestGetUptimeMonitoringWindow(t *testing.T) {
-	type args struct {
-		epochNumber        uint64
-		epochSize          uint64
-		lookbackWindowSize uint64
-	}
-	tests := []struct {
-		name  string
-		args  args
-		want  uint64
-		want1 uint64
-	}{
-		{"tally on first epoch", args{1, 10, 2}, 1 + 2, 9},
-		{"tally on second epoch", args{2, 10, 2}, 11 + 2, 19},
-		{"lookback window too big", args{1, 10, 10}, 11, 9},
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := GetUptimeMonitoringWindow(tt.args.epochNumber, tt.args.epochSize, tt.args.lookbackWindowSize)
-			if got != tt.want {
-				t.Errorf("GetUptimeMonitoringWindow() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("GetUptimeMonitoringWindow() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
