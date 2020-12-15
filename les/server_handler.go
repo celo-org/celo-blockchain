@@ -586,6 +586,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 		var (
 			lastBHash common.Hash
 			root      common.Hash
+			header    *types.Header
 		)
 		reqCnt := len(req.Reqs)
 		if accept(req.ReqID, uint64(reqCnt), MaxProofsFetch) {
@@ -600,10 +601,6 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 						return
 					}
 					// Look up the root hash belonging to the request
-					var (
-						header *types.Header
-						trie   state.Trie
-					)
 					if request.BHash != lastBHash {
 						root, lastBHash = common.Hash{}, request.BHash
 
@@ -630,6 +627,7 @@ func (h *serverHandler) handleMsg(p *peer, wg *sync.WaitGroup) error {
 					// Open the account or storage trie for the request
 					statedb := h.blockchain.StateCache()
 
+					var trie state.Trie
 					switch len(request.AccKey) {
 					case 0:
 						// No account key specified, open an account trie
