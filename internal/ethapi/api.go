@@ -819,7 +819,6 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
 		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
 		if err != nil {
 			log.Error("Error suggesting gas price", "block", blockNrOrHash, "err", err)
@@ -869,6 +868,10 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	if estimate {
 		res, gas, failed, err = core.ApplyEstimatorMessage(evm, msg, gp)
 	} else {
+		transaction := types.NewTransaction(msg.Nonce(), *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.FeeCurrency(), msg.GatewayFeeRecipient(), msg.GatewayFee(), msg.Data())
+		if err := core.ValidateTransactorBalanceCoversTx(transaction, addr, state); err != nil {
+			return nil, 0, false, err
+		}
 		res, gas, failed, err = core.ApplyMessage(evm, msg, gp)
 	}
 
