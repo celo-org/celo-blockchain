@@ -776,13 +776,10 @@ func (sb *Backend) RefreshValPeers() error {
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
-	var localAddress common.Address
 	if sb.IsProxy() {
-		localAddress = sb.config.ProxiedValidatorAddress
-	} else {
-		localAddress = sb.Address()
+		return sb.config.ProxiedValidatorAddress
 	}
-	return localAddress
+	return sb.Address()
 }
 
 // RetrieveValidatorConnSet returns the cached validator conn set if the cache
