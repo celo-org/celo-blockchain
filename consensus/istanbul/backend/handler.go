@@ -296,7 +296,11 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	} else {
 		sb.blocksElectedButNotSignedMeter.Mark(1)
 		sb.blocksElectedButNotSignedGauge.Inc(1)
-		sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.Address(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
+		if sb.blocksElectedButNotSignedGauge.Value() != 0 {
+			sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress(), "missed in a row", sb.blocksElectedButNotSignedGauge.Value())
+		} else {
+			sb.logger.Warn("Elected but didn't sign block", "number", number-1, "address", sb.ValidatorAddress())
+		}
 	}
 
 	// Report downtime events.
