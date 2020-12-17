@@ -81,6 +81,8 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errNotAValidator is returned when the node is not configured as a validator
+	errNotAValidator = errors.New("Not configured as a validator")
 )
 
 var (
@@ -1016,7 +1018,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 // SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
 func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 	if sb.replicaState == nil {
-		return errors.New("Not configured as a validator")
+		return errNotAValidator
 	}
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
@@ -1027,7 +1029,7 @@ func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 // SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
 func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
 	if sb.replicaState == nil {
-		return errors.New("Not configured as a validator")
+		return errNotAValidator
 	}
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
