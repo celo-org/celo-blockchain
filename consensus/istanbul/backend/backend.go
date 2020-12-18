@@ -293,6 +293,7 @@ type Backend struct {
 	proxiedValidatorEngineRunning bool
 	proxiedValidatorEngineMu      sync.RWMutex
 
+	// RandomSeed (and it's mutex) used to generate the random beacon randomness
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
 }

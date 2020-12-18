@@ -25,8 +25,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// String for creating the random seed
 var randomSeedString = []byte("Randomness seed string")
 
+// GenerateRandomness will generate the random beacon randomness
 func (sb *Backend) GenerateRandomness(parentHash common.Hash, header *types.Header, state *state.StateDB) (common.Hash, common.Hash, error) {
 	logger := sb.logger.New("func", "GenerateRandomness")
 

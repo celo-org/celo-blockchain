@@ -659,12 +659,15 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 	DeleteTd(db, hash, number)
 }
 
+// WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
+// (which is used to calculate the commitmented random number).
 func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash, parentHash common.Hash) {
 	if err := db.Put(istanbul.RandomnessCommitmentDBLocation(commitment), parentHash.Bytes()); err != nil {
 		log.Crit("Failed to store randomness commitment cache entry", "err", err)
 	}
 }
 
+// ReadRandomCommitmentCache will retun the random beacon commit's associated block parent hash.
 func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.Hash {
 	parentHash, err := db.Get(istanbul.RandomnessCommitmentDBLocation(commitment))
 	if err != nil {

@@ -1321,7 +1321,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	// We are going to update the uptime tally.
 	// TODO find a better way of checking if it's istanbul
-	var randomCommitment common.Hash
+	randomCommitment := common.Hash{}
 	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
 
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
@@ -1363,7 +1363,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 
 		if blockAuthor == istEngine.ValidatorAddress() {
-			// Calculate the randomness and commitment
+			// Calculate the randomness commitment
 			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash(), block.Header(), state)
 
 			if err != nil {
