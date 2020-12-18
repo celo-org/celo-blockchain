@@ -216,3 +216,8 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 	id := node.ID()
 	return &id, nil
 }
+
+func RandomnessCommitmentDBLocation(commitment common.Hash) []byte {
+	dbRandomnessPrefix := []byte("db-randomness-prefix")
+	return append(dbRandomnessPrefix, commitment.Bytes()...)
+}

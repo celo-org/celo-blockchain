@@ -1321,7 +1321,8 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	// We are going to update the uptime tally.
 	// TODO find a better way of checking if it's istanbul
-	if _, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
+	var randomCommitment common.Hash
+	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
 
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
@@ -1355,6 +1356,21 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 				log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", block.NumberU64())
 			}
 		}
+
+		blockAuthor, err := istEngine.Author(block.Header())
+		if err != nil {
+			log.Warn("Unable to retrieve the author for block", "blockNum", block.NumberU64(), "err", err)
+		}
+
+		if blockAuthor == istEngine.ValidatorAddress() {
+			// Calculate the randomness and commitment
+			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash(), block.Header(), state)
+
+			if err != nil {
+				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
+				return NonStatTy, err
+			}
+		}
 	}
 
 	// Calculate the total difficulty of the block
@@ -1376,6 +1392,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
+	if (randomCommitment != common.Hash{}) {
+		rawdb.WriteRandomCommitmentCache(blockBatch, randomCommitment, block.ParentHash())
+	}
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
 	}

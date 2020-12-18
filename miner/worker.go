@@ -24,7 +24,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -32,6 +31,7 @@ import (
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -78,11 +78,6 @@ const (
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
 	staleThreshold = 7
-)
-
-var (
-	randomSeedString = []byte("Randomness seed string")
-	randomSeed       []byte
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -186,10 +181,10 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
 	// Needed for randomness
-	db *ethdb.Database
+	db ethdb.Database
 }
 
-func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db *ethdb.Database, init bool) *worker {
+func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
 	worker := &worker{
 		config:             config,
 		chainConfig:        chainConfig,
@@ -867,40 +862,44 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
-		if randomSeed == nil {
-			account := accounts.Account{Address: w.coinbase}
-			wallet, err := w.eth.AccountManager().Find(account)
-			if err == nil {
-				// TODO: Use SignData instead
-				randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
-			}
-			if err != nil {
-				log.Error("Unable to create random seed", "err", err)
-				return
-			}
+		istanbul, ok := w.engine.(consensus.Istanbul)
+		if !ok {
+			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
 		}
 
-		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		lastCommitment, err := random.GetLastCommitment(w.coinbase, w.current.header, w.current.state)
 		if err != nil {
-			log.Error("Failed to get last randomness", "err", err)
+			log.Error("Failed to get last commitment", "err", err)
 			return
 		}
 
-		commitment, err := random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
-		if err != nil {
-			log.Error("Failed to generate randomness commitment", "err", err)
+		lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
+		if (lastRandomnessParentHash == common.Hash{}) {
+			log.Error("Failed to get last randomness cache entry", "err", err)
 			return
 		}
 
-		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
+		lastRandomness, _, err := istanbul.GenerateRandomness(lastRandomnessParentHash, w.current.header, w.current.state)
 		if err != nil {
-			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
+			log.Error("Failed to generate last randomness", "err", err)
+			return
+		}
+
+		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to generate new randomness", "err", err)
+			return
+		}
+
+		err = random.RevealAndCommit(lastRandomness, newCommitment, w.coinbase, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
 			return
 		}
 		// always true (EIP158)
 		w.current.state.IntermediateRoot(true)
 
-		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
+		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
 	} else {
 		w.current.randomness = &types.EmptyRandomness
 	}

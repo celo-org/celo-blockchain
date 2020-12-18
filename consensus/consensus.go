@@ -209,4 +209,9 @@ type Istanbul interface {
 	// This is only implemented for Istanbul.
 	// It will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
+
+	// This function will return the istanbul engine's validator address
+	ValidatorAddress() common.Address
+
+	GenerateRandomness(parentHash common.Hash, header *types.Header, state *state.StateDB) (common.Hash, common.Hash, error)
 }
