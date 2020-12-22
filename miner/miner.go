@@ -20,6 +20,7 @@ package miner
 import (
 	"fmt"
 	"math/big"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,7 +28,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -65,6 +68,7 @@ type Miner struct {
 	eth      Backend
 	engine   consensus.Engine
 	exitCh   chan struct{}
+	db       ethdb.Database // Needed for randomness
 
 	canStart    int32 // can start indicates whether we can start the mining operation
 	shouldStart int32 // should start indicates whether we should start after sync
@@ -77,6 +81,7 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 		engine:   engine,
 		exitCh:   make(chan struct{}),
 		worker:   newWorker(config, chainConfig, engine, eth, mux, isLocalBlock, db, true),
+		db:       db,
 		canStart: 1,
 	}
 	go miner.update()
@@ -112,7 +117,14 @@ func (miner *Miner) update() {
 				atomic.StoreInt32(&miner.canStart, 1)
 				atomic.StoreInt32(&miner.shouldStart, 0)
 				if shouldStart {
-					miner.Start(miner.coinbase)
+					istEngine, isIstanbul := miner.engine.(consensus.Istanbul)
+
+					// Check to see if the the latest commitment is in the cache, if it's using the istanbul consensus engine
+					if !isIstanbul || miner.commitmentCacheSaved(istEngine) {
+						miner.Start(miner.coinbase)
+					} else {
+						log.Error("Couldn't recover the validator's committed randomness.  Validator will NOT be able to propose blocks, and mining will NOT start")
+					}
 				}
 				// stop immediately and ignore all further pending events
 				return
@@ -191,4 +203,124 @@ func (miner *Miner) SetEtherbase(addr common.Address) {
 // to the given channel.
 func (self *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {
 	return self.worker.pendingLogsFeed.Subscribe(ch)
+}
+
+// commitmentCacheSaved will check to see if the last commitment cache entry is saved.
+// If not, it will search for it and save it.
+func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
+	// Subscribe to new block notifications
+	newBlockCh := make(chan core.ChainEvent)
+	bc := miner.eth.BlockChain()
+	bc.SubscribeChainEvent(newBlockCh)
+
+	// getCurrentHeaderAndState
+	currentHeader := bc.CurrentHeader()
+	currentState, err := bc.StateAt(currentHeader.Hash())
+	if err != nil {
+		log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
+		return false
+	}
+
+	// Check to see if we already have the commitment cache
+	lastCommitment, err := random.GetLastCommitment(miner.coinbase, currentHeader, currentState)
+	if err != nil {
+		log.Error("Error in retrieving last commitment", "error", err)
+		return false
+	}
+
+	if (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) != common.Hash{}) {
+		return true
+	}
+
+	// goroutine communication channels and waitgroup
+	stopCh := make(chan struct{})
+	errCh := make(chan error)
+	foundParentHashCh := make(chan common.Hash)
+	var wg sync.WaitGroup
+
+	// Stacked defers are exececuted in LIFO order
+	defer wg.Wait()
+	defer close(stopCh)
+
+	if currentHeader.Number.Uint64() > 0 {
+		blockHashIter := currentHeader.Hash()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				blockHeader := bc.GetHeaderByHash(blockHashIter)
+
+				// We got to the genisis block, so this goroutine didn't find the latest
+				// block authored by this validator.
+				if blockHeader.Number.Uint64() == 0 {
+					foundParentHashCh <- common.Hash{}
+					return
+				}
+
+				blockAuthor, err := miner.engine.Author(blockHeader)
+				if err != nil {
+					log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
+					errCh <- err
+					return
+				}
+
+				if blockAuthor == miner.coinbase {
+					foundParentHashCh <- blockHeader.ParentHash
+					return
+				}
+
+				// Check to see if this goroutine should stop
+				select {
+				case <-stopCh:
+					return
+				default:
+				}
+
+				blockHashIter = blockHeader.ParentHash
+			}
+		}()
+	}
+
+	parentHash := common.Hash{}
+
+waitLoop:
+	for {
+		select {
+		case newBlock := <-newBlockCh:
+			blockAuthor, err := miner.engine.Author(newBlock.Block.Header())
+			if err != nil {
+				log.Error("Error is retrieving block author", "block number", newBlock.Block.Number().Uint64(), "block hash", newBlock.Block.Hash(), "error", err)
+				return false
+			}
+
+			if blockAuthor == miner.coinbase {
+				parentHash = newBlock.Block.ParentHash()
+			}
+			break waitLoop
+
+		case parentHash = <-foundParentHashCh:
+			break waitLoop
+
+		case <-errCh:
+			return false
+		}
+	}
+
+	if (parentHash != common.Hash{}) {
+		// Calculate the randomness commitment
+		// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
+		// will do. Will use the previously fetched current header and state.
+		_, randomCommitment, err := istEngine.GenerateRandomness(parentHash, currentHeader, currentState)
+		if err != nil {
+			log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
+			return false
+		}
+
+		rawdb.WriteRandomCommitmentCache(miner.db, randomCommitment, parentHash)
+
+		return true
+	} else {
+		return false
+	}
 }
