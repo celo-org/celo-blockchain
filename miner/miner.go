@@ -211,7 +211,8 @@ func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
 	// Subscribe to new block notifications
 	newBlockCh := make(chan core.ChainEvent)
 	bc := miner.eth.BlockChain()
-	bc.SubscribeChainEvent(newBlockCh)
+	newBlockSub := bc.SubscribeChainEvent(newBlockCh)
+	defer newBlockSub.Unsubscribe()
 
 	// getCurrentHeaderAndState
 	currentHeader := bc.CurrentHeader()
