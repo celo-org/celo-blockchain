@@ -671,7 +671,7 @@ func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash,
 func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.Hash {
 	parentHash, err := db.Get(istanbul.RandomnessCommitmentDBLocation(commitment))
 	if err != nil {
-		log.Warn("Error in trying to retrieve randomness commitment cache entry")
+		log.Warn("Error in trying to retrieve randomness commitment cache entry", "error", err)
 		return common.Hash{}
 	}
 

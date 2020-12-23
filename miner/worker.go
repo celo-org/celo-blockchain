@@ -875,7 +875,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 		lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 		if (lastRandomnessParentHash == common.Hash{}) {
-			log.Error("Failed to get last randomness cache entry", "err", err)
+			log.Error("Failed to get last randomness cache entry")
 			return
 		}
 

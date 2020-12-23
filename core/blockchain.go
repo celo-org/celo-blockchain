@@ -1393,6 +1393,8 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
 	if (randomCommitment != common.Hash{}) {
+		// Note that the random commitment cache entry is never transferred over to the freezer,
+		// unlike all of the other saved data within this batch write
 		rawdb.WriteRandomCommitmentCache(blockBatch, randomCommitment, block.ParentHash())
 	}
 	if err := blockBatch.Write(); err != nil {

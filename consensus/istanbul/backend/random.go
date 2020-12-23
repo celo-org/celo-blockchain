@@ -32,6 +32,10 @@ var randomSeedString = []byte("Randomness seed string")
 func (sb *Backend) GenerateRandomness(parentHash common.Hash, header *types.Header, state *state.StateDB) (common.Hash, common.Hash, error) {
 	logger := sb.logger.New("func", "GenerateRandomness")
 
+	if !random.IsRunning() {
+		return common.Hash{}, common.Hash{}, nil
+	}
+
 	sb.randomSeedMu.Lock()
 	if sb.randomSeed == nil {
 		var err error
@@ -46,7 +50,7 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash, header *types.Head
 
 	randomness := crypto.Keccak256Hash(append(sb.randomSeed, parentHash.Bytes()...))
 	commitment, err := random.ComputeCommitment(header, state, randomness)
-	if err == nil {
+	if err != nil {
 		logger.Error("Failed to compute commitment", "err", err)
 		return common.Hash{}, common.Hash{}, err
 	}
