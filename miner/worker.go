@@ -873,16 +873,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 
-		lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
-		if (lastRandomnessParentHash == common.Hash{}) {
-			log.Error("Failed to get last randomness cache entry")
-			return
-		}
+		lastRandomness := common.Hash{}
+		if (lastCommitment != common.Hash{}) {
+			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
+			if (lastRandomnessParentHash == common.Hash{}) {
+				log.Error("Failed to get last randomness cache entry")
+				return
+			}
 
-		lastRandomness, _, err := istanbul.GenerateRandomness(lastRandomnessParentHash, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to generate last randomness", "err", err)
-			return
+			var err error
+			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash, w.current.header, w.current.state)
+			if err != nil {
+				log.Error("Failed to generate last randomness", "err", err)
+				return
+			}
 		}
 
 		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash, w.current.header, w.current.state)
