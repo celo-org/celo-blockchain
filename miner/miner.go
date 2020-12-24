@@ -294,6 +294,11 @@ func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
 waitLoop:
 	for {
 		select {
+
+		// The first block that this validator's address authored may be in a block w/ number
+		// that is greater than the head of all this node's peer when the downloader.DoneEvent
+		// event is fired.  This select case will handle the case when this validator
+		// eventually syncs that block.
 		case newBlock := <-newBlockCh:
 			blockAuthor, err := miner.engine.Author(newBlock.Block.Header())
 			if err != nil {
@@ -301,10 +306,13 @@ waitLoop:
 				return false
 			}
 
+			// The blockchain object should of saved the commitment cache when
+			// we received a newBlock event.  This code here is assuming that,
+			// and not double checking that the cache entry is there.
 			if blockAuthor == miner.coinbase {
 				parentHash = newBlock.Block.ParentHash()
+				break waitLoop
 			}
-			break waitLoop
 
 		case parentHash = <-foundParentHashCh:
 			break waitLoop
