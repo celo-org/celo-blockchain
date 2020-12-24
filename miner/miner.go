@@ -229,6 +229,11 @@ func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
 		return false
 	}
 
+	// If there was no previous commitment from this validator, then return true.
+	if (lastCommitment == common.Hash{}) {
+		return true
+	}
+
 	if (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) != common.Hash{}) {
 		return true
 	}
