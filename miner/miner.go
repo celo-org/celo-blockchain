@@ -214,9 +214,10 @@ func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
 	newBlockSub := bc.SubscribeChainEvent(newBlockCh)
 	defer newBlockSub.Unsubscribe()
 
-	// getCurrentHeaderAndState
-	currentHeader := bc.CurrentHeader()
-	currentState, err := bc.StateAt(currentHeader.Hash())
+	// getCurrentBlockAndState
+	currentBlock := bc.CurrentBlock()
+	currentHeader := currentBlock.Header()
+	currentState, err := bc.StateAt(currentBlock.Root())
 	if err != nil {
 		log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
 		return false
