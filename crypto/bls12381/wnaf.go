@@ -21,7 +21,7 @@ func bigToWNAF(e *big.Int, w uint) nafNumber {
 	if w == 0 {
 		return naf
 	}
-	windowSize := new(big.Int).Lsh(bigOne, uint(w+1))
+	windowSize := new(big.Int).Lsh(bigOne, w+1)
 	halfSize := new(big.Int).Rsh(windowSize, 1)
 	ee := new(big.Int).Abs(e)
 	for ee.Cmp(bigZero) != 0 {

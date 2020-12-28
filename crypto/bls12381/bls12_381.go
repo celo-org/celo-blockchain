@@ -17,23 +17,15 @@ var modulus = fe{0xb9feffffffffaaab, 0x1eabfffeb153ffff, 0x6730d2a0f6b0f624, 0x6
 // -p^(-1) mod 2^64
 var inp uint64 = 0x89f3fffcfffcfffd
 
+// suppress linter warning: 'inp' is used in assembly code
+var _ = inp
+
 // r1 = r mod p
 var r1 = &fe{0x760900000002fffd, 0xebf4000bc40c0002, 0x5f48985753c758ba, 0x77ce585370525745, 0x5c071a97a256ec6d, 0x15f65ec3fa80e493}
-
-// one =  mod p
-var one = r1
-
-// zero = 0
-var zero = &fe{}
 
 // r2 = r^2 mod p
 var r2 = &fe{
 	0xf4df1f341c341746, 0x0a76e6a609d104f1, 0x8de5476c4c95b6d5, 0x67eb88a9939d83c0, 0x9a793e85b519952d, 0x11988fe592cae3aa,
-}
-
-// negativeOne = -r mod p
-var negativeOne = &fe{
-	0x43f5fffffffcaaae, 0x32b7fff2ed47fffd, 0x07e83a49a2e99d69, 0xeca8f3318332bb7a, 0xef148d1ea0f4c069, 0x040ab3263eff0206,
 }
 
 // negativeOne2 = -1 + 0 * u
@@ -68,12 +60,6 @@ var nonResidue2 = &fe2{
 
 var q = bigFromHex("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001")
 
-// -q^(-1) mod 2^64
-var qinp uint64 = 0xfffffffeffffffff
-
-// supress warning: qinp is used in assembly code
-var _ = qinp
-
 // Curve Constants
 
 // b coefficient for G1
@@ -85,18 +71,6 @@ var b2 = &fe2{
 	fe{0xaa270000000cfff3, 0x53cc0032fc34000a, 0x478fe97a6b0a807f, 0xb1d37ebee6ba24d7, 0x8ec9733bbf78ab2f, 0x09d645513d83de7e},
 }
 
-// G1 cofactor
-var cofactorG1 = bigFromHex("0x396c8c005555e1568c00aaab0000aaab")
-
-// G2 cofactor
-var cofactorG2 = bigFromHex("5d543a95414e7f1091d50792876a202cd91de4547085abaa68a205b2e5a7ddfa628f1cb4d9e82ef21537e293a6691ae1616ec6e786f0c70cf1c38e31c7238e5")
-
-// Efficient G1 cofactor
-var cofactorEFFG1 = bigFromHex("0xd201000000010001")
-
-// Efficient G2 cofactor
-var cofactorEFFG2 = bigFromHex("0x0bc69f08f2ee75b3584c6a0ea91b352888e2a8e9145ad7689986ff031508ffe1329c2f178731db956d82bf015d1212b02ec0ec69d7477c1ae954cbc06689f6a359894c0adebbf6b4e8020005aaa95551")
-
 // G1 generator
 var g1One = PointG1{
 	fe{0x5cb38790fd530c16, 0x7817fc679976fff5, 0x154f95c7143ba1c1, 0xf0ae6acdf3d0e747, 0xedce6ecc21dbf440, 0x120177419e0bfb75},
@@ -105,13 +79,6 @@ var g1One = PointG1{
 }
 
 var G1One = g1One
-
-// Negated G1 generator
-var g1NegativeOne = PointG1{
-	fe{0x5cb38790fd530c16, 0x7817fc679976fff5, 0x154f95c7143ba1c1, 0xf0ae6acdf3d0e747, 0xedce6ecc21dbf440, 0x120177419e0bfb75},
-	fe{0xff526c2af318883a, 0x92899ce4383b0270, 0x89d7738d9fa9d055, 0x12caf35ba344c12a, 0x3cff1b76964b5317, 0x0e44d2ede9774430},
-	fe{0x760900000002fffd, 0xebf4000bc40c0002, 0x5f48985753c758ba, 0x77ce585370525745, 0x5c071a97a256ec6d, 0x15f65ec3fa80e493},
-}
 
 // G2 generator
 var g2One = PointG2{
@@ -144,14 +111,6 @@ var psiy = fe2{
 }
 
 // Frobenius Coeffs
-
-// z = -1
-var frobeniusCoeffs2 = [2]fe{
-	// z ^ (( p ^ 0 - 1) / 2)
-	fe{0x760900000002fffd, 0xebf4000bc40c0002, 0x5f48985753c758ba, 0x77ce585370525745, 0x5c071a97a256ec6d, 0x15f65ec3fa80e493},
-	// z ^ (( p ^ 1 - 1) / 2)
-	fe{0x43f5fffffffcaaae, 0x32b7fff2ed47fffd, 0x07e83a49a2e99d69, 0xeca8f3318332bb7a, 0xef148d1ea0f4c069, 0x040ab3263eff0206},
-}
 
 // z = u + 1
 var frobeniusCoeffs61 = [6]fe2{

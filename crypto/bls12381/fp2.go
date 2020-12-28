@@ -60,13 +60,6 @@ func (e *fp2) one() *fe2 {
 	return new(fe2).one()
 }
 
-func (e *fp2) fromMont(c, a *fe2) {
-	// c0 = a0 / r
-	// c1 = a1 / r
-	fromMont(&c[0], &a[0])
-	fromMont(&c[1], &a[1])
-}
-
 func (e *fp2) add(c, a, b *fe2) {
 	// c0 = a0 + b0
 	// c1 = a1 + b1

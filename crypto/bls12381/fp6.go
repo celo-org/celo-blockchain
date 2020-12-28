@@ -141,16 +141,6 @@ func (e *fp6) neg(c, a *fe6) {
 	fp2.neg(&c[2], &a[2])
 }
 
-func (e *fp6) conjugate(c, a *fe6) {
-	fp2 := e.fp2
-	// c0 = a0
-	// c1 = -a1
-	// c2 = a2
-	c[0].set(&a[0])
-	fp2.neg(&c[1], &a[1])
-	c[0].set(&a[2])
-}
-
 func (e *fp6) mul(c, a, b *fe6) {
 	fp2, t := e.fp2, e.t
 	// Guide to Pairing Based Cryptography
@@ -278,16 +268,6 @@ func (e *fp6) mulByNonResidue(c, a *fe6) {
 	fp2.mulByNonResidue(&c[0], &a[2])
 	c[2].set(&a[1])
 	c[1].set(t[0])
-}
-
-func (e *fp6) mulByBaseField(c, a *fe6, b *fe2) {
-	fp2 := e.fp2
-	// c0 = a0b0
-	// c1 = a1b1
-	// c2 = a2b2
-	fp2.mul(&c[0], &a[0], b)
-	fp2.mul(&c[1], &a[1], b)
-	fp2.mul(&c[2], &a[2], b)
 }
 
 func (e *fp6) exp(c, a *fe6, s *big.Int) {

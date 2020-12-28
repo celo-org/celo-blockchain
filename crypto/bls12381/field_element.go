@@ -11,15 +11,15 @@ import (
 // fe is base field element representation
 type fe /***			***/ [fpNumberOfLimbs]uint64
 
-// fe2 is element representation of 'fp2' which is quadratic extention of base field 'fp'
+// fe2 is element representation of 'fp2' which is quadratic extension of base field 'fp'
 // Representation follows c[0] + c[1] * u encoding order.
 type fe2 /**			***/ [2]fe
 
-// fe6 is element representation of 'fp6' field which is cubic extention of 'fp2'
+// fe6 is element representation of 'fp6' field which is cubic extension of 'fp2'
 // Representation follows c[0] + c[1] * v + c[2] * v^2 encoding order.
 type fe6 /**			***/ [3]fe2
 
-// fe12 is element representation of 'fp12' field which is quadratic extention of 'fp6'
+// fe12 is element representation of 'fp12' field which is quadratic extension of 'fp6'
 // Representation follows c[0] + c[1] * w encoding order.
 type fe12 /**			***/ [2]fe6
 
@@ -153,13 +153,6 @@ func (fe *fe) equal(fe2 *fe) bool {
 	return fe2[0] == fe[0] && fe2[1] == fe[1] && fe2[2] == fe[2] && fe2[3] == fe[3] && fe2[4] == fe[4] && fe2[5] == fe[5]
 }
 
-func (e *fe) signBE() bool {
-	negZ, z := new(fe), new(fe)
-	fromMont(z, e)
-	neg(negZ, z)
-	return negZ.cmp(z) > -1
-}
-
 func (e *fe) sign() bool {
 	r := new(fe)
 	fromMont(r, e)
@@ -226,13 +219,6 @@ func (e *fe2) isZero() bool {
 
 func (e *fe2) equal(e2 *fe2) bool {
 	return e[0].equal(&e2[0]) && e[1].equal(&e2[1])
-}
-
-func (e *fe2) signBE() bool {
-	if !e[1].isZero() {
-		return e[1].signBE()
-	}
-	return e[0].signBE()
 }
 
 func (e *fe2) sign() bool {
