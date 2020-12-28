@@ -625,7 +625,7 @@ func (g *G1) MapToCurve(in []byte) (*PointG1, error) {
 	return g.Affine(p), nil
 }
 
-// EncodeToCurve given a message and domain seperator tag returns the hash result
+// EncodeToCurve given a message and domain separator tag returns the hash result
 // which is a valid curve point.
 // Implementation follows BLS12381G1_XMD:SHA-256_SSWU_NU_ suite at
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06
@@ -643,7 +643,7 @@ func (g *G1) EncodeToCurve(msg, domain []byte) (*PointG1, error) {
 	return g.Affine(p), nil
 }
 
-// HashToCurve given a message and domain seperator tag returns the hash result
+// HashToCurve given a message and domain separator tag returns the hash result
 // which is a valid curve point.
 // Implementation follows BLS12381G1_XMD:SHA-256_SSWU_RO_ suite at
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06
