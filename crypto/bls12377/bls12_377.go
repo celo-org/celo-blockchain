@@ -41,8 +41,8 @@ var twoInv = &fe{0x8166ffffffffffb4, 0x28a04fc1bfffffd8, 0xcfbed9d4c53e9ff9, 0x3
 // pMinus1Over2 = (p - 1) / 2
 var pMinus1Over2 = bigFromHex("0x00d71d230be28875631d82e03650a49d8d116cf9807a89c78f79b117dd04a4000b85aea2180000004284600000000000")
 
-// s = p >> 46
-// var s = bigFromHex("0x06b8e9185f1443ab18ec1701b28524ec688b67cc03d44e3c7bcd88bee82520005c2d7510c00000021423")
+// pMinus1Over4 = (p - 1) / 4
+var pMinus1Over4 = bigFromHex("0x006b8e9185f1443ab18ec1701b28524ec688b67cc03d44e3c7bcd88bee82520005c2d7510c0000002142300000000000")
 
 // sSqrt = ((p >> 46) - 1) / 2
 var sSqrt = bigFromHex("0x035c748c2f8a21d58c760b80d94292763445b3e601ea271e3de6c45f741290002e16ba88600000010a11")
@@ -80,9 +80,6 @@ var b2 = &fe2{
 // G1 cofactor
 var cofactorG1 = bigFromHex("0x170b5d44300000000000000000000000")
 
-// G2 cofactor
-var cofactorG2 = bigFromHex("0x26ba558ae9562addd88d99a6f6a829fbb36b00e1dcc40c8c505634fae2e189d693e8c36676bd09a0f3622fba094800452217cc900000000000000000000001")
-
 // G1 generator
 // x = 0x008848defe740a67c8fc6225bf87ff5485951e2caa9d41bb188282c8bd37cb5cd5481512ffcd394eeab9b16eb21be9ef
 // y = 0x1914a69c5102eff1f674f5d30afeec4bd7fb348ca3e52d96d182ad44fb82305c2fe3d3634a9591afd82de55559c8ea6
@@ -115,6 +112,21 @@ var g2One = PointG2{
 }
 
 var G2One = g2One
+
+// Psi values untwist-frobenius-twist mapping
+// z = u + 1
+
+var psix = &fe2{
+	// z ^ (( p ^ 1 - 1) / 3)
+	fe{0x5892506da58478da, 0x133366940ac2a74b, 0x9b64a150cdf726cf, 0x5cc426090a9c587e, 0x5cf848adfdcd640c, 0x004702bf3ac02380},
+	fe{0, 0, 0, 0, 0, 0},
+}
+
+var psiy = &fe2{
+	// z ^ ((p ^ 3 - 1) / 6)
+	fe{0x982c13d9d084771f, 0xfd49de0c6da34a32, 0x61a530d183ab0e53, 0xdf8fe44106dd9879, 0x40f29b58d88472bc, 0x0158723199046d5d},
+	fe{0, 0, 0, 0, 0, 0},
+}
 
 /*
 	Frobenius Coeffs

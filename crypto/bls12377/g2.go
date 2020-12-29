@@ -189,13 +189,6 @@ func (g *G2) Equal(p1, p2 *PointG2) bool {
 	return t[0].equal(t[1]) && t[2].equal(t[3])
 }
 
-// InCorrectSubgroup checks whether given point is in correct subgroup.
-func (g *G2) InCorrectSubgroup(p *PointG2) bool {
-	tmp := &PointG2{}
-	g.wnafMul(tmp, p, q)
-	return g.IsZero(tmp)
-}
-
 // IsOnCurve checks a G2 point is on curve.
 func (g *G2) IsOnCurve(p *PointG2) bool {
 	if g.IsZero(p) {
@@ -576,7 +569,81 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 	return r.Set(acc), nil
 }
 
+// InCorrectSubgroup checks whether given point is in correct subgroup.
+func (g *G2) InCorrectSubgroup(p *PointG2) bool {
+
+	// Faster Subgroup Checks for BLS12-381
+	// S. Bowe
+	// https://eprint.iacr.org/2019/814.pdf
+
+	// x * ψ^3(P) − ψ^2(P) + P = O
+	t0, t1 := g.New().Set(p), g.New()
+
+	g.psi(t0)     // ψ(P)
+	g.psi(t0)     // ψ^2(P)
+	g.Neg(t1, t0) // - ψ^2(P)
+	g.psi(t0)     // ψ^3(P)
+	g.mulX(t0)    // x * ψ^3(P)
+
+	g.Add(t0, t0, t1)
+	g.Add(t0, t0, p)
+
+	return g.IsZero(t0)
+}
+
 // ClearCofactor maps given a G2 point to correct subgroup
 func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
-	return g.wnafMul(p, p, cofactorG2)
+
+	// Efficient hash maps to G2 on BLS curves
+	// A. Budroni, F. Pintore
+	// https://eprint.iacr.org/2017/419.pdf
+
+	// [h(ψ)]P = [x^2 − x − 1]P + [x − 1]ψ(P) + ψ^2(2P)
+	t0, t1, t2, t3 := g.New().Set(p), g.New().Set(p), g.New().Set(p), g.New()
+
+	g.Double(t0, t0)
+	g.psi(t0)
+	g.psi(t0)  // P2 = ψ^2(2P)
+	g.psi(t2)  // P1 = ψ(P)
+	g.mulX(t1) // x * P0
+
+	g.Add(t3, t1, t2) // x * P0 + P1
+	g.mulX(t3)        // (x^2)P0 + xP1
+	g.Add(t1, t1, p)  // (x+1)P0
+	g.Sub(t3, t3, t1) // (x^2-x-1)P0 + xP1
+	g.Sub(t3, t3, t2) // (x^2-x-1)P0 + (x-1)P1
+	g.Add(t3, t3, t0) // (x^2-x-1)P0 + (x-1)P1 + P2
+	return p.Set(t3)
+}
+
+func (g *G2) psi(p *PointG2) {
+	g.f.conjugate(&p[0], &p[0])
+	g.f.conjugate(&p[1], &p[1])
+	g.f.conjugate(&p[2], &p[2])
+	g.f.mul(&p[0], &p[0], psix)
+	g.f.mul(&p[1], &p[1], psiy)
+}
+
+func (g *G2) mulX(p *PointG2) {
+
+	t0, t1, t2 := g.New(), g.New(), g.New()
+	g.Double(t0, p)
+	g.Add(t1, t0, p)
+	for i := 0; i < 4; i++ {
+		g.Double(t0, t0)
+	}
+	g.Add(t2, t0, p)
+	g.Double(t0, t2)
+	for i := 0; i < 6; i++ {
+		g.Double(t0, t0)
+	}
+	g.Add(t0, t0, t2)
+	for i := 0; i < 5; i++ {
+		g.Double(t0, t0)
+	}
+	g.Add(t0, t0, t1)
+	for i := 0; i < 46; i++ {
+		g.Double(t0, t0)
+	}
+	g.Add(p, t0, p)
 }

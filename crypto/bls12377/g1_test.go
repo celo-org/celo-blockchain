@@ -327,6 +327,20 @@ func TestG1MultiExp(t *testing.T) {
 	}
 }
 
+func TestG1ClearCofactor(t *testing.T) {
+	g := NewG1()
+	for i := 0; i < fuz; i++ {
+		p0 := g.rand()
+		if g.InCorrectSubgroup(p0) {
+			t.Fatal("rand point should be out of correct subgroup")
+		}
+		g.ClearCofactor(p0)
+		if !g.InCorrectSubgroup(p0) {
+			t.Fatal("cofactor clearing is failed")
+		}
+	}
+}
+
 func BenchmarkG1Add(t *testing.B) {
 	g1 := NewG1()
 	a, b, c := g1.rand(), g1.rand(), PointG1{}
@@ -414,5 +428,23 @@ func BenchmarkG1MultiExp(t *testing.B) {
 				_, _ = g.MultiExp(result, bases, scalars)
 			}
 		})
+	}
+}
+
+func BenchmarkG1ClearCofactor(t *testing.B) {
+	g := NewG1()
+	a := g.rand()
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		g.ClearCofactor(a)
+	}
+}
+
+func BenchmarkG1SubgroupCheck(t *testing.B) {
+	g := NewG1()
+	a := g.rand()
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		g.InCorrectSubgroup(a)
 	}
 }
