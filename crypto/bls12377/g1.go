@@ -168,13 +168,6 @@ func (g *G1) Equal(p1, p2 *PointG1) bool {
 	return t[0].equal(t[1]) && t[2].equal(t[3])
 }
 
-// InCorrectSubgroup checks whether given point is in correct subgroup.
-func (g *G1) InCorrectSubgroup(p *PointG1) bool {
-	tmp := &PointG1{}
-	g.wnafMul(tmp, p, q)
-	return g.IsZero(tmp)
-}
-
 // IsOnCurve checks a G1 point is on curve.
 func (g *G1) IsOnCurve(p *PointG1) bool {
 	if g.IsZero(p) {
@@ -558,4 +551,34 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 // ClearCofactor maps given a G1 point to correct subgroup
 func (g *G1) ClearCofactor(p *PointG1) *PointG1 {
 	return g.wnafMul(p, p, cofactorG1)
+}
+
+var z = bigFromHex("0x170b5d443000000058b0800000000000")
+
+// InCorrectSubgroup checks whether given point is in correct subgroup.
+func (g *G1) InCorrectSubgroup(p *PointG1) bool {
+
+	// Faster Subgroup Checks for BLS12-381
+	// S. Bowe
+	// https://eprint.iacr.org/2019/814.pdf
+
+	mulZ := func(p *PointG1) {
+		g.wnafMul(p, p, z)
+	}
+
+	sigma := func(p *PointG1) {
+		mul(&p[0], &p[0], glvPhi1)
+	}
+
+	// [(x^2 − 1)/3](2σ(P) − P − σ^2(P)) − σ^2(P) ?= O
+	t0 := g.New().Set(p)
+	sigma(t0)
+	t1 := g.New().Set(t0) // σ(P)
+	sigma(t0)             // σ^2(P)
+	g.Double(t1, t1)      // 2σ(P)
+	g.Sub(t1, t1, p)      // 2σ(P) − P
+	g.Sub(t1, t1, t0)     // 2σ(P) − P − σ^2(P)
+	mulZ(t1)              // [(x^2 − 1)/3](2σ(P) − P − σ^2(P))
+	g.Sub(t1, t1, t0)     // [(x^2 − 1)/3](2σ(P) − P − σ^2(P)) − σ^2(P)
+	return g.IsZero(t1)
 }
