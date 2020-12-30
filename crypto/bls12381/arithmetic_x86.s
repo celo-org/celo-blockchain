@@ -124,41 +124,6 @@ TEXT ·add(SB), NOSPLIT, $0-24
 /*	 | end													*/
 
 
-// single-precision addition w/o reduction check
-// c = (a + b)
-TEXT ·ladd(SB), NOSPLIT, $0-24
-	// |
-	MOVQ a+8(FP), DI
-	MOVQ b+16(FP), SI
-
-	// |
-	MOVQ (DI), R8
-	MOVQ 8(DI), R9
-	MOVQ 16(DI), R10
-	MOVQ 24(DI), R11
-	MOVQ 32(DI), R12
-	MOVQ 40(DI), R13
-
-	// |
-	ADDQ (SI), R8
-	ADCQ 8(SI), R9
-	ADCQ 16(SI), R10
-	ADCQ 24(SI), R11
-	ADCQ 32(SI), R12
-	ADCQ 40(SI), R13
-
-	// |
-	MOVQ c+0(FP), DI
-	MOVQ R8, (DI)
-	MOVQ R9, 8(DI)
-	MOVQ R10, 16(DI)
-	MOVQ R11, 24(DI)
-	MOVQ R12, 32(DI)
-	MOVQ R13, 40(DI)
-	RET
-/*	 | end													*/
-
-
 // single-precision addition w/o check
 // a' = a + b
 TEXT ·laddAssign(SB), NOSPLIT, $0-16
@@ -442,40 +407,6 @@ TEXT ·doubleAssign(SB), NOSPLIT, $0-8
 	MOVQ R11, 24(DI)
 	MOVQ R12, 32(DI)
 	MOVQ R13, 40(DI)
-	RET
-/*	 | end													*/
-
-
-// single-precision doubling w/o carry check
-// c = 2 * a
-TEXT ·ldouble(SB), NOSPLIT, $0-16
-	// |
-	MOVQ a+8(FP), DI
-
-	MOVQ (DI), R8
-	MOVQ 8(DI), R9
-	MOVQ 16(DI), R10
-	MOVQ 24(DI), R11
-	MOVQ 32(DI), R12
-	MOVQ 40(DI), R13
-
-	// |
-	ADDQ R8, R8
-	ADCQ R9, R9
-	ADCQ R10, R10
-	ADCQ R11, R11
-	ADCQ R12, R12
-	ADCQ R13, R13
-
-	// |
-	MOVQ c+0(FP), DI
-	MOVQ R8, (DI)
-	MOVQ R9, 8(DI)
-	MOVQ R10, 16(DI)
-	MOVQ R11, 24(DI)
-	MOVQ R12, 32(DI)
-	MOVQ R13, 40(DI)
-
 	RET
 /*	 | end													*/
 

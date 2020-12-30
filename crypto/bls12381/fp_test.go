@@ -267,26 +267,6 @@ func TestFpLazyOperations(t *testing.T) {
 		a, _ := new(fe).rand(rand.Reader)
 		b, _ := new(fe).rand(rand.Reader)
 		c, _ := new(fe).rand(rand.Reader)
-		c0 := new(fe)
-		c1 := new(fe)
-		ladd(c0, a, b)
-		add(c1, a, b)
-		mul(c0, c0, c)
-		mul(c1, c1, c)
-		if !c0.equal(c1) {
-			// l+ operator stands for lazy addition
-			t.Fatal("(a + b) * c == (a l+ b) * c")
-		}
-		_, _ = a.rand(rand.Reader)
-		b.set(a)
-		ldouble(a, a)
-		ladd(b, b, b)
-		if !a.equal(b) {
-			t.Fatal("2 l* a = a l+ a")
-		}
-		_, _ = a.rand(rand.Reader)
-		_, _ = b.rand(rand.Reader)
-		_, _ = c.rand(rand.Reader)
 		a0 := new(fe).set(a)
 		lsubAssign(a, b)
 		laddAssign(a, &modulus)
@@ -646,32 +626,6 @@ func TestFp2AdditionPropertiesAssigned(t *testing.T) {
 		field.subAssign(a0, b)
 		if !a.equal(a0) {
 			t.Fatal("(a - b) - c == (a - c) -b")
-		}
-	}
-}
-
-func TestFp2LazyOperations(t *testing.T) {
-	field := newFp2()
-	for i := 0; i < fuz; i++ {
-		a, _ := new(fe2).rand(rand.Reader)
-		b, _ := new(fe2).rand(rand.Reader)
-		c, _ := new(fe2).rand(rand.Reader)
-		c0 := new(fe2)
-		c1 := new(fe2)
-		field.ladd(c0, a, b)
-		field.add(c1, a, b)
-		field.mulAssign(c0, c)
-		field.mulAssign(c1, c)
-		if !c0.equal(c1) {
-			// l+ operator stands for lazy addition
-			t.Fatal("(a + b) * c == (a l+ b) * c")
-		}
-		_, _ = a.rand(rand.Reader)
-		b.set(a)
-		field.ldouble(a, a)
-		field.ladd(b, b, b)
-		if !a.equal(b) {
-			t.Fatal("2 l* a = a l+ a")
 		}
 	}
 }
