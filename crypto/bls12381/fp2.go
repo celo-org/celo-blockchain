@@ -74,13 +74,6 @@ func (e *fp2) addAssign(a, b *fe2) {
 	addAssign(&a[1], &b[1])
 }
 
-func (e *fp2) ladd(c, a, b *fe2) {
-	// c0 = a0 + b0
-	// c1 = a1 + b1
-	ladd(&c[0], &a[0], &b[0])
-	ladd(&c[1], &a[1], &b[1])
-}
-
 func (e *fp2) double(c, a *fe2) {
 	// c0 = 2a0
 	// c1 = 2a1
@@ -93,13 +86,6 @@ func (e *fp2) doubleAssign(a *fe2) {
 	// a1 = 2a1
 	doubleAssign(&a[0])
 	doubleAssign(&a[1])
-}
-
-func (e *fp2) ldouble(c, a *fe2) {
-	// c0 = 2a0
-	// c1 = 2a1
-	ldouble(&c[0], &a[0])
-	ldouble(&c[1], &a[1])
 }
 
 func (e *fp2) sub(c, a, b *fe2) {
@@ -135,22 +121,22 @@ func (e *fp2) mul(c, a, b *fe2) {
 	// Guide to Pairing Based Cryptography
 	// Algorithm 5.16
 
-	mul(t[1], &a[0], &b[0])  // a0b0
-	mul(t[2], &a[1], &b[1])  // a1b1
-	ladd(t[0], &a[0], &a[1]) // a0 + a1
-	ladd(t[3], &b[0], &b[1]) // b0 + b1
-	sub(&c[0], t[1], t[2])   // c0 = a0b0 - a1b1
-	addAssign(t[1], t[2])    // a0b0 + a1b1
-	mul(t[0], t[0], t[3])    // (a0 + a1)(b0 + b1)
-	sub(&c[1], t[0], t[1])   // c1 = (a0 + a1)(b0 + b1) - (a0b0 + a1b1)
+	mul(t[1], &a[0], &b[0]) // a0b0
+	mul(t[2], &a[1], &b[1]) // a1b1
+	add(t[0], &a[0], &a[1]) // a0 + a1
+	add(t[3], &b[0], &b[1]) // b0 + b1
+	sub(&c[0], t[1], t[2])  // c0 = a0b0 - a1b1
+	addAssign(t[1], t[2])   // a0b0 + a1b1
+	mul(t[0], t[0], t[3])   // (a0 + a1)(b0 + b1)
+	sub(&c[1], t[0], t[1])  // c1 = (a0 + a1)(b0 + b1) - (a0b0 + a1b1)
 }
 
 func (e *fp2) mulAssign(a, b *fe2) {
 	t := e.t
 	mul(t[1], &a[0], &b[0])
 	mul(t[2], &a[1], &b[1])
-	ladd(t[0], &a[0], &a[1])
-	ladd(t[3], &b[0], &b[1])
+	add(t[0], &a[0], &a[1])
+	add(t[3], &b[0], &b[1])
 	sub(&a[0], t[1], t[2])
 	addAssign(t[1], t[2])
 	mul(t[0], t[0], t[3])
@@ -162,18 +148,18 @@ func (e *fp2) square(c, a *fe2) {
 	// Guide to Pairing Based Cryptography
 	// Algorithm 5.16
 
-	ladd(t[0], &a[0], &a[1]) // (a0 + a1)
-	sub(t[1], &a[0], &a[1])  // (a0 - a1)
-	ldouble(t[2], &a[0])     // 2a0
-	mul(&c[0], t[0], t[1])   // c0 = (a0 + a1)(a0 - a1)
-	mul(&c[1], t[2], &a[1])  // c1 = 2a0a1
+	add(t[0], &a[0], &a[1]) // (a0 + a1)
+	sub(t[1], &a[0], &a[1]) // (a0 - a1)
+	double(t[2], &a[0])     // 2a0
+	mul(&c[0], t[0], t[1])  // c0 = (a0 + a1)(a0 - a1)
+	mul(&c[1], t[2], &a[1]) // c1 = 2a0a1
 }
 
 func (e *fp2) squareAssign(a *fe2) {
 	t := e.t
-	ladd(t[0], &a[0], &a[1])
+	add(t[0], &a[0], &a[1])
 	sub(t[1], &a[0], &a[1])
-	ldouble(t[2], &a[0])
+	double(t[2], &a[0])
 	mul(&a[0], t[0], t[1])
 	mul(&a[1], t[2], &a[1])
 }
