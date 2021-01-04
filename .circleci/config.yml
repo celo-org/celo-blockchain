@@ -106,10 +106,11 @@ jobs:
       - run:
           name: Setup Go language
           command: |
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+            brew install go@1.14
+            brew link go@1.14
             # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.13"* ]]; then
-              echo "go1.13 is required"
+            if [[ "$(go version)" != "go version go1.14"* ]]; then
+              echo "go1.14 is required"
               exit 1
             fi
       - run:
@@ -119,6 +120,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
+            - geth/libbls_snark_sys.a
 
   publish-mobile-client:
     docker:
