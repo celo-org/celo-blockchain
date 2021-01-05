@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
+	"github.com/ethereum/go-ethereum/crypto/bw6"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -75,6 +76,14 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+	// Reserve [12,18] for  BLS12-377 Precompiles
+	bw6G1AddAddress      = celoPrecompileAddress(19)
+	bw6G1MulAddress      = celoPrecompileAddress(20)
+	bw6G1MultiExpAddress = celoPrecompileAddress(21)
+	bw6G2AddAddress      = celoPrecompileAddress(22)
+	bw6G2MulAddress      = celoPrecompileAddress(23)
+	bw6G2MultiExpAddress = celoPrecompileAddress(24)
+	bw6PairingAddress    = celoPrecompileAddress(25)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -126,6 +135,40 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+}
+
+// PrecompiledContractsDonut contains the default set of pre-compiled Ethereum
+// contracts used in the Donut release.
+var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{},
+	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}): &blake2F{},
+
+	// Celo Precompiled Contracts
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
+	getParentSealBitmapAddress:   &getParentSealBitmap{},
+	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+
+	bw6G1AddAddress:      &bw6G1Add{},
+	bw6G1MulAddress:      &bw6G1Mul{},
+	bw6G1MultiExpAddress: &bw6G1MultiExp{},
+	bw6G2AddAddress:      &bw6G2Add{},
+	bw6G2MulAddress:      &bw6G2Mul{},
+	bw6G2MultiExpAddress: &bw6G2MultiExp{},
+	bw6PairingAddress:    &bw6Pairing{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -1063,4 +1106,361 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 	}
 
 	return common.LeftPadBytes(extra.AggregatedSeal.Bitmap.Bytes()[:], 32), gas, nil
+}
+
+var (
+	errbw6InvalidInputLength = errors.New("invalid input length")
+	errbw6G1PointSubgroup    = errors.New("g1 point is not on correct subgroup")
+	errbw6G2PointSubgroup    = errors.New("g2 point is not on correct subgroup")
+)
+
+// decodeBW6Scalar expects 64 byte input with zero top 16 bytes,
+// returns scalar derived from lower 48 bytes.
+func decodeBW6Scalar(in []byte) (*big.Int, error) {
+	if len(in) != 64 {
+		return nil, errors.New("invalid length")
+	}
+	// check top bytes
+	for i := 0; i < 16; i++ {
+		if in[i] != byte(0x00) {
+			return nil, errors.New("invalid scalar decoding: top bytes")
+		}
+	}
+	// 'The corresponding integer MAY be greater than the main subgroup order.'
+	return new(big.Int).SetBytes(in[16:]), nil
+}
+
+// bw6G1Add implements EIP-3026 G1Add precompile.
+type bw6G1Add struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G1Add) RequiredGas(input []byte) uint64 {
+	return params.BW6G1AddGas
+}
+
+func (c *bw6G1Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G1Add precompile.
+	// > G1 addition call expects `384` bytes as an input that is interpreted as byte concatenation of two G1 points (`192` bytes each).
+	// > Output is an encoding of addition operation result - single G1 point (`192` bytes).
+	if len(input) != 384 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	var p0, p1 *bw6.Point
+
+	// Initialize G1
+	g := bw6.NewG()
+
+	// Decode G1 point p_0
+	if p0, err = g.G1FromBytes(input[:192]); err != nil {
+		return nil, gas, err
+	}
+	// Decode G1 point p_1
+	if p1, err = g.G1FromBytes(input[192:]); err != nil {
+		return nil, gas, err
+	}
+
+	// Compute r = p_0 + p_1
+	r := g.New()
+	g.Add(r, p0, p1)
+
+	// Encode the G1 point result into 192 bytes
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6G1Mul implements EIP-3026 G1Mul precompile.
+type bw6G1Mul struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G1Mul) RequiredGas(input []byte) uint64 {
+	return params.BW6G1MulGas
+}
+
+func (c *bw6G1Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G1Mul precompile.
+	// > G1 multiplication call expects `160` bytes as an input that is interpreted as byte concatenation of encoding of G1 point (`192` bytes) and encoding of a scalar value (`64` bytes).
+	// > Output is an encoding of multiplication operation result - single G1 point (`192` bytes).
+	if len(input) != 192+64 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	var p0 *bw6.Point
+	var e *big.Int
+
+	// Initialize G1
+	g := bw6.NewG()
+
+	// Decode G1 point
+	if p0, err = g.G1FromBytes(input[:192]); err != nil {
+		return nil, gas, err
+	}
+	// Decode scalar value
+	if e, err = decodeBW6Scalar(input[192:]); err != nil {
+		return nil, gas, err
+	}
+
+	// Compute r = e * p_0
+	r := g.New()
+	g.MulScalarG1(r, p0, e)
+
+	// Encode the G1 point into 192 bytes
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6G1MultiExp implements EIP-3026 G1MultiExp precompile.
+type bw6G1MultiExp struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G1MultiExp) RequiredGas(input []byte) uint64 {
+	// Calculate G1 point, scalar value pair length
+	k := len(input) / 192
+	if k == 0 {
+		// Return 0 gas for small input length
+		return 0
+	}
+	// Lookup discount value for G1 point, scalar value pair length
+	var discount uint64
+	if dLen := len(params.BW6MultiExpDiscountTable); k < dLen {
+		discount = params.BW6MultiExpDiscountTable[k-1]
+	} else {
+		discount = params.BW6MultiExpDiscountTable[dLen-1]
+	}
+	// Calculate gas and return the result
+	return (uint64(k) * params.BW6G1MulGas * discount) / 1000
+}
+
+func (c *bw6G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G1MultiExp precompile.
+	// G1 multiplication call expects `256*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G1 point (`128` bytes) and encoding of a scalar value (`64` bytes).
+	// Output is an encoding of multiexponentiation operation result - single G1 point (`192` bytes).
+	k := len(input) / 256
+	if len(input) == 0 || len(input)%256 != 0 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	points := make([]*bw6.Point, k)
+	scalars := make([]*big.Int, k)
+
+	// Initialize G1
+	g := bw6.NewG()
+
+	// Decode point scalar pairs
+	for i := 0; i < k; i++ {
+		off := 256 * i
+		t0, t1, t2 := off, off+192, off+256
+		// Decode G1 point
+		if points[i], err = g.G1FromBytes(input[t0:t1]); err != nil {
+			return nil, gas, err
+		}
+		// Decode scalar value
+		if scalars[i], err = decodeBW6Scalar(input[t1:t2]); err != nil {
+			return nil, gas, err
+		}
+	}
+
+	// Compute r = e_0 * p_0 + e_1 * p_1 + ... + e_(k-1) * p_(k-1)
+	r := g.New()
+	g.MultiExp(r, points, scalars)
+
+	// Encode the G1 point to 192 bytes
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6G2Add implements EIP-3026 G2Add precompile.
+type bw6G2Add struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G2Add) RequiredGas(input []byte) uint64 {
+	return params.BW6G2AddGas
+}
+
+func (c *bw6G2Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G2Add precompile.
+	// > G2 addition call expects `384` bytes as an input that is interpreted as byte concatenation of two G2 points (`192` bytes each).
+	// > Output is an encoding of addition operation result - single G2 point (`192` bytes).
+	if len(input) != 384 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	var p0, p1 *bw6.Point
+
+	// Initialize G2
+	g := bw6.NewG()
+	r := g.New()
+
+	// Decode G2 point p_0
+	if p0, err = g.G2FromBytes(input[:192]); err != nil {
+		return nil, gas, err
+	}
+	// Decode G2 point p_1
+	if p1, err = g.G2FromBytes(input[192:]); err != nil {
+		return nil, gas, err
+	}
+
+	// Compute r = p_0 + p_1
+	g.Add(r, p0, p1)
+
+	// Encode the G2 point into 192 bytes
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6G2Mul implements EIP-3026 G2Mul precompile.
+type bw6G2Mul struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G2Mul) RequiredGas(input []byte) uint64 {
+	// return params.BW6G2MulGas
+	return 0
+}
+
+func (c *bw6G2Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G2MUL precompile logic.
+	// > G2 multiplication call expects `256` bytes as an input that is interpreted as byte concatenation of encoding of G2 point (`192` bytes) and encoding of a scalar value (`64` bytes).
+	// > Output is an encoding of multiplication operation result - single G2 point (`192` bytes).
+	if len(input) != 256 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	var p0 *bw6.Point
+	var e *big.Int
+
+	// Initialize G2
+	g := bw6.NewG()
+
+	// Decode G2 point
+	if p0, err = g.G2FromBytes(input[:192]); err != nil {
+		return nil, gas, err
+	}
+	// Decode scalar value
+	if e, err = decodeBW6Scalar(input[192:]); err != nil {
+		return nil, gas, err
+	}
+
+	// Compute r = e * p_0
+	r := g.New()
+	g.MulScalarG2(r, p0, e)
+
+	// Encode the G2 point into 192 bytes
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6G2MultiExp implements EIP-3026 G2MultiExp precompile.
+type bw6G2MultiExp struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6G2MultiExp) RequiredGas(input []byte) uint64 {
+	// Calculate G2 point, scalar value pair length
+	k := len(input) / 192
+	if k == 0 {
+		// Return 0 gas for small input length
+		return 0
+	}
+	// Lookup discount value for G2 point, scalar value pair length
+	var discount uint64
+	if dLen := len(params.BW6MultiExpDiscountTable); k < dLen {
+		discount = params.BW6MultiExpDiscountTable[k-1]
+	} else {
+		discount = params.BW6MultiExpDiscountTable[dLen-1]
+	}
+	// Calculate gas and return the result
+	return (uint64(k) * params.BW6G2MulGas * discount) / 1000
+}
+
+func (c *bw6G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 G2MultiExp precompile logic
+	// > G2 multiplication call expects `256*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G2 point (`256` bytes) and encoding of a scalar value (`64` bytes).
+	// > Output is an encoding of multiexponentiation operation result - single G2 point (`192` bytes).
+	k := len(input) / 256
+	if len(input) == 0 || len(input)%256 != 0 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+	var err error
+	points := make([]*bw6.Point, k)
+	scalars := make([]*big.Int, k)
+
+	// Initialize G2
+	g := bw6.NewG()
+
+	// Decode point scalar pairs
+	for i := 0; i < k; i++ {
+		off := 256 * i
+		t0, t1, t2 := off, off+192, off+256
+		// Decode G1 point
+		if points[i], err = g.G2FromBytes(input[t0:t1]); err != nil {
+			return nil, gas, err
+		}
+		// Decode scalar value
+		if scalars[i], err = decodeBW6Scalar(input[t1:t2]); err != nil {
+			return nil, gas, err
+		}
+	}
+
+	// Compute r = e_0 * p_0 + e_1 * p_1 + ... + e_(k-1) * p_(k-1)
+	r := g.New()
+	g.MultiExp(r, points, scalars)
+
+	// Encode the G2 point to 192 bytes.
+	return g.ToBytes(r), gas, nil
+}
+
+// bw6Pairing implements EIP-3026 Pairing precompile.
+type bw6Pairing struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *bw6Pairing) RequiredGas(input []byte) uint64 {
+	return params.BW6PairingBaseGas + uint64(len(input)/384)*params.BW6PairingPerPairGas
+}
+
+func (c *bw6Pairing) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	// Implements EIP-3026 Pairing precompile logic.
+	// > Pairing call expects `384*k` bytes as an inputs that is interpreted as byte concatenation of `k` slices. Each slice has the following structure:
+	// > - `192` bytes of G1 point encoding
+	// > - `192` bytes of G2 point encoding
+	// > Output is a `32` bytes where last single byte is `0x01` if pairing result is equal to multiplicative identity in a pairing target field and `0x00` otherwise
+	// > (which is equivalent of Big Endian encoding of Solidity values `uint256(1)` and `uin256(0)` respectively).
+	k := len(input) / 384
+	if len(input) == 0 || len(input)%384 != 0 {
+		return nil, gas, errbw6InvalidInputLength
+	}
+
+	// Initialize BW6 pairing engine
+	e := bw6.NewEngine()
+	g := e.G()
+
+	// Decode pairs
+	for i := 0; i < k; i++ {
+		off := 384 * i
+		t0, t1, t2 := off, off+192, off+384
+
+		// Decode G1 point
+		p1, err := g.G1FromBytes(input[t0:t1])
+		if err != nil {
+			return nil, gas, err
+		}
+		// Decode G2 point
+		p2, err := g.G2FromBytes(input[t1:t2])
+		if err != nil {
+			return nil, gas, err
+		}
+
+		// 'point is on curve' check already done,
+		// Here we need to apply subgroup checks.
+		if !g.InCorrectSubgroup(p1) {
+			return nil, gas, errbw6G1PointSubgroup
+		}
+		if !g.InCorrectSubgroup(p2) {
+			return nil, gas, errbw6G2PointSubgroup
+		}
+
+		// Update pairing engine with G1 and G2 ponits
+		e.AddPair(p1, p2)
+	}
+	// Prepare 32 byte output
+	out := make([]byte, 32)
+
+	// Compute pairing and set the result
+	if e.Check() {
+		out[31] = 1
+	}
+	return out, gas, nil
 }

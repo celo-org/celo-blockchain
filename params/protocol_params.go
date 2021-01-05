@@ -143,7 +143,17 @@ const (
 	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
 	// May take a bit more time with 100 validators, need to bench that
 	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
+
+	BW6G1AddGas          uint64 = 0 // Price for BW6 elliptic curve G1 point addition
+	BW6G1MulGas          uint64 = 0 // Price for BW6 elliptic curve G1 point scalar multiplication
+	BW6G2AddGas          uint64 = 0 // Price for BW6 elliptic curve G2 point addition
+	BW6G2MulGas          uint64 = 0 // Price for BW6 elliptic curve G2 point scalar multiplication
+	BW6PairingBaseGas    uint64 = 0 // Base gas price for BW6 elliptic curve pairing check
+	BW6PairingPerPairGas uint64 = 0 // Per-point pair gas price for BW6 elliptic curve pairing check
 )
+
+// Gas discount table for BW6 G1 and G2 multi exponentiation operations
+var BW6MultiExpDiscountTable = [128]uint64{}
 
 var (
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")

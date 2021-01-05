@@ -399,6 +399,11 @@ func (e *Engine) GT() *GT {
 	return NewGT()
 }
 
+// G returns G1 and G2 group instance.
+func (e *Engine) G() *G {
+	return e.g
+}
+
 // Check computes pairing and checks if result is equal to one
 func (e *Engine) Check() bool {
 	return e.calculate().isOne()
