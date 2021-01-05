@@ -415,7 +415,7 @@ func (rs *replicaStateImpl) DecodeRLP(stream *rlp.Stream) error {
 	if err != nil {
 		return err
 	}
-	log.Warn("decode replica state RLP", "startValidatingBlock", data.StartValidatingBlock, "stopValidatingBlock", data.StopValidatingBlock)
+	log.Trace("decode replica state RLP", "startValidatingBlock", data.StartValidatingBlock, "stopValidatingBlock", data.StopValidatingBlock)
 
 	rs.mu = new(sync.RWMutex)
 	rs.state = data.State

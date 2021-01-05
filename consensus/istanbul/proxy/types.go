@@ -123,6 +123,9 @@ type ProxiedValidatorEngine interface {
 
 	// IsProxyPeer will check if the peerID is a proxy.
 	IsProxyPeer(peerID enode.ID) (bool, error)
+
+	// NewEpoch will notify the proxied validator's thread that a new epoch started
+	NewEpoch() error
 }
 
 // ==============================================

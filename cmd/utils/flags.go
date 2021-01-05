@@ -1169,10 +1169,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
 
-	lightPeers := 0
-	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
-		lightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
-	}
+	// LightPeers is in the eth config, not the p2p config, so we don't have it here, so we
+	// get it here separately using GlobalInt()
+	lightPeers := ctx.GlobalInt(LightMaxPeersFlag.Name)
 	if lightClient && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
 		// dynamic default - for clients we use 1/10th of the default for servers
 		lightPeers /= 10
@@ -1667,13 +1666,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
 	}
-	if ctx.GlobalIsSet(DNSDiscoveryFlag.Name) {
-		urls := ctx.GlobalString(DNSDiscoveryFlag.Name)
-		if urls == "" {
-			cfg.DiscoveryURLs = []string{}
-		} else {
-			cfg.DiscoveryURLs = splitAndTrim(urls)
-		}
+	// Disable DNS discovery by default (by using the flag's value even if it hasn't been set and so
+	// has the default value ""), since we don't have DNS discovery set up for Celo.
+	// Note that passing --discovery.dns "" is the way the Geth docs specify for disabling DNS discovery,
+	// so here we just make that be the default.
+	if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
+		cfg.DiscoveryURLs = []string{}
+	} else {
+		cfg.DiscoveryURLs = splitAndTrim(urls)
 	}
 
 	// Override any default configs for hard coded networks.
