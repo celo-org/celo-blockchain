@@ -66,7 +66,7 @@ func (g *GT) ToBytes(e *E) []byte {
 // IsValid checks whether given target group element is in correct subgroup.
 func (g *GT) IsValid(e *E) bool {
 	r := g.New()
-	g.fp6.exp(r, e, q) 
+	g.fp6.exp(r, e, q)
 	return r.isOne()
 }
 

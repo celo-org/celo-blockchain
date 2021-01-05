@@ -119,16 +119,6 @@ func (e *fp3) neg(c, a *fe3) {
 	neg(&c[2], &a[2])
 }
 
-func (e *fp3) conjugate(c, a *fe3) {
-	// c0 = a0
-	// c1 = -a1
-	// c2 = a2
-	c.set(a)
-	c[0].set(&a[0])
-	neg(&c[1], &a[1])
-	c[2].set(&a[2])
-}
-
 func (e *fp3) mul(c, a, b *fe3) {
 	// Guide to Pairing Based Cryptography
 	// Algorithm 5.21

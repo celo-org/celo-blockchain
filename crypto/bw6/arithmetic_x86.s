@@ -708,57 +708,6 @@ ret:
 /*	 | end													*/
 
 
-// c =  (a - b)
-// func lsub(c *[12]uint64, a *[12]uint64, b *[12]uint64)
-TEXT ·lsub(SB), NOSPLIT, $0-24
-	// |
-	MOVQ a+8(FP), DI
-	MOVQ b+16(FP), SI
-
-	// |
-	MOVQ (DI), CX
-	MOVQ 8(DI), DX
-	MOVQ 16(DI), R8
-	MOVQ 24(DI), R9
-	MOVQ 32(DI), R10
-	MOVQ 40(DI), R11
-	MOVQ 48(DI), R12
-	MOVQ 56(DI), R13
-	MOVQ 64(DI), R14
-	MOVQ 72(DI), R15
-	MOVQ 80(DI), AX
-	MOVQ 88(DI), BX
-
-	SUBQ (SI), CX
-	SBBQ 8(SI), DX
-	SBBQ 16(SI), R8
-	SBBQ 24(SI), R9
-	SBBQ 32(SI), R10
-	SBBQ 40(SI), R11
-	SBBQ 48(SI), R12
-	SBBQ 56(SI), R13
-	SBBQ 64(SI), R14
-	SBBQ 72(SI), R15
-	SBBQ 80(SI), AX
-	SBBQ 88(SI), BX
-
-	MOVQ c+0(FP), DI
-	MOVQ CX, (DI)
-	MOVQ DX, 8(DI)
-	MOVQ R8, 16(DI)
-	MOVQ R9, 24(DI)
-	MOVQ R10, 32(DI)
-	MOVQ R11, 40(DI)
-	MOVQ R12, 48(DI)
-	MOVQ R13, 56(DI)
-	MOVQ R14, 64(DI)
-	MOVQ R15, 72(DI)
-	MOVQ AX, 80(DI)
-	MOVQ BX, 88(DI)
-	RET
-/*	 | end													*/
-
-
 // a =  (a - b)
 // func lsubAssign(c *[12]uint64, a *[12]uint64, b *[12]uint64)
 TEXT ·lsubAssign(SB), NOSPLIT, $0-16

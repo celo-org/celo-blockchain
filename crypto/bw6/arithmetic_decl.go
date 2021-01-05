@@ -55,9 +55,6 @@ func sub(c, a, b *fe)
 func subAssign(a, b *fe)
 
 //go:noescape
-func lsub(c, a, b *fe)
-
-//go:noescape
 func lsubAssign(a, b *fe)
 
 //go:noescape
