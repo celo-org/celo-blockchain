@@ -74,15 +74,6 @@ func (e *fp3) add(c, a, b *fe3) {
 	add(&c[2], &a[2], &b[2])
 }
 
-func (e *fp3) ladd(c, a, b *fe3) {
-	// c0 = a0 + b0
-	// c1 = a1 + b1
-	// c2 = a2 + b2
-	ladd(&c[0], &a[0], &b[0])
-	ladd(&c[1], &a[1], &b[1])
-	ladd(&c[2], &a[2], &b[2])
-}
-
 func (e *fp3) double(c, a *fe3) {
 	// c0 = 2a0
 	// c1 = 2a1
@@ -90,15 +81,6 @@ func (e *fp3) double(c, a *fe3) {
 	double(&c[0], &a[0])
 	double(&c[1], &a[1])
 	double(&c[2], &a[2])
-}
-
-func (e *fp3) ldouble(c, a *fe3) {
-	// c0 = 2a0
-	// c1 = 2a1
-	// c2 = 2a2
-	ldouble(&c[0], &a[0])
-	ldouble(&c[1], &a[1])
-	ldouble(&c[2], &a[2])
 }
 
 func (e *fp3) sub(c, a, b *fe3) {
@@ -124,35 +106,35 @@ func (e *fp3) mul(c, a, b *fe3) {
 	// Algorithm 5.21
 
 	t := e.t
-	mul(t[0], &a[0], &b[0])  // v0 = a0b0
-	mul(t[1], &a[1], &b[1])  // v1 = a1b1
-	mul(t[2], &a[2], &b[2])  // v2 = a2b2
-	ladd(t[3], &a[1], &a[2]) // a1 + a2
-	ladd(t[4], &b[1], &b[2]) // b1 + b2
-	mul(t[3], t[3], t[4])    // (a1 + a2)(b1 + b2)
-	add(t[4], t[1], t[2])    // v1 + v2
-	subAssign(t[3], t[4])    // (a1 + a2)(b1 + b2) - v1 - v2
+	mul(t[0], &a[0], &b[0]) // v0 = a0b0
+	mul(t[1], &a[1], &b[1]) // v1 = a1b1
+	mul(t[2], &a[2], &b[2]) // v2 = a2b2
+	add(t[3], &a[1], &a[2]) // a1 + a2
+	add(t[4], &b[1], &b[2]) // b1 + b2
+	mul(t[3], t[3], t[4])   // (a1 + a2)(b1 + b2)
+	add(t[4], t[1], t[2])   // v1 + v2
+	subAssign(t[3], t[4])   // (a1 + a2)(b1 + b2) - v1 - v2
 
 	doubleAssign(t[3])
 	doubleAssign(t[3])    // -((a1 + a2)(b1 + b2) - v1 - v2)α
 	sub(t[5], t[0], t[3]) // c0 = ((a1 + a2)(b1 + b2) - v1 - v2)α + v0
 
-	ladd(t[3], &a[0], &a[1]) // a0 + a1
-	ladd(t[4], &b[0], &b[1]) // b0 + b1
-	mul(t[3], t[3], t[4])    // (a0 + a1)(b0 + b1)
-	add(t[4], t[0], t[1])    // v0 + v1
-	sub(t[3], t[3], t[4])    // (a0 + a1)(b0 + b1) - v0 - v1
+	add(t[3], &a[0], &a[1]) // a0 + a1
+	add(t[4], &b[0], &b[1]) // b0 + b1
+	mul(t[3], t[3], t[4])   // (a0 + a1)(b0 + b1)
+	add(t[4], t[0], t[1])   // v0 + v1
+	sub(t[3], t[3], t[4])   // (a0 + a1)(b0 + b1) - v0 - v1
 
 	double(t[4], t[2])
 	doubleAssign(t[4])     // -αv2
 	sub(&c[1], t[3], t[4]) // c1 = (a0 + a1)(b0 + b1) - v0 - v1 + αv2
 
-	ladd(t[3], &a[0], &a[2]) // a0 + a2
-	ladd(t[4], &b[0], &b[2]) // b0 + b2
-	mul(t[3], t[3], t[4])    // (a0 + a2)(b0 + b2)
-	add(t[4], t[0], t[2])    // v0 + v2
-	sub(t[3], t[3], t[4])    // (a0 + a2)(b0 + b2) - v0 - v2
-	add(&c[2], t[1], t[3])   // c2 = (a0 + a2)(b0 + b2) - v0 - v2 + v1
+	add(t[3], &a[0], &a[2]) // a0 + a2
+	add(t[4], &b[0], &b[2]) // b0 + b2
+	mul(t[3], t[3], t[4])   // (a0 + a2)(b0 + b2)
+	add(t[4], t[0], t[2])   // v0 + v2
+	sub(t[3], t[3], t[4])   // (a0 + a2)(b0 + b2) - v0 - v2
+	add(&c[2], t[1], t[3])  // c2 = (a0 + a2)(b0 + b2) - v0 - v2 + v1
 	c[0].set(t[5])
 }
 
@@ -166,7 +148,7 @@ func (e *fp3) square(c, a *fe3) {
 	mul(t[1], &a[0], &a[1]) // a0a1
 	doubleAssign(t[1])      // s1 = 2a0a1
 	sub(t[2], &a[0], &a[1]) // a0 - a1
-	laddAssign(t[2], &a[2]) // a0 - a1 + a2
+	addAssign(t[2], &a[2])  // a0 - a1 + a2
 	square(t[2], t[2])      // s2 = (a0 - a1 + a2)^2
 	mul(t[3], &a[1], &a[2]) // a1a2
 	doubleAssign(t[3])      // s3 = 2a1a2

@@ -97,23 +97,6 @@ func addAssign(z, y *fe) {
 	}
 }
 
-func ladd(z, x, y *fe) {
-	var carry uint64
-
-	z[0], carry = bits.Add64(x[0], y[0], 0)
-	z[1], carry = bits.Add64(x[1], y[1], carry)
-	z[2], carry = bits.Add64(x[2], y[2], carry)
-	z[3], carry = bits.Add64(x[3], y[3], carry)
-	z[4], carry = bits.Add64(x[4], y[4], carry)
-	z[5], carry = bits.Add64(x[5], y[5], carry)
-	z[6], carry = bits.Add64(x[6], y[6], carry)
-	z[7], carry = bits.Add64(x[7], y[7], carry)
-	z[8], carry = bits.Add64(x[8], y[8], carry)
-	z[9], carry = bits.Add64(x[9], y[9], carry)
-	z[10], carry = bits.Add64(x[10], y[10], carry)
-	z[11], _ = bits.Add64(x[11], y[11], carry)
-}
-
 func laddAssign(z, y *fe) {
 	var carry uint64
 
@@ -199,40 +182,6 @@ func doubleAssign(z *fe) {
 		z[10], b = bits.Sub64(z[10], 15098257552581525310, b)
 		z[11], _ = bits.Sub64(z[11], 81882988782276106, b)
 	}
-}
-
-func ldouble(z, x *fe) {
-	var carry uint64
-
-	z[0], carry = bits.Add64(x[0], x[0], 0)
-	z[1], carry = bits.Add64(x[1], x[1], carry)
-	z[2], carry = bits.Add64(x[2], x[2], carry)
-	z[3], carry = bits.Add64(x[3], x[3], carry)
-	z[4], carry = bits.Add64(x[4], x[4], carry)
-	z[5], carry = bits.Add64(x[5], x[5], carry)
-	z[6], carry = bits.Add64(x[6], x[6], carry)
-	z[7], carry = bits.Add64(x[7], x[7], carry)
-	z[8], carry = bits.Add64(x[8], x[8], carry)
-	z[9], carry = bits.Add64(x[9], x[9], carry)
-	z[10], carry = bits.Add64(x[10], x[10], carry)
-	z[11], _ = bits.Add64(x[11], x[11], carry)
-}
-
-func ldoubleAssign(z *fe) {
-	var carry uint64
-
-	z[0], carry = bits.Add64(z[0], z[0], 0)
-	z[1], carry = bits.Add64(z[1], z[1], carry)
-	z[2], carry = bits.Add64(z[2], z[2], carry)
-	z[3], carry = bits.Add64(z[3], z[3], carry)
-	z[4], carry = bits.Add64(z[4], z[4], carry)
-	z[5], carry = bits.Add64(z[5], z[5], carry)
-	z[6], carry = bits.Add64(z[6], z[6], carry)
-	z[7], carry = bits.Add64(z[7], z[7], carry)
-	z[8], carry = bits.Add64(z[8], z[8], carry)
-	z[9], carry = bits.Add64(z[9], z[9], carry)
-	z[10], carry = bits.Add64(z[10], z[10], carry)
-	z[11], _ = bits.Add64(z[11], z[11], carry)
 }
 
 func sub(z, x, y *fe) {

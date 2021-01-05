@@ -262,43 +262,6 @@ func TestFpAdditionPropertiesAssigned(t *testing.T) {
 	}
 }
 
-func TestFpLazyOperations(t *testing.T) {
-	for i := 0; i < fuz; i++ {
-		a, _ := new(fe).rand(rand.Reader)
-		b, _ := new(fe).rand(rand.Reader)
-		c, _ := new(fe).rand(rand.Reader)
-		c0 := new(fe)
-		c1 := new(fe)
-		ladd(c0, a, b)
-		add(c1, a, b)
-		mul(c0, c0, c)
-		mul(c1, c1, c)
-		if !c0.equal(c1) {
-			// l+ operator stands for lazy addition
-			t.Fatal("(a + b) * c == (a l+ b) * c")
-		}
-		_, _ = a.rand(rand.Reader)
-		b.set(a)
-		ldouble(a, a)
-		ladd(b, b, b)
-		if !a.equal(b) {
-			t.Fatal("2 l* a = a l+ a")
-		}
-		_, _ = a.rand(rand.Reader)
-		_, _ = b.rand(rand.Reader)
-		_, _ = c.rand(rand.Reader)
-		a0 := new(fe).set(a)
-		lsubAssign(a, b)
-		laddAssign(a, &modulus)
-		mul(a, a, c)
-		subAssign(a0, b)
-		mul(a0, a0, c)
-		if !a.equal(a0) {
-			t.Fatal("((a l- b) + p) * c = (a-b) * c")
-		}
-	}
-}
-
 func TestFpMultiplicationCrossAgainstBigInt(t *testing.T) {
 	for i := 0; i < fuz; i++ {
 		a, _ := new(fe).rand(rand.Reader)
@@ -610,32 +573,6 @@ func TestFp3MultiplicationProperties(t *testing.T) {
 	}
 }
 
-func TestFp3LazyOperations(t *testing.T) {
-	field := newFp3()
-	for i := 0; i < fuz; i++ {
-		a, _ := new(fe3).rand(rand.Reader)
-		b, _ := new(fe3).rand(rand.Reader)
-		c, _ := new(fe3).rand(rand.Reader)
-		c0 := new(fe3)
-		c1 := new(fe3)
-		field.ladd(c0, a, b)
-		field.add(c1, a, b)
-		field.mul(c0, c0, c)
-		field.mul(c1, c1, c)
-		if !c0.equal(c1) {
-			// l+ operator stands for lazy addition
-			t.Fatal("(a + b) * c == (a l+ b) * c")
-		}
-		_, _ = a.rand(rand.Reader)
-		b.set(a)
-		field.ldouble(a, a)
-		field.ladd(b, b, b)
-		if !a.equal(b) {
-			t.Fatal("2 l* a = a l+ a", i)
-		}
-	}
-}
-
 func TestFp3Exponentiation(t *testing.T) {
 	field := newFp3()
 	for i := 0; i < fuz; i++ {
@@ -814,32 +751,6 @@ func TestFp6MultiplicationProperties(t *testing.T) {
 			t.Fatal("a^2 - b^2 == (a - b)(a + b)")
 		}
 
-	}
-}
-
-func TestFp6LazyOperations(t *testing.T) {
-	field := newFp6(nil)
-	for i := 0; i < fuz; i++ {
-		a, _ := new(fe6).rand(rand.Reader)
-		b, _ := new(fe6).rand(rand.Reader)
-		c, _ := new(fe6).rand(rand.Reader)
-		c0 := new(fe6)
-		c1 := new(fe6)
-		field.ladd(c0, a, b)
-		field.add(c1, a, b)
-		field.mul(c0, c0, c)
-		field.mul(c1, c1, c)
-		if !c0.equal(c1) {
-			// l+ operator stands for lazy addition
-			t.Fatal("(a + b) * c == (a l+ b) * c")
-		}
-		_, _ = a.rand(rand.Reader)
-		b.set(a)
-		field.ldouble(a, a)
-		field.ladd(b, b, b)
-		if !a.equal(b) {
-			t.Fatal("2 l* a = a l+ a", i)
-		}
 	}
 }
 

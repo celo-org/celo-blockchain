@@ -286,27 +286,27 @@ func (g *G) Add(r, p1, p2 *Point) *Point {
 			return r.Zero()
 		}
 	}
-	subAssign(t[1], t[3])      // h = u2 - u1
-	ldouble(t[4], t[1])        // 2h
-	square(t[4], t[4])         // i = 2h^2
-	mul(t[5], t[1], t[4])      // j = h*i
-	subAssign(t[0], t[2])      // s2 - s1
-	ldoubleAssign(t[0])        // r = 2*(s2 - s1)
-	square(t[6], t[0])         // r^2
-	subAssign(t[6], t[5])      // r^2 - j
-	mul(t[3], t[3], t[4])      // v = u1 * i
-	double(t[4], t[3])         // 2*v
-	sub(&r[0], t[6], t[4])     // x3 = r^2 - j - 2*v
-	sub(t[4], t[3], &r[0])     // v - x3
-	mul(t[6], t[2], t[5])      // s1 * j
-	doubleAssign(t[6])         // 2 * s1 * j
-	mul(t[0], t[0], t[4])      // r * (v - x3)
-	sub(&r[1], t[0], t[6])     // y3 = r * (v - x3) - (2 * s1 * j)
-	ladd(t[0], &p1[2], &p2[2]) // z1 + z2
-	square(t[0], t[0])         // (z1 + z2)^2
-	subAssign(t[0], t[7])      // (z1 + z2)^2 - z1z1
-	subAssign(t[0], t[8])      // (z1 + z2)^2 - z1z1 - z2z2
-	mul(&r[2], t[0], t[1])     // z3 = ((z1 + z2)^2 - z1z1 - z2z2) * h
+	subAssign(t[1], t[3])     // h = u2 - u1
+	double(t[4], t[1])        // 2h
+	square(t[4], t[4])        // i = 2h^2
+	mul(t[5], t[1], t[4])     // j = h*i
+	subAssign(t[0], t[2])     // s2 - s1
+	doubleAssign(t[0])        // r = 2*(s2 - s1)
+	square(t[6], t[0])        // r^2
+	subAssign(t[6], t[5])     // r^2 - j
+	mul(t[3], t[3], t[4])     // v = u1 * i
+	double(t[4], t[3])        // 2*v
+	sub(&r[0], t[6], t[4])    // x3 = r^2 - j - 2*v
+	sub(t[4], t[3], &r[0])    // v - x3
+	mul(t[6], t[2], t[5])     // s1 * j
+	doubleAssign(t[6])        // 2 * s1 * j
+	mul(t[0], t[0], t[4])     // r * (v - x3)
+	sub(&r[1], t[0], t[6])    // y3 = r * (v - x3) - (2 * s1 * j)
+	add(t[0], &p1[2], &p2[2]) // z1 + z2
+	square(t[0], t[0])        // (z1 + z2)^2
+	subAssign(t[0], t[7])     // (z1 + z2)^2 - z1z1
+	subAssign(t[0], t[8])     // (z1 + z2)^2 - z1z1 - z2z2
+	mul(&r[2], t[0], t[1])    // z3 = ((z1 + z2)^2 - z1z1 - z2z2) * h
 	return r
 }
 
@@ -369,7 +369,7 @@ func (g *G) Double(r, p *Point) *Point {
 	subAssign(t[1], t[0])   // (b + x1)^2 - a
 	subAssign(t[1], t[2])   // (b + x1)^2 - a - c
 	doubleAssign(t[1])      // d = 2((b+x1)^2 - a - c)
-	ldouble(t[3], t[0])     // 2a
+	double(t[3], t[0])      // 2a
 	laddAssign(t[0], t[3])  // e = 3a
 	square(t[4], t[0])      // f = e^2
 	double(t[3], t[1])      // 2d

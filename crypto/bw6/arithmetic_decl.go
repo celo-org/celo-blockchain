@@ -31,9 +31,6 @@ func add(c, a, b *fe)
 func addAssign(a, b *fe)
 
 //go:noescape
-func ladd(c, a, b *fe)
-
-//go:noescape
 func laddAssign(a, b *fe)
 
 //go:noescape
@@ -41,12 +38,6 @@ func double(c, a *fe)
 
 //go:noescape
 func doubleAssign(a *fe)
-
-//go:noescape
-func ldouble(c, a *fe)
-
-//go:noescape
-func ldoubleAssign(a *fe)
 
 //go:noescape
 func sub(c, a, b *fe)

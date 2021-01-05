@@ -79,28 +79,12 @@ func (e *fp6) add(c, a, b *fe6) {
 	fp3.add(&c[1], &a[1], &b[1])
 }
 
-func (e *fp6) ladd(c, a, b *fe6) {
-	// c0 = a0 + b0
-	// c1 = a1 + b1
-	fp3 := e.fp3
-	fp3.ladd(&c[0], &a[0], &b[0])
-	fp3.ladd(&c[1], &a[1], &b[1])
-}
-
 func (e *fp6) double(c, a *fe6) {
 	// c0 = 2a0
 	// c1 = 2a1
 	fp3 := e.fp3
 	fp3.double(&c[0], &a[0])
 	fp3.double(&c[1], &a[1])
-}
-
-func (e *fp6) ldouble(c, a *fe6) {
-	// c0 = 2a0
-	// c1 = 2a1
-	fp3 := e.fp3
-	fp3.ldouble(&c[0], &a[0])
-	fp3.ldouble(&c[1], &a[1])
 }
 
 func (e *fp6) sub(c, a, b *fe6) {
@@ -137,11 +121,11 @@ func (e *fp6) mul(c, a, b *fe6) {
 	fp3.mul(t[1], &a[0], &b[0]) // v0 = a0b0
 	fp3.mul(t[2], &a[1], &b[1]) // v1 = a1b1
 
-	fp3.ladd(t[0], &a[0], &a[1]) // a0 + a1
-	fp3.ladd(t[3], &b[0], &b[1]) // b0 + b1
-	fp3.mul(t[0], t[0], t[3])    // (a0 + a1)(b0 + b1)
-	fp3.sub(t[0], t[0], t[1])    // (a0 + a1)(b0 + b1) - v0
-	fp3.sub(&c[1], t[0], t[2])   // c1 = (a0 + a1)(b0 + b1) - v0 - v1
+	fp3.add(t[0], &a[0], &a[1]) // a0 + a1
+	fp3.add(t[3], &b[0], &b[1]) // b0 + b1
+	fp3.mul(t[0], t[0], t[3])   // (a0 + a1)(b0 + b1)
+	fp3.sub(t[0], t[0], t[1])   // (a0 + a1)(b0 + b1) - v0
+	fp3.sub(&c[1], t[0], t[2])  // c1 = (a0 + a1)(b0 + b1) - v0 - v1
 
 	fp3.mulByNonResidue(t[2], t[2])
 	fp3.add(&c[0], t[1], t[2]) // c0 = v0 - ßv1
@@ -213,8 +197,8 @@ func (e *fp6) fp2Square(c0, c1, a0, a1 *fe) {
 
 	sub(c0, a0, a1) // v0 = a0 - a1
 
-	ldouble(t[7], a1)
-	ldoubleAssign(t[7]) // -ßa1
+	double(t[7], a1)
+	doubleAssign(t[7]) // -ßa1
 
 	laddAssign(t[7], a0) // v3 = (a0 - ßa1)
 	mul(c0, c0, t[7])    // v0 * v3
@@ -240,11 +224,11 @@ func (e *fp6) square(c, a *fe6) {
 	fp3.mul(t[1], &a[0], &a[1])      // v0 = a0a1
 	fp3.mulByNonResidue(t[2], t[1])  // ßv0
 
-	fp3.ladd(t[0], t[0], &a[0]) // a0 + ßa1
-	fp3.add(t[2], t[2], t[1])   // v0 + ßv0
+	fp3.add(t[0], t[0], &a[0]) // a0 + ßa1
+	fp3.add(t[2], t[2], t[1])  // v0 + ßv0
 
-	fp3.ladd(t[3], &a[0], &a[1]) // a0 + a1
-	fp3.mul(t[0], t[0], t[3])    // (a0 + a1)(a0 + ßa1)
+	fp3.add(t[3], &a[0], &a[1]) // a0 + a1
+	fp3.mul(t[0], t[0], t[3])   // (a0 + a1)(a0 + ßa1)
 
 	fp3.sub(&c[0], t[0], t[2]) // c0 = (a0 + a1)(a0 + ßa1) - v0 - ßv0
 	fp3.double(&c[1], t[1])    // c1 = 2v0
