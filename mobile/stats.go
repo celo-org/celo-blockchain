@@ -88,6 +88,7 @@ func (stats *Stats) SetBool(name string, boolean bool) {
 	stats.setUnlockedBool(name, boolean)
 }
 
+// This function assumes that was performed a previous write lock
 func (stats *Stats) setUnlockedInt(name string, number int64) {
 	if number != 0 {
 		stats.m[name] = formatInt(number)
@@ -96,6 +97,7 @@ func (stats *Stats) setUnlockedInt(name string, number int64) {
 	}
 }
 
+// This function assumes that was performed a previous write lock
 func (stats *Stats) setUnlockedUInt(name string, number uint64) {
 	if number != 0 {
 		stats.m[name] = formatUInt(number)
@@ -104,6 +106,7 @@ func (stats *Stats) setUnlockedUInt(name string, number uint64) {
 	}
 }
 
+// This function assumes that was performed a previous write lock
 func (stats *Stats) setUnlockedFloat(name string, number float64) {
 	if !almostEqual(number, 0) {
 		stats.m[name] = formatFloat(number)
@@ -112,6 +115,7 @@ func (stats *Stats) setUnlockedFloat(name string, number float64) {
 	}
 }
 
+// This function assumes that was performed a previous write lock
 func (stats *Stats) setUnlockedBool(name string, boolean bool) {
 	stats.m[name] = strconv.FormatBool(boolean)
 }
