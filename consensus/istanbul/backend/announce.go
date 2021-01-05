@@ -622,7 +622,7 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*en
 
 	var encryptedEnodeURLs []*encryptedEnodeURL
 	for _, param := range enodeQueries {
-		logger.Info("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
+		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
 		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
 		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
 		if err != nil {
