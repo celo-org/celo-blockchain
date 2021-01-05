@@ -31,23 +31,21 @@ import (
 type lesTxRelay struct {
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}
-	ps        *peerSet
-	peerList  []*peer
+	peerList  []*serverPeer
 	lock      sync.RWMutex
 	stop      chan struct{}
 
 	retriever *retrieveManager
 }
 
-func newLesTxRelay(ps *peerSet, retriever *retrieveManager) *lesTxRelay {
+func newLesTxRelay(ps *serverPeerSet, retriever *retrieveManager) *lesTxRelay {
 	r := &lesTxRelay{
 		txSent:    make(map[common.Hash]*types.Transaction),
 		txPending: make(map[common.Hash]struct{}),
-		ps:        ps,
 		retriever: retriever,
 		stop:      make(chan struct{}),
 	}
-	ps.notify(r)
+	ps.subscribe(r)
 	return r
 }
 
@@ -55,20 +53,28 @@ func (ltrx *lesTxRelay) Stop() {
 	close(ltrx.stop)
 }
 
-// registerPeer implements peerSetNotify
-func (ltrx *lesTxRelay) registerPeer(_ *peer) {
+func (ltrx *lesTxRelay) registerPeer(p *serverPeer) {
 	ltrx.lock.Lock()
 	defer ltrx.lock.Unlock()
 
-	ltrx.peerList = ltrx.ps.AllPeers()
+	// Short circuit if the peer is announce only.
+	if p.onlyAnnounce {
+		return
+	}
+	ltrx.peerList = append(ltrx.peerList, p)
 }
 
-// unregisterPeer implements peerSetNotify
-func (ltrx *lesTxRelay) unregisterPeer(_ *peer) {
+func (ltrx *lesTxRelay) unregisterPeer(p *serverPeer) {
 	ltrx.lock.Lock()
 	defer ltrx.lock.Unlock()
 
-	ltrx.peerList = ltrx.ps.AllPeers()
+	for i, peer := range ltrx.peerList {
+		if peer == p {
+			// Remove from the peer list
+			ltrx.peerList = append(ltrx.peerList[:i], ltrx.peerList[i+1:]...)
+			return
+		}
+	}
 }
 
 func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
@@ -105,16 +111,16 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 		reqID := genReqID()
 		rq := &distReq{
 			getCost: func(dp distPeer) uint64 {
-				return dp.(*peer).GetTxRelayCost(len(list), len(enc))
+				return dp.(*serverPeer).getTxRelayCost(len(list), len(enc))
 			},
 			canSend: func(dp distPeer) bool {
-				return dp.(*peer).WillAcceptTransaction(tx)
+				return dp.(*serverPeer).WillAcceptTransaction(tx)
 			},
 			request: func(dp distPeer) func() {
-				peer := dp.(*peer)
-				cost := peer.GetTxRelayCost(len(list), len(enc))
+				peer := dp.(*serverPeer)
+				cost := peer.getTxRelayCost(len(list), len(enc))
 				peer.fcServer.QueuedRequest(reqID, cost)
-				return func() { peer.SendTxs(reqID, cost, enc) }
+				return func() { peer.sendTxs(reqID, enc) }
 			},
 		}
 
