@@ -2,14 +2,14 @@ version: 2.1
 executors:
   golang:
     docker:
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.14
     working_directory: ~/repos/geth
   e2e:
     docker:
       - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
-      GO_VERSION: "1.13.7"
+      GO_VERSION: "1.14.12"
       CELO_MONOREPO_BRANCH_TO_TEST: master
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
@@ -34,6 +34,7 @@ jobs:
             - geth
   unit-tests:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -56,6 +57,7 @@ jobs:
 
   coverage:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -106,10 +108,11 @@ jobs:
       - run:
           name: Setup Go language
           command: |
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+            brew install go@1.14
+            brew link go@1.14
             # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.13"* ]]; then 
-              echo "go1.13 is required"
+            if [[ "$(go version)" != "go version go1.14"* ]]; then
+              echo "go1.14 is required"
               exit 1
             fi
       - run:
@@ -119,6 +122,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
+            - geth/libbls_snark_sys.a
 
   publish-mobile-client:
     docker:
