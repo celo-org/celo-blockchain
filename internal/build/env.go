@@ -59,7 +59,7 @@ func (env Environment) String() string {
 // if not running on CI.
 func Env() Environment {
 	switch {
-	case os.Getenv("CI") == "true" && os.Getenv("TRAVIS") == "true":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("TRAVIS")):
 		commit := os.Getenv("TRAVIS_PULL_REQUEST_SHA")
 		if commit == "" {
 			commit = os.Getenv("TRAVIS_COMMIT")
@@ -72,12 +72,12 @@ func Env() Environment {
 			Branch:         os.Getenv("TRAVIS_BRANCH"),
 			Tag:            os.Getenv("TRAVIS_TAG"),
 			Buildnum:       os.Getenv("TRAVIS_BUILD_NUMBER"),
-			IsPullRequest:  os.Getenv("TRAVIS_PULL_REQUEST") != "false",
+			IsPullRequest:  stringToBool(os.Getenv("TRAVIS_PULL_REQUEST")),
 			IsCronJob:      os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
-			IsMusl:         os.Getenv("MUSL") == "true",
-			MetricsDefault: os.Getenv("METRICS_DEFAULT") == "true",
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
-	case os.Getenv("CI") == "True" && os.Getenv("APPVEYOR") == "True":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("APPVEYOR")):
 		commit := os.Getenv("APPVEYOR_PULL_REQUEST_HEAD_COMMIT")
 		if commit == "" {
 			commit = os.Getenv("APPVEYOR_REPO_COMMIT")
@@ -91,11 +91,11 @@ func Env() Environment {
 			Tag:            os.Getenv("APPVEYOR_REPO_TAG_NAME"),
 			Buildnum:       os.Getenv("APPVEYOR_BUILD_NUMBER"),
 			IsPullRequest:  os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
-			IsCronJob:      os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
-			IsMusl:         os.Getenv("MUSL") == "true",
-			MetricsDefault: os.Getenv("METRICS_DEFAULT") == "true",
+			IsCronJob:      stringToBool(os.Getenv("APPVEYOR_SCHEDULED_BUILD")),
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
-	case os.Getenv("CI") == "True" && os.Getenv("CLOUDBUILD") == "True":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("CLOUDBUILD")):
 		commit := os.Getenv("COMMIT_SHA")
 		date, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("COMMIT_TIMESTAMP")), 10, 64)
 		if err != nil {
@@ -111,12 +111,21 @@ func Env() Environment {
 			Buildnum:       os.Getenv("BUILD_ID"),
 			IsPullRequest:  os.Getenv("_PR_NUMBER") != "",
 			IsCronJob:      false,
-			IsMusl:         os.Getenv("MUSL") == "true",
-			MetricsDefault: os.Getenv("METRICS_DEFAULT") == "true",
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
 	default:
 		return LocalEnv()
 	}
+}
+
+// if it's not a truly value returns false
+func stringToBool(str string) bool {
+	b, err := strconv.ParseBool(str)
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 // LocalEnv returns build environment metadata gathered from git.
