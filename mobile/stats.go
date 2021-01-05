@@ -32,12 +32,13 @@ func almostEqual(a, b float64) bool {
 }
 
 type Stats struct {
-	sync.RWMutex
-	m map[string]string
+	mutex sync.Mutex
+	m     map[string]string
 }
 
 func (s *Stats) GetStatsKeys() *Strings {
-	s.RLock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	keys := make([]string, len(s.m))
 
 	i := 0
@@ -45,27 +46,35 @@ func (s *Stats) GetStatsKeys() *Strings {
 		keys[i] = k
 		i++
 	}
-	s.RUnlock()
 	return &Strings{keys}
 }
 
 func (s *Stats) GetValue(key string) string {
-	s.RLock()
-	val := s.m[key]
-	s.RUnlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	return val
+	return s.m[key]
 }
 
 func (stats *Stats) addInt(name string, number int64) {
+	stats.mutex.Lock()
+	defer stats.mutex.Unlock()
+
 	if number != 0 {
 		stats.m[name] = FormatInt(number)
+	} else {
+		delete(stats.m, name)
 	}
 }
 
 func (stats *Stats) addFloat(name string, number float64) {
+	stats.mutex.Lock()
+	defer stats.mutex.Unlock()
+
 	if !almostEqual(number, 0) {
 		stats.m[name] = FormatFloat(number)
+	} else {
+		delete(stats.m, name)
 	}
 }
 
