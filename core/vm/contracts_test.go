@@ -18,7 +18,9 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
@@ -1098,34 +1100,59 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 
 const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
 
-const abcStringHex = "616263"
+type cip20Test struct {
+	Preimage  string `json:"preimage"`
+	Sha2_512  string `json:"sha2_512"`
+	Keccak512 string `json:"keccak512"`
+	Sha3_256  string `json:"sha3_256"`
+	Sha3_512  string `json:"sha3_512"`
+	Blake2s   string `json:"blake2s"`
+}
+
+func loadCip20Json() ([]cip20Test, error) {
+	data, err := ioutil.ReadFile("testdata/precompiles/cip20.json")
+	if err != nil {
+		return nil, err
+	}
+	var tests []cip20Test
+	err = json.Unmarshal(data, &tests)
+	if err != nil {
+		return nil, err
+	}
+	return tests, nil
+}
+
+func (c *cip20Test) toPrecompiledTests() []precompiledTest {
+	return []precompiledTest{
+		{
+			input:    "00" + c.Preimage,
+			expected: c.Sha3_256,
+			name:     "sha3_256 of 0x" + c.Preimage,
+		},
+		{
+			input:    "01" + c.Preimage,
+			expected: c.Sha3_512,
+			name:     "sha3_25sha3_5126 of 0x" + c.Preimage,
+		},
+		{
+			input:    "02" + c.Preimage,
+			expected: c.Keccak512,
+			name:     "keccak512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "03" + c.Preimage,
+			expected: c.Sha2_512,
+			name:     "sha2_512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "10" + defaultBlake2sConfig + c.Preimage,
+			expected: c.Blake2s,
+			name:     "blake2s of 0x" + c.Preimage,
+		},
+	}
+}
 
 var cip20Tests = []precompiledTest{
-	{
-		input:    "00" + abcStringHex,
-		expected: "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
-		name:     "sha3-256 of 'abc'",
-	},
-	{
-		input:    "01" + abcStringHex,
-		expected: "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
-		name:     "sha3-512 of 'abc'",
-	},
-	{
-		input:    "02" + abcStringHex,
-		expected: "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d77aa511a9d00bb96",
-		name:     "keccak512 of 'abc'",
-	},
-	{
-		input:    "03" + abcStringHex,
-		expected: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
-		name:     "sha2-512 of 'abc'",
-	},
-	{
-		input:    "03",
-		expected: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
-		name:     "sha2-512 of empty string",
-	},
 	{
 		input:    "10" + defaultBlake2sConfig,
 		expected: "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
@@ -1139,6 +1166,17 @@ var cip20Tests = []precompiledTest{
 }
 
 func TestCip20(t *testing.T) {
+	cip20ShaVariantTests, err := loadCip20Json()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, vector := range cip20ShaVariantTests {
+		for _, test := range vector.toPrecompiledTests() {
+			testPrecompiled("f3", test, t)
+		}
+	}
+
 	for _, test := range cip20Tests {
 		testPrecompiled("f3", test, t)
 	}
