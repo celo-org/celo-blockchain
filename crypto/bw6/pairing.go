@@ -228,7 +228,7 @@ func (e *Engine) finalExp(f *fe6) {
 	//  f2 = f^q * f1
 	fp6.conjugate(&t[1], f)
 	fp6.mul(&t[1], &t[1], &t[0])
-	fp6.frobeniusMap(&t[2], &t[1], 1)
+	fp6.frobeniusMap1(&t[2], &t[1])
 	fp6.mul(&t[2], &t[2], &t[1])
 
 	// hard part (q^2-q+1)/r
@@ -236,28 +236,28 @@ func (e *Engine) finalExp(f *fe6) {
 	// where
 	// R_0(x) = (-103*x^7 + 70*x^6 + 269*x^5 - 197*x^4 - 314*x^3 - 73*x^2 - 263*x - 220)
 	// R_1(x) = (103*x^9 - 276*x^8 + 77*x^7 + 492*x^6 - 445*x^5 - 65*x^4 + 452*x^3 - 181*x^2 + 34*x + 229)
-	fp6.frobeniusMap(&t[5], &t[2], 1)
+	fp6.frobeniusMap1(&t[5], &t[2])
 
 	e.exp(&t[7], &t[2])
-	fp6.frobeniusMap(&t[6], &t[7], 1)
+	fp6.frobeniusMap1(&t[6], &t[7])
 
 	e.exp(&t[9], &t[7])
-	fp6.frobeniusMap(&t[8], &t[9], 1)
+	fp6.frobeniusMap1(&t[8], &t[9])
 
 	e.exp(&t[11], &t[9])
-	fp6.frobeniusMap(&t[10], &t[11], 1)
+	fp6.frobeniusMap1(&t[10], &t[11])
 
 	e.exp(&t[13], &t[11])
-	fp6.frobeniusMap(&t[12], &t[13], 1)
+	fp6.frobeniusMap1(&t[12], &t[13])
 
 	e.exp(&t[14], &t[13])
-	fp6.frobeniusMap(&t[15], &t[14], 1)
+	fp6.frobeniusMap1(&t[15], &t[14])
 
 	e.exp(&t[17], &t[14])
-	fp6.frobeniusMap(&t[16], &t[17], 1)
+	fp6.frobeniusMap1(&t[16], &t[17])
 
 	e.exp(&t[19], &t[17])
-	fp6.frobeniusMap(&t[18], &t[19], 1)
+	fp6.frobeniusMap1(&t[18], &t[19])
 
 	e.exp(&t[20], &t[18])
 	e.exp(&t[21], &t[20])

@@ -321,3 +321,10 @@ func (e *fp6) frobeniusMap(c, a *fe6, power int) {
 	fp3.frobeniusMap(&c[1], &a[1], power)
 	fp3.mul0(&c[1], &c[1], &frobeniusCoeffs6[power%6])
 }
+
+func (e *fp6) frobeniusMap1(c, a *fe6) {
+	fp3 := e.fp3
+	fp3.frobeniusMap1(&c[0], &a[0])
+	fp3.frobeniusMap1(&c[1], &a[1])
+	fp3.mul0(&c[1], &c[1], &frobeniusCoeffs6[1])
+}
