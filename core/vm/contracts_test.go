@@ -18,7 +18,10 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
@@ -122,6 +125,63 @@ var mockEVM = &EVM{
 	),
 }
 
+func loadJson(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledTestFromJson
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledTest{input: jsonTest.Input, expected: jsonTest.Expected, name: jsonTest.Name, errorExpected: false, noBenchmark: jsonTest.NoBenchmark}
+	}
+	return testcases, err
+}
+
+func loadJsonFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledFailureTestFromJson
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledFailureTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledFailureTest{input: jsonTest.Input, expectedError: errors.New(jsonTest.ExpectedError), name: jsonTest.Name}
+	}
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
+func testJson(name, addr string, t *testing.T) {
+	tests, err := loadJson(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
+	}
+}
+
+func testJsonFail(name, addr string, t *testing.T) {
+	tests, err := loadJsonFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
+}
+
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
@@ -130,12 +190,25 @@ type precompiledTest struct {
 	errorExpected   bool
 }
 
+type precompiledTestFromJson struct {
+	Input, Expected string
+	Name            string
+	NoBenchmark     bool
+	ErrorExpected   bool
+}
+
 // precompiledFailureTest defines the input/error pairs for precompiled
 // contract failure tests.
 type precompiledFailureTest struct {
 	input         string
 	expectedError error
 	name          string
+}
+
+type precompiledFailureTestFromJson struct {
+	Input         string
+	ExpectedError string
+	Name          string
 }
 
 // modexpTests are the test and benchmark data for the modexp precompiled contract.
@@ -706,7 +779,7 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 }
 
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
@@ -734,7 +807,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 }
 
 func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in)-1)
@@ -752,7 +825,7 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 }
 
 func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("31337")),
 		nil, new(big.Int), p.RequiredGas(in))
@@ -774,7 +847,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 	if test.noBenchmark {
 		return
 	}
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	reqGas := p.RequiredGas(in)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
@@ -982,4 +1055,60 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 	for _, test := range getVerifiedSealBitmapTests {
 		testPrecompiled("f4", test, t)
 	}
+}
+
+func TestPrecompiledBW6G1Add(t *testing.T) {
+	testJson("bw6G1Add_zexe", "ec", t)
+}
+
+func TestPrecompiledBW6G1Mul(t *testing.T) {
+	testJson("bw6G1Mul_zexe", "eb", t)
+}
+
+func TestPrecompiledBW6G1ZMultiExp(t *testing.T) {
+	testJson("bw6G1MultiExp_zexe", "ea", t)
+}
+
+func TestPrecompiledBW6G2Add(t *testing.T) {
+	testJson("bw6G2Add_zexe", "e9", t)
+}
+
+func TestPrecompiledBW6G2Mul(t *testing.T) {
+	testJson("bw6G2Mul_zexe", "e8", t)
+}
+
+func TestPrecompiledBW6G2MultiExp(t *testing.T) {
+	testJson("bw6G2MultiExp_zexe", "e7", t)
+}
+
+func TestPrecompiledBW6Pairing(t *testing.T) {
+	testJson("bw6Pairing_zexe", "e6", t)
+}
+
+func TestPrecompiledBW6G1AddFail(t *testing.T) {
+	testJsonFail("fail-bw6G1Add", "ec", t)
+}
+
+func TestPrecompiledBW6G1MulFail(t *testing.T) {
+	testJsonFail("fail-bw6G1Mul", "eb", t)
+}
+
+func TestPrecompiledBW6G1MultiExpFail(t *testing.T) {
+	testJsonFail("fail-bw6G1Multiexp", "ea", t)
+}
+
+func TestPrecompiledBW6G2AddFail(t *testing.T) {
+	testJsonFail("fail-bw6G2Add", "e9", t)
+}
+
+func TestPrecompiledBW6G2MulFail(t *testing.T) {
+	testJsonFail("fail-bw6G2Mul", "e8", t)
+}
+
+func TestPrecompiledBW6G2MultiExpFail(t *testing.T) {
+	testJsonFail("fail-bw6G2MultiExp", "e7", t)
+}
+
+func TestPrecompiledBW6PairingFail(t *testing.T) {
+	testJsonFail("fail-bw6Pairing", "e6", t)
 }
