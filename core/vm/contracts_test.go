@@ -1094,7 +1094,7 @@ func TestPrecompiledBW6G1MulFail(t *testing.T) {
 }
 
 func TestPrecompiledBW6G1MultiExpFail(t *testing.T) {
-	testJsonFail("fail-bw6G1Multiexp", "ea", t)
+	testJsonFail("fail-bw6G1MultiExp", "ea", t)
 }
 
 func TestPrecompiledBW6G2AddFail(t *testing.T) {
