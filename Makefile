@@ -66,12 +66,12 @@ all-musl:
 	$(GORUN) build/ci.go install -musl
 
 android:
-	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local
+	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 
 ios:
-	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local
+	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
 	# in order to link it to the final app
