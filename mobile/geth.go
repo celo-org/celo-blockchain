@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -334,23 +333,28 @@ func (n *Node) GetPeerInfos() *PeerInfos {
 }
 
 func (n *Node) GetGethStats() (*Stats, error) {
-	stats := Stats{m: make(map[string]string)}
-	if n.les == nil {
-		return nil, fmt.Errorf("les was not initialised")
+	stats := NewStats()
+
+	stats.SyncToRegistryStats()
+	if err := n.GetBlockchainStats(stats); err != nil {
+		return nil, err
 	}
 
-	stats.syncToRegistryStats()
-	n.GetBlockchainStats(&stats)
-
-	return &stats, nil
+	return stats, nil
 }
 
-func (n *Node) GetBlockchainStats(stats *Stats) {
+func (n *Node) GetBlockchainStats(stats *Stats) error {
+	if n.les == nil {
+		return fmt.Errorf("les was not initialised")
+	}
+
 	header := n.les.BlockChain().CurrentHeader()
 	downloaderSync := n.les.Downloader().Progress()
 	lastBlockNumber := n.les.BlockChain().CurrentHeader().Number.Uint64()
-	stats.m["chain/syncing"] = strconv.FormatBool(lastBlockNumber >= downloaderSync.HighestBlock)
-	stats.m["chain/downloader/highestBlockNumber"] = strconv.FormatUint(downloaderSync.HighestBlock, 10)
-	stats.m["chain/lastBlockTotalDifficulty"] = n.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64()).String()
-	stats.m["chain/lastBlockTimestamp"] = strconv.FormatUint(header.Time, 10)
+	stats.SetBool("chain/syncing", lastBlockNumber >= downloaderSync.HighestBlock)
+	stats.SetUInt("chain/downloader/highestBlockNumber", downloaderSync.HighestBlock)
+	stats.SetInt("chain/lastBlockTotalDifficulty", n.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64()).Int64())
+	stats.SetUInt("chain/lastBlockTimestamp", header.Time)
+
+	return nil
 }
