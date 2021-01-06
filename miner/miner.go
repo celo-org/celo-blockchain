@@ -20,7 +20,6 @@ package miner
 import (
 	"fmt"
 	"math/big"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -112,19 +111,44 @@ func (miner *Miner) update() {
 					log.Info("Mining aborted due to sync")
 				}
 			case downloader.DoneEvent, downloader.FailedEvent:
-				shouldStart := atomic.LoadInt32(&miner.shouldStart) == 1
+				// If this is using the istanbul consensus engine, then we need to check
+				// for the randomness cache for the randomness beacon protocol
+				_, isIstanbul := miner.engine.(consensus.Istanbul)
+				if isIstanbul {
+					// getCurrentBlockAndState
+					currentBlock := miner.eth.BlockChain().CurrentBlock()
+					currentHeader := currentBlock.Header()
+					currentState, err := miner.eth.BlockChain().StateAt(currentBlock.Root())
+					if err != nil {
+						log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
+						return
+					}
 
+					if currentHeader.Number.Uint64() > 0 {
+						// Check to see if we already have the commitment cache
+						lastCommitment, err := random.GetLastCommitment(miner.coinbase, currentHeader, currentState)
+						if err != nil {
+							log.Error("Error in retrieving last commitment", "error", err)
+							return
+						}
+
+						// If there is a non empty last commitment and if we don't have that commitment's
+						// cache entry, then we need to recover it.
+						if (lastCommitment != common.Hash{}) && (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) == common.Hash{}) {
+							err := miner.eth.BlockChain().RecoverRandomnessCache(lastCommitment, currentBlock.Hash())
+							if err != nil {
+								log.Error("Error in recovering randomness cache", "error", err)
+								return
+							}
+						}
+					}
+				}
+
+				shouldStart := atomic.LoadInt32(&miner.shouldStart) == 1
 				atomic.StoreInt32(&miner.canStart, 1)
 				atomic.StoreInt32(&miner.shouldStart, 0)
 				if shouldStart {
-					istEngine, isIstanbul := miner.engine.(consensus.Istanbul)
-
-					// Check to see if the the latest commitment is in the cache, if it's using the istanbul consensus engine
-					if !isIstanbul || miner.commitmentCacheSaved(istEngine) {
-						miner.Start(miner.coinbase)
-					} else {
-						log.Error("Couldn't recover the validator's committed randomness.  Validator will NOT be able to propose blocks, and mining will NOT start")
-					}
+					miner.Start(miner.coinbase)
 				}
 				// stop immediately and ignore all further pending events
 				return
@@ -203,139 +227,4 @@ func (miner *Miner) SetEtherbase(addr common.Address) {
 // to the given channel.
 func (self *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {
 	return self.worker.pendingLogsFeed.Subscribe(ch)
-}
-
-// commitmentCacheSaved will check to see if the last commitment cache entry is saved.
-// If not, it will search for it and save it.
-func (miner *Miner) commitmentCacheSaved(istEngine consensus.Istanbul) bool {
-	// Subscribe to new block notifications
-	newBlockCh := make(chan core.ChainEvent)
-	bc := miner.eth.BlockChain()
-	newBlockSub := bc.SubscribeChainEvent(newBlockCh)
-	defer newBlockSub.Unsubscribe()
-
-	// getCurrentBlockAndState
-	currentBlock := bc.CurrentBlock()
-	currentHeader := currentBlock.Header()
-	currentState, err := bc.StateAt(currentBlock.Root())
-	if err != nil {
-		log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
-		return false
-	}
-
-	// Check to see if we already have the commitment cache
-	lastCommitment, err := random.GetLastCommitment(miner.coinbase, currentHeader, currentState)
-	if err != nil {
-		log.Error("Error in retrieving last commitment", "error", err)
-		return false
-	}
-
-	// If there was no previous commitment from this validator, then return true.
-	if (lastCommitment == common.Hash{}) {
-		return true
-	}
-
-	if (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) != common.Hash{}) {
-		return true
-	}
-
-	// goroutine communication channels and waitgroup
-	stopCh := make(chan struct{})
-	errCh := make(chan error)
-	foundParentHashCh := make(chan common.Hash)
-	var wg sync.WaitGroup
-
-	// Stacked defers are exececuted in LIFO order
-	defer wg.Wait()
-	defer close(stopCh)
-
-	if currentHeader.Number.Uint64() > 0 {
-		blockHashIter := currentHeader.Hash()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				blockHeader := bc.GetHeaderByHash(blockHashIter)
-
-				// We got to the genisis block, so this goroutine didn't find the latest
-				// block authored by this validator.
-				if blockHeader.Number.Uint64() == 0 {
-					foundParentHashCh <- common.Hash{}
-					return
-				}
-
-				blockAuthor, err := miner.engine.Author(blockHeader)
-				if err != nil {
-					log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
-					errCh <- err
-					return
-				}
-
-				if blockAuthor == miner.coinbase {
-					foundParentHashCh <- blockHeader.ParentHash
-					return
-				}
-
-				// Check to see if this goroutine should stop
-				select {
-				case <-stopCh:
-					return
-				default:
-				}
-
-				blockHashIter = blockHeader.ParentHash
-			}
-		}()
-	}
-
-	parentHash := common.Hash{}
-
-waitLoop:
-	for {
-		select {
-
-		// The first block that this validator's address authored may be in a block w/ number
-		// that is greater than the head of all this node's peer when the downloader.DoneEvent
-		// event is fired.  This select case will handle the case when this validator
-		// eventually syncs that block.
-		case newBlock := <-newBlockCh:
-			blockAuthor, err := miner.engine.Author(newBlock.Block.Header())
-			if err != nil {
-				log.Error("Error is retrieving block author", "block number", newBlock.Block.Number().Uint64(), "block hash", newBlock.Block.Hash(), "error", err)
-				return false
-			}
-
-			// The blockchain object should of saved the commitment cache when
-			// we received a newBlock event.  This code here is assuming that,
-			// and not double checking that the cache entry is there.
-			if blockAuthor == miner.coinbase {
-				parentHash = newBlock.Block.ParentHash()
-				break waitLoop
-			}
-
-		case parentHash = <-foundParentHashCh:
-			break waitLoop
-
-		case <-errCh:
-			return false
-		}
-	}
-
-	if (parentHash != common.Hash{}) {
-		// Calculate the randomness commitment
-		// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
-		// will do. Will use the previously fetched current header and state.
-		_, randomCommitment, err := istEngine.GenerateRandomness(parentHash, currentHeader, currentState)
-		if err != nil {
-			log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
-			return false
-		}
-
-		rawdb.WriteRandomCommitmentCache(miner.db, randomCommitment, parentHash)
-
-		return true
-	} else {
-		return false
-	}
 }

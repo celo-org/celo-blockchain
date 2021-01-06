@@ -882,14 +882,14 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 
 			var err error
-			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash, w.current.header, w.current.state)
+			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
 				log.Error("Failed to generate last randomness", "err", err)
 				return
 			}
 		}
 
-		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash, w.current.header, w.current.state)
+		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash)
 		if err != nil {
 			log.Error("Failed to generate new randomness", "err", err)
 			return

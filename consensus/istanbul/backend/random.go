@@ -20,8 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contract_comm/random"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -29,7 +27,7 @@ import (
 var randomSeedString = []byte("Randomness seed string")
 
 // GenerateRandomness will generate the random beacon randomness
-func (sb *Backend) GenerateRandomness(parentHash common.Hash, header *types.Header, state *state.StateDB) (common.Hash, common.Hash, error) {
+func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, common.Hash, error) {
 	logger := sb.logger.New("func", "GenerateRandomness")
 
 	if !random.IsRunning() {
@@ -49,7 +47,19 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash, header *types.Head
 	sb.randomSeedMu.Unlock()
 
 	randomness := crypto.Keccak256Hash(append(sb.randomSeed, parentHash.Bytes()...))
-	commitment, err := random.ComputeCommitment(header, state, randomness)
+
+	// Retrieve the head block's header and state.
+	// The logic to compute the commitment via the randomness is in the random smart contract.
+	// That logic is stateless, so passing in any block header and state is fine.  There is a TODO for
+	// that commitment computation logic to be removed fromthe random smart contract.
+	currentBlock := sb.currentBlock()
+	currentState, err := sb.stateAt(currentBlock.Hash())
+	if err != nil {
+		logger.Error("Failed to retrieve current state", "err", err)
+		return common.Hash{}, common.Hash{}, err
+	}
+
+	commitment, err := random.ComputeCommitment(currentBlock.Header(), currentState, randomness)
 	if err != nil {
 		logger.Error("Failed to compute commitment", "err", err)
 		return common.Hash{}, common.Hash{}, err

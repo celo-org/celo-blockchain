@@ -212,5 +212,5 @@ type Istanbul interface {
 	ValidatorAddress() common.Address
 
 	// GenerateRandomness will generate the random beacon randomness
-	GenerateRandomness(parentHash common.Hash, header *types.Header, state *state.StateDB) (common.Hash, common.Hash, error)
+	GenerateRandomness(parentHash common.Hash) (common.Hash, common.Hash, error)
 }

@@ -74,6 +74,7 @@ var (
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
+	errCommitmentNotFound   = errors.New("randomness commitment not found")
 )
 
 const (
@@ -1364,7 +1365,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 		if blockAuthor == istEngine.ValidatorAddress() {
 			// Calculate the randomness commitment
-			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash(), block.Header(), state)
+			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash())
 
 			if err != nil {
 				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
@@ -2335,4 +2336,46 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
+}
+
+func (bc *BlockChain) RecoverRandomnessCache(commitment common.Hash, commitmentBlockHash common.Hash) error {
+	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
+
+		blockHashIter := commitmentBlockHash
+		var parentHash common.Hash
+		for {
+			blockHeader := bc.GetHeaderByHash(blockHashIter)
+
+			// We got to the genisis block, so this goroutine didn't find the latest
+			// block authored by this validator.
+			if blockHeader.Number.Uint64() == 0 {
+				return errCommitmentNotFound
+			}
+
+			blockAuthor, err := istEngine.Author(blockHeader)
+			if err != nil {
+				log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
+				return err
+			}
+
+			if blockAuthor == istEngine.ValidatorAddress() {
+				parentHash = blockHeader.ParentHash
+				break
+			}
+
+			blockHashIter = blockHeader.ParentHash
+		}
+
+		// Calculate the randomness commitment
+		// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
+		// will do. Will use the previously fetched current header and state.
+		_, randomCommitment, err := istEngine.GenerateRandomness(parentHash)
+		if err != nil {
+			log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
+			return err
+		}
+
+		rawdb.WriteRandomCommitmentCache(bc.db, randomCommitment, parentHash)
+	}
+	return nil
 }
