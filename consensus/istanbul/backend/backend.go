@@ -122,11 +122,15 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
-	if err != nil {
-		logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
+	if config.Validator {
+		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
+		if err != nil {
+			logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
+		}
+		backend.replicaState = rs
+	} else {
+		backend.replicaState = nil
 	}
-	backend.replicaState = rs
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -382,8 +386,10 @@ func (sb *Backend) Close() error {
 	if err := sb.versionCertificateTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.replicaState.Close(); err != nil {
-		errs = append(errs, err)
+	if sb.replicaState != nil {
+		if err := sb.replicaState.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	var concatenatedErrs error
 	for i, err := range errs {
@@ -776,13 +782,10 @@ func (sb *Backend) RefreshValPeers() error {
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
-	var localAddress common.Address
 	if sb.IsProxy() {
-		localAddress = sb.config.ProxiedValidatorAddress
-	} else {
-		localAddress = sb.Address()
+		return sb.config.ProxiedValidatorAddress
 	}
-	return localAddress
+	return sb.Address()
 }
 
 // RetrieveValidatorConnSet returns the cached validator conn set if the cache
@@ -968,14 +971,22 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 }
 
 func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
-	return sb.replicaState.IsPrimaryForSeq(seq)
+	if sb.replicaState != nil {
+		return sb.replicaState.IsPrimaryForSeq(seq)
+	}
+	return false
 }
 
 func (sb *Backend) IsPrimary() bool {
-	return sb.replicaState.IsPrimary()
+	if sb.replicaState != nil {
+		return sb.replicaState.IsPrimary()
+	}
+	return false
 }
 
 // UpdateReplicaState updates the replica state with the latest seq.
 func (sb *Backend) UpdateReplicaState(seq *big.Int) {
-	sb.replicaState.NewChainHead(seq)
+	if sb.replicaState != nil {
+		sb.replicaState.NewChainHead(seq)
+	}
 }

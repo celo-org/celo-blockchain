@@ -264,7 +264,11 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
 	signer := common.HexToAddress(ctx.Args()[0])
-	message := common.HexToAddress(ctx.Args()[1])
+	messageString := ctx.Args()[1]
+	if !common.IsHexAddress(messageString) {
+		utils.Fatalf("Address to sign is an invalid address")
+	}
+	message := common.HexToAddress(messageString)
 
 	var err error
 	var wallet accounts.Wallet

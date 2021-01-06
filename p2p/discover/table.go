@@ -362,10 +362,12 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 	}
 	// No reply received, pick a replacement or delete the node if there aren't
 	// any replacements.
-	if r := tab.replace(b, last); r != nil {
-		tab.log.Debug("Replaced dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
-	} else {
+	if r := tab.replace(b, last); r == nil {
 		tab.log.Debug("Removed dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks)
+	} else if r == last {
+		tab.log.Debug("Left dead node in bucket", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
+	} else {
+		tab.log.Debug("Replaced dead node", "b", bi, "id", last.ID(), "ip", last.IP(), "checks", last.livenessChecks, "r", r.ID(), "rip", r.IP())
 	}
 }
 
@@ -407,22 +409,35 @@ func (tab *Table) copyLiveNodes() {
 	}
 }
 
-// closest returns the n nodes in the table that are closest to the
-// given id. The caller must hold tab.mutex.
-func (tab *Table) closest(target enode.ID, nresults int, checklive bool) *nodesByDistance {
-	// This is a very wasteful way to find the closest nodes but
-	// obviously correct. I believe that tree-based buckets would make
-	// this easier to implement efficiently.
-	close := &nodesByDistance{target: target}
+// findnodeByID returns the n nodes in the table that are closest to the given id.
+// This is used by the FINDNODE/v4 handler.
+//
+// The preferLive parameter says whether the caller wants liveness-checked results. If
+// preferLive is true and the table contains any verified nodes, the result will not
+// contain unverified nodes. However, if there are no verified nodes at all, the result
+// will contain unverified nodes.
+func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *nodesByDistance {
+	tab.mutex.Lock()
+	defer tab.mutex.Unlock()
+
+	// Scan all buckets. There might be a better way to do this, but there aren't that many
+	// buckets, so this solution should be fine. The worst-case complexity of this loop
+	// is O(tab.len() * nresults).
+	nodes := &nodesByDistance{target: target}
+	liveNodes := &nodesByDistance{target: target}
 	for _, b := range &tab.buckets {
 		for _, n := range b.entries {
-			if checklive && n.livenessChecks == 0 {
-				continue
+			nodes.push(n, nresults)
+			if preferLive && n.livenessChecks > 0 {
+				liveNodes.push(n, nresults)
 			}
-			close.push(n, nresults)
 		}
 	}
-	return close
+
+	if preferLive && len(liveNodes.entries) > 0 {
+		return liveNodes
+	}
+	return nodes
 }
 
 // len returns the number of nodes in the table.
@@ -434,6 +449,14 @@ func (tab *Table) len() (n int) {
 		n += len(b.entries)
 	}
 	return n
+}
+
+// bucketLen returns the number of nodes in the bucket for the given ID.
+func (tab *Table) bucketLen(id enode.ID) int {
+	tab.mutex.Lock()
+	defer tab.mutex.Unlock()
+
+	return len(tab.bucket(id).entries)
 }
 
 // bucket returns the bucket for the given node ID hash.
@@ -577,6 +600,7 @@ func (tab *Table) addReplacement(b *bucket, n *node) {
 // replace removes n from the replacement list and replaces 'last' with it if it is the
 // last entry in the bucket. If 'last' isn't the last entry, it has either been replaced
 // with someone else or became active.
+// If last is the only node in the bucket and there are no replacements, leave it there.
 func (tab *Table) replace(b *bucket, last *node) *node {
 	if len(b.entries) == 0 || b.entries[len(b.entries)-1].ID() != last.ID() {
 		// Entry has moved, don't replace it.
@@ -584,6 +608,9 @@ func (tab *Table) replace(b *bucket, last *node) *node {
 	}
 	// Still the last entry.
 	if len(b.replacements) == 0 {
+		if len(b.entries) == 1 {
+			return last
+		}
 		tab.deleteInBucket(b, last)
 		return nil
 	}
