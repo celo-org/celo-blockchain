@@ -147,7 +147,6 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
-	cip20HashFunctionsAddress:    &cip20HashFunctions{},
 }
 
 // PrecompiledContractsDonut contains the default set of pre-compiled Ethereum
