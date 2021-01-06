@@ -194,7 +194,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	b12_377G2MulAddress:      nil,
 	b12_377G2MultiExpAddress: nil,
 	b12_377PairingAddress:    nil,
-	cip20Address:             nil,
+	cip20Address:             &cip20HashFunctions{},
 	cip26Address:             &getValidatorBLS{},
 }
 
