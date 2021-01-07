@@ -13,24 +13,24 @@ func TestGetUptimeMonitoringWindow(t *testing.T) {
 		lookbackWindowSize uint64
 	}
 	tests := []struct {
-		name  string
-		args  args
-		want  uint64
-		want1 uint64
+		name      string
+		args      args
+		wantStart uint64
+		wantEnd   uint64
 	}{
-		{"monitoringWindow on first epoch", args{1, 10, 2}, 3, 9},
-		{"monitoringWindow on second epoch", args{2, 10, 2}, 13, 19},
-		{"lookback window too big", args{1, 10, 10}, 11, 9},
+		{"monitoringWindow on first epoch", args{1, 10, 2}, 2, 8},
+		{"monitoringWindow on second epoch", args{2, 10, 2}, 12, 18},
+		{"lookback window too big", args{1, 10, 10}, 10, 8},
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := GetUptimeMonitoringWindow(tt.args.epochNumber, tt.args.epochSize, tt.args.lookbackWindowSize)
-			if got != tt.want {
-				t.Errorf("GetUptimeMonitoringWindow() got = %v, want %v", got, tt.want)
+			w := MonitoringWindow(tt.args.epochNumber, tt.args.epochSize, tt.args.lookbackWindowSize)
+			if w.Start != tt.wantStart {
+				t.Errorf("MonitoringWindow() got = %v, wantStart %v", w.Start, tt.wantStart)
 			}
-			if got1 != tt.want1 {
-				t.Errorf("GetUptimeMonitoringWindow() got1 = %v, want %v", got1, tt.want1)
+			if w.End != tt.wantEnd {
+				t.Errorf("MonitoringWindow() got1 = %v, wantEnd %v", w.End, tt.wantEnd)
 			}
 		})
 	}
@@ -40,40 +40,49 @@ func TestUptime(t *testing.T) {
 	var uptimes *Uptime
 	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
 	bitmaps := []*big.Int{
-		big.NewInt(3), // 011     // Parent aggregated seal for block #1
-		big.NewInt(7), // 111
+		big.NewInt(7), // 111     // signature bitmap for block #1
 		big.NewInt(5), // 101
 		big.NewInt(3), // 011
 		big.NewInt(5), // 101
 		big.NewInt(7), // 111
-		big.NewInt(5), // 101     // Parent aggregated seal for block #7
+		big.NewInt(5), // 101     // signature bitmap for block #6
 	}
-	// assume the first block is the first epoch's block (ie not the genesis)
+	// start on first block of window
 	block := uint64(1)
+	// use a window of 2 blocks - ideally we want to expand
+	monitoringWindow := MonitoringWindow(1, 10, 2) // [2,8]
+
 	for _, bitmap := range bitmaps {
-		// use a window of 2 blocks - ideally we want to expand
 		// these tests to increase our confidence
-		uptimes = updateUptime(uptimes, block, bitmap, 2, 1, 10)
+		uptimes = updateUptime(uptimes, block, bitmap, 2, monitoringWindow)
 		block++
 	}
 
 	expected := &Uptime{
-		LatestBlock: 7,
+		LatestBlock: 0,
 		Entries: []UptimeEntry{
 			{
-				ScoreTally:      5,
+				UpBlocks:        5,
 				LastSignedBlock: 6,
 			},
 			{
-				ScoreTally:      5,
+				UpBlocks:        5,
 				LastSignedBlock: 5,
 			},
 			{
-				ScoreTally:      5,
+				UpBlocks:        5,
 				LastSignedBlock: 6,
 			},
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
+				LastSignedBlock: 0,
+			},
+			{
+				UpBlocks:        0,
+				LastSignedBlock: 0,
+			},
+			{
+				UpBlocks:        0,
 				LastSignedBlock: 0,
 			},
 		},
@@ -85,35 +94,36 @@ func TestUptime(t *testing.T) {
 
 func TestUptimeSingle(t *testing.T) {
 	var uptimes *Uptime
-	uptimes = updateUptime(uptimes, 212, big.NewInt(7), 3, 2, 211)
+	monitoringWindow := MonitoringWindow(2, 211, 3)
+	uptimes = updateUptime(uptimes, 211, big.NewInt(7), 3, monitoringWindow)
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block
 	expected := &Uptime{
-		LatestBlock: 212,
+		LatestBlock: 0,
 		Entries: []UptimeEntry{
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 211,
 			},
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 211,
 			},
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 211,
 			},
 			// plus 2 dummies due to the *2
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 0,
 			},
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 0,
 			},
 			{
-				ScoreTally:      0,
+				UpBlocks:        0,
 				LastSignedBlock: 0,
 			},
 		},

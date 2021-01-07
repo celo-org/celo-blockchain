@@ -30,20 +30,21 @@ type Uptime struct {
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
 // last block they signed on
 type UptimeEntry struct {
-	ScoreTally      uint64
+	// Numbers of blocks validator is considered UP within monitored window
+	UpBlocks        uint64
 	LastSignedBlock uint64
 }
 
 func (u *UptimeEntry) String() string {
-	return fmt.Sprintf("UptimeEntry { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
+	return fmt.Sprintf("UptimeEntry { upBlocks: %v, lastBlock: %v}", u.UpBlocks, u.LastSignedBlock)
 }
 
-// GetUptimeMonitoringWindow retrieves the range [first block, last block] where uptime is to be monitored
-// for a give epoch. The range is inclusive.
+// MonitoringWindow retrieves the block window where uptime is to be monitored
+// for a given epoch. The range is inclusive.
 // We do not monitor while the lookback window crosses the epoch boundary; since we can only analyze window when the window
 // (block range) belongs to a single block (thus initial epoch blocks are skipped)
 // Similarly, last block of epoch is skipped since we can't obtain the signer for it; as they are in the next block
-func GetUptimeMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) (uint64, uint64) {
+func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) Window {
 	if epochNumber == 0 {
 		panic("no monitoring window for epoch 0")
 	}
@@ -52,21 +53,18 @@ func GetUptimeMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWin
 	epochLastBlock := istanbul.GetEpochLastBlockNumber(epochNumber, epochSize)
 
 	// first block to monitor:
-	// We need to wait for the completion of the first window with the start window's block being the
-	// 2nd block of the epoch, before we start tallying the validator score for epoch "epochNumber".
-	// We can't include the epoch's first block since it's aggregated parent seals
-	// is for the previous epoch's valset.
-	firstBlockToMonitor := epochFirstBlock + 1 + (lookbackWindowSize - 1)
+	// we can't monitor uptime when current lookbackWindow crosses the epoch boundary
+	// thus, first block to monitor is the final block of the lookbackwindow that starts at firstBlockOfEpoch
+	firstBlockToMonitor := newWindowStartingOn(epochFirstBlock, lookbackWindowSize).End
 
 	// last block to monitor:
-	// We stop tallying for epoch "epochNumber" at the second to last block of that epoch.
-	// We can't include that epoch's last block as part of the tally because the epoch val score is calculated
-	// using a tally that is updated AFTER a block is finalized.
-	// Note that it's possible to count up to the last block of the epoch, but it's much harder to implement
-	// than couting up to the second to last one.
-	lastBlockToMonitor := epochLastBlock - 1
+	// Last 2 blocks from the epoch are removed from the window
+	// lastBlock     => it's parentSeal is on firstBlock of next epoch
+	// lastBlock - 1 => parentSeal is on lastBlockOfEpoch, but validatorScore is computed with lastBlockOfEpoch and before updating scores
+	// (lastBlock-1 could be counted, but much harder to implement)
+	lastBlockToMonitor := epochLastBlock - 2
 
-	return firstBlockToMonitor, lastBlockToMonitor
+	return Window{Start: firstBlockToMonitor, End: lastBlockToMonitor}
 }
 
 // Monitor is responsible for monitoring uptime by processing blocks
@@ -90,14 +88,8 @@ func NewMonitor(store Store, epochSize, lookbackWindow uint64) *Monitor {
 
 // MonitoringWindow returns the monitoring window for the given epoch in the format
 // [firstBlock, lastBlock] both inclusive
-func (um *Monitor) MonitoringWindow(epoch uint64) (uint64, uint64) {
-	return GetUptimeMonitoringWindow(epoch, um.epochSize, um.lookbackWindow)
-}
-
-// MonitoringWindowSize returns the size (in blocks) of the monitoring window
-func (um *Monitor) MonitoringWindowSize(epoch uint64) uint64 {
-	start, end := um.MonitoringWindow(epoch)
-	return end - start + 1
+func (um *Monitor) MonitoringWindow(epoch uint64) Window {
+	return MonitoringWindow(epoch, um.epochSize, um.lookbackWindow)
 }
 
 // ComputeValidatorsUptime retrieves the uptime score for each validator for a given epoch
@@ -106,7 +98,7 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	logger.Trace("Updating validator scores")
 
 	// The totalMonitoredBlocks are the total number of block on which we monitor uptime for the epoch
-	totalMonitoredBlocks := um.MonitoringWindowSize(epoch)
+	totalMonitoredBlocks := um.MonitoringWindow(epoch).Size()
 
 	uptimes := make([]*big.Int, 0, valSetSize)
 	accumulated := um.store.ReadAccumulatedEpochUptime(epoch)
@@ -122,13 +114,13 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 			break
 		}
 
-		if entry.ScoreTally > totalMonitoredBlocks {
-			logger.Error("ScoreTally exceeds max possible", "scoreTally", entry.ScoreTally, "totalMonitoredBlocks", totalMonitoredBlocks, "valIdx", i)
+		if entry.UpBlocks > totalMonitoredBlocks {
+			logger.Error("UpBlocks exceeds max possible", "upBlocks", entry.UpBlocks, "totalMonitoredBlocks", totalMonitoredBlocks, "valIdx", i)
 			uptimes = append(uptimes, params.Fixidity1)
 			continue
 		}
 
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(entry.ScoreTally)), params.Fixidity1)
+		numerator := big.NewInt(0).Mul(big.NewInt(int64(entry.UpBlocks)), params.Fixidity1)
 		uptimes = append(uptimes, big.NewInt(0).Div(numerator, big.NewInt(int64(totalMonitoredBlocks))))
 	}
 
@@ -164,7 +156,8 @@ func (um *Monitor) ProcessBlock(block *types.Block) error {
 	// We only update the uptime for blocks which are greater than the last block we saw.
 	// This ensures that we do not count the same block twice for any reason.
 	if uptime == nil || uptime.LatestBlock < block.NumberU64() {
-		uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, um.lookbackWindow, epochNum, um.epochSize)
+		uptime = updateUptime(uptime, block.NumberU64()-1, signedValidatorsBitmap, um.lookbackWindow, um.MonitoringWindow(epochNum))
+		uptime.LatestBlock = block.NumberU64()
 		um.store.WriteAccumulatedEpochUptime(epochNum, uptime)
 	} else {
 		log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", block.NumberU64())
@@ -173,11 +166,8 @@ func (um *Monitor) ProcessBlock(block *types.Block) error {
 	return nil
 }
 
-// updateUptime receives the currently accumulated uptime for all validators in an epoch and proceeds to update it
-// based on which validators signed on the provided block by inspecting the block's parent bitmap
-//
-// It expects a blockNumber with the signatures bitmap from the previous block (parent seal)
-func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *Uptime {
+// updateUptime update accumulated uptime given a block and its validator's signatures bitmap
+func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackWindowSize uint64, monitoredWindow Window) *Uptime {
 	if uptime == nil {
 		uptime = new(Uptime)
 		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
@@ -186,30 +176,19 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, window ui
 		uptime.Entries = make([]UptimeEntry, validatorsSizeUpperBound)
 	}
 
-	firstBlockToMonitor, lastBlockToMonitor := GetUptimeMonitoringWindow(epochNum, epochSize, window)
+	// Obtain current lookback window
+	currentLookbackWindow := newWindowEndingOn(blockNumber, lookbackWindowSize)
 
-	// Obtain current lookback window boundaries
-	lookbackWindowLastBlockNum := blockNumber - 1
-	lookbackWindowFirstBlockNum := lookbackWindowLastBlockNum - (window - 1)
-
-	uptime.LatestBlock = blockNumber
 	for i := 0; i < len(uptime.Entries); i++ {
 		if bitmap.Bit(i) == 1 {
-			// update their latest signed block
-			uptime.Entries[i].LastSignedBlock = blockNumber - 1
+			// validator signature present => update their latest signed block
+			uptime.Entries[i].LastSignedBlock = blockNumber
 		}
 
-		// If we are within the validator uptime tally window, then update the validator's score
-		// if its last signed block is within the lookback window
-		if blockNumber >= firstBlockToMonitor && blockNumber <= lastBlockToMonitor {
-			lastSignedBlock := uptime.Entries[i].LastSignedBlock
-
-			// Note that the second condition in the if condition is not necessary.  But it does
-			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
-			// the range [lookbackWindowFirstBlockNum, lookbackWindowLastBlockNum])
-			if lastSignedBlock >= lookbackWindowFirstBlockNum && lastSignedBlock <= lookbackWindowLastBlockNum {
-				uptime.Entries[i].ScoreTally++
-			}
+		// If block number is to be monitored, then check if lastSignedBlock is within current lookback window
+		if monitoredWindow.Contains(blockNumber) && currentLookbackWindow.Contains(uptime.Entries[i].LastSignedBlock) {
+			// since within currentLookbackWindow there's at least one signed block (lastSignedBlock) validator is considered UP
+			uptime.Entries[i].UpBlocks++
 		}
 	}
 	return uptime
