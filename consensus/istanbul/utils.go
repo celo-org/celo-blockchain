@@ -92,11 +92,11 @@ func IsFirstBlockOfEpoch(number uint64, epochSize uint64) bool {
 // Epoch 0 is a special block that only contains the genesis block (block 0), epoch 1
 // starts at block 1
 func GetEpochNumber(number uint64, epochSize uint64) uint64 {
-	epochNumber := number / epochSize
 	if IsLastBlockOfEpoch(number, epochSize) {
-		return epochNumber
+		return number / epochSize
+	} else {
+		return number/epochSize + 1
 	}
-	return epochNumber + 1
 }
 
 // GetEpochFirstBlockNumber retrieves first block of epoch.
