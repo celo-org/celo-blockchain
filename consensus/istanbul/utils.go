@@ -216,3 +216,10 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 	id := node.ID()
 	return &id, nil
 }
+
+// RandomnessCommitmentDBLocation will return the key for where the
+// given commitment's cached key-value entry
+func RandomnessCommitmentDBLocation(commitment common.Hash) []byte {
+	dbRandomnessPrefix := []byte("db-randomness-prefix")
+	return append(dbRandomnessPrefix, commitment.Bytes()...)
+}
