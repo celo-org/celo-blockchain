@@ -89,6 +89,6 @@ func precacheTransaction(config *params.ChainConfig, bc vm.ChainContext, author 
 	context := vm.NewEVMContext(msg, header, bc, author)
 	vm := vm.NewEVM(context, statedb, config, cfg)
 
-	_, _, _, err = ApplyMessage(vm, msg, gaspool)
+	_, err = ApplyMessage(vm, msg, gaspool)
 	return err
 }
