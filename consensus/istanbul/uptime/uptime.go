@@ -52,7 +52,7 @@ func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize u
 	// first block to monitor:
 	// we can't monitor uptime when current lookbackWindow crosses the epoch boundary
 	// thus, first block to monitor is the final block of the lookbackwindow that starts at firstBlockOfEpoch
-	firstBlockToMonitor := newWindowStartingOn(epochFirstBlock, lookbackWindowSize).End
+	firstBlockToMonitor := newWindowStartingAt(epochFirstBlock, lookbackWindowSize).End
 
 	// last block to monitor:
 	// Last 2 blocks from the epoch are removed from the window
@@ -174,7 +174,7 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackW
 	}
 
 	// Obtain current lookback window
-	currentLookbackWindow := newWindowEndingOn(blockNumber, lookbackWindowSize)
+	currentLookbackWindow := newWindowEndingAt(blockNumber, lookbackWindowSize)
 
 	for i := 0; i < len(uptime.Entries); i++ {
 		if bitmap.Bit(i) == 1 {
