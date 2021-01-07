@@ -2338,44 +2338,53 @@ func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscr
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
 }
 
+// RecoverRandomnessCache will do a search for the block that was used to generate the given commitment.
+// Specifically, it will find the block that this node authored and that block's parent hash is used to
+// created the commitment.  The search is a reverse iteration of the node's local chain starting at
+// the block where it's hash is the given commitmentBlockHash.
 func (bc *BlockChain) RecoverRandomnessCache(commitment common.Hash, commitmentBlockHash common.Hash) error {
-	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
+	istEngine, isIstanbul := bc.engine.(consensus.Istanbul)
+	if !isIstanbul {
+		return nil
+	}
 
-		blockHashIter := commitmentBlockHash
-		var parentHash common.Hash
-		for {
-			blockHeader := bc.GetHeaderByHash(blockHashIter)
+	log.Info("Recovering randomness cache entry", "commitment", commitment.Hex(), "initial block search", commitmentBlockHash.Hex())
 
-			// We got to the genisis block, so this goroutine didn't find the latest
-			// block authored by this validator.
-			if blockHeader.Number.Uint64() == 0 {
-				return errCommitmentNotFound
-			}
+	blockHashIter := commitmentBlockHash
+	var parentHash common.Hash
+	for {
+		blockHeader := bc.GetHeaderByHash(blockHashIter)
 
-			blockAuthor, err := istEngine.Author(blockHeader)
-			if err != nil {
-				log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
-				return err
-			}
-
-			if blockAuthor == istEngine.ValidatorAddress() {
-				parentHash = blockHeader.ParentHash
-				break
-			}
-
-			blockHashIter = blockHeader.ParentHash
+		// We got to the genesis block, so search didn't find the latest
+		// block authored by this validator.
+		if blockHeader.Number.Uint64() == 0 {
+			return errCommitmentNotFound
 		}
 
-		// Calculate the randomness commitment
-		// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
-		// will do. Will use the previously fetched current header and state.
-		_, randomCommitment, err := istEngine.GenerateRandomness(parentHash)
+		blockAuthor, err := istEngine.Author(blockHeader)
 		if err != nil {
-			log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
+			log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
 			return err
 		}
 
-		rawdb.WriteRandomCommitmentCache(bc.db, randomCommitment, parentHash)
+		if blockAuthor == istEngine.ValidatorAddress() {
+			parentHash = blockHeader.ParentHash
+			break
+		}
+
+		blockHashIter = blockHeader.ParentHash
 	}
+
+	// Calculate the randomness commitment
+	// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
+	// will do. Will use the previously fetched current header and state.
+	_, randomCommitment, err := istEngine.GenerateRandomness(parentHash)
+	if err != nil {
+		log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
+		return err
+	}
+
+	rawdb.WriteRandomCommitmentCache(bc.db, randomCommitment, parentHash)
+
 	return nil
 }
