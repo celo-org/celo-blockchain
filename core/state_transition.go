@@ -146,7 +146,12 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if feeCurrency != nil {
-		gas += blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+		addition := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+		if (math.MaxUint64 - gas) < addition {
+			log.Debug("IntrinsicGas", "gas uint overflow")
+			return 0, ErrGasUintOverflow
+		}
+		gas += addition
 	}
 
 	return gas, nil
