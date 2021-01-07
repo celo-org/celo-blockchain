@@ -19,7 +19,7 @@ type Store interface {
 	WriteAccumulatedEpochUptime(epoch uint64, uptime *Uptime)
 }
 
-// Uptime contains the latest block for which uptime metrics were accounted for. It also contains
+// Uptime contains the latest block for which uptime metrics were accounted. It also contains
 // an array of Entries where the `i`th entry represents the uptime statistics of the `i`th validator
 // in the validator set for that epoch
 type Uptime struct {
@@ -40,9 +40,9 @@ func (u *UptimeEntry) String() string {
 
 // GetUptimeMonitoringWindow retrieves the range [first block, last block] where uptime is to be monitored
 // for a give epoch. The range is inclusive.
-// First blocks of an epoch need to be skipped since we can't assess the last `lookbackWindow` block for validators
-// as those are froma different epoch.
-// Similarly, last block of epoch is skipped since we can't obtaine the signer for it; as they are in the next block
+// We do not monitor while the lookback window crosses the epoch boundary; since we can only analyze window when the window
+// (block range) belongs to a single block (thus initial epoch blocks are skipped)
+// Similarly, last block of epoch is skipped since we can't obtain the signer for it; as they are in the next block
 func GetUptimeMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) (uint64, uint64) {
 	if epochNumber == 0 {
 		panic("no monitoring window for epoch 0")
@@ -69,8 +69,7 @@ func GetUptimeMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWin
 	return firstBlockToMonitor, lastBlockToMonitor
 }
 
-// Monitor is responsible for monitoring uptime
-// by processing blocks
+// Monitor is responsible for monitoring uptime by processing blocks
 type Monitor struct {
 	epochSize      uint64
 	lookbackWindow uint64
@@ -106,8 +105,8 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	logger := um.logger.New("func", "Backend.updateValidatorScores", "epoch", epoch)
 	logger.Trace("Updating validator scores")
 
-	// The denominator is the (last block - first block + 1) of the val score tally window
-	denominator := um.MonitoringWindowSize(epoch)
+	// The totalMonitoredBlocks are the total number of block on which we monitor uptime for the epoch
+	totalMonitoredBlocks := um.MonitoringWindowSize(epoch)
 
 	uptimes := make([]*big.Int, 0, valSetSize)
 	accumulated := um.store.ReadAccumulatedEpochUptime(epoch)
@@ -123,14 +122,14 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 			break
 		}
 
-		if entry.ScoreTally > denominator {
-			logger.Error("ScoreTally exceeds max possible", "scoreTally", entry.ScoreTally, "denominator", denominator, "valIdx", i)
+		if entry.ScoreTally > totalMonitoredBlocks {
+			logger.Error("ScoreTally exceeds max possible", "scoreTally", entry.ScoreTally, "totalMonitoredBlocks", totalMonitoredBlocks, "valIdx", i)
 			uptimes = append(uptimes, params.Fixidity1)
 			continue
 		}
 
 		numerator := big.NewInt(0).Mul(big.NewInt(int64(entry.ScoreTally)), params.Fixidity1)
-		uptimes = append(uptimes, big.NewInt(0).Div(numerator, big.NewInt(int64(denominator))))
+		uptimes = append(uptimes, big.NewInt(0).Div(numerator, big.NewInt(int64(totalMonitoredBlocks))))
 	}
 
 	if len(uptimes) < valSetSize {
@@ -142,7 +141,7 @@ func (um *Monitor) ComputeValidatorsUptime(epoch uint64, valSetSize int) ([]*big
 	return uptimes, nil
 }
 
-// ProcessBlock will monitor uptimeness information on the give block and add it to current epoch tally
+// ProcessBlock uses the block's signature bitmap (which encodes who signed the parent block) to update the epoch's Uptime data
 func (um *Monitor) ProcessBlock(block *types.Block) error {
 	// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
 	// We can ignore updating the tally for that block.
@@ -189,11 +188,9 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, window ui
 
 	firstBlockToMonitor, lastBlockToMonitor := GetUptimeMonitoringWindow(epochNum, epochSize, window)
 
-	// lookbackBlockNum := (blockNumber -1) - window
-
-	// signedBlockWindowLastBlockNum is just the previous block
-	signedBlockWindowLastBlockNum := blockNumber - 1
-	signedBlockWindowFirstBlockNum := signedBlockWindowLastBlockNum - (window - 1)
+	// Obtain current lookback window boundaries
+	lookbackWindowLastBlockNum := blockNumber - 1
+	lookbackWindowFirstBlockNum := lookbackWindowLastBlockNum - (window - 1)
 
 	uptime.LatestBlock = blockNumber
 	for i := 0; i < len(uptime.Entries); i++ {
@@ -209,8 +206,8 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, window ui
 
 			// Note that the second condition in the if condition is not necessary.  But it does
 			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
-			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
-			if lastSignedBlock >= signedBlockWindowFirstBlockNum && lastSignedBlock <= signedBlockWindowLastBlockNum {
+			// the range [lookbackWindowFirstBlockNum, lookbackWindowLastBlockNum])
+			if lastSignedBlock >= lookbackWindowFirstBlockNum && lastSignedBlock <= lookbackWindowLastBlockNum {
 				uptime.Entries[i].ScoreTally++
 			}
 		}

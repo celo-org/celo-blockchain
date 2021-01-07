@@ -18,8 +18,8 @@ func TestGetUptimeMonitoringWindow(t *testing.T) {
 		want  uint64
 		want1 uint64
 	}{
-		{"tally on first epoch", args{1, 10, 2}, 1 + 2, 9},
-		{"tally on second epoch", args{2, 10, 2}, 11 + 2, 19},
+		{"monitoringWindow on first epoch", args{1, 10, 2}, 3, 9},
+		{"monitoringWindow on second epoch", args{2, 10, 2}, 13, 19},
 		{"lookback window too big", args{1, 10, 10}, 11, 9},
 		// TODO: Add test cases.
 	}
