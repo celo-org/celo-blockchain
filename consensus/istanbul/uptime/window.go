@@ -32,5 +32,5 @@ type Window struct {
 // Size returns the size of the window.
 func (w Window) Size() uint64 { return w.End - w.Start + 1 }
 
-// Contains indidicates if a block number is contained within the window
+// Contains indicates if a block number is contained within the window
 func (w Window) Contains(n uint64) bool { return n <= w.End && n >= w.Start }
