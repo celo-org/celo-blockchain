@@ -61,13 +61,13 @@ var (
 	// minimum specified by the GasPriceMinimum contract.
 	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
 
-	// ErrInsufficientBalanceForFees is returned if the account does have enough funds (in the
+	// ErrInsufficientFundsForFees is returned if the account does have enough funds (in the
 	// fee currency used for the transaction) to pay for the gas.
-	ErrInsufficientBalanceForFees = errors.New("insufficient funds to pay for fees")
+	ErrInsufficientFundsForFees = errors.New("insufficient funds to pay for fees")
 
 	// ErrNonWhitelistedFeeCurrency is returned if the currency specified to use for the fees
 	// isn't one of the currencies whitelisted for that purpose.
-	ErrNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
+	ErrNonWhitelistedFeeCurrency = errors.New("non-whitelisted fee currency address")
 
 	// ErrGasUintOverflow is returned when calculating gas usage.
 	ErrGasUintOverflow = errors.New("gas uint64 overflow")

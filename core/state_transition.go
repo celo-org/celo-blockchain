@@ -214,7 +214,7 @@ func (st *StateTransition) payFees() error {
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
-		return ErrInsufficientBalanceForFees
+		return ErrInsufficientFundsForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
