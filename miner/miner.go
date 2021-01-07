@@ -27,7 +27,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/contract_comm/random"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -65,18 +67,20 @@ type Miner struct {
 	eth      Backend
 	engine   consensus.Engine
 	exitCh   chan struct{}
+	db       ethdb.Database // Needed for randomness
 
 	canStart    int32 // can start indicates whether we can start the mining operation
 	shouldStart int32 // should start indicates whether we should start after sync
 }
 
-func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, isLocalBlock func(block *types.Block) bool, db *ethdb.Database) *Miner {
+func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, isLocalBlock func(block *types.Block) bool, db ethdb.Database) *Miner {
 	miner := &Miner{
 		eth:      eth,
 		mux:      mux,
 		engine:   engine,
 		exitCh:   make(chan struct{}),
 		worker:   newWorker(config, chainConfig, engine, eth, mux, isLocalBlock, db, true),
+		db:       db,
 		canStart: 1,
 	}
 	go miner.update()
@@ -107,8 +111,40 @@ func (miner *Miner) update() {
 					log.Info("Mining aborted due to sync")
 				}
 			case downloader.DoneEvent, downloader.FailedEvent:
-				shouldStart := atomic.LoadInt32(&miner.shouldStart) == 1
+				// If this is using the istanbul consensus engine, then we need to check
+				// for the randomness cache for the randomness beacon protocol
+				_, isIstanbul := miner.engine.(consensus.Istanbul)
+				if isIstanbul {
+					// getCurrentBlockAndState
+					currentBlock := miner.eth.BlockChain().CurrentBlock()
+					currentHeader := currentBlock.Header()
+					currentState, err := miner.eth.BlockChain().StateAt(currentBlock.Root())
+					if err != nil {
+						log.Error("Error in retrieving state", "block hash", currentHeader.Hash(), "error", err)
+						return
+					}
 
+					if currentHeader.Number.Uint64() > 0 {
+						// Check to see if we already have the commitment cache
+						lastCommitment, err := random.GetLastCommitment(miner.coinbase, currentHeader, currentState)
+						if err != nil {
+							log.Error("Error in retrieving last commitment", "error", err)
+							return
+						}
+
+						// If there is a non empty last commitment and if we don't have that commitment's
+						// cache entry, then we need to recover it.
+						if (lastCommitment != common.Hash{}) && (rawdb.ReadRandomCommitmentCache(miner.db, lastCommitment) == common.Hash{}) {
+							err := miner.eth.BlockChain().RecoverRandomnessCache(lastCommitment, currentBlock.Hash())
+							if err != nil {
+								log.Error("Error in recovering randomness cache", "error", err)
+								return
+							}
+						}
+					}
+				}
+
+				shouldStart := atomic.LoadInt32(&miner.shouldStart) == 1
 				atomic.StoreInt32(&miner.canStart, 1)
 				atomic.StoreInt32(&miner.shouldStart, 0)
 				if shouldStart {
