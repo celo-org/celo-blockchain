@@ -40,10 +40,7 @@ func (u *UptimeEntry) String() string {
 }
 
 // MonitoringWindow retrieves the block window where uptime is to be monitored
-// for a given epoch. The range is inclusive.
-// We do not monitor while the lookback window crosses the epoch boundary; since we can only analyze window when the window
-// (block range) belongs to a single block (thus initial epoch blocks are skipped)
-// Similarly, last block of epoch is skipped since we can't obtain the signer for it; as they are in the next block
+// for a given epoch.
 func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) Window {
 	if epochNumber == 0 {
 		panic("no monitoring window for epoch 0")
@@ -59,7 +56,7 @@ func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize u
 
 	// last block to monitor:
 	// Last 2 blocks from the epoch are removed from the window
-	// lastBlock     => it's parentSeal is on firstBlock of next epoch
+	// lastBlock     => its parentSeal is on firstBlock of next epoch
 	// lastBlock - 1 => parentSeal is on lastBlockOfEpoch, but validatorScore is computed with lastBlockOfEpoch and before updating scores
 	// (lastBlock-1 could be counted, but much harder to implement)
 	lastBlockToMonitor := epochLastBlock - 2
@@ -166,8 +163,8 @@ func (um *Monitor) ProcessBlock(block *types.Block) error {
 	return nil
 }
 
-// updateUptime update accumulated uptime given a block and its validator's signatures bitmap
-func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackWindowSize uint64, monitoredWindow Window) *Uptime {
+// updateUptime updates the accumulated uptime given a block and its validator's signatures bitmap
+func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackWindowSize uint64, monitoringWindow Window) *Uptime {
 	if uptime == nil {
 		uptime = new(Uptime)
 		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
@@ -186,7 +183,7 @@ func updateUptime(uptime *Uptime, blockNumber uint64, bitmap *big.Int, lookbackW
 		}
 
 		// If block number is to be monitored, then check if lastSignedBlock is within current lookback window
-		if monitoredWindow.Contains(blockNumber) && currentLookbackWindow.Contains(uptime.Entries[i].LastSignedBlock) {
+		if monitoringWindow.Contains(blockNumber) && currentLookbackWindow.Contains(uptime.Entries[i].LastSignedBlock) {
 			// since within currentLookbackWindow there's at least one signed block (lastSignedBlock) validator is considered UP
 			uptime.Entries[i].UpBlocks++
 		}
