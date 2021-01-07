@@ -26,7 +26,9 @@ import (
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
-// TODO(lucas): hardcode at first, but eventually make governable
+// maxValidators represents the maximum number of validators the SNARK circuit supports
+// The prover code will then pad any proofs to this maximum to ensure consistent proof structure
+// TODO: Eventually make this governable
 const maxValidators = uint32(150)
 
 func (c *core) sendCommit() {
