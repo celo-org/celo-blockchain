@@ -236,7 +236,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			})
 	}
 
-	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, &chainDb)
+	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, chainDb)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
@@ -487,7 +487,8 @@ func (s *Ethereum) StartMining(threads int) error {
 				log.Error("BLSbase account unavailable locally", "err", err)
 				return fmt.Errorf("BLS signer missing: %v", err)
 			}
-			istanbul.Authorize(eb, blsbase, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS)
+
+			istanbul.Authorize(eb, blsbase, publicKey, wallet.Decrypt, wallet.SignData, blswallet.SignBLS, wallet.SignHash)
 
 			if istanbul.IsProxiedValidator() {
 				if err := istanbul.StartProxiedValidatorEngine(); err != nil {

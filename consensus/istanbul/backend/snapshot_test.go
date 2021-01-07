@@ -260,7 +260,7 @@ func TestValSetChange(t *testing.T) {
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
 
-		engine.Authorize(address, address, &privateKey.PublicKey, DecryptFn(privateKey), SignFn(privateKey), SignBLSFn(privateKey))
+		engine.Authorize(address, address, &privateKey.PublicKey, DecryptFn(privateKey), SignFn(privateKey), SignBLSFn(privateKey), SignHashFn(privateKey))
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

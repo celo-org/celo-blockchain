@@ -44,6 +44,10 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 // backing account using BLS with a direct or composite hasher
 type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
 
+// HashSignerFn is a signer callback function to request a hash to be signed by a
+// backing account.
+type HashSignerFn func(accounts.Account, []byte) ([]byte, error)
+
 // UptimeEntry contains the uptime score of a validator during an epoch as well as the
 // last block they signed on
 type UptimeEntry struct {
