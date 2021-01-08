@@ -193,7 +193,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	b12_377G2MultiExpAddress: nil,
 	b12_377PairingAddress:    nil,
 	cip20Address:             nil,
-	cip26Address:             nil,
+	cip26Address:             &getValidatorBLS{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.

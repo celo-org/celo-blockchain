@@ -999,7 +999,7 @@ func TestGetValidator(t *testing.T) {
 
 func TestGetValidatorBLSPublicKey(t *testing.T) {
 	for _, test := range getValidatorBLSPublicKeyTests {
-		testPrecompiled("eb", test, t)
+		testPrecompiled("e1", test, t)
 	}
 }
 
