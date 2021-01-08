@@ -181,7 +181,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, backend.db, false)
 	w.setEtherbase(testBankAddress)
 	return w, backend
 }
@@ -253,6 +253,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 	signerFn := backend.SignFn(testBankKey)
 	signBLSFn := backend.SignBLSFn(testBankKey)
+	signHashFn := backend.SignHashFn(testBankKey)
 	address := crypto.PubkeyToAddress(testBankKey.PublicKey)
 
 	config := istanbul.DefaultConfig
@@ -264,7 +265,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer(nil))
-	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
+	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn, signHashFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }

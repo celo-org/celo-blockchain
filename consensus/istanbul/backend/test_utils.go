@@ -57,7 +57,8 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		decryptFn := DecryptFn(privateKey)
 		signerFn := SignFn(privateKey)
 		signerBLSFn := SignBLSFn(privateKey)
-		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
+		signerHashFn := SignHashFn(privateKey)
+		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn, signerHashFn)
 	} else {
 		proxyNodeKey, _ := crypto.GenerateKey()
 		publicKey = proxyNodeKey.PublicKey
@@ -302,6 +303,16 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 	}
 }
 
+func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
+	if key == nil {
+		key, _ = generatePrivateKey()
+	}
+
+	return func(_ accounts.Account, data []byte) ([]byte, error) {
+		return crypto.Sign(data, key)
+	}
+}
+
 // this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
 // block's hash, on consensus round 0, without a composite hasher
 func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
@@ -383,7 +394,7 @@ func newBackend() (b *Backend) {
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
-	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key))
+	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key), SignHashFn(key))
 	return
 }
 
