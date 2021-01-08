@@ -724,22 +724,22 @@ var (
 	// Istanbul settings
 	IstanbulRequestTimeoutFlag = cli.Uint64Flag{
 		Name:  "istanbul.requesttimeout",
-		Usage: "Timeout for each Istanbul round in milliseconds",
+		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
 		Value: eth.DefaultConfig.Istanbul.RequestTimeout,
 	}
 	IstanbulBlockPeriodFlag = cli.Uint64Flag{
 		Name:  "istanbul.blockperiod",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
 		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
 	}
 	IstanbulProposerPolicyFlag = cli.Uint64Flag{
 		Name:  "istanbul.proposerpolicy",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
 		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
 	}
 	IstanbulLookbackWindowFlag = cli.Uint64Flag{
 		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
 		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
 	}
 	IstanbulReplicaFlag = cli.BoolFlag{
@@ -1404,16 +1404,16 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 
 func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
-		cfg.Istanbul.RequestTimeout = ctx.GlobalUint64(IstanbulRequestTimeoutFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulRequestTimeoutFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
-		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulBlockPeriodFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
-		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulLookbackWindowFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
-		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulProposerPolicyFlag.Name)
 	}
 	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
