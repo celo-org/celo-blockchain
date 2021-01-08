@@ -26,6 +26,11 @@ import (
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
+// maxValidators represents the maximum number of validators the SNARK circuit supports
+// The prover code will then pad any proofs to this maximum to ensure consistent proof structure
+// TODO: Eventually make this governable
+const maxValidators = uint32(150)
+
 func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
@@ -73,8 +78,6 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 		return nil, nil, false, errors.New("unknown block")
 	}
 
-	// TODO(lucas): hardcode at first, but eventually make governable
-	maxValidators := uint32(150)
 	maxNonSigners = maxValidators - uint32(newValSet.MinQuorumSize())
 	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
 		blsPubKeys, maxNonSigners, maxValidators,

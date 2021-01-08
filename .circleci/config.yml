@@ -24,9 +24,6 @@ jobs:
       - run:
           name: Build Geth
           command: go run build/ci.go install
-      - run:
-          name: Save lib bls
-          command: cp $GOPATH/pkg/mod/github.com/celo-org/celo-bls-go@$(go list -m all | grep celo-bls-go | awk '{print $2}')/libs/universal/libbls_snark_sys.a ~/repos/geth/libbls_snark_sys.a
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -37,6 +34,7 @@ jobs:
             - geth
   unit-tests:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -59,6 +57,7 @@ jobs:
 
   coverage:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
@@ -109,10 +108,11 @@ jobs:
       - run:
           name: Setup Go language
           command: |
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install go
+            brew install go@1.14
+            brew link go@1.14
             # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.13"* ]]; then
-              echo "go1.13 is required"
+            if [[ "$(go version)" != "go version go1.14"* ]]; then
+              echo "go1.14 is required"
               exit 1
             fi
       - run:
@@ -122,6 +122,7 @@ jobs:
           root: ~/repos
           paths:
             - geth/build/bin/Geth.framework.tgz
+            - geth/libbls_snark_sys.a
 
   publish-mobile-client:
     docker:

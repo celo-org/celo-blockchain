@@ -59,11 +59,11 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 func celoPrecompileAddress(index byte) common.Address {
-	return common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - index)))
+	return common.BytesToAddress(append([]byte{0}, (celoPrecompiledContractsAddressOffset - index)))
 }
 
 var (
-	CeloPrecompiledContractsAddressOffset = byte(0xff)
+	celoPrecompiledContractsAddressOffset = byte(0xff)
 
 	transferAddress              = celoPrecompileAddress(2)
 	fractionMulExpAddress        = celoPrecompileAddress(3)
@@ -75,7 +75,27 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
-	getValidatorBLSAddress       = celoPrecompileAddress(20)
+
+	// New in Donut
+	edd25519Address          = celoPrecompileAddress(12)
+	b12_381G1AddAddress      = celoPrecompileAddress(13)
+	b12_381G1MulAddress      = celoPrecompileAddress(14)
+	b12_381G1MultiExpAddress = celoPrecompileAddress(15)
+	b12_381G2AddAddress      = celoPrecompileAddress(16)
+	b12_381G2MulAddress      = celoPrecompileAddress(17)
+	b12_381G2MultiExpAddress = celoPrecompileAddress(18)
+	b12_381PairingAddress    = celoPrecompileAddress(19)
+	b12_381MapFpToG1Address  = celoPrecompileAddress(20)
+	b12_381MapFp2ToG2Address = celoPrecompileAddress(21)
+	b12_377G1AddAddress      = celoPrecompileAddress(22)
+	b12_377G1MulAddress      = celoPrecompileAddress(23)
+	b12_377G1MultiExpAddress = celoPrecompileAddress(24)
+	b12_377G2AddAddress      = celoPrecompileAddress(25)
+	b12_377G2MulAddress      = celoPrecompileAddress(26)
+	b12_377G2MultiExpAddress = celoPrecompileAddress(27)
+	b12_377PairingAddress    = celoPrecompileAddress(28)
+	cip20Address             = celoPrecompileAddress(29)
+	cip26Address             = celoPrecompileAddress(30)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -129,8 +149,8 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 }
 
-// PrecompiledContractsDonut contains the default set of pre-compiled Ethereum / Celo
-// contracts used in the Donut release.
+// PrecompiledContractsDonut contains the default set of pre-compiled Ethereum
+// contracts used in the Donit release.
 var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{1}): &ecrecover{},
 	common.BytesToAddress([]byte{2}): &sha256hash{},
@@ -153,7 +173,27 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
-	getValidatorBLSAddress:       &getValidatorBLS{},
+
+	// TODO(Donut): Add instances
+	edd25519Address:          nil,
+	b12_381G1AddAddress:      nil,
+	b12_381G1MulAddress:      nil,
+	b12_381G1MultiExpAddress: nil,
+	b12_381G2AddAddress:      nil,
+	b12_381G2MulAddress:      nil,
+	b12_381G2MultiExpAddress: nil,
+	b12_381PairingAddress:    nil,
+	b12_381MapFpToG1Address:  nil,
+	b12_381MapFp2ToG2Address: nil,
+	b12_377G1AddAddress:      nil,
+	b12_377G1MulAddress:      nil,
+	b12_377G1MultiExpAddress: nil,
+	b12_377G2AddAddress:      nil,
+	b12_377G2MulAddress:      nil,
+	b12_377G2MultiExpAddress: nil,
+	b12_377PairingAddress:    nil,
+	cip20Address:             nil,
+	cip26Address:             nil,
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
