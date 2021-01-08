@@ -1363,7 +1363,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Warn("Unable to retrieve the author for block", "blockNum", block.NumberU64(), "err", err)
 		}
 
-		if blockAuthor == istEngine.ValidatorAddress() {
+		if blockAuthor == istEngine.ValidatorAddress() && !istEngine.IsProxy() {
 			// Calculate the randomness commitment
 			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash())
 
