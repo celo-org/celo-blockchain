@@ -345,7 +345,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// applying the message. The rules include these clauses
 	//
 	// 1. the nonce of the message caller is correct
-	// 2. the gas price meets the current GasPriceMinimum
+	// 2. the gas price meets the minimum gas price
 	// 3. caller has enough balance (in the right currency) to cover transaction fee
 	// 4. the amount of gas required is available in the block
 	// 5. the purchased gas is enough to cover intrinsic usage
@@ -361,7 +361,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-	// Calculate intrinsic gas, check 5-6
+	// Calculate intrinsic gas, check clauses 5-6
 	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.GetHeader(), st.state, msg.FeeCurrency(), istanbul)
 	if err != nil {
 		return nil, err
@@ -375,7 +375,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			"fee currency", st.msg.FeeCurrency())
 		return nil, ErrIntrinsicGas
 	}
-	// Pay the fees (which buys gas), and subtract the intrinsic gas
+	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
 	err = st.payFees()
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
