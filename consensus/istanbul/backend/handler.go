@@ -303,16 +303,16 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 		}
 	}
 
-	parentState, err := sb.stateAt(parentHeader.Hash())
+	parentState, err := sb.stateAt(childHeader.ParentHash)
 	if err != nil {
-		sb.logger.Error(err.Error())
+		sb.logger.Error("Error obtaining block state", "block_number", parentHeader.Number, "err", err.Error())
 		return
 	}
 	// The parents lookback window at the time will be used.
 	// However, the value used for updating the validator scores is the one set at the last epoch block.
 	lookbackWindow, err := sb.LookbackWindow(parentHeader, parentState)
 	if err != nil {
-		sb.logger.Error(err.Error())
+		sb.logger.Error("Error obtaining lookbackWindow", "block_number", parentHeader.Number, "err", err.Error())
 		return
 	}
 

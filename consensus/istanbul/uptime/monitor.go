@@ -39,31 +39,6 @@ func (u *UptimeEntry) String() string {
 	return fmt.Sprintf("UptimeEntry { upBlocks: %v, lastBlock: %v}", u.UpBlocks, u.LastSignedBlock)
 }
 
-// MonitoringWindow retrieves the block window where uptime is to be monitored
-// for a given epoch.
-func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) Window {
-	if epochNumber == 0 {
-		panic("no monitoring window for epoch 0")
-	}
-
-	epochFirstBlock, _ := istanbul.GetEpochFirstBlockNumber(epochNumber, epochSize)
-	epochLastBlock := istanbul.GetEpochLastBlockNumber(epochNumber, epochSize)
-
-	// first block to monitor:
-	// we can't monitor uptime when current lookbackWindow crosses the epoch boundary
-	// thus, first block to monitor is the final block of the lookbackwindow that starts at firstBlockOfEpoch
-	firstBlockToMonitor := newWindowStartingAt(epochFirstBlock, lookbackWindowSize).End
-
-	// last block to monitor:
-	// Last 2 blocks from the epoch are removed from the window
-	// lastBlock     => its parentSeal is on firstBlock of next epoch
-	// lastBlock - 1 => parentSeal is on lastBlockOfEpoch, but validatorScore is computed with lastBlockOfEpoch and before updating scores
-	// (lastBlock-1 could be counted, but much harder to implement)
-	lastBlockToMonitor := epochLastBlock - 2
-
-	return Window{Start: firstBlockToMonitor, End: lastBlockToMonitor}
-}
-
 // Monitor is responsible for monitoring uptime by processing blocks
 type Monitor struct {
 	epochSize      uint64

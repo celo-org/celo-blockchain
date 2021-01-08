@@ -208,6 +208,9 @@ type Istanbul interface {
 	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
 
+	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+	LookbackWindow(header *types.Header, state *state.StateDB) (uint64, error)
+
 	// ValidatorAddress will return the istanbul engine's validator address
 	ValidatorAddress() common.Address
 

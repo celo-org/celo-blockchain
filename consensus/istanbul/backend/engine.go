@@ -27,8 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	ethCore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -429,10 +429,7 @@ func (sb *Backend) EpochSize() uint64 {
 
 // LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) (uint64, error) {
-	if !sb.chain.Config().IsDonut(header.Number) {
-		return sb.config.LookbackWindow, nil
-	}
-	return blockchain_parameters.GetLookbackWindow(header, state)
+	return uptime.LookbackWindow(sb.chain.Config(), sb.config, header, state)
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
