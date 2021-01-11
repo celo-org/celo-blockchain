@@ -86,11 +86,12 @@ jobs:
           path: /tmp/test-results
 
   validate-mobile-patch:
-    executor: golang
+    docker:
+      - image: celohq/circleci:android-v2
+    working_directory: ~/repos/geth
     resource_class: small
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - checkout
       - run:
           name: Apply mobile build patch
           command: git apply -v --check ./patches/mobileLibsForBuild.patch
@@ -271,8 +272,13 @@ workflows:
       - coverage:
           requires:
             - build-geth
-      - android
-      - ios
+      - validate-mobile-patch
+      - android:
+          requires:
+            - validate-mobile-patch
+      - ios:
+          requires:
+            - validate-mobile-patch
       - publish-mobile-client:
           requires:
             - android
