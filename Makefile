@@ -2,7 +2,7 @@
 # with Go source code. If you know what GOPATH is then you probably
 # don't need to bother with make.
 
-.PHONY: geth android ios geth-cross evm all test clean
+.PHONY: geth android android-build ios ios-build geth-cross evm all test clean
 .PHONY: geth-linux geth-linux-386 geth-linux-amd64 geth-linux-mips64 geth-linux-mips64le
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-386 geth-darwin-amd64
@@ -66,15 +66,16 @@ all:
 all-musl:
 	$(GORUN) build/ci.go install -musl
 
-android:
-	apply-mobile-patch
+android: apply-mobile-patch android-build remove-mobile-patch
+
+android-build:
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
-	remove-mobile-patch
 
-ios:
-	apply-mobile-patch
+ios: apply-mobile-patch ios-build remove-mobile-patch
+
+ios-build:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
@@ -83,7 +84,6 @@ ios:
 	cp -f "$$(go list -m -f "{{ .Dir }}" github.com/celo-org/celo-bls-go)/libs/universal/libbls_snark_sys.a" .
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
-	remove-mobile-patch
 
 test: all
 	$(GORUN) build/ci.go test $(TEST_FLAGS)
