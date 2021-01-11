@@ -94,7 +94,7 @@ jobs:
       - checkout
       - run:
           name: Apply mobile build patch
-          command: git apply -v --check ./patches/mobileLibsForBuild.patch
+          command: make apply-mobile-patch
 
   android:
     docker:
