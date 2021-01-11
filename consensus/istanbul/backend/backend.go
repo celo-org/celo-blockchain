@@ -111,6 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
+
 	backend.core = istanbulCore.New(backend, backend.config)
 
 	backend.logger = istanbul.NewIstLogger(
@@ -167,13 +168,14 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address    common.Address       // Ethereum address of the ECDSA signing key
-	blsAddress common.Address       // Ethereum address of the BLS signing key
-	publicKey  *ecdsa.PublicKey     // The signer public key
-	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu   sync.RWMutex         // Protects the signer fields
+	address    common.Address        // Ethereum address of the ECDSA signing key
+	blsAddress common.Address        // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey      // The signer public key
+	decryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn     // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
+	signHashFn istanbul.HashSignerFn // Signer function to create random seed
+	signFnMu   sync.RWMutex          // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -295,6 +297,10 @@ type Backend struct {
 	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
 	proxiedValidatorEngineRunning bool
 	proxiedValidatorEngineMu      sync.RWMutex
+
+	// RandomSeed (and it's mutex) used to generate the random beacon randomness
+	randomSeed   []byte
+	randomSeedMu sync.Mutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -353,7 +359,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -363,6 +369,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
+	sb.signHashFn = signHashFn
 	sb.core.SetAddress(ecdsaAddress)
 }
 
