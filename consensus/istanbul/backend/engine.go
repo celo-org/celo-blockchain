@@ -428,6 +428,7 @@ func (sb *Backend) EpochSize() uint64 {
 }
 
 // LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+// Value is constant during an epoch
 func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) (uint64, error) {
 	return uptime.LookbackWindow(sb.chain.Config(), sb.config, header, state)
 }
