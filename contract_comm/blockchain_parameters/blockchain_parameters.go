@@ -67,35 +67,36 @@ const (
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  },
+	},
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "uptimeLookbackWindow",
+		"name": "getUptimeLookbackWindow",
 		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
+			{
+				"internalType": "uint256",
+				"name": "lookbackWindow",
+				"type": "uint256"
+			}
 		],
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  },
-	  {
-		"constant": true,
-		"inputs": [],
-		"name": "intrinsicGasForAlternativeFeeCurrency",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	  }
+	},
+	{
+	"constant": true,
+	"inputs": [],
+	"name": "intrinsicGasForAlternativeFeeCurrency",
+	"outputs": [
+		{
+		"name": "",
+		"type": "uint256"
+		}
+	],
+	"payable": false,
+	"stateMutability": "view",
+	"type": "function"
+	}
 ]`
 )
 
@@ -209,7 +210,7 @@ func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
 	_, err := contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
-		"uptimeLookbackWindow",
+		"getUptimeLookbackWindow",
 		[]interface{}{},
 		&lookbackWindow,
 		params.MaxGasForReadBlockchainParameter,
