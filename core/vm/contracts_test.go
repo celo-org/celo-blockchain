@@ -973,14 +973,14 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 // Tests the sample inputs from the ed25519 verify check CIP 25
 func TestPrecompiledEd25519Verify(t *testing.T) {
 	for _, test := range ed25519VerifyTests {
-		testPrecompiled("a", test, t)
+		testPrecompiled("f3", test, t)
 	}
 }
 
 // Benchmarks the sample inputs from the ed25519 verify check CIP 25
 func BenchmarkPrecompiledEd25519Verify(bench *testing.B) {
 	for _, test := range ed25519VerifyTests {
-		benchmarkPrecompiled("a", test, bench)
+		benchmarkPrecompiled("f3", test, bench)
 	}
 }
 

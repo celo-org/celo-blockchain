@@ -127,16 +127,15 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):   &ecrecover{},
-	common.BytesToAddress([]byte{2}):   &sha256hash{},
-	common.BytesToAddress([]byte{3}):   &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):   &dataCopy{},
-	common.BytesToAddress([]byte{5}):   &bigModExp{},
-	common.BytesToAddress([]byte{6}):   &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):   &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):   &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):   &blake2F{},
-	common.BytesToAddress([]byte{0xa}): &ed25519Verify{},
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{},
+	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
 	transferAddress:              &transfer{},
@@ -177,7 +176,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// TODO(Donut): Add instances
-	edd25519Address:          nil,
+	edd25519Address:          &ed25519Verify{},
 	b12_381G1AddAddress:      nil,
 	b12_381G1MulAddress:      nil,
 	b12_381G1MultiExpAddress: nil,
