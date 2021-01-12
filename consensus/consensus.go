@@ -209,7 +209,7 @@ type Istanbul interface {
 	IsLastBlockOfEpoch(header *types.Header) bool
 
 	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
-	LookbackWindow(header *types.Header, state *state.StateDB) (uint64, error)
+	LookbackWindow(header *types.Header, state *state.StateDB) uint64
 
 	// ValidatorAddress will return the istanbul engine's validator address
 	ValidatorAddress() common.Address

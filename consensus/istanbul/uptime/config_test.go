@@ -41,3 +41,34 @@ func TestMonitoringWindow(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeLookbackWindow(t *testing.T) {
+	constant := func(value uint64) func() (uint64, error) {
+		return func() (uint64, error) { return value, nil }
+	}
+
+	type args struct {
+		epochSize             uint64
+		defaultLookbackWindow uint64
+		isDonut               bool
+		getLookbackWindow     func() (uint64, error)
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"returns default if Donut is not active", args{100, 20, false, constant(24)}, 20},
+		{"returns safe minimun if configured is below", args{100, 20, true, constant(10)}, 12},
+		{"returns safe maximum if configured is above", args{1000, 20, true, constant(800)}, 720},
+		{"returns epochSize-2 if configured is above", args{100, 20, true, constant(99)}, 98},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ComputeLookbackWindow(tt.args.epochSize, tt.args.defaultLookbackWindow, tt.args.isDonut, tt.args.getLookbackWindow)
+			if got != tt.want {
+				t.Errorf("ComputeLookbackWindow() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

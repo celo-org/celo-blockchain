@@ -2,10 +2,6 @@ package uptime
 
 import (
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // Check CIP-21 Spec (https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0021.md)
@@ -22,17 +18,18 @@ const (
 	BlocksToSkipAtEpochEnd = 2
 )
 
-// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
-func LookbackWindow(config *params.ChainConfig, istConfig *istanbul.Config, header *types.Header, state *state.StateDB) (uint64, error) {
-	if !config.IsDonut(header.Number) {
-		return istConfig.DefaultLookbackWindow, nil
+// ComputeLookbackWindow computes the lookbackWindow based on different required parameters.
+// getLookbackWindow represents the way to obtain lookbackWindow from the smart contract
+func ComputeLookbackWindow(epochSize uint64, defaultLookbackWindow uint64, isDonut bool, getLookbackWindow func() (uint64, error)) uint64 {
+	if !isDonut {
+		return defaultLookbackWindow
 	}
 
-	if istConfig.Epoch <= istanbul.MinEpochSize {
+	if epochSize <= istanbul.MinEpochSize {
 		panic("Invalid epoch value")
 	}
 
-	value, err := blockchain_parameters.GetLookbackWindow(header, state)
+	value, err := getLookbackWindow()
 	if err != nil {
 		value = MinSafeLookbackWindow
 	}
@@ -45,11 +42,11 @@ func LookbackWindow(config *params.ChainConfig, istConfig *istanbul.Config, head
 	}
 
 	// Ensure it's sensible to given chain params
-	if value > (istConfig.Epoch - BlocksToSkipAtEpochEnd) {
-		value = istConfig.Epoch - BlocksToSkipAtEpochEnd
+	if value > (epochSize - BlocksToSkipAtEpochEnd) {
+		value = epochSize - BlocksToSkipAtEpochEnd
 	}
 
-	return value, nil
+	return value
 }
 
 // MonitoringWindow retrieves the block window where uptime is to be monitored

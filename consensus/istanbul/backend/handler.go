@@ -310,11 +310,7 @@ func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
 	}
 	// The parents lookback window at the time will be used.
 	// However, the value used for updating the validator scores is the one set at the last epoch block.
-	lookbackWindow, err := sb.LookbackWindow(parentHeader, parentState)
-	if err != nil {
-		sb.logger.Error("Error obtaining lookbackWindow", "block_number", parentHeader.Number, "err", err.Error())
-		return
-	}
+	lookbackWindow := sb.LookbackWindow(parentHeader, parentState)
 
 	// Report downtime events
 	if sb.blocksElectedButNotSignedGauge.Value() >= int64(lookbackWindow) {
