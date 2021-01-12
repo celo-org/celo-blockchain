@@ -405,9 +405,9 @@ func (api *PrivateLightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInform
 
 // RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
 func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
-	peerNodes := api.le.peers.AllPeers()
+	peerNodes := api.le.peers.allPeers()
 	for _, peerNode := range peerNodes {
-		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
+		cost := peerNode.getRequestCost(GetGatewayFeeMsg, int(1))
 		err := peerNode.RequestGatewayFee(genReqID(), cost)
 		if err != nil {
 			return err

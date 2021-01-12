@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	mrand "math/rand"
 	"sort"
@@ -33,7 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime/store"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -74,6 +74,7 @@ var (
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
+	errCommitmentNotFound   = errors.New("randomness commitment not found")
 )
 
 const (
@@ -1241,70 +1242,6 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-// https://stackoverflow.com/questions/19105791/is-there-a-big-bitcount/32702348#32702348
-func bitCount(n *big.Int) int {
-	count := 0
-	for _, v := range n.Bits() {
-		count += popcount(uint64(v))
-	}
-	return count
-}
-
-// Straight and simple C to Go translation from https://en.wikipedia.org/wiki/Hamming_weight
-func popcount(x uint64) int {
-	const (
-		m1  = 0x5555555555555555 //binary: 0101...
-		m2  = 0x3333333333333333 //binary: 00110011..
-		m4  = 0x0f0f0f0f0f0f0f0f //binary:  4 zeros,  4 ones ...
-		h01 = 0x0101010101010101 //the sum of 256 to the power of 0,1,2,3...
-	)
-	x -= (x >> 1) & m1             //put count of each 2 bits into those 2 bits
-	x = (x & m2) + ((x >> 2) & m2) //put count of each 4 bits into those 4 bits
-	x = (x + (x >> 4)) & m4        //put count of each 8 bits into those 8 bits
-	return int((x * h01) >> 56)    //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24) + ...
-}
-
-// updateUptime receives the currently accumulated uptime for all validators in an epoch and proceeds to update it
-// based on which validators signed on the provided block by inspecting the block's parent bitmap
-func updateUptime(uptime *istanbul.Uptime, blockNumber uint64, bitmap *big.Int, window uint64, epochNum uint64, epochSize uint64) *istanbul.Uptime {
-	if uptime == nil {
-		uptime = new(istanbul.Uptime)
-		// The number of validators is upper bounded by 3/2 of the number of 1s in the bitmap
-		// We multiply by 2 just to be extra cautious of off-by-one errors.
-		validatorsSizeUpperBound := uint64(math.Ceil(float64(bitCount(bitmap)) * 2))
-		uptime.Entries = make([]istanbul.UptimeEntry, validatorsSizeUpperBound)
-	}
-
-	valScoreTallyFirstBlockNum := istanbul.GetValScoreTallyFirstBlockNumber(epochNum, epochSize, window)
-	valScoreTallyLastBlockNum := istanbul.GetValScoreTallyLastBlockNumber(epochNum, epochSize)
-
-	// signedBlockWindowLastBlockNum is just the previous block
-	signedBlockWindowLastBlockNum := blockNumber - 1
-	signedBlockWindowFirstBlockNum := signedBlockWindowLastBlockNum - (window - 1)
-
-	uptime.LatestBlock = blockNumber
-	for i := 0; i < len(uptime.Entries); i++ {
-		if bitmap.Bit(i) == 1 {
-			// update their latest signed block
-			uptime.Entries[i].LastSignedBlock = blockNumber - 1
-		}
-
-		// If we are within the validator uptime tally window, then update the validator's score
-		// if its last signed block is within the lookback window
-		if valScoreTallyFirstBlockNum <= blockNumber && blockNumber <= valScoreTallyLastBlockNum {
-			lastSignedBlock := uptime.Entries[i].LastSignedBlock
-
-			// Note that the second condition in the if condition is not necessary.  But it does
-			// make the logic easier to understand.  (e.g. it's checking is lastSignedBlock is within
-			// the range [signedBlockWindowFirstBlockNum, signedBlockWindowLastBlockNum])
-			if signedBlockWindowFirstBlockNum <= lastSignedBlock && lastSignedBlock <= signedBlockWindowLastBlockNum {
-				uptime.Entries[i].ScoreTally++
-			}
-		}
-	}
-	return uptime
-}
-
 // WriteBlockWithState writes the block and all associated state to the database.
 func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
 	bc.chainmu.Lock()
@@ -1319,40 +1256,32 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
-	// We are going to update the uptime tally.
-	// TODO find a better way of checking if it's istanbul
-	if _, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
+	randomCommitment := common.Hash{}
+	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
 
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		}
 
-		// The epoch's first block's aggregated parent signatures is for the previous epoch's valset.
-		// We can ignore updating the tally for that block.
-		if !istanbul.IsFirstBlockOfEpoch(block.NumberU64(), bc.chainConfig.Istanbul.Epoch) {
-			epochNum := istanbul.GetEpochNumber(block.NumberU64(), bc.chainConfig.Istanbul.Epoch)
+		// We are going to update the uptime tally.
+		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, bc.chainConfig.Istanbul.LookbackWindow)
+		err = uptimeMonitor.ProcessBlock(block)
+		if err != nil {
+			return NonStatTy, err
+		}
 
-			// Get the bitmap from the previous block
-			extra, err := types.ExtractIstanbulExtra(block.Header())
+		blockAuthor, err := istEngine.Author(block.Header())
+		if err != nil {
+			log.Warn("Unable to retrieve the author for block", "blockNum", block.NumberU64(), "err", err)
+		}
+
+		if blockAuthor == istEngine.ValidatorAddress() && !istEngine.IsProxy() {
+			// Calculate the randomness commitment
+			_, randomCommitment, err = istEngine.GenerateRandomness(block.ParentHash())
+
 			if err != nil {
-				log.Error("Unable to extract istanbul extra", "func", "WriteBlockWithState", "blocknum", block.NumberU64(), "epoch", epochNum)
-				return NonStatTy, errors.New("could not extract block header extra")
-			}
-			signedValidatorsBitmap := extra.ParentAggregatedSeal.Bitmap
-
-			// Get the uptime scores
-			uptime := rawdb.ReadAccumulatedEpochUptime(bc.db, epochNum)
-
-			// We only update the uptime for blocks which are greater than the last block we saw.
-			// This ensures that we do not count the same block twice for any reason.
-			if uptime == nil || uptime.LatestBlock < block.NumberU64() {
-				// Update the uptime scores
-				uptime = updateUptime(uptime, block.NumberU64(), signedValidatorsBitmap, bc.chainConfig.Istanbul.LookbackWindow, epochNum, bc.chainConfig.Istanbul.Epoch)
-
-				// Write the new uptime scores
-				rawdb.WriteAccumulatedEpochUptime(bc.db, epochNum, uptime)
-			} else {
-				log.Trace("WritingBlockWithState with block number less than a block we previously wrote", "latestUptimeBlock", uptime.LatestBlock, "blockNumber", block.NumberU64())
+				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
+				return NonStatTy, err
 			}
 		}
 	}
@@ -1376,6 +1305,11 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
+	if (randomCommitment != common.Hash{}) {
+		// Note that the random commitment cache entry is never transferred over to the freezer,
+		// unlike all of the other saved data within this batch write
+		rawdb.WriteRandomCommitmentCache(blockBatch, randomCommitment, block.ParentHash())
+	}
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
 	}
@@ -1699,18 +1633,17 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		// If we have a followup block, run that against the current state to pre-cache
 		// transactions and probabilistically some of the account/storage trie nodes.
 		var followupInterrupt uint32
-
 		if !bc.cacheConfig.TrieCleanNoPrefetch {
 			if followup, err := it.peek(); followup != nil && err == nil {
-				go func(start time.Time) {
-					throwaway, _ := state.New(parent.Root, bc.stateCache)
-					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
+				throwaway, _ := state.New(parent.Root, bc.stateCache)
+				go func(start time.Time, followup *types.Block, throwaway *state.StateDB, interrupt *uint32) {
+					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, interrupt)
 
 					blockPrefetchExecuteTimer.Update(time.Since(start))
-					if atomic.LoadUint32(&followupInterrupt) == 1 {
+					if atomic.LoadUint32(interrupt) == 1 {
 						blockPrefetchInterruptMeter.Mark(1)
 					}
-				}(time.Now())
+				}(time.Now(), followup, throwaway, &followupInterrupt)
 			}
 		}
 		// Process block using the parent state as reference point
@@ -2315,4 +2248,55 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
+}
+
+// RecoverRandomnessCache will do a search for the block that was used to generate the given commitment.
+// Specifically, it will find the block that this node authored and that block's parent hash is used to
+// created the commitment.  The search is a reverse iteration of the node's local chain starting at
+// the block where it's hash is the given commitmentBlockHash.
+func (bc *BlockChain) RecoverRandomnessCache(commitment common.Hash, commitmentBlockHash common.Hash) error {
+	istEngine, isIstanbul := bc.engine.(consensus.Istanbul)
+	if !isIstanbul {
+		return nil
+	}
+
+	log.Info("Recovering randomness cache entry", "commitment", commitment.Hex(), "initial block search", commitmentBlockHash.Hex())
+
+	blockHashIter := commitmentBlockHash
+	var parentHash common.Hash
+	for {
+		blockHeader := bc.GetHeaderByHash(blockHashIter)
+
+		// We got to the genesis block, so search didn't find the latest
+		// block authored by this validator.
+		if blockHeader.Number.Uint64() == 0 {
+			return errCommitmentNotFound
+		}
+
+		blockAuthor, err := istEngine.Author(blockHeader)
+		if err != nil {
+			log.Error("Error is retrieving block author", "block number", blockHeader.Number.Uint64(), "block hash", blockHeader.Hash(), "error", err)
+			return err
+		}
+
+		if blockAuthor == istEngine.ValidatorAddress() {
+			parentHash = blockHeader.ParentHash
+			break
+		}
+
+		blockHashIter = blockHeader.ParentHash
+	}
+
+	// Calculate the randomness commitment
+	// The calculation is stateless (e.g. it's just a hash operation of a string), so any passed in block header and state
+	// will do. Will use the previously fetched current header and state.
+	_, randomCommitment, err := istEngine.GenerateRandomness(parentHash)
+	if err != nil {
+		log.Error("Couldn't generate the randomness from the parent hash", "parent hash", parentHash, "err", err)
+		return err
+	}
+
+	rawdb.WriteRandomCommitmentCache(bc.db, randomCommitment, parentHash)
+
+	return nil
 }

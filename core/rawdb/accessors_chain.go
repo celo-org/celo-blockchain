@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -423,13 +424,13 @@ func ReadTd(db ethdb.Reader, hash common.Hash, number uint64) *big.Int {
 }
 
 // ReadAccumulatedEpochUptime retrieves the so-far accumulated uptime array for the validators of the specified epoch
-func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *istanbul.Uptime {
+func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *uptime.Uptime {
 	data, _ := db.Get(uptimeKey(epoch))
 	if len(data) == 0 {
 		log.Trace("ReadAccumulatedEpochUptime EMPTY", "epoch", epoch)
 		return nil
 	}
-	uptime := new(istanbul.Uptime)
+	uptime := new(uptime.Uptime)
 	if err := rlp.Decode(bytes.NewReader(data), uptime); err != nil {
 		log.Error("Invalid uptime RLP", "err", err)
 		return nil
@@ -438,7 +439,7 @@ func ReadAccumulatedEpochUptime(db ethdb.Reader, epoch uint64) *istanbul.Uptime 
 }
 
 // WriteAccumulatedEpochUptime updates the accumulated uptime array for the validators of the specified epoch
-func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *istanbul.Uptime) {
+func WriteAccumulatedEpochUptime(db ethdb.KeyValueWriter, epoch uint64, uptime *uptime.Uptime) {
 	data, err := rlp.EncodeToBytes(uptime)
 	if err != nil {
 		log.Crit("Failed to RLP encode updated uptime", "err", err)
@@ -657,6 +658,25 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 	deleteHeaderWithoutNumber(db, hash, number)
 	DeleteBody(db, hash, number)
 	DeleteTd(db, hash, number)
+}
+
+// WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
+// (which is used to calculate the commitmented random number).
+func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash, parentHash common.Hash) {
+	if err := db.Put(istanbul.RandomnessCommitmentDBLocation(commitment), parentHash.Bytes()); err != nil {
+		log.Crit("Failed to store randomness commitment cache entry", "err", err)
+	}
+}
+
+// ReadRandomCommitmentCache will retun the random beacon commit's associated block parent hash.
+func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.Hash {
+	parentHash, err := db.Get(istanbul.RandomnessCommitmentDBLocation(commitment))
+	if err != nil {
+		log.Warn("Error in trying to retrieve randomness commitment cache entry", "error", err)
+		return common.Hash{}
+	}
+
+	return common.BytesToHash(parentHash)
 }
 
 // FindCommonAncestor returns the last common ancestor of two block headers

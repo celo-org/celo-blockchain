@@ -111,6 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
+
 	backend.core = istanbulCore.New(backend, backend.config)
 
 	backend.logger = istanbul.NewIstLogger(
@@ -122,11 +123,15 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		},
 	)
 
-	rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
-	if err != nil {
-		logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
+	if config.Validator {
+		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
+		if err != nil {
+			logger.Crit("Can't open ReplicaStateDB", "err", err, "dbpath", config.ReplicaStateDBPath)
+		}
+		backend.replicaState = rs
+	} else {
+		backend.replicaState = nil
 	}
-	backend.replicaState = rs
 
 	backend.vph = newVPH(backend)
 	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
@@ -163,13 +168,14 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address    common.Address       // Ethereum address of the ECDSA signing key
-	blsAddress common.Address       // Ethereum address of the BLS signing key
-	publicKey  *ecdsa.PublicKey     // The signer public key
-	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu   sync.RWMutex         // Protects the signer fields
+	address    common.Address        // Ethereum address of the ECDSA signing key
+	blsAddress common.Address        // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey      // The signer public key
+	decryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn     // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
+	signHashFn istanbul.HashSignerFn // Signer function to create random seed
+	signFnMu   sync.RWMutex          // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -291,6 +297,10 @@ type Backend struct {
 	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
 	proxiedValidatorEngineRunning bool
 	proxiedValidatorEngineMu      sync.RWMutex
+
+	// RandomSeed (and it's mutex) used to generate the random beacon randomness
+	randomSeed   []byte
+	randomSeedMu sync.Mutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -349,7 +359,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -359,6 +369,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
+	sb.signHashFn = signHashFn
 	sb.core.SetAddress(ecdsaAddress)
 }
 
@@ -382,8 +393,10 @@ func (sb *Backend) Close() error {
 	if err := sb.versionCertificateTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.replicaState.Close(); err != nil {
-		errs = append(errs, err)
+	if sb.replicaState != nil {
+		if err := sb.replicaState.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	var concatenatedErrs error
 	for i, err := range errs {
@@ -509,14 +522,14 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// If the current block occurred before the Celo1 hard fork, check that the author and coinbase are equal.
-	if !sb.chain.Config().IsCelo1(block.Number()) {
+	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
+	if !sb.chain.Config().IsDonut(block.Number()) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
 			return 0, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
-			sb.logger.Error("Block proposal author and coinbase must be the same when Celo1 hard fork is active")
+			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
 			return 0, errInvalidCoinbase
 		}
 	}
@@ -778,13 +791,10 @@ func (sb *Backend) RefreshValPeers() error {
 }
 
 func (sb *Backend) ValidatorAddress() common.Address {
-	var localAddress common.Address
 	if sb.IsProxy() {
-		localAddress = sb.config.ProxiedValidatorAddress
-	} else {
-		localAddress = sb.Address()
+		return sb.config.ProxiedValidatorAddress
 	}
-	return localAddress
+	return sb.Address()
 }
 
 // RetrieveValidatorConnSet returns the cached validator conn set if the cache
@@ -970,14 +980,22 @@ func (sb *Backend) VerifyValidatorConnectionSetSignature(data []byte, sig []byte
 }
 
 func (sb *Backend) IsPrimaryForSeq(seq *big.Int) bool {
-	return sb.replicaState.IsPrimaryForSeq(seq)
+	if sb.replicaState != nil {
+		return sb.replicaState.IsPrimaryForSeq(seq)
+	}
+	return false
 }
 
 func (sb *Backend) IsPrimary() bool {
-	return sb.replicaState.IsPrimary()
+	if sb.replicaState != nil {
+		return sb.replicaState.IsPrimary()
+	}
+	return false
 }
 
 // UpdateReplicaState updates the replica state with the latest seq.
 func (sb *Backend) UpdateReplicaState(seq *big.Int) {
-	sb.replicaState.NewChainHead(seq)
+	if sb.replicaState != nil {
+		sb.replicaState.NewChainHead(seq)
+	}
 }

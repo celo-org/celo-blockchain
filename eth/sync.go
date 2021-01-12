@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -45,6 +46,12 @@ type txsync struct {
 
 // syncTransactions starts sending all currently pending transactions to the given peer.
 func (pm *ProtocolManager) syncTransactions(p *peer) {
+	// Assemble the set of transaction to broadcast or announce to the remote
+	// peer. Fun fact, this is quite an expensive operation as it needs to sort
+	// the transactions if the sorting is not cached yet. However, with a random
+	// order, insertions could overflow the non-executable queues and get dropped.
+	//
+	// TODO(karalabe): Figure out if we could get away with random order somehow
 	var txs types.Transactions
 	pending, _ := pm.txpool.Pending()
 	for _, batch := range pending {
@@ -53,26 +60,42 @@ func (pm *ProtocolManager) syncTransactions(p *peer) {
 	if len(txs) == 0 {
 		return
 	}
+	// The eth/65 (celo/66) protocol introduces proper transaction announcements, so instead
+	// of dripping transactions across multiple peers, just send the entire list as
+	// an announcement and let the remote side decide what they need (likely nothing).
+	if p.version >= istanbul.Celo66 {
+		hashes := make([]common.Hash, len(txs))
+		for i, tx := range txs {
+			hashes[i] = tx.Hash()
+		}
+		p.AsyncSendPooledTransactionHashes(hashes)
+		return
+	}
+	// Out of luck, peer is running legacy protocols, drop the txs over
 	select {
-	case pm.txsyncCh <- &txsync{p, txs}:
+	case pm.txsyncCh <- &txsync{p: p, txs: txs}:
 	case <-pm.quitSync:
 	}
 }
 
-// txsyncLoop takes care of the initial transaction sync for each new
+// Needed for eth/64 (celo/65).  With eth/65+ (celo/66+), this runs but
+// won't get any messages through pm.txsyncCh and so won't do anything.
+// txsyncLoop64 takes care of the initial transaction sync for each new
 // connection. When a new peer appears, we relay all currently pending
 // transactions. In order to minimise egress bandwidth usage, we send
 // the transactions in small packs to one peer at a time.
-func (pm *ProtocolManager) txsyncLoop() {
+func (pm *ProtocolManager) txsyncLoop64() {
 	var (
 		pending = make(map[enode.ID]*txsync)
 		sending = false               // whether a send is active
 		pack    = new(txsync)         // the pack that is being sent
 		done    = make(chan error, 1) // result of the send
 	)
-
 	// send starts a sending a pack of transactions from the sync.
 	send := func(s *txsync) {
+		if s.p.version >= istanbul.Celo66 {
+			panic("initial transaction syncer running on eth/65+ (celo/66+)")
+		}
 		// Fill pack with transactions up to the target size.
 		size := common.StorageSize(0)
 		pack.p = s.p
@@ -89,7 +112,7 @@ func (pm *ProtocolManager) txsyncLoop() {
 		// Send the pack in the background.
 		s.p.Log().Trace("Sending batch of transactions", "count", len(pack.txs), "bytes", size)
 		sending = true
-		go func() { done <- pack.p.SendTransactions(pack.txs) }()
+		go func() { done <- pack.p.SendTransactions64(pack.txs) }()
 	}
 
 	// pick chooses the next pending sync.
@@ -134,8 +157,10 @@ func (pm *ProtocolManager) txsyncLoop() {
 // downloading hashes and blocks as well as handling the announcement handler.
 func (pm *ProtocolManager) syncer() {
 	// Start and ensure cleanup of sync mechanisms
-	pm.fetcher.Start()
-	defer pm.fetcher.Stop()
+	pm.blockFetcher.Start()
+	pm.txFetcher.Start()
+	defer pm.blockFetcher.Stop()
+	defer pm.txFetcher.Stop()
 	defer pm.downloader.Terminate()
 
 	// Wait for different events to fire synchronisation operations

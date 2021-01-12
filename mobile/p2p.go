@@ -52,6 +52,8 @@ type PeerInfo struct {
 func (pi *PeerInfo) GetID() string            { return pi.info.ID }
 func (pi *PeerInfo) GetName() string          { return pi.info.Name }
 func (pi *PeerInfo) GetCaps() *Strings        { return &Strings{pi.info.Caps} }
+func (pi *PeerInfo) GetEnode() string         { return pi.info.Enode }
+func (pi *PeerInfo) GetPurposes() string      { return pi.info.Purposes }
 func (pi *PeerInfo) GetLocalAddress() string  { return pi.info.Network.LocalAddress }
 func (pi *PeerInfo) GetRemoteAddress() string { return pi.info.Network.RemoteAddress }
 

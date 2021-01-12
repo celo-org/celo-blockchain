@@ -23,7 +23,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -51,7 +50,7 @@ const (
 // In addition to the checkpoint registered in the registrar contract, there are
 // several legacy hardcoded checkpoints in our codebase. These checkpoints are
 // also considered as valid.
-func (h *clientHandler) validateCheckpoint(peer *peer) error {
+func (h *clientHandler) validateCheckpoint(peer *serverPeer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
@@ -87,7 +86,7 @@ func (h *clientHandler) validateCheckpoint(peer *peer) error {
 }
 
 // synchronise tries to sync up our local chain with a remote peer.
-func (h *clientHandler) synchronise(peer *peer) {
+func (h *clientHandler) synchronise(peer *serverPeer) {
 	// Short circuit if the peer is nil.
 	if peer == nil {
 		log.Debug("Synchronise no peer available")
@@ -95,19 +94,9 @@ func (h *clientHandler) synchronise(peer *peer) {
 	}
 
 	latest := h.backend.blockchain.CurrentHeader()
-
-	if h.syncMode == downloader.LightestSync {
-		// In the 'lightest' mode used with IBFT, each block has a difficulty of 1, so block number
-		// corresponds to the difficulty level. So make sure peer's block number is greater than our own.
-		if peer.headBlockInfo().Number <= latest.Number.Uint64() {
-			return
-		}
-	} else {
-		// Make sure the peer's TD is higher than our own.
-		currentTd := rawdb.ReadTd(h.backend.chainDb, latest.Hash(), latest.Number.Uint64())
-		if currentTd != nil && peer.headBlockInfo().Td.Cmp(currentTd) < 0 {
-			return
-		}
+	currentTd := rawdb.ReadTd(h.backend.chainDb, latest.Hash(), latest.Number.Uint64())
+	if currentTd != nil && peer.Td().Cmp(currentTd) < 0 {
+		return
 	}
 
 	// Recap the checkpoint.

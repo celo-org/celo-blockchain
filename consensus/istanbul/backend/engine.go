@@ -81,6 +81,8 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
+	// errNotAValidator is returned when the node is not configured as a validator
+	errNotAValidator = errors.New("Not configured as a validator")
 )
 
 var (
@@ -622,7 +624,7 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	for {
 		select {
 		case chainEvent := <-chainEventCh:
-			if !sb.coreStarted {
+			if !sb.coreStarted && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
@@ -783,12 +785,18 @@ func (sb *Backend) StopProxiedValidatorEngine() error {
 
 // MakeReplica clears the start/stop state & stops this node from participating in consensus
 func (sb *Backend) MakeReplica() error {
-	return sb.replicaState.MakeReplica()
+	if sb.replicaState != nil {
+		return sb.replicaState.MakeReplica()
+	}
+	return istanbul.ErrUnauthorizedAddress
 }
 
 // MakePrimary clears the start/stop state & makes this node participate in consensus
 func (sb *Backend) MakePrimary() error {
-	return sb.replicaState.MakePrimary()
+	if sb.replicaState != nil {
+		return sb.replicaState.MakePrimary()
+	}
+	return istanbul.ErrUnauthorizedAddress
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -1011,6 +1019,9 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 
 // SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
 func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
+	if sb.replicaState == nil {
+		return errNotAValidator
+	}
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
 	}
@@ -1019,6 +1030,9 @@ func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
 
 // SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
 func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
+	if sb.replicaState == nil {
+		return errNotAValidator
+	}
 	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
 		return errors.New("blockNumber should be greater than the current block number")
 	}
