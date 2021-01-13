@@ -465,6 +465,10 @@ func (w *worker) mainLoop() {
 				}
 				w.mu.RLock()
 				txFeeRecipient := w.txFeeRecipient
+				if !w.chainConfig.IsDonut(w.current.header.Number) && w.txFeeRecipient != w.validator {
+					txFeeRecipient = w.validator
+					log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+				}
 				w.mu.RUnlock()
 
 				txs := make(map[common.Address]types.Transactions)

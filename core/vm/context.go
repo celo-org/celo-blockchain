@@ -77,6 +77,8 @@ type ChainContext interface {
 // NewEVMContext creates a new context for use in the EVM.
 func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) Context {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
+	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
+	// All the other calls, assume that will retrieve it from the header
 	var beneficiary common.Address
 	if txFeeRecipient == nil {
 		beneficiary = header.Coinbase

@@ -369,7 +369,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	// If proposer has not set the `Coinbase` via the `tx-fee-recipient` flag, default to the backend address.
 	if header.Coinbase == (common.Address{}) {
-		header.Coinbase = sb.address
+		return errors.New("coinbase header should be set, before the consensus prepare")
 	}
 
 	// copy the parent extra data as the header extra data

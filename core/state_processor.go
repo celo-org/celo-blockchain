@@ -17,6 +17,8 @@
 package core
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -70,6 +72,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
 			return nil, nil, 0, err
+		}
+
+		if !p.bc.Config().IsDonut(block.Number()) {
+			if author != header.Coinbase {
+				return nil, nil, 0, errors.New("pre donut block with missmatching author and coinbase")
+			}
 		}
 
 		err = random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, author, header, statedb)
