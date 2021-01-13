@@ -7,7 +7,7 @@ import (
 // Check CIP-21 Spec (https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0021.md)
 const (
 	// MinSafeLookbackWindow is the minimum number allowed for lookbackWindow size
-	MinSafeLookbackWindow = 12
+	MinSafeLookbackWindow = 3
 	// MaxSafeLookbackWindow is the maximum number allowed for lookbackWindow size
 	MaxSafeLookbackWindow = 720
 	// BlocksToSkipAtEpochEnd represents the number of blocks to skip on the monitoring window from the end of the epoch
