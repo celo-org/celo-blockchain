@@ -2,12 +2,11 @@
 # with Go source code. If you know what GOPATH is then you probably
 # don't need to bother with make.
 
-.PHONY: geth android android-build ios ios-build geth-cross evm all test clean
+.PHONY: geth android ios geth-cross evm all test clean
 .PHONY: geth-linux geth-linux-386 geth-linux-amd64 geth-linux-mips64 geth-linux-mips64le
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-386 geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: apply-mobile-patch remove-mobile-patch
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -66,16 +65,16 @@ all:
 all-musl:
 	$(GORUN) build/ci.go install -musl
 
-android: apply-mobile-patch android-build remove-mobile-patch
-
-android-build:
+android:
+	@echo "Applying patch for mobile libs..."
+	git apply patches/mobileLibsForBuild.patch
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
+	@echo "Remove patch for mobile libs..."
+	git apply -R patches/mobileLibsForBuild.patch
 
-ios: apply-mobile-patch ios-build remove-mobile-patch
-
-ios-build:
+ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
@@ -96,14 +95,6 @@ clean-geth:
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 clean: clean-geth
-
-apply-mobile-patch:
-	@echo "Applying patch for mobile libs..."
-	git apply patches/mobileLibsForBuild.patch
-
-remove-mobile-patch:
-	@echo "Remove patch for mobile libs..."
-	git apply -R patches/mobileLibsForBuild.patch
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.

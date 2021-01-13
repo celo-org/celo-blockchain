@@ -85,17 +85,6 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
-  validate-mobile-patch:
-    docker:
-      - image: celohq/circleci:android-v2
-    working_directory: ~/repos/geth
-    resource_class: small
-    steps:
-      - checkout
-      - run:
-          name: Apply mobile build patch
-          command: make apply-mobile-patch
-
   android:
     docker:
       - image: celohq/circleci:android-v2
@@ -272,13 +261,8 @@ workflows:
       - coverage:
           requires:
             - build-geth
-      - validate-mobile-patch
-      - android:
-          requires:
-            - validate-mobile-patch
-      - ios:
-          requires:
-            - validate-mobile-patch
+      - android
+      - ios
       - publish-mobile-client:
           requires:
             - android
