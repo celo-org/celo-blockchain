@@ -148,7 +148,6 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 		GasUsed:    0,
 		Extra:      parent.Extra(),
 		Time:       parent.Time() + config.BlockPeriod,
-		Coinbase:   getAddress(),
 	}
 	return header
 }
