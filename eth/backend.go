@@ -388,10 +388,6 @@ func (s *Ethereum) TxFeeRecipient() (common.Address, error) {
 	return common.Address{}, fmt.Errorf("txFeeRecipient must be explicitly specified")
 }
 
-func (s *Ethereum) Etherbase() (common.Address, error) {
-	return s.TxFeeRecipient()
-}
-
 func (s *Ethereum) BLSbase() (eb common.Address, err error) {
 	s.lock.RLock()
 	blsbase := s.blsbase

@@ -61,11 +61,6 @@ func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
 	return api.e.TxFeeRecipient()
 }
 
-// Etherbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
-func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
-	return api.TxFeeRecipient()
-}
-
 // Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
 	return api.TxFeeRecipient()
