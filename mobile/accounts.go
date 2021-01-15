@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/signer/core"
+	"github.com/ethereum/go-ethereum/shared/signer"
 )
 
 const (
@@ -126,7 +126,7 @@ func (ks *KeyStore) SignHash(address *Address, hash []byte) (signature []byte, _
 // SignTypedData signs EIP-712 conformant typed data
 // hash = keccak256("\x19${byteVersion}${domainSeparator}${hashStruct(message)}")
 func (ks *KeyStore) SignTypedData(account *Account, typedDataJSON []byte) ([]byte, error) {
-	var typedData core.TypedData
+	var typedData signer.TypedData
 	err := json.Unmarshal(typedDataJSON, &typedData)
 	if err != nil {
 		return nil, err
