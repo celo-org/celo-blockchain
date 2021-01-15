@@ -24,7 +24,7 @@ const (
 	VersionMajor = 1        // Major version component of the current release
 	VersionMinor = 2        // Minor version component of the current release
 	VersionPatch = 2        // Patch version component of the current release
-	VersionMeta  = "beta.2" // Version metadata to append to the version string
+	VersionMeta  = "stable" // Version metadata to append to the version string
 )
 
 type VersionInfo struct {
