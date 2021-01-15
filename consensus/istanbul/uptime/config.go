@@ -1,6 +1,9 @@
 package uptime
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
@@ -49,11 +52,26 @@ func ComputeLookbackWindow(epochSize uint64, defaultLookbackWindow uint64, isDon
 	return value
 }
 
+// MustMonitoringWindow is a MonitoringWindow variant that panics on error
+func MustMonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) Window {
+	w, err := MonitoringWindow(epochNumber, epochSize, lookbackWindowSize)
+	if err != nil {
+		panic(err)
+	}
+	return w
+}
+
 // MonitoringWindow retrieves the block window where uptime is to be monitored
 // for a given epoch.
-func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) Window {
+func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) (Window, error) {
 	if epochNumber == 0 {
-		panic("no monitoring window for epoch 0")
+		return Window{}, errors.New("no monitoring window for epoch 0")
+	}
+	if epochSize < istanbul.MinEpochSize {
+		return Window{}, errors.New("Invalid epoch value")
+	}
+	if epochSize < lookbackWindowSize+BlocksToSkipAtEpochEnd {
+		return Window{}, fmt.Errorf("LookbackWindow (%d) too big for epochSize (%d)", lookbackWindowSize, epochSize)
 	}
 
 	epochFirstBlock, _ := istanbul.GetEpochFirstBlockNumber(epochNumber, epochSize)
@@ -67,5 +85,5 @@ func MonitoringWindow(epochNumber uint64, epochSize uint64, lookbackWindowSize u
 	return Window{
 		Start: firstBlockToMonitor,
 		End:   epochLastBlock - BlocksToSkipAtEpochEnd,
-	}
+	}, nil
 }

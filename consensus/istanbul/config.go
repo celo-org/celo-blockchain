@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	//MinEpochSize represents minimun block that can conform an epoch
+	//MinEpochSize represents the minimum permissible epoch size
 	MinEpochSize = 3
 )
 
@@ -47,7 +47,7 @@ type Config struct {
 	BlockPeriod                 uint64         `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
 	ProposerPolicy              ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
 	Epoch                       uint64         `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	DefaultLookbackWindow       uint64         `toml:",omitempty"` // The default value for the window of blocks in which a validator is forgived from voting
+	DefaultLookbackWindow       uint64         `toml:",omitempty"` // The default value for how many blocks in a row a validator must miss to be considered "down"
 	ReplicaStateDBPath          string         `toml:",omitempty"` // The location for the validator replica state DB
 	ValidatorEnodeDBPath        string         `toml:",omitempty"` // The location for the validator enodes DB
 	VersionCertificateDBPath    string         `toml:",omitempty"` // The location for the signed announce version DB
@@ -98,8 +98,8 @@ var DefaultConfig = &Config{
 	AnnounceAdditionalValidatorsToGossip:           10,
 }
 
-//ApplyChainConfigToConfig applies chainConfig values to Config
-func ApplyChainConfigToConfig(chainConfig *params.ChainConfig, config *Config) error {
+//ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
+func ApplyParamsChainConfigToConfig(chainConfig *params.ChainConfig, config *Config) error {
 	if chainConfig.Istanbul.Epoch != 0 {
 		if chainConfig.Istanbul.Epoch < MinEpochSize {
 			return fmt.Errorf("istanbul.Epoch must be greater than %d", MinEpochSize-1)

@@ -114,7 +114,7 @@ var (
 			Epoch:          17280,
 			ProposerPolicy: 2,
 			BlockPeriod:    5,
-			RequestTimeout: 10000,
+			RequestTimeout: 3000,
 			LookbackWindow: 12,
 		},
 	}

@@ -20,7 +20,7 @@ func TestUptime(t *testing.T) {
 	// start on first block of window
 	block := uint64(1)
 	// use a window of 2 blocks - ideally we want to expand
-	monitoringWindow := MonitoringWindow(1, 10, 2) // [2,8]
+	monitoringWindow := MustMonitoringWindow(1, 10, 2) // [2,8]
 
 	for _, bitmap := range bitmaps {
 		// these tests to increase our confidence
@@ -64,7 +64,7 @@ func TestUptime(t *testing.T) {
 
 func TestUptimeSingle(t *testing.T) {
 	var uptimes *Uptime
-	monitoringWindow := MonitoringWindow(2, 211, 3)
+	monitoringWindow := MustMonitoringWindow(2, 211, 3)
 	uptimes = updateUptime(uptimes, 211, big.NewInt(7), 3, monitoringWindow)
 	// the first 2 uptime updates do not get scored since they're within the
 	// first window after the epoch block

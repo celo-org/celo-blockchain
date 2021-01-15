@@ -431,10 +431,15 @@ func (sb *Backend) EpochSize() uint64 {
 // LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 // Value is constant during an epoch
 func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) uint64 {
+	// Check if donut was already active at the beginning of the epoch
+	// as we want to activate the change at epoch change
+	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
+	isDonutActivated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
+
 	return uptime.ComputeLookbackWindow(
 		sb.config.Epoch,
 		sb.config.DefaultLookbackWindow,
-		sb.chain.Config().IsDonut(header.Number),
+		isDonutActivated,
 		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(header, state) },
 	)
 }

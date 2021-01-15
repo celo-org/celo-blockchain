@@ -276,7 +276,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 	// If Istanbul is requested, set it up
 	if chainConfig.Istanbul != nil {
 		log.Debug("Setting up Istanbul consensus engine")
-		if err := istanbul.ApplyChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
+		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
 			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
 		}
 

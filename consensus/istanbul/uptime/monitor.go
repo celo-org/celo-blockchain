@@ -61,7 +61,7 @@ func NewMonitor(store Store, epochSize, lookbackWindow uint64) *Monitor {
 // MonitoringWindow returns the monitoring window for the given epoch in the format
 // [firstBlock, lastBlock] both inclusive
 func (um *Monitor) MonitoringWindow(epoch uint64) Window {
-	return MonitoringWindow(epoch, um.epochSize, um.lookbackWindow)
+	return MustMonitoringWindow(epoch, um.epochSize, um.lookbackWindow)
 }
 
 // ComputeValidatorsUptime retrieves the uptime score for each validator for a given epoch
