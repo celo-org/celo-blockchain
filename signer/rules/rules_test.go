@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/shared/signer"
 	"github.com/ethereum/go-ethereum/signer/core"
 	"github.com/ethereum/go-ethereum/signer/storage"
 )
@@ -605,7 +606,7 @@ function ApproveSignData(r){
 
 	t.Logf("address %v %v\n", addr.String(), addr.Original())
 
-	nvt := []*core.NameValueType{
+	nvt := []*signer.NameValueType{
 		{
 			Name:  "message",
 			Typ:   "text/plain",
