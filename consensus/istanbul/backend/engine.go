@@ -367,11 +367,6 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	// If proposer has not set the `Coinbase` via the `tx-fee-recipient` flag, default to the backend address.
-	if header.Coinbase == (common.Address{}) {
-		header.Coinbase = sb.address
-	}
-
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
 	parent := chain.GetHeader(header.ParentHash, number-1)
