@@ -223,11 +223,11 @@ func (c *msgBacklogImpl) getSortedBacklogSeqs() []uint64 {
 // clearBacklogForSeq will remove all entries in the backlog
 // for the given seq
 func (c *msgBacklogImpl) clearBacklogForSeq(seq uint64) {
-	c.processBacklogForSeq(seq, func(_ *istanbul.Message) bool { return true })
+	c.processBacklogForSeq(seq, func(_ *istanbul.Message) bool { return false })
 }
 
 // processBacklogForSeq will call process() with each entry of the backlog
-// for the given seq, until process return "false".
+// for the given seq, until process returns "true".
 // The entry on which process() returned false will remain in the backlog
 func (c *msgBacklogImpl) processBacklogForSeq(seq uint64, process func(*istanbul.Message) bool) {
 	backlogForSeq := c.backlogBySeq[seq]
