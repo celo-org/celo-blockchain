@@ -36,16 +36,16 @@ import (
 
 var (
 	IntendedValidator = signer.SigFormat{
-		accounts.MimetypeDataWithValidator,
-		0x00,
+		Mime:        accounts.MimetypeDataWithValidator,
+		ByteVersion: 0x00,
 	}
 	DataTyped = signer.SigFormat{
-		accounts.MimetypeTypedData,
-		0x01,
+		Mime:        accounts.MimetypeTypedData,
+		ByteVersion: 0x01,
 	}
 	TextPlain = signer.SigFormat{
-		accounts.MimetypeTextPlain,
-		0x45,
+		Mime:        accounts.MimetypeTextPlain,
+		ByteVersion: 0x45,
 	}
 )
 
@@ -265,12 +265,6 @@ func parseInteger(encType string, encValue interface{}) (*big.Int, error) {
 		return nil, fmt.Errorf("invalid negative value for unsigned type %v", encType)
 	}
 	return b, nil
-}
-
-// dataMismatchError generates an error for a mismatch between
-// the provided type and data
-func dataMismatchError(encType string, encValue interface{}) error {
-	return fmt.Errorf("provided data '%v' doesn't match type '%s'", encValue, encType)
 }
 
 // EcRecover recovers the address associated with the given sig.
