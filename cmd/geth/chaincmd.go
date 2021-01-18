@@ -217,6 +217,7 @@ Use "ethereum dump 0" to dump the genesis block.`,
 // the zero'd block (i.e. genesis) or will fail hard if it can't succeed.
 func initGenesis(ctx *cli.Context) error {
 	// Make sure we have a valid genesis JSON
+
 	genesisPath := ctx.Args().First()
 	if len(genesisPath) == 0 {
 		utils.Fatalf("Must supply path to genesis JSON file")
@@ -245,6 +246,7 @@ func initGenesis(ctx *cli.Context) error {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
 		chaindb.Close()
+		log.Info("jcortejoso initGenesis", "test", "test")
 		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
 	}
 	return nil

@@ -145,7 +145,10 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-	return SetupGenesisBlockWithOverride(db, genesis, nil)
+	config, hash, err := SetupGenesisBlockWithOverride(db, genesis, nil)
+	text, _ := json.MarshalIndent(config, "", "  ")
+	fmt.Println(string(text))
+	return config, hash, err
 }
 
 func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideIstanbul *big.Int) (*params.ChainConfig, common.Hash, error) {
