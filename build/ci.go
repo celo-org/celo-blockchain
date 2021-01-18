@@ -995,7 +995,7 @@ func doXCodeFramework(cmdline []string) {
 	if env.MetricsDefault {
 		ldflags = ldflags + " -X 'github.com/ethereum/go-ethereum/metrics.EnabledDefaultValue=true'"
 	}
-	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
+	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/ethereum/go-ethereum/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards

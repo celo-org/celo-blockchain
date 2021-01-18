@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go v1.25.48
 	github.com/btcsuite/btcd v0.0.0-20171128150713-2e60448ffcc6
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
-	github.com/celo-org/celo-bls-go v0.1.6
+	github.com/celo-org/celo-bls-go v0.2.4
 	github.com/cespare/cp v0.1.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect

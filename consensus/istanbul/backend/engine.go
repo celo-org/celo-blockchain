@@ -332,7 +332,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
 	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
+	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false, false)
 	if err != nil {
 		logger.Error("Unable to verify aggregated signature", "err", err)
 		return errInvalidSignature
