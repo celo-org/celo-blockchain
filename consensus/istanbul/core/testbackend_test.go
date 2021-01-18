@@ -17,7 +17,7 @@
 package core
 
 import (
-	bytes2 "bytes"
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
@@ -104,7 +104,7 @@ func (self *testSystemBackend) ChainConfig() *params.ChainConfig {
 }
 
 func (self *testSystemBackend) HashForBlock(number uint64) common.Hash {
-	buffer := new(bytes2.Buffer)
+	buffer := new(bytes.Buffer)
 	_ = binary.Write(buffer, binary.LittleEndian, number)
 	hash := common.Hash{}
 	copy(hash[:], buffer.Bytes())
