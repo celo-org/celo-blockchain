@@ -196,7 +196,7 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	return asigBytes, nil
 }
 
-func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher, shouldUseCIP22 bool) error {
+func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []byte, signature []byte, shouldUseCompositeHasher, cip22 bool) error {
 	publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
 	if err != nil {
 		return err
@@ -209,7 +209,7 @@ func VerifySignature(publicKey SerializedPublicKey, message []byte, extraData []
 	}
 	defer signatureObj.Destroy()
 
-	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher, shouldUseCIP22)
+	err = publicKeyObj.VerifySignature(message, extraData, signatureObj, shouldUseCompositeHasher, cip22)
 	return err
 }
 
