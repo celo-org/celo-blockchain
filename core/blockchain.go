@@ -631,6 +631,11 @@ func (bc *BlockChain) Snapshot() *snapshot.Tree {
 	return bc.snaps
 }
 
+// Add this to solve conflicts due to cherry-picking
+func (bc *BlockChain) Snapshots() *snapshot.Tree {
+	return bc.Snapshot()
+}
+
 // CurrentFastBlock retrieves the current fast-sync head block of the canonical
 // chain. The block is retrieved from the blockchain's internal cache.
 func (bc *BlockChain) CurrentFastBlock() *types.Block {
