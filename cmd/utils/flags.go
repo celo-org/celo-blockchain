@@ -227,6 +227,11 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
+	EtherbaseFlag = cli.StringFlag{
+		Name:  "etherbase",
+		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
+		Value: "0",
+	}
 	TxFeeRecipientFlag = cli.StringFlag{
 		Name:  "tx-fee-recipient",
 		Usage: "Public address for block transaction fees and gateway fees",
@@ -407,12 +412,7 @@ var (
 	}
 	MinerEtherbaseFlag = cli.StringFlag{
 		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards, deprecated, use --tx-fee-recipient and --miner.validator",
-		Value: "0",
-	}
-	MinerLegacyEtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --miner.etherbase)",
+		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
 	MinerExtraDataFlag = cli.StringFlag{
@@ -1106,8 +1106,8 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current validator, new flag overriding legacy etherbase
 	var validator string
-	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		validator = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
+		validator = ctx.GlobalString(EtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
@@ -1133,28 +1133,23 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 // command line flags or from the keystore if CLI indexed.
 // `TxFeeRecipient` is the address earned block transaction fees are sent to.
 func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current txFeeRecipient, new flag overriding legacy etherbase
-	var txFeeRecipient string
-	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		txFeeRecipient = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		txFeeRecipient = ctx.GlobalString(MinerEtherbaseFlag.Name)
-	}
 	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
-		if txFeeRecipient != "" {
+		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
 			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
-		txFeeRecipient = ctx.GlobalString(TxFeeRecipientFlag.Name)
-	}
+		txFeeRecipient := ctx.GlobalString(TxFeeRecipientFlag.Name)
 
-	// Convert the txFeeRecipient into an address and configure it
-	if txFeeRecipient != "" {
-		account, err := MakeAddress(ks, txFeeRecipient)
-		if err != nil {
-			Fatalf("Invalid txFeeRecipient: %v", err)
+		// Convert the txFeeRecipient into an address and configure it
+		if txFeeRecipient != "" {
+			account, err := MakeAddress(ks, txFeeRecipient)
+			if err != nil {
+				Fatalf("Invalid txFeeRecipient: %v", err)
+			}
+			cfg.TxFeeRecipient = account.Address
 		}
-		cfg.TxFeeRecipient = account.Address
+	} else {
+		// Backwards compatibility. If the miner was set by the "etherbase" flag, both should have the same info
+		cfg.TxFeeRecipient = cfg.Miner.Validator
 	}
 }
 

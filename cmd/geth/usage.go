@@ -257,8 +257,8 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "DEPRECATED",
 		Flags: []cli.Flag{
+			utils.EtherbaseFlag,
 			utils.MinerEtherbaseFlag,
-			utils.MinerLegacyEtherbaseFlag,
 			utils.MinerLegacyThreadsFlag,
 			utils.MinerLegacyGasTargetFlag,
 			utils.MinerLegacyGasPriceFlag,
