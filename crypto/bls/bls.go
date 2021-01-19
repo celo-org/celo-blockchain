@@ -252,3 +252,15 @@ func SerializedSignatureFromBytes(serializedSignature []byte) (SerializedSignatu
 	copy(signatureBytesFixed[:], serializedSignature)
 	return signatureBytesFixed, nil
 }
+
+func UncompressKey(serialized SerializedPublicKey) []byte {
+	publicKey, err := bls.DeserializePublicKeyCached(serialized[:])
+	if err != nil {
+		return nil
+	}
+	uncompressedBytes, err := publicKey.SerializeUncompressed()
+	if err != nil {
+		return nil
+	}
+	return uncompressedBytes
+}
