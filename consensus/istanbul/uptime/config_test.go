@@ -1,6 +1,7 @@
 package uptime
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -68,6 +69,7 @@ func TestComputeLookbackWindow(t *testing.T) {
 		want uint64
 	}{
 		{"returns default if Donut is not active", args{100, 20, false, constant(24)}, 20},
+		{"returns default if call fails", args{100, 20, true, func() (uint64, error) { return 10, errors.New("some error") }}, 64},
 		{"returns safe minimum if configured is below", args{100, 20, true, constant(2)}, MinSafeLookbackWindow},
 		{"returns safe maximum if configured is above", args{1000, 20, true, constant(800)}, MaxSafeLookbackWindow},
 		{"returns epochSize-2 if configured is above", args{100, 20, true, constant(99)}, 98},

@@ -24,32 +24,38 @@ const (
 // ComputeLookbackWindow computes the lookbackWindow based on different required parameters.
 // getLookbackWindow represents the way to obtain lookbackWindow from the smart contract
 func ComputeLookbackWindow(epochSize uint64, defaultLookbackWindow uint64, isDonut bool, getLookbackWindow func() (uint64, error)) uint64 {
-	if !isDonut {
-		return defaultLookbackWindow
-	}
+	var returnValue uint64
 
 	if epochSize <= istanbul.MinEpochSize {
 		panic("Invalid epoch value")
 	}
 
-	value, err := getLookbackWindow()
-	if err != nil {
-		value = MinSafeLookbackWindow
+	if !isDonut {
+		returnValue = defaultLookbackWindow
+	} else {
+		var err error
+		returnValue, err = getLookbackWindow()
+		if err != nil {
+			// It can fail because smart contract it's not present
+			// or it's not initialized
+			// in both cases, we use the old value => defaultLookbackWindow
+			returnValue = defaultLookbackWindow
+		}
 	}
 
 	// Adjust to safe range
-	if value < MinSafeLookbackWindow {
-		value = MinSafeLookbackWindow
-	} else if value > MaxSafeLookbackWindow {
-		value = MaxSafeLookbackWindow
+	if returnValue < MinSafeLookbackWindow {
+		returnValue = MinSafeLookbackWindow
+	} else if returnValue > MaxSafeLookbackWindow {
+		returnValue = MaxSafeLookbackWindow
 	}
 
 	// Ensure it's sensible to given chain params
-	if value > (epochSize - BlocksToSkipAtEpochEnd) {
-		value = epochSize - BlocksToSkipAtEpochEnd
+	if returnValue > (epochSize - BlocksToSkipAtEpochEnd) {
+		returnValue = epochSize - BlocksToSkipAtEpochEnd
 	}
 
-	return value
+	return returnValue
 }
 
 // MustMonitoringWindow is a MonitoringWindow variant that panics on error
