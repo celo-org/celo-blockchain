@@ -60,7 +60,7 @@ func TestComputeLookbackWindow(t *testing.T) {
 	type args struct {
 		epochSize             uint64
 		defaultLookbackWindow uint64
-		isDonut               bool
+		cip21                 bool
 		getLookbackWindow     func() (uint64, error)
 	}
 	tests := []struct {
@@ -78,7 +78,7 @@ func TestComputeLookbackWindow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ComputeLookbackWindow(tt.args.epochSize, tt.args.defaultLookbackWindow, tt.args.isDonut, tt.args.getLookbackWindow)
+			got := ComputeLookbackWindow(tt.args.epochSize, tt.args.defaultLookbackWindow, tt.args.cip21, tt.args.getLookbackWindow)
 			if got != tt.want {
 				t.Errorf("ComputeLookbackWindow() = %v, want %v", got, tt.want)
 			}

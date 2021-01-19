@@ -23,8 +23,8 @@ const (
 
 // ComputeLookbackWindow computes the lookbackWindow based on different required parameters.
 // getLookbackWindow represents the way to obtain lookbackWindow from the smart contract
-func ComputeLookbackWindow(epochSize uint64, defaultLookbackWindow uint64, isDonut bool, getLookbackWindow func() (uint64, error)) uint64 {
-	if !isDonut {
+func ComputeLookbackWindow(epochSize uint64, defaultLookbackWindow uint64, cip21 bool, getLookbackWindow func() (uint64, error)) uint64 {
+	if !cip21 {
 		return defaultLookbackWindow
 	}
 
