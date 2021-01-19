@@ -34,7 +34,6 @@ var (
 type ValidatorData struct {
 	Address      common.Address
 	BLSPublicKey blscrypto.SerializedPublicKey
-	Uncompressed []byte
 }
 
 type Validator interface {
@@ -44,8 +43,6 @@ type Validator interface {
 	Address() common.Address
 
 	BLSPublicKey() blscrypto.SerializedPublicKey
-
-	BLSPublicKeyUncompressed() []byte
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -149,7 +146,6 @@ func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [
 		validators = append(validators, ValidatorData{
 			Address:      addrs[i],
 			BLSPublicKey: blsPublicKeys[i],
-			Uncompressed: blscrypto.UncompressKey(blsPublicKeys[i]),
 		})
 	}
 

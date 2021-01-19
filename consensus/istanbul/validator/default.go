@@ -34,18 +34,12 @@ import (
 type defaultValidator struct {
 	address      common.Address
 	blsPublicKey blscrypto.SerializedPublicKey
-	uncompressed []byte
 }
 
 func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
-	uncompressed := data.Uncompressed
-	if len(uncompressed) == 0 {
-		uncompressed = nil
-	}
 	return &defaultValidator{
 		address:      data.Address,
 		blsPublicKey: data.BLSPublicKey,
-		uncompressed: uncompressed,
 	}
 }
 
@@ -53,13 +47,11 @@ func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	return &istanbul.ValidatorData{
 		Address:      val.address,
 		BLSPublicKey: val.blsPublicKey,
-		Uncompressed: val.uncompressed,
 	}
 }
 
 func (val *defaultValidator) Address() common.Address                     { return val.address }
 func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { return val.blsPublicKey }
-func (val *defaultValidator) BLSPublicKeyUncompressed() []byte            { return val.uncompressed }
 func (val *defaultValidator) String() string                              { return val.Address().String() }
 
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
