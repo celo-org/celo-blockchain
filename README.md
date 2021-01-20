@@ -25,6 +25,22 @@ or, to build the full suite of utilities:
 make all
 ```
 
+### Mobile Clients
+
+There are two different commands in the `Makefile` to build the `ios` and the `android` clients.
+
+```shell
+make ios
+```
+
+and
+
+```shell
+make android
+```
+
+Note: The `android` command it applies a git patch (`patches/mobileLibsForBuild.patch`) required to swap some libs from the `go.mod` for the client to work, installs those libs, builds the client, and then reverts the patch.
+
 ## Executables
 
 The Celo blockchain client comes with several wrappers/executables found in the `cmd` directory.
