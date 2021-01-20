@@ -86,11 +86,6 @@ func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBy
 
 // JSON Encoding -----------------------------------------------------------------------
 
-type simpleValidator struct {
-	address      common.Address
-	blsPublicKey blscrypto.SerializedPublicKey
-}
-
 func (val *defaultValidator) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
 func (val *defaultValidator) UnmarshalJSON(b []byte) error {
 	var data istanbul.ValidatorData
