@@ -618,8 +618,15 @@ func (c *core) createRoundState() (RoundState, error) {
 		roundState, err = c.rsdb.GetRoundStateFor(lastStoredView)
 
 		if err != nil {
-			logger.Error("Failed to fetch lastStoredRoundState", "err", err)
-			return nil, err
+			logger.Warn("Failed to fetch lastStoredRoundState", "err", err)
+			if err == leveldb.ErrNotFound {
+				logger.Info("Creating new RoundState", "reason", "No storedView found")
+			} else {
+				logger.Info("Creating new RoundState", "reason", "old view", "stored_view", lastStoredView, "requested_seq", nextSequence)
+			}
+			valSet := c.backend.Validators(headBlock)
+			proposer := c.selectProposer(valSet, headAuthor, 0)
+			roundState = newRoundState(&istanbul.View{Sequence: nextSequence, Round: common.Big0}, valSet, proposer)
 		}
 	}
 

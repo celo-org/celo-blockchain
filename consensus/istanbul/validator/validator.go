@@ -27,7 +27,7 @@ func New(addr common.Address, blsPublicKey blscrypto.SerializedPublicKey) istanb
 	return &defaultValidator{
 		address:      addr,
 		blsPublicKey: blsPublicKey,
-		uncompressed: blscrypto.UncompressKey(blsPublicKey),
+		uncompressed: nil,
 	}
 }
 

@@ -46,6 +46,7 @@ type Validator interface {
 	BLSPublicKey() blscrypto.SerializedPublicKey
 
 	BLSPublicKeyUncompressed() []byte
+	CacheUncompressed()
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -123,6 +124,8 @@ type ValidatorSet interface {
 	// Copy validator set
 	Copy() ValidatorSet
 
+	CacheUncompressed()
+
 	// Serialize returns binary reprentation of the ValidatorSet
 	// can be use used to instantiate a validator with DeserializeValidatorSet()
 	Serialize() ([]byte, error)
@@ -149,7 +152,7 @@ func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [
 		validators = append(validators, ValidatorData{
 			Address:      addrs[i],
 			BLSPublicKey: blsPublicKeys[i],
-			Uncompressed: blscrypto.UncompressKey(blsPublicKeys[i]),
+			Uncompressed: nil,
 		})
 	}
 

@@ -62,6 +62,10 @@ func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { retu
 func (val *defaultValidator) BLSPublicKeyUncompressed() []byte            { return val.uncompressed }
 func (val *defaultValidator) String() string                              { return val.Address().String() }
 
+func (val *defaultValidator) CacheUncompressed() {
+	val.uncompressed = blscrypto.UncompressKey(val.blsPublicKey)
+}
+
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
 // JSON Encoding -----------------------------------------------------------------------
@@ -151,6 +155,14 @@ func (valSet *defaultSet) String() string {
 	}
 
 	return fmt.Sprintf("{randomness: %s, validators: %s}", valSet.randomness.String(), buf.String())
+}
+
+func (valSet *defaultSet) CacheUncompressed() {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+	for _, v := range valSet.validators {
+		v.CacheUncompressed()
+	}
 }
 
 func (valSet *defaultSet) Size() int {
