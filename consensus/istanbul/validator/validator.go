@@ -45,6 +45,10 @@ func NewSet(validators []istanbul.ValidatorData) istanbul.ValidatorSet {
 	return newDefaultSet(validators)
 }
 
+func NewSetWithCache(validators []istanbul.ValidatorDataWithCache) istanbul.ValidatorSet {
+	return newDefaultSetWithCache(validators)
+}
+
 func DeserializeValidatorSet(binaryData []byte) (istanbul.ValidatorSet, error) {
 	var value defaultSet
 

@@ -992,6 +992,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 
 	uncompressedBytes := validators[index.Uint64()].BLSPublicKeyUncompressed()
 	if len(uncompressedBytes) == 0 {
+		log.Warn("Uncompressed BLS key wasn't cached")
 		uncompressedBytes = blscrypto.UncompressKey(validators[index.Uint64()].BLSPublicKey())
 	}
 	if len(uncompressedBytes) != 192 {

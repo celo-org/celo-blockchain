@@ -157,17 +157,21 @@ func (s *Snapshot) validators() []istanbul.ValidatorData {
 	return validator.MapValidatorsToData(s.ValSet.List())
 }
 
+func (s *Snapshot) validatorsWithCache() []istanbul.ValidatorDataWithCache {
+	return validator.MapValidatorsToDataWithCache(s.ValSet.List())
+}
+
 type snapshotJSON struct {
 	Epoch  uint64      `json:"epoch"`
 	Number uint64      `json:"number"`
 	Hash   common.Hash `json:"hash"`
 
 	// for validator set
-	Validators []istanbul.ValidatorData `json:"validators"`
+	Validators []istanbul.ValidatorDataWithCache `json:"validators"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
-	validators := s.validators()
+	validators := s.validatorsWithCache()
 	return &snapshotJSON{
 		Epoch:      s.Epoch,
 		Number:     s.Number,
@@ -186,7 +190,7 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.ValSet = validator.NewSet(j.Validators)
+	s.ValSet = validator.NewSetWithCache(j.Validators)
 	return nil
 }
 

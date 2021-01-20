@@ -141,7 +141,6 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 			addedValidators = append(addedValidators, ValidatorData{
 				Address:      newVal.Address,
 				BLSPublicKey: newVal.BLSPublicKey,
-				Uncompressed: newVal.Uncompressed,
 			})
 		}
 	}

@@ -18,6 +18,7 @@ package istanbul
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -34,7 +35,31 @@ var (
 type ValidatorData struct {
 	Address      common.Address
 	BLSPublicKey blscrypto.SerializedPublicKey
+}
+
+type ValidatorDataWithCache struct {
+	Address      common.Address
+	BLSPublicKey blscrypto.SerializedPublicKey
 	Uncompressed []byte
+}
+
+func (v *ValidatorDataWithCache) UnmarshalJSON(data []byte) (err error) {
+	tmp := struct {
+		Address      common.Address
+		BLSPublicKey blscrypto.SerializedPublicKey
+		Uncompressed []byte
+	}{}
+	err = json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	} else if tmp.Uncompressed == nil && tmp.BLSPublicKey != (blscrypto.SerializedPublicKey{}) {
+		return fmt.Errorf("Cached key missing")
+	} else {
+		v.Address = tmp.Address
+		v.BLSPublicKey = tmp.BLSPublicKey
+		v.Uncompressed = tmp.Uncompressed
+		return nil
+	}
 }
 
 type Validator interface {
@@ -46,7 +71,6 @@ type Validator interface {
 	BLSPublicKey() blscrypto.SerializedPublicKey
 
 	BLSPublicKeyUncompressed() []byte
-	CacheUncompressed()
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -54,6 +78,11 @@ type Validator interface {
 
 	// AsData returns Validator representation as ValidatorData
 	AsData() *ValidatorData
+
+	// AsData returns Validator representation as ValidatorData
+	AsDataWithCache() *ValidatorDataWithCache
+
+	CacheUncompressed()
 }
 
 // MapValidatorsToAddresses maps a slice of validator to a slice of addresses
@@ -133,6 +162,11 @@ type ValidatorSet interface {
 
 type ValidatorSetData struct {
 	Validators []ValidatorData
+	Randomness common.Hash
+}
+
+type ValidatorSetDataWithCache struct {
+	Validators []ValidatorDataWithCache
 	Randomness common.Hash
 }
 

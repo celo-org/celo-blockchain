@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -37,9 +38,10 @@ type defaultValidator struct {
 	uncompressed []byte
 }
 
-func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
+func newValidatorFromDataWithCache(data *istanbul.ValidatorDataWithCache) *defaultValidator {
 	uncompressed := data.Uncompressed
 	if len(uncompressed) == 0 {
+		log.Warn("no uncompressed")
 		uncompressed = nil
 	}
 	return &defaultValidator{
@@ -49,8 +51,22 @@ func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
 	}
 }
 
+func newValidatorFromData(data *istanbul.ValidatorData) *defaultValidator {
+	return &defaultValidator{
+		address:      data.Address,
+		blsPublicKey: data.BLSPublicKey,
+	}
+}
+
 func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	return &istanbul.ValidatorData{
+		Address:      val.address,
+		BLSPublicKey: val.blsPublicKey,
+	}
+}
+
+func (val *defaultValidator) AsDataWithCache() *istanbul.ValidatorDataWithCache {
+	return &istanbul.ValidatorDataWithCache{
 		Address:      val.address,
 		BLSPublicKey: val.blsPublicKey,
 		Uncompressed: val.uncompressed,
@@ -69,6 +85,11 @@ func (val *defaultValidator) CacheUncompressed() {
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
 
 // JSON Encoding -----------------------------------------------------------------------
+
+type simpleValidator struct {
+	address      common.Address
+	blsPublicKey blscrypto.SerializedPublicKey
+}
 
 func (val *defaultValidator) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
 func (val *defaultValidator) UnmarshalJSON(b []byte) error {
@@ -106,6 +127,12 @@ type defaultSet struct {
 func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	return &defaultSet{
 		validators: mapDataToValidators(validators),
+	}
+}
+
+func newDefaultSetWithCache(validators []istanbul.ValidatorDataWithCache) *defaultSet {
+	return &defaultSet{
+		validators: mapDataToValidatorsWithCache(validators),
 	}
 }
 
@@ -257,7 +284,7 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	newValSet := NewSet(MapValidatorsToData(valSet.validators))
+	newValSet := NewSetWithCache(MapValidatorsToDataWithCache(valSet.validators))
 	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
 }
@@ -271,16 +298,27 @@ func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
 	}
 }
 
+func (valSet *defaultSet) AsDataWithCache() *istanbul.ValidatorSetDataWithCache {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+	return &istanbul.ValidatorSetDataWithCache{
+		Validators: MapValidatorsToDataWithCache(valSet.validators),
+		Randomness: valSet.randomness,
+	}
+}
+
 // JSON Encoding -----------------------------------------------------------------------
 
-func (val *defaultSet) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
+func (val *defaultSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(val.AsDataWithCache())
+}
 
 func (val *defaultSet) UnmarshalJSON(b []byte) error {
-	var data istanbul.ValidatorSetData
+	var data istanbul.ValidatorSetDataWithCache
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
-	*val = *newDefaultSet(data.Validators)
+	*val = *newDefaultSetWithCache(data.Validators)
 	val.SetRandomness(data.Randomness)
 	return nil
 }
@@ -315,6 +353,22 @@ func mapDataToValidators(data []istanbul.ValidatorData) []istanbul.Validator {
 	validators := make([]istanbul.Validator, len(data))
 	for i, v := range data {
 		validators[i] = newValidatorFromData(&v)
+	}
+	return validators
+}
+
+func MapValidatorsToDataWithCache(validators []istanbul.Validator) []istanbul.ValidatorDataWithCache {
+	validatorsData := make([]istanbul.ValidatorDataWithCache, len(validators))
+	for i, v := range validators {
+		validatorsData[i] = *v.AsDataWithCache()
+	}
+	return validatorsData
+}
+
+func mapDataToValidatorsWithCache(data []istanbul.ValidatorDataWithCache) []istanbul.Validator {
+	validators := make([]istanbul.Validator, len(data))
+	for i, v := range data {
+		validators[i] = newValidatorFromDataWithCache(&v)
 	}
 	return validators
 }
