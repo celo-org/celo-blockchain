@@ -10,7 +10,7 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.14.14"
-      CELO_MONOREPO_BRANCH_TO_TEST: master
+      CELO_MONOREPO_BRANCH_TO_TEST: andres-dg/loopbackwindow-refactor
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
@@ -183,7 +183,7 @@ jobs:
 
   end-to-end-governance-test:
     executor: e2e
-    resource_class: large
+    resource_class: xlarge
     steps:
       - attach_workspace:
           at: ~/repos
@@ -235,7 +235,7 @@ jobs:
 
   end-to-end-validator-order-test:
     executor: e2e
-    resource_class: large
+    resource_class: xlarge
     steps:
       - attach_workspace:
           at: ~/repos

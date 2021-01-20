@@ -67,6 +67,8 @@ var (
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 3000,
 			LookbackWindow: 12,
 		},
 	}
@@ -111,6 +113,8 @@ var (
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 3000,
 			LookbackWindow: 12,
 		},
 	}

@@ -276,22 +276,10 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 	// If Istanbul is requested, set it up
 	if chainConfig.Istanbul != nil {
 		log.Debug("Setting up Istanbul consensus engine")
-		if chainConfig.Istanbul.Epoch != 0 {
-			config.Istanbul.Epoch = chainConfig.Istanbul.Epoch
+		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
+			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
 		}
-		if chainConfig.Istanbul.RequestTimeout != 0 {
-			config.Istanbul.RequestTimeout = chainConfig.Istanbul.RequestTimeout
-		}
-		if chainConfig.Istanbul.BlockPeriod != 0 {
-			config.Istanbul.BlockPeriod = chainConfig.Istanbul.BlockPeriod
-		}
-		if chainConfig.Istanbul.LookbackWindow != 0 {
-			config.Istanbul.LookbackWindow = chainConfig.Istanbul.LookbackWindow
-		}
-		if chainConfig.Istanbul.LookbackWindow >= chainConfig.Istanbul.Epoch-1 {
-			log.Crit("istanbul.lookbackwindow must be less than istanbul.epoch-1")
-		}
-		config.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(chainConfig.Istanbul.ProposerPolicy)
+
 		return istanbulBackend.New(&config.Istanbul, db)
 	}
 	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))

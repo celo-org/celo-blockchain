@@ -1263,8 +1263,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		}
 
-		// We are going to update the uptime tally.
-		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, bc.chainConfig.Istanbul.LookbackWindow)
+		lookbackWindow := istEngine.LookbackWindow(block.Header(), state)
+
+		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, lookbackWindow)
 		err = uptimeMonitor.ProcessBlock(block)
 		if err != nil {
 			return NonStatTy, err
