@@ -44,7 +44,6 @@ type Snapshot struct {
 // method does not initialize the set of recent validators, so only ever use if for
 // the genesis block.
 func newSnapshot(epoch uint64, number uint64, hash common.Hash, valSet istanbul.ValidatorSet) *Snapshot {
-	valSet.CacheUncompressed()
 	snap := &Snapshot{
 		Epoch:  epoch,
 		Number: number,
@@ -71,6 +70,7 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 
 // store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
+	s.ValSet.CacheUncompressed()
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
