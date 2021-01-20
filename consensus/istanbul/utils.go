@@ -139,9 +139,9 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 		} else {
 			// We found a new validator that is not in the old validator set
 			addedValidators = append(addedValidators, ValidatorData{
-				newVal.Address,
-				newVal.BLSPublicKey,
-				newVal.Uncompressed,
+				Address:      newVal.Address,
+				BLSPublicKey: newVal.BLSPublicKey,
+				Uncompressed: newVal.Uncompressed,
 			})
 		}
 	}

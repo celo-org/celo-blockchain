@@ -152,7 +152,6 @@ func CombineIstanbulExtraToValidatorData(addrs []common.Address, blsPublicKeys [
 		validators = append(validators, ValidatorData{
 			Address:      addrs[i],
 			BLSPublicKey: blsPublicKeys[i],
-			Uncompressed: nil,
 		})
 	}
 

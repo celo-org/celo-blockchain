@@ -112,17 +112,15 @@ func TestValidatorSetDiff(t *testing.T) {
 		convertedInputOldValSet := []ValidatorData{}
 		for _, addr := range tt.inputOldValset {
 			convertedInputOldValSet = append(convertedInputOldValSet, ValidatorData{
-				addr,
-				blscrypto.SerializedPublicKey{},
-				nil,
+				Address:      addr,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			})
 		}
 		convertedInputNewValSet := []ValidatorData{}
 		for _, addr := range tt.inputNewValset {
 			convertedInputNewValSet = append(convertedInputNewValSet, ValidatorData{
-				addr,
-				blscrypto.SerializedPublicKey{},
-				nil,
+				Address:      addr,
+				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			})
 		}
 		addedVals, removedVals := ValidatorSetDiff(convertedInputOldValSet, convertedInputNewValSet)
