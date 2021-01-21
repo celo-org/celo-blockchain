@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -43,6 +42,12 @@ import (
 	elog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+// ErrorReporter is the intersection of the testing.B and testing.T interfaces.
+// This enables setup functions to be used by both benchmarks and tests.
+type ErrorReporter interface {
+	Errorf(format string, args ...interface{})
+}
 
 var testLogger = elog.New()
 
@@ -544,7 +549,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -568,7 +573,7 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
