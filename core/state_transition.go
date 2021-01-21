@@ -68,6 +68,9 @@ type StateTransition struct {
 	state           vm.StateDB
 	evm             *vm.EVM
 	gasPriceMinimum *big.Int
+	// fromEthCall indicates this is being used from eth_call (or eth_estimateGas which
+	// uses the eth_call code), rather than as part of mining or processing blocks.
+	fromEthCall bool
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
@@ -153,14 +156,18 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, boo
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
-// ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
-// set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
-// with gas price set to zero if the sender doesn't have funds to pay for gas.
+// ApplyMessageFromEthCall is only for use from DoCall() in internal/ethapi/api.go, it must not
+// be used as part of mining or processing blocks. It is like ApplyMessage, but with two key differences:
+// 1. It sets the minimum gas price to zero (to allow the gas price to be zero).
+// 2. In CanPayFee(), it uses >= rather than > to check whether there are enough funds for the fee in
+//    non-Celo currencies, which is necessary to work with the case where the gas price is zero and the
+//    account has no funds.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
-	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
+func ApplyMessageFromEthCall(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
+	log.Trace("Applying state transition message for DoCall()", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	st := NewStateTransition(evm, msg, gp)
 	st.gasPriceMinimum = common.Big0
+	st.fromEthCall = true
 	return st.TransitionDb()
 }
 
@@ -218,6 +225,13 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 
 	if err != nil {
 		return false
+	}
+	if st.fromEthCall {
+		// This is the correct behavior, rather than strictly greater than. However, changing to >= below
+		// would be a hard fork, and so (until such a hard fork is done) we instead do so only for the
+		// eth_call and eth_estimateGas API calls. This allows better UX for such calls, without having any
+		// effect on mining or processing blocks.
+		return balanceOf.Cmp(fee) >= 0
 	}
 	return balanceOf.Cmp(fee) > 0
 }
