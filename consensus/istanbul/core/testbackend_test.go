@@ -398,7 +398,6 @@ type testSystem struct {
 }
 
 func newTestSystem(n uint64, f uint64, keys [][]byte) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
 		backends:       make([]*testSystemBackend, n),
 		validatorsKeys: keys,
@@ -433,9 +432,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-// FIXME: int64 is needed for N and F
-func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
+func newTestSystemWithBackend(n, f uint64) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
@@ -496,6 +493,19 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 	}
 
 	return sys
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+	return newTestSystemWithBackend(n, f)
+}
+
+// FIXME: int64 is needed for N and F
+func NewMutedTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.DiscardHandler())
+	return newTestSystemWithBackend(n, f)
+
 }
 
 // listen will consume messages from queue and deliver a message to core
