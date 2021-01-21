@@ -274,6 +274,26 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 	return *message, err
 }
 
+func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
+	preprepare := &istanbul.Preprepare{
+		View:                   &view,
+		RoundChangeCertificate: roundChangeCertificate,
+		Proposal:               proposal,
+	}
+
+	payload, err := Encode(preprepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgPreprepare,
+		Msg:  payload,
+	}
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
 	prepare := &istanbul.Subject{
 		View:   &view,
