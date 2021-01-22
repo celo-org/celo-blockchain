@@ -35,13 +35,13 @@ var customGenesisTests = []struct {
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
-			"timestamp"  : "0x00",
+			"timestamp"  : "0xabcdef",
 			"config"     : {
 				"istanbul": {}
 			}
 		}`,
 		query:  "eth.getBlock(0).timestamp",
-		result: "0",
+		result: "11259375",
 	},
 	// Genesis file with specific chain configurations
 	{
@@ -50,7 +50,7 @@ var customGenesisTests = []struct {
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
-			"timestamp"  : "0x00",
+			"timestamp"  : "0xabcdf0",
 			"config"     : {
 				"homesteadBlock" : 314,
 				"daoForkBlock"   : 141,
@@ -59,7 +59,7 @@ var customGenesisTests = []struct {
 			}
 		}`,
 		query:  "eth.getBlock(0).timestamp",
-		result: "0",
+		result: "11259376",
 	},
 }
 

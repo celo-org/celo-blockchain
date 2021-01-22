@@ -153,28 +153,15 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, boo
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
-// NewStateTransitionGasEstimator returns a special state transition for estimating gas consumption.
-// Estimation runs the given message as if gas were free, which allows binary search under the
-// assumption that the execution is not dependent on gas limit or gas price, with the exception of
-// "out of gas" errors.
-func NewStateTransitionGasEstimator(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransition {
-	return &StateTransition{
-		gp:              gp,
-		evm:             evm,
-		msg:             msg,
-		gasPrice:        common.Big0,
-		value:           msg.Value(),
-		data:            msg.Data(),
-		state:           evm.StateDB,
-		gasPriceMinimum: common.Big0,
-	}
-}
-
-// ApplyEstimatorMessage applies the given message in a way that allows for estimation of gas consumption.
+// ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
+// set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
+// with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyEstimatorMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
-	log.Trace("Estimating gas for message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransitionGasEstimator(evm, msg, gp).TransitionDb()
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
+	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
+	st := NewStateTransition(evm, msg, gp)
+	st.gasPriceMinimum = common.Big0
+	return st.TransitionDb()
 }
 
 // to returns the recipient of the message.
