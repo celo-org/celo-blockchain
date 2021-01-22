@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -41,8 +40,7 @@ type defaultValidator struct {
 func newValidatorFromDataWithCache(data *istanbul.ValidatorDataWithCache) *defaultValidator {
 	uncompressed := data.Uncompressed
 	if len(uncompressed) == 0 {
-		log.Warn("no uncompressed")
-		uncompressed = nil
+		uncompressed = blscrypto.UncompressKey(data.BLSPublicKey)
 	}
 	return &defaultValidator{
 		address:      data.Address,

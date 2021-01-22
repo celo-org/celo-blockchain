@@ -990,10 +990,12 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		return nil, gas, ErrValidatorsOutOfBounds
 	}
 
-	uncompressedBytes := validators[index.Uint64()].BLSPublicKeyUncompressed()
+	validator := validators[index.Uint64()]
+	uncompressedBytes := validator.BLSPublicKeyUncompressed()
 	if len(uncompressedBytes) == 0 {
-		log.Warn("Uncompressed BLS key wasn't cached")
-		uncompressedBytes = blscrypto.UncompressKey(validators[index.Uint64()].BLSPublicKey())
+		log.Warn("Uncompressed BLS key wasn't cached", "address", validator.Address())
+		validator.CacheUncompressed()
+		uncompressedBytes = validator.BLSPublicKeyUncompressed()
 	}
 	if len(uncompressedBytes) != 192 {
 		return nil, gas, ErrUnexpected
