@@ -1256,64 +1256,64 @@ func TestCip20(t *testing.T) {
 }
 
 func TestPrecompiledBLS12377G1Add(t *testing.T) {
-	testJson("bls12377G1Add_matter", "f3", t)
-	testJson("bls12377G1Add_zexe", "f3", t)
+	testJson("bls12377G1Add_matter", "e9", t)
+	testJson("bls12377G1Add_zexe", "e9", t)
 }
 
 func TestPrecompiledBLS12377G1Mul(t *testing.T) {
-	testJson("bls12377G1Mul_matter", "f2", t)
-	testJson("bls12377G1Mul_zexe", "f2", t)
+	testJson("bls12377G1Mul_matter", "e8", t)
+	testJson("bls12377G1Mul_zexe", "e8", t)
 }
 
 func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
-	testJson("bls12377G1MultiExp_matter", "f1", t)
-	testJson("bls12377G1MultiExp_zexe", "f1", t)
+	testJson("bls12377G1MultiExp_matter", "e7", t)
+	testJson("bls12377G1MultiExp_zexe", "e7", t)
 }
 
 func TestPrecompiledBLS12377G2Add(t *testing.T) {
-	testJson("bls12377G2Add_matter", "f0", t)
-	testJson("bls12377G2Add_zexe", "f0", t)
+	testJson("bls12377G2Add_matter", "e6", t)
+	testJson("bls12377G2Add_zexe", "e6", t)
 }
 
 func TestPrecompiledBLS12377G2Mul(t *testing.T) {
-	testJson("bls12377G2Mul_matter", "ef", t)
-	testJson("bls12377G2Mul_zexe", "ef", t)
+	testJson("bls12377G2Mul_matter", "e5", t)
+	testJson("bls12377G2Mul_zexe", "e5", t)
 }
 
 func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
-	testJson("bls12377G2MultiExp_matter", "ee", t)
-	testJson("bls12377G2MultiExp_zexe", "ee", t)
+	testJson("bls12377G2MultiExp_matter", "e4", t)
+	testJson("bls12377G2MultiExp_zexe", "e4", t)
 }
 
 func TestPrecompiledBLS12377Pairing(t *testing.T) {
-	testJson("bls12377Pairing_matter", "ed", t)
-	testJson("bls12377Pairing_zexe", "ed", t)
+	testJson("bls12377Pairing_matter", "e3", t)
+	testJson("bls12377Pairing_zexe", "e3", t)
 }
 
 func TestPrecompiledBLS12377G1AddFail(t *testing.T) {
-	testJsonFail("fail-bls12377G1Add", "f3", t)
+	testJsonFail("fail-bls12377G1Add", "e9", t)
 }
 
 func TestPrecompiledBLS12377G1MulFail(t *testing.T) {
-	testJsonFail("fail-bls12377G1Mul", "f2", t)
+	testJsonFail("fail-bls12377G1Mul", "e8", t)
 }
 
 func TestPrecompiledBLS12377G1MultiexpFail(t *testing.T) {
-	testJsonFail("fail-bls12377G1Multiexp", "f1", t)
+	testJsonFail("fail-bls12377G1Multiexp", "e7", t)
 }
 
 func TestPrecompiledBLS12377G2AddFail(t *testing.T) {
-	testJsonFail("fail-bls12377G2Add", "f0", t)
+	testJsonFail("fail-bls12377G2Add", "e6", t)
 }
 
 func TestPrecompiledBLS12377G2MulFail(t *testing.T) {
-	testJsonFail("fail-bls12377G2Mul", "ef", t)
+	testJsonFail("fail-bls12377G2Mul", "e5", t)
 }
 
 func TestPrecompiledBLS12377G2MultiexpFail(t *testing.T) {
-	testJsonFail("fail-bls12377G2Multiexp", "ee", t)
+	testJsonFail("fail-bls12377G2Multiexp", "e4", t)
 }
 
 func TestPrecompiledBLS12377PairingFail(t *testing.T) {
-	testJsonFail("fail-bls12377Pairing", "ed", t)
+	testJsonFail("fail-bls12377Pairing", "e3", t)
 }
