@@ -1540,7 +1540,9 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 		}
 
 		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
-		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
+		// To match the logic in canPayFee() state_transition.go, we require the balance to be strictly greater than the fee,
+		// which means we reject the transaction if balance <= fee
+		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) <= 0 {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return ErrInsufficientFunds
 		}
