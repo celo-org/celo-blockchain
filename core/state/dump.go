@@ -46,6 +46,16 @@ type Dump struct {
 	Accounts map[common.Address]DumpAccount `json:"accounts"`
 }
 
+// DumpStats represents a collection of info about a state trie
+type DumpStats struct {
+	Root         string `json:"root"`
+	Accounts     int    `json:"accounts"`     // number of accounts in the state trie
+	Contracts    int    `json:"contracts"`    // accounts w/ non-zero code size
+	CodeSize     int    `json:"codeSize"`     // sum of all code stored
+	StorageSize  int    `json:"storageSize"`  // bytes stored in all storage tries
+	StorageNodes int    `json:"storageNodes"` // nodes stored in all storage tries
+}
+
 // iterativeDump is a 'collector'-implementation which dump output line-by-line iteratively.
 type iterativeDump struct {
 	*json.Encoder
@@ -161,6 +171,70 @@ func (s *StateDB) dump(c collector, excludeCode, excludeStorage, excludeMissingP
 	return nextKey
 }
 
+func (s *StateDB) stats(d *DumpStats, excludeCode, excludeStorage, excludeMissingPreimages bool, start []byte, maxResults int) (nextKey []byte) {
+	emptyAddress := (common.Address{})
+	missingPreimages := 0
+	d.Root = fmt.Sprintf("%x", s.trie.Hash())
+
+	var count int
+	it := trie.NewIterator(s.trie.NodeIterator(start))
+	for it.Next() {
+		var data Account
+		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
+			panic(err)
+		}
+		d.Accounts++
+		addr := common.BytesToAddress(s.trie.GetKey(it.Key))
+		obj := newObject(nil, addr, data)
+		account := DumpAccount{
+			Balance:  data.Balance.String(),
+			Nonce:    data.Nonce,
+			Root:     common.Bytes2Hex(data.Root[:]),
+			CodeHash: common.Bytes2Hex(data.CodeHash),
+		}
+		if emptyAddress == addr {
+			// Preimage missing
+			missingPreimages++
+			if excludeMissingPreimages {
+				continue
+			}
+			account.SecureKey = it.Key
+		}
+
+		if !excludeCode {
+			code := obj.Code(s.db)
+			if code != nil {
+				d.CodeSize += len(code)
+				d.Contracts++
+			}
+		}
+		if !excludeStorage {
+			storageIt := trie.NewIterator(obj.getTrie(s.db).NodeIterator(nil))
+			for storageIt.Next() {
+				_, content, _, err := rlp.Split(storageIt.Value)
+				if err != nil {
+					log.Error("Failed to decode the value returned by iterator", "error", err)
+					continue
+				}
+				d.StorageNodes++
+				d.StorageSize += len(content)
+			}
+		}
+		count++
+		if maxResults > 0 && count >= maxResults {
+			if it.Next() {
+				nextKey = it.Key
+			}
+			break
+		}
+	}
+	if missingPreimages > 0 {
+		log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)
+	}
+
+	return nextKey
+}
+
 // RawDump returns the entire state an a single large object
 func (s *StateDB) RawDump(excludeCode, excludeStorage, excludeMissingPreimages bool) Dump {
 	dump := &Dump{
@@ -178,6 +252,13 @@ func (s *StateDB) Dump(excludeCode, excludeStorage, excludeMissingPreimages bool
 		fmt.Println("dump err", err)
 	}
 	return json
+}
+
+// StateStats returns the statistics on the state trie
+func (s *StateDB) StateStats(excludeCode, excludeStorage, excludeMissingPreimages bool) DumpStats {
+	stats := &DumpStats{}
+	s.stats(stats, excludeCode, excludeStorage, excludeMissingPreimages, nil, 0)
+	return *stats
 }
 
 // IterativeDump dumps out accounts as json-objects, delimited by linebreaks on stdout
