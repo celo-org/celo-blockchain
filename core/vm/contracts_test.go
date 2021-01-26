@@ -1173,11 +1173,11 @@ func TestCip20(t *testing.T) {
 
 	for _, vector := range cip20ShaVariantTests {
 		for _, test := range vector.toPrecompiledTests() {
-			testPrecompiled("f3", test, t)
+			testPrecompiled("e2", test, t)
 		}
 	}
 
 	for _, test := range cip20Tests {
-		testPrecompiled("f3", test, t)
+		testPrecompiled("e2", test, t)
 	}
 }
