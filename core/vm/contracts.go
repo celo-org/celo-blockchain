@@ -911,6 +911,11 @@ func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
 }
 
 func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Setup success/failure return values
 	var fail32byte, success32Byte = true32Byte, false32Byte
 
