@@ -66,9 +66,13 @@ all-musl:
 	$(GORUN) build/ci.go install -musl
 
 android:
+	@echo "Applying patch for mobile libs..."
+	git apply patches/mobileLibsForBuild.patch
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
+	@echo "Remove patch for mobile libs..."
+	git apply -R patches/mobileLibsForBuild.patch
 
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
@@ -91,7 +95,6 @@ clean-geth:
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 clean: clean-geth
-
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.

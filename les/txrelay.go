@@ -120,7 +120,7 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 				peer := dp.(*serverPeer)
 				cost := peer.getTxRelayCost(len(list), len(enc))
 				peer.fcServer.QueuedRequest(reqID, cost)
-				return func() { peer.sendTxs(reqID, enc) }
+				return func() { peer.sendTxs(reqID, 1, enc) }
 			},
 		}
 

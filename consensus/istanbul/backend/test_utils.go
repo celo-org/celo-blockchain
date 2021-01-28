@@ -47,6 +47,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	config.ProxiedValidatorAddress = proxiedValAddress
 	config.Proxied = isProxied
 	config.Validator = !isProxy
+	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
 	b, _ := New(&config, memDB).(*Backend)
 
@@ -134,7 +135,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{
 		Epoch:          10,
-		LookbackWindow: 2,
+		LookbackWindow: 3,
 	}
 
 	AppendValidatorsToGenesisBlock(genesis, validators)

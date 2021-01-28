@@ -739,6 +739,42 @@ type CallArgs struct {
 	Data                *hexutil.Bytes  `json:"data"`
 }
 
+// ToMessage converts CallArgs to the Message type used by the core evm
+func (args *CallArgs) ToMessage(globalGasCap *big.Int) types.Message {
+	// Set sender address or use zero address if none specified.
+	var addr common.Address
+	if args.From != nil {
+		addr = *args.From
+	}
+
+	// Set default gas & gas price if none were set
+	gas := uint64(math.MaxUint64 / 2)
+	if args.Gas != nil {
+		gas = uint64(*args.Gas)
+	}
+	if globalGasCap != nil && globalGasCap.Uint64() < gas {
+		log.Warn("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
+		gas = globalGasCap.Uint64()
+	}
+	gasPrice := new(big.Int)
+	if args.GasPrice != nil {
+		gasPrice = args.GasPrice.ToInt()
+	}
+
+	value := new(big.Int)
+	if args.Value != nil {
+		value = args.Value.ToInt()
+	}
+
+	var data []byte
+	if args.Data != nil {
+		data = []byte(*args.Data)
+	}
+
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, false)
+	return msg
+}
+
 // account indicates the overriding fields of account during the execution of
 // a message call.
 // Note, state and stateDiff can't be specified at the same time. If state is
@@ -753,18 +789,12 @@ type account struct {
 	StateDiff *map[common.Hash]common.Hash `json:"stateDiff"`
 }
 
-func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides map[common.Address]account, vmCfg vm.Config, timeout time.Duration, globalGasCap *big.Int, estimate bool) (res []byte, gas uint64, failed bool, err error) {
+func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides map[common.Address]account, vmCfg vm.Config, timeout time.Duration, globalGasCap *big.Int) (res []byte, gas uint64, failed bool, err error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return nil, 0, false, err
-	}
-
-	// Set sender address or use zero address if none specified.
-	var addr common.Address
-	if args.From != nil {
-		addr = *args.From
 	}
 
 	// Override the fields of specified contracts before execution.
@@ -795,46 +825,6 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 			}
 		}
 	}
-	// Set default gas & gas price if none were set
-	gas = uint64(math.MaxUint64 / 2)
-	if args.Gas != nil {
-		gas = uint64(*args.Gas)
-	}
-	if globalGasCap != nil && globalGasCap.Uint64() < gas {
-		log.Warn("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
-		gas = globalGasCap.Uint64()
-	}
-
-	// Create new call message
-	gasPrice := new(big.Int)
-	if args.GasPrice != nil {
-		gasPrice = args.GasPrice.ToInt()
-	}
-
-	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
-	// which will always be in Gold. This allows the default price to be set for the proper currency.
-	// TODO(asa): Remove this once this is handled in the Provider.
-	if gasPrice.Sign() == 0 || gasPrice.Cmp(big.NewInt(0)) == 0 {
-		// TODO(mcortesi): change SuggestGastPriceInCurrent so it doesn't return an error
-		gasPrice, err = b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
-		if err != nil {
-			log.Error("Error suggesting gas price", "block", blockNrOrHash, "err", err)
-			return nil, 0, false, err
-		}
-	}
-
-	value := new(big.Int)
-	if args.Value != nil {
-		value = args.Value.ToInt()
-	}
-
-	var data []byte
-	if args.Data != nil {
-		data = []byte(*args.Data)
-	}
-
-	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, false)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
@@ -849,6 +839,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	defer cancel()
 
 	// Get a new instance of the EVM.
+	msg := args.ToMessage(globalGasCap)
 	evm, vmError, err := b.GetEVM(ctx, msg, header, state)
 	if err != nil {
 		return nil, 0, false, err
@@ -862,11 +853,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 
 	// Setup the gas pool (also for unmetered requests) and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	if estimate {
-		res, gas, failed, err = core.ApplyEstimatorMessage(evm, msg, gp)
-	} else {
-		res, gas, failed, err = core.ApplyMessage(evm, msg, gp)
-	}
+	res, gas, failed, err = core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp)
 
 	if err := vmError(); err != nil {
 		return nil, 0, false, err
@@ -889,7 +876,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 50*time.Second, s.b.RPCGasCap(), false)
+	result, _, _, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 50*time.Second, s.b.RPCGasCap())
 	return (hexutil.Bytes)(result), err
 }
 
@@ -926,11 +913,16 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if args.From == nil {
 		args.From = new(common.Address)
 	}
+	// Set gas price to nil (which will lead to it being zero), because the binary search
+	// assumes that if the transaction fails with gas limit A, and B < A, then it would
+	// also fail with gas limit B, which may not be the case if the gas price is non-zero,
+	// depending on the account's balance.
+	args.GasPrice = nil
 	// Create a helper to check if a gas allowance results in an executable transaction
 	executable := func(gas uint64) bool {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap, true)
+		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
 		if err != nil || failed {
 			return false
 		}
