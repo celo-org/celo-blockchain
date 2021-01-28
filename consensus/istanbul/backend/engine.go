@@ -27,7 +27,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
 	ethCore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -332,7 +334,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
 	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
+	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false, false)
 	if err != nil {
 		logger.Error("Unable to verify aggregated signature", "err", err)
 		return errInvalidSignature
@@ -413,19 +415,30 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
-// Returns whether or not a particular header represents the last block in the epoch.
+// IsLastBlockOfEpoch returns whether or not a particular header represents the last block in the epoch.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
 
-// Returns the size of epochs in blocks.
+// EpochSize returns the size of epochs in blocks.
 func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
-// Returns the size of the lookback window for calculating uptime (in blocks)
-func (sb *Backend) LookbackWindow() uint64 {
-	return sb.config.LookbackWindow
+// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+// Value is constant during an epoch
+func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) uint64 {
+	// Check if donut was already active at the beginning of the epoch
+	// as we want to activate the change at epoch change
+	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
+	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
+
+	return uptime.ComputeLookbackWindow(
+		sb.config.Epoch,
+		sb.config.DefaultLookbackWindow,
+		cip21Activated,
+		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(header, state) },
+	)
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)

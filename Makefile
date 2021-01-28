@@ -5,7 +5,7 @@
 .PHONY: geth android ios geth-cross evm all test clean
 .PHONY: geth-linux geth-linux-386 geth-linux-amd64 geth-linux-mips64 geth-linux-mips64le
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
-.PHONY: geth-darwin geth-darwin-386 geth-darwin-amd64
+.PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
 
 GOBIN = ./build/bin
@@ -66,9 +66,13 @@ all-musl:
 	$(GORUN) build/ci.go install -musl
 
 android:
+	@echo "Applying patch for mobile libs..."
+	git apply patches/mobileLibsForBuild.patch
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
+	@echo "Remove patch for mobile libs..."
+	git apply -R patches/mobileLibsForBuild.patch
 
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
@@ -91,7 +95,6 @@ clean-geth:
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 clean: clean-geth
-
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.
@@ -177,16 +180,9 @@ geth-linux-mips64le:
 	@echo "Linux MIPS64le cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep mips64le
 
-geth-darwin: geth-darwin-386 geth-darwin-amd64
+geth-darwin: geth-darwin-amd64
 	@echo "Darwin cross compilation done:"
 	@ls -ld $(GOBIN)/geth-darwin-*
-
-geth-darwin-386:
-	# needs include files for asm errno, on Ubuntu: sudo apt-get install linux-libc-dev:i386
-	# currently doesn't compile on Ubuntu
-	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=darwin/386 -v ./cmd/geth
-	@echo "Darwin 386 cross compilation done:"
-	@ls -ld $(GOBIN)/geth-darwin-* | grep 386
 
 geth-darwin-amd64:
 	# needs include files for asm errno, on Ubuntu: sudo apt-get install linux-libc-dev

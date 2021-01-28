@@ -220,7 +220,7 @@ const (
 	MaxGasForIncreaseSupply                        uint64 = 50 * thousand
 	MaxGasForIsFrozen                              uint64 = 20 * thousand
 	MaxGasForMedianRate                            uint64 = 100 * thousand
-	MaxGasForReadBlockchainParameter               uint64 = 20 * thousand
+	MaxGasForReadBlockchainParameter               uint64 = 40 * thousand // ad-hoc measurement is ~26k
 	MaxGasForRevealAndCommit                       uint64 = 2 * million
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2 * million
 	MaxGasForUpdateTargetVotingYield               uint64 = 2 * million
