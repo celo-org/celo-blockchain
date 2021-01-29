@@ -19,8 +19,8 @@ package vm
 import (
 	"bytes"
 	"encoding/binary"
-	goerrors "errors"
 	"errors"
+	goerrors "errors"
 	"math/big"
 	"sync/atomic"
 	"time"
