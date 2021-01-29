@@ -1135,7 +1135,7 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 
 // cip20HashFunctions is a precompile to compute any of several
 // cryprographic hash functions
-type cip20HashFunctions struct{
+type cip20HashFunctions struct {
 	hashes map[uint8]Cip20Hash
 }
 
