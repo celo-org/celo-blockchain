@@ -48,8 +48,10 @@ type Validator interface {
 	// Address returns address
 	Address() common.Address
 
+	// BLSPublicKey returns the BLS public key (compressed format)
 	BLSPublicKey() blscrypto.SerializedPublicKey
 
+	// BLSPublicKey returns the BLS public key (uncompressed format)
 	BLSPublicKeyUncompressed() []byte
 
 	// Serialize returns binary reprenstation of the Validator
@@ -62,7 +64,11 @@ type Validator interface {
 	// AsData returns Validator representation as ValidatorData
 	AsDataWithBLSKeyCache() *ValidatorDataWithBLSKeyCache
 
-	CacheUncompressed()
+	// CacheUncompressedBLSKey stores the uncompressed BLS public key to cache
+	CacheUncompressedBLSKey()
+
+	// Copy validator
+	Copy() Validator
 }
 
 // MapValidatorsToAddresses maps a slice of validator to a slice of addresses
@@ -133,7 +139,10 @@ type ValidatorSet interface {
 	// Copy validator set
 	Copy() ValidatorSet
 
-	CacheUncompressed()
+	// CacheUncompressedBLSKey stores the uncompressed BLS public key to cache for each validator in the valset
+	CacheUncompressedBLSKey()
+
+	// HasBLSKeyCache tests that all uncompressed BLS public keys are in the cache, otherwise returns false
 	HasBLSKeyCache() bool
 
 	// Serialize returns binary reprentation of the ValidatorSet

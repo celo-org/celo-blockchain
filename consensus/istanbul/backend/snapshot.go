@@ -76,7 +76,7 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 
 // store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
-	s.ValSet.CacheUncompressed()
+	s.ValSet.CacheUncompressedBLSKey()
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err

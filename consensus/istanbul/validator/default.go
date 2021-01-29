@@ -75,14 +75,26 @@ func (val *defaultValidator) String() string                              { retu
 func (val *defaultValidator) BLSPublicKeyUncompressed() []byte {
 	if len(val.uncompressedBlsPublicKey) == 0 {
 		log.Warn("Uncompressed BLS key wasn't cached", "address", val.address)
-		val.CacheUncompressed()
+		val.CacheUncompressedBLSKey()
 	}
 	return val.uncompressedBlsPublicKey
 }
 
-func (val *defaultValidator) CacheUncompressed() {
+func (val *defaultValidator) Copy() istanbul.Validator {
+	return &defaultValidator{
+		address:                  val.address,
+		blsPublicKey:             val.blsPublicKey,
+		uncompressedBlsPublicKey: val.uncompressedBlsPublicKey,
+	}
+}
+
+func (val *defaultValidator) CacheUncompressedBLSKey() {
 	if len(val.uncompressedBlsPublicKey) == 0 {
-		val.uncompressedBlsPublicKey = blscrypto.UncompressKey(val.blsPublicKey)
+		uncompressed, err := blscrypto.UncompressKey(val.blsPublicKey)
+		if err != nil {
+			log.Error("Bad BLS public key", "adddress", val.address, "bls", val.blsPublicKey)
+		}
+		val.uncompressedBlsPublicKey = uncompressed
 	}
 }
 
@@ -183,11 +195,11 @@ func (valSet *defaultSet) String() string {
 	return fmt.Sprintf("{randomness: %s, validators: %s}", valSet.randomness.String(), buf.String())
 }
 
-func (valSet *defaultSet) CacheUncompressed() {
+func (valSet *defaultSet) CacheUncompressedBLSKey() {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 	for _, v := range valSet.validators {
-		v.CacheUncompressed()
+		v.CacheUncompressedBLSKey()
 	}
 }
 
@@ -283,7 +295,11 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	newValSet := NewSetFromDataWithBLSKeyCache(MapValidatorsToDataWithBLSKeyCache(valSet.validators))
+	newValSet := &defaultSet{}
+	newValSet.validators = make([]istanbul.Validator, len(valSet.validators))
+	for i, v := range valSet.validators {
+		newValSet.validators[i] = v.Copy()
+	}
 	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
 }
