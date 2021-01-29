@@ -18,6 +18,7 @@ package backend
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -63,6 +64,11 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 	if err := json.Unmarshal(blob, snap); err != nil {
 		return nil, err
 	}
+
+	if !snap.ValSet.HasBLSKeyCache() {
+		return nil, fmt.Errorf("Outdated snapshot")
+	}
+
 	snap.Epoch = epoch
 
 	return snap, nil
@@ -157,21 +163,17 @@ func (s *Snapshot) validators() []istanbul.ValidatorData {
 	return validator.MapValidatorsToData(s.ValSet.List())
 }
 
-func (s *Snapshot) validatorsWithCache() []istanbul.ValidatorDataWithCache {
-	return validator.MapValidatorsToDataWithCache(s.ValSet.List())
-}
-
 type snapshotJSON struct {
 	Epoch  uint64      `json:"epoch"`
 	Number uint64      `json:"number"`
 	Hash   common.Hash `json:"hash"`
 
 	// for validator set
-	Validators []istanbul.ValidatorDataWithCache `json:"validators"`
+	Validators []istanbul.ValidatorDataWithBLSKeyCache `json:"validators"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
-	validators := s.validatorsWithCache()
+	validators := validator.MapValidatorsToDataWithBLSKeyCache(s.ValSet.List())
 	return &snapshotJSON{
 		Epoch:      s.Epoch,
 		Number:     s.Number,
@@ -190,7 +192,7 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.ValSet = validator.NewSetWithCache(j.Validators)
+	s.ValSet = validator.NewSetFromDataWithBLSKeyCache(j.Validators)
 	return nil
 }
 

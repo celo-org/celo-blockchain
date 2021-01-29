@@ -25,9 +25,9 @@ import (
 
 func New(addr common.Address, blsPublicKey blscrypto.SerializedPublicKey) istanbul.Validator {
 	return &defaultValidator{
-		address:      addr,
-		blsPublicKey: blsPublicKey,
-		uncompressed: nil,
+		address:                  addr,
+		blsPublicKey:             blsPublicKey,
+		uncompressedBlsPublicKey: nil,
 	}
 }
 
@@ -45,8 +45,8 @@ func NewSet(validators []istanbul.ValidatorData) istanbul.ValidatorSet {
 	return newDefaultSet(validators)
 }
 
-func NewSetWithCache(validators []istanbul.ValidatorDataWithCache) istanbul.ValidatorSet {
-	return newDefaultSetWithCache(validators)
+func NewSetFromDataWithBLSKeyCache(validators []istanbul.ValidatorDataWithBLSKeyCache) istanbul.ValidatorSet {
+	return newDefaultSetFromDataWithBLSKeyCache(validators)
 }
 
 func DeserializeValidatorSet(binaryData []byte) (istanbul.ValidatorSet, error) {

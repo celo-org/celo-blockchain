@@ -28,24 +28,21 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type defaultValidator struct {
-	address      common.Address
-	blsPublicKey blscrypto.SerializedPublicKey
-	uncompressed []byte
+	address                  common.Address
+	blsPublicKey             blscrypto.SerializedPublicKey
+	uncompressedBlsPublicKey []byte
 }
 
-func newValidatorFromDataWithCache(data *istanbul.ValidatorDataWithCache) *defaultValidator {
-	uncompressed := data.Uncompressed
-	if len(uncompressed) == 0 {
-		uncompressed = blscrypto.UncompressKey(data.BLSPublicKey)
-	}
+func newValidatorFromDataWithBLSKeyCache(data *istanbul.ValidatorDataWithBLSKeyCache) *defaultValidator {
 	return &defaultValidator{
-		address:      data.Address,
-		blsPublicKey: data.BLSPublicKey,
-		uncompressed: uncompressed,
+		address:                  data.Address,
+		blsPublicKey:             data.BLSPublicKey,
+		uncompressedBlsPublicKey: data.UncompressedBLSPublicKey,
 	}
 }
 
@@ -63,21 +60,30 @@ func (val *defaultValidator) AsData() *istanbul.ValidatorData {
 	}
 }
 
-func (val *defaultValidator) AsDataWithCache() *istanbul.ValidatorDataWithCache {
-	return &istanbul.ValidatorDataWithCache{
-		Address:      val.address,
-		BLSPublicKey: val.blsPublicKey,
-		Uncompressed: val.uncompressed,
+func (val *defaultValidator) AsDataWithBLSKeyCache() *istanbul.ValidatorDataWithBLSKeyCache {
+	return &istanbul.ValidatorDataWithBLSKeyCache{
+		Address:                  val.address,
+		BLSPublicKey:             val.blsPublicKey,
+		UncompressedBLSPublicKey: val.uncompressedBlsPublicKey,
 	}
 }
 
 func (val *defaultValidator) Address() common.Address                     { return val.address }
 func (val *defaultValidator) BLSPublicKey() blscrypto.SerializedPublicKey { return val.blsPublicKey }
-func (val *defaultValidator) BLSPublicKeyUncompressed() []byte            { return val.uncompressed }
 func (val *defaultValidator) String() string                              { return val.Address().String() }
 
+func (val *defaultValidator) BLSPublicKeyUncompressed() []byte {
+	if len(val.uncompressedBlsPublicKey) == 0 {
+		log.Warn("Uncompressed BLS key wasn't cached", "address", val.address)
+		val.CacheUncompressed()
+	}
+	return val.uncompressedBlsPublicKey
+}
+
 func (val *defaultValidator) CacheUncompressed() {
-	val.uncompressed = blscrypto.UncompressKey(val.blsPublicKey)
+	if len(val.uncompressedBlsPublicKey) == 0 {
+		val.uncompressedBlsPublicKey = blscrypto.UncompressKey(val.blsPublicKey)
+	}
 }
 
 func (val *defaultValidator) Serialize() ([]byte, error) { return rlp.EncodeToBytes(val) }
@@ -123,9 +129,9 @@ func newDefaultSet(validators []istanbul.ValidatorData) *defaultSet {
 	}
 }
 
-func newDefaultSetWithCache(validators []istanbul.ValidatorDataWithCache) *defaultSet {
+func newDefaultSetFromDataWithBLSKeyCache(validators []istanbul.ValidatorDataWithBLSKeyCache) *defaultSet {
 	return &defaultSet{
-		validators: mapDataToValidatorsWithCache(validators),
+		validators: mapDataToValidatorsWithBLSKeyCache(validators),
 	}
 }
 
@@ -277,9 +283,18 @@ func (valSet *defaultSet) RemoveValidators(removedValidators *big.Int) bool {
 func (valSet *defaultSet) Copy() istanbul.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
-	newValSet := NewSetWithCache(MapValidatorsToDataWithCache(valSet.validators))
+	newValSet := NewSetFromDataWithBLSKeyCache(MapValidatorsToDataWithBLSKeyCache(valSet.validators))
 	newValSet.SetRandomness(valSet.randomness)
 	return newValSet
+}
+
+func (valSet *defaultSet) HasBLSKeyCache() bool {
+	for _, v := range valSet.validators {
+		if v.AsDataWithBLSKeyCache().UncompressedBLSPublicKey == nil && v.BLSPublicKey() != (blscrypto.SerializedPublicKey{}) {
+			return false
+		}
+	}
+	return true
 }
 
 func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
@@ -291,27 +306,19 @@ func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
 	}
 }
 
-func (valSet *defaultSet) AsDataWithCache() *istanbul.ValidatorSetDataWithCache {
-	valSet.validatorMu.RLock()
-	defer valSet.validatorMu.RUnlock()
-	return &istanbul.ValidatorSetDataWithCache{
-		Validators: MapValidatorsToDataWithCache(valSet.validators),
-		Randomness: valSet.randomness,
-	}
-}
-
 // JSON Encoding -----------------------------------------------------------------------
 
 func (val *defaultSet) MarshalJSON() ([]byte, error) {
-	return json.Marshal(val.AsDataWithCache())
+	log.Warn("Here")
+	return json.Marshal(val.AsData())
 }
 
 func (val *defaultSet) UnmarshalJSON(b []byte) error {
-	var data istanbul.ValidatorSetDataWithCache
+	var data istanbul.ValidatorSetData
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
-	*val = *newDefaultSetWithCache(data.Validators)
+	*val = *newDefaultSet(data.Validators)
 	val.SetRandomness(data.Randomness)
 	return nil
 }
@@ -350,18 +357,18 @@ func mapDataToValidators(data []istanbul.ValidatorData) []istanbul.Validator {
 	return validators
 }
 
-func MapValidatorsToDataWithCache(validators []istanbul.Validator) []istanbul.ValidatorDataWithCache {
-	validatorsData := make([]istanbul.ValidatorDataWithCache, len(validators))
+func MapValidatorsToDataWithBLSKeyCache(validators []istanbul.Validator) []istanbul.ValidatorDataWithBLSKeyCache {
+	validatorsData := make([]istanbul.ValidatorDataWithBLSKeyCache, len(validators))
 	for i, v := range validators {
-		validatorsData[i] = *v.AsDataWithCache()
+		validatorsData[i] = *v.AsDataWithBLSKeyCache()
 	}
 	return validatorsData
 }
 
-func mapDataToValidatorsWithCache(data []istanbul.ValidatorDataWithCache) []istanbul.Validator {
+func mapDataToValidatorsWithBLSKeyCache(data []istanbul.ValidatorDataWithBLSKeyCache) []istanbul.Validator {
 	validators := make([]istanbul.Validator, len(data))
 	for i, v := range data {
-		validators[i] = newValidatorFromDataWithCache(&v)
+		validators[i] = newValidatorFromDataWithBLSKeyCache(&v)
 	}
 	return validators
 }

@@ -18,7 +18,6 @@ package istanbul
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -37,29 +36,10 @@ type ValidatorData struct {
 	BLSPublicKey blscrypto.SerializedPublicKey
 }
 
-type ValidatorDataWithCache struct {
-	Address      common.Address
-	BLSPublicKey blscrypto.SerializedPublicKey
-	Uncompressed []byte
-}
-
-func (v *ValidatorDataWithCache) UnmarshalJSON(data []byte) (err error) {
-	tmp := struct {
-		Address      common.Address
-		BLSPublicKey blscrypto.SerializedPublicKey
-		Uncompressed []byte
-	}{}
-	err = json.Unmarshal(data, &tmp)
-	if err != nil {
-		return err
-	} else if tmp.Uncompressed == nil && tmp.BLSPublicKey != (blscrypto.SerializedPublicKey{}) {
-		return fmt.Errorf("Cached key missing")
-	} else {
-		v.Address = tmp.Address
-		v.BLSPublicKey = tmp.BLSPublicKey
-		v.Uncompressed = tmp.Uncompressed
-		return nil
-	}
+type ValidatorDataWithBLSKeyCache struct {
+	Address                  common.Address
+	BLSPublicKey             blscrypto.SerializedPublicKey
+	UncompressedBLSPublicKey []byte
 }
 
 type Validator interface {
@@ -80,7 +60,7 @@ type Validator interface {
 	AsData() *ValidatorData
 
 	// AsData returns Validator representation as ValidatorData
-	AsDataWithCache() *ValidatorDataWithCache
+	AsDataWithBLSKeyCache() *ValidatorDataWithBLSKeyCache
 
 	CacheUncompressed()
 }
@@ -154,6 +134,7 @@ type ValidatorSet interface {
 	Copy() ValidatorSet
 
 	CacheUncompressed()
+	HasBLSKeyCache() bool
 
 	// Serialize returns binary reprentation of the ValidatorSet
 	// can be use used to instantiate a validator with DeserializeValidatorSet()
@@ -165,8 +146,8 @@ type ValidatorSetData struct {
 	Randomness common.Hash
 }
 
-type ValidatorSetDataWithCache struct {
-	Validators []ValidatorDataWithCache
+type ValidatorSetDataWithBLSKeyCache struct {
+	Validators []ValidatorDataWithBLSKeyCache
 	Randomness common.Hash
 }
 

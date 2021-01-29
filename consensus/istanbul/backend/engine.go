@@ -858,12 +858,14 @@ func (sb *Backend) snapshot(chain consensus.ChainReader, number uint64, hash com
 		}
 
 		if (blockHash != common.Hash{}) {
-			if s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash); err == nil {
+			s, err := loadSnapshot(sb.config.Epoch, sb.db, blockHash)
+			if err == nil {
 				log.Trace("Loaded validator set snapshot from disk", "number", numberIter, "hash", blockHash)
 				snap = s
 				sb.recentSnapshots.Add(numberIter, snap)
 				break
 			}
+			log.Warn("Cannot load snapshot", "err", err)
 		}
 
 		if numberIter == 0 {

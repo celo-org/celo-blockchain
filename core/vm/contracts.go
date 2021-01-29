@@ -951,7 +951,7 @@ func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
 	return params.GetValidatorBLSGas
 }
 
-func copyBEtoLE(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
+func copyBLSNumber(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
 	for i := 0; i < 48; i++ {
 		result[63-i+offset] = uncompressedBytes[i+offset2]
 	}
@@ -992,11 +992,6 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 
 	validator := validators[index.Uint64()]
 	uncompressedBytes := validator.BLSPublicKeyUncompressed()
-	if len(uncompressedBytes) == 0 {
-		log.Warn("Uncompressed BLS key wasn't cached", "address", validator.Address())
-		validator.CacheUncompressed()
-		uncompressedBytes = validator.BLSPublicKeyUncompressed()
-	}
 	if len(uncompressedBytes) != 192 {
 		return nil, gas, ErrUnexpected
 	}
@@ -1006,10 +1001,10 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 		result[i] = 0
 	}
 
-	copyBEtoLE(result, 0, uncompressedBytes, 0)
-	copyBEtoLE(result, 64, uncompressedBytes, 48)
-	copyBEtoLE(result, 128, uncompressedBytes, 96)
-	copyBEtoLE(result, 192, uncompressedBytes, 144)
+	copyBLSNumber(result, 0, uncompressedBytes, 0)
+	copyBLSNumber(result, 64, uncompressedBytes, 48)
+	copyBLSNumber(result, 128, uncompressedBytes, 96)
+	copyBLSNumber(result, 192, uncompressedBytes, 144)
 
 	return result, gas, nil
 }
