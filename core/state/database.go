@@ -98,18 +98,18 @@ type Trie interface {
 
 // NewDatabase creates a backing store for state. The returned database is safe for
 // concurrent use, but does not retain any recent trie nodes in memory. To keep some
-// historical state in memory, use the NewDatabaseWithBLSKeyCache constructor.
+// historical state in memory, use the NewDatabaseWithCache constructor.
 func NewDatabase(db ethdb.Database) Database {
-	return NewDatabaseWithBLSKeyCache(db, 0)
+	return NewDatabaseWithCache(db, 0)
 }
 
-// NewDatabaseWithBLSKeyCache creates a backing store for state. The returned database
+// NewDatabaseWithCache creates a backing store for state. The returned database
 // is safe for concurrent use and retains a lot of collapsed RLP trie nodes in a
 // large memory cache.
-func NewDatabaseWithBLSKeyCache(db ethdb.Database, cache int) Database {
+func NewDatabaseWithCache(db ethdb.Database, cache int) Database {
 	csc, _ := lru.New(codeSizeCacheSize)
 	return &cachingDB{
-		db:            trie.NewDatabaseWithBLSKeyCache(db, cache),
+		db:            trie.NewDatabaseWithCache(db, cache),
 		codeSizeCache: csc,
 	}
 }

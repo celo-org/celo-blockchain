@@ -143,7 +143,7 @@ func NewChtIndexer(db ethdb.Database, odr OdrBackend, size, confirms uint64, ful
 		diskdb:      db,
 		odr:         odr,
 		trieTable:   trieTable,
-		triedb:      trie.NewDatabaseWithBLSKeyCache(trieTable, 1), // Use a tiny cache only to keep memory down
+		triedb:      trie.NewDatabaseWithCache(trieTable, 1), // Use a tiny cache only to keep memory down
 		sectionSize: size,
 	}
 	return core.NewChainIndexer(db, rawdb.NewTable(db, "chtIndex-"), backend, size, confirms, time.Millisecond*100, "cht", fullChainAvailable)
@@ -264,7 +264,7 @@ func NewBloomTrieIndexer(db ethdb.Database, odr OdrBackend, parentSize, size uin
 		diskdb:     db,
 		odr:        odr,
 		trieTable:  trieTable,
-		triedb:     trie.NewDatabaseWithBLSKeyCache(trieTable, 1), // Use a tiny cache only to keep memory down
+		triedb:     trie.NewDatabaseWithCache(trieTable, 1), // Use a tiny cache only to keep memory down
 		parentSize: parentSize,
 		size:       size,
 	}

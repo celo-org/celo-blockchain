@@ -308,10 +308,7 @@ func (valSet *defaultSet) AsData() *istanbul.ValidatorSetData {
 
 // JSON Encoding -----------------------------------------------------------------------
 
-func (val *defaultSet) MarshalJSON() ([]byte, error) {
-	log.Warn("Here")
-	return json.Marshal(val.AsData())
-}
+func (val *defaultSet) MarshalJSON() ([]byte, error) { return json.Marshal(val.AsData()) }
 
 func (val *defaultSet) UnmarshalJSON(b []byte) error {
 	var data istanbul.ValidatorSetData
