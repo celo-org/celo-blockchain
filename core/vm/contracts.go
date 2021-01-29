@@ -1256,8 +1256,12 @@ func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM, gas uint64) ([]byte, uint64, error) {
 	gas, err := debitRequiredGas(c, input, gas)
 
-	if err != nil || len(input) == 0 {
+	if err != nil {
 		return nil, gas, err
+	}
+
+	if len(input) == 0 {
+		return nil, gas, fmt.Errorf("Input Error: 0-byte input")
 	}
 
 	if h, ok := Cip20HashesDonut[input[0]]; ok {
