@@ -51,7 +51,7 @@ type Validator interface {
 	// BLSPublicKey returns the BLS public key (compressed format)
 	BLSPublicKey() blscrypto.SerializedPublicKey
 
-	// BLSPublicKey returns the BLS public key (uncompressed format)
+	// BLSPublicKeyUncompressed returns the BLS public key (uncompressed format)
 	BLSPublicKeyUncompressed() []byte
 
 	// Serialize returns binary reprenstation of the Validator
