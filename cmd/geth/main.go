@@ -84,6 +84,7 @@ var (
 		utils.SyncModeFlag,
 		utils.ExitWhenSyncedFlag,
 		utils.GCModeFlag,
+		utils.SnapshotFlag,
 		utils.LightServeFlag,
 		utils.LightIngressFlag,
 		utils.LightEgressFlag,
@@ -95,16 +96,20 @@ var (
 		utils.UltraLightOnlyAnnounceFlag,
 		utils.WhitelistFlag,
 		utils.EtherbaseFlag,
+		utils.TxFeeRecipientFlag,
 		utils.BLSbaseFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
 		utils.CacheTrieFlag,
 		utils.CacheGCFlag,
+		utils.CacheSnapshotFlag,
 		utils.CacheNoPrefetchFlag,
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
+		utils.MinerEtherbaseFlag,
 		utils.MiningEnabledFlag,
+		utils.MinerValidatorFlag,
 		utils.MinerThreadsFlag,
 		utils.MinerLegacyThreadsFlag,
 		utils.MinerNotifyFlag,
@@ -259,6 +264,20 @@ func main() {
 // prepare manipulates memory cache allowance and setups metric system.
 // This function should be called before launching devp2p stack.
 func prepare(ctx *cli.Context) {
+	// If we're running a known preset, log it for convenience.
+	switch {
+	case ctx.GlobalIsSet(utils.BaklavaFlag.Name):
+		log.Info("Starting Geth on Baklava testnet...")
+
+	case ctx.GlobalIsSet(utils.AlfajoresFlag.Name):
+		log.Info("Starting Geth on Alfajores testnet...")
+
+	case ctx.GlobalIsSet(utils.DeveloperFlag.Name):
+		log.Info("Starting Geth in ephemeral dev mode...")
+
+	case !ctx.GlobalIsSet(utils.NetworkIdFlag.Name):
+		log.Info("Starting Geth on Celo mainnet...")
+	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" && !ctx.GlobalIsSet(utils.CacheFlag.Name) && !ctx.GlobalIsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either

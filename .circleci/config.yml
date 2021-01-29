@@ -9,7 +9,7 @@ executors:
       - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
-      GO_VERSION: "1.14.12"
+      GO_VERSION: "1.14.14"
       CELO_MONOREPO_BRANCH_TO_TEST: master
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
@@ -78,7 +78,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.23.6-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+            ./build/cache/golangci-lint-1.25.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -183,7 +183,7 @@ jobs:
 
   end-to-end-governance-test:
     executor: e2e
-    resource_class: large
+    resource_class: xlarge
     steps:
       - attach_workspace:
           at: ~/repos
@@ -235,7 +235,7 @@ jobs:
 
   end-to-end-validator-order-test:
     executor: e2e
-    resource_class: large
+    resource_class: xlarge
     steps:
       - attach_workspace:
           at: ~/repos

@@ -152,7 +152,7 @@ type Wallet interface {
 	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, error)
 
 	// SignBLS generates a BLS signature over the provided data with a direct or composite hasher
-	SignBLS(account Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error)
+	SignBLS(account Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error)
 
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)

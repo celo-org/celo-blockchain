@@ -99,6 +99,23 @@ func GetEpochNumber(number uint64, epochSize uint64) uint64 {
 	}
 }
 
+// MustGetEpochFirstBlockGivenBlockNumber is a variant of GetEpochFirstBlockGivenBlockNumber
+// that panics if called for epoch 0 (genesis)
+func MustGetEpochFirstBlockGivenBlockNumber(blockNumber uint64, epochSize uint64) uint64 {
+	firstBlock, err := GetEpochFirstBlockGivenBlockNumber(blockNumber, epochSize)
+	if err != nil {
+		panic(err)
+	}
+	return firstBlock
+}
+
+// GetEpochFirstBlockGivenBlockNumber retrieves first block of a given block's epoch
+// Fails when try to obtain first block of epoch 0 (genesis)
+func GetEpochFirstBlockGivenBlockNumber(blockNumber uint64, epochSize uint64) (uint64, error) {
+	epochNumber := GetEpochNumber(blockNumber, epochSize)
+	return GetEpochFirstBlockNumber(epochNumber, epochSize)
+}
+
 // GetEpochFirstBlockNumber retrieves first block of epoch.
 func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, error) {
 	// Epoch 0 is just the genesis block, it doesn't have a first block (only last)
@@ -139,8 +156,8 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 		} else {
 			// We found a new validator that is not in the old validator set
 			addedValidators = append(addedValidators, ValidatorData{
-				newVal.Address,
-				newVal.BLSPublicKey,
+				Address:      newVal.Address,
+				BLSPublicKey: newVal.BLSPublicKey,
 			})
 		}
 	}

@@ -132,10 +132,18 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize())
+
+	// header (&state) == lastBlockOfEpoch
+	// sb.LookbackWindow(header, state) => value at the end of epoch
+	// It doesn't matter which was the value at the beginning but how it ends.
+	// Notice that exposed metrics compute based on current block (not last of epoch) so if lookback window changed during the epoch, metric uptime score might differ
+	lookbackWindow := sb.LookbackWindow(header, state)
+
+	logger = logger.New("window", lookbackWindow)
 	logger.Trace("Updating validator scores")
 
-	monitor := uptime.NewMonitor(store.New(sb.db), sb.EpochSize(), sb.LookbackWindow())
+	monitor := uptime.NewMonitor(store.New(sb.db), sb.EpochSize(), lookbackWindow)
 	uptimes, err := monitor.ComputeValidatorsUptime(epoch, len(valSet))
 	if err != nil {
 		return nil, err

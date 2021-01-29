@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	ed25519 "github.com/hdevalence/ed25519consensus"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -175,7 +176,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// TODO(Donut): Add instances
-	edd25519Address:          nil,
+	edd25519Address:          &ed25519Verify{},
 	b12_381G1AddAddress:      nil,
 	b12_381G1MulAddress:      nil,
 	b12_381G1MultiExpAddress: nil,
@@ -193,7 +194,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	b12_377G2MultiExpAddress: nil,
 	b12_377PairingAddress:    nil,
 	cip20Address:             nil,
-	cip26Address:             nil,
+	cip26Address:             &getValidatorBLS{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -896,6 +897,45 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64)
 	return output, gas, nil
 }
 
+// ed25519Verify implements a native Ed25519 signature verification.
+type ed25519Verify struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
+	const sha2_512WordLength = 64
+
+	// round up to next whole word
+	lengthCeil := len(input) + sha2_512WordLength - 1
+	words := uint64(lengthCeil / sha2_512WordLength)
+	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
+}
+
+func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// Setup success/failure return values
+	var fail32byte, success32Byte = true32Byte, false32Byte
+
+	// Check if all required arguments are present
+	if len(input) < 96 {
+		return fail32byte, gas, nil
+	}
+
+	publicKey := input[0:32]  // 32 bytes
+	signature := input[32:96] // 64 bytes
+	message := input[96:]     // arbitrary length
+
+	// Verify the Ed25519 signature against the public key and message
+	// https://godoc.org/golang.org/x/crypto/ed25519#Verify
+	if ed25519.Verify(publicKey, message, signature) {
+		return success32Byte, gas, nil
+	}
+	return fail32byte, gas, nil
+}
+
 type getValidator struct{}
 
 func (c *getValidator) RequiredGas(input []byte) uint64 {
@@ -943,6 +983,70 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
+}
+
+type getValidatorBLS struct{}
+
+func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorBLSGas
+}
+
+func copyBLSNumber(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
+	for i := 0; i < 48; i++ {
+		result[63-i+offset] = uncompressedBytes[i+offset2]
+	}
+}
+
+// Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
+func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of two arguments:
+	//   index: 32 byte integer representing the index of the validator to get
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 64 {
+		return nil, gas, ErrInputLength
+	}
+
+	index := new(big.Int).SetBytes(input[0:32])
+
+	blockNumber := new(big.Int).SetBytes(input[32:64])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Validator set for the genesis block is empty, so any index is out of bounds.
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+
+	// Ensure index, which is guaranteed to be non-negative, is valid.
+	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+
+	validator := validators[index.Uint64()]
+	uncompressedBytes := validator.BLSPublicKeyUncompressed()
+	if len(uncompressedBytes) != 192 {
+		return nil, gas, ErrUnexpected
+	}
+
+	result := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		result[i] = 0
+	}
+
+	copyBLSNumber(result, 0, uncompressedBytes, 0)
+	copyBLSNumber(result, 64, uncompressedBytes, 48)
+	copyBLSNumber(result, 128, uncompressedBytes, 96)
+	copyBLSNumber(result, 192, uncompressedBytes, 144)
+
+	return result, gas, nil
 }
 
 type numberValidators struct{}

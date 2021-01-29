@@ -195,8 +195,7 @@ func discv4Crawl(ctx *cli.Context) error {
 
 // startV4 starts an ephemeral discovery V4 node.
 func startV4(ctx *cli.Context) *discover.UDPv4 {
-	networkId := ctx.GlobalUint64(networkIdFlag.Name)
-	ln, config := makeDiscoveryConfig(ctx, networkId)
+	ln, config := makeDiscoveryConfig(ctx)
 	socket := listen(ln, ctx.String(listenAddrFlag.Name))
 	disc, err := discover.ListenV4(socket, ln, config)
 	if err != nil {
@@ -205,7 +204,7 @@ func startV4(ctx *cli.Context) *discover.UDPv4 {
 	return disc
 }
 
-func makeDiscoveryConfig(ctx *cli.Context, networkId uint64) (*enode.LocalNode, discover.Config) {
+func makeDiscoveryConfig(ctx *cli.Context) (*enode.LocalNode, discover.Config) {
 	var cfg discover.Config
 
 	if ctx.IsSet(nodekeyFlag.Name) {
@@ -231,6 +230,7 @@ func makeDiscoveryConfig(ctx *cli.Context, networkId uint64) (*enode.LocalNode, 
 	if err != nil {
 		exit(err)
 	}
+	networkId := ctx.GlobalUint64(networkIdFlag.Name)
 	ln := enode.NewLocalNode(db, cfg.PrivateKey, networkId)
 	return ln, cfg
 }
