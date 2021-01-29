@@ -11,10 +11,8 @@ import (
 )
 
 const (
-	blake2sConfigLen        = 32
-	blake2sWordLength       = 32
-	keccakVariantWordLength = 64
-	sha2_512WordLength      = 64
+	blake2sConfigLen = 32
+	evmWordLength    = 32
 )
 
 // Cip20Hash is an interface for CIP20 hash functions. It is a trimmed down
@@ -33,10 +31,10 @@ var Cip20HashesDonut = map[uint8]Cip20Hash{
 	0x10: &Blake2s{},
 }
 
-func wordMeteredGasPrice(base, perWord, wordSize, inputLength uint64) uint64 {
+func wordMeteredGasPrice(base, perWord, inputLength uint64) uint64 {
 	// round up to next whole word
-	lengthCeil := inputLength + wordSize - 1
-	words := lengthCeil / wordSize
+	lengthCeil := inputLength + evmWordLength - 1
+	words := lengthCeil / evmWordLength
 	return base + perWord*words
 }
 
@@ -48,7 +46,6 @@ func (c *Sha3_256) RequiredGas(input []byte) uint64 {
 	return wordMeteredGasPrice(
 		params.Sha3_256BaseGas,
 		params.Sha3_256PerWordGas,
-		keccakVariantWordLength,
 		uint64(len(input)),
 	)
 }
@@ -69,7 +66,6 @@ func (c *Sha3_512) RequiredGas(input []byte) uint64 {
 	return wordMeteredGasPrice(
 		params.Sha3_256BaseGas,
 		params.Sha3_256PerWordGas,
-		keccakVariantWordLength,
 		uint64(len(input)),
 	)
 }
@@ -90,7 +86,6 @@ func (c *Keccak512) RequiredGas(input []byte) uint64 {
 	return wordMeteredGasPrice(
 		params.Sha3_256BaseGas,
 		params.Sha3_256PerWordGas,
-		keccakVariantWordLength,
 		uint64(len(input)),
 	)
 }
@@ -111,7 +106,6 @@ func (c *Sha2_512) RequiredGas(input []byte) uint64 {
 	return wordMeteredGasPrice(
 		params.Sha256BaseGas,
 		params.Sha256PerWordGas,
-		sha2_512WordLength,
 		uint64(len(input)),
 	)
 }
@@ -129,7 +123,7 @@ type Blake2s struct{}
 
 // RequiredGas for Blake2s
 func (c *Blake2s) RequiredGas(input []byte) uint64 {
-	if len(input) < 32 {
+	if len(input) < blake2sConfigLen {
 		return params.InvalidCip20Gas
 	}
 
@@ -137,8 +131,7 @@ func (c *Blake2s) RequiredGas(input []byte) uint64 {
 	return wordMeteredGasPrice(
 		params.Blake2sBaseGas,
 		params.Blake2sPerWordGas,
-		blake2sWordLength,
-		uint64(len(input)-blake2sWordLength), // subtract 1 word for the config block
+		uint64(len(input)-blake2sConfigLen), // subtract 1 word for the config block
 	)
 }
 
