@@ -192,7 +192,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	b12_377G2MulAddress:      nil,
 	b12_377G2MultiExpAddress: nil,
 	b12_377PairingAddress:    nil,
-	cip20Address:             &cip20HashFunctions{},
+	cip20Address:             &cip20HashFunctions{Cip20HashesDonut},
 	cip26Address:             nil,
 }
 
@@ -1135,14 +1135,16 @@ func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EV
 
 // cip20HashFunctions is a precompile to compute any of several
 // cryprographic hash functions
-type cip20HashFunctions struct{}
+type cip20HashFunctions struct{
+	hashes map[uint8]Cip20Hash
+}
 
 func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 	if len(input) == 0 {
 		return params.InvalidCip20Gas
 	}
 
-	if h, ok := Cip20HashesDonut[input[0]]; ok {
+	if h, ok := c.hashes[input[0]]; ok {
 		return h.RequiredGas(input[1:])
 	}
 
@@ -1160,7 +1162,7 @@ func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM, gas uin
 		return nil, gas, fmt.Errorf("Input Error: 0-byte input")
 	}
 
-	if h, ok := Cip20HashesDonut[input[0]]; ok {
+	if h, ok := c.hashes[input[0]]; ok {
 		output, err := h.Run(input[1:]) // trim selector
 
 		if err != nil {
