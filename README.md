@@ -206,6 +206,16 @@ if you don't have `GOPATH` set-up.
 Once a PR is approved, adding on the `automerge` label will keep it up to date
 and do a squash merge once all the required tests have passed.
 
+### Benchmarking
+
+Golang has built in support for running benchmarks with go tool
+`go test -run=ThisIsNotATestName -bench=. ./$PACKAGE_NAME` will run all benchmarks in a package.
+
+One note around running benchmarks is that `BenchmarkHandlePreprepare` is quite takes a while to run, particularly when testing with a larger number of validators.
+Substituting `-bench=REGEX` for `-bench=.` will specify which tests to run. Adding `-cpuprofile=cpu.out` which can be visualized with `go tool pprof -html:8080 cpu.out` if `graphviz` is installed.
+
+See the [go testing flags](https://golang.org/cmd/go/#hdr-Testing_flags) and [go docs](https://golang.org/pkg/testing/#hdr-Benchmarks) for more information on benchmarking.
+
 
 ## License
 

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -43,6 +42,12 @@ import (
 	elog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+// ErrorReporter is the intersection of the testing.B and testing.T interfaces.
+// This enables setup functions to be used by both benchmarks and tests.
+type ErrorReporter interface {
+	Errorf(format string, args ...interface{})
+}
 
 var testLogger = elog.New()
 
@@ -269,6 +274,26 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 	return *message, err
 }
 
+func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
+	preprepare := &istanbul.Preprepare{
+		View:                   &view,
+		RoundChangeCertificate: roundChangeCertificate,
+		Proposal:               proposal,
+	}
+
+	payload, err := Encode(preprepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgPreprepare,
+		Msg:  payload,
+	}
+
+	return self.finalizeAndReturnMessage(msg)
+}
+
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
 	prepare := &istanbul.Subject{
 		View:   &view,
@@ -373,7 +398,6 @@ type testSystem struct {
 }
 
 func newTestSystem(n uint64, f uint64, keys [][]byte) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
 		backends:       make([]*testSystemBackend, n),
 		validatorsKeys: keys,
@@ -408,9 +432,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-// FIXME: int64 is needed for N and F
-func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
+func newTestSystemWithBackend(n, f uint64) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
@@ -471,6 +493,19 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 	}
 
 	return sys
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+	return newTestSystemWithBackend(n, f)
+}
+
+// FIXME: int64 is needed for N and F
+func NewMutedTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.DiscardHandler())
+	return newTestSystemWithBackend(n, f)
+
 }
 
 // listen will consume messages from queue and deliver a message to core
@@ -544,7 +579,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -568,7 +603,7 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
