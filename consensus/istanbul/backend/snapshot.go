@@ -18,7 +18,6 @@ package backend
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -66,7 +65,10 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 	}
 
 	if !snap.ValSet.HasBLSKeyCache() {
-		return nil, fmt.Errorf("Outdated snapshot")
+		log.Debug("Updating outdated snapshot", "hash", hash)
+		if err := snap.store(db); err != nil {
+			return nil, err
+		}
 	}
 
 	snap.Epoch = epoch
