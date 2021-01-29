@@ -528,17 +528,19 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// The author should be the first person to propose the block to ensure that randomness matches up.
-	addr, err := sb.Author(block.Header())
-	if err != nil {
-		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-		return 0, errInvalidProposal
-	} else if addr != block.Header().Coinbase {
-		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
-		return 0, errInvalidCoinbase
+	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
+	if !sb.chain.Config().IsDonut(block.Number()) {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return 0, errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
+			return 0, errInvalidCoinbase
+		}
 	}
 
-	err = sb.VerifyHeader(sb.chain, block.Header(), false)
+	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
