@@ -1,3 +1,5 @@
+filippo.io/edwards25519 v1.0.0-alpha.2 h1:EWbZLqGEPSIj2W69gx04KtNVkyPIfe3uj0DhDQJonbQ=
+filippo.io/edwards25519 v1.0.0-alpha.2/go.mod h1:X+pm78QAUPtFLi1z9PYIlS/bdDnvbCOGKtZ+ACWEf7o=
 github.com/Azure/azure-pipeline-go v0.2.1/go.mod h1:UGSo8XybXnIGZ3epmeBw7Jdz+HiUVpqIlpz/HKHylF4=
 github.com/Azure/azure-pipeline-go v0.2.2 h1:6oiIS9yaG6XCCzhgAgKFfIWyo4LLCiDhZot6ltoThhY=
 github.com/Azure/azure-pipeline-go v0.2.2/go.mod h1:4rQ/NZncSvGqNkkOsNpOU1tgoNuIlp9AfUH5G1tvCHc=
@@ -42,6 +44,14 @@ github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72/go.mod h1:OE
 github.com/celo-org/bls-zexe v0.1.4 h1:BELl4NNkGjUUNE/4dNdjtoIDoGuiF+2BPJRiOIkb74s=
 github.com/celo-org/celo-bls-go v0.1.6 h1:S9hfmKp02Wbd6k3GkCwc/1uCeg68ZP6JZ7qFGHIhCB8=
 github.com/celo-org/celo-bls-go v0.1.6/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.1 h1:9S9rF2Lrsp8GFlDDVN3fX3U5ix7AhDqXu3lCI3kraHE=
+github.com/celo-org/celo-bls-go v0.2.1/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.2 h1:9qhmOYijPCSqk3JsWrPoyzfmCszsHMlcNaNewWyeKjA=
+github.com/celo-org/celo-bls-go v0.2.2/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.3 h1:V9rVBDqxP3ntSFTXE6FKledEYEFqYFF3/NBDEw6AYtk=
+github.com/celo-org/celo-bls-go v0.2.3/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
+github.com/celo-org/celo-bls-go v0.2.4 h1:V1y92kM5IRJWQZ6DCwqiKLW7swmUA5y/dPJ9YbU4HfA=
+github.com/celo-org/celo-bls-go v0.2.4/go.mod h1:eXUCLXu5F1yfd3M+3VaUk5ZUXaA0sLK2rWdLC1Cfaqo=
 github.com/celo-org/gosigar v0.10.5-celo1 h1:LbhCsvNot586MAVvGFVF4cekBAo1pAYfUxktl8VuPas=
 github.com/celo-org/gosigar v0.10.5-celo1/go.mod h1:/kPo9MOBSowZbtkqUg0tJ048OJJVjG8dpaHKwAgBLz4=
 github.com/celo-org/mobile v0.0.0-20201127114005-6a1221213dcf h1:vjXHjR4gf41rdPgg3XafcYgpxrj28zIAZ89KDTStL6U=
@@ -101,6 +111,8 @@ github.com/graph-gophers/graphql-go v0.0.0-20191115155744-f33e81362277 h1:E0whKx
 github.com/graph-gophers/graphql-go v0.0.0-20191115155744-f33e81362277/go.mod h1:9CQHMSxwO4MprSdzoIEobiHpoLtHm77vfxsvsIN5Vuc=
 github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad h1:eMxs9EL0PvIGS9TTtxg4R+JxuPGav82J8rA+GFnY7po=
 github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
+github.com/hdevalence/ed25519consensus v0.0.0-20201207055737-7fde80a9d5ff h1:LeVKjw8pcDQj7WVVnbFvbD7ovcv+r/l15ka1NH6Lswc=
+github.com/hdevalence/ed25519consensus v0.0.0-20201207055737-7fde80a9d5ff/go.mod h1:Feit0l8NcNO4g69XNjwvsR0LGcwMMfzI1TF253rOIlQ=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/huin/goupnp v0.0.0-20161224104101-679507af18f3 h1:DqD8eigqlUm0+znmx7zhL0xvTW3+e1jCekJMfBUADWI=

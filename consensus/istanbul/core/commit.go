@@ -17,12 +17,19 @@
 package core
 
 import (
+	"errors"
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
+
+// maxValidators represents the maximum number of validators the SNARK circuit supports
+// The prover code will then pad any proofs to this maximum to ensure consistent proof structure
+// TODO: Eventually make this governable
+const maxValidators = uint32(150)
 
 func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
@@ -33,28 +40,54 @@ func (c *core) sendCommit() {
 
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false)
+	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false, false)
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err
 	}
 	return committedSeal, nil
 }
 
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, newValSet istanbul.ValidatorSet) ([]byte, error) {
+// Generates serialized epoch data for use in the Plumo SNARK circuit.
+// Block number and hash may be information for a pending block.
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
-		return nil, errNotLastBlockInEpoch
+		return nil, nil, false, errNotLastBlockInEpoch
 	}
+
+	// Serialize the public keys for the validators in the validator set.
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
 	for _, v := range newValSet.List() {
 		blsPubKeys = append(blsPubKeys, v.BLSPublicKey())
 	}
+
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
-	epochData, err := blscrypto.EncodeEpochSnarkData(blsPubKeys, maxNonSigners, uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)))
-	if err != nil {
-		return nil, err
+
+	// Before the Donut fork, use the snark data encoding with epoch entropy.
+	if !c.backend.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
+		message, extraData, err := blscrypto.EncodeEpochSnarkData(
+			blsPubKeys, maxNonSigners,
+			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		)
+		// This is before the Donut hardfork, so signify this doesn't use CIP22.
+		return message, extraData, false, err
 	}
 
-	return epochData, nil
+	// Retrieve the block hash for the last block of the previous epoch.
+	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
+	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
+		return nil, nil, false, errors.New("unknown block")
+	}
+
+	maxNonSigners = maxValidators - uint32(newValSet.MinQuorumSize())
+	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
+		blsPubKeys, maxNonSigners, maxValidators,
+		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
+		round,
+		blscrypto.EpochEntropyFromHash(blockHash),
+		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
+	)
+	// This is after the Donut hardfork, so signify this uses CIP22.
+	return message, extraData, true, err
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -72,14 +105,14 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 		logger.Error("Failed to get next block's validators", "err", err)
 		return
 	}
-	epochValidatorSetData, err := c.generateEpochValidatorSetData(currentBlockNumber, newValSet)
+	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
 	if err != nil && err != errNotLastBlockInEpoch {
 		logger.Error("Failed to create epoch validator set data", "err", err)
 		return
 	}
 	var epochValidatorSetSeal blscrypto.SerializedSignature
 	if err == nil {
-		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData[:], []byte{}, true)
+		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData, epochValidatorSetExtraData, true, cip22)
 		if err != nil {
 			logger.Error("Failed to sign epoch validator set seal", "err", err)
 			return
@@ -246,7 +279,7 @@ func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
 func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
 	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
-	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false, false)
 }
 
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
@@ -254,12 +287,12 @@ func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, bl
 	if blockNumber == 0 {
 		return nil
 	}
-	epochData, err := c.generateEpochValidatorSetData(blockNumber, newValSet)
+	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
 	if err != nil {
 		if err == errNotLastBlockInEpoch {
 			return nil
 		}
 		return err
 	}
-	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData[:], []byte{}, comSub.EpochValidatorSetSeal, true)
+	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData, epochExtraData, comSub.EpochValidatorSetSeal, true, cip22)
 }

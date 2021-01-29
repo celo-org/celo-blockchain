@@ -81,6 +81,26 @@ func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 	return (*big.Int)(&result), err
 }
 
+// Validtor retrieves full nodes validator address
+func (ec *Client) Validator(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_validator")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
+}
+
+// TxFeeRecipient retrieves full nodes TxFeeRecipient
+func (ec *Client) TxFeeRecipient(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_txFeeRecipient")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
+}
+
 // Coinbase retrieves full nodes coinbase
 func (ec *Client) Coinbase(ctx context.Context) (*common.Address, error) {
 	var result common.Address

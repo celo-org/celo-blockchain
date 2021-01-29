@@ -201,12 +201,19 @@ type Istanbul interface {
 	// StopProxiedValidatorEngine stops the proxied validator engine
 	StopProxiedValidatorEngine() error
 
-	// This is only implemented for Istanbul.
-	// It will update the validator set diff in the header, if the mined header is the last block of the epoch.
+	// UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch.
 	// The changes are executed inline.
 	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
 
-	// This is only implemented for Istanbul.
-	// It will check to see if the header is from the last block of an epoch
+	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
 	IsLastBlockOfEpoch(header *types.Header) bool
+
+	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+	LookbackWindow(header *types.Header, state *state.StateDB) uint64
+
+	// ValidatorAddress will return the istanbul engine's validator address
+	ValidatorAddress() common.Address
+
+	// GenerateRandomness will generate the random beacon randomness
+	GenerateRandomness(parentHash common.Hash) (common.Hash, common.Hash, error)
 }

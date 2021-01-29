@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/shared/signer"
 )
 
 type AuditLogger struct {
@@ -68,7 +69,7 @@ func (l *AuditLogger) SignData(ctx context.Context, contentType string, addr com
 	return b, e
 }
 
-func (l *AuditLogger) SignTypedData(ctx context.Context, addr common.MixedcaseAddress, data TypedData) (hexutil.Bytes, error) {
+func (l *AuditLogger) SignTypedData(ctx context.Context, addr common.MixedcaseAddress, data signer.TypedData) (hexutil.Bytes, error) {
 	l.log.Info("SignTypedData", "type", "request", "metadata", MetadataFromContext(ctx).String(),
 		"addr", addr.String(), "data", data)
 	b, e := l.api.SignTypedData(ctx, addr, data)

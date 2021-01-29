@@ -42,26 +42,11 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 
 // BLSSignerFn is a signer callback function to request a message and extra data to be signed by a
 // backing account using BLS with a direct or composite hasher
-type BLSSignerFn func(accounts.Account, []byte, []byte, bool) (blscrypto.SerializedSignature, error)
+type BLSSignerFn func(accounts.Account, []byte, []byte, bool, bool) (blscrypto.SerializedSignature, error)
 
-// UptimeEntry contains the uptime score of a validator during an epoch as well as the
-// last block they signed on
-type UptimeEntry struct {
-	ScoreTally      uint64
-	LastSignedBlock uint64
-}
-
-func (u *UptimeEntry) String() string {
-	return fmt.Sprintf("UptimeEntry { scoreTally: %v, lastBlock: %v}", u.ScoreTally, u.LastSignedBlock)
-}
-
-// Uptime contains the latest block for which uptime metrics were accounted for. It also contains
-// an array of Entries where the `i`th entry represents the uptime statistics of the `i`th validator
-// in the validator set for that epoch
-type Uptime struct {
-	LatestBlock uint64
-	Entries     []UptimeEntry
-}
+// HashSignerFn is a signer callback function to request a hash to be signed by a
+// backing account.
+type HashSignerFn func(accounts.Account, []byte) ([]byte, error)
 
 // Proposal supports retrieving height and serialized block to be used during Istanbul consensus.
 type Proposal interface {

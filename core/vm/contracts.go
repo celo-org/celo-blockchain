@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	ed25519 "github.com/hdevalence/ed25519consensus"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -59,11 +60,11 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 }
 
 func celoPrecompileAddress(index byte) common.Address {
-	return common.BytesToAddress(append([]byte{0}, (CeloPrecompiledContractsAddressOffset - index)))
+	return common.BytesToAddress(append([]byte{0}, (celoPrecompiledContractsAddressOffset - index)))
 }
 
 var (
-	CeloPrecompiledContractsAddressOffset = byte(0xff)
+	celoPrecompiledContractsAddressOffset = byte(0xff)
 
 	transferAddress              = celoPrecompileAddress(2)
 	fractionMulExpAddress        = celoPrecompileAddress(3)
@@ -75,6 +76,27 @@ var (
 	hashHeaderAddress            = celoPrecompileAddress(9)
 	getParentSealBitmapAddress   = celoPrecompileAddress(10)
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
+
+	// New in Donut
+	edd25519Address          = celoPrecompileAddress(12)
+	b12_381G1AddAddress      = celoPrecompileAddress(13)
+	b12_381G1MulAddress      = celoPrecompileAddress(14)
+	b12_381G1MultiExpAddress = celoPrecompileAddress(15)
+	b12_381G2AddAddress      = celoPrecompileAddress(16)
+	b12_381G2MulAddress      = celoPrecompileAddress(17)
+	b12_381G2MultiExpAddress = celoPrecompileAddress(18)
+	b12_381PairingAddress    = celoPrecompileAddress(19)
+	b12_381MapFpToG1Address  = celoPrecompileAddress(20)
+	b12_381MapFp2ToG2Address = celoPrecompileAddress(21)
+	b12_377G1AddAddress      = celoPrecompileAddress(22)
+	b12_377G1MulAddress      = celoPrecompileAddress(23)
+	b12_377G1MultiExpAddress = celoPrecompileAddress(24)
+	b12_377G2AddAddress      = celoPrecompileAddress(25)
+	b12_377G2MulAddress      = celoPrecompileAddress(26)
+	b12_377G2MultiExpAddress = celoPrecompileAddress(27)
+	b12_377PairingAddress    = celoPrecompileAddress(28)
+	cip20Address             = celoPrecompileAddress(29)
+	cip26Address             = celoPrecompileAddress(30)
 )
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -126,6 +148,53 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	hashHeaderAddress:            &hashHeader{},
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+}
+
+// PrecompiledContractsDonut contains the default set of pre-compiled Ethereum
+// contracts used in the Donit release.
+var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{},
+	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}): &blake2F{},
+
+	// Celo Precompiled Contracts
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
+	getParentSealBitmapAddress:   &getParentSealBitmap{},
+	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+
+	// TODO(Donut): Add instances
+	edd25519Address:          &ed25519Verify{},
+	b12_381G1AddAddress:      nil,
+	b12_381G1MulAddress:      nil,
+	b12_381G1MultiExpAddress: nil,
+	b12_381G2AddAddress:      nil,
+	b12_381G2MulAddress:      nil,
+	b12_381G2MultiExpAddress: nil,
+	b12_381PairingAddress:    nil,
+	b12_381MapFpToG1Address:  nil,
+	b12_381MapFp2ToG2Address: nil,
+	b12_377G1AddAddress:      nil,
+	b12_377G1MulAddress:      nil,
+	b12_377G1MultiExpAddress: nil,
+	b12_377G2AddAddress:      nil,
+	b12_377G2MulAddress:      nil,
+	b12_377G2MultiExpAddress: nil,
+	b12_377PairingAddress:    nil,
+	cip20Address:             nil,
+	cip26Address:             &getValidatorBLS{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -828,6 +897,45 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64)
 	return output, gas, nil
 }
 
+// ed25519Verify implements a native Ed25519 signature verification.
+type ed25519Verify struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
+	const sha2_512WordLength = 64
+
+	// round up to next whole word
+	lengthCeil := len(input) + sha2_512WordLength - 1
+	words := uint64(lengthCeil / sha2_512WordLength)
+	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
+}
+
+func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// Setup success/failure return values
+	var fail32byte, success32Byte = true32Byte, false32Byte
+
+	// Check if all required arguments are present
+	if len(input) < 96 {
+		return fail32byte, gas, nil
+	}
+
+	publicKey := input[0:32]  // 32 bytes
+	signature := input[32:96] // 64 bytes
+	message := input[96:]     // arbitrary length
+
+	// Verify the Ed25519 signature against the public key and message
+	// https://godoc.org/golang.org/x/crypto/ed25519#Verify
+	if ed25519.Verify(publicKey, message, signature) {
+		return success32Byte, gas, nil
+	}
+	return fail32byte, gas, nil
+}
+
 type getValidator struct{}
 
 func (c *getValidator) RequiredGas(input []byte) uint64 {
@@ -875,6 +983,70 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	addressBytes := common.LeftPadBytes(validatorAddress[:], 32)
 
 	return addressBytes, gas, nil
+}
+
+type getValidatorBLS struct{}
+
+func (c *getValidatorBLS) RequiredGas(input []byte) uint64 {
+	return params.GetValidatorBLSGas
+}
+
+func copyBLSNumber(result []byte, offset int, uncompressedBytes []byte, offset2 int) {
+	for i := 0; i < 48; i++ {
+		result[63-i+offset] = uncompressedBytes[i+offset2]
+	}
+}
+
+// Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
+func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// input is comprised of two arguments:
+	//   index: 32 byte integer representing the index of the validator to get
+	//   blockNumber: 32 byte integer representing the block number to access
+	if len(input) < 64 {
+		return nil, gas, ErrInputLength
+	}
+
+	index := new(big.Int).SetBytes(input[0:32])
+
+	blockNumber := new(big.Int).SetBytes(input[32:64])
+	if blockNumber.Cmp(common.Big0) == 0 {
+		// Validator set for the genesis block is empty, so any index is out of bounds.
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+	if blockNumber.Cmp(evm.Context.BlockNumber) > 0 {
+		return nil, gas, ErrBlockNumberOutOfBounds
+	}
+
+	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
+	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+
+	// Ensure index, which is guaranteed to be non-negative, is valid.
+	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
+		return nil, gas, ErrValidatorsOutOfBounds
+	}
+
+	validator := validators[index.Uint64()]
+	uncompressedBytes := validator.BLSPublicKeyUncompressed()
+	if len(uncompressedBytes) != 192 {
+		return nil, gas, ErrUnexpected
+	}
+
+	result := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		result[i] = 0
+	}
+
+	copyBLSNumber(result, 0, uncompressedBytes, 0)
+	copyBLSNumber(result, 64, uncompressedBytes, 48)
+	copyBLSNumber(result, 128, uncompressedBytes, 96)
+	copyBLSNumber(result, 192, uncompressedBytes, 144)
+
+	return result, gas, nil
 }
 
 type numberValidators struct{}

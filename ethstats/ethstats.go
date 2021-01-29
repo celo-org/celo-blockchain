@@ -742,12 +742,12 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 	}
 	msgHash := crypto.Keccak256Hash(msg)
 
-	etherBase, errEtherbase := s.eth.Etherbase()
-	if errEtherbase != nil {
-		return nil, errEtherbase
+	validator, errValidator := s.eth.Validator()
+	if errValidator != nil {
+		return nil, errValidator
 	}
 
-	account := accounts.Account{Address: etherBase}
+	account := accounts.Account{Address: validator}
 	wallet, errWallet := s.eth.AccountManager().Find(account)
 	if errWallet != nil {
 		return nil, errWallet
@@ -766,7 +766,7 @@ func (s *Service) signStats(stats interface{}) (map[string]interface{}, error) {
 
 	proof := map[string]interface{}{
 		"signature": hexutil.Encode(signature),
-		"address":   etherBase,
+		"address":   validator,
 		"publicKey": hexutil.Encode(pubkeyBytes),
 		"msgHash":   msgHash.Hex(),
 	}

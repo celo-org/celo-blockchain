@@ -67,6 +67,8 @@ var (
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 3000,
 			LookbackWindow: 12,
 		},
 	}
@@ -89,6 +91,8 @@ var (
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
+			BlockPeriod:    5,
+			RequestTimeout: 3000,
 			LookbackWindow: 12,
 		},
 	}
@@ -117,7 +121,7 @@ var (
 		},
 	}
 
-	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, &IstanbulConfig{
+	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,

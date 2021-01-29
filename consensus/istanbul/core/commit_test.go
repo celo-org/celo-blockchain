@@ -210,7 +210,7 @@ OUTER:
 			defer privateKey.Destroy()
 
 			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
-			signature, _ := privateKey.SignMessage(hash, []byte{}, false)
+			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 			committedSubject := &istanbul.CommittedSubject{

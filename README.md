@@ -25,6 +25,22 @@ or, to build the full suite of utilities:
 make all
 ```
 
+### Mobile Clients
+
+There are two different commands in the `Makefile` to build the `ios` and the `android` clients.
+
+```shell
+make ios
+```
+
+and
+
+```shell
+make android
+```
+
+Note: The `android` command it applies a git patch (`patches/mobileLibsForBuild.patch`) required to swap some libs from the `go.mod` for the client to work, installs those libs, builds the client, and then reverts the patch.
+
 ## Executables
 
 The Celo blockchain client comes with several wrappers/executables found in the `cmd` directory.
@@ -189,6 +205,16 @@ if you don't have `GOPATH` set-up.
 
 Once a PR is approved, adding on the `automerge` label will keep it up to date
 and do a squash merge once all the required tests have passed.
+
+### Benchmarking
+
+Golang has built in support for running benchmarks with go tool
+`go test -run=ThisIsNotATestName -bench=. ./$PACKAGE_NAME` will run all benchmarks in a package.
+
+One note around running benchmarks is that `BenchmarkHandlePreprepare` is quite takes a while to run, particularly when testing with a larger number of validators.
+Substituting `-bench=REGEX` for `-bench=.` will specify which tests to run. Adding `-cpuprofile=cpu.out` which can be visualized with `go tool pprof -html:8080 cpu.out` if `graphviz` is installed.
+
+See the [go testing flags](https://golang.org/cmd/go/#hdr-Testing_flags) and [go docs](https://golang.org/pkg/testing/#hdr-Benchmarks) for more information on benchmarking.
 
 
 ## License

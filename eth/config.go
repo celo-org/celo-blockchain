@@ -81,10 +81,11 @@ type Config struct {
 	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
 	// Minimum gateway fee value to serve a transaction from a light client
 	GatewayFee *big.Int `toml:",omitempty"`
-	// Etherbase is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
-	// Also the coinbase used for mining.
-	Etherbase common.Address `toml:",omitempty"`
-	BLSbase   common.Address `toml:",omitempty"`
+	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
+	Validator common.Address `toml:",omitempty"`
+	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	TxFeeRecipient common.Address `toml:",omitempty"`
+	BLSbase        common.Address `toml:",omitempty"`
 
 	// Ultra Light client options
 	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers

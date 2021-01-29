@@ -136,6 +136,7 @@ func printHelp(out io.Writer, templ string, data interface{}) {
 
 var (
 	// General settings
+
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
 		Usage: "Data directory for the databases and keystore",
@@ -236,12 +237,19 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
+	TxFeeRecipientFlag = cli.StringFlag{
+		Name:  "tx-fee-recipient",
+		Usage: "Public address for block transaction fees and gateway fees",
+		Value: "0",
+	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
+
 	// Light server and client settings
+
 	LightServeFlag = cli.IntFlag{
 		Name:  "light.serve",
 		Usage: "Maximum percentage of time allowed for serving LES requests (multi-threaded processing allows values over 100)",
@@ -281,7 +289,9 @@ var (
 		Name:  "ulc.onlyannounce",
 		Usage: "Ultra light server sends announcements only",
 	}
+
 	// Transaction pool settings
+
 	TxPoolLocalsFlag = cli.StringFlag{
 		Name:  "txpool.locals",
 		Usage: "Comma separated accounts to treat as locals (no flush, priority inclusion)",
@@ -335,7 +345,9 @@ var (
 		Usage: "Maximum amount of time non-executable transaction are queued",
 		Value: eth.DefaultConfig.TxPool.Lifetime,
 	}
+
 	// Performance tuning settings
+
 	CacheFlag = cli.IntFlag{
 		Name:  "cache",
 		Usage: "Megabytes of memory allocated to internal caching (default = 4096 mainnet full node, 128 light mode)",
@@ -365,10 +377,17 @@ var (
 		Name:  "cache.noprefetch",
 		Usage: "Disable heuristic state prefetch during block import (less CPU and disk IO, more time waiting for data)",
 	}
+
 	// Miner settings
+
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
 		Usage: "Enable mining",
+	}
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
+		Usage: "Public address for participation in consensus",
+		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
 		Name:  "miner.threads",
@@ -411,12 +430,7 @@ var (
 	}
 	MinerEtherbaseFlag = cli.StringFlag{
 		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
-		Value: "0",
-	}
-	MinerLegacyEtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --miner.etherbase)",
+		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
 	MinerExtraDataFlag = cli.StringFlag{
@@ -436,7 +450,9 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+
 	// Account settings
+
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
 		Usage: "Comma separated list of accounts to unlock",
@@ -464,7 +480,9 @@ var (
 		Name:  "rpc.gascap",
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas",
 	}
+
 	// Logging and debug settings
+
 	EthStatsLegacyURLFlag = cli.StringFlag{
 		Name:  "ethstats",
 		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
@@ -482,6 +500,7 @@ var (
 		Usage: "Disables db compaction after import",
 	}
 	// RPC settings
+
 	IPCDisabledFlag = cli.BoolFlag{
 		Name:  "ipcdisable",
 		Usage: "Disable the IPC-RPC server",
@@ -577,6 +596,7 @@ var (
 	}
 
 	// Network Settings
+
 	MaxPeersFlag = cli.IntFlag{
 		Name:  "maxpeers",
 		Usage: "Maximum number of network peers (network disabled if set to 0)",
@@ -677,6 +697,7 @@ var (
 	}
 
 	// Metrics flags
+
 	MetricsEnabledFlag = cli.BoolFlag{
 		Name:  "metrics",
 		Usage: "Enable metrics collection and reporting",
@@ -731,25 +752,26 @@ var (
 	}
 
 	// Istanbul settings
+
 	IstanbulRequestTimeoutFlag = cli.Uint64Flag{
 		Name:  "istanbul.requesttimeout",
-		Usage: "Timeout for each Istanbul round in milliseconds",
-		Value: eth.DefaultConfig.Istanbul.RequestTimeout,
+		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulBlockPeriodFlag = cli.Uint64Flag{
 		Name:  "istanbul.blockperiod",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
-		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulProposerPolicyFlag = cli.Uint64Flag{
 		Name:  "istanbul.proposerpolicy",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
-		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulLookbackWindowFlag = cli.Uint64Flag{
 		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
-		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulReplicaFlag = cli.BoolFlag{
 		Name:  "istanbul.replica",
@@ -757,6 +779,7 @@ var (
 	}
 
 	// Announce settings
+
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
 		Name:  "announce.queryenodegossipperiod",
 		Usage: "Time duration (in seconds) between gossiped query enode messages",
@@ -768,6 +791,7 @@ var (
 	}
 
 	// Proxy node settings
+
 	ProxyFlag = cli.BoolFlag{
 		Name:  "proxy.proxy",
 		Usage: "Specifies whether this node is a proxy",
@@ -783,6 +807,7 @@ var (
 	}
 
 	// Proxied validator settings
+
 	ProxiedFlag = cli.BoolFlag{
 		Name:  "proxy.proxied",
 		Usage: "Specifies whether this validator will be proxied by a proxy node",
@@ -1104,41 +1129,70 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
-	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+// `Validator` is the address used to sign consensus messages.
+func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current validator, new flag overriding legacy etherbase
+	var validator string
+	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
+		validator = ctx.GlobalString(EtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		if validator != "" {
+			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
+		validator = ctx.GlobalString(MinerValidatorFlag.Name)
+	}
+
+	// Convert the validator into an address and configure it
+	if validator != "" {
+		account, err := MakeAddress(ks, validator)
+		if err != nil {
+			Fatalf("Invalid validator: %v", err)
+		}
+		cfg.Miner.Validator = account.Address
+	}
+}
+
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
+		}
+		txFeeRecipient := ctx.GlobalString(TxFeeRecipientFlag.Name)
+
+		// Convert the txFeeRecipient into an address and configure it
+		if txFeeRecipient != "" {
+			account, err := MakeAddress(ks, txFeeRecipient)
+			if err != nil {
+				Fatalf("Invalid txFeeRecipient: %v", err)
+			}
+			cfg.TxFeeRecipient = account.Address
+		}
+	} else {
+		// Backwards compatibility. If the miner was set by the "etherbase" flag, both should have the same info
+		cfg.TxFeeRecipient = cfg.Miner.Validator
 	}
 }
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `BLSbase` is the ethereum address which identifies an ECDSA key
+// from which the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
+	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
 	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
 		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
+	// Convert the blsbase into an address and configure it
 	if blsbase != "" {
 		account, err := MakeAddress(ks, blsbase)
 		if err != nil {
@@ -1413,22 +1467,22 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 
 func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
-		cfg.Istanbul.RequestTimeout = ctx.GlobalUint64(IstanbulRequestTimeoutFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulRequestTimeoutFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
-		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulBlockPeriodFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
-		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulLookbackWindowFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
-		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulProposerPolicyFlag.Name)
 	}
 	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
-	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name)
+	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name) || ctx.GlobalIsSet(DeveloperFlag.Name)
 	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 }
 
@@ -1617,7 +1671,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {
 		ks = keystores[0].(*keystore.KeyStore)
 	}
-	setEtherbase(ctx, ks, cfg)
+	setValidator(ctx, ks, cfg)
+	setTxFeeRecipient(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setMiner(ctx, &cfg.Miner)
