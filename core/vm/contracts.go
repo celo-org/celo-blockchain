@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	ed25519 "github.com/hdevalence/ed25519consensus"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -175,7 +176,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
 	// TODO(Donut): Add instances
-	edd25519Address:          nil,
+	edd25519Address:          &ed25519Verify{},
 	b12_381G1AddAddress:      nil,
 	b12_381G1MulAddress:      nil,
 	b12_381G1MultiExpAddress: nil,
@@ -894,6 +895,45 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64)
 		binary.LittleEndian.PutUint64(output[offset:offset+8], h[i])
 	}
 	return output, gas, nil
+}
+
+// ed25519Verify implements a native Ed25519 signature verification.
+type ed25519Verify struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
+	const sha2_512WordLength = 64
+
+	// round up to next whole word
+	lengthCeil := len(input) + sha2_512WordLength - 1
+	words := uint64(lengthCeil / sha2_512WordLength)
+	return params.Ed25519VerifyGas + params.Sha2_512BaseGas + (words * params.Sha2_512PerWordGas)
+}
+
+func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
+	// Setup success/failure return values
+	var fail32byte, success32Byte = true32Byte, false32Byte
+
+	// Check if all required arguments are present
+	if len(input) < 96 {
+		return fail32byte, gas, nil
+	}
+
+	publicKey := input[0:32]  // 32 bytes
+	signature := input[32:96] // 64 bytes
+	message := input[96:]     // arbitrary length
+
+	// Verify the Ed25519 signature against the public key and message
+	// https://godoc.org/golang.org/x/crypto/ed25519#Verify
+	if ed25519.Verify(publicKey, message, signature) {
+		return success32Byte, gas, nil
+	}
+	return fail32byte, gas, nil
 }
 
 type getValidator struct{}
