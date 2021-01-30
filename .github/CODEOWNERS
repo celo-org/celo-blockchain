@@ -2,21 +2,14 @@
 # Each line is a file pattern followed by one or more owners.
 
 # default owners, overridden by package specific owners below
-* @asaj @timmoreton
+* @mcortesi @oneeman
 
-/accounts/ @kobigurk
-/cmd/ @kevjue @mcortesi
-/consensus/ @kevjue @mcortesi @trianglesphere
-/consensus/istanbul/backend/ @tkporter
-/contract_comm/ @kevjue
-/core/ @kevjue
+/accounts/ @kobigurk @gastonponti @hbandura
+/consensus/ @kevjue @mcortesi @trianglesphere @nategraf
 /crypto/ @kobigurk
-/eth/ @kevjue @tkporter
-/ethstats/ @diminator
-/les/ @kevjue
-/light/ @kevjue
-/logging/ @timmoreton @mcortesi
-/metrics/ @timmoreton
-/miner/ @kevjue
-/node/ @kevjue
+/eth/ @mcortesi @oneeman @trianglesphere
+/ethstats/ @gastonponti
+/les/ @hbandura @nategraf
+/light/ @hbandura @nategraf
+/metrics/ @gastonponti
 /p2p/ @oneeman
