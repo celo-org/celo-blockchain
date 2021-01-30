@@ -25,7 +25,9 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -155,3 +157,165 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecip
 
 	return receipt, err
 }
+
+// ---------------------------------------------------------
+// CachingStateProcessor
+// ---------------------------------------------------------
+
+const (
+	stateCacheLimit = 256
+)
+
+// StateProcessResult represents processing results from StateProcessor.
+type StateProcessResult struct {
+	State    *state.StateDB
+	Receipts types.Receipts
+	Logs     []*types.Log
+	UsedGas  uint64
+	err      error
+}
+
+type StateProcessKey struct {
+	SealHash common.Hash
+	Root     common.Hash
+}
+
+// CachingStateProcessor incorporates StateProcessor and StateProcessCache.
+type CachingStateProcessor struct {
+	processor *StateProcessor // Actual underlying processor
+	cache     *lru.Cache      // Caching StateProcessor, only use sealHash -> StateProcessResult as key-value pair.
+
+	processorRequestGauge metrics.Gauge // Gauge for total number of requests to StateProcessor.Process
+	cacheHitGauge         metrics.Gauge // Gauge for cache hit
+	cacheLenGauge         metrics.Gauge // Gauge for cache length
+}
+
+// NewCachingStateProcessor initialises a new CachingStateProcessor.
+func NewCachingStateProcessor(config *params.ChainConfig, bc *BlockChain, engine consensus.Engine) *CachingStateProcessor {
+	cache, _ := lru.New(stateCacheLimit)
+	return &CachingStateProcessor{
+		processor:             NewStateProcessor(config, bc, engine),
+		cache:                 cache,
+		processorRequestGauge: metrics.NewRegisteredGauge("core/caching_state_processor/processorRequest", nil),
+		cacheHitGauge:         metrics.NewRegisteredGauge("core/caching_state_processor/cacheHit", nil),
+		cacheLenGauge:         metrics.NewRegisteredGauge("core/caching_state_processor/cacheLen", nil),
+	}
+}
+
+// Process first queries the cache, if miss, then invokes the StateProcessor.
+func (cp *CachingStateProcessor) Process(block *types.Block, state *state.StateDB, cfg vm.Config) (receipts types.Receipts, logs []*types.Log, usedGas uint64, err error) {
+	cp.processorRequestGauge.Inc(1)
+	cp.cacheLenGauge.Update(int64(cp.cache.Len()))
+
+	// First query the cache
+	key := &StateProcessKey{
+		SealHash: cp.processor.engine.SealHash(block.Header()),
+		Root:     state.IntermediateRoot(true),
+	}
+	r, ok := cp.Get(key)
+	if ok {
+		*state = *r.State // replace where state points to
+		return r.Receipts, r.Logs, r.UsedGas, r.err
+	}
+	// If no cache hit, then do actual processing
+	receipts, logs, usedGas, err = cp.processor.Process(block, state, cfg)
+	cp.cache.Add(key,
+		&StateProcessResult{
+			State:    state,
+			Receipts: receipts,
+			Logs:     logs,
+			UsedGas:  usedGas,
+			err:      err,
+		})
+	return
+}
+
+// Add adds a deep copied StateProcessResult.
+func (cp *CachingStateProcessor) Add(key *StateProcessKey, result *StateProcessResult) {
+	cp.cache.Add(key, deepCopy(result))
+}
+
+// Get retrieves a StateProcessResult, and returns a deep copy of it.
+func (cp *CachingStateProcessor) Get(key *StateProcessKey) (*StateProcessResult, bool) {
+	if value, ok := cp.cache.Get(key); ok {
+		r := value.(*StateProcessResult)
+		return deepCopy(r), true
+	}
+	return nil, false
+}
+
+//deepCopy will deep copy a StateProcessResult.
+func deepCopy(result *StateProcessResult) *StateProcessResult {
+	var (
+		cpyReceipts = make([]*types.Receipt, len(result.Receipts))
+		cpyLogs     []*types.Log
+	)
+	// Deep copy receipts
+	for i, receipt := range result.Receipts {
+		cpyReceipts[i] = new(types.Receipt)
+		*cpyReceipts[i] = *receipt
+		// Deep copy logs
+		for _, log := range receipt.Logs {
+			cpyLog := new(types.Log)
+			*cpyLog = *log
+			cpyLogs = append(cpyLogs, cpyLog)
+		}
+	}
+	return &StateProcessResult{
+		State:    result.State.Copy(),
+		Receipts: cpyReceipts,
+		Logs:     cpyLogs,
+		UsedGas:  result.UsedGas,
+		err:      result.err,
+	}
+}
+
+//// StateProcessCache defines a cache for StateProcessResult which results from StateProcessor
+//type Cache interface {
+//	// Add puts StateProcessResult, using block's sealHash as key
+//	Add(sealHash common.Hash, result *StateProcessResult)
+//
+//	// Get retrieves StateProcessResult, using block's sealHash as key
+//	Get(sealHash common.Hash) (*StateProcessResult, bool)
+//}
+
+//// StateProcessCache implements a thread safe StateProcessCache
+//type StateProcessCache struct {
+//	cache   map[common.Hash]*StateProcessResult
+//	cacheMu *sync.RWMutex
+//}
+
+//// NewBlockProcessResultCache returns a StateProcessCache
+//func NewBlockProcessResultCache() *StateProcessCache {
+//	return &StateProcessCache{
+//		cache:   make(map[common.Hash]*StateProcessResult),
+//		cacheMu: new(sync.RWMutex),
+//	}
+//}
+
+//// Add adds a value to the cache
+//func (pc *StateProcessCache) Add(sealHash common.Hash, result *StateProcessResult) {
+//	pc.cacheMu.Lock()
+//	defer pc.cacheMu.Unlock()
+//
+//	pc.clear()
+//	pc.cache[sealHash] = result
+//}
+//
+//// Get gets a value from the cache
+//func (pc *StateProcessCache) Get(sealHash common.Hash) (result *StateProcessResult, ok bool) {
+//	pc.cacheMu.RLock()
+//	defer pc.cacheMu.RUnlock()
+//
+//	result, ok = pc.cache[sealHash]
+//	return
+//}
+//
+//// clear removes stale entries in the cache
+//func (pc *StateProcessCache) clear() {
+//	for hash, result := range pc.cache {
+//		if result.blockNumber+staleThreshold <= number {
+//			delete(w.pendingTasks, h)
+//		}
+//	}
+//}
