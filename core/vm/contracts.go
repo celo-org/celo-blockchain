@@ -1023,7 +1023,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
