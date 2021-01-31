@@ -972,7 +972,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
@@ -1082,7 +1082,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
@@ -1100,7 +1100,7 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
-	epochSize := new(big.Int).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSize := new(big.Int).SetUint64(evm.Context.EpochSize).Bytes()
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
@@ -1181,7 +1181,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	}
 
 	// Ensure the request is for a sufficiently recent block to limit state expansion.
-	historyLimit := new(big.Int).SetUint64(evm.Context.Engine.EpochSize() * 4)
+	historyLimit := new(big.Int).SetUint64(evm.Context.EpochSize * 4)
 	if blockNumber.Cmp(new(big.Int).Sub(evm.Context.BlockNumber, historyLimit)) <= 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}
