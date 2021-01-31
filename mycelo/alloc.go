@@ -37,7 +37,7 @@ func generateGenesisState(buildPath string, cfg *config.Config, smartContractCfg
 // NewDeployment generates a new deployment
 func newDeployment(buildPath string, cfg *config.Config, smartContractCfg *config.Paremeters) *deployContext {
 
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	runtimeConfig := &runtime.Config{
 		ChainConfig: cfg.ChainConfig,
