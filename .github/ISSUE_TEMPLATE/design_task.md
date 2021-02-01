@@ -13,7 +13,7 @@ _Explain what needs to be researched or designed_
 
 ## Context
 
-_Explain the context for this. Wether it's an initiave, or anything else. WHY is this important?_
+_Explain the context for this. Whether it's an initiative, or anything else. WHY is this important?_
 
 ## Expected Output 
 
