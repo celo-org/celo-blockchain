@@ -148,9 +148,9 @@ func IsRunning() bool {
 }
 
 // GetLastCommitment returns up the last commitment in the smart contract
-func GetLastCommitment(coinbase common.Address, header *types.Header, state vm.StateDB) (common.Hash, error) {
+func GetLastCommitment(validator common.Address, header *types.Header, state vm.StateDB) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{coinbase}, &lastCommitment, params.MaxGasForCommitments, header, state)
+	_, err := contract_comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{validator}, &lastCommitment, params.MaxGasForCommitments, header, state)
 	if err != nil {
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err

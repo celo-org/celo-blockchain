@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/shared/signer"
 	"github.com/ethereum/go-ethereum/signer/storage"
 )
 
@@ -43,7 +44,7 @@ const (
 	// ExternalAPIVersion -- see extapi_changelog.md
 	ExternalAPIVersion = "6.0.0"
 	// InternalAPIVersion -- see intapi_changelog.md
-	InternalAPIVersion = "7.0.0"
+	InternalAPIVersion = "7.0.1"
 )
 
 // ExternalAPI defines the external API through which signing requests are made.
@@ -57,7 +58,7 @@ type ExternalAPI interface {
 	// SignData - request to sign the given data (plus prefix)
 	SignData(ctx context.Context, contentType string, addr common.MixedcaseAddress, data interface{}) (hexutil.Bytes, error)
 	// SignTypedData - request to sign the given structured data (plus prefix)
-	SignTypedData(ctx context.Context, addr common.MixedcaseAddress, data TypedData) (hexutil.Bytes, error)
+	SignTypedData(ctx context.Context, addr common.MixedcaseAddress, data signer.TypedData) (hexutil.Bytes, error)
 	// EcRecover - recover public key from given message and signature
 	EcRecover(ctx context.Context, data hexutil.Bytes, sig hexutil.Bytes) (common.Address, error)
 	// Version info about the APIs
@@ -233,7 +234,7 @@ type (
 		ContentType string                  `json:"content_type"`
 		Address     common.MixedcaseAddress `json:"address"`
 		Rawdata     []byte                  `json:"raw_data"`
-		Messages    []*NameValueType        `json:"messages"`
+		Messages    []*signer.NameValueType `json:"messages"`
 		Hash        hexutil.Bytes           `json:"hash"`
 		Meta        Metadata                `json:"meta"`
 	}
@@ -395,8 +396,7 @@ func (api *SignerAPI) List(ctx context.Context) ([]common.Address, error) {
 // the given password. Users are responsible to backup the private key that is stored
 // in the keystore location thas was specified when this API was created.
 func (api *SignerAPI) New(ctx context.Context) (common.Address, error) {
-	be := api.am.Backends(keystore.KeyStoreType)
-	if len(be) == 0 {
+	if be := api.am.Backends(keystore.KeyStoreType); len(be) == 0 {
 		return common.Address{}, errors.New("password based accounts not supported")
 	}
 	if resp, err := api.UI.ApproveNewAccount(&NewAccountRequest{MetadataFromContext(ctx)}); err != nil {
@@ -404,7 +404,16 @@ func (api *SignerAPI) New(ctx context.Context) (common.Address, error) {
 	} else if !resp.Approved {
 		return common.Address{}, ErrRequestDenied
 	}
+	return api.newAccount()
+}
 
+// newAccount is the internal method to create a new account. It should be used
+// _after_ user-approval has been obtained
+func (api *SignerAPI) newAccount() (common.Address, error) {
+	be := api.am.Backends(keystore.KeyStoreType)
+	if len(be) == 0 {
+		return common.Address{}, errors.New("password based accounts not supported")
+	}
 	// Three retries to get a valid password
 	for i := 0; i < 3; i++ {
 		resp, err := api.UI.OnInputRequired(UserInputRequest{

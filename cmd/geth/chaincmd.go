@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/trie"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -81,8 +82,17 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 			utils.GCModeFlag,
+			utils.SnapshotFlag,
 			utils.CacheDatabaseFlag,
 			utils.CacheGCFlag,
+			utils.MetricsEnabledFlag,
+			utils.MetricsEnabledExpensiveFlag,
+			utils.MetricsEnableInfluxDBFlag,
+			utils.MetricsInfluxDBEndpointFlag,
+			utils.MetricsInfluxDBDatabaseFlag,
+			utils.MetricsInfluxDBUsernameFlag,
+			utils.MetricsInfluxDBPasswordFlag,
+			utils.MetricsInfluxDBTagsFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -265,6 +275,10 @@ func importChain(ctx *cli.Context) error {
 	if len(ctx.Args()) < 1 {
 		utils.Fatalf("This command requires an argument.")
 	}
+	// Start metrics export if enabled
+	utils.SetupMetrics(ctx)
+	// Start system runtime metrics collection
+	go metrics.CollectProcessMetrics(3 * time.Second)
 	stack := makeFullNode(ctx)
 	defer stack.Close()
 
@@ -555,7 +569,7 @@ func dump(ctx *cli.Context) error {
 			fmt.Println("{}")
 			utils.Fatalf("block not found")
 		} else {
-			state, err := state.New(block.Root(), state.NewDatabase(chainDb))
+			state, err := state.New(block.Root(), state.NewDatabase(chainDb), nil)
 			if err != nil {
 				utils.Fatalf("could not create new state: %v", err)
 			}

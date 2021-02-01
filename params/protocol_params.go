@@ -138,12 +138,16 @@ const (
 	FractionMulExpGas           uint64 = 50     // Cost of performing multiplication and exponentiation of fractions to an exponent of up to 10^3.
 	ProofOfPossessionGas        uint64 = 350000 // Cost of verifying a BLS proof of possession.
 	GetValidatorGas             uint64 = 1000   // Cost of reading a validator's address.
+	GetValidatorBLSGas          uint64 = 1000   // Cost of reading a validator's BLS public key.
 	GetEpochSizeGas             uint64 = 10     // Cost of querying the number of blocks in an epoch.
 	GetBlockNumberFromHeaderGas uint64 = 10     // Cost of decoding a block header.
 	HashHeaderGas               uint64 = 10     // Cost of hashing a block header.
 	GetParentSealBitmapGas      uint64 = 100    // Cost of reading the parent seal bitmap from the chain.
 	// May take a bit more time with 100 validators, need to bench that
-	GetVerifiedSealBitmapGas uint64 = 350000 // Cost of verifying the seal on a given RLP encoded header.
+	GetVerifiedSealBitmapGas uint64 = 350000           // Cost of verifying the seal on a given RLP encoded header.
+	Ed25519VerifyGas         uint64 = 1500             // Gas needed for and Ed25519 signature verification
+	Sha2_512BaseGas          uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
+	Sha2_512PerWordGas       uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
 )
 
 var (
@@ -220,7 +224,7 @@ const (
 	MaxGasForIncreaseSupply                        uint64 = 50 * thousand
 	MaxGasForIsFrozen                              uint64 = 20 * thousand
 	MaxGasForMedianRate                            uint64 = 100 * thousand
-	MaxGasForReadBlockchainParameter               uint64 = 20 * thousand
+	MaxGasForReadBlockchainParameter               uint64 = 40 * thousand // ad-hoc measurement is ~26k
 	MaxGasForRevealAndCommit                       uint64 = 2 * million
 	MaxGasForUpdateGasPriceMinimum                 uint64 = 2 * million
 	MaxGasForUpdateTargetVotingYield               uint64 = 2 * million

@@ -29,6 +29,7 @@ var (
 	discv5Command = cli.Command{
 		Name:  "discv5",
 		Usage: "Node Discovery v5 tools",
+		Flags: []cli.Flag{networkIdFlag},
 		Subcommands: []cli.Command{
 			discv5PingCommand,
 			discv5ResolveCommand,
@@ -113,8 +114,7 @@ func discv5Listen(ctx *cli.Context) error {
 
 // startV5 starts an ephemeral discovery v5 node.
 func startV5(ctx *cli.Context) *discover.UDPv5 {
-	networkId := ctx.GlobalUint64(networkIdFlag.Name)
-	ln, config := makeDiscoveryConfig(ctx, networkId)
+	ln, config := makeDiscoveryConfig(ctx)
 	socket := listen(ln, ctx.String(listenAddrFlag.Name))
 	disc, err := discover.ListenV5(socket, ln, config)
 	if err != nil {
