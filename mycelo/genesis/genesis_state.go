@@ -1,4 +1,4 @@
-package mycelo
+package genesis
 
 import (
 	"math/big"

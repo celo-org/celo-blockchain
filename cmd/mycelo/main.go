@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/mycelo"
 	"github.com/ethereum/go-ethereum/mycelo/cluster"
 	"github.com/ethereum/go-ethereum/mycelo/config"
+	"github.com/ethereum/go-ethereum/mycelo/genesis"
 	"github.com/ethereum/go-ethereum/params"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -189,7 +189,7 @@ func createGenesis(ctx *cli.Context) error {
 		return err
 	}
 
-	genesis, err := mycelo.GenerateGenesis(cfg, contractsCfg, buildpath)
+	genesis, err := genesis.GenerateGenesis(cfg, contractsCfg, buildpath)
 	if err != nil {
 		return err
 	}
