@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"reflect"
 	"unicode"
@@ -148,6 +149,12 @@ func enableWhisper(ctx *cli.Context) bool {
 
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
+	if ctx.GlobalIsSet(utils.OverrideChurritoFlag.Name) {
+		cfg.Eth.OverrideChurrito = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideChurritoFlag.Name))
+	}
+	if ctx.GlobalIsSet(utils.OverrideDonutFlag.Name) {
+		cfg.Eth.OverrideDonut = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideDonutFlag.Name))
+	}
 	utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Whisper must be explicitly enabled by specifying at least 1 whisper flag or in dev mode
