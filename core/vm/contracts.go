@@ -688,7 +688,7 @@ func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas 
 	}
 
 	// input is comprised of 6 arguments:
-	//   aNumerator:   32 bytes, 256 bit integer, numerator for the first fraction (a)
+	//   aNumerator:   32 bytes, 256 biqt integer, numerator for the first fraction (a)
 	//   aDenominator: 32 bytes, 256 bit integer, denominator for the first fraction (a)
 	//   bNumerator:   32 bytes, 256 bit integer, numerator for the second fraction (b)
 	//   bDenominator: 32 bytes, 256 bit integer, denominator for the second fraction (b)
@@ -1295,13 +1295,17 @@ func (c *bls12381G1Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G1Add precompile.
 	// > G1 addition call expects `256` bytes as an input that is interpreted as byte concatenation of two G1 points (`128` bytes each).
 	// > Output is an encoding of addition operation result - single G1 point (`128` bytes).
 	if len(input) != 256 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	var p0, p1 *bls12381.PointG1
 
 	// Initialize G1
@@ -1333,13 +1337,17 @@ func (c *bls12381G1Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G1Mul precompile.
 	// > G1 multiplication call expects `160` bytes as an input that is interpreted as byte concatenation of encoding of G1 point (`128` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiplication operation result - single G1 point (`128` bytes).
 	if len(input) != 160 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	var p0 *bls12381.PointG1
 
 	// Initialize G1
@@ -1383,6 +1391,11 @@ func (c *bls12381G1MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G1MultiExp precompile.
 	// G1 multiplication call expects `160*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G1 point (`128` bytes) and encoding of a scalar value (`32` bytes).
 	// Output is an encoding of multiexponentiation operation result - single G1 point (`128` bytes).
@@ -1390,7 +1403,6 @@ func (c *bls12381G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, 
 	if len(input) == 0 || len(input)%160 != 0 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	points := make([]*bls12381.PointG1, k)
 	scalars := make([]*big.Int, k)
 
@@ -1426,13 +1438,17 @@ func (c *bls12381G2Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G2Add precompile.
 	// > G2 addition call expects `512` bytes as an input that is interpreted as byte concatenation of two G2 points (`256` bytes each).
 	// > Output is an encoding of addition operation result - single G2 point (`256` bytes).
 	if len(input) != 512 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	var p0, p1 *bls12381.PointG2
 
 	// Initialize G2
@@ -1464,13 +1480,17 @@ func (c *bls12381G2Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G2MUL precompile logic.
 	// > G2 multiplication call expects `288` bytes as an input that is interpreted as byte concatenation of encoding of G2 point (`256` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiplication operation result - single G2 point (`256` bytes).
 	if len(input) != 288 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	var p0 *bls12381.PointG2
 
 	// Initialize G2
@@ -1514,6 +1534,11 @@ func (c *bls12381G2MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 G2MultiExp precompile logic
 	// > G2 multiplication call expects `288*k` bytes as an input that is interpreted as byte concatenation of `k` slices each of them being a byte concatenation of encoding of G2 point (`256` bytes) and encoding of a scalar value (`32` bytes).
 	// > Output is an encoding of multiexponentiation operation result - single G2 point (`256` bytes).
@@ -1521,7 +1546,6 @@ func (c *bls12381G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, 
 	if len(input) == 0 || len(input)%288 != 0 {
 		return nil, gas, errBLS12381InvalidInputLength
 	}
-	var err error
 	points := make([]*bls12381.PointG2, k)
 	scalars := make([]*big.Int, k)
 
@@ -1557,6 +1581,11 @@ func (c *bls12381Pairing) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381Pairing) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 Pairing precompile logic.
 	// > Pairing call expects `384*k` bytes as an inputs that is interpreted as byte concatenation of `k` slices. Each slice has the following structure:
 	// > - `128` bytes of G1 point encoding
@@ -1636,6 +1665,11 @@ func (c *bls12381MapG1) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381MapG1) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 Map_To_G1 precompile.
 	// > Field-to-curve call expects `64` bytes an an input that is interpreted as a an element of the base field.
 	// > Output of this call is `128` bytes and is G1 point following respective encoding rules.
@@ -1671,6 +1705,11 @@ func (c *bls12381MapG2) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381MapG2) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
+	gas, err := debitRequiredGas(c, input, gas)
+	if err != nil {
+		return nil, gas, err
+	}
+
 	// Implements EIP-2537 Map_FP2_TO_G2 precompile logic.
 	// > Field-to-curve call expects `128` bytes an an input that is interpreted as a an element of the quadratic extension field.
 	// > Output of this call is `256` bytes and is G2 point following respective encoding rules.
