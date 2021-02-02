@@ -155,8 +155,6 @@ const (
 	Sha3_512PerWordGas  uint64 = Sha3WordGas      // Per-word price for a Sha3-512 operation
 	Keccak512BaseGas    uint64 = Sha3Gas          // Per-word price for a Keccak512 operation
 	Keccak512PerWordGas uint64 = Sha3WordGas      // Base price for a Keccak512 operation
-	Sha2_512BaseGas     uint64 = Sha256BaseGas    // Base price for a Sha2-512 operation
-	Sha2_512PerWordGas  uint64 = Sha256PerWordGas // Per-word price for a Sha2-512 operation
 
 	Blake2sBaseGas    uint64 = Sha256BaseGas    // Per-word price for a Blake2s operation
 	Blake2sPerWordGas uint64 = Sha256PerWordGas // Base price for a Blake2s
