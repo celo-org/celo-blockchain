@@ -17,7 +17,6 @@
 package core
 
 import (
-	"errors"
 	"math"
 	"math/big"
 
@@ -31,13 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-)
-
-var (
-	ErrGasPriceDoesNotExceedMinimum = errors.New("gasprice is less than gas price minimum")
-
-	errInsufficientBalanceForFees = errors.New("insufficient balance to pay for fees")
-	errNonWhitelistedFeeCurrency  = errors.New("non-whitelisted fee currency address")
 )
 
 /*
@@ -70,6 +62,41 @@ type StateTransition struct {
 	gasPriceMinimum *big.Int
 }
 
+// ExecutionResult includes all output after executing given evm
+// message no matter the execution itself is successful or not.
+type ExecutionResult struct {
+	UsedGas    uint64 // Total used gas but include the refunded gas
+	Err        error  // Any error encountered during the execution(listed in core/vm/errors.go)
+	ReturnData []byte // Returned data from evm(function result or data supplied with revert opcode)
+}
+
+// Unwrap returns the internal evm error which allows us for further
+// analysis outside.
+func (result *ExecutionResult) Unwrap() error {
+	return result.Err
+}
+
+// Failed returns the indicator whether the execution is successful or not
+func (result *ExecutionResult) Failed() bool { return result.Err != nil }
+
+// Return is a helper function to help caller distinguish between revert reason
+// and function return. Return returns the data after execution if no error occurs.
+func (result *ExecutionResult) Return() []byte {
+	if result.Err != nil {
+		return nil
+	}
+	return common.CopyBytes(result.ReturnData)
+}
+
+// Revert returns the concrete revert reason if the execution is aborted by `REVERT`
+// opcode. Note the reason can be nil if no data supplied with revert opcode.
+func (result *ExecutionResult) Revert() []byte {
+	if result.Err != vm.ErrExecutionReverted {
+		return nil
+	}
+	return common.CopyBytes(result.ReturnData)
+}
+
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
@@ -95,15 +122,15 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 		}
 
 		if (math.MaxUint64-gas)/nonZeroGas < nz {
-			log.Debug("IntrinsicGas", "out of gas")
-			return 0, vm.ErrOutOfGas
+			log.Debug("IntrinsicGas", "gas uint overflow")
+			return 0, ErrGasUintOverflow
 		}
 		gas += nz * nonZeroGas
 
 		z := uint64(len(data)) - nz
 		if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
-			log.Debug("IntrinsicGas", "out of gas")
-			return 0, vm.ErrOutOfGas
+			log.Debug("IntrinsicGas", "gas uint overflow")
+			return 0, ErrGasUintOverflow
 		}
 		gas += z * params.TxDataZeroGas
 	}
@@ -119,7 +146,12 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if feeCurrency != nil {
-		gas += blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+		addition := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+		if (math.MaxUint64 - gas) < addition {
+			log.Debug("IntrinsicGas", "gas uint overflow")
+			return 0, ErrGasUintOverflow
+		}
+		gas += addition
 	}
 
 	return gas, nil
@@ -148,7 +180,7 @@ func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransiti
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
+func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
@@ -157,7 +189,7 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, boo
 // set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) ([]byte, uint64, bool, error) {
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	st := NewStateTransition(evm, msg, gp)
 	st.gasPriceMinimum = common.Big0
@@ -172,20 +204,11 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To()
 }
 
-func (st *StateTransition) useGas(amount uint64) error {
-	if st.gas < amount {
-		return vm.ErrOutOfGas
-	}
-	st.gas -= amount
-
-	return nil
-}
-
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
 	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
-		return errNonWhitelistedFeeCurrency
+		return ErrNonWhitelistedFeeCurrency
 	}
 
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
@@ -196,7 +219,7 @@ func (st *StateTransition) payFees() error {
 	}
 
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
-		return errInsufficientBalanceForFees
+		return ErrInsufficientFundsForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -310,22 +333,43 @@ func (st *StateTransition) preCheck() error {
 }
 
 // TransitionDb will transition the state by applying the current message and
-// returning the result including the used gas. It returns an error if failed.
-// An error indicates a consensus issue.
-func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
-	// Check that the transaction nonce is correct
-	if err = st.preCheck(); err != nil {
-		return
+// returning the evm execution result with following fields.
+//
+// - used gas:
+//      total gas used (including gas being refunded)
+// - returndata:
+//      the returned data from evm
+// - concrete execution error:
+//      various **EVM** error which aborts the execution,
+//      e.g. ErrOutOfGas, ErrExecutionReverted
+//
+// However if any consensus issue encountered, return the error directly with
+// nil evm execution result.
+func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
+	// First check this message satisfies all consensus rules before
+	// applying the message. The rules include these clauses
+	//
+	// 1. the nonce of the message caller is correct
+	// 2. the gas price meets the minimum gas price
+	// 3. caller has enough balance (in the right currency) to cover transaction fee
+	// 4. the amount of gas required is available in the block
+	// 5. the purchased gas is enough to cover intrinsic usage
+	// 6. there is no overflow when calculating intrinsic gas
+	// 7. caller has enough balance to cover asset transfer for **topmost** call
+
+	// Check clauses 1-2
+	if err := st.preCheck(); err != nil {
+		return nil, err
 	}
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 	contractCreation := msg.To() == nil
 
-	// Calculate intrinsic gas.
+	// Calculate intrinsic gas, check clauses 5-6
 	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.GetHeader(), st.state, msg.FeeCurrency(), istanbul)
 	if err != nil {
-		return nil, 0, false, err
+		return nil, err
 	}
 
 	// If the intrinsic gas is more than provided in the tx, return without failing.
@@ -334,52 +378,44 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			"gas required", gas,
 			"gas provided", st.msg.Gas(),
 			"fee currency", st.msg.FeeCurrency())
-		return nil, 0, false, vm.ErrOutOfGas
+		return nil, ErrIntrinsicGas
 	}
-
+	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
 	err = st.payFees()
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
-		return nil, 0, false, err
+		return nil, err
 	}
+	st.gas -= gas
 
-	if err = st.useGas(gas); err != nil {
-		log.Error("Transaction failed to use gas", "err", err, "gas", gas)
-		return nil, 0, false, err
+	// Check clause 7
+	if msg.Value().Sign() > 0 && !st.evm.CanTransfer(st.state, msg.From(), msg.Value()) {
+		return nil, ErrInsufficientFundsForTransfer
 	}
-
 	var (
-		evm = st.evm
-		// vm errors do not effect consensus and are therefore
-		// not assigned to err, except for insufficient balance
-		// error.
-		vmerr error
+		ret   []byte
+		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
 	if contractCreation {
-		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
+		ret, _, st.gas, vmerr = st.evm.Create(sender, st.data, st.gas, st.value)
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
-		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
-	}
-	if vmerr != nil {
-		log.Debug("VM returned with error", "err", vmerr)
-		// The only possible consensus-error would be if there wasn't
-		// sufficient balance to make the transfer happen. The first
-		// balance transfer may never fail.
-		if vmerr == vm.ErrInsufficientBalance {
-			return nil, 0, false, vmerr
-		}
+		ret, st.gas, vmerr = st.evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
 	st.refundGas()
 
 	err = st.distributeTxFees()
 	if err != nil {
-		return nil, 0, false, err
+		return nil, err
 	}
 
-	return ret, st.gasUsed(), vmerr != nil, nil
+	return &ExecutionResult{
+		UsedGas:    st.gasUsed(),
+		Err:        vmerr,
+		ReturnData: ret,
+	}, nil
 }
 
 // distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
