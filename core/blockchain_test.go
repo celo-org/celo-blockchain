@@ -1009,7 +1009,7 @@ func TestLogRebirth(t *testing.T) {
 
 	// Generate long reorg chain containing another log. Inserting the
 	// chain removes one log and adds one.
-	forkChain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, engine, db, 2, func(i int, gen *BlockGen) {
+	forkChain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, engine, db, 3, func(i int, gen *BlockGen) {
 		if i == 1 {
 			tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, logCode), signer, key1)
 			if err != nil {
@@ -1027,7 +1027,7 @@ func TestLogRebirth(t *testing.T) {
 	// This chain segment is rooted in the original chain, but doesn't contain any logs.
 	// When inserting it, the canonical chain switches away from forkChain and re-emits
 	// the log event for the old chain, as well as a RemovedLogsEvent for forkChain.
-	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, chain[len(chain)-1], engine, db, 1, func(i int, gen *BlockGen) {})
+	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, chain[len(chain)-1], engine, db, 2, func(i int, gen *BlockGen) {})
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
@@ -1145,9 +1145,13 @@ func TestReorgSideEvent(t *testing.T) {
 	// first two block of the secondary chain are for a brief moment considered
 	// side chains because up to that point the first one is considered the
 	// heavier chain.
+	// the third may or may not be, depending on whether it triggers a reorg (the
+	// difficulties of the two chains are equal at this time).
+	// the boolean value indicates whether we are still waiting for that block's event.
 	expectedSideHashes := map[common.Hash]bool{
 		replacementBlocks[0].Hash(): true,
 		replacementBlocks[1].Hash(): true,
+		replacementBlocks[2].Hash(): false, // may not be sent (if reorg was on the 3rd block)
 		chain[0].Hash():             true,
 		chain[1].Hash():             true,
 		chain[2].Hash():             true,
@@ -1165,9 +1169,16 @@ done:
 			if _, ok := expectedSideHashes[block.Hash()]; !ok {
 				t.Errorf("%d: didn't expect %x to be in side chain", i, block.Hash())
 			}
+			expectedSideHashes[block.Hash()] = false
 			i++
 
-			if i == len(expectedSideHashes) {
+			numLeft := 0
+			for _, isLeft := range expectedSideHashes {
+				if isLeft {
+					numLeft += 1
+				}
+			}
+			if numLeft == 0 {
 				timeout.Stop()
 
 				break done
