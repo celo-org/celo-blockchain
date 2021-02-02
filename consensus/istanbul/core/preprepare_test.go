@@ -459,3 +459,88 @@ func TestHandlePreprepare(t *testing.T) {
 		})
 	}
 }
+
+// benchMarkHandleRoundChange benchmarks handling a round change messages with n prepare or commit messages in the prepared certificate
+func benchMarkHandleRoundChange(n int, b *testing.B) {
+	// Setup
+	N := uint64(n)
+	F := uint64(1) // F does not affect tests
+	sys := NewMutedTestSystemWithBackend(N, F)
+	c := sys.backends[0].engine.(*core)
+	c.Start()
+	sys.backends[1].engine.(*core).Start()
+	// getPreparedCertificate defaults to 50% commits, 50% prepares. Modify the function to change the ratio.
+	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(1))
+	msg, err := sys.backends[1].getRoundChangeMessage(istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)}, preparedCertificate)
+	if err != nil {
+		b.Errorf("Error creating a round change message. err: %v", err)
+	}
+
+	// benchmarked portion
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = c.handleRoundChange(&msg)
+		if err != nil {
+			b.Errorf("Error handling the round change message. err: %v", err)
+		}
+	}
+}
+
+func BenchmarkHandleRoundChange_10(b *testing.B)  { benchMarkHandleRoundChange(10, b) }
+func BenchmarkHandleRoundChange_50(b *testing.B)  { benchMarkHandleRoundChange(50, b) }
+func BenchmarkHandleRoundChange_90(b *testing.B)  { benchMarkHandleRoundChange(90, b) }
+func BenchmarkHandleRoundChange_100(b *testing.B) { benchMarkHandleRoundChange(100, b) }
+func BenchmarkHandleRoundChange_120(b *testing.B) { benchMarkHandleRoundChange(120, b) }
+func BenchmarkHandleRoundChange_150(b *testing.B) { benchMarkHandleRoundChange(150, b) }
+func BenchmarkHandleRoundChange_200(b *testing.B) { benchMarkHandleRoundChange(200, b) }
+
+// benchMarkHandlePreprepare benchmarks handling a preprepare with a round change certificate that has
+// filled round change messages (i.e. the round change messages have prepared certificates that are not empty)
+func benchMarkHandlePreprepare(n int, b *testing.B) {
+	// Setup
+	getRoundState := func(c *core) *roundStateImpl {
+		return c.current.(*rsSaveDecorator).rs.(*roundStateImpl)
+	}
+	N := uint64(n)
+	F := uint64(1) // F does not affect tests
+	sys := NewMutedTestSystemWithBackend(N, F)
+
+	for i, backend := range sys.backends {
+		backend.engine.(*core).Start()
+		c := backend.engine.(*core)
+		getRoundState(c).round = big.NewInt(int64(N))
+		getRoundState(c).desiredRound = getRoundState(c).round
+		if i != 0 {
+			getRoundState(c).state = StateAcceptRequest
+		}
+	}
+	c := sys.backends[0].engine.(*core)
+
+	// Create pre-prepare
+	block := makeBlock(1)
+	nextView := istanbul.View{Round: big.NewInt(int64(N)), Sequence: big.NewInt(1)}
+	// getPreparedCertificate defaults to 50% commits, 50% prepares. Modify the function to change the ratio.
+	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, block)
+	roundChangeCertificate := sys.getRoundChangeCertificate(b, []istanbul.View{nextView}, preparedCertificate)
+	msg, err := sys.backends[0].getPreprepareMessage(nextView, roundChangeCertificate, block)
+	if err != nil {
+		b.Errorf("Error creating a pre-prepare message. err: %v", err)
+	}
+
+	// benchmarked portion
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = c.handlePreprepare(&msg)
+		if err != nil {
+			b.Errorf("Error handling the pre-prepare message. err: %v", err)
+		}
+	}
+}
+
+func BenchmarkHandlePreprepare_10(b *testing.B)  { benchMarkHandlePreprepare(10, b) }
+func BenchmarkHandlePreprepare_50(b *testing.B)  { benchMarkHandlePreprepare(50, b) }
+func BenchmarkHandlePreprepare_90(b *testing.B)  { benchMarkHandlePreprepare(90, b) }
+func BenchmarkHandlePreprepare_100(b *testing.B) { benchMarkHandlePreprepare(100, b) }
+func BenchmarkHandlePreprepare_120(b *testing.B) { benchMarkHandlePreprepare(120, b) }
+func BenchmarkHandlePreprepare_150(b *testing.B) { benchMarkHandlePreprepare(150, b) }
+func BenchmarkHandlePreprepare_200(b *testing.B) { benchMarkHandlePreprepare(200, b) }

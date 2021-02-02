@@ -136,6 +136,7 @@ func printHelp(out io.Writer, templ string, data interface{}) {
 
 var (
 	// General settings
+
 	DataDirFlag = DirectoryFlag{
 		Name:  "datadir",
 		Usage: "Data directory for the databases and keystore",
@@ -219,6 +220,10 @@ var (
 		Usage: `Blockchain garbage collection mode ("full", "archive")`,
 		Value: "full",
 	}
+	SnapshotFlag = cli.BoolFlag{
+		Name:  "snapshot",
+		Usage: `Enables snapshot-database mode -- experimental work in progress feature`,
+	}
 	LightKDFFlag = cli.BoolFlag{
 		Name:  "lightkdf",
 		Usage: "Reduce key-derivation RAM & CPU usage at some expense of KDF strength",
@@ -232,12 +237,19 @@ var (
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
 		Value: "0",
 	}
+	TxFeeRecipientFlag = cli.StringFlag{
+		Name:  "tx-fee-recipient",
+		Usage: "Public address for block transaction fees and gateway fees",
+		Value: "0",
+	}
 	BLSbaseFlag = cli.StringFlag{
 		Name:  "blsbase",
 		Usage: "Public address for block mining BLS signatures (default = first account created)",
 		Value: "0",
 	}
+
 	// Light server and client settings
+
 	LightServeFlag = cli.IntFlag{
 		Name:  "light.serve",
 		Usage: "Maximum percentage of time allowed for serving LES requests (multi-threaded processing allows values over 100)",
@@ -277,7 +289,9 @@ var (
 		Name:  "ulc.onlyannounce",
 		Usage: "Ultra light server sends announcements only",
 	}
+
 	// Transaction pool settings
+
 	TxPoolLocalsFlag = cli.StringFlag{
 		Name:  "txpool.locals",
 		Usage: "Comma separated accounts to treat as locals (no flush, priority inclusion)",
@@ -331,7 +345,9 @@ var (
 		Usage: "Maximum amount of time non-executable transaction are queued",
 		Value: eth.DefaultConfig.TxPool.Lifetime,
 	}
+
 	// Performance tuning settings
+
 	CacheFlag = cli.IntFlag{
 		Name:  "cache",
 		Usage: "Megabytes of memory allocated to internal caching (default = 4096 mainnet full node, 128 light mode)",
@@ -344,22 +360,34 @@ var (
 	}
 	CacheTrieFlag = cli.IntFlag{
 		Name:  "cache.trie",
-		Usage: "Percentage of cache memory allowance to use for trie caching (default = 25% full mode, 50% archive mode)",
-		Value: 25,
+		Usage: "Percentage of cache memory allowance to use for trie caching (default = 15% full mode, 30% archive mode)",
+		Value: 15,
 	}
 	CacheGCFlag = cli.IntFlag{
 		Name:  "cache.gc",
 		Usage: "Percentage of cache memory allowance to use for trie pruning (default = 25% full mode, 0% archive mode)",
 		Value: 25,
 	}
+	CacheSnapshotFlag = cli.IntFlag{
+		Name:  "cache.snapshot",
+		Usage: "Percentage of cache memory allowance to use for snapshot caching (default = 10% full mode, 20% archive mode)",
+		Value: 10,
+	}
 	CacheNoPrefetchFlag = cli.BoolFlag{
 		Name:  "cache.noprefetch",
 		Usage: "Disable heuristic state prefetch during block import (less CPU and disk IO, more time waiting for data)",
 	}
+
 	// Miner settings
+
 	MiningEnabledFlag = cli.BoolFlag{
 		Name:  "mine",
 		Usage: "Enable mining",
+	}
+	MinerValidatorFlag = cli.StringFlag{
+		Name:  "miner.validator",
+		Usage: "Public address for participation in consensus",
+		Value: "0",
 	}
 	MinerThreadsFlag = cli.IntFlag{
 		Name:  "miner.threads",
@@ -402,12 +430,7 @@ var (
 	}
 	MinerEtherbaseFlag = cli.StringFlag{
 		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
-		Value: "0",
-	}
-	MinerLegacyEtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --miner.etherbase)",
+		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
 	MinerExtraDataFlag = cli.StringFlag{
@@ -427,7 +450,9 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+
 	// Account settings
+
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
 		Usage: "Comma separated list of accounts to unlock",
@@ -455,10 +480,16 @@ var (
 		Name:  "rpc.gascap",
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas",
 	}
+
 	// Logging and debug settings
-	EthStatsURLFlag = cli.StringFlag{
+
+	EthStatsLegacyURLFlag = cli.StringFlag{
 		Name:  "ethstats",
-		Usage: "Reporting URL of a ethstats service (nodename:secret@host:port)",
+		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
+	}
+	CeloStatsURLFlag = cli.StringFlag{
+		Name:  "celostats",
+		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
 	}
 	FakePoWFlag = cli.BoolFlag{
 		Name:  "fakepow",
@@ -469,6 +500,7 @@ var (
 		Usage: "Disables db compaction after import",
 	}
 	// RPC settings
+
 	IPCDisabledFlag = cli.BoolFlag{
 		Name:  "ipcdisable",
 		Usage: "Disable the IPC-RPC server",
@@ -564,6 +596,7 @@ var (
 	}
 
 	// Network Settings
+
 	MaxPeersFlag = cli.IntFlag{
 		Name:  "maxpeers",
 		Usage: "Maximum number of network peers (network disabled if set to 0)",
@@ -632,6 +665,10 @@ var (
 		Name:  "disable-version-check",
 		Usage: "Disable version check. Use if the parameter is set erroneously",
 	}
+	DNSDiscoveryFlag = cli.StringFlag{
+		Name:  "discovery.dns",
+		Usage: "Sets DNS discovery entry points (use \"\" to disable DNS)",
+	}
 
 	// ATM the url is left to the user and deployment to
 	JSpathFlag = cli.StringFlag{
@@ -660,6 +697,7 @@ var (
 	}
 
 	// Metrics flags
+
 	MetricsEnabledFlag = cli.BoolFlag{
 		Name:  "metrics",
 		Usage: "Enable metrics collection and reporting",
@@ -714,28 +752,34 @@ var (
 	}
 
 	// Istanbul settings
+
 	IstanbulRequestTimeoutFlag = cli.Uint64Flag{
 		Name:  "istanbul.requesttimeout",
-		Usage: "Timeout for each Istanbul round in milliseconds",
-		Value: eth.DefaultConfig.Istanbul.RequestTimeout,
+		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulBlockPeriodFlag = cli.Uint64Flag{
 		Name:  "istanbul.blockperiod",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
-		Value: eth.DefaultConfig.Istanbul.BlockPeriod,
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulProposerPolicyFlag = cli.Uint64Flag{
 		Name:  "istanbul.proposerpolicy",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds",
-		Value: uint64(eth.DefaultConfig.Istanbul.ProposerPolicy),
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
+		Value: 0,
 	}
 	IstanbulLookbackWindowFlag = cli.Uint64Flag{
 		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score",
-		Value: eth.DefaultConfig.Istanbul.LookbackWindow,
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
+		Value: 0,
+	}
+	IstanbulReplicaFlag = cli.BoolFlag{
+		Name:  "istanbul.replica",
+		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
 	}
 
 	// Announce settings
+
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
 		Name:  "announce.queryenodegossipperiod",
 		Usage: "Time duration (in seconds) between gossiped query enode messages",
@@ -747,6 +791,7 @@ var (
 	}
 
 	// Proxy node settings
+
 	ProxyFlag = cli.BoolFlag{
 		Name:  "proxy.proxy",
 		Usage: "Specifies whether this node is a proxy",
@@ -762,14 +807,21 @@ var (
 	}
 
 	// Proxied validator settings
+
 	ProxiedFlag = cli.BoolFlag{
 		Name:  "proxy.proxied",
 		Usage: "Specifies whether this validator will be proxied by a proxy node",
 	}
-	ProxyEnodeURLPairFlag = cli.StringFlag{
-		Name:  "proxy.proxyenodeurlpair",
-		Usage: "proxy enode URL pair separated by a semicolon.  The format should be \"<internal facing enode URL>;<external facing enode URL>\"",
+	ProxyEnodeURLPairsFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpairs",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
+
+	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
+	}
+
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -778,7 +830,7 @@ var (
 
 // MakeDataDir retrieves the currently requested data directory, terminating
 // if none (or the empty string) is specified. If the node is starting a testnet,
-// the a subdirectory of the specified datadir will be used.
+// then a subdirectory of the specified datadir will be used.
 func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.GlobalString(DataDirFlag.Name); path != "" {
 		if ctx.GlobalBool(BaklavaFlag.Name) {
@@ -830,9 +882,9 @@ func GetBootstrapNodes(ctx *cli.Context) []string {
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV4Flag.Name):
 		if ctx.GlobalIsSet(BootnodesV4Flag.Name) {
-			urls = strings.Split(ctx.GlobalString(BootnodesV4Flag.Name), ",")
+			urls = splitAndTrim(ctx.GlobalString(BootnodesV4Flag.Name))
 		} else {
-			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
+			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
@@ -870,9 +922,9 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV5Flag.Name):
 		if ctx.GlobalIsSet(BootnodesV5Flag.Name) {
-			urls = strings.Split(ctx.GlobalString(BootnodesV5Flag.Name), ",")
+			urls = splitAndTrim(ctx.GlobalString(BootnodesV5Flag.Name))
 		} else {
-			urls = strings.Split(ctx.GlobalString(BootnodesFlag.Name), ",")
+			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
@@ -1077,41 +1129,70 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 	return accs[index], nil
 }
 
-// setEtherbase retrieves the etherbase either from the directly specified
+// setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
-	if ctx.GlobalIsSet(MinerLegacyEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerLegacyEtherbaseFlag.Name)
+// `Validator` is the address used to sign consensus messages.
+func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	// Extract the current validator, new flag overriding legacy etherbase
+	var validator string
+	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
+		validator = ctx.GlobalString(EtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
+		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
-	if etherbase != "" {
-		if ks != nil {
-			account, err := MakeAddress(ks, etherbase)
-			if err != nil {
-				Fatalf("Invalid miner etherbase: %v", err)
-			}
-			cfg.Miner.Etherbase = account.Address
-			cfg.Etherbase = account.Address
-		} else {
-			Fatalf("No etherbase configured")
+	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+		if validator != "" {
+			Fatalf("`etherbase` and `miner.validator` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
 		}
+		validator = ctx.GlobalString(MinerValidatorFlag.Name)
+	}
+
+	// Convert the validator into an address and configure it
+	if validator != "" {
+		account, err := MakeAddress(ks, validator)
+		if err != nil {
+			Fatalf("Invalid validator: %v", err)
+		}
+		cfg.Miner.Validator = account.Address
+	}
+}
+
+// setTxFeeRecipient retrieves the txFeeRecipient address either from the directly specified
+// command line flags or from the keystore if CLI indexed.
+// `TxFeeRecipient` is the address earned block transaction fees are sent to.
+func setTxFeeRecipient(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
+	if ctx.GlobalIsSet(TxFeeRecipientFlag.Name) {
+		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+			Fatalf("`etherbase` and `tx-fee-recipient` flag should not be used together. `miner.validator` and `tx-fee-recipient` constitute both of `etherbase`' functions")
+		}
+		txFeeRecipient := ctx.GlobalString(TxFeeRecipientFlag.Name)
+
+		// Convert the txFeeRecipient into an address and configure it
+		if txFeeRecipient != "" {
+			account, err := MakeAddress(ks, txFeeRecipient)
+			if err != nil {
+				Fatalf("Invalid txFeeRecipient: %v", err)
+			}
+			cfg.TxFeeRecipient = account.Address
+		}
+	} else {
+		// Backwards compatibility. If the miner was set by the "etherbase" flag, both should have the same info
+		cfg.TxFeeRecipient = cfg.Miner.Validator
 	}
 }
 
 // setBLSbase retrieves the blsbase either from the directly specified
 // command line flags or from the keystore if CLI indexed.
+// `BLSbase` is the ethereum address which identifies an ECDSA key
+// from which the BLS private key used for block finalization in consensus.
 func setBLSbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
+	// Extract the current blsbase, new flag overriding legacy one
 	var blsbase string
 	if ctx.GlobalIsSet(BLSbaseFlag.Name) {
 		blsbase = ctx.GlobalString(BLSbaseFlag.Name)
 	}
-	// Convert the etherbase into an address and configure it
+	// Convert the blsbase into an address and configure it
 	if blsbase != "" {
 		account, err := MakeAddress(ks, blsbase)
 		if err != nil {
@@ -1151,10 +1232,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
 
-	lightPeers := 0
-	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
-		lightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
-	}
+	// LightPeers is in the eth config, not the p2p config, so we don't have it here, so we
+	// get it here separately using GlobalInt()
+	lightPeers := ctx.GlobalInt(LightMaxPeersFlag.Name)
 	if lightClient && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
 		// dynamic default - for clients we use 1/10th of the default for servers
 		lightPeers /= 10
@@ -1387,21 +1467,23 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 
 func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
-		cfg.Istanbul.RequestTimeout = ctx.GlobalUint64(IstanbulRequestTimeoutFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulRequestTimeoutFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
-		cfg.Istanbul.BlockPeriod = ctx.GlobalUint64(IstanbulBlockPeriodFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulBlockPeriodFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
-		cfg.Istanbul.LookbackWindow = ctx.GlobalUint64(IstanbulLookbackWindowFlag.Name)
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulLookbackWindowFlag.Name)
 	}
 	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
-		cfg.Istanbul.ProposerPolicy = istanbul.ProposerPolicy(ctx.GlobalUint64(IstanbulProposerPolicyFlag.Name))
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulProposerPolicyFlag.Name)
 	}
+	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
 	cfg.Istanbul.VersionCertificateDBPath = stack.ResolvePath(cfg.Istanbul.VersionCertificateDBPath)
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
-	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name)
+	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name) || ctx.GlobalIsSet(DeveloperFlag.Name)
+	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
@@ -1426,6 +1508,10 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 		// Mining must not be set for proxies
 		if ctx.GlobalIsSet(MiningEnabledFlag.Name) {
 			Fatalf("Option --%s must not be used if option --%s is used", MiningEnabledFlag.Name, ProxyFlag.Name)
+		}
+		// Replica must not be set for proxies
+		if ctx.GlobalIsSet(IstanbulReplicaFlag.Name) {
+			Fatalf("Option --%s must not be used if option --%s is used", IstanbulReplicaFlag.Name, ProxyFlag.Name)
 		}
 
 		if !ctx.GlobalIsSet(ProxiedValidatorAddressFlag.Name) {
@@ -1453,30 +1539,49 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairFlag.Name, ProxiedFlag.Name)
-		} else {
-			proxyEnodeURLPair := strings.Split(ctx.String(ProxyEnodeURLPairFlag.Name), ";")
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
+			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
+		}
+
+		// Extract the proxy enode url pairs, new flag overriding legacy one
+		var proxyEnodeURLPairs []string
+
+		if ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsLegacyFlag.Name), ",")
+		}
+
+		if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsFlag.Name), ",")
+		}
+		ethCfg.Istanbul.ProxyConfigs = make([]*istanbul.ProxyConfig, len(proxyEnodeURLPairs))
+
+		for i, proxyEnodeURLPairStr := range proxyEnodeURLPairs {
+			proxyEnodeURLPair := strings.Split(proxyEnodeURLPairStr, ";")
 			if len(proxyEnodeURLPair) != 2 {
-				Fatalf("Invalid usage for option --%s", ProxyEnodeURLPairFlag.Name)
+				Fatalf("Invalid format for option --%s", ProxyEnodeURLPairsFlag.Name)
 			}
 
-			var err error
-			if ethCfg.Istanbul.ProxyInternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[0]); err != nil {
-				Fatalf("Proxy internal facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[0], err)
+			proxyInternalNode, err := enode.ParseV4(proxyEnodeURLPair[0])
+			if err != nil {
+				Fatalf("Proxy internal facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[0], err)
 			}
 
-			if ethCfg.Istanbul.ProxyExternalFacingNode, err = enode.ParseV4(proxyEnodeURLPair[1]); err != nil {
-				Fatalf("Proxy external facing enodeURL (%s) invalid with err: %v", proxyEnodeURLPair[1], err)
+			proxyExternalNode, err := enode.ParseV4(proxyEnodeURLPair[1])
+			if err != nil {
+				Fatalf("Proxy external facing enodeURL (%s) invalid with parse err: %v", proxyEnodeURLPair[1], err)
 			}
 
 			// Check that external IP is not a private IP address.
-			if ethCfg.Istanbul.ProxyExternalFacingNode.IsPrivateIP() {
+			if proxyExternalNode.IsPrivateIP() {
 				if ctx.GlobalBool(ProxyAllowPrivateIPFlag.Name) {
-					log.Warn(fmt.Sprintf("Proxy external facing enodeURL (%s) is private IP.", proxyEnodeURLPair[1]))
+					log.Warn("Proxy external facing enodeURL (%s) is private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
 				} else {
-					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", proxyEnodeURLPair[1])
+					Fatalf("Proxy external facing enodeURL (%s) cannot be private IP.", "proxy external enodeURL", proxyEnodeURLPair[1])
 				}
+			}
+			ethCfg.Istanbul.ProxyConfigs[i] = &istanbul.ProxyConfig{
+				InternalNode: proxyInternalNode,
+				ExternalNode: proxyExternalNode,
 			}
 		}
 
@@ -1566,7 +1671,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {
 		ks = keystores[0].(*keystore.KeyStore)
 	}
-	setEtherbase(ctx, ks, cfg)
+	setValidator(ctx, ks, cfg)
+	setTxFeeRecipient(ctx, ks, cfg)
 	setBLSbase(ctx, ks, cfg)
 	setTxPool(ctx, &cfg.TxPool)
 	setMiner(ctx, &cfg.Miner)
@@ -1605,6 +1711,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheGCFlag.Name) {
 		cfg.TrieDirtyCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
 	}
+	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheSnapshotFlag.Name) {
+		cfg.SnapshotCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheSnapshotFlag.Name) / 100
+	}
+	if !ctx.GlobalIsSet(SnapshotFlag.Name) {
+		cfg.SnapshotCache = 0 // Disabled
+	}
 	if ctx.GlobalIsSet(DocRootFlag.Name) {
 		cfg.DocRoot = ctx.GlobalString(DocRootFlag.Name)
 	}
@@ -1624,6 +1736,15 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
 	}
+	// Disable DNS discovery by default (by using the flag's value even if it hasn't been set and so
+	// has the default value ""), since we don't have DNS discovery set up for Celo.
+	// Note that passing --discovery.dns "" is the way the Geth docs specify for disabling DNS discovery,
+	// so here we just make that be the default.
+	if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
+		cfg.DiscoveryURLs = []string{}
+	} else {
+		cfg.DiscoveryURLs = splitAndTrim(urls)
+	}
 
 	// Override any default configs for hard coded networks.
 	switch {
@@ -1633,11 +1754,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.NetworkId = params.BaklavaNetworkId
 		}
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
+		setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.BaklavaGenesisHash])
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.AlfajoresNetworkId
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
+		setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.AlfajoresGenesisHash])
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1665,7 +1788,20 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
+	default:
+		if cfg.NetworkId == params.MainnetNetworkId {
+			setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.MainnetGenesisHash])
+		}
 	}
+}
+
+// setDNSDiscoveryDefaults configures DNS discovery with the given URL if
+// no URLs are set.
+func setDNSDiscoveryDefaults(cfg *eth.Config, url string) {
+	if cfg.DiscoveryURLs != nil {
+		return
+	}
+	cfg.DiscoveryURLs = []string{url}
 }
 
 // RegisterEthService adds an Ethereum client to the stack.
@@ -1830,6 +1966,10 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		TrieDirtyLimit:      eth.DefaultConfig.TrieDirtyCache,
 		TrieDirtyDisabled:   ctx.GlobalString(GCModeFlag.Name) == "archive",
 		TrieTimeLimit:       eth.DefaultConfig.TrieTimeout,
+		SnapshotLimit:       eth.DefaultConfig.SnapshotCache,
+	}
+	if !ctx.GlobalIsSet(SnapshotFlag.Name) {
+		cache.SnapshotLimit = 0 // Disabled
 	}
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheTrieFlag.Name) {
 		cache.TrieCleanLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheTrieFlag.Name) / 100

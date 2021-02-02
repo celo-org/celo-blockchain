@@ -22,6 +22,7 @@ package keystore
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	crand "crypto/rand"
 	"errors"
 	"fmt"
@@ -290,7 +291,7 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
 }
 
-func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -311,7 +312,7 @@ func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, us
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(msg, extraData, useComposite)
+	signature, err := privateKey.SignMessage(msg, extraData, useComposite, cip22)
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err
 	}
@@ -623,4 +624,29 @@ func zeroKey(k *ecdsa.PrivateKey) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+// The public key format is a 65 byte array, with byte[0] == 4, 32 bytes for X,
+// and 32 bytes for Y (encoded in base256).
+func (ks *KeyStore) ComputeECDHSharedSecret(a accounts.Account, public []byte) ([]byte, error) {
+	curve := crypto.S256()
+	// Look up the key to sign with and abort if it cannot be found
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	unlockedKey, found := ks.unlocked[a.Address]
+	if !found {
+		return nil, ErrLocked
+	}
+
+	var x, y *big.Int
+	x, y = elliptic.Unmarshal(curve, public)
+	if x == nil || y == nil {
+		return nil, errors.New("Could not unmarshal public key from bytes")
+	}
+
+	shared, _ := crypto.S256().ScalarMult(x, y, unlockedKey.PrivateKey.D.Bytes())
+	return shared.Bytes(), nil
 }

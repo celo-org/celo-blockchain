@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/backendtest"
 	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
 	"github.com/ethereum/go-ethereum/contract_comm"
@@ -31,23 +32,38 @@ import (
 func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
 	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
 
-	return newBlockChainWithKeys(genesis, nodeKeys)
+	bc, be, _ := newBlockChainWithKeys(false, common.Address{}, false, genesis, nodeKeys[0])
+	return bc, be
 }
 
-func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) (*core.BlockChain, *Backend) {
+func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
 	memDB := rawdb.NewMemoryDatabase()
-	config := istanbul.DefaultConfig
+	config := *istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
-	// Use the first key as private key
-	publicKey := nodeKeys[0].PublicKey
-	address := crypto.PubkeyToAddress(publicKey)
-	signerFn := SignFn(nodeKeys[0])
-	signerBLSFn := SignBLSFn(nodeKeys[0])
+	config.Proxy = isProxy
+	config.ProxiedValidatorAddress = proxiedValAddress
+	config.Proxied = isProxied
+	config.Validator = !isProxy
+	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
-	b, _ := New(config, memDB).(*Backend)
-	b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn)
+	b, _ := New(&config, memDB).(*Backend)
+
+	var publicKey ecdsa.PublicKey
+	if !isProxy {
+		publicKey = privateKey.PublicKey
+		address := crypto.PubkeyToAddress(publicKey)
+		decryptFn := DecryptFn(privateKey)
+		signerFn := SignFn(privateKey)
+		signerBLSFn := SignBLSFn(privateKey)
+		signerHashFn := SignHashFn(privateKey)
+		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn, signerHashFn)
+	} else {
+		proxyNodeKey, _ := crypto.GenerateKey()
+		publicKey = proxyNodeKey.PublicKey
+	}
 
 	genesis.MustCommit(memDB)
 
@@ -65,19 +81,27 @@ func newBlockChainWithKeys(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey) 
 		},
 	)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(consensustest.NewMockP2PServer())
+	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 	b.StartAnnouncing()
-	b.StartValidating(blockchain.HasBadBlock,
-		func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
-			return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
-		},
-		func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-			return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
-		})
+
+	if !isProxy {
+		b.SetBlockProcessors(blockchain.HasBadBlock,
+			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
+			})
+
+		if isProxied {
+			b.StartProxiedValidatorEngine()
+		}
+		b.StartValidating()
+	}
 
 	contract_comm.SetInternalEVMHandler(blockchain)
 
-	return blockchain, b
+	return blockchain, b, &config
 }
 
 func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
@@ -111,7 +135,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{
 		Epoch:          10,
-		LookbackWindow: 2,
+		LookbackWindow: 3,
 	}
 
 	AppendValidatorsToGenesisBlock(genesis, validators)
@@ -144,7 +168,8 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
-	err := engine.Commit(block, aggregatedSeal, types.IstanbulEpochValidatorSetSeal{})
+	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
+	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +185,8 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
+	// The worker that calls Prepare is the one filling the Coinbase
+	header.Coinbase = engine.address
 	engine.Prepare(chain, header)
 
 	state, err := chain.StateAt(parent.Root())
@@ -227,10 +254,15 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func decryptFn(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
-	ecdsaKey, _ := generatePrivateKey()
-	eciesKey := ecies.ImportECDSA(ecdsaKey)
-	return eciesKey.Decrypt(c, s1, s2)
+func DecryptFn(key *ecdsa.PrivateKey) istanbul.DecryptFn {
+	if key == nil {
+		key, _ = generatePrivateKey()
+	}
+
+	return func(_ accounts.Account, c, s1, s2 []byte) ([]byte, error) {
+		eciesKey := ecies.ImportECDSA(key)
+		return eciesKey.Decrypt(c, s1, s2)
+	}
 }
 
 func SignFn(key *ecdsa.PrivateKey) istanbul.SignerFn {
@@ -248,7 +280,7 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 		key, _ = generatePrivateKey()
 	}
 
-	return func(_ accounts.Account, data []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+	return func(_ accounts.Account, data []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 		privateKeyBytes, err := blscrypto.ECDSAToBLS(key)
 		if err != nil {
 			return blscrypto.SerializedSignature{}, err
@@ -260,7 +292,7 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 		}
 		defer privateKey.Destroy()
 
-		signature, err := privateKey.SignMessage(data, extraData, useComposite)
+		signature, err := privateKey.SignMessage(data, extraData, useComposite, cip22)
 		if err != nil {
 			return blscrypto.SerializedSignature{}, err
 		}
@@ -274,11 +306,22 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 	}
 }
 
+func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
+	if key == nil {
+		key, _ = generatePrivateKey()
+	}
+
+	return func(_ accounts.Account, data []byte) ([]byte, error) {
+		return crypto.Sign(data, key)
+	}
+}
+
 // this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
 // block's hash, on consensus round 0, without a composite hasher
 func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
 	extraData := []byte{}
 	useComposite := false
+	cip22 := false
 	round := big.NewInt(0)
 	headerHash := block.Header().Hash()
 	signatures := make([][]byte, len(keys))
@@ -287,7 +330,7 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 
 	for i, key := range keys {
 		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite)
+		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite, cip22)
 		if err != nil {
 			panic("could not sign msg")
 		}
@@ -314,11 +357,62 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 	return asig
 }
 
+// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
+// an abtirary message
+func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
+	useComposite := true
+	cip22 := true
+	signatures := make([][]byte, len(keys))
+
+	for i, key := range keys {
+		signFn := SignBLSFn(key)
+		sig, err := signFn(accounts.Account{}, message, extraData, useComposite, cip22)
+		if err != nil {
+			panic("could not sign msg")
+		}
+		signatures[i] = sig[:]
+	}
+
+	asigBytes, err := blscrypto.AggregateSignatures(signatures)
+	if err != nil {
+		panic("could not aggregate sigs")
+	}
+
+	// create the bitmap from the validators
+	bitmap := big.NewInt(0)
+	for i := 0; i < len(keys); i++ {
+		bitmap.SetBit(bitmap, i, 1)
+	}
+
+	asig := types.IstanbulEpochValidatorSetSeal{
+		Bitmap:    bitmap,
+		Signature: asigBytes,
+	}
+
+	return asig
+}
+
 func newBackend() (b *Backend) {
 	_, b = newBlockChain(4, true)
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
-	b.Authorize(address, address, &key.PublicKey, decryptFn, SignFn(key), SignBLSFn(key))
+	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key), SignHashFn(key))
 	return
+}
+
+type testBackendFactoryImpl struct{}
+
+// TestBackendFactory can be passed to backendtest.InitTestBackendFactory
+var TestBackendFactory backendtest.TestBackendFactory = testBackendFactoryImpl{}
+
+// New is part of TestBackendInterface.
+func (testBackendFactoryImpl) New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (backendtest.TestBackendInterface, *istanbul.Config) {
+	_, be, config := newBlockChainWithKeys(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
+	return be, config
+}
+
+// GetGenesisAndKeys is part of TestBackendInterface
+func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
+	return getGenesisAndKeys(numValidators, isFullChain)
 }

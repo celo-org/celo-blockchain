@@ -32,13 +32,14 @@ import (
 var DefaultConfig = Config{
 	SyncMode:           downloader.FastSync,
 	NetworkId:          1,
-	LightPeers:         99,
-	LightServ:          50,
+	LightPeers:         100,
+	LightServ:          0,
 	UltraLightFraction: 75,
 	DatabaseCache:      768,
 	TrieCleanCache:     256,
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
+	SnapshotCache:      256,
 	Miner: miner.Config{
 		GasFloor: 8000000,
 		GasCeil:  8000000,
@@ -63,6 +64,10 @@ type Config struct {
 	NetworkId uint64 // Network ID to use for selecting peers to connect to
 	SyncMode  downloader.SyncMode
 
+	// This can be set to list of enrtree:// URLs which will be queried for
+	// for nodes to connect to.
+	DiscoveryURLs []string
+
 	NoPruning  bool // Whether to disable pruning and flush everything to disk
 	NoPrefetch bool // Whether to disable prefetching and only load state on demand
 
@@ -76,10 +81,11 @@ type Config struct {
 	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
 	// Minimum gateway fee value to serve a transaction from a light client
 	GatewayFee *big.Int `toml:",omitempty"`
-	// Etherbase is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
-	// Also the coinbase used for mining.
-	Etherbase common.Address `toml:",omitempty"`
-	BLSbase   common.Address `toml:",omitempty"`
+	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
+	Validator common.Address `toml:",omitempty"`
+	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	TxFeeRecipient common.Address `toml:",omitempty"`
+	BLSbase        common.Address `toml:",omitempty"`
 
 	// Ultra Light client options
 	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers
@@ -95,6 +101,7 @@ type Config struct {
 	TrieCleanCache int
 	TrieDirtyCache int
 	TrieTimeout    time.Duration
+	SnapshotCache  int
 
 	// Mining options
 	Miner miner.Config
@@ -125,7 +132,4 @@ type Config struct {
 
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
-
-	// Istanbul block override (TODO: remove after the fork)
-	OverrideIstanbul *big.Int `toml:",omitempty"`
 }

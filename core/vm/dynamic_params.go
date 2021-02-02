@@ -49,7 +49,7 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments || err == errExecutionReverted {
+	if err == abi.ErrEmptyArguments || err == ErrExecutionReverted {
 		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err
