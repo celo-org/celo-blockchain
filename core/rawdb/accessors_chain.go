@@ -365,7 +365,7 @@ func ReadPlumoProof(db ethdb.Reader, metadata types.PlumoProofMetadata) []byte {
 
 func ReadPlumoProofs(db ethdb.Database) [][]byte {
 	var output [][]byte
-	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)
+	proofIterator := db.NewIterator(plumoProofPrefix, nil)
 	for proofIterator.Next() {
 		output = append(output, proofIterator.Value())
 	}
@@ -375,7 +375,7 @@ func ReadPlumoProofs(db ethdb.Database) [][]byte {
 // TODO rename proofinventory
 func KnownPlumoProofs(db ethdb.Database) []types.PlumoProofMetadata {
 	var output []types.PlumoProofMetadata
-	proofIterator := db.NewIteratorWithPrefix(plumoProofPrefix)
+	proofIterator := db.NewIterator(plumoProofPrefix, nil)
 	for proofIterator.Next() {
 		output = append(output, decodePlumoProof(proofIterator.Key()))
 	}

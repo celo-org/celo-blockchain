@@ -228,7 +228,7 @@ func (f *lightFetcher) syncLoop() {
 func (f *lightFetcher) registerPeer(p *serverPeer) {
 	if f.handler.syncMode == downloader.LightestSync {
 		reqID := genReqID()
-		cost := p.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+		cost := p.getRequestCost(GetPlumoProofInventoryMsg, 0)
 		go p.RequestPlumoProofInventory(reqID, cost)
 	}
 	p.lock.Lock()
@@ -243,7 +243,7 @@ func (f *lightFetcher) registerPeer(p *serverPeer) {
 	f.peers[p] = &fetcherPeerInfo{nodeByHash: make(map[common.Hash]*fetcherTreeNode)}
 }
 
-func (f *lightFetcher) importKnownPlumoProofs(p *peer, plumoProofs []types.PlumoProofMetadata) {
+func (f *lightFetcher) importKnownPlumoProofs(p *serverPeer, plumoProofs []types.PlumoProofMetadata) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.Log().Error("Updating known proofs", "from", p.knownPlumoProofs, "to", plumoProofs)
@@ -503,7 +503,7 @@ func (f *lightFetcher) findBestRequest() (bestHash common.Hash, bestAmount uint6
 	return
 }
 
-func (f *lightFetcher) calculatePeerSyncScore(p *peer, n *fetcherTreeNode) uint64 {
+func (f *lightFetcher) calculatePeerSyncScore(p *serverPeer, n *fetcherTreeNode) uint64 {
 	epoch := f.chain.Config().Istanbul.Epoch
 	maxDifference := new(big.Int).Sub(n.td, f.maxConfirmedTd).Uint64() / epoch
 	if f.handler.syncMode == downloader.LightestSync {

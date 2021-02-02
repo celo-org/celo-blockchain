@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime/store"
 	"github.com/ethereum/go-ethereum/core/rawdb"

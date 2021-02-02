@@ -398,7 +398,7 @@ func newServerPeer(version int, network uint64, trusted bool, p *p2p.Peer, rw p2
 	}
 }
 
-func (p *peer) SetKnownPlumoProofs(plumoProofs []types.PlumoProofMetadata) {
+func (p *serverPeer) SetKnownPlumoProofs(plumoProofs []types.PlumoProofMetadata) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.knownPlumoProofs = plumoProofs
@@ -874,21 +874,21 @@ func (p *clientPeer) sendStop() error {
 }
 
 // ReplyPlumoProofsInventory creates a reply with the full node's inventory of available proofs
-func (p *peer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoProofMetadata) *reply {
+func (p *clientPeer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoProofMetadata) *reply {
 	data, _ := rlp.EncodeToBytes(inventory)
 	p.Log().Error("Replying proof inventory", "data", data)
 	return &reply{p.rw, PlumoProofInventoryMsg, reqID, data}
 }
 
 // ReplyPlumoProofs creates a reply with the requested proofs
-func (p *peer) ReplyPlumoProofs(reqID uint64, proofs []istanbul.LightPlumoProof) *reply {
+func (p *clientPeer) ReplyPlumoProofs(reqID uint64, proofs []istanbul.LightPlumoProof) *reply {
 	data, _ := rlp.EncodeToBytes(proofs)
 	p.Log().Error("Replying requested proofs", "data", data)
 	return &reply{p.rw, PlumoProofsMsg, reqID, data}
 }
 
 // RequestPlumoProofsInventory fetches an inventory of proofs' metadata that the server holds.
-func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
+func (p *serverPeer) RequestPlumoProofInventory(reqID, cost uint64) error {
 	p.Log().Error("Fetching proof invetnory")
 	type req struct {
 		ReqID uint64
@@ -896,9 +896,13 @@ func (p *peer) RequestPlumoProofInventory(reqID, cost uint64) error {
 	return p2p.Send(p.rw, GetPlumoProofInventoryMsg, req{reqID})
 }
 
-func (p *peer) RequestPlumoProofs(reqID, cost uint64, proofsMetadata []types.PlumoProofMetadata) error {
+func (p *serverPeer) RequestPlumoProofs(reqID, cost uint64, proofsMetadata []types.PlumoProofMetadata) error {
 	p.Log().Error("Fetching batch of plumo proofs", "count", len(proofsMetadata))
-	return sendRequest(p.rw, GetPlumoProofsMsg, reqID, cost, proofsMetadata)
+	type req struct {
+		ReQID          uint64
+		ProofsMetadata []types.PlumoProofMetadata
+	}
+	return p2p.Send(p.rw, GetPlumoProofsMsg, req{reqID, proofsMetadata})
 }
 
 // sendResume notifies the client about getting out of frozen state
@@ -1152,12 +1156,12 @@ type clientPeerSet struct {
 	subscribers []clientPeerSubscriber
 	closed      bool
 	lock        sync.RWMutex
-	lightest bool
+	lightest    bool
 }
 
 // newClientPeerSet creates a new peer set to track the client peers.
 func newClientPeerSet(lightest bool) *clientPeerSet {
-	return &clientPeerSet{peers: make(map[string]*clientPeer, lightest: lightest)}
+	return &clientPeerSet{peers: make(map[string]*clientPeer), lightest: lightest}
 }
 
 // subscribe adds a service to be notified about added or removed
@@ -1285,12 +1289,12 @@ type serverPeerSet struct {
 	subscribers []serverPeerSubscriber
 	closed      bool
 	lock        sync.RWMutex
-	lightest bool
+	lightest    bool
 }
 
 // newServerPeerSet creates a new peer set to track the active server peers.
 func newServerPeerSet(lightest bool) *serverPeerSet {
-	return &serverPeerSet{peers: make(map[string]*serverPeer, lightest: lightest)}
+	return &serverPeerSet{peers: make(map[string]*serverPeer), lightest: lightest}
 }
 
 // subscribe adds a service to be notified about added or removed

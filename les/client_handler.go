@@ -585,17 +585,17 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 func (pc *peerConnection) RequestPlumoProofInventory() error {
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
-			peer := dp.(*peer)
+			peer := dp.(*serverPeer)
 			// Would 0 work here?
-			return peer.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+			return peer.getRequestCost(GetPlumoProofInventoryMsg, 0)
 		},
 		canSend: func(dp distPeer) bool {
-			return dp.(*peer) == pc.peer
+			return dp.(*serverPeer) == pc.peer
 		},
 		request: func(dp distPeer) func() {
 			reqID := genReqID()
-			peer := dp.(*peer)
-			cost := peer.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+			peer := dp.(*serverPeer)
+			cost := peer.getRequestCost(GetPlumoProofInventoryMsg, 0)
 			peer.fcServer.QueuedRequest(reqID, cost)
 			return func() { peer.RequestPlumoProofInventory(reqID, cost) }
 		},
@@ -671,16 +671,16 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		log.Error("Requesting proofs", "numProofs", len(proofsToRequest))
 		proofReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
-				peer := dp.(*peer)
-				return peer.GetRequestCost(GetPlumoProofsMsg, len(proofsToRequest))
+				peer := dp.(*serverPeer)
+				return peer.getRequestCost(GetPlumoProofsMsg, len(proofsToRequest))
 			},
 			canSend: func(dp distPeer) bool {
-				return dp.(*peer) == pc.peer
+				return dp.(*serverPeer) == pc.peer
 			},
 			request: func(dp distPeer) func() {
 				reqID := genReqID()
-				peer := dp.(*peer)
-				cost := peer.GetRequestCost(GetPlumoProofInventoryMsg, len(proofsToRequest))
+				peer := dp.(*serverPeer)
+				cost := peer.getRequestCost(GetPlumoProofInventoryMsg, len(proofsToRequest))
 				peer.fcServer.QueuedRequest(reqID, cost)
 				return func() { peer.RequestPlumoProofs(reqID, cost, proofsToRequest) }
 			},
@@ -695,19 +695,19 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
 		headerReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
-				peer := dp.(*peer)
-				return peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+				peer := dp.(*serverPeer)
+				return peer.getRequestCost(GetBlockHeadersMsg, headerGap.Amount)
 			},
 			canSend: func(dp distPeer) bool {
-				return dp.(*peer) == pc.peer
+				return dp.(*serverPeer) == pc.peer
 			},
 			request: func(dp distPeer) func() {
 				reqID := genReqID()
-				peer := dp.(*peer)
-				cost := peer.GetRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+				peer := dp.(*serverPeer)
+				cost := peer.getRequestCost(GetBlockHeadersMsg, headerGap.Amount)
 				peer.fcServer.QueuedRequest(reqID, cost)
 				return func() {
-					peer.RequestHeadersByNumber(reqID, cost, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
+					peer.requestHeadersByNumber(reqID, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
 				}
 			},
 		}

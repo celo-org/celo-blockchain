@@ -613,7 +613,7 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	return p2p.Send(p.rw, GetReceiptsMsg, hashes)
 }
 
-// RequestProof fetches a proof from a remote node
+// RequestProofs fetches a proof from a remote node
 // TODO Should be called `RequestPlumoProofs` to distinguish from `eth`'s.getProof
 func (p *peer) RequestProofs(metadata []types.PlumoProofMetadata, complement bool) error {
 	// TODO trace
