@@ -9,11 +9,11 @@ assignees: ''
 
 ## Description
 
-_Explain what's the need, what's the desired behaviour_
+_Explain what's the need, what's the desired behavior_
 
-## Current Behaviour
+## Current Behavior
 
-_[Optional] If this a change to a current behaviour, epxlain what's the current behaviour._
+_[Optional] If this is a change to a current behavior, explain what the current behavior is._
 
 ## Context
 
