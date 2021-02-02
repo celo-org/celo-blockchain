@@ -28,13 +28,14 @@ import (
 
 var (
 	// These flags override values in build env.
-	GitCommitFlag   = flag.String("git-commit", "", `Overrides git commit hash embedded into executables`)
-	GitBranchFlag   = flag.String("git-branch", "", `Overrides git branch being built`)
-	GitTagFlag      = flag.String("git-tag", "", `Overrides git tag being built`)
-	BuildnumFlag    = flag.String("buildnum", "", `Overrides CI build number`)
-	PullRequestFlag = flag.Bool("pull-request", false, `Overrides pull request status of the build`)
-	CronJobFlag     = flag.Bool("cron-job", false, `Overrides cron job status of the build`)
-	MuslFlag        = flag.Bool("musl", false, `Overrides musl config of the build`)
+	GitCommitFlag      = flag.String("git-commit", "", `Overrides git commit hash embedded into executables`)
+	GitBranchFlag      = flag.String("git-branch", "", `Overrides git branch being built`)
+	GitTagFlag         = flag.String("git-tag", "", `Overrides git tag being built`)
+	BuildnumFlag       = flag.String("buildnum", "", `Overrides CI build number`)
+	PullRequestFlag    = flag.Bool("pull-request", false, `Overrides pull request status of the build`)
+	CronJobFlag        = flag.Bool("cron-job", false, `Overrides cron job status of the build`)
+	MuslFlag           = flag.Bool("musl", false, `Overrides musl config of the build`)
+	MetricsDefaultFlag = flag.Bool("metrics-default", false, `Overrides the metrics enabled default flag`)
 )
 
 // Environment contains metadata provided by the build environment.
@@ -46,72 +47,85 @@ type Environment struct {
 	IsPullRequest             bool
 	IsCronJob                 bool
 	IsMusl                    bool
+	MetricsDefault            bool
 }
 
 func (env Environment) String() string {
-	return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t musl:%t)",
-		env.Name, env.Commit, env.Date, env.Branch, env.Tag, env.Buildnum, env.IsPullRequest, env.IsMusl)
+	return fmt.Sprintf("%s env (commit:%s date:%s branch:%s tag:%s buildnum:%s pr:%t musl:%t metrics:%t)",
+		env.Name, env.Commit, env.Date, env.Branch, env.Tag, env.Buildnum, env.IsPullRequest, env.IsMusl, env.MetricsDefault)
 }
 
 // Env returns metadata about the current CI environment, falling back to LocalEnv
 // if not running on CI.
 func Env() Environment {
 	switch {
-	case os.Getenv("CI") == "true" && os.Getenv("TRAVIS") == "true":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("TRAVIS")):
 		commit := os.Getenv("TRAVIS_PULL_REQUEST_SHA")
 		if commit == "" {
 			commit = os.Getenv("TRAVIS_COMMIT")
 		}
 		return Environment{
-			Name:          "travis",
-			Repo:          os.Getenv("TRAVIS_REPO_SLUG"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("TRAVIS_BRANCH"),
-			Tag:           os.Getenv("TRAVIS_TAG"),
-			Buildnum:      os.Getenv("TRAVIS_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("TRAVIS_PULL_REQUEST") != "false",
-			IsCronJob:     os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
-			IsMusl:        os.Getenv("MUSL") == "true",
+			Name:           "travis",
+			Repo:           os.Getenv("TRAVIS_REPO_SLUG"),
+			Commit:         commit,
+			Date:           getDate(commit),
+			Branch:         os.Getenv("TRAVIS_BRANCH"),
+			Tag:            os.Getenv("TRAVIS_TAG"),
+			Buildnum:       os.Getenv("TRAVIS_BUILD_NUMBER"),
+			IsPullRequest:  stringToBool(os.Getenv("TRAVIS_PULL_REQUEST")),
+			IsCronJob:      os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
-	case os.Getenv("CI") == "True" && os.Getenv("APPVEYOR") == "True":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("APPVEYOR")):
 		commit := os.Getenv("APPVEYOR_PULL_REQUEST_HEAD_COMMIT")
 		if commit == "" {
 			commit = os.Getenv("APPVEYOR_REPO_COMMIT")
 		}
 		return Environment{
-			Name:          "appveyor",
-			Repo:          os.Getenv("APPVEYOR_REPO_NAME"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("APPVEYOR_REPO_BRANCH"),
-			Tag:           os.Getenv("APPVEYOR_REPO_TAG_NAME"),
-			Buildnum:      os.Getenv("APPVEYOR_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
-			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
-			IsMusl:        os.Getenv("MUSL") == "true",
+			Name:           "appveyor",
+			Repo:           os.Getenv("APPVEYOR_REPO_NAME"),
+			Commit:         commit,
+			Date:           getDate(commit),
+			Branch:         os.Getenv("APPVEYOR_REPO_BRANCH"),
+			Tag:            os.Getenv("APPVEYOR_REPO_TAG_NAME"),
+			Buildnum:       os.Getenv("APPVEYOR_BUILD_NUMBER"),
+			IsPullRequest:  os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
+			IsCronJob:      stringToBool(os.Getenv("APPVEYOR_SCHEDULED_BUILD")),
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
-	case os.Getenv("CI") == "True" && os.Getenv("CLOUDBUILD") == "True":
+	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("CLOUDBUILD")):
 		commit := os.Getenv("COMMIT_SHA")
 		date, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("COMMIT_TIMESTAMP")), 10, 64)
 		if err != nil {
 			panic(fmt.Sprintf("failed to parse git commit date: %v", err))
 		}
 		return Environment{
-			Name:          "cloudbuild",
-			Repo:          os.Getenv("REPO_NAME"),
-			Commit:        commit,
-			Date:          time.Unix(date, 0).Format("20060102"),
-			Branch:        os.Getenv("BRANCH_NAME"),
-			Tag:           os.Getenv("TAG_NAME"),
-			Buildnum:      os.Getenv("BUILD_ID"),
-			IsPullRequest: os.Getenv("_PR_NUMBER") != "",
-			IsCronJob:     false,
-			IsMusl:        os.Getenv("MUSL") == "true",
+			Name:           "cloudbuild",
+			Repo:           os.Getenv("REPO_NAME"),
+			Commit:         commit,
+			Date:           time.Unix(date, 0).Format("20060102"),
+			Branch:         os.Getenv("BRANCH_NAME"),
+			Tag:            os.Getenv("TAG_NAME"),
+			Buildnum:       os.Getenv("BUILD_ID"),
+			IsPullRequest:  os.Getenv("_PR_NUMBER") != "",
+			IsCronJob:      false,
+			IsMusl:         stringToBool(os.Getenv("MUSL")),
+			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
 		}
 	default:
 		return LocalEnv()
 	}
+}
+
+// if it's not a truly value returns false
+func stringToBool(str string) bool {
+	b, err := strconv.ParseBool(str)
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 // LocalEnv returns build environment metadata gathered from git.
@@ -190,5 +204,9 @@ func applyEnvFlags(env Environment) Environment {
 	if *MuslFlag {
 		env.IsMusl = true
 	}
+	if *MetricsDefaultFlag {
+		env.MetricsDefault = true
+	}
+
 	return env
 }

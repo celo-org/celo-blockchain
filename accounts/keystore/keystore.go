@@ -292,7 +292,7 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 	return crypto.Sign(hash, unlockedKey.PrivateKey)
 }
 
-func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
@@ -313,7 +313,7 @@ func (ks *KeyStore) SignBLS(a accounts.Account, msg []byte, extraData []byte, us
 	}
 	defer privateKey.Destroy()
 
-	signature, err := privateKey.SignMessage(msg, extraData, useComposite)
+	signature, err := privateKey.SignMessage(msg, extraData, useComposite, cip22)
 	if err != nil {
 		return blscrypto.SerializedSignature{}, err
 	}

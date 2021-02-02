@@ -21,7 +21,6 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -29,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,93 +42,6 @@ var (
 	canonicalSeed = 1
 	forkSeed      = 2
 )
-
-func TestUptimeSingle(t *testing.T) {
-	var uptimes *istanbul.Uptime
-	uptimes = updateUptime(uptimes, 212, big.NewInt(7), 3, 2, 211)
-	// the first 2 uptime updates do not get scored since they're within the
-	// first window after the epoch block
-	expected := &istanbul.Uptime{
-		LatestBlock: 212,
-		Entries: []istanbul.UptimeEntry{
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 211,
-			},
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 211,
-			},
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 211,
-			},
-			// plus 2 dummies due to the *2
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 0,
-			},
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 0,
-			},
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 0,
-			},
-		},
-	}
-	if !reflect.DeepEqual(uptimes, expected) {
-		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
-	}
-}
-
-func TestUptime(t *testing.T) {
-	var uptimes *istanbul.Uptime
-	// (there can't be less than 2/3rds of validators sigs in a valid bitmap)
-	bitmaps := []*big.Int{
-		big.NewInt(3), // 011     // Parent aggregated seal for block #1
-		big.NewInt(7), // 111
-		big.NewInt(5), // 101
-		big.NewInt(3), // 011
-		big.NewInt(5), // 101
-		big.NewInt(7), // 111
-		big.NewInt(5), // 101     // Parent aggregated seal for block #7
-	}
-	// assume the first block is the first epoch's block (ie not the genesis)
-	block := uint64(1)
-	for _, bitmap := range bitmaps {
-		// use a window of 2 blocks - ideally we want to expand
-		// these tests to increase our confidence
-		uptimes = updateUptime(uptimes, block, bitmap, 2, 1, 10)
-		block++
-	}
-
-	expected := &istanbul.Uptime{
-		LatestBlock: 7,
-		Entries: []istanbul.UptimeEntry{
-			{
-				ScoreTally:      5,
-				LastSignedBlock: 6,
-			},
-			{
-				ScoreTally:      5,
-				LastSignedBlock: 5,
-			},
-			{
-				ScoreTally:      5,
-				LastSignedBlock: 6,
-			},
-			{
-				ScoreTally:      0,
-				LastSignedBlock: 0,
-			},
-		},
-	}
-	if !reflect.DeepEqual(uptimes, expected) {
-		t.Fatalf("uptimes were not updated correctly, got %v, expected %v", uptimes, expected)
-	}
-}
 
 // newCanonical creates a chain database, and injects a deterministic canonical
 // chain. Depending on the full flag, if creates either a full block chain or a
@@ -1142,7 +1053,7 @@ func TestSideLogRebirth(t *testing.T) {
 	blockchain.SubscribeLogsEvent(newLogCh)
 	blockchain.SubscribeRemovedLogsEvent(rmLogsCh)
 
-	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
+	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
 		if i == 1 {
 			gen.OffsetTime(-9) // higher block difficulty
 
@@ -1168,8 +1079,8 @@ func TestSideLogRebirth(t *testing.T) {
 	}
 	checkLogEvents(t, newLogCh, rmLogsCh, 0, 0)
 
-	// Generate a new block based on side chain.
-	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 1, func(i int, gen *BlockGen) {})
+	// Generate two new blocks based on side chain, to trigger a reorg
+	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}

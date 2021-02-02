@@ -462,6 +462,16 @@ web3._extend({
 			params: 3,
 			inputFormatter: [web3._extend.formatters.inputAddressFormatter, null, web3._extend.formatters.inputBlockNumberFormatter]
 		}),
+		new web3._extend.Method({
+			name: 'validator',
+			call: 'eth_validator',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'txFeeRecipient',
+			call: 'eth_txFeeRecipient',
+			params: 0
+		}),
 	],
 	properties: [
 		new web3._extend.Property({

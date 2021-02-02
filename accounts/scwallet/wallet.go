@@ -614,7 +614,7 @@ func (w *Wallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, er
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *Wallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (w *Wallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 

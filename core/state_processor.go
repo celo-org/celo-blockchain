@@ -67,7 +67,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	if random.IsRunning() {
-		err := random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, header.Coinbase, header, statedb)
+		author, err := p.bc.Engine().Author(header)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		err = random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, author, header, statedb)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -106,14 +111,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := vm.NewEVMContext(msg, header, bc, author)
+	context := vm.NewEVMContext(msg, header, bc, txFeeRecipient)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)

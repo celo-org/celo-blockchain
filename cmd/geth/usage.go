@@ -82,7 +82,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.IdentityFlag,
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
-			utils.EtherbaseFlag,
+			utils.TxFeeRecipientFlag,
 		},
 	},
 	{
@@ -192,6 +192,7 @@ var AppHelpFlagGroups = []flagGroup{
 		Name: "MINER",
 		Flags: []cli.Flag{
 			utils.MiningEnabledFlag,
+			utils.MinerValidatorFlag,
 			utils.MinerThreadsFlag,
 			utils.MinerNotifyFlag,
 			utils.MinerGasPriceFlag,
@@ -257,6 +258,8 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "DEPRECATED",
 		Flags: []cli.Flag{
+			utils.EtherbaseFlag,
+			utils.MinerEtherbaseFlag,
 			utils.MinerLegacyThreadsFlag,
 			utils.MinerLegacyGasTargetFlag,
 			utils.MinerLegacyGasPriceFlag,

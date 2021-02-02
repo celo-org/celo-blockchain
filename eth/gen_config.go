@@ -29,7 +29,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
-		Etherbase               common.Address         `toml:",omitempty"`
+		Validator               common.Address         `toml:",omitempty"`
+		TxFeeRecipient          common.Address         `toml:",omitempty"`
 		BLSbase                 common.Address         `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      int                    `toml:",omitempty"`
@@ -51,8 +52,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideIstanbul        *big.Int                       `toml:",omitempty"`
-		OverrideMuirGlacier     *big.Int                       `toml:",omitempty"`
+		OverrideChurrito        *big.Int                       `toml:",omitempty"`
+		OverrideDonut           *big.Int                       `toml:",omitempty"`
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -67,7 +68,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
 	enc.GatewayFee = c.GatewayFee
-	enc.Etherbase = c.Etherbase
+	enc.Validator = c.Validator
+	enc.TxFeeRecipient = c.TxFeeRecipient
 	enc.BLSbase = c.BLSbase
 	enc.UltraLightServers = c.UltraLightServers
 	enc.UltraLightFraction = c.UltraLightFraction
@@ -89,6 +91,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasCap = c.RPCGasCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
+	enc.OverrideChurrito = c.OverrideChurrito
+	enc.OverrideDonut = c.OverrideDonut
 	return &enc, nil
 }
 
@@ -107,7 +111,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
-		Etherbase               *common.Address        `toml:",omitempty"`
+		Validator               *common.Address        `toml:",omitempty"`
+		TxFeeRecipient          *common.Address        `toml:",omitempty"`
 		BLSbase                 *common.Address        `toml:",omitempty"`
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      *int                   `toml:",omitempty"`
@@ -129,8 +134,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideIstanbul        *big.Int                       `toml:",omitempty"`
-		OverrideMuirGlacier     *big.Int                       `toml:",omitempty"`
+		OverrideChurrito        *big.Int                       `toml:",omitempty"`
+		OverrideDonut           *big.Int                       `toml:",omitempty"`
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -172,8 +177,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.GatewayFee != nil {
 		c.GatewayFee = dec.GatewayFee
 	}
-	if dec.Etherbase != nil {
-		c.Etherbase = *dec.Etherbase
+	if dec.Validator != nil {
+		c.Validator = *dec.Validator
+	}
+	if dec.TxFeeRecipient != nil {
+		c.TxFeeRecipient = *dec.TxFeeRecipient
 	}
 	if dec.BLSbase != nil {
 		c.BLSbase = *dec.BLSbase
@@ -237,6 +245,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
+	}
+	if dec.OverrideChurrito != nil {
+		c.OverrideChurrito = dec.OverrideChurrito
+	}
+	if dec.OverrideDonut != nil {
+		c.OverrideDonut = dec.OverrideDonut
 	}
 	return nil
 }

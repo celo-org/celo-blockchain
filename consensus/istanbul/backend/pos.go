@@ -18,12 +18,13 @@ package backend
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime/store"
 	"github.com/ethereum/go-ethereum/contract_comm"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	"github.com/ethereum/go-ethereum/contract_comm/election"
@@ -32,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/contract_comm/gold_token"
 	"github.com/ethereum/go-ethereum/contract_comm/validators"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -132,45 +132,25 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 
 func (sb *Backend) updateValidatorScores(header *types.Header, state *state.StateDB, valSet []istanbul.Validator) ([]*big.Int, error) {
 	epoch := istanbul.GetEpochNumber(header.Number.Uint64(), sb.EpochSize())
-	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize(), "window", sb.LookbackWindow())
+	logger := sb.logger.New("func", "Backend.updateValidatorScores", "blocknum", header.Number.Uint64(), "epoch", epoch, "epochsize", sb.EpochSize())
+
+	// header (&state) == lastBlockOfEpoch
+	// sb.LookbackWindow(header, state) => value at the end of epoch
+	// It doesn't matter which was the value at the beginning but how it ends.
+	// Notice that exposed metrics compute based on current block (not last of epoch) so if lookback window changed during the epoch, metric uptime score might differ
+	lookbackWindow := sb.LookbackWindow(header, state)
+
+	logger = logger.New("window", lookbackWindow)
 	logger.Trace("Updating validator scores")
 
-	// The denominator is the (last block - first block + 1) of the val score tally window
-	denominator := istanbul.GetValScoreTallyLastBlockNumber(epoch, sb.EpochSize()) - istanbul.GetValScoreTallyFirstBlockNumber(epoch, sb.EpochSize(), sb.LookbackWindow()) + 1
-
-	uptimes := make([]*big.Int, 0, len(valSet))
-	accumulated := rawdb.ReadAccumulatedEpochUptime(sb.db, epoch)
-	if accumulated == nil {
-		err := errors.New("Accumulated uptimes not found, cannot update validator scores")
-		logger.Error(err.Error())
-		return nil, err
-	}
-
-	for i, entry := range accumulated.Entries {
-		if i >= len(valSet) {
-			break
-		}
-		val_logger := logger.New("scoreTally", entry.ScoreTally, "denominator", denominator, "index", i, "address", valSet[i].Address())
-
-		if entry.ScoreTally > denominator {
-			val_logger.Error("ScoreTally exceeds max possible")
-			uptimes = append(uptimes, params.Fixidity1)
-			continue
-		}
-
-		numerator := big.NewInt(0).Mul(big.NewInt(int64(entry.ScoreTally)), params.Fixidity1)
-		uptimes = append(uptimes, big.NewInt(0).Div(numerator, big.NewInt(int64(denominator))))
-	}
-
-	if len(uptimes) < len(valSet) {
-		err := fmt.Errorf("%d accumulated uptimes found, cannot update validator scores", len(uptimes))
-		logger.Error(err.Error())
+	monitor := uptime.NewMonitor(store.New(sb.db), sb.EpochSize(), lookbackWindow)
+	uptimes, err := monitor.ComputeValidatorsUptime(epoch, len(valSet))
+	if err != nil {
 		return nil, err
 	}
 
 	for i, val := range valSet {
-		val_logger := logger.New("uptime", uptimes[i], "address", val.Address())
-		val_logger.Trace("Updating validator score")
+		logger.Trace("Updating validator score", "uptime", uptimes[i], "address", val.Address())
 		err := validators.UpdateValidatorScore(header, state, val.Address(), uptimes[i])
 		if err != nil {
 			return nil, err

@@ -47,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -111,6 +112,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 	}
+
 	backend.core = istanbulCore.New(backend, backend.config)
 
 	backend.logger = istanbul.NewIstLogger(
@@ -167,13 +169,14 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address    common.Address       // Ethereum address of the ECDSA signing key
-	blsAddress common.Address       // Ethereum address of the BLS signing key
-	publicKey  *ecdsa.PublicKey     // The signer public key
-	decryptFn  istanbul.DecryptFn   // Decrypt function to decrypt ECIES ciphertext
-	signFn     istanbul.SignerFn    // Signer function to authorize hashes with
-	signBLSFn  istanbul.BLSSignerFn // Signer function to authorize BLS messages
-	signFnMu   sync.RWMutex         // Protects the signer fields
+	address    common.Address        // Ethereum address of the ECDSA signing key
+	blsAddress common.Address        // Ethereum address of the BLS signing key
+	publicKey  *ecdsa.PublicKey      // The signer public key
+	decryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	signFn     istanbul.SignerFn     // Signer function to authorize hashes with
+	signBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
+	signHashFn istanbul.HashSignerFn // Signer function to create random seed
+	signFnMu   sync.RWMutex          // Protects the signer fields
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -295,6 +298,10 @@ type Backend struct {
 	proxiedValidatorEngine        proxy.ProxiedValidatorEngine
 	proxiedValidatorEngineRunning bool
 	proxiedValidatorEngineMu      sync.RWMutex
+
+	// RandomSeed (and it's mutex) used to generate the random beacon randomness
+	randomSeed   []byte
+	randomSeedMu sync.Mutex
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -332,6 +339,11 @@ func (sb *Backend) IsValidator() bool {
 	return sb.config.Validator
 }
 
+// ChainConfig returns the configuration from the embedded blockchain reader.
+func (sb *Backend) ChainConfig() *params.ChainConfig {
+	return sb.chain.Config()
+}
+
 // SendDelegateSignMsgToProxy sends an istanbulDelegateSign message to a proxy
 // if one exists
 func (sb *Backend) SendDelegateSignMsgToProxy(msg []byte, peerID enode.ID) error {
@@ -353,7 +365,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 }
 
 // Authorize implements istanbul.Backend.Authorize
-func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn) {
+func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
 	sb.signFnMu.Lock()
 	defer sb.signFnMu.Unlock()
 
@@ -363,6 +375,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	sb.decryptFn = decryptFn
 	sb.signFn = signFn
 	sb.signBLSFn = signBLSFn
+	sb.signHashFn = signHashFn
 	sb.core.SetAddress(ecdsaAddress)
 }
 
@@ -515,17 +528,19 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		return 0, errMismatchTxhashes
 	}
 
-	// The author should be the first person to propose the block to ensure that randomness matches up.
-	addr, err := sb.Author(block.Header())
-	if err != nil {
-		sb.logger.Error("Could not recover orignal author of the block to verify the randomness", "err", err, "func", "Verify")
-		return 0, errInvalidProposal
-	} else if addr != block.Header().Coinbase {
-		sb.logger.Error("Original author of the block does not match the coinbase", "addr", addr, "coinbase", block.Header().Coinbase, "func", "Verify")
-		return 0, errInvalidCoinbase
+	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
+	if !sb.chain.Config().IsDonut(block.Number()) {
+		addr, err := sb.Author(block.Header())
+		if err != nil {
+			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
+			return 0, errInvalidProposal
+		} else if addr != block.Header().Coinbase {
+			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
+			return 0, errInvalidCoinbase
+		}
 	}
 
-	err = sb.VerifyHeader(sb.chain, block.Header(), false)
+	err := sb.VerifyHeader(sb.chain, block.Header(), false)
 
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
@@ -635,13 +650,13 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 }
 
 // Sign implements istanbul.Backend.SignBLS
-func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	if sb.signBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
 	sb.signFnMu.RLock()
 	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite)
+	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
@@ -663,13 +678,21 @@ func (sb *Backend) HasBlock(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
-// AuthorForBlock implements istanbul.Backend.AuthorForBlock
+// AuthorForBlock returns the address of the block offer from a given number.
 func (sb *Backend) AuthorForBlock(number uint64) common.Address {
 	if h := sb.chain.GetHeaderByNumber(number); h != nil {
 		a, _ := sb.Author(h)
 		return a
 	}
 	return common.ZeroAddress
+}
+
+// HashForBlock returns the block hash from the canonical chain for the given number.
+func (sb *Backend) HashForBlock(number uint64) common.Hash {
+	if h := sb.chain.GetHeaderByNumber(number); h != nil {
+		return h.Hash()
+	}
+	return common.Hash{}
 }
 
 func (sb *Backend) getValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
