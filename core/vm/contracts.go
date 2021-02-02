@@ -1305,7 +1305,6 @@ func (c *bls12377G1Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 	if len(input) != 256 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	var p0, p1 *bls12377.PointG1
 
 	// Initialize G1
@@ -1348,7 +1347,6 @@ func (c *bls12377G1Mul) Run(input []byte, caller common.Address, evm *EVM, gas u
 	if len(input) != 160 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	var p0 *bls12377.PointG1
 
 	// Initialize G1
@@ -1404,7 +1402,6 @@ func (c *bls12377G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, 
 	if len(input) == 0 || len(input)%160 != 0 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	points := make([]*bls12377.PointG1, k)
 	scalars := make([]*big.Int, k)
 
@@ -1451,7 +1448,6 @@ func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas u
 	if len(input) != 512 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	var p0, p1 *bls12377.PointG2
 
 	// Initialize G2
@@ -1494,7 +1490,6 @@ func (c *bls12377G2Mul) Run(input []byte, caller common.Address, evm *EVM, gas u
 	if len(input) != 288 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	var p0 *bls12377.PointG2
 
 	// Initialize G2
@@ -1550,7 +1545,6 @@ func (c *bls12377G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, 
 	if len(input) == 0 || len(input)%288 != 0 {
 		return nil, gas, errBLS12377InvalidInputLength
 	}
-	var err error
 	points := make([]*bls12377.PointG2, k)
 	scalars := make([]*big.Int, k)
 
