@@ -1,5 +1,5 @@
 ---
-name: User Need
+name: Issue
 about: <User> SBAT <NEED>
 title: <> SBAT <>
 labels: blockchain, needs-research
