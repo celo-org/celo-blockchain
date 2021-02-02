@@ -232,7 +232,6 @@ func SnarkUpdateValSet(oldValSet []ValidatorData, valPositions []byte, addedVali
 	return newValSet
 }
 
-// This function assumes that valSet1 and valSet2 are ordered in the same way
 // CompareValidatorSlices compares 2 validator slices and indicate if they are equal.
 // Equality is defined as: valseSet1[i] must be equal to valSet2[i] for every i.
 // (aka. order matters)
