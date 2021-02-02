@@ -7,22 +7,22 @@ assignees: ''
 
 ---
 
-### Expected Behavior
+## Expected Behavior
 
 _Please describe the behavior you are expecting_
 
-### Current Behavior
+## Current Behavior
 
 What is the current behavior?
 
-### Steps to Reproduce Behavior
+## Steps to Reproduce Behavior
 
 _How can we reproduce this?_
 
-### Logs
+## Logs
 
 _Are there any logs?_
 
-### System information
+## System information
 
 Run `geth version`

@@ -1,25 +1,27 @@
 ---
 name: Issue
-about: <User> SBAT <NEED>
-title: <> SBAT <>
+about: Feature/Need/Problem complete template
+title: ''
 labels: blockchain, needs-research
 assignees: ''
 
 ---
 
-## Expected Behaviour
+## Description
 
 _Explain what's the need, what's the desired behaviour_
 
 ## Current Behaviour
 
-_What's the current behaviour. If there is one_
+_[Optional] If this a change to a current behaviour, epxlain what's the current behaviour._
 
 ## Context
 
-_Explain the context for this. Whether it's an initiative, or anything else. WHY is this important?_
+_If it makes sense, explain:_
+ * _why is this important? Rationale for doing this_
+ * _Is this part of a bigger initiatve, theme? Which?_
 
-## Solution
+## Proposed Solution
 
 _Please describe (if known); what's the actual change we need to do. Describe the solution, strategy for it, analysis, etc_
 
