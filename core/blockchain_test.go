@@ -1139,7 +1139,7 @@ func TestSideLogRebirth(t *testing.T) {
 	logsCh := make(chan []*types.Log)
 	blockchain.SubscribeLogsEvent(logsCh)
 
-	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
+	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
 		if i == 1 {
 			// Higher block difficulty
 			gen.OffsetTime(-9)
@@ -1163,8 +1163,8 @@ func TestSideLogRebirth(t *testing.T) {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
 
-	// Generate a new block based on side chain
-	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 1, func(i int, gen *BlockGen) {})
+	// Generate two new blocks based on side chain, to trigger a reorg
+	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
 	go listenNewLog(logsCh, 1)
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
