@@ -1,6 +1,6 @@
 ## Celo Blockchain
 
-Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
+Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/celo-org/celo-blockchain).
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
@@ -8,7 +8,7 @@ Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are 
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
-Most functionality of this client is similar to `go-ethereum`, also known as `geth`, from which it was forked. If you do not find your question answered by Celo-specific documentation, try searching the [geth wiki](https://github.com/ethereum/go-ethereum/wiki).
+Most functionality of this client is similar to `go-ethereum`, also known as `geth`, from which it was forked. If you do not find your question answered by Celo-specific documentation, try searching the [geth wiki](https://github.com/celo-org/celo-blockchain/wiki).
 
 ## Building the source
 
@@ -47,8 +47,8 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 
 | Command    | Description |
 |:----------:|-------------|
-| **`geth`** | The main Celo Blockchain client. It is the entry point into the Celo network, capable of running as a full node (default), archive node (retaining all historical state), light node (retrieving data live), or lightest node (retrieving minimum number of block headers to verify existing validator set). It can be used by other processes as a gateway into the Celo network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [Ethereum CLI Wiki page](https://github.com/ethereum/go-ethereum/wiki/Command-Line-Options) for command line options. |
-| `abigen` | Source code generator to convert Celo contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI) with expanded functionality if the contract bytecode is also available. However it also accepts Solidity source files, making development much more streamlined. Please see [Ethereum's Native DApps](https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
+| **`geth`** | The main Celo Blockchain client. It is the entry point into the Celo network, capable of running as a full node (default), archive node (retaining all historical state), light node (retrieving data live), or lightest node (retrieving minimum number of block headers to verify existing validator set). It can be used by other processes as a gateway into the Celo network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [Ethereum CLI Wiki page](https://github.com/celo-org/celo-blockchain/wiki/Command-Line-Options) for command line options. |
+| `abigen` | Source code generator to convert Celo contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI) with expanded functionality if the contract bytecode is also available. However it also accepts Solidity source files, making development much more streamlined. Please see [Ethereum's Native DApps](https://github.com/celo-org/celo-blockchain/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
 | `bootnode` | Stripped down version of the Celo client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks. |
 | `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`). |
 | `gethrpctest` | Developer utility tool to support the [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [ethereum test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
@@ -72,9 +72,9 @@ $ geth console
 
 This command will:
  * Start `geth` in full sync mode which will download and execute all historical block information.
- * Start up `geth`'s built-in interactive [JavaScript console](https://github.com/ethereum/go-ethereum/wiki/JavaScript-Console),
+ * Start up `geth`'s built-in interactive [JavaScript console](https://github.com/celo-org/celo-blockchain/wiki/JavaScript-Console),
    (via the trailing `console` subcommand) through which you can invoke all official [`web3` methods](https://github.com/ethereum/wiki/wiki/JavaScript-API)
-   as well as `geth`'s own [management APIs](https://github.com/ethereum/go-ethereum/wiki/Management-APIs).
+   as well as `geth`'s own [management APIs](https://github.com/celo-org/celo-blockchain/wiki/Management-APIs).
    This tool is optional and if you leave it out you can always attach to an already running
    `geth` instance with `geth attach`.
 
@@ -125,7 +125,7 @@ $ geth --your-favourite-flags dumpconfig
 As a developer, sooner rather than later you'll want to start interacting with `geth` and the
 Celo network via your own programs and not manually through the console. To aid
 this, `geth` has built-in support for a JSON-RPC based APIs ([standard APIs](https://github.com/ethereum/wiki/wiki/JSON-RPC)
-and [`geth` specific APIs](https://github.com/ethereum/go-ethereum/wiki/Management-APIs)).
+and [`geth` specific APIs](https://github.com/celo-org/celo-blockchain/wiki/Management-APIs)).
 These can be exposed via HTTP, WebSockets and IPC (UNIX sockets on UNIX based
 platforms, and named pipes on Windows).
 
@@ -199,7 +199,7 @@ merge a PR.
 
 
 Individual package tests can be run with
-`./build/env.sh go test github.com/ethereum/go-ethereum/$(PATH_TO_GO_PACKAGE)`
+`./build/env.sh go test github.com/celo-org/celo-blockchain/$(PATH_TO_GO_PACKAGE)`
 if you don't have `GOPATH` set-up.
 
 

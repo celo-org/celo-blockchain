@@ -9,7 +9,7 @@ Keep the number of open issues under 820
 
 Keep the ratio of open issues per all issues under 13%
 
-Have 50 issues labelled [help wanted](https://github.com/ethereum/go-ethereum/labels/help%20wanted) and 50 [good first issue](https://github.com/ethereum/go-ethereum/labels/good%20first%20issue).
+Have 50 issues labelled [help wanted](https://github.com/celo-org/celo-blockchain/labels/help%20wanted) and 50 [good first issue](https://github.com/celo-org/celo-blockchain/labels/good%20first%20issue).
 
 Use structured labels of the form `<category>:<label>` or if need be `<category>:<main>/<sub>`, for example `area: plugins/foobuzzer`.
 
@@ -35,8 +35,8 @@ Use the following labels. Areas and statuses depend on the application and workf
     - `need: decision`
 
 Use these milestones
-- [Future](https://github.com/ethereum/go-ethereum/milestone/80) - Maybe implement one day
-- [Coming soon](https://github.com/ethereum/go-ethereum/milestone/81) - Not assigned to a specific release, but to be delivered in one of the upcoming releases
+- [Future](https://github.com/celo-org/celo-blockchain/milestone/80) - Maybe implement one day
+- [Coming soon](https://github.com/celo-org/celo-blockchain/milestone/81) - Not assigned to a specific release, but to be delivered in one of the upcoming releases
 - \<next version\> - Next release with a version number
 - \<next-next version\> - The version after the next release with a version number
 - \<next major release\> - Optional.
@@ -46,7 +46,7 @@ It's ok to not set a due date for a milestone, but once you release it, close it
 Optionally, use a project board to collect issues of a larger effort that has an end state and overarches multiple releases.
 
 ## Workflow
-We have a weekly or bi-weekly triage meeting. Issues are preselected by [labelling them "status:triage" and sorted the oldest ones first](https://github.com/ethereum/go-ethereum/issues?q=is%3Aopen+is%3Aissue+label%3Astatus%3Atriage+sort%3Acreated-asc). This is when we go through the new issues and do one of the following
+We have a weekly or bi-weekly triage meeting. Issues are preselected by [labelling them "status:triage" and sorted the oldest ones first](https://github.com/celo-org/celo-blockchain/issues?q=is%3Aopen+is%3Aissue+label%3Astatus%3Atriage+sort%3Acreated-asc). This is when we go through the new issues and do one of the following
 1. Close it.
 1. Assign it to "Coming soon" milestone which doesn't have an end date.
 1. Move it to the "Future" milestone.

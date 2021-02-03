@@ -36,14 +36,14 @@ process output for confirmation-requests.
 ### More resoruces
 
 
-* Changelog for [External API](https://github.com/ethereum/go-ethereum/blob/master/cmd/clef/extapi_changelog.md)
-* Changelog for [UI API](https://github.com/ethereum/go-ethereum/blob/master/cmd/clef/intapi_changelog.md)
+* Changelog for [External API](https://github.com/celo-org/celo-blockchain/blob/master/cmd/clef/extapi_changelog.md)
+* Changelog for [UI API](https://github.com/celo-org/celo-blockchain/blob/master/cmd/clef/intapi_changelog.md)
 * Documentation about [Datatypes](datatypes)
 
 
 ## External API
 
-See the [external api changelog](https://github.com/ethereum/go-ethereum/blob/master/cmd/clef/extapi_changelog.md) for information about changes to this API.
+See the [external api changelog](https://github.com/celo-org/celo-blockchain/blob/master/cmd/clef/extapi_changelog.md) for information about changes to this API.
 
 
 ### Encoding
@@ -537,7 +537,7 @@ See `pythonsigner`, which can be invoked via `python3 pythonsigner.py test` to p
 
 All methods in this API uses object-based parameters, so that there can be no mixups of parameters: each piece of data is accessed by key.
 
-See the [ui api changelog](https://github.com/ethereum/go-ethereum/blob/master/cmd/clef/intapi_changelog.md) for information about changes to this API.
+See the [ui api changelog](https://github.com/celo-org/celo-blockchain/blob/master/cmd/clef/intapi_changelog.md) for information about changes to this API.
 
 OBS! A slight deviation from `json` standard is in place: every request and response should be confined to a single line.
 Whereas the `json` specification allows for linebreaks, linebreaks __should not__ be used in this communication channel, to make

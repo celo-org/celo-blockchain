@@ -12,7 +12,7 @@ $ go get -u github.com/karalabe/xgo
 $ xgo --deps=https://gmplib.org/download/gmp/gmp-6.0.0a.tar.bz2 \
       --branch=develop                                          \
       --targets=android-16/arm                                  \
-      github.com/ethereum/go-ethereum/cmd/geth
+      github.com/celo-org/celo-blockchain/cmd/geth
 
 $ ls -al
   -rwxr-xr-x  1 root  root  23213348 Sep 14 19:35 geth-android-16-arm

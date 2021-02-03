@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 

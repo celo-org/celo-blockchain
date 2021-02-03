@@ -29,10 +29,10 @@ import (
 	"syscall"
 
 	"github.com/dop251/goja"
-	"github.com/ethereum/go-ethereum/internal/jsre"
-	"github.com/ethereum/go-ethereum/internal/jsre/deps"
-	"github.com/ethereum/go-ethereum/internal/web3ext"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/celo-org/celo-blockchain/internal/jsre"
+	"github.com/celo-org/celo-blockchain/internal/jsre/deps"
+	"github.com/celo-org/celo-blockchain/internal/web3ext"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/mattn/go-colorable"
 	"github.com/peterh/liner"
 )
