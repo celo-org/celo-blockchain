@@ -147,7 +147,7 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 		},
 		TransferWhitelist: TransferWhitelistParameters{},
 		GoldToken: GoldTokenParameters{
-			Frozen: true,
+			Frozen: false,
 		},
 		Blockchain: BlockchainParameters{
 			Version:                 Version{1, 0, 0},
