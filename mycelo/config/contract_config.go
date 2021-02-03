@@ -279,7 +279,8 @@ type TransferWhitelistParameters struct {
 
 // GoldTokenParameters are the initial configuration parameters for GoldToken
 type GoldTokenParameters struct {
-	Frozen bool `json:"frozen"`
+	Frozen          bool        `json:"frozen"`
+	InitialBalances BalanceList `json:"initialBalances"`
 }
 
 // RandomParameters are the initial configuration parameters for Random

@@ -148,6 +148,11 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 	logger := ctx.logger.New()
 
+	// Fund specified accounts
+	for _, balance := range ctx.parameters.GoldToken.InitialBalances {
+		ctx.statedb.SetBalance(balance.Account, new(big.Int).Set(balance.Amount))
+	}
+
 	for i, step := range deploySteps {
 		logger.Info("Running deploy step", "number", i)
 		if err := step(); err != nil {
