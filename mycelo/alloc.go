@@ -425,6 +425,12 @@ func (ctx *deployContext) deployGoldToken() error {
 		if err != nil {
 			return err
 		}
+	} else {
+		ctx.logger.Info("UnFreezing GoldToken")
+		err = ctx.contract("Freezer").SimpleCall("unfreeze", ctx.contracts.ProxyAddressFor("GoldToken"))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -630,6 +636,12 @@ func (ctx *deployContext) deployStableToken() error {
 	if ctx.parameters.StableToken.Frozen {
 		ctx.logger.Info("Freezing StableToken")
 		err = ctx.contract("Freezer").SimpleCall("freeze", stableTokenAddress)
+		if err != nil {
+			return err
+		}
+	} else {
+		ctx.logger.Info("UnFreezing StableToken")
+		err = ctx.contract("Freezer").SimpleCall("unfreeze", stableTokenAddress)
 		if err != nil {
 			return err
 		}
