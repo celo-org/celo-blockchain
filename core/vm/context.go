@@ -46,6 +46,9 @@ type Message interface {
 	Nonce() uint64
 	CheckNonce() bool
 	Data() []byte
+
+	// Whether this transaction omitted the 3 Celo-only fields (FeeCurrency & co.)
+	EthCompatible() bool
 }
 
 // ChainContext supports retrieving chain data and consensus parameters

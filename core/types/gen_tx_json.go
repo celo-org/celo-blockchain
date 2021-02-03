@@ -29,6 +29,7 @@ func (t txdata) MarshalJSON() ([]byte, error) {
 		R                   *hexutil.Big    `json:"r" gencodec:"required"`
 		S                   *hexutil.Big    `json:"s" gencodec:"required"`
 		Hash                *common.Hash    `json:"hash" rlp:"-"`
+		EthCompatible       bool            `json:"ethCompatible" rlp:"-"`
 	}
 	var enc txdata
 	enc.AccountNonce = hexutil.Uint64(t.AccountNonce)
@@ -44,6 +45,7 @@ func (t txdata) MarshalJSON() ([]byte, error) {
 	enc.R = (*hexutil.Big)(t.R)
 	enc.S = (*hexutil.Big)(t.S)
 	enc.Hash = t.Hash
+	enc.EthCompatible = t.EthCompatible
 	return json.Marshal(&enc)
 }
 
@@ -63,6 +65,7 @@ func (t *txdata) UnmarshalJSON(input []byte) error {
 		R                   *hexutil.Big    `json:"r" gencodec:"required"`
 		S                   *hexutil.Big    `json:"s" gencodec:"required"`
 		Hash                *common.Hash    `json:"hash" rlp:"-"`
+		EthCompatible       *bool           `json:"ethCompatible" rlp:"-"`
 	}
 	var dec txdata
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -114,6 +117,9 @@ func (t *txdata) UnmarshalJSON(input []byte) error {
 	t.S = (*big.Int)(dec.S)
 	if dec.Hash != nil {
 		t.Hash = dec.Hash
+	}
+	if dec.EthCompatible != nil {
+		t.EthCompatible = *dec.EthCompatible
 	}
 	return nil
 }

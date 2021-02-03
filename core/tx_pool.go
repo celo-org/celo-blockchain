@@ -255,7 +255,8 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	istanbul      bool // Fork indicator whether we are in the istanbul stage.
+	ethCompatible bool // Fork indicator whether we support eth-compatible transactions
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -577,6 +578,12 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
+	if tx.EthCompatible() && !pool.ethCompatible {
+		return ErrEthCompatibleTransactionsNotSupported
+	}
+	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
+		return ErrEthCompatibleTransactionIsntCompatible
+	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -1272,6 +1279,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
+	pool.ethCompatible = pool.chainconfig.IsDonut(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the

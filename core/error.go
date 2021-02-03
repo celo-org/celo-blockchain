@@ -76,4 +76,12 @@ var (
 	// ErrIntrinsicGas is returned if the transaction is specified to use less gas
 	// than required to start the invocation.
 	ErrIntrinsicGas = errors.New("intrinsic gas too low")
+
+	// ErrEthCompatibleTransactionsNotSupported is returned if the transaction omits the 3 Celo-only
+	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
+	ErrEthCompatibleTransactionsNotSupported = errors.New("support for eth-compatible transactions is not enabled")
+
+	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
+	// but has non-nil-or-0 values for some of the Celo-only fields
+	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
 )

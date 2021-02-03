@@ -123,7 +123,7 @@ func (c mockChainContext) Engine() consensus.Engine {
 // Create a global mock EVM for use in the following tests.
 var mockEVM = &EVM{
 	Context: NewEVMContext(
-		types.NewMessage(common.HexToAddress("a11ce"), nil, 0, common.Big0, 0, common.Big1, nil, nil, common.Big0, nil, false),
+		types.NewMessage(common.HexToAddress("a11ce"), nil, 0, common.Big0, 0, common.Big1, nil, nil, common.Big0, nil, false, false),
 		makeTestHeader(big.NewInt(10000)),
 		mockChainContext{},
 		&common.Address{},

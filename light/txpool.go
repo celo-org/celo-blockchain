@@ -72,6 +72,7 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicated whether Donut has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -325,6 +326,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
 	pool.istanbul = pool.config.IsIstanbul(next)
+	pool.donut = pool.config.IsDonut(next)
 }
 
 // Stop stops the light transaction pool
@@ -359,6 +361,13 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		from common.Address
 		err  error
 	)
+
+	if tx.EthCompatible() && !pool.donut {
+		return core.ErrEthCompatibleTransactionsNotSupported
+	}
+	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
+		return core.ErrEthCompatibleTransactionIsntCompatible
+	}
 
 	// Validate the transaction sender and it's sig. Throw
 	// if the from fields is invalid.

@@ -31,6 +31,10 @@ import (
 
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
 
+const (
+	ETH_COMPATIBLE_TX_NUM_FIELDS = 9
+)
+
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
 )
@@ -61,6 +65,64 @@ type txdata struct {
 
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
+
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	EthCompatible bool `json:"ethCompatible" rlp:"-"`
+}
+
+type ethcompatibletxdata struct {
+	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
+	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
+	GasLimit     uint64          `json:"gas"      gencodec:"required"`
+	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
+	Amount       *big.Int        `json:"value"    gencodec:"required"`
+	Payload      []byte          `json:"input"    gencodec:"required"`
+
+	// Signature values
+	V *big.Int `json:"v" gencodec:"required"`
+	R *big.Int `json:"r" gencodec:"required"`
+	S *big.Int `json:"s" gencodec:"required"`
+
+	// This is only used when marshaling to JSON.
+	Hash *common.Hash `json:"hash" rlp:"-"`
+
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	EthCompatible bool `rlp:"-"`
+}
+
+func toEthCompatibleTxData(data txdata) ethcompatibletxdata {
+	return ethcompatibletxdata{
+		data.AccountNonce,
+		data.Price,
+		data.GasLimit,
+		data.Recipient,
+		data.Amount,
+		data.Payload,
+		data.V,
+		data.R,
+		data.S,
+		data.Hash,
+		false,
+	}
+}
+
+func fromEthCompatibleTxData(data ethcompatibletxdata) txdata {
+	return txdata{
+		data.AccountNonce,
+		data.Price,
+		data.GasLimit,
+		nil,
+		nil,
+		big.NewInt(0),
+		data.Recipient,
+		data.Amount,
+		data.Payload,
+		data.V,
+		data.R,
+		data.S,
+		data.Hash,
+		true,
+	}
 }
 
 type txdataMarshaling struct {
@@ -75,14 +137,27 @@ type txdataMarshaling struct {
 	V                   *hexutil.Big
 	R                   *hexutil.Big
 	S                   *hexutil.Big
+	EthCompatible       bool
 }
 
 func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
 	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data)
 }
 
+func NewTransactionEthCompatible(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+	tx := newTransaction(nonce, &to, amount, gasLimit, gasPrice, nil, nil, nil, data)
+	tx.data.EthCompatible = true
+	return tx
+}
+
 func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
 	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data)
+}
+
+func NewContractCreationEthCompatible(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+	tx := newTransaction(nonce, nil, amount, gasLimit, gasPrice, nil, nil, nil, data)
+	tx.data.EthCompatible = true
+	return tx
 }
 
 func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
@@ -137,13 +212,33 @@ func isProtectedV(V *big.Int) bool {
 
 // EncodeRLP implements rlp.Encoder
 func (tx *Transaction) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &tx.data)
+	if tx.data.EthCompatible {
+		return rlp.Encode(w, toEthCompatibleTxData(tx.data))
+	} else {
+		return rlp.Encode(w, &tx.data)
+	}
 }
 
 // DecodeRLP implements rlp.Decoder
-func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
+func (tx *Transaction) DecodeRLP(s *rlp.Stream) (err error) {
 	_, size, _ := s.Kind()
-	err := s.Decode(&tx.data)
+	var raw rlp.RawValue
+	err = s.Decode(&raw)
+	if err != nil {
+		return err
+	}
+	headerSize := len(raw) - int(size)
+	numElems, err := rlp.CountValues(raw[headerSize:])
+	if err != nil {
+		return err
+	}
+	if numElems == ETH_COMPATIBLE_TX_NUM_FIELDS {
+		ethCompatibleData := ethcompatibletxdata{}
+		err = rlp.DecodeBytes(raw, &ethCompatibleData)
+		tx.data = fromEthCompatibleTxData(ethCompatibleData)
+	} else {
+		err = rlp.DecodeBytes(raw, &tx.data)
+	}
 	if err == nil {
 		tx.size.Store(common.StorageSize(rlp.ListSize(size)))
 	}
@@ -193,6 +288,7 @@ func (tx *Transaction) GatewayFee() *big.Int                 { return tx.data.Ga
 func (tx *Transaction) Value() *big.Int                      { return new(big.Int).Set(tx.data.Amount) }
 func (tx *Transaction) Nonce() uint64                        { return tx.data.AccountNonce }
 func (tx *Transaction) CheckNonce() bool                     { return true }
+func (tx *Transaction) EthCompatible() bool                  { return tx.data.EthCompatible }
 
 // To returns the recipient address of the transaction.
 // It returns nil if the transaction is a contract creation.
@@ -244,6 +340,7 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 		amount:              tx.data.Amount,
 		data:                tx.data.Payload,
 		checkNonce:          true,
+		ethCompatible:       tx.data.EthCompatible,
 	}
 
 	var err error
@@ -431,10 +528,11 @@ type Message struct {
 	gatewayFeeRecipient *common.Address
 	gatewayFee          *big.Int
 	data                []byte
+	ethCompatible       bool
 	checkNonce          bool
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte, checkNonce bool) Message {
+func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte, ethCompatible, checkNonce bool) Message {
 	return Message{
 		from:                from,
 		to:                  to,
@@ -446,6 +544,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		gatewayFeeRecipient: gatewayFeeRecipient,
 		gatewayFee:          gatewayFee,
 		data:                data,
+		ethCompatible:       ethCompatible,
 		checkNonce:          checkNonce,
 	}
 }
@@ -453,6 +552,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 func (m Message) From() common.Address                 { return m.from }
 func (m Message) To() *common.Address                  { return m.to }
 func (m Message) GasPrice() *big.Int                   { return m.gasPrice }
+func (m Message) EthCompatible() bool                  { return m.ethCompatible }
 func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
 func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
 func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
