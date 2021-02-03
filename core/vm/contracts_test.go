@@ -18,7 +18,9 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
@@ -1093,5 +1095,89 @@ func TestGetParentSealBitmap(t *testing.T) {
 func TestGetVerifiedSealBitmap(t *testing.T) {
 	for _, test := range getVerifiedSealBitmapTests {
 		testPrecompiled("f4", test, t)
+	}
+}
+
+const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
+
+type cip20Test struct {
+	Preimage  string `json:"preimage"`
+	Sha2_512  string `json:"sha2_512"`
+	Keccak512 string `json:"keccak512"`
+	Sha3_256  string `json:"sha3_256"`
+	Sha3_512  string `json:"sha3_512"`
+	Blake2s   string `json:"blake2s"`
+}
+
+func loadCip20Json() ([]cip20Test, error) {
+	data, err := ioutil.ReadFile("testdata/precompiles/cip20.json")
+	if err != nil {
+		return nil, err
+	}
+	var tests []cip20Test
+	err = json.Unmarshal(data, &tests)
+	if err != nil {
+		return nil, err
+	}
+	return tests, nil
+}
+
+func (c *cip20Test) toPrecompiledTests() []precompiledTest {
+	return []precompiledTest{
+		{
+			input:    "00" + c.Preimage,
+			expected: c.Sha3_256,
+			name:     "sha3_256 of 0x" + c.Preimage,
+		},
+		{
+			input:    "01" + c.Preimage,
+			expected: c.Sha3_512,
+			name:     "sha3_25sha3_5126 of 0x" + c.Preimage,
+		},
+		{
+			input:    "02" + c.Preimage,
+			expected: c.Keccak512,
+			name:     "keccak512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "03" + c.Preimage,
+			expected: c.Sha2_512,
+			name:     "sha2_512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "10" + defaultBlake2sConfig + c.Preimage,
+			expected: c.Blake2s,
+			name:     "blake2s of 0x" + c.Preimage,
+		},
+	}
+}
+
+var cip20Tests = []precompiledTest{
+	{
+		input:    "10" + defaultBlake2sConfig,
+		expected: "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
+		name:     "default blake2s of empty string",
+	},
+	{
+		input:    "10" + "20000101" + "00000000" + "00000000" + "60000000" + "0000000000000000" + "0000000000000000",
+		expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
+		name:     "celo-bls-snark-rs test_crh_empty",
+	},
+}
+
+func TestCip20(t *testing.T) {
+	cip20ShaVariantTests, err := loadCip20Json()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, vector := range cip20ShaVariantTests {
+		for _, test := range vector.toPrecompiledTests() {
+			testPrecompiled("e2", test, t)
+		}
+	}
+
+	for _, test := range cip20Tests {
+		testPrecompiled("e2", test, t)
 	}
 }
