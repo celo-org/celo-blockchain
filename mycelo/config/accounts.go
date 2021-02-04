@@ -45,9 +45,17 @@ type AccountType int
 // The differente account types for the generator
 const (
 	Validator AccountType = iota
-	ValidatorGroup
-	Admin
-	Developer
+	Developer             // load test
+	TxNode
+	Faucet
+	Attestation
+	PriceOracle
+	Proxy
+	AttestationBot
+	VotingBot
+	TxNodePrivate
+	ValidatorGroup // Not in celotool
+	Admin          // Not in celotool
 )
 
 func mustDerivationPath(accountType AccountType, idx int) accounts.DerivationPath {
