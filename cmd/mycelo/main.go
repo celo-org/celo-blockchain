@@ -61,11 +61,11 @@ func init() {
 	}
 	// Add subcommands.
 	app.Commands = []cli.Command{
-		createConfigCommand,
-		createContractsConfigCommand,
+		newEnvCommand,
 		createGenesisCommand,
 		initNodesCommand,
 		runCommand,
+		feelingLuckyCommand,
 	}
 }
 
@@ -73,20 +73,64 @@ func main() {
 	exit(app.Run(os.Args))
 }
 
-var createConfigCommand = cli.Command{
-	Name:   "create-config",
-	Usage:  "Creates config.json file (first cmd to run)",
-	Action: createConfig,
+var feelingLuckyCommand = cli.Command{
+	Name:   "feeling-lucky",
+	Usage:  "Creates, Configure and Run celo blockchain on a single step",
+	Action: feelingLucky,
+	Flags: []cli.Flag{
+		cli.IntFlag{
+			Name:  "validators",
+			Usage: "Number of Validators",
+		},
+		cli.IntFlag{
+			Name:  "dev.accounts",
+			Usage: "Number of developer accounts",
+		},
+		cli.Uint64Flag{
+			Name:  "blockperiod",
+			Usage: "Seconds between each block",
+		},
+		cli.Uint64Flag{
+			Name:  "epoch",
+			Usage: "Epoch size",
+		},
+		cli.StringFlag{
+			Name:  "buildpath",
+			Usage: "Directory where smartcontract truffle build file live",
+		},
+	},
 }
 
-var createContractsConfigCommand = cli.Command{
-	Name:   "create-contracts-config",
-	Usage:  "Creates contracts-config.json file (run once you have config.json correctly configured)",
-	Action: createContractsConfig,
+var newEnvCommand = cli.Command{
+	Name:   "new-env",
+	Usage:  "Creates a new mycelo environment",
+	Action: newEnv,
+	Flags: []cli.Flag{
+		cli.IntFlag{
+			Name:  "validators",
+			Usage: "Number of Validators",
+		},
+		cli.IntFlag{
+			Name:  "dev.accounts",
+			Usage: "Number of developer accounts",
+		},
+		cli.Uint64Flag{
+			Name:  "blockperiod",
+			Usage: "Seconds between each block",
+		},
+		cli.Uint64Flag{
+			Name:  "epoch",
+			Usage: "Epoch size",
+		},
+		cli.StringFlag{
+			Name:  "buildpath",
+			Usage: "Directory where smartcontract truffle build file live",
+		},
+	},
 }
 
 var createGenesisCommand = cli.Command{
-	Name:   "create-genesis",
+	Name:   "genesis",
 	Usage:  "Creates genesis.json (requires config.json & contract-config.json correctly configured)",
 	Action: createGenesis,
 	Flags: []cli.Flag{
@@ -121,124 +165,178 @@ var runCommand = cli.Command{
 	},
 }
 
-func readPaths(ctx *cli.Context) (config.Paths, error) {
+func readWorkdir(ctx *cli.Context) (string, error) {
 	if ctx.NArg() != 1 {
-		return config.Paths{}, fmt.Errorf("Missing directory argument")
+		return "", fmt.Errorf("Missing directory argument")
 	}
-
-	workdir := ctx.Args()[0]
-
-	if !fileutils.FileExists(workdir) {
-		os.MkdirAll(workdir, os.ModePerm)
-	}
-	return config.Paths{
-		Workdir: workdir,
-	}, nil
+	return ctx.Args()[0], nil
 }
 
-func createConfig(ctx *cli.Context) error {
-	paths, err := readPaths(ctx)
+func readEnv(ctx *cli.Context) (*config.Environment, error) {
+	workdir, err := readWorkdir(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	var cfg = config.DefaultConfig()
-	return config.WriteConfig(cfg, paths.Config())
+	return config.ReadEnv(workdir)
 }
 
-func createContractsConfig(ctx *cli.Context) error {
-	paths, err := readPaths(ctx)
-	if err != nil {
-		return err
-	}
-
-	cfg, err := config.ReadConfig(paths.Config())
-	if err != nil {
-		return err
-	}
-
-	err = config.WriteContractsConfig(config.DefaultContractsConfig(cfg), paths.ContractsConfig())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-func createGenesis(ctx *cli.Context) error {
-	paths, err := readPaths(ctx)
-	if err != nil {
-		return err
-	}
-
+func readBuildPath(ctx *cli.Context) (string, error) {
 	buildpath := ctx.String("buildpath")
 	if buildpath == "" {
 		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build/contracts")
 		if fileutils.FileExists(buildpath) {
 			log.Info("Missing --buildpath flag, using CELO_MONOREPO derived path", "buildpath", buildpath)
 		} else {
-			return fmt.Errorf("Missing --buildpath flag")
+			return "", fmt.Errorf("Missing --buildpath flag")
 		}
 	}
+	return buildpath, nil
+}
 
-	cfg, err := config.ReadConfig(paths.Config())
+func readGethPath(ctx *cli.Context) (string, error) {
+	buildpath := ctx.String("geth")
+	if buildpath == "" {
+		buildpath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
+		if fileutils.FileExists(buildpath) {
+			log.Info("Missing --geth flag, using CELO_BLOCKCHAIN derived path", "geth", buildpath)
+		} else {
+			return "", fmt.Errorf("Missing --geth flag")
+		}
+	}
+	return buildpath, nil
+}
+
+func feelingLucky(ctx *cli.Context) error {
+	err := newEnv(ctx)
 	if err != nil {
 		return err
 	}
-	contractsCfg, err := config.ReadContractsConfig(paths.ContractsConfig())
+
+	env, err := readEnv(ctx)
 	if err != nil {
 		return err
 	}
 
-	genesis, err := genesis.GenerateGenesis(cfg, contractsCfg, buildpath)
+	env.Paths.Geth, err = readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	return writeJSON(genesis, paths.GenesisJSON())
+	cluster := cluster.New(env)
+
+	if err = cluster.Init(); err != nil {
+		return err
+	}
+
+	runCtx := context.Background()
+	group, runCtx := errgroup.WithContext(runCtx)
+
+	group.Go(func() error { return cluster.Run(runCtx) })
+	// group.Go(func() error { return cluster.RunMigrations() })
+
+	return group.Wait()
+}
+
+func newEnv(ctx *cli.Context) error {
+	workdir, err := readWorkdir(ctx)
+	if err != nil {
+		return err
+	}
+
+	template := templateFromString("local")
+
+	log.Info("Creating new environment", "envdir", workdir)
+	env, err := template.createEnv(workdir, func(cfg *config.Config) {
+		if ctx.IsSet("epoch") {
+			cfg.Istanbul.Epoch = ctx.Uint64("epoch")
+		}
+
+		if ctx.IsSet("blockperiod") {
+			cfg.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+		}
+
+		if ctx.IsSet("validators") {
+			cfg.InitialValidators = ctx.Int("validators")
+		}
+
+		if ctx.IsSet("dev.accounts") {
+			cfg.DeveloperAccounts = ctx.Int("dev.accounts")
+		}
+
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := env.Write(); err != nil {
+		return err
+	}
+
+	// Generate genesis block
+	buildpath, err := readBuildPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	genesis, err := genesis.GenerateGenesis(env, buildpath)
+	if err != nil {
+		return err
+	}
+
+	return writeJSON(genesis, env.Paths.GenesisJSON())
+}
+
+func createGenesis(ctx *cli.Context) error {
+	env, err := readEnv(ctx)
+	if err != nil {
+		return err
+	}
+
+	buildpath, err := readBuildPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	genesis, err := genesis.GenerateGenesis(env, buildpath)
+	if err != nil {
+		return err
+	}
+
+	return writeJSON(genesis, env.Paths.GenesisJSON())
 }
 
 func initNodes(ctx *cli.Context) error {
-	paths, err := readPaths(ctx)
+	env, err := readEnv(ctx)
 	if err != nil {
 		return err
 	}
 
-	paths.Geth = ctx.String("geth")
-	if paths.Geth == "" {
-		return fmt.Errorf("Missing --geth flag")
-	}
-
-	cfg, err := config.ReadConfig(paths.Config())
+	env.Paths.Geth, err = readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(paths, cfg)
+	cluster := cluster.New(env)
 	return cluster.Init()
 }
 
-func run(cliCtx *cli.Context) error {
-	paths, err := readPaths(cliCtx)
+func run(ctx *cli.Context) error {
+	env, err := readEnv(ctx)
 	if err != nil {
 		return err
 	}
 
-	paths.Geth = cliCtx.String("geth")
-	if paths.Geth == "" {
-		return fmt.Errorf("Missing --geth flag")
-	}
-
-	cfg, err := config.ReadConfig(paths.Config())
+	env.Paths.Geth, err = readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(paths, cfg)
+	cluster := cluster.New(env)
 
-	ctx := context.Background()
-	group, ctx := errgroup.WithContext(ctx)
+	runCtx := context.Background()
+	group, runCtx := errgroup.WithContext(runCtx)
 
-	group.Go(func() error { return cluster.Run(ctx) })
+	group.Go(func() error { return cluster.Run(runCtx) })
 	// group.Go(func() error { return cluster.RunMigrations() })
 
 	return group.Wait()
