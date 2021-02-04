@@ -23,6 +23,7 @@ type Config struct {
 	Mnemonic           string `json:"mnemonic"`           // Accounts mnemonic
 	InitialValidators  int    `json:"initialValidators"`  // Number of initial validators
 	ValidatorsPerGroup int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
+	DeveloperAccounts  int    `json:"developerAccounts"`  // Number of developers accounts
 
 	// hydrated field
 	GenesisAccounts *GenesisAccounts    `json:"-"`
@@ -87,6 +88,9 @@ func (cfg *Config) ApplyDefaults() {
 		cfg.Mnemonic = MustNewMnemonic()
 	}
 
+	if cfg.DeveloperAccounts == 0 {
+		cfg.DeveloperAccounts = 10
+	}
 	if cfg.InitialValidators == 0 {
 		cfg.InitialValidators = 3
 	}
@@ -163,7 +167,7 @@ func (cfg *Config) GenerateChainConfig() *params.ChainConfig {
 }
 
 func (cfg *Config) GenerateGenesisAccounts() (*GenesisAccounts, error) {
-	deployer, err := GenerateAccounts(cfg.Mnemonic, Deployer, 1)
+	admin, err := GenerateAccounts(cfg.Mnemonic, Admin, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -178,10 +182,16 @@ func (cfg *Config) GenerateGenesisAccounts() (*GenesisAccounts, error) {
 		return nil, err
 	}
 
+	developers, err := GenerateAccounts(cfg.Mnemonic, Developer, cfg.DeveloperAccounts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &GenesisAccounts{
-		Deployer:        deployer[0],
+		Admin:           admin[0],
 		Validators:      validators,
 		ValidatorGroups: groups,
+		Developers:      developers,
 	}, nil
 
 }

@@ -37,7 +37,7 @@ func GenerateGenesis(cfg *config.Config, smartContractCfg *config.Paremeters, co
 	return &core.Genesis{
 		Config:    cfg.ChainConfig,
 		ExtraData: extraData,
-		Coinbase:  cfg.GenesisAccounts.Deployer.Address,
+		Coinbase:  cfg.GenesisAccounts.Admin.Address,
 		Timestamp: cfg.GenesisTimestamp,
 		Alloc:     genesisAlloc,
 	}, nil

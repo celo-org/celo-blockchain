@@ -46,6 +46,13 @@ func WriteContractsConfig(cfg *Paremeters, filepath string) error {
 
 // NewParameters creates default parameters based on give config
 func DefaultContractsConfig(cfg *Config) *Paremeters {
+
+	// Add balances to developer accounts
+	cusdBalances := make([]Balance, len(cfg.GenesisAccounts.Developers))
+	for i, acc := range cfg.GenesisAccounts.Developers {
+		cusdBalances[i] = Balance{acc.Address, mustBigInt("50000000000000000000000")}
+	}
+
 	return &Paremeters{
 		SortedOracles: SortedOraclesParameters{
 			ReportExpirySeconds: 5 * Minute,
@@ -56,7 +63,7 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			TargetDensity:   fixed.MustNew("0.5"),
 		},
 		ReserveSpenderMultiSig: MultiSigParameters{
-			Signatories:                      []common.Address{cfg.GenesisAccounts.Deployer.Address},
+			Signatories:                      []common.Address{cfg.GenesisAccounts.Admin.Address},
 			NumRequiredConfirmations:         1,
 			NumInternalRequiredConfirmations: 1,
 		},
@@ -81,9 +88,7 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			Rate:                        fixed.MustNew("1"),
 			InflationFactorUpdatePeriod: big.NewInt(47304000),
 			InflationPeriod:             big.NewInt(1),
-			InitialBalances: BalanceList{
-				{common.HexToAddress("0xc471776eA02705004C451959129bF09423B56526"), mustBigInt("5000000000000000000000000")},
-			},
+			InitialBalances:             cusdBalances,
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
@@ -166,7 +171,7 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			SlashableDowntime: 60,                                  // Should be overridden on public testnets
 		},
 		GovernanceApproverMultiSig: MultiSigParameters{
-			Signatories:                      []common.Address{cfg.GenesisAccounts.Deployer.Address},
+			Signatories:                      []common.Address{cfg.GenesisAccounts.Admin.Address},
 			NumRequiredConfirmations:         1,
 			NumInternalRequiredConfirmations: 1,
 		},

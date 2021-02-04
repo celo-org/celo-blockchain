@@ -46,7 +46,8 @@ type AccountType int
 const (
 	Validator AccountType = iota
 	ValidatorGroup
-	Deployer
+	Admin
+	Developer
 )
 
 func mustDerivationPath(accountType AccountType, idx int) accounts.DerivationPath {
