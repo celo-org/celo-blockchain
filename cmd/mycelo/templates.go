@@ -20,6 +20,8 @@ func templateFromString(templateStr string) template {
 		return localEnv{}
 	case "testnet":
 		return testnetEnv{}
+	case "loadtest":
+		return loadtestEnv{}
 	}
 	return localEnv{}
 }
@@ -91,4 +93,66 @@ type testnetEnv struct{}
 
 func (e testnetEnv) createEnv(workdir string) (*config.Environment, error) {
 	panic("Not implemented")
+}
+
+type loadtestEnv struct{}
+
+func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
+	envCfg := &config.EnvConfig{
+		Mnemonic:           "miss fire behind decide egg buyer honey seven advance uniform profit renew",
+		InitialValidators:  1,
+		ValidatorsPerGroup: 1,
+		DeveloperAccounts:  10000,
+		ChainID:            big.NewInt(9099000),
+	}
+
+	env, err := config.NewEnv(workdir, envCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	env.GenesisConfig.ChainID = envCfg.ChainID
+	env.GenesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
+	env.GenesisConfig.Istanbul = params.IstanbulConfig{
+		Epoch:          100,
+		ProposerPolicy: 2,
+		LookbackWindow: 3,
+		BlockPeriod:    5,
+		RequestTimeout: 3000,
+	}
+	env.GenesisConfig.Hardforks = config.HardforkConfig{
+		ChurritoBlock: common.Big0,
+		DonutBlock:    common.Big0,
+	}
+	env.GenesisConfig.Blockchain.UptimeLookbackWindow = int64(env.GenesisConfig.Istanbul.LookbackWindow)
+
+	// Make admin account manager of Governance & Reserve
+	adminMultisig := config.MultiSigParameters{
+		Signatories:                      []common.Address{env.AdminAccount().Address},
+		NumRequiredConfirmations:         1,
+		NumInternalRequiredConfirmations: 1,
+	}
+
+	env.GenesisConfig.ReserveSpenderMultiSig = adminMultisig
+	env.GenesisConfig.GovernanceApproverMultiSig = adminMultisig
+
+	// Add balances to developer accounts
+	cusdBalances := make([]config.Balance, len(env.DeveloperAccounts()))
+	goldBalances := make([]config.Balance, len(env.DeveloperAccounts()))
+	for i, acc := range env.DeveloperAccounts() {
+		cusdBalances[i] = config.Balance{acc.Address, config.MustBigInt("10000000000000000000000000")}
+		goldBalances[i] = config.Balance{acc.Address, config.MustBigInt("10000000000000000000000000")}
+	}
+
+	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
+	env.GenesisConfig.GoldToken.InitialBalances = cusdBalances
+
+	// Ensure nothing is frozen
+	env.GenesisConfig.GoldToken.Frozen = false
+	env.GenesisConfig.StableToken.Frozen = false
+	env.GenesisConfig.Exchange.Frozen = false
+	env.GenesisConfig.Reserve.FrozenDays = nil
+	env.GenesisConfig.Reserve.FrozenAssetsDays = nil
+	env.GenesisConfig.EpochRewards.Frozen = false
+	return env, nil
 }
