@@ -4,13 +4,85 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
+	"github.com/ethereum/go-ethereum/internal/fileutils"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+type Environment struct {
+	Paths              Paths
+	Config             Config
+	ContractParameters Paremeters
+
+	// Derived Fields
+	accounts *GenesisAccounts
+}
+
+func NewEnv(envpath string, cfg *Config) (*Environment, error) {
+	env := &Environment{
+		Paths:              Paths{Workdir: envpath},
+		Config:             *cfg,
+		ContractParameters: *BaseContractsConfig(),
+	}
+
+	accounts, err := createGenesisAccounts(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	env.accounts = accounts
+	return env, nil
+}
+
+func (env *Environment) Write() error {
+	if !fileutils.FileExists(env.Paths.Workdir) {
+		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
+	}
+
+	if err := writeJson(env.Config, env.Paths.Config()); err != nil {
+		return err
+	}
+	if err := writeJson(env.ContractParameters, env.Paths.ContractsConfig()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ReadEnv(envpath string) (*Environment, error) {
+	env := &Environment{
+		Paths: Paths{Workdir: envpath},
+	}
+
+	if err := readJson(&env.Config, env.Paths.Config()); err != nil {
+		return nil, err
+	}
+
+	if err := readJson(&env.ContractParameters, env.Paths.ContractsConfig()); err != nil {
+		return nil, err
+	}
+
+	accounts, err := createGenesisAccounts(&env.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	env.accounts = accounts
+
+	return env, nil
+}
+
+// ChainConfig returns chain config for the environment
+func (env *Environment) ChainConfig() *params.ChainConfig { return env.Config.ChainConfig() }
+
+func (env *Environment) AdminAccount() Account        { return env.accounts.Admin }
+func (env *Environment) DeveloperAccounts() []Account { return env.accounts.Developers }
+func (env *Environment) ValidatorAccounts() []Account { return env.accounts.Validators }
 
 // Config represents MyCelo configuration parameters
 type Config struct {
@@ -25,9 +97,6 @@ type Config struct {
 	ValidatorsPerGroup int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
 	DeveloperAccounts  int    `json:"developerAccounts"`  // Number of developers accounts
 
-	// hydrated field
-	GenesisAccounts *GenesisAccounts    `json:"-"`
-	ChainConfig     *params.ChainConfig `json:"-"`
 }
 
 // HardforkConfig contains celo hardforks activation blocks
@@ -36,25 +105,17 @@ type HardforkConfig struct {
 	DonutBlock    *big.Int `json:"donutBlock"`
 }
 
-func ReadConfig(filepath string) (*Config, error) {
+func readJson(out interface{}, filepath string) error {
 	byteValue, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var cfg Config
-	err = json.Unmarshal(byteValue, &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.ApplyDefaults()
-	cfg.Hydrate()
-	return &cfg, nil
+	return json.Unmarshal(byteValue, out)
 }
 
-func WriteConfig(cfg *Config, filepath string) error {
-	byteValue, err := json.MarshalIndent(cfg, " ", " ")
+func writeJson(in interface{}, filepath string) error {
+	byteValue, err := json.MarshalIndent(in, " ", " ")
 	if err != nil {
 		return err
 	}
@@ -131,16 +192,7 @@ func (cfg *Config) ApplyDefaults() {
 	}
 }
 
-func (cfg *Config) Hydrate() (err error) {
-	if cfg.ChainConfig == nil || cfg.GenesisAccounts == nil {
-		cfg.ChainConfig = cfg.GenerateChainConfig()
-		cfg.GenesisAccounts, err = cfg.GenerateGenesisAccounts()
-		return err
-	}
-	return nil
-}
-
-func (cfg *Config) GenerateChainConfig() *params.ChainConfig {
+func (cfg *Config) ChainConfig() *params.ChainConfig {
 	return &params.ChainConfig{
 		ChainID:             cfg.ChainID,
 		HomesteadBlock:      big.NewInt(0),
@@ -166,7 +218,7 @@ func (cfg *Config) GenerateChainConfig() *params.ChainConfig {
 	}
 }
 
-func (cfg *Config) GenerateGenesisAccounts() (*GenesisAccounts, error) {
+func createGenesisAccounts(cfg *Config) (*GenesisAccounts, error) {
 	admin, err := GenerateAccounts(cfg.Mnemonic, Admin, 1)
 	if err != nil {
 		return nil, err

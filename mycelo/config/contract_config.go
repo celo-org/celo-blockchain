@@ -1,9 +1,7 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,38 +18,9 @@ const (
 	Year   = 365 * Day
 )
 
-func ReadContractsConfig(filepath string) (*Paremeters, error) {
-	byteValue, err := ioutil.ReadFile(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg Paremeters
-	err = json.Unmarshal(byteValue, &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
-}
-
-func WriteContractsConfig(cfg *Paremeters, filepath string) error {
-	byteValue, err := json.MarshalIndent(cfg, " ", " ")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(filepath, byteValue, 0644)
-}
-
-// NewParameters creates default parameters based on give config
-func DefaultContractsConfig(cfg *Config) *Paremeters {
-
-	// Add balances to developer accounts
-	cusdBalances := make([]Balance, len(cfg.GenesisAccounts.Developers))
-	for i, acc := range cfg.GenesisAccounts.Developers {
-		cusdBalances[i] = Balance{acc.Address, mustBigInt("50000000000000000000000")}
-	}
+// BaseContractsConfig creates base parameters for celo
+// Callers must complete missing pieces
+func BaseContractsConfig() *Paremeters {
 
 	return &Paremeters{
 		SortedOracles: SortedOraclesParameters{
@@ -62,16 +31,11 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			AdjustmentSpeed: fixed.MustNew("0.5"),
 			TargetDensity:   fixed.MustNew("0.5"),
 		},
-		ReserveSpenderMultiSig: MultiSigParameters{
-			Signatories:                      []common.Address{cfg.GenesisAccounts.Admin.Address},
-			NumRequiredConfirmations:         1,
-			NumInternalRequiredConfirmations: 1,
-		},
 		Reserve: ReserveParameters{
 			TobinTaxStalenessThreshold: big.NewInt(3153600000),
 			TobinTax:                   big.NewInt(0),
 			TobinTaxReserveRatio:       big.NewInt(0),
-			DailySpendingRatio:         mustBigInt("50000000000000000000000"),
+			DailySpendingRatio:         MustBigInt("50000000000000000000000"),
 			FrozenDays:                 nil,
 			FrozenGold:                 nil,
 			AssetAllocations: AssetAllocationList{
@@ -87,16 +51,15 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			Decimals:                    18,
 			Rate:                        fixed.MustNew("1"),
 			InflationFactorUpdatePeriod: big.NewInt(2 * Year),
-			InitialBalances:             cusdBalances,
 			GoldPrice:                   fixed.MustNew("1"),
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
-				Value:    mustBigInt("10000000000000000000000"), // 10k CELO per validator
+				Value:    MustBigInt("10000000000000000000000"), // 10k CELO per validator
 				Duration: big.NewInt(180 * Day),
 			},
 			ValidatorLockedGoldRequirements: LockedGoldRequirements{
-				Value: mustBigInt("10000000000000000000000"), // 10k CELO
+				Value: MustBigInt("10000000000000000000000"), // 10k CELO
 				// MUST BE KEPT IN SYNC WITH MEMBERSHIP HISTORY LENGTH
 				Duration: big.NewInt(60 * Day),
 			},
@@ -137,7 +100,7 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			// Intentionally set lower than the expected value at steady state to account for the fact that
 			// users may take some time to start voting with their cGLD.
 			TargetVotingGoldFraction: fixed.MustNew("0.5"),
-			MaxValidatorEpochPayment: mustBigInt("205479452054794520547"), // (75,000 / 365) * 10 ^ 18
+			MaxValidatorEpochPayment: MustBigInt("205479452054794520547"), // (75,000 / 365) * 10 ^ 18
 			CommunityRewardFraction:  fixed.MustNew("0.25"),
 			CarbonOffsettingPartner:  common.Address{},
 			CarbonOffsettingFraction: fixed.MustNew("0.001"),
@@ -162,18 +125,13 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 		},
 
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{
-			Reward:  mustBigInt("1000000000000000000000"), // 1000 cGLD
-			Penalty: mustBigInt("9000000000000000000000"), // 9000 cGLD
+			Reward:  MustBigInt("1000000000000000000000"), // 1000 cGLD
+			Penalty: MustBigInt("9000000000000000000000"), // 9000 cGLD
 		},
 		DowntimeSlasher: DowntimeSlasherParameters{
-			Reward:            mustBigInt("10000000000000000000"),  // 10 cGLD
-			Penalty:           mustBigInt("100000000000000000000"), // 100 cGLD
+			Reward:            MustBigInt("10000000000000000000"),  // 10 cGLD
+			Penalty:           MustBigInt("100000000000000000000"), // 100 cGLD
 			SlashableDowntime: 60,                                  // Should be overridden on public testnets
-		},
-		GovernanceApproverMultiSig: MultiSigParameters{
-			Signatories:                      []common.Address{cfg.GenesisAccounts.Admin.Address},
-			NumRequiredConfirmations:         1,
-			NumInternalRequiredConfirmations: 1,
 		},
 	}
 }
@@ -284,7 +242,8 @@ type TransferWhitelistParameters struct {
 
 // GoldTokenParameters are the initial configuration parameters for GoldToken
 type GoldTokenParameters struct {
-	Frozen bool `json:"frozen"`
+	Frozen          bool        `json:"frozen"`
+	InitialBalances BalanceList `json:"initialBalances"`
 }
 
 // RandomParameters are the initial configuration parameters for Random
@@ -404,7 +363,7 @@ func (aa AssetAllocationList) Weights() []*big.Int {
 	return res
 }
 
-func mustBigInt(str string) *big.Int {
+func MustBigInt(str string) *big.Int {
 	i, ok := new(big.Int).SetString(str, 10)
 	if !ok {
 		panic(fmt.Errorf("Invalid string for big.Int: %s", str))
