@@ -86,9 +86,9 @@ func DefaultContractsConfig(cfg *Config) *Paremeters {
 			Symbol:                      "cUSD",
 			Decimals:                    18,
 			Rate:                        fixed.MustNew("1"),
-			InflationFactorUpdatePeriod: big.NewInt(47304000),
-			InflationPeriod:             big.NewInt(1),
+			InflationFactorUpdatePeriod: big.NewInt(2 * Year),
 			InitialBalances:             cusdBalances,
+			GoldPrice:                   fixed.MustNew("1"),
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
@@ -328,8 +328,7 @@ type StableTokenParameters struct {
 	Symbol                      string           `json:"symbol"`
 	Decimals                    uint8            `json:"decimals"`
 	Rate                        *fixed.Fixed     `json:"rate"`
-	InflationPeriod             *big.Int         `json:"inflationPeriod"`
-	InflationFactorUpdatePeriod *big.Int         `json:"inflationFactorUpdatePeriod"`
+	InflationFactorUpdatePeriod *big.Int         `json:"inflationFactorUpdatePeriod"` // How often the inflation factor is updated.
 	InitialBalances             BalanceList      `json:"initialBalances"`
 	Frozen                      bool             `json:"frozen"`
 	Oracles                     []common.Address `json:"oracles"`

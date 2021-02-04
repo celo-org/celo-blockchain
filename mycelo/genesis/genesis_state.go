@@ -626,7 +626,7 @@ func (ctx *deployContext) deployStableToken() error {
 			ctx.parameters.StableToken.Decimals,
 			ctx.contracts.ProxyAddressFor("Registry"),
 			ctx.parameters.StableToken.Rate.BigInt(),
-			ctx.parameters.StableToken.InflationPeriod,
+			ctx.parameters.StableToken.InflationFactorUpdatePeriod,
 			ctx.parameters.StableToken.InitialBalances.Accounts(),
 			ctx.parameters.StableToken.InitialBalances.Amounts(),
 		)
@@ -648,7 +648,7 @@ func (ctx *deployContext) deployStableToken() error {
 	// Configure StableToken Oracles
 	for _, oracleAddress := range ctx.parameters.StableToken.Oracles {
 		ctx.logger.Info("Adding oracle for StableToken", "oracle", oracleAddress)
-		err = ctx.contract("Oracle").SimpleCall("addOracle", stableTokenAddress, oracleAddress)
+		err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, oracleAddress)
 		if err != nil {
 			return err
 		}
@@ -669,14 +669,14 @@ func (ctx *deployContext) deployStableToken() error {
 
 		if !authorized {
 			ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.admin)
-			err = ctx.contract("Oracle").SimpleCall("addOracle", stableTokenAddress, ctx.admin)
+			err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.admin)
 			if err != nil {
 				return err
 			}
 		}
 
 		ctx.logger.Info("Reporting price of StableToken to oracle")
-		err = ctx.contract("Oracle").SimpleCall("report",
+		err = ctx.contract("SortedOracles").SimpleCall("report",
 			stableTokenAddress,
 			ctx.parameters.StableToken.GoldPrice.BigInt(),
 			common.ZeroAddress,
@@ -725,6 +725,19 @@ func (ctx *deployContext) verifyState() error {
 		return err
 	}
 	fmt.Printf("Checking getExchangeSpenders. spenders = %s\n", reserveSpenders)
+
+	var (
+		numerator   = new(*big.Int)
+		denominator = new(*big.Int)
+	)
+	out := &[]interface{}{
+		numerator,
+		denominator,
+	}
+	if _, err := ctx.contract("SortedOracles").Query(out, "medianRate", ctx.contracts.ProxyAddressFor("StableToken")); err != nil {
+		return err
+	}
+	fmt.Printf("Checking medianRate. numerator = %s  denominator = %s \n", (*numerator).String(), (*denominator).String())
 
 	var gasPrice *big.Int
 	if _, err := ctx.contract("GasPriceMinimum").Query(&gasPrice, "getGasPriceMinimum", ctx.contracts.ProxyAddressFor("StableToken")); err != nil {
