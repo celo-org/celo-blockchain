@@ -259,25 +259,3 @@ func UnpackRevert(data []byte) (string, error) {
 	}
 	return reason, nil
 }
-
-// revertSelector is a special function selector for revert reason unpacking.
-var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
-
-// UnpackRevert resolves the abi-encoded revert reason. According to the solidity
-// spec https://solidity.readthedocs.io/en/latest/control-structures.html#revert,
-// the provided revert reason is abi-encoded as if it were a call to a function
-// `Error(string)`. So it's a special tool for it.
-func UnpackRevert(data []byte) (string, error) {
-	if len(data) < 4 {
-		return "", errors.New("invalid data for unpacking")
-	}
-	if !bytes.Equal(data[:4], revertSelector) {
-		return "", errors.New("invalid data for unpacking")
-	}
-	var reason string
-	typ, _ := NewType("string", "", nil)
-	if err := (Arguments{{Type: typ}}).Unpack(&reason, data[4:]); err != nil {
-		return "", err
-	}
-	return reason, nil
-}
