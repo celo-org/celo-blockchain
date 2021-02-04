@@ -73,60 +73,57 @@ func main() {
 	exit(app.Run(os.Args))
 }
 
+var cfgOverrideFlags = []cli.Flag{
+	cli.IntFlag{
+		Name:  "validators",
+		Usage: "Number of Validators",
+	},
+	cli.IntFlag{
+		Name:  "dev.accounts",
+		Usage: "Number of developer accounts",
+	},
+	cli.Uint64Flag{
+		Name:  "blockperiod",
+		Usage: "Seconds between each block",
+	},
+	cli.Uint64Flag{
+		Name:  "epoch",
+		Usage: "Epoch size",
+	},
+	cli.StringFlag{
+		Name:  "mnemonic",
+		Usage: "Mnemonic to generate accounts",
+	},
+}
+
 var feelingLuckyCommand = cli.Command{
 	Name:   "feeling-lucky",
 	Usage:  "Creates, Configure and Run celo blockchain on a single step",
 	Action: feelingLucky,
-	Flags: []cli.Flag{
-		cli.IntFlag{
-			Name:  "validators",
-			Usage: "Number of Validators",
-		},
-		cli.IntFlag{
-			Name:  "dev.accounts",
-			Usage: "Number of developer accounts",
-		},
-		cli.Uint64Flag{
-			Name:  "blockperiod",
-			Usage: "Seconds between each block",
-		},
-		cli.Uint64Flag{
-			Name:  "epoch",
-			Usage: "Epoch size",
-		},
+	Flags: append([]cli.Flag{
 		cli.StringFlag{
 			Name:  "buildpath",
 			Usage: "Directory where smartcontract truffle build file live",
 		},
+		cli.StringFlag{
+			Name:  "geth",
+			Usage: "Path to geth binary",
+		},
 	},
+		cfgOverrideFlags...),
 }
 
 var newEnvCommand = cli.Command{
 	Name:   "new-env",
 	Usage:  "Creates a new mycelo environment",
 	Action: newEnv,
-	Flags: []cli.Flag{
-		cli.IntFlag{
-			Name:  "validators",
-			Usage: "Number of Validators",
-		},
-		cli.IntFlag{
-			Name:  "dev.accounts",
-			Usage: "Number of developer accounts",
-		},
-		cli.Uint64Flag{
-			Name:  "blockperiod",
-			Usage: "Seconds between each block",
-		},
-		cli.Uint64Flag{
-			Name:  "epoch",
-			Usage: "Epoch size",
-		},
+	Flags: append([]cli.Flag{
 		cli.StringFlag{
 			Name:  "buildpath",
 			Usage: "Directory where smartcontract truffle build file live",
 		},
 	},
+		cfgOverrideFlags...),
 }
 
 var createGenesisCommand = cli.Command{
@@ -261,6 +258,10 @@ func newEnv(ctx *cli.Context) error {
 
 		if ctx.IsSet("dev.accounts") {
 			cfg.DeveloperAccounts = ctx.Int("dev.accounts")
+		}
+
+		if ctx.IsSet("mnemonic") {
+			cfg.Mnemonic = ctx.String("mnemonic")
 		}
 
 	})
