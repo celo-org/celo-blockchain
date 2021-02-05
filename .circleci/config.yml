@@ -85,6 +85,15 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
+  check-imports:
+    executor: golang
+    steps:
+      - attach_workspace:
+          at: ~/repos/
+      - run:
+          name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
+          command: ./scripts/check_imports.sh
+
   android:
     docker:
       - image: celohq/circleci:android-v2
