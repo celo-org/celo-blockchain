@@ -21,7 +21,7 @@ func (t txdata) MarshalJSON() ([]byte, error) {
 		GasLimit            hexutil.Uint64  `json:"gas"      gencodec:"required"`
 		FeeCurrency         *common.Address `json:"feeCurrency" rlp:"nil"`
 		GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient" rlp:"nil"`
-		GatewayFee          *hexutil.Big    `json:"gatewayFee" rlp:"nil"`
+		GatewayFee          *hexutil.Big    `json:"gatewayFee"`
 		Recipient           *common.Address `json:"to"       rlp:"nil"`
 		Amount              *hexutil.Big    `json:"value"    gencodec:"required"`
 		Payload             hexutil.Bytes   `json:"input"    gencodec:"required"`
@@ -55,7 +55,7 @@ func (t *txdata) UnmarshalJSON(input []byte) error {
 		GasLimit            *hexutil.Uint64 `json:"gas"      gencodec:"required"`
 		FeeCurrency         *common.Address `json:"feeCurrency" rlp:"nil"`
 		GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient" rlp:"nil"`
-		GatewayFee          *hexutil.Big    `json:"gatewayFee" rlp:"nil"`
+		GatewayFee          *hexutil.Big    `json:"gatewayFee"`
 		Recipient           *common.Address `json:"to"       rlp:"nil"`
 		Amount              *hexutil.Big    `json:"value"    gencodec:"required"`
 		Payload             *hexutil.Bytes  `json:"input"    gencodec:"required"`

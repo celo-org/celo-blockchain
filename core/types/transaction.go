@@ -49,8 +49,8 @@ type txdata struct {
 	GasLimit            uint64          `json:"gas"      gencodec:"required"`
 	FeeCurrency         *common.Address `json:"feeCurrency" rlp:"nil"`         // nil means native currency
 	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient" rlp:"nil"` // nil means no gateway fee is paid
-	GatewayFee          *big.Int        `json:"gatewayFee" rlp:"nil"`          // nil means no gateway fee is paid
-	Recipient           *common.Address `json:"to"       rlp:"nil"`            // nil means contract creation
+	GatewayFee          *big.Int        `json:"gatewayFee"`
+	Recipient           *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
 	Amount              *big.Int        `json:"value"    gencodec:"required"`
 	Payload             []byte          `json:"input"    gencodec:"required"`
 
