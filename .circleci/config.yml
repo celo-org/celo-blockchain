@@ -93,7 +93,7 @@ jobs:
           at: ~/repos
       - run:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
-          command: ./scripts/check_imports.sh
+          command: pwd && ls && ./scripts/check_imports.sh
 
   android:
     docker:
