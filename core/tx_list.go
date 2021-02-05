@@ -371,8 +371,8 @@ func (l *txList) Filter(nativeCostLimit, nativeGasPriceMinimum *big.Int, feeLimi
 		}
 	}
 	// Ensure that each gas price floor >= the gas price minimum.
-	for feeCurrency, gasPriceMinimum := range gasPriceMinimums {
-		if l.gaspricefloors[feeCurrency].Cmp(gasPriceMinimum) < 0 {
+	for feeCurrency, gasPriceFloor := range l.gaspricefloors {
+		if gasPriceMinimum := gasPriceMinimums[feeCurrency]; gasPriceFloor.Cmp(gasPriceMinimum) < 0 {
 			canBail = false
 			l.gaspricefloors[feeCurrency] = new(big.Int).Set(gasPriceMinimum)
 		}
