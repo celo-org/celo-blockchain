@@ -89,7 +89,7 @@ jobs:
     executor: golang
     steps:
       - attach_workspace:
-          at: ~/repos/
+          at: ~/repos/geth
       - run:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
           command: ./scripts/check_imports.sh
