@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
@@ -19,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/mycelo/cluster"
 	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/genesis"
+	"github.com/ethereum/go-ethereum/mycelo/loadbot"
 	"github.com/ethereum/go-ethereum/params"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -66,6 +70,7 @@ func init() {
 		initNodesCommand,
 		runCommand,
 		feelingLuckyCommand,
+		loadBotCommand,
 	}
 }
 
@@ -159,6 +164,18 @@ var runCommand = cli.Command{
 			Name:  "geth",
 			Usage: "Path to geth binary",
 		},
+	},
+}
+
+var loadBotCommand = cli.Command{
+	Name:   "load-bot",
+	Usage:  "Runs the load bot on the environment",
+	Action: loadBot,
+	Flags:  []cli.Flag{
+		// cli.StringFlag{
+		// 	Name:  "geth",
+		// 	Usage: "Path to geth binary",
+		// },
 	},
 }
 
@@ -341,6 +358,24 @@ func run(ctx *cli.Context) error {
 	// group.Go(func() error { return cluster.RunMigrations() })
 
 	return group.Wait()
+}
+
+func loadBot(ctx *cli.Context) error {
+	env, err := readEnv(ctx)
+	if err != nil {
+		return err
+	}
+
+	runCtx := context.Background()
+
+	return loadbot.Start(runCtx, &loadbot.LoadBotConfig{
+		Accounts:         env.DeveloperAccounts(),
+		Amount:           big.NewInt(10000000),
+		TransactionDelay: 1 * time.Second,
+		ClientFactory: func() (*ethclient.Client, error) {
+			return ethclient.Dial("http://localhost:8545")
+		},
+	})
 }
 
 // commandHasFlag returns true if the current command supports the given flag.
