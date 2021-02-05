@@ -87,13 +87,14 @@ jobs:
 
   check-imports:
     executor: golang
-    working_directory: ~/repos/geth
     steps:
-      - attach_workspace:
-          at: ~/repos
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
       - run:
           name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
-          command: pwd && ls && ./scripts/check_imports.sh
+          command: ./scripts/check_imports.sh
 
   android:
     docker:
