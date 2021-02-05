@@ -193,6 +193,10 @@ func (tx *Transaction) GatewayFee() *big.Int                 { return tx.data.Ga
 func (tx *Transaction) Value() *big.Int                      { return new(big.Int).Set(tx.data.Amount) }
 func (tx *Transaction) Nonce() uint64                        { return tx.data.AccountNonce }
 func (tx *Transaction) CheckNonce() bool                     { return true }
+func (tx *Transaction) Fee() *big.Int {
+	gasFee := new(big.Int).Mul(tx.data.Price, big.NewInt(int64(tx.data.GasLimit)))
+	return gasFee.Add(gasFee, tx.data.GatewayFee)
+}
 
 // To returns the recipient address of the transaction.
 // It returns nil if the transaction is a contract creation.
@@ -461,3 +465,7 @@ func (m Message) Gas() uint64                          { return m.gasLimit }
 func (m Message) Nonce() uint64                        { return m.nonce }
 func (m Message) Data() []byte                         { return m.data }
 func (m Message) CheckNonce() bool                     { return m.checkNonce }
+func (m Message) Fee() *big.Int {
+	gasFee := new(big.Int).Mul(m.gasPrice, big.NewInt(int64(m.gasLimit)))
+	return gasFee.Add(gasFee, m.gatewayFee)
+}
