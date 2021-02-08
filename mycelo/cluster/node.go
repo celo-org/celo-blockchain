@@ -187,6 +187,7 @@ func (n *Node) Run(ctx context.Context) error {
 	}
 	defer logfile.Close()
 	cmd.Stderr = logfile
+	cmd.Stdout = os.Stdout
 	// cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
