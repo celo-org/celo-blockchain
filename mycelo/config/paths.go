@@ -14,12 +14,12 @@ func (p Paths) GenesisJSON() string {
 	return path.Join(p.Workdir, "genesis.json")
 }
 
-func (p Paths) Config() string {
-	return path.Join(p.Workdir, "config.json")
+func (p Paths) EnvConfig() string {
+	return path.Join(p.Workdir, "env.json")
 }
 
-func (p Paths) ContractsConfig() string {
-	return path.Join(p.Workdir, "contracts-config.json")
+func (p Paths) GenesisConfig() string {
+	return path.Join(p.Workdir, "genesis-config.json")
 }
 
 func (p Paths) ValidatorDatadir(idx int) string {

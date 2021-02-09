@@ -31,7 +31,7 @@ func GenerateGenesis(env *config.Environment, contractsBuildPath string) (*core.
 		Config:    env.ChainConfig(),
 		ExtraData: extraData,
 		Coinbase:  env.AdminAccount().Address,
-		Timestamp: env.Config.GenesisTimestamp,
+		Timestamp: env.GenesisConfig.GenesisTimestamp,
 		Alloc:     genesisAlloc,
 	}, nil
 }

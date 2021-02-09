@@ -11,7 +11,7 @@ import (
 )
 
 type template interface {
-	createEnv(workdir string, applyConfigOverrides func(*config.Config)) (*config.Environment, error)
+	createEnv(workdir string) (*config.Environment, error)
 }
 
 func templateFromString(templateStr string) template {
@@ -26,40 +26,33 @@ func templateFromString(templateStr string) template {
 
 type localEnv struct{}
 
-func (e localEnv) createEnv(workdir string, applyConfigOverrides func(*config.Config)) (*config.Environment, error) {
-	cfg := &config.Config{
-		ChainID:          big.NewInt(1000 * (1 + rand.Int63n(9999))),
-		GenesisTimestamp: uint64(time.Now().Unix()),
-		Mnemonic:         config.MustNewMnemonic(),
-
-		Istanbul: params.IstanbulConfig{
-			Epoch:          10,
-			ProposerPolicy: 2,
-			LookbackWindow: 3,
-			BlockPeriod:    1,
-			RequestTimeout: 3000,
-		},
-
-		Hardforks: config.HardforkConfig{
-			ChurritoBlock: common.Big0,
-			DonutBlock:    common.Big0,
-		},
-
+func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
+	envCfg := &config.EnvConfig{
+		Mnemonic:           config.MustNewMnemonic(),
 		InitialValidators:  3,
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10,
 	}
 
-	if applyConfigOverrides != nil {
-		applyConfigOverrides(cfg)
-	}
-
-	env, err := config.NewEnv(workdir, cfg)
+	env, err := config.NewEnv(workdir, envCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	env.ContractParameters.Blockchain.UptimeLookbackWindow = int64(env.Config.Istanbul.LookbackWindow)
+	env.GenesisConfig.ChainID = big.NewInt(1000 * (1 + rand.Int63n(9999)))
+	env.GenesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
+	env.GenesisConfig.Istanbul = params.IstanbulConfig{
+		Epoch:          10,
+		ProposerPolicy: 2,
+		LookbackWindow: 3,
+		BlockPeriod:    1,
+		RequestTimeout: 3000,
+	}
+	env.GenesisConfig.Hardforks = config.HardforkConfig{
+		ChurritoBlock: common.Big0,
+		DonutBlock:    common.Big0,
+	}
+	env.GenesisConfig.Blockchain.UptimeLookbackWindow = int64(env.GenesisConfig.Istanbul.LookbackWindow)
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := config.MultiSigParameters{
@@ -68,8 +61,8 @@ func (e localEnv) createEnv(workdir string, applyConfigOverrides func(*config.Co
 		NumInternalRequiredConfirmations: 1,
 	}
 
-	env.ContractParameters.ReserveSpenderMultiSig = adminMultisig
-	env.ContractParameters.GovernanceApproverMultiSig = adminMultisig
+	env.GenesisConfig.ReserveSpenderMultiSig = adminMultisig
+	env.GenesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
 	cusdBalances := make([]config.Balance, len(env.DeveloperAccounts()))
@@ -79,22 +72,22 @@ func (e localEnv) createEnv(workdir string, applyConfigOverrides func(*config.Co
 		goldBalances[i] = config.Balance{acc.Address, config.MustBigInt("1000000000000000000000000")}
 	}
 
-	env.ContractParameters.StableToken.InitialBalances = cusdBalances
-	env.ContractParameters.GoldToken.InitialBalances = cusdBalances
+	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
+	env.GenesisConfig.GoldToken.InitialBalances = cusdBalances
 
 	// Ensure nothing is frozen
-	env.ContractParameters.GoldToken.Frozen = false
-	env.ContractParameters.StableToken.Frozen = false
-	env.ContractParameters.Exchange.Frozen = false
-	env.ContractParameters.Reserve.FrozenDays = nil
-	env.ContractParameters.Reserve.FrozenAssetsDays = nil
-	env.ContractParameters.EpochRewards.Frozen = false
+	env.GenesisConfig.GoldToken.Frozen = false
+	env.GenesisConfig.StableToken.Frozen = false
+	env.GenesisConfig.Exchange.Frozen = false
+	env.GenesisConfig.Reserve.FrozenDays = nil
+	env.GenesisConfig.Reserve.FrozenAssetsDays = nil
+	env.GenesisConfig.EpochRewards.Frozen = false
 
 	return env, nil
 }
 
 type testnetEnv struct{}
 
-func (e testnetEnv) createEnv(workdir string, applyConfigOverrides func(*config.Config)) (*config.Environment, error) {
+func (e testnetEnv) createEnv(workdir string) (*config.Environment, error) {
 	panic("Not implemented")
 }
