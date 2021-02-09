@@ -146,13 +146,12 @@ var AppHelpFlagGroups = []flagGroup{
 		Flags: []cli.Flag{
 			utils.IPCDisabledFlag,
 			utils.IPCPathFlag,
-			utils.RPCEnabledFlag,
-			utils.RPCListenAddrFlag,
-			utils.RPCPortFlag,
-			utils.RPCApiFlag,
-			utils.RPCGlobalGasCap,
-			utils.RPCCORSDomainFlag,
-			utils.RPCVirtualHostsFlag,
+			utils.HTTPEnabledFlag,
+			utils.HTTPListenAddrFlag,
+			utils.HTTPPortFlag,
+			utils.HTTPApiFlag,
+			utils.HTTPCORSDomainFlag,
+			utils.HTTPVirtualHostsFlag,
 			utils.WSEnabledFlag,
 			utils.WSListenAddrFlag,
 			utils.WSPortFlag,
@@ -163,6 +162,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.GraphQLPortFlag,
 			utils.GraphQLCORSDomainFlag,
 			utils.GraphQLVirtualHostsFlag,
+			utils.RPCGlobalGasCap,
 			utils.JSpathFlag,
 			utils.ExecFlag,
 			utils.PreloadJSFlag,
@@ -256,20 +256,28 @@ var AppHelpFlagGroups = []flagGroup{
 		},
 	},
 	{
-		Name: "DEPRECATED",
-		Flags: []cli.Flag{
+		Name: "ALIASED (deprecated)",
+		Flags: append([]cli.Flag{
 			utils.EtherbaseFlag,
 			utils.MinerEtherbaseFlag,
-			utils.MinerLegacyThreadsFlag,
-			utils.MinerLegacyGasTargetFlag,
-			utils.MinerLegacyGasPriceFlag,
-			utils.MinerLegacyExtraDataFlag,
-		},
+			utils.LegacyRPCEnabledFlag,
+			utils.LegacyRPCListenAddrFlag,
+			utils.LegacyRPCPortFlag,
+			utils.LegacyRPCCORSDomainFlag,
+			utils.LegacyRPCVirtualHostsFlag,
+			utils.LegacyRPCApiFlag,
+			utils.LegacyWSListenAddrFlag,
+			utils.LegacyWSPortFlag,
+			utils.LegacyWSAllowedOriginsFlag,
+			utils.LegacyWSApiFlag,
+			}, debug.DeprecatedFlags...),
 	},
 	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.VersionCheckFlag,
+			utils.SnapshotFlag,
+			cli.HelpFlag,
 		},
 	},
 }
@@ -328,10 +336,17 @@ func init() {
 					categorized[flag.String()] = struct{}{}
 				}
 			}
+			deprecated := make(map[string]struct{})
+			for _, flag := range utils.DeprecatedFlags {
+				deprecated[flag.String()] = struct{}{}
+			}
+			// Only add uncategorized flags if they are not deprecated
 			var uncategorized []cli.Flag
 			for _, flag := range data.(*cli.App).Flags {
 				if _, ok := categorized[flag.String()]; !ok {
-					uncategorized = append(uncategorized, flag)
+					if _, ok := deprecated[flag.String()]; !ok {
+						uncategorized = append(uncategorized, flag)
+					}
 				}
 			}
 			if len(uncategorized) > 0 {
