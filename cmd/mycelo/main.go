@@ -42,7 +42,7 @@ var (
 	gitDate   string
 	app       = &cli.App{
 		Name:        filepath.Base(os.Args[0]),
-		Usage:       "go-ethereum devp2p tool",
+		Usage:       "mycelo",
 		Version:     params.VersionWithCommit(gitCommit, gitDate),
 		Writer:      os.Stdout,
 		HideVersion: true,
@@ -133,14 +133,23 @@ var newEnvCommand = cli.Command{
 
 var createGenesisCommand = cli.Command{
 	Name:   "genesis",
-	Usage:  "Creates genesis.json (requires config.json & contract-config.json correctly configured)",
+	Usage:  "Creates genesis.json from a template and overrides",
 	Action: createGenesis,
-	Flags: []cli.Flag{
+	Flags: append([]cli.Flag{
 		cli.StringFlag{
 			Name:  "buildpath",
 			Usage: "Directory where smartcontract truffle build file live",
 		},
+		cli.StringFlag{
+			Name:  "newenv",
+			Usage: "Optional directory to create and write the genesis to",
+		},
+		cli.StringFlag{
+			Name:  "template",
+			Usage: "Optional template to use (default: local)",
+		},
 	},
+		cfgOverrideFlags...),
 }
 
 var initNodesCommand = cli.Command{
@@ -192,6 +201,41 @@ func readEnv(ctx *cli.Context) (*config.Environment, error) {
 		return nil, err
 	}
 	return config.ReadEnv(workdir)
+}
+
+func envFromTemplate(ctx *cli.Context) (*config.Environment, error) {
+	// Pull from --newenv if specified
+	workdir := ctx.String("newenv")
+	if workdir == "" {
+		workdir = "."
+	} else {
+		if !fileutils.FileExists(workdir) {
+			os.MkdirAll(workdir, os.ModePerm)
+		}
+	}
+	templateString := ctx.String("template")
+	return templateFromString(templateString).createEnv(workdir, func(cfg *config.Config) {
+		if ctx.IsSet("epoch") {
+			cfg.Istanbul.Epoch = ctx.Uint64("epoch")
+		}
+
+		if ctx.IsSet("blockperiod") {
+			cfg.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+		}
+
+		if ctx.IsSet("validators") {
+			cfg.InitialValidators = ctx.Int("validators")
+		}
+
+		if ctx.IsSet("dev.accounts") {
+			cfg.DeveloperAccounts = ctx.Int("dev.accounts")
+		}
+
+		if ctx.IsSet("mnemonic") {
+			cfg.Mnemonic = ctx.String("mnemonic")
+		}
+
+	})
 }
 
 func readBuildPath(ctx *cli.Context) (string, error) {
@@ -305,7 +349,7 @@ func newEnv(ctx *cli.Context) error {
 }
 
 func createGenesis(ctx *cli.Context) error {
-	env, err := readEnv(ctx)
+	env, err := envFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
