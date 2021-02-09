@@ -142,7 +142,7 @@ var createGenesisCommand = cli.Command{
 		},
 		cli.StringFlag{
 			Name:  "newenv",
-			Usage: "Optional directory to create and write the genesis to",
+			Usage: "Optional directory to create and write the genesis to (default PWD)",
 		},
 		cli.StringFlag{
 			Name:  "template",
