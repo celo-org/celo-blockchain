@@ -65,8 +65,9 @@ func init() {
 	}
 	// Add subcommands.
 	app.Commands = []cli.Command{
-		newEnvCommand,
 		createGenesisCommand,
+		createGenesisConfigCommand,
+		newEnvCommand,
 		initNodesCommand,
 		runCommand,
 		feelingLuckyCommand,
@@ -119,7 +120,7 @@ var feelingLuckyCommand = cli.Command{
 }
 
 var newEnvCommand = cli.Command{
-	Name:   "new-env",
+	Name:   "newenv",
 	Usage:  "Creates a new mycelo environment",
 	Action: newEnv,
 	Flags: append([]cli.Flag{
@@ -143,6 +144,23 @@ var createGenesisCommand = cli.Command{
 		cli.StringFlag{
 			Name:  "newenv",
 			Usage: "Optional directory to create and write the genesis to (default PWD)",
+		},
+		cli.StringFlag{
+			Name:  "template",
+			Usage: "Optional template to use (default: local)",
+		},
+	},
+		cfgOverrideFlags...),
+}
+
+var createGenesisConfigCommand = cli.Command{
+	Name:   "genesis-config",
+	Usage:  "Creates genesis-config.json from a template and overrides",
+	Action: createGenesisConfig,
+	Flags: append([]cli.Flag{
+		cli.StringFlag{
+			Name:  "newenv",
+			Usage: "Optional directory to create and write the genesis-config.json to (default PWD).\nAlso creates env.json in the folder if --newenv is specified.",
 		},
 		cli.StringFlag{
 			Name:  "template",
@@ -214,28 +232,27 @@ func envFromTemplate(ctx *cli.Context) (*config.Environment, error) {
 		}
 	}
 	templateString := ctx.String("template")
-	return templateFromString(templateString).createEnv(workdir, func(cfg *config.Config) {
-		if ctx.IsSet("epoch") {
-			cfg.Istanbul.Epoch = ctx.Uint64("epoch")
-		}
-
-		if ctx.IsSet("blockperiod") {
-			cfg.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
-		}
-
-		if ctx.IsSet("validators") {
-			cfg.InitialValidators = ctx.Int("validators")
-		}
-
-		if ctx.IsSet("dev.accounts") {
-			cfg.DeveloperAccounts = ctx.Int("dev.accounts")
-		}
-
-		if ctx.IsSet("mnemonic") {
-			cfg.Mnemonic = ctx.String("mnemonic")
-		}
-
-	})
+	env, err := templateFromString(templateString).createEnv(workdir)
+	if err != nil {
+		return nil, err
+	}
+	// Overrides
+	if ctx.IsSet("epoch") {
+		env.GenesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
+	}
+	if ctx.IsSet("blockperiod") {
+		env.GenesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+	}
+	if ctx.IsSet("validators") {
+		env.EnvConfig.InitialValidators = ctx.Int("validators")
+	}
+	if ctx.IsSet("dev.accounts") {
+		env.EnvConfig.DeveloperAccounts = ctx.Int("dev.accounts")
+	}
+	if ctx.IsSet("mnemonic") {
+		env.EnvConfig.Mnemonic = ctx.String("mnemonic")
+	}
+	return env, nil
 }
 
 func readBuildPath(ctx *cli.Context) (string, error) {
@@ -304,33 +321,12 @@ func newEnv(ctx *cli.Context) error {
 	template := templateFromString("local")
 
 	log.Info("Creating new environment", "envdir", workdir)
-	env, err := template.createEnv(workdir, func(cfg *config.Config) {
-		if ctx.IsSet("epoch") {
-			cfg.Istanbul.Epoch = ctx.Uint64("epoch")
-		}
-
-		if ctx.IsSet("blockperiod") {
-			cfg.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
-		}
-
-		if ctx.IsSet("validators") {
-			cfg.InitialValidators = ctx.Int("validators")
-		}
-
-		if ctx.IsSet("dev.accounts") {
-			cfg.DeveloperAccounts = ctx.Int("dev.accounts")
-		}
-
-		if ctx.IsSet("mnemonic") {
-			cfg.Mnemonic = ctx.String("mnemonic")
-		}
-
-	})
+	env, err := template.createEnv(workdir)
 	if err != nil {
 		return err
 	}
 
-	if err := env.Write(); err != nil {
+	if err := env.WriteGenesisConfig(); err != nil {
 		return err
 	}
 
@@ -364,7 +360,29 @@ func createGenesis(ctx *cli.Context) error {
 		return err
 	}
 
+	if envdir := ctx.String("newenv"); envdir != "" {
+		err = env.WriteEnvConfig()
+		if err != nil {
+			return err
+		}
+	}
+
 	return writeJSON(genesis, env.Paths.GenesisJSON())
+}
+
+func createGenesisConfig(ctx *cli.Context) error {
+	env, err := envFromTemplate(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = env.WriteEnvConfig()
+	if err != nil {
+		return err
+	}
+
+	return env.WriteGenesisConfig()
+
 }
 
 func initNodes(ctx *cli.Context) error {

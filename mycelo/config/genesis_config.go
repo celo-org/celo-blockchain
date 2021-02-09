@@ -3,9 +3,13 @@ package config
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
 	"github.com/ethereum/go-ethereum/mycelo/fixed"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // durations in seconds
@@ -18,11 +22,36 @@ const (
 	Year   = 365 * Day
 )
 
+type GenesisConfig struct {
+	ChainID          *big.Int              `json:"chainId"` // chainId identifies the current chain and is used for replay protection
+	Istanbul         params.IstanbulConfig `json:"istanbul"`
+	Hardforks        HardforkConfig        `json:"hardforks"`
+	GenesisTimestamp uint64                `json:"genesisTimestamp"`
+
+	SortedOracles              SortedOraclesParameters
+	GasPriceMinimum            GasPriceMinimumParameters
+	Reserve                    ReserveParameters
+	StableToken                StableTokenParameters
+	Exchange                   ExchangeParameters
+	LockedGold                 LockedGoldParameters
+	GoldToken                  GoldTokenParameters
+	Validators                 ValidatorsParameters
+	Election                   ElectionParameters
+	EpochRewards               EpochRewardsParameters
+	Blockchain                 BlockchainParameters
+	Random                     RandomParameters
+	TransferWhitelist          TransferWhitelistParameters
+	ReserveSpenderMultiSig     MultiSigParameters
+	GovernanceApproverMultiSig MultiSigParameters
+	DoubleSigningSlasher       DoubleSigningSlasherParameters
+	DowntimeSlasher            DowntimeSlasherParameters
+}
+
 // BaseContractsConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseContractsConfig() *Paremeters {
+func BaseContractsConfig() *GenesisConfig {
 
-	return &Paremeters{
+	return &GenesisConfig{
 		SortedOracles: SortedOraclesParameters{
 			ReportExpirySeconds: 5 * Minute,
 		},
@@ -80,7 +109,6 @@ func BaseContractsConfig() *Paremeters {
 			MaxVotesPerAccount:     big.NewInt(10),
 			ElectabilityThreshold:  fixed.MustNew("0.001"),
 		},
-
 		Exchange: ExchangeParameters{
 			Spread:          fixed.MustNew("0.005"),
 			ReserveFraction: fixed.MustNew("0.01"),
@@ -88,7 +116,6 @@ func BaseContractsConfig() *Paremeters {
 			MinimumReports:  1,
 			Frozen:          false,
 		},
-
 		EpochRewards: EpochRewardsParameters{
 			TargetVotingYieldInitial:                     fixed.MustNew("0"),      // Change to (x + 1) ^ 365 = 1.06 once Mainnet activated.
 			TargetVotingYieldAdjustmentFactor:            fixed.MustNew("0"),      // Change to 1 / 3650 once Mainnet activated.,
@@ -123,7 +150,6 @@ func BaseContractsConfig() *Paremeters {
 			BlockGasLimit:           big.NewInt(13000000),
 			UptimeLookbackWindow:    12,
 		},
-
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{
 			Reward:  MustBigInt("1000000000000000000000"), // 1000 cGLD
 			Penalty: MustBigInt("9000000000000000000000"), // 9000 cGLD
@@ -136,25 +162,81 @@ func BaseContractsConfig() *Paremeters {
 	}
 }
 
-type Paremeters struct {
-	SortedOracles   SortedOraclesParameters
-	GasPriceMinimum GasPriceMinimumParameters
-	Reserve         ReserveParameters
-	StableToken     StableTokenParameters
-	Exchange        ExchangeParameters
-	LockedGold      LockedGoldParameters
-	GoldToken       GoldTokenParameters
-	Validators      ValidatorsParameters
-	Election        ElectionParameters
-	EpochRewards    EpochRewardsParameters
-	Blockchain      BlockchainParameters
+func (cfg *GenesisConfig) ApplyDefaults() {
+	if cfg.Hardforks.ChurritoBlock == nil {
+		cfg.Hardforks.ChurritoBlock = common.Big0
+	}
+	if cfg.Hardforks.DonutBlock == nil {
+		cfg.Hardforks.DonutBlock = common.Big0
+	}
 
-	Random                     RandomParameters
-	TransferWhitelist          TransferWhitelistParameters
-	ReserveSpenderMultiSig     MultiSigParameters
-	GovernanceApproverMultiSig MultiSigParameters
-	DoubleSigningSlasher       DoubleSigningSlasherParameters
-	DowntimeSlasher            DowntimeSlasherParameters
+	if cfg.ChainID == nil {
+		cfg.ChainID = big.NewInt(10203040)
+	}
+
+	if cfg.GenesisTimestamp == 0 {
+		cfg.GenesisTimestamp = uint64(time.Now().Unix())
+	}
+
+	if cfg.Istanbul.BlockPeriod == 0 {
+		cfg.Istanbul.BlockPeriod = 5
+	}
+	if cfg.Istanbul.Epoch == 0 {
+		cfg.Istanbul.Epoch = 17280
+	} else {
+		// validate epoch size
+		if cfg.Istanbul.Epoch < istanbul.MinEpochSize {
+			panic("Invalid epoch size")
+		}
+	}
+	if cfg.Istanbul.LookbackWindow == 0 {
+		// Use 12, but take in consideration lookback window range restrictions
+		cfg.Istanbul.LookbackWindow = uptime.ComputeLookbackWindow(
+			cfg.Istanbul.Epoch,
+			12,
+			cfg.Hardforks.ChurritoBlock.Cmp(common.Big0) == 0,
+			func() (uint64, error) { return 12, nil },
+		)
+
+	}
+	if cfg.Istanbul.ProposerPolicy == 0 {
+		cfg.Istanbul.ProposerPolicy = 2
+	}
+	if cfg.Istanbul.RequestTimeout == 0 {
+		cfg.Istanbul.RequestTimeout = 3000
+	}
+}
+
+func (cfg *GenesisConfig) ChainConfig() *params.ChainConfig {
+	return &params.ChainConfig{
+		ChainID:             cfg.ChainID,
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP150Hash:          common.Hash{},
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+
+		ChurritoBlock: cfg.Hardforks.ChurritoBlock,
+		DonutBlock:    cfg.Hardforks.DonutBlock,
+
+		Istanbul: &params.IstanbulConfig{
+			Epoch:          cfg.Istanbul.Epoch,
+			ProposerPolicy: cfg.Istanbul.ProposerPolicy,
+			LookbackWindow: cfg.Istanbul.LookbackWindow,
+			BlockPeriod:    cfg.Istanbul.BlockPeriod,
+			RequestTimeout: cfg.Istanbul.RequestTimeout,
+		},
+	}
+}
+
+// HardforkConfig contains celo hardforks activation blocks
+type HardforkConfig struct {
+	ChurritoBlock *big.Int `json:"churritoBlock"`
+	DonutBlock    *big.Int `json:"donutBlock"`
 }
 
 // MultiSigParameters are the initial configuration parameters for a MultiSig contract

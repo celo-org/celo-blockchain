@@ -53,7 +53,7 @@ func newDeployment(env *config.Environment, buildPath string) *deployContext {
 			GasLimit:    10000000000000000000,
 			GasPrice:    big.NewInt(0),
 			Value:       big.NewInt(0),
-			Time:        new(big.Int).SetUint64(env.Config.GenesisTimestamp),
+			Time:        new(big.Int).SetUint64(env.GenesisConfig.GenesisTimestamp),
 			Coinbase:    env.AdminAccount().Address,
 			BlockNumber: new(big.Int).SetUint64(0),
 			EVMConfig: vm.Config{
@@ -276,13 +276,13 @@ func (ctx *deployContext) deployTransferWhitelist() error {
 	logger.Info("Contract deployed", "address", contract.Address)
 
 	logger.Debug("setDirectlyWhitelistedAddresses")
-	err = contract.SimpleCall("setDirectlyWhitelistedAddresses", ctx.ContractParameters.TransferWhitelist.Addresses)
+	err = contract.SimpleCall("setDirectlyWhitelistedAddresses", ctx.GenesisConfig.TransferWhitelist.Addresses)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("setWhitelistedContractIdentifiers")
-	err = contract.SimpleCall("setWhitelistedContractIdentifiers", ctx.ContractParameters.TransferWhitelist.RegistryIDs)
+	err = contract.SimpleCall("setWhitelistedContractIdentifiers", ctx.GenesisConfig.TransferWhitelist.RegistryIDs)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,7 @@ func (ctx *deployContext) deployMultiSig(name string, params config.MultiSigPara
 }
 
 func (ctx *deployContext) deployReserveSpenderMultisig() error {
-	multiSigAddr, err := ctx.deployMultiSig("ReserveSpenderMultiSig", ctx.ContractParameters.ReserveSpenderMultiSig)
+	multiSigAddr, err := ctx.deployMultiSig("ReserveSpenderMultiSig", ctx.GenesisConfig.ReserveSpenderMultiSig)
 	if err != nil {
 		return err
 	}
@@ -322,7 +322,7 @@ func (ctx *deployContext) deployReserveSpenderMultisig() error {
 }
 
 func (ctx *deployContext) deployGovernanceApproverMultiSig() error {
-	_, err := ctx.deployMultiSig("GovernanceApproverMultiSig", ctx.ContractParameters.GovernanceApproverMultiSig)
+	_, err := ctx.deployMultiSig("GovernanceApproverMultiSig", ctx.GenesisConfig.GovernanceApproverMultiSig)
 	return err
 }
 
@@ -335,12 +335,12 @@ func (ctx *deployContext) deployRegistry() error {
 func (ctx *deployContext) deployBlockchainParameters() error {
 	return ctx.deployCoreContract("BlockchainParameters", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			big.NewInt(ctx.ContractParameters.Blockchain.Version.Major),
-			big.NewInt(ctx.ContractParameters.Blockchain.Version.Minor),
-			big.NewInt(ctx.ContractParameters.Blockchain.Version.Patch),
-			ctx.ContractParameters.Blockchain.GasForNonGoldCurrencies,
-			ctx.ContractParameters.Blockchain.BlockGasLimit,
-			big.NewInt(ctx.ContractParameters.Blockchain.UptimeLookbackWindow),
+			big.NewInt(ctx.GenesisConfig.Blockchain.Version.Major),
+			big.NewInt(ctx.GenesisConfig.Blockchain.Version.Minor),
+			big.NewInt(ctx.GenesisConfig.Blockchain.Version.Patch),
+			ctx.GenesisConfig.Blockchain.GasForNonGoldCurrencies,
+			ctx.GenesisConfig.Blockchain.BlockGasLimit,
+			big.NewInt(ctx.GenesisConfig.Blockchain.UptimeLookbackWindow),
 		)
 	})
 }
@@ -373,8 +373,8 @@ func (ctx *deployContext) deployDoubleSigningSlasher() error {
 	err := ctx.deployCoreContract("DoubleSigningSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.DoubleSigningSlasher.Penalty,
-			ctx.ContractParameters.DoubleSigningSlasher.Reward,
+			ctx.GenesisConfig.DoubleSigningSlasher.Penalty,
+			ctx.GenesisConfig.DoubleSigningSlasher.Reward,
 		)
 	})
 	if err != nil {
@@ -388,9 +388,9 @@ func (ctx *deployContext) deployDowntimeSlasher() error {
 	err := ctx.deployCoreContract("DowntimeSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.DowntimeSlasher.Penalty,
-			ctx.ContractParameters.DowntimeSlasher.Reward,
-			new(big.Int).SetUint64(ctx.ContractParameters.DowntimeSlasher.SlashableDowntime),
+			ctx.GenesisConfig.DowntimeSlasher.Penalty,
+			ctx.GenesisConfig.DowntimeSlasher.Reward,
+			new(big.Int).SetUint64(ctx.GenesisConfig.DowntimeSlasher.SlashableDowntime),
 		)
 	})
 	if err != nil {
@@ -420,7 +420,7 @@ func (ctx *deployContext) deployGoldToken() error {
 		return err
 	}
 
-	if ctx.ContractParameters.GoldToken.Frozen {
+	if ctx.GenesisConfig.GoldToken.Frozen {
 		ctx.logger.Info("Freezing GoldToken")
 		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("GoldToken"))
 		if err != nil {
@@ -428,7 +428,7 @@ func (ctx *deployContext) deployGoldToken() error {
 		}
 	}
 
-	for _, bal := range ctx.ContractParameters.GoldToken.InitialBalances {
+	for _, bal := range ctx.GenesisConfig.GoldToken.InitialBalances {
 		ctx.statedb.SetBalance(bal.Account, bal.Amount)
 	}
 
@@ -440,17 +440,17 @@ func (ctx *deployContext) deployExchange() error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
 			ctx.contracts.ProxyAddressFor("StableToken"),
-			ctx.ContractParameters.Exchange.Spread.BigInt(),
-			ctx.ContractParameters.Exchange.ReserveFraction.BigInt(),
-			new(big.Int).SetUint64(ctx.ContractParameters.Exchange.UpdateFrequency),
-			new(big.Int).SetUint64(ctx.ContractParameters.Exchange.MinimumReports),
+			ctx.GenesisConfig.Exchange.Spread.BigInt(),
+			ctx.GenesisConfig.Exchange.ReserveFraction.BigInt(),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Exchange.UpdateFrequency),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Exchange.MinimumReports),
 		)
 	})
 	if err != nil {
 		return err
 	}
 
-	if ctx.ContractParameters.Exchange.Frozen {
+	if ctx.GenesisConfig.Exchange.Frozen {
 		ctx.logger.Info("Freezing Exchange")
 		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("Exchange"))
 		if err != nil {
@@ -464,24 +464,24 @@ func (ctx *deployContext) deployEpochRewards() error {
 	err := ctx.deployCoreContract("EpochRewards", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.EpochRewards.TargetVotingYieldInitial.BigInt(),
-			ctx.ContractParameters.EpochRewards.TargetVotingYieldMax.BigInt(),
-			ctx.ContractParameters.EpochRewards.TargetVotingYieldAdjustmentFactor.BigInt(),
-			ctx.ContractParameters.EpochRewards.RewardsMultiplierMax.BigInt(),
-			ctx.ContractParameters.EpochRewards.RewardsMultiplierAdjustmentFactorsUnderspend.BigInt(),
-			ctx.ContractParameters.EpochRewards.RewardsMultiplierAdjustmentFactorsOverspend.BigInt(),
-			ctx.ContractParameters.EpochRewards.TargetVotingGoldFraction.BigInt(),
-			ctx.ContractParameters.EpochRewards.MaxValidatorEpochPayment,
-			ctx.ContractParameters.EpochRewards.CommunityRewardFraction.BigInt(),
-			ctx.ContractParameters.EpochRewards.CarbonOffsettingPartner,
-			ctx.ContractParameters.EpochRewards.CarbonOffsettingFraction.BigInt(),
+			ctx.GenesisConfig.EpochRewards.TargetVotingYieldInitial.BigInt(),
+			ctx.GenesisConfig.EpochRewards.TargetVotingYieldMax.BigInt(),
+			ctx.GenesisConfig.EpochRewards.TargetVotingYieldAdjustmentFactor.BigInt(),
+			ctx.GenesisConfig.EpochRewards.RewardsMultiplierMax.BigInt(),
+			ctx.GenesisConfig.EpochRewards.RewardsMultiplierAdjustmentFactorsUnderspend.BigInt(),
+			ctx.GenesisConfig.EpochRewards.RewardsMultiplierAdjustmentFactorsOverspend.BigInt(),
+			ctx.GenesisConfig.EpochRewards.TargetVotingGoldFraction.BigInt(),
+			ctx.GenesisConfig.EpochRewards.MaxValidatorEpochPayment,
+			ctx.GenesisConfig.EpochRewards.CommunityRewardFraction.BigInt(),
+			ctx.GenesisConfig.EpochRewards.CarbonOffsettingPartner,
+			ctx.GenesisConfig.EpochRewards.CarbonOffsettingFraction.BigInt(),
 		)
 	})
 	if err != nil {
 		return err
 	}
 
-	if ctx.ContractParameters.EpochRewards.Frozen {
+	if ctx.GenesisConfig.EpochRewards.Frozen {
 		ctx.logger.Info("Freezing EpochRewards")
 		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("EpochRewards"))
 		if err != nil {
@@ -500,7 +500,7 @@ func (ctx *deployContext) deployAccounts() error {
 func (ctx *deployContext) deployRandom() error {
 	return ctx.deployCoreContract("Random", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.ContractParameters.Random.RandomnessBlockRetentionWindow,
+			ctx.GenesisConfig.Random.RandomnessBlockRetentionWindow,
 		)
 	})
 }
@@ -509,7 +509,7 @@ func (ctx *deployContext) deployLockedGold() error {
 	return ctx.deployCoreContract("LockedGold", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.LockedGold.UnlockingPeriod,
+			ctx.GenesisConfig.LockedGold.UnlockingPeriod,
 		)
 	})
 }
@@ -518,16 +518,16 @@ func (ctx *deployContext) deployValidators() error {
 	return ctx.deployCoreContract("Validators", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.Validators.GroupLockedGoldRequirements.Value,
-			ctx.ContractParameters.Validators.GroupLockedGoldRequirements.Duration,
-			ctx.ContractParameters.Validators.ValidatorLockedGoldRequirements.Value,
-			ctx.ContractParameters.Validators.ValidatorLockedGoldRequirements.Duration,
-			ctx.ContractParameters.Validators.ValidatorScoreExponent,
-			ctx.ContractParameters.Validators.ValidatorScoreAdjustmentSpeed.BigInt(),
-			ctx.ContractParameters.Validators.MembershipHistoryLength,
-			ctx.ContractParameters.Validators.SlashingPenaltyResetPeriod,
-			ctx.ContractParameters.Validators.MaxGroupSize,
-			ctx.ContractParameters.Validators.CommissionUpdateDelay,
+			ctx.GenesisConfig.Validators.GroupLockedGoldRequirements.Value,
+			ctx.GenesisConfig.Validators.GroupLockedGoldRequirements.Duration,
+			ctx.GenesisConfig.Validators.ValidatorLockedGoldRequirements.Value,
+			ctx.GenesisConfig.Validators.ValidatorLockedGoldRequirements.Duration,
+			ctx.GenesisConfig.Validators.ValidatorScoreExponent,
+			ctx.GenesisConfig.Validators.ValidatorScoreAdjustmentSpeed.BigInt(),
+			ctx.GenesisConfig.Validators.MembershipHistoryLength,
+			ctx.GenesisConfig.Validators.SlashingPenaltyResetPeriod,
+			ctx.GenesisConfig.Validators.MaxGroupSize,
+			ctx.GenesisConfig.Validators.CommissionUpdateDelay,
 		)
 	})
 }
@@ -536,10 +536,10 @@ func (ctx *deployContext) deployElection() error {
 	return ctx.deployCoreContract("Election", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.Election.MinElectableValidators,
-			ctx.ContractParameters.Election.MaxElectableValidators,
-			ctx.ContractParameters.Election.MaxVotesPerAccount,
-			ctx.ContractParameters.Election.ElectabilityThreshold.BigInt(),
+			ctx.GenesisConfig.Election.MinElectableValidators,
+			ctx.GenesisConfig.Election.MaxElectableValidators,
+			ctx.GenesisConfig.Election.MaxVotesPerAccount,
+			ctx.GenesisConfig.Election.ElectabilityThreshold.BigInt(),
 		)
 	})
 }
@@ -547,7 +547,7 @@ func (ctx *deployContext) deployElection() error {
 func (ctx *deployContext) deploySortedOracles() error {
 	return ctx.deployCoreContract("SortedOracles", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			big.NewInt(ctx.ContractParameters.SortedOracles.ReportExpirySeconds),
+			big.NewInt(ctx.GenesisConfig.SortedOracles.ReportExpirySeconds),
 		)
 	})
 }
@@ -556,9 +556,9 @@ func (ctx *deployContext) deployGasPriceMinimum() error {
 	return ctx.deployCoreContract("GasPriceMinimum", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.GasPriceMinimum.MinimunFloor,
-			ctx.ContractParameters.GasPriceMinimum.TargetDensity.BigInt(),
-			ctx.ContractParameters.GasPriceMinimum.AdjustmentSpeed.BigInt(),
+			ctx.GenesisConfig.GasPriceMinimum.MinimunFloor,
+			ctx.GenesisConfig.GasPriceMinimum.TargetDensity.BigInt(),
+			ctx.GenesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
 		)
 	})
 }
@@ -567,14 +567,14 @@ func (ctx *deployContext) deployReserve() error {
 	err := ctx.deployCoreContract("Reserve", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.Reserve.TobinTaxStalenessThreshold,
-			ctx.ContractParameters.Reserve.DailySpendingRatio,
+			ctx.GenesisConfig.Reserve.TobinTaxStalenessThreshold,
+			ctx.GenesisConfig.Reserve.DailySpendingRatio,
 			big.NewInt(0),
 			big.NewInt(0),
-			ctx.ContractParameters.Reserve.AssetAllocations.SymbolsABI(),
-			ctx.ContractParameters.Reserve.AssetAllocations.Weights(),
-			ctx.ContractParameters.Reserve.TobinTax,
-			ctx.ContractParameters.Reserve.TobinTaxReserveRatio,
+			ctx.GenesisConfig.Reserve.AssetAllocations.SymbolsABI(),
+			ctx.GenesisConfig.Reserve.AssetAllocations.Weights(),
+			ctx.GenesisConfig.Reserve.TobinTax,
+			ctx.GenesisConfig.Reserve.TobinTaxReserveRatio,
 		)
 	})
 	if err != nil {
@@ -584,14 +584,14 @@ func (ctx *deployContext) deployReserve() error {
 	logger := ctx.logger.New("contract", "Reserve")
 	contract := ctx.contract("Reserve")
 
-	if ctx.ContractParameters.Reserve.InitialBalance != nil && ctx.ContractParameters.Reserve.InitialBalance.Cmp(big.NewInt(0)) > 0 {
+	if ctx.GenesisConfig.Reserve.InitialBalance != nil && ctx.GenesisConfig.Reserve.InitialBalance.Cmp(big.NewInt(0)) > 0 {
 		logger.Info("Setting Initial Balance")
-		ctx.statedb.SetBalance(contract.Address, ctx.ContractParameters.Reserve.InitialBalance)
+		ctx.statedb.SetBalance(contract.Address, ctx.GenesisConfig.Reserve.InitialBalance)
 
-		if ctx.ContractParameters.Reserve.FrozenAssetsDays.Cmp(big.NewInt(0)) > 0 && ctx.ContractParameters.Reserve.FrozenAssetsStartBalance.Cmp(big.NewInt(0)) > 0 {
+		if ctx.GenesisConfig.Reserve.FrozenAssetsDays.Cmp(big.NewInt(0)) > 0 && ctx.GenesisConfig.Reserve.FrozenAssetsStartBalance.Cmp(big.NewInt(0)) > 0 {
 			err := contract.SimpleCall("setFrozenGold",
-				ctx.ContractParameters.Reserve.FrozenAssetsStartBalance,
-				ctx.ContractParameters.Reserve.FrozenAssetsDays,
+				ctx.GenesisConfig.Reserve.FrozenAssetsStartBalance,
+				ctx.GenesisConfig.Reserve.FrozenAssetsDays,
 			)
 			if err != nil {
 				return err
@@ -599,13 +599,13 @@ func (ctx *deployContext) deployReserve() error {
 		}
 	}
 
-	for _, spender := range ctx.ContractParameters.Reserve.Spenders {
+	for _, spender := range ctx.GenesisConfig.Reserve.Spenders {
 		if err := contract.SimpleCall("addSpender", spender); err != nil {
 			return err
 		}
 	}
 
-	for _, otherAddress := range ctx.ContractParameters.Reserve.OtherAddresses {
+	for _, otherAddress := range ctx.GenesisConfig.Reserve.OtherAddresses {
 		if err := contract.SimpleCall("addOtherReserveAddress", otherAddress); err != nil {
 			return err
 		}
@@ -617,14 +617,14 @@ func (ctx *deployContext) deployReserve() error {
 func (ctx *deployContext) deployStableToken() error {
 	err := ctx.deployCoreContract("StableToken", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.ContractParameters.StableToken.Name,
-			ctx.ContractParameters.StableToken.Symbol,
-			ctx.ContractParameters.StableToken.Decimals,
+			ctx.GenesisConfig.StableToken.Name,
+			ctx.GenesisConfig.StableToken.Symbol,
+			ctx.GenesisConfig.StableToken.Decimals,
 			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.ContractParameters.StableToken.Rate.BigInt(),
-			ctx.ContractParameters.StableToken.InflationFactorUpdatePeriod,
-			ctx.ContractParameters.StableToken.InitialBalances.Accounts(),
-			ctx.ContractParameters.StableToken.InitialBalances.Amounts(),
+			ctx.GenesisConfig.StableToken.Rate.BigInt(),
+			ctx.GenesisConfig.StableToken.InflationFactorUpdatePeriod,
+			ctx.GenesisConfig.StableToken.InitialBalances.Accounts(),
+			ctx.GenesisConfig.StableToken.InitialBalances.Amounts(),
 		)
 	})
 	if err != nil {
@@ -633,7 +633,7 @@ func (ctx *deployContext) deployStableToken() error {
 
 	stableTokenAddress := ctx.contracts.ProxyAddressFor("StableToken")
 
-	if ctx.ContractParameters.StableToken.Frozen {
+	if ctx.GenesisConfig.StableToken.Frozen {
 		ctx.logger.Info("Freezing StableToken")
 		err = ctx.contract("Freezer").SimpleCall("freeze", stableTokenAddress)
 		if err != nil {
@@ -642,7 +642,7 @@ func (ctx *deployContext) deployStableToken() error {
 	}
 
 	// Configure StableToken Oracles
-	for _, oracleAddress := range ctx.ContractParameters.StableToken.Oracles {
+	for _, oracleAddress := range ctx.GenesisConfig.StableToken.Oracles {
 		ctx.logger.Info("Adding oracle for StableToken", "oracle", oracleAddress)
 		err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, oracleAddress)
 		if err != nil {
@@ -651,12 +651,12 @@ func (ctx *deployContext) deployStableToken() error {
 	}
 
 	// If requested, fix golPrice of stable token
-	if ctx.ContractParameters.StableToken.GoldPrice != nil {
+	if ctx.GenesisConfig.StableToken.GoldPrice != nil {
 		ctx.logger.Info("Fixing StableToken goldPrice")
 
 		// first check if the admin is an authorized oracle
 		authorized := false
-		for _, oracleAddress := range ctx.ContractParameters.StableToken.Oracles {
+		for _, oracleAddress := range ctx.GenesisConfig.StableToken.Oracles {
 			if oracleAddress == ctx.adminAddress() {
 				authorized = true
 				break
@@ -674,7 +674,7 @@ func (ctx *deployContext) deployStableToken() error {
 		ctx.logger.Info("Reporting price of StableToken to oracle")
 		err = ctx.contract("SortedOracles").SimpleCall("report",
 			stableTokenAddress,
-			ctx.ContractParameters.StableToken.GoldPrice.BigInt(),
+			ctx.GenesisConfig.StableToken.GoldPrice.BigInt(),
 			common.ZeroAddress,
 			common.ZeroAddress,
 		)
