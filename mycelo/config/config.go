@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"io/ioutil"
+	"math/big"
 	"os"
 
 	"github.com/ethereum/go-ethereum/internal/fileutils"
@@ -56,7 +57,7 @@ func (env *Environment) WriteEnvConfig() error {
 	return nil
 }
 
-func ReadEnv(envpath string) (*Environment, error) {
+func ReadBuildEnv(envpath string) (*Environment, error) {
 	env := &Environment{
 		Paths: Paths{Workdir: envpath},
 	}
@@ -79,6 +80,25 @@ func ReadEnv(envpath string) (*Environment, error) {
 	return env, nil
 }
 
+func ReadEnv(envpath string) (*Environment, error) {
+	env := &Environment{
+		Paths: Paths{Workdir: envpath},
+	}
+
+	if err := readJson(&env.EnvConfig, env.Paths.EnvConfig()); err != nil {
+		return nil, err
+	}
+
+	accounts, err := createGenesisAccounts(&env.EnvConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	env.accounts = accounts
+
+	return env, nil
+}
+
 // ChainConfig returns chain config for the environment
 func (env *Environment) ChainConfig() *params.ChainConfig { return env.GenesisConfig.ChainConfig() }
 
@@ -88,10 +108,11 @@ func (env *Environment) ValidatorAccounts() []Account { return env.accounts.Vali
 
 // EnvConfig represents MyCelo configuration parameters
 type EnvConfig struct {
-	Mnemonic           string `json:"mnemonic"`           // Accounts mnemonic
-	InitialValidators  int    `json:"initialValidators"`  // Number of initial validators
-	ValidatorsPerGroup int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
-	DeveloperAccounts  int    `json:"developerAccounts"`  // Number of developers accounts
+	ChainID            *big.Int `json:"chainId"`            // chainId identifies the current chain and is used for replay protection
+	Mnemonic           string   `json:"mnemonic"`           // Accounts mnemonic
+	InitialValidators  int      `json:"initialValidators"`  // Number of initial validators
+	ValidatorsPerGroup int      `json:"validatorsPerGroup"` // Number of validators per group in the initial set
+	DeveloperAccounts  int      `json:"developerAccounts"`  // Number of developers accounts
 
 }
 
