@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -70,10 +69,8 @@ func init() {
 		createGenesisFromConfigCommand,
 		initValidatorsCommand,
 		runValidatorsCommand,
-		newEnvCommand,
-		initNodesCommand,
-		runCommand,
-		feelingLuckyCommand,
+		// initNodesCommand,
+		// runNodesCommand,
 		loadBotCommand,
 	}
 }
@@ -103,36 +100,6 @@ var cfgOverrideFlags = []cli.Flag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
 	},
-}
-
-var feelingLuckyCommand = cli.Command{
-	Name:   "feeling-lucky",
-	Usage:  "Creates, Configure and Run celo blockchain on a single step",
-	Action: feelingLucky,
-	Flags: append([]cli.Flag{
-		cli.StringFlag{
-			Name:  "buildpath",
-			Usage: "Directory where smartcontract truffle build file live",
-		},
-		cli.StringFlag{
-			Name:  "geth",
-			Usage: "Path to geth binary",
-		},
-	},
-		cfgOverrideFlags...),
-}
-
-var newEnvCommand = cli.Command{
-	Name:   "newenv",
-	Usage:  "Creates a new mycelo environment",
-	Action: newEnv,
-	Flags: append([]cli.Flag{
-		cli.StringFlag{
-			Name:  "buildpath",
-			Usage: "Directory where smartcontract truffle build file live",
-		},
-	},
-		cfgOverrideFlags...),
 }
 
 var createGenesisCommand = cli.Command{
@@ -180,7 +147,7 @@ var createGenesisConfigCommand = cli.Command{
 var initValidatorsCommand = cli.Command{
 	Name:   "validator-init",
 	Usage:  "Setup all validators nodes",
-	Action: initNodes,
+	Action: validatorInit,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "geth",
@@ -192,7 +159,7 @@ var initValidatorsCommand = cli.Command{
 var runValidatorsCommand = cli.Command{
 	Name:   "validator-run",
 	Usage:  "Runs the testnet",
-	Action: run,
+	Action: validatorRun,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "geth",
@@ -202,9 +169,9 @@ var runValidatorsCommand = cli.Command{
 }
 
 var initNodesCommand = cli.Command{
-	Name:   "init-nodes",
-	Usage:  "Setup all validators nodes",
-	Action: initNodes,
+	Name:   "node-init",
+	Usage:  "Setup all tx nodes",
+	Action: nodeInit,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "geth",
@@ -213,10 +180,10 @@ var initNodesCommand = cli.Command{
 	},
 }
 
-var runCommand = cli.Command{
+var runNodesCommand = cli.Command{
 	Name:   "run",
-	Usage:  "Runs the testnet",
-	Action: run,
+	Usage:  "Runs the tx nodes",
+	Action: nodeRun,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "geth",
@@ -229,12 +196,7 @@ var loadBotCommand = cli.Command{
 	Name:   "load-bot",
 	Usage:  "Runs the load bot on the environment",
 	Action: loadBot,
-	Flags:  []cli.Flag{
-		// cli.StringFlag{
-		// 	Name:  "geth",
-		// 	Usage: "Path to geth binary",
-		// },
-	},
+	Flags:  []cli.Flag{},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -309,69 +271,6 @@ func readGethPath(ctx *cli.Context) (string, error) {
 		}
 	}
 	return buildpath, nil
-}
-
-func feelingLucky(ctx *cli.Context) error {
-	err := newEnv(ctx)
-	if err != nil {
-		return err
-	}
-
-	env, err := readEnv(ctx)
-	if err != nil {
-		return err
-	}
-
-	env.Paths.Geth, err = readGethPath(ctx)
-	if err != nil {
-		return err
-	}
-
-	cluster := cluster.New(env)
-
-	if err = cluster.Init(); err != nil {
-		return err
-	}
-
-	runCtx := context.Background()
-	group, runCtx := errgroup.WithContext(runCtx)
-
-	group.Go(func() error { return cluster.Run(runCtx) })
-	// group.Go(func() error { return cluster.RunMigrations() })
-
-	return group.Wait()
-}
-
-func newEnv(ctx *cli.Context) error {
-	workdir, err := readWorkdir(ctx)
-	if err != nil {
-		return err
-	}
-
-	template := templateFromString("local")
-
-	log.Info("Creating new environment", "envdir", workdir)
-	env, err := template.createEnv(workdir)
-	if err != nil {
-		return err
-	}
-
-	if err := env.WriteGenesisConfig(); err != nil {
-		return err
-	}
-
-	// Generate genesis block
-	buildpath, err := readBuildPath(ctx)
-	if err != nil {
-		return err
-	}
-
-	genesis, err := genesis.GenerateGenesis(env, buildpath)
-	if err != nil {
-		return err
-	}
-
-	return writeJSON(genesis, env.Paths.GenesisJSON())
 }
 
 func createGenesis(ctx *cli.Context) error {
@@ -472,7 +371,8 @@ func validatorRun(ctx *cli.Context) error {
 	return group.Wait()
 }
 
-func initNodes(ctx *cli.Context) error {
+// TODO: Make this run a full node, not a validator node
+func nodeInit(ctx *cli.Context) error {
 	env, err := readEnv(ctx)
 	if err != nil {
 		return err
@@ -487,7 +387,8 @@ func initNodes(ctx *cli.Context) error {
 	return cluster.Init()
 }
 
-func run(ctx *cli.Context) error {
+// TODO: Make this run a full node, not a validator node
+func nodeRun(ctx *cli.Context) error {
 	env, err := readEnv(ctx)
 	if err != nil {
 		return err
@@ -504,7 +405,6 @@ func run(ctx *cli.Context) error {
 	group, runCtx := errgroup.WithContext(runCtx)
 
 	group.Go(func() error { return cluster.Run(runCtx) })
-	// group.Go(func() error { return cluster.RunMigrations() })
 
 	return group.Wait()
 }
@@ -517,6 +417,7 @@ func loadBot(ctx *cli.Context) error {
 
 	runCtx := context.Background()
 
+	// TODO: Pull all of these values from env.json
 	return loadbot.Start(runCtx, &loadbot.LoadBotConfig{
 		Accounts:         env.DeveloperAccounts(),
 		Amount:           big.NewInt(10000000),
@@ -525,14 +426,6 @@ func loadBot(ctx *cli.Context) error {
 			return ethclient.Dial("http://localhost:8545")
 		},
 	})
-}
-
-// commandHasFlag returns true if the current command supports the given flag.
-func commandHasFlag(ctx *cli.Context, flag cli.Flag) bool {
-	flags := ctx.FlagNames()
-	sort.Strings(flags)
-	i := sort.SearchStrings(flags, flag.GetName())
-	return i != len(flags) && flags[i] == flag.GetName()
 }
 
 func exit(err interface{}) {
