@@ -47,6 +47,9 @@ func (env *Environment) Write() error {
 	if err := writeJson(env.Config, env.Paths.Config()); err != nil {
 		return err
 	}
+	if err := writeJson(env.ContractParameters, env.Paths.ContractsConfig()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -59,7 +62,10 @@ func ReadEnv(envpath string) (*Environment, error) {
 	if err := readJson(&env.Config, env.Paths.Config()); err != nil {
 		return nil, err
 	}
-	env.ContractParameters = env.Config.ContractParameters
+
+	if err := readJson(&env.ContractParameters, env.Paths.ContractsConfig()); err != nil {
+		return nil, err
+	}
 
 	accounts, err := createGenesisAccounts(&env.Config)
 	if err != nil {
@@ -91,7 +97,6 @@ type Config struct {
 	ValidatorsPerGroup int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
 	DeveloperAccounts  int    `json:"developerAccounts"`  // Number of developers accounts
 
-	ContractParameters Paremeters `json:contractParameters`
 }
 
 // HardforkConfig contains celo hardforks activation blocks
