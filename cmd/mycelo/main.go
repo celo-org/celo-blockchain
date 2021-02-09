@@ -68,6 +68,8 @@ func init() {
 		createGenesisCommand,
 		createGenesisConfigCommand,
 		createGenesisFromConfigCommand,
+		initValidatorsCommand,
+		runValidatorsCommand,
 		newEnvCommand,
 		initNodesCommand,
 		runCommand,
@@ -143,10 +145,6 @@ var createGenesisCommand = cli.Command{
 			Usage: "Directory where smartcontract truffle build file live",
 		},
 		cli.StringFlag{
-			Name:  "newenv",
-			Usage: "Optional directory to create and write the genesis to (default PWD)",
-		},
-		cli.StringFlag{
 			Name:  "template",
 			Usage: "Optional template to use (default: local)",
 		},
@@ -163,10 +161,6 @@ var createGenesisFromConfigCommand = cli.Command{
 			Name:  "buildpath",
 			Usage: "Directory where smartcontract truffle build file live",
 		},
-		cli.StringFlag{
-			Name:  "newenv",
-			Usage: "Mandatory, will look for genesis-config.json and env.json in envdir and will write genesis.json to envdir.",
-		},
 	},
 }
 
@@ -176,15 +170,35 @@ var createGenesisConfigCommand = cli.Command{
 	Action: createGenesisConfig,
 	Flags: append([]cli.Flag{
 		cli.StringFlag{
-			Name:  "newenv",
-			Usage: "Optional directory to create and write the genesis-config.json to (default PWD).\nAlso creates env.json in the folder if --newenv is specified.",
-		},
-		cli.StringFlag{
 			Name:  "template",
 			Usage: "Optional template to use (default: local)",
 		},
 	},
 		cfgOverrideFlags...),
+}
+
+var initValidatorsCommand = cli.Command{
+	Name:   "validator-init",
+	Usage:  "Setup all validators nodes",
+	Action: initNodes,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "geth",
+			Usage: "Path to geth binary",
+		},
+	},
+}
+
+var runValidatorsCommand = cli.Command{
+	Name:   "validator-run",
+	Usage:  "Runs the testnet",
+	Action: run,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "geth",
+			Usage: "Path to geth binary",
+		},
+	},
 }
 
 var initNodesCommand = cli.Command{
@@ -239,9 +253,8 @@ func readEnv(ctx *cli.Context) (*config.Environment, error) {
 }
 
 func envFromTemplate(ctx *cli.Context) (*config.Environment, error) {
-	// Pull from --newenv if specified
-	workdir := ctx.String("newenv")
-	if workdir == "" {
+	workdir, err := readWorkdir(ctx)
+	if err != nil {
 		workdir = "."
 	} else {
 		if !fileutils.FileExists(workdir) {
@@ -377,7 +390,7 @@ func createGenesis(ctx *cli.Context) error {
 		return err
 	}
 
-	if envdir := ctx.String("newenv"); envdir != "" {
+	if envdir := ctx.String("newenv"); envdir != "" || ctx.NArg() == 1 {
 		err = env.WriteEnvConfig()
 		if err != nil {
 			return err
@@ -402,12 +415,11 @@ func createGenesisConfig(ctx *cli.Context) error {
 }
 
 func createGenesisFromConfig(ctx *cli.Context) error {
-	envdir := ctx.String("newenv")
-	if envdir == "" {
-		return fmt.Errorf("Must provide envdir (directory containing genesis-config.json and env.json)")
+	envdir, err := readWorkdir(ctx)
+	if err != nil {
+		envdir = "."
 	}
-
-	env, err := config.ReadEnv(envdir)
+	env, err := config.ReadBuildEnv(envdir)
 	if err != nil {
 		return err
 	}
@@ -423,6 +435,41 @@ func createGenesisFromConfig(ctx *cli.Context) error {
 	}
 
 	return writeJSON(genesis, env.Paths.GenesisJSON())
+}
+
+func validatorInit(ctx *cli.Context) error {
+	env, err := readEnv(ctx)
+	if err != nil {
+		return err
+	}
+
+	env.Paths.Geth, err = readGethPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	cluster := cluster.New(env)
+	return cluster.Init()
+}
+
+func validatorRun(ctx *cli.Context) error {
+	env, err := readEnv(ctx)
+	if err != nil {
+		return err
+	}
+
+	env.Paths.Geth, err = readGethPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	cluster := cluster.New(env)
+
+	runCtx := context.Background()
+	group, runCtx := errgroup.WithContext(runCtx)
+
+	group.Go(func() error { return cluster.Run(runCtx) })
+	return group.Wait()
 }
 
 func initNodes(ctx *cli.Context) error {

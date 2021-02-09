@@ -32,6 +32,7 @@ func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
 		InitialValidators:  3,
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10,
+		ChainID:            big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
 
 	env, err := config.NewEnv(workdir, envCfg)
@@ -39,7 +40,7 @@ func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
 		return nil, err
 	}
 
-	env.GenesisConfig.ChainID = big.NewInt(1000 * (1 + rand.Int63n(9999)))
+	env.GenesisConfig.ChainID = envCfg.ChainID
 	env.GenesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	env.GenesisConfig.Istanbul = params.IstanbulConfig{
 		Epoch:          10,

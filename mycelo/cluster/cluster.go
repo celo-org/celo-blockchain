@@ -70,7 +70,7 @@ func (cl *Cluster) ensureNodes() []*Node {
 				Number:   i,
 				Account:  validator,
 				Datadir:  cl.Paths.ValidatorDatadir(i),
-				ChainID:  cl.GenesisConfig.ChainID,
+				ChainID:  cl.EnvConfig.ChainID,
 			}
 			cl.nodes[i] = NewNode(nodeConfig)
 		}
