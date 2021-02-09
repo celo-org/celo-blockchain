@@ -67,6 +67,7 @@ func init() {
 	app.Commands = []cli.Command{
 		createGenesisCommand,
 		createGenesisConfigCommand,
+		createGenesisFromConfigCommand,
 		newEnvCommand,
 		initNodesCommand,
 		runCommand,
@@ -151,6 +152,22 @@ var createGenesisCommand = cli.Command{
 		},
 	},
 		cfgOverrideFlags...),
+}
+
+var createGenesisFromConfigCommand = cli.Command{
+	Name:   "genesis-from-config",
+	Usage:  "Creates genesis.json from a genesis-config.json and env.json",
+	Action: createGenesisFromConfig,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "buildpath",
+			Usage: "Directory where smartcontract truffle build file live",
+		},
+		cli.StringFlag{
+			Name:  "newenv",
+			Usage: "Mandatory, will look for genesis-config.json and env.json in envdir and will write genesis.json to envdir.",
+		},
+	},
 }
 
 var createGenesisConfigCommand = cli.Command{
@@ -382,7 +399,30 @@ func createGenesisConfig(ctx *cli.Context) error {
 	}
 
 	return env.WriteGenesisConfig()
+}
 
+func createGenesisFromConfig(ctx *cli.Context) error {
+	envdir := ctx.String("newenv")
+	if envdir == "" {
+		return fmt.Errorf("Must provide envdir (directory containing genesis-config.json and env.json)")
+	}
+
+	env, err := config.ReadEnv(envdir)
+	if err != nil {
+		return err
+	}
+
+	buildpath, err := readBuildPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	genesis, err := genesis.GenerateGenesis(env, buildpath)
+	if err != nil {
+		return err
+	}
+
+	return writeJSON(genesis, env.Paths.GenesisJSON())
 }
 
 func initNodes(ctx *cli.Context) error {
