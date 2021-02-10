@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/common"

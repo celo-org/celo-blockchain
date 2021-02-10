@@ -21,7 +21,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 )

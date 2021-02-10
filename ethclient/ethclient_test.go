@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"

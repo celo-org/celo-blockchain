@@ -22,7 +22,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
