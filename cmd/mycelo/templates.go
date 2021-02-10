@@ -131,7 +131,7 @@ func (e loadtestEnv) createGenesisConfig(env *config.Environment) (*genesis.Conf
 		ChainID:          env.Config.ChainID,
 		GenesisTimestamp: uint64(time.Now().Unix()),
 		Istanbul: params.IstanbulConfig{
-			Epoch:          100,
+			Epoch:          1000,
 			ProposerPolicy: 2,
 			LookbackWindow: 3,
 			BlockPeriod:    5,
