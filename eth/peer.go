@@ -736,7 +736,7 @@ func (ps *peerSet) Register(p *peer) error {
 
 	go p.broadcastBlocks()
 	go p.broadcastTransactions()
-	if p.version >= eth65 {
+	if p.version >= istanbul.Celo66 {
 		go p.announceTransactions()
 	}
 	return nil
