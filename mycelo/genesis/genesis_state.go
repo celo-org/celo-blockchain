@@ -23,38 +23,39 @@ var (
 
 // deployContext context for deployment
 type deployContext struct {
-	*config.Environment
-
+	GenesisConfig *Config
+	adminAccount  config.Account
 	statedb       *state.StateDB
 	runtimeConfig *runtime.Config
 	contracts     *contract.CoreContracts
 	logger        log.Logger
 }
 
-func generateGenesisState(env *config.Environment, buildPath string) (core.GenesisAlloc, error) {
-	deployment := newDeployment(env, buildPath)
+func generateGenesisState(adminAccount config.Account, cfg *Config, buildPath string) (core.GenesisAlloc, error) {
+	deployment := newDeployment(adminAccount, cfg, buildPath)
 	return deployment.deploy()
 }
 
 // NewDeployment generates a new deployment
-func newDeployment(env *config.Environment, buildPath string) *deployContext {
+func newDeployment(adminAccount config.Account, genesisConfig *Config, buildPath string) *deployContext {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	return &deployContext{
-		Environment: env,
-		logger:      log.New("obj", "deployment"),
-		statedb:     statedb,
-		contracts:   contract.NewCoreContracts(buildPath),
+		GenesisConfig: genesisConfig,
+		adminAccount:  adminAccount,
+		logger:        log.New("obj", "deployment"),
+		statedb:       statedb,
+		contracts:     contract.NewCoreContracts(buildPath),
 		runtimeConfig: &runtime.Config{
-			ChainConfig: env.ChainConfig(),
-			Origin:      env.AdminAccount().Address,
+			ChainConfig: genesisConfig.ChainConfig(),
+			Origin:      adminAccount.Address,
 			State:       statedb,
 			GasLimit:    10000000000000000000,
 			GasPrice:    big.NewInt(0),
 			Value:       big.NewInt(0),
-			Time:        new(big.Int).SetUint64(env.GenesisConfig.GenesisTimestamp),
-			Coinbase:    env.AdminAccount().Address,
+			Time:        new(big.Int).SetUint64(genesisConfig.GenesisTimestamp),
+			Coinbase:    adminAccount.Address,
 			BlockNumber: new(big.Int).SetUint64(0),
 			EVMConfig: vm.Config{
 				Tracer: nil,
@@ -63,9 +64,6 @@ func newDeployment(env *config.Environment, buildPath string) *deployContext {
 		},
 	}
 
-}
-func (ctx *deployContext) adminAddress() common.Address {
-	return ctx.AdminAccount().Address
 }
 
 // Deploy runs the deployment
@@ -198,7 +196,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 // Initialize Admin
 func (ctx *deployContext) fundAdminAccount() {
-	ctx.statedb.SetBalance(ctx.adminAddress(), new(big.Int).Set(adminGoldBalance))
+	ctx.statedb.SetBalance(ctx.adminAccount.Address, new(big.Int).Set(adminGoldBalance))
 }
 
 func (ctx *deployContext) deployLibraries() error {
@@ -225,7 +223,7 @@ func (ctx *deployContext) deployProxiedContract(name string, initialize func(con
 
 	logger.Info("Deploy Proxy")
 	ctx.statedb.SetCode(proxyAddress, proxyByteCode)
-	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.adminAddress().Hash())
+	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.adminAccount.Address.Hash())
 
 	logger.Info("Deploy Implementation")
 	ctx.statedb.SetCode(implAddress, bytecode)
@@ -295,7 +293,7 @@ func (ctx *deployContext) deployTransferWhitelist() error {
 	return nil
 }
 
-func (ctx *deployContext) deployMultiSig(name string, params config.MultiSigParameters) (common.Address, error) {
+func (ctx *deployContext) deployMultiSig(name string, params MultiSigParameters) (common.Address, error) {
 	err := ctx.deployProxiedContract(name, func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			params.Signatories,
@@ -657,15 +655,15 @@ func (ctx *deployContext) deployStableToken() error {
 		// first check if the admin is an authorized oracle
 		authorized := false
 		for _, oracleAddress := range ctx.GenesisConfig.StableToken.Oracles {
-			if oracleAddress == ctx.adminAddress() {
+			if oracleAddress == ctx.adminAccount.Address {
 				authorized = true
 				break
 			}
 		}
 
 		if !authorized {
-			ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAddress())
-			err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAddress())
+			ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAccount.Address)
+			err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAccount.Address)
 			if err != nil {
 				return err
 			}
