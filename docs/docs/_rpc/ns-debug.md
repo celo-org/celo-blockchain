@@ -313,7 +313,7 @@ References:
 
 
 When JS-based tracing (see below) was first implemented, the intended usecase was to enable long-running tracers that could stream results back via a subscription channel.
-This method works a bit differently. (For full details, see [PR](https://github.com/celo-org/celo-blockchain/pull/17914))
+This method works a bit differently. (For full details, see [PR](https://github.com/ethereum/go-ethereum/pull/17914))
 
 - It streams output to disk during the execution, to not blow up the memory usage on the node
 - It uses `jsonl` as output format (to allow streaming)
