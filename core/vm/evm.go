@@ -28,7 +28,7 @@ import (
 	abipkg "github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -50,14 +50,11 @@ type (
 	// GetHashFunc returns the n'th block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
-	// GetHeaderByNumberFunc returns the header of the nth block in the chain.
+	// GetHeaderByNumber returns the header of the nth block in the chain.
 	GetHeaderByNumberFunc func(uint64) *types.Header
 	// VerifySealFunc returns true if the given header contains a valid seal
 	// according to the engine's consensus rules.
 	VerifySealFunc func(*types.Header) bool
-
-	// GetValidatorsFunc is the signature for the GetValidators function
-	GetValidatorsFunc func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -119,8 +116,7 @@ type Context struct {
 
 	Header *types.Header
 
-	EpochSize     uint64
-	GetValidators GetValidatorsFunc
+	Engine consensus.Engine
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

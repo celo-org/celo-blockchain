@@ -103,8 +103,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 		BlockNumber:       new(big.Int).Set(header.Number),
 		Time:              new(big.Int).SetUint64(header.Time),
 		GasPrice:          new(big.Int).Set(msg.GasPrice()),
-		EpochSize:         engine.EpochSize(),
-		GetValidators:     engine.GetValidators,
+		Engine:            engine,
 	}
 }
 

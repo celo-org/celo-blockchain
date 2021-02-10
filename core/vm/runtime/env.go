@@ -21,7 +21,6 @@ import (
 )
 
 func NewEnv(cfg *Config) *vm.EVM {
-
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
 		Transfer:    vm.Transfer,
@@ -33,10 +32,6 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
-	}
-
-	if cfg.ChainConfig.Istanbul != nil {
-		context.EpochSize = cfg.ChainConfig.Istanbul.Epoch
 	}
 
 	return vm.NewEVM(context, cfg.State, cfg.ChainConfig, cfg.EVMConfig)
