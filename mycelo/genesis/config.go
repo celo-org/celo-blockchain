@@ -1,13 +1,13 @@
-package config
+package genesis
 
 import (
 	"fmt"
 	"math/big"
-	"time"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/uptime"
+	"github.com/ethereum/go-ethereum/internal/fileutils"
+	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/fixed"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -22,7 +22,7 @@ const (
 	Year   = 365 * Day
 )
 
-type GenesisConfig struct {
+type Config struct {
 	ChainID          *big.Int              `json:"chainId"` // chainId identifies the current chain and is used for replay protection
 	Istanbul         params.IstanbulConfig `json:"istanbul"`
 	Hardforks        HardforkConfig        `json:"hardforks"`
@@ -49,9 +49,9 @@ type GenesisConfig struct {
 
 // BaseContractsConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseContractsConfig() *GenesisConfig {
+func BaseContractsConfig() *Config {
 
-	return &GenesisConfig{
+	return &Config{
 		SortedOracles: SortedOraclesParameters{
 			ReportExpirySeconds: 5 * Minute,
 		},
@@ -162,52 +162,29 @@ func BaseContractsConfig() *GenesisConfig {
 	}
 }
 
-func (cfg *GenesisConfig) ApplyDefaults() {
-	if cfg.Hardforks.ChurritoBlock == nil {
-		cfg.Hardforks.ChurritoBlock = common.Big0
-	}
-	if cfg.Hardforks.DonutBlock == nil {
-		cfg.Hardforks.DonutBlock = common.Big0
+func WriteConfig(env *config.Environment, cfg Config) error {
+	if !fileutils.FileExists(env.Paths.Workdir) {
+		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
 	}
 
-	if cfg.ChainID == nil {
-		cfg.ChainID = big.NewInt(10203040)
+	if err := config.WriteJson(cfg, env.Paths.GenesisConfig()); err != nil {
+		return err
 	}
-
-	if cfg.GenesisTimestamp == 0 {
-		cfg.GenesisTimestamp = uint64(time.Now().Unix())
-	}
-
-	if cfg.Istanbul.BlockPeriod == 0 {
-		cfg.Istanbul.BlockPeriod = 5
-	}
-	if cfg.Istanbul.Epoch == 0 {
-		cfg.Istanbul.Epoch = 17280
-	} else {
-		// validate epoch size
-		if cfg.Istanbul.Epoch < istanbul.MinEpochSize {
-			panic("Invalid epoch size")
-		}
-	}
-	if cfg.Istanbul.LookbackWindow == 0 {
-		// Use 12, but take in consideration lookback window range restrictions
-		cfg.Istanbul.LookbackWindow = uptime.ComputeLookbackWindow(
-			cfg.Istanbul.Epoch,
-			12,
-			cfg.Hardforks.ChurritoBlock.Cmp(common.Big0) == 0,
-			func() (uint64, error) { return 12, nil },
-		)
-
-	}
-	if cfg.Istanbul.ProposerPolicy == 0 {
-		cfg.Istanbul.ProposerPolicy = 2
-	}
-	if cfg.Istanbul.RequestTimeout == 0 {
-		cfg.Istanbul.RequestTimeout = 3000
-	}
+	return nil
 }
 
-func (cfg *GenesisConfig) ChainConfig() *params.ChainConfig {
+func ReadConfig(envpath string) (*Config, error) {
+	env := &config.Environment{
+		Paths: config.Paths{Workdir: envpath},
+	}
+	cfg := &Config{}
+	if err := config.ReadJson(cfg, env.Paths.GenesisConfig()); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (cfg *Config) ChainConfig() *params.ChainConfig {
 	return &params.ChainConfig{
 		ChainID:             cfg.ChainID,
 		HomesteadBlock:      big.NewInt(0),

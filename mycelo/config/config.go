@@ -7,23 +7,20 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/internal/fileutils"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 type Environment struct {
-	Paths         Paths
-	EnvConfig     EnvConfig
-	GenesisConfig GenesisConfig
+	Paths  Paths
+	Config Config
 
 	// Derived Fields
 	accounts *GenesisAccounts
 }
 
-func NewEnv(envpath string, cfg *EnvConfig) (*Environment, error) {
+func NewEnv(envpath string, cfg *Config) (*Environment, error) {
 	env := &Environment{
-		Paths:         Paths{Workdir: envpath},
-		EnvConfig:     *cfg,
-		GenesisConfig: *BaseContractsConfig(),
+		Paths:  Paths{Workdir: envpath},
+		Config: *cfg,
 	}
 
 	accounts, err := createGenesisAccounts(cfg)
@@ -35,49 +32,24 @@ func NewEnv(envpath string, cfg *EnvConfig) (*Environment, error) {
 	return env, nil
 }
 
-func (env *Environment) WriteGenesisConfig() error {
-	if !fileutils.FileExists(env.Paths.Workdir) {
-		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
-	}
-
-	if err := writeJson(env.GenesisConfig, env.Paths.GenesisConfig()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (env *Environment) WriteEnvConfig() error {
-	if !fileutils.FileExists(env.Paths.Workdir) {
-		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
-	}
-
-	if err := writeJson(env.EnvConfig, env.Paths.EnvConfig()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func ReadBuildEnv(envpath string) (*Environment, error) {
-	env := &Environment{
-		Paths: Paths{Workdir: envpath},
-	}
-
-	if err := readJson(&env.EnvConfig, env.Paths.EnvConfig()); err != nil {
-		return nil, err
-	}
-
-	if err := readJson(&env.GenesisConfig, env.Paths.GenesisConfig()); err != nil {
-		return nil, err
-	}
-
-	accounts, err := createGenesisAccounts(&env.EnvConfig)
+func (env *Environment) CreateGenesisAccounts() error {
+	accounts, err := createGenesisAccounts(&env.Config)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	env.accounts = accounts
+	return nil
+}
+
+func (env *Environment) WriteEnv() error {
+	if !fileutils.FileExists(env.Paths.Workdir) {
+		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
 	}
 
-	env.accounts = accounts
-
-	return env, nil
+	if err := WriteJson(env.Config, env.Paths.Config()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ReadEnv(envpath string) (*Environment, error) {
@@ -85,11 +57,11 @@ func ReadEnv(envpath string) (*Environment, error) {
 		Paths: Paths{Workdir: envpath},
 	}
 
-	if err := readJson(&env.EnvConfig, env.Paths.EnvConfig()); err != nil {
+	if err := ReadJson(&env.Config, env.Paths.Config()); err != nil {
 		return nil, err
 	}
 
-	accounts, err := createGenesisAccounts(&env.EnvConfig)
+	accounts, err := createGenesisAccounts(&env.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -99,15 +71,12 @@ func ReadEnv(envpath string) (*Environment, error) {
 	return env, nil
 }
 
-// ChainConfig returns chain config for the environment
-func (env *Environment) ChainConfig() *params.ChainConfig { return env.GenesisConfig.ChainConfig() }
-
 func (env *Environment) AdminAccount() Account        { return env.accounts.Admin }
 func (env *Environment) DeveloperAccounts() []Account { return env.accounts.Developers }
 func (env *Environment) ValidatorAccounts() []Account { return env.accounts.Validators }
 
-// EnvConfig represents MyCelo configuration parameters
-type EnvConfig struct {
+// Config represents MyCelo configuration parameters
+type Config struct {
 	ChainID            *big.Int `json:"chainId"`            // chainId identifies the current chain and is used for replay protection
 	Mnemonic           string   `json:"mnemonic"`           // Accounts mnemonic
 	InitialValidators  int      `json:"initialValidators"`  // Number of initial validators
@@ -116,7 +85,7 @@ type EnvConfig struct {
 
 }
 
-func readJson(out interface{}, filepath string) error {
+func ReadJson(out interface{}, filepath string) error {
 	byteValue, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return err
@@ -125,7 +94,7 @@ func readJson(out interface{}, filepath string) error {
 	return json.Unmarshal(byteValue, out)
 }
 
-func writeJson(in interface{}, filepath string) error {
+func WriteJson(in interface{}, filepath string) error {
 	byteValue, err := json.MarshalIndent(in, " ", " ")
 	if err != nil {
 		return err
@@ -134,7 +103,7 @@ func writeJson(in interface{}, filepath string) error {
 	return ioutil.WriteFile(filepath, byteValue, 0644)
 }
 
-func createGenesisAccounts(cfg *EnvConfig) (*GenesisAccounts, error) {
+func createGenesisAccounts(cfg *Config) (*GenesisAccounts, error) {
 	admin, err := GenerateAccounts(cfg.Mnemonic, Admin, 1)
 	if err != nil {
 		return nil, err

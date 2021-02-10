@@ -214,7 +214,7 @@ func readEnv(ctx *cli.Context) (*config.Environment, error) {
 	return config.ReadEnv(workdir)
 }
 
-func envFromTemplate(ctx *cli.Context) (*config.Environment, error) {
+func envFromTemplate(ctx *cli.Context) (*config.Environment, *genesis.Config, error) {
 	workdir, err := readWorkdir(ctx)
 	if err != nil {
 		workdir = "."
@@ -224,27 +224,38 @@ func envFromTemplate(ctx *cli.Context) (*config.Environment, error) {
 		}
 	}
 	templateString := ctx.String("template")
-	env, err := templateFromString(templateString).createEnv(workdir)
+	template := templateFromString(templateString)
+	env, err := template.createEnv(workdir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Overrides
-	if ctx.IsSet("epoch") {
-		env.GenesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
-	}
-	if ctx.IsSet("blockperiod") {
-		env.GenesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
-	}
+	// Env overrides
 	if ctx.IsSet("validators") {
-		env.EnvConfig.InitialValidators = ctx.Int("validators")
+		env.Config.InitialValidators = ctx.Int("validators")
 	}
 	if ctx.IsSet("dev.accounts") {
-		env.EnvConfig.DeveloperAccounts = ctx.Int("dev.accounts")
+		env.Config.DeveloperAccounts = ctx.Int("dev.accounts")
 	}
 	if ctx.IsSet("mnemonic") {
-		env.EnvConfig.Mnemonic = ctx.String("mnemonic")
+		env.Config.Mnemonic = ctx.String("mnemonic")
 	}
-	return env, nil
+
+	// Genesis config
+	genesisConfig, err := template.createGenesisConfig(env)
+	// Overrides
+	if ctx.IsSet("epoch") {
+		genesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
+	}
+	if ctx.IsSet("blockperiod") {
+		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+	}
+
+	// Create the accounts after the env overrides are set
+	err = env.CreateGenesisAccounts()
+	if err != nil {
+		return nil, nil, err
+	}
+	return env, genesisConfig, nil
 }
 
 func readBuildPath(ctx *cli.Context) (string, error) {
@@ -274,7 +285,7 @@ func readGethPath(ctx *cli.Context) (string, error) {
 }
 
 func createGenesis(ctx *cli.Context) error {
-	env, err := envFromTemplate(ctx)
+	env, genesisConfig, err := envFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
@@ -284,13 +295,13 @@ func createGenesis(ctx *cli.Context) error {
 		return err
 	}
 
-	genesis, err := genesis.GenerateGenesis(env, buildpath)
+	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
 	if err != nil {
 		return err
 	}
 
 	if envdir := ctx.String("newenv"); envdir != "" || ctx.NArg() == 1 {
-		err = env.WriteEnvConfig()
+		err = env.WriteEnv()
 		if err != nil {
 			return err
 		}
@@ -300,17 +311,17 @@ func createGenesis(ctx *cli.Context) error {
 }
 
 func createGenesisConfig(ctx *cli.Context) error {
-	env, err := envFromTemplate(ctx)
+	env, genesisConfig, err := envFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = env.WriteEnvConfig()
+	err = env.WriteEnv()
 	if err != nil {
 		return err
 	}
 
-	return env.WriteGenesisConfig()
+	return genesis.WriteConfig(env, *genesisConfig)
 }
 
 func createGenesisFromConfig(ctx *cli.Context) error {
@@ -318,7 +329,11 @@ func createGenesisFromConfig(ctx *cli.Context) error {
 	if err != nil {
 		envdir = "."
 	}
-	env, err := config.ReadBuildEnv(envdir)
+	env, err := config.ReadEnv(envdir)
+	if err != nil {
+		return err
+	}
+	genesisConfig, err := genesis.ReadConfig(envdir)
 	if err != nil {
 		return err
 	}
@@ -328,7 +343,7 @@ func createGenesisFromConfig(ctx *cli.Context) error {
 		return err
 	}
 
-	genesis, err := genesis.GenerateGenesis(env, buildpath)
+	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
 	if err != nil {
 		return err
 	}

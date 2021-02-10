@@ -14,7 +14,7 @@ func (p Paths) GenesisJSON() string {
 	return path.Join(p.Workdir, "genesis.json")
 }
 
-func (p Paths) EnvConfig() string {
+func (p Paths) Config() string {
 	return path.Join(p.Workdir, "env.json")
 }
 

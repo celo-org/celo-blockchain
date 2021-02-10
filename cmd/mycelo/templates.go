@@ -7,11 +7,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/mycelo/config"
+	"github.com/ethereum/go-ethereum/mycelo/genesis"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 type template interface {
 	createEnv(workdir string) (*config.Environment, error)
+	createGenesisConfig(*config.Environment) (*genesis.Config, error)
 }
 
 func templateFromString(templateStr string) template {
@@ -29,64 +31,70 @@ func templateFromString(templateStr string) template {
 type localEnv struct{}
 
 func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
-	envCfg := &config.EnvConfig{
+	envCfg := &config.Config{
 		Mnemonic:           config.MustNewMnemonic(),
 		InitialValidators:  3,
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10,
 		ChainID:            big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
-
-	env, err := config.NewEnv(workdir, envCfg)
-	if err != nil {
-		return nil, err
+	env := &config.Environment{
+		Paths:  config.Paths{Workdir: workdir},
+		Config: *envCfg,
 	}
 
-	env.GenesisConfig.ChainID = envCfg.ChainID
-	env.GenesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
-	env.GenesisConfig.Istanbul = params.IstanbulConfig{
-		Epoch:          10,
-		ProposerPolicy: 2,
-		LookbackWindow: 3,
-		BlockPeriod:    1,
-		RequestTimeout: 3000,
+	return env, nil
+}
+
+func (e localEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+
+	genesisConfig := &genesis.Config{
+		ChainID:          env.Config.ChainID,
+		GenesisTimestamp: uint64(time.Now().Unix()),
+		Istanbul: params.IstanbulConfig{
+			Epoch:          10,
+			ProposerPolicy: 2,
+			LookbackWindow: 3,
+			BlockPeriod:    1,
+			RequestTimeout: 3000,
+		},
+		Hardforks: genesis.HardforkConfig{
+			ChurritoBlock: common.Big0,
+			DonutBlock:    common.Big0,
+		},
 	}
-	env.GenesisConfig.Hardforks = config.HardforkConfig{
-		ChurritoBlock: common.Big0,
-		DonutBlock:    common.Big0,
-	}
-	env.GenesisConfig.Blockchain.UptimeLookbackWindow = int64(env.GenesisConfig.Istanbul.LookbackWindow)
+	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
 
 	// Make admin account manager of Governance & Reserve
-	adminMultisig := config.MultiSigParameters{
+	adminMultisig := genesis.MultiSigParameters{
 		Signatories:                      []common.Address{env.AdminAccount().Address},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
 
-	env.GenesisConfig.ReserveSpenderMultiSig = adminMultisig
-	env.GenesisConfig.GovernanceApproverMultiSig = adminMultisig
+	genesisConfig.ReserveSpenderMultiSig = adminMultisig
+	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]config.Balance, len(env.DeveloperAccounts()))
-	goldBalances := make([]config.Balance, len(env.DeveloperAccounts()))
+	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
+	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = config.Balance{acc.Address, config.MustBigInt("50000000000000000000000")}
-		goldBalances[i] = config.Balance{acc.Address, config.MustBigInt("1000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("50000000000000000000000")}
+		goldBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("1000000000000000000000000")}
 	}
 
-	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
-	env.GenesisConfig.GoldToken.InitialBalances = goldBalances
+	genesisConfig.StableToken.InitialBalances = cusdBalances
+	genesisConfig.GoldToken.InitialBalances = goldBalances
 
 	// Ensure nothing is frozen
-	env.GenesisConfig.GoldToken.Frozen = false
-	env.GenesisConfig.StableToken.Frozen = false
-	env.GenesisConfig.Exchange.Frozen = false
-	env.GenesisConfig.Reserve.FrozenDays = nil
-	env.GenesisConfig.Reserve.FrozenAssetsDays = nil
-	env.GenesisConfig.EpochRewards.Frozen = false
+	genesisConfig.GoldToken.Frozen = false
+	genesisConfig.StableToken.Frozen = false
+	genesisConfig.Exchange.Frozen = false
+	genesisConfig.Reserve.FrozenDays = nil
+	genesisConfig.Reserve.FrozenAssetsDays = nil
+	genesisConfig.EpochRewards.Frozen = false
 
-	return env, nil
+	return genesisConfig, nil
 }
 
 type testnetEnv struct{}
@@ -95,10 +103,14 @@ func (e testnetEnv) createEnv(workdir string) (*config.Environment, error) {
 	panic("Not implemented")
 }
 
+func (e testnetEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+	panic("Not implemented")
+}
+
 type loadtestEnv struct{}
 
 func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
-	envCfg := &config.EnvConfig{
+	envCfg := &config.Config{
 		Mnemonic:           "miss fire behind decide egg buyer honey seven advance uniform profit renew",
 		InitialValidators:  1,
 		ValidatorsPerGroup: 1,
@@ -106,53 +118,61 @@ func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
 		ChainID:            big.NewInt(9099000),
 	}
 
-	env, err := config.NewEnv(workdir, envCfg)
-	if err != nil {
-		return nil, err
+	env := &config.Environment{
+		Paths:  config.Paths{Workdir: workdir},
+		Config: *envCfg,
 	}
 
-	env.GenesisConfig.ChainID = envCfg.ChainID
-	env.GenesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
-	env.GenesisConfig.Istanbul = params.IstanbulConfig{
-		Epoch:          100,
-		ProposerPolicy: 2,
-		LookbackWindow: 3,
-		BlockPeriod:    5,
-		RequestTimeout: 3000,
+	return env, nil
+}
+
+func (e loadtestEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+	genesisConfig := &genesis.Config{
+		ChainID:          env.Config.ChainID,
+		GenesisTimestamp: uint64(time.Now().Unix()),
+		Istanbul: params.IstanbulConfig{
+			Epoch:          100,
+			ProposerPolicy: 2,
+			LookbackWindow: 3,
+			BlockPeriod:    5,
+			RequestTimeout: 3000,
+		},
+		Hardforks: genesis.HardforkConfig{
+			ChurritoBlock: common.Big0,
+			DonutBlock:    common.Big0,
+		},
 	}
-	env.GenesisConfig.Hardforks = config.HardforkConfig{
-		ChurritoBlock: common.Big0,
-		DonutBlock:    common.Big0,
-	}
-	env.GenesisConfig.Blockchain.UptimeLookbackWindow = int64(env.GenesisConfig.Istanbul.LookbackWindow)
+
+	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
 
 	// Make admin account manager of Governance & Reserve
-	adminMultisig := config.MultiSigParameters{
+	adminMultisig := genesis.MultiSigParameters{
 		Signatories:                      []common.Address{env.AdminAccount().Address},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
 
-	env.GenesisConfig.ReserveSpenderMultiSig = adminMultisig
-	env.GenesisConfig.GovernanceApproverMultiSig = adminMultisig
+	genesisConfig.ReserveSpenderMultiSig = adminMultisig
+	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]config.Balance, len(env.DeveloperAccounts()))
-	goldBalances := make([]config.Balance, len(env.DeveloperAccounts()))
+	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
+	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = config.Balance{acc.Address, config.MustBigInt("10000000000000000000000000")}
-		goldBalances[i] = config.Balance{acc.Address, config.MustBigInt("10000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("10000000000000000000000000")}
+		goldBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("10000000000000000000000000")}
 	}
 
-	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
-	env.GenesisConfig.GoldToken.InitialBalances = goldBalances
+	genesisConfig.StableToken.InitialBalances = cusdBalances
+	genesisConfig.GoldToken.InitialBalances = goldBalances
 
 	// Ensure nothing is frozen
-	env.GenesisConfig.GoldToken.Frozen = false
-	env.GenesisConfig.StableToken.Frozen = false
-	env.GenesisConfig.Exchange.Frozen = false
-	env.GenesisConfig.Reserve.FrozenDays = nil
-	env.GenesisConfig.Reserve.FrozenAssetsDays = nil
-	env.GenesisConfig.EpochRewards.Frozen = false
-	return env, nil
+	genesisConfig.GoldToken.Frozen = false
+	genesisConfig.StableToken.Frozen = false
+	genesisConfig.Exchange.Frozen = false
+	genesisConfig.Reserve.FrozenDays = nil
+	genesisConfig.Reserve.FrozenAssetsDays = nil
+	genesisConfig.EpochRewards.Frozen = false
+
+	return genesisConfig, nil
 }

@@ -25,6 +25,9 @@ endif
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
+all:
+	$(GORUN) build/ci.go install
+
 geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
@@ -58,9 +61,6 @@ swarm:
 	$(GORUN) build/ci.go install ./cmd/swarm
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/swarm\" to launch swarm."
-
-all:
-	$(GORUN) build/ci.go install
 
 all-musl:
 	$(GORUN) build/ci.go install -musl
