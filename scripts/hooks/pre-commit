@@ -46,4 +46,6 @@ EOF
 fi
 
 # Check imports
-exec ./scripts/check_imports.sh
+if [ -f ./scripts/check_imports.sh ]; then
+	exec ./scripts/check_imports.sh
+fi
