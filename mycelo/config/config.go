@@ -134,32 +134,6 @@ func writeJson(in interface{}, filepath string) error {
 	return ioutil.WriteFile(filepath, byteValue, 0644)
 }
 
-func DefaultConfig() *EnvConfig {
-	var cfg EnvConfig
-	cfg.ApplyDefaults()
-	return &cfg
-}
-
-func (cfg *EnvConfig) ApplyDefaults() {
-	if cfg.Mnemonic == "" {
-		cfg.Mnemonic = MustNewMnemonic()
-	}
-
-	if cfg.DeveloperAccounts == 0 {
-		cfg.DeveloperAccounts = 10
-	}
-	if cfg.InitialValidators == 0 {
-		cfg.InitialValidators = 3
-	}
-	if cfg.ValidatorsPerGroup == 0 {
-		cfg.ValidatorsPerGroup = 1
-	} else {
-		if cfg.InitialValidators%cfg.ValidatorsPerGroup != 0 {
-			panic("For simplicity. Each ValidatorGroup must have same number of validators")
-		}
-	}
-}
-
 func createGenesisAccounts(cfg *EnvConfig) (*GenesisAccounts, error) {
 	admin, err := GenerateAccounts(cfg.Mnemonic, Admin, 1)
 	if err != nil {
