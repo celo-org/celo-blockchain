@@ -423,11 +423,6 @@ var (
 		Usage: "Minimum gas price for mining a transaction",
 		Value: eth.DefaultConfig.Miner.GasPrice,
 	}
-	MinerEtherbaseFlag = cli.StringFlag{
-		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
-		Value: "0",
-	}
 	MinerExtraDataFlag = cli.StringFlag{
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
@@ -474,10 +469,6 @@ var (
 
 	// Logging and debug settings
 
-	EthStatsLegacyURLFlag = cli.StringFlag{
-		Name:  "ethstats",
-		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
-	}
 	CeloStatsURLFlag = cli.StringFlag{
 		Name:  "celostats",
 		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
@@ -744,26 +735,6 @@ var (
 
 	// Istanbul settings
 
-	IstanbulRequestTimeoutFlag = cli.Uint64Flag{
-		Name:  "istanbul.requesttimeout",
-		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulBlockPeriodFlag = cli.Uint64Flag{
-		Name:  "istanbul.blockperiod",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulProposerPolicyFlag = cli.Uint64Flag{
-		Name:  "istanbul.proposerpolicy",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulLookbackWindowFlag = cli.Uint64Flag{
-		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
 	IstanbulReplicaFlag = cli.BoolFlag{
 		Name:  "istanbul.replica",
 		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
@@ -807,12 +778,6 @@ var (
 		Name:  "proxy.proxyenodeurlpairs",
 		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
-
-	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
-		Name:  "proxy.proxyenodeurlpair",
-		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
-	}
-
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -1175,8 +1140,8 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
 		validator = ctx.GlobalString(EtherbaseFlag.Name)
 	}
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	if ctx.GlobalIsSet(LegacyMinerEtherbaseFlag.Name) {
+		validator = ctx.GlobalString(LegacyMinerEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
 		if validator != "" {
@@ -1506,17 +1471,17 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 }
 
 func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
-	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulRequestTimeoutFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulRequestTimeoutFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulRequestTimeoutFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulBlockPeriodFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulBlockPeriodFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulBlockPeriodFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulLookbackWindowFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulLookbackWindowFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulLookbackWindowFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulProposerPolicyFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulProposerPolicyFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulProposerPolicyFlag.Name)
 	}
 	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
@@ -1579,15 +1544,16 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
+		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(LegacyProxyEnodeURLPairsFlag.Name) {
 			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
 		}
 
 		// Extract the proxy enode url pairs, new flag overriding legacy one
 		var proxyEnodeURLPairs []string
 
-		if ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
-			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsLegacyFlag.Name), ",")
+		if ctx.GlobalIsSet(LegacyProxyEnodeURLPairsFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(LegacyProxyEnodeURLPairsFlag.Name), ",")
+			log.Warn("The flag --proxy.proxyenodeurlpair is deprecated and will be removed in the future, please use --proxy.proxyenodeurlpairs")
 		}
 
 		if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {

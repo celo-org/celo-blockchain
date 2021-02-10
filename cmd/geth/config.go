@@ -27,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
@@ -129,8 +130,9 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
 	if ctx.GlobalIsSet(utils.CeloStatsURLFlag.Name) {
 		cfg.Ethstats.URL = ctx.GlobalString(utils.CeloStatsURLFlag.Name)
-	} else if ctx.GlobalIsSet(utils.EthStatsLegacyURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsLegacyURLFlag.Name)
+	} else if ctx.GlobalIsSet(utils.LegacyEthStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.LegacyEthStatsURLFlag.Name)
+		log.Warn("The flag --ethstats is deprecated and will be removed in the future, please use --celostats")
 	}
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
 

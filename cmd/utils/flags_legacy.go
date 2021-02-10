@@ -133,6 +133,43 @@ var (
 		Usage: "Origins from which to accept websockets requests (deprecated, use --ws.origins)",
 		Value: "",
 	}
+
+	// Deprecated in celo-blockchain v1.2.0
+	LegacyEthStatsURLFlag = cli.StringFlag{
+		Name:  "ethstats",
+		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
+	}
+	LegacyProxyEnodeURLPairsFlag = cli.StringFlag{
+		Name:  "proxy.proxyenodeurlpair",
+		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
+	}
+
+	// Deprecated in celo-blockchain v1.3.0
+	LegacyMinerDotEtherbaseFlag = cli.StringFlag{
+		Name:  "miner.etherbase",
+		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
+		Value: "0",
+	}
+	LegacyIstanbulRequestTimeoutFlag = cli.Uint64Flag{
+		Name:  "istanbul.requesttimeout",
+		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
+		Value: 0,
+	}
+	LegacyIstanbulBlockPeriodFlag = cli.Uint64Flag{
+		Name:  "istanbul.blockperiod",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
+		Value: 0,
+	}
+	LegacyIstanbulProposerPolicyFlag = cli.Uint64Flag{
+		Name:  "istanbul.proposerpolicy",
+		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
+		Value: 0,
+	}
+	LegacyIstanbulLookbackWindowFlag = cli.Uint64Flag{
+		Name:  "istanbul.lookbackwindow",
+		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
+		Value: 0,
+	}
 )
 
 // showDeprecated displays deprecated flags that will be soon removed from the codebase.
