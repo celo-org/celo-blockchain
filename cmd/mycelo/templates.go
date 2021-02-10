@@ -76,7 +76,7 @@ func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
 	}
 
 	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
-	env.GenesisConfig.GoldToken.InitialBalances = cusdBalances
+	env.GenesisConfig.GoldToken.InitialBalances = goldBalances
 
 	// Ensure nothing is frozen
 	env.GenesisConfig.GoldToken.Frozen = false
@@ -145,7 +145,7 @@ func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
 	}
 
 	env.GenesisConfig.StableToken.InitialBalances = cusdBalances
-	env.GenesisConfig.GoldToken.InitialBalances = cusdBalances
+	env.GenesisConfig.GoldToken.InitialBalances = goldBalances
 
 	// Ensure nothing is frozen
 	env.GenesisConfig.GoldToken.Frozen = false
