@@ -19,6 +19,7 @@ package vm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -129,6 +130,43 @@ var mockEVM = &EVM{
 	),
 }
 
+func loadJSON(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledTestFromJSON
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledTest{input: jsonTest.Input, expected: jsonTest.Expected, name: jsonTest.Name, errorExpected: false, noBenchmark: jsonTest.NoBenchmark}
+	}
+	return testcases, err
+}
+
+func loadJSONFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledFailureTestFromJSON
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledFailureTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledFailureTest{input: jsonTest.Input, expectedError: errors.New(jsonTest.ExpectedError), name: jsonTest.Name}
+	}
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
@@ -143,6 +181,50 @@ type precompiledFailureTest struct {
 	input         string
 	expectedError error
 	name          string
+}
+
+type precompiledTestFromJSON struct {
+	Input, Expected string
+	Name            string
+	NoBenchmark     bool // Benchmark primarily the worst-cases
+}
+
+// precompiledFailureTest defines the input/error pairs for precompiled
+// contract failure tests.
+type precompiledFailureTestFromJSON struct {
+	Input         string
+	ExpectedError string
+	Name          string
+}
+
+func testJSON(name, addr string, t *testing.T) {
+	tests, err := loadJSON(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
+	}
+}
+
+func testJSONFail(name, addr string, t *testing.T) {
+	tests, err := loadJSONFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
+}
+
+func benchJSON(name, addr string, b *testing.B) {
+	tests, err := loadJSON(name)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, test := range tests {
+		benchmarkPrecompiled(addr, test, b)
+	}
 }
 
 // modexpTests are the test and benchmark data for the modexp precompiled contract.
@@ -1109,7 +1191,7 @@ type cip20Test struct {
 	Blake2s   string `json:"blake2s"`
 }
 
-func loadCip20Json() ([]cip20Test, error) {
+func loadCip20JSON() ([]cip20Test, error) {
 	data, err := ioutil.ReadFile("testdata/precompiles/cip20.json")
 	if err != nil {
 		return nil, err
@@ -1166,7 +1248,7 @@ var cip20Tests = []precompiledTest{
 }
 
 func TestCip20(t *testing.T) {
-	cip20ShaVariantTests, err := loadCip20Json()
+	cip20ShaVariantTests, err := loadCip20JSON()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1181,3 +1263,97 @@ func TestCip20(t *testing.T) {
 		testPrecompiled("e2", test, t)
 	}
 }
+
+func TestPrecompiledBLS12377G1Add(t *testing.T) {
+	testJSON("bls12377G1Add_matter", "e9", t)
+	testJSON("bls12377G1Add_zexe", "e9", t)
+}
+
+func TestPrecompiledBLS12377G1Mul(t *testing.T) {
+	testJSON("bls12377G1Mul_matter", "e8", t)
+	testJSON("bls12377G1Mul_zexe", "e8", t)
+}
+
+func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
+	testJSON("bls12377G1MultiExp_matter", "e7", t)
+	testJSON("bls12377G1MultiExp_zexe", "e7", t)
+}
+
+func TestPrecompiledBLS12377G2Add(t *testing.T) {
+	testJSON("bls12377G2Add_matter", "e6", t)
+	testJSON("bls12377G2Add_zexe", "e6", t)
+}
+
+func TestPrecompiledBLS12377G2Mul(t *testing.T) {
+	testJSON("bls12377G2Mul_matter", "e5", t)
+	testJSON("bls12377G2Mul_zexe", "e5", t)
+}
+
+func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
+	testJSON("bls12377G2MultiExp_matter", "e4", t)
+	testJSON("bls12377G2MultiExp_zexe", "e4", t)
+}
+
+func TestPrecompiledBLS12377Pairing(t *testing.T) {
+	testJSON("bls12377Pairing_matter", "e3", t)
+	testJSON("bls12377Pairing_zexe", "e3", t)
+}
+
+func TestPrecompiledBLS12377G1AddFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Add", "e9", t)
+}
+
+func TestPrecompiledBLS12377G1MulFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Mul", "e8", t)
+}
+
+func TestPrecompiledBLS12377G1MultiexpFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Multiexp", "e7", t)
+}
+
+func TestPrecompiledBLS12377G2AddFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Add", "e6", t)
+}
+
+func TestPrecompiledBLS12377G2MulFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Mul", "e5", t)
+}
+
+func TestPrecompiledBLS12377G2MultiexpFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Multiexp", "e4", t)
+}
+
+func TestPrecompiledBLS12377PairingFail(t *testing.T) {
+	testJSONFail("fail-bls12377Pairing", "e3", t)
+}
+
+func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJSON("blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1Mul(t *testing.T)      { testJSON("blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJSON("blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJSON("blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2Mul(t *testing.T)      { testJSON("blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJSON("blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJSON("blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJSON("blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJSON("blsMapG2", "ea", t) }
+
+func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJSON("blsG1Add", "0a", b) }
+func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJSON("blsG1Mul", "0b", b) }
+func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJSON("blsG1MultiExp", "0c", b) }
+func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJSON("blsG2Add", "0d", b) }
+func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B)      { benchJSON("blsG2Mul", "0e", b) }
+func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJSON("blsG2MultiExp", "0f", b) }
+func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJSON("blsPairing", "10", b) }
+func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJSON("blsMapG1", "11", b) }
+func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJSON("blsMapG2", "12", b) }
+
+// Failure tests
+func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJSONFail("fail-blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1MulFail(t *testing.T)      { testJSONFail("fail-blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJSONFail("fail-blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJSONFail("fail-blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2MulFail(t *testing.T)      { testJSONFail("fail-blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJSONFail("fail-blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJSONFail("fail-blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJSONFail("fail-blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJSONFail("fail-blsMapG2", "ea", t) }
