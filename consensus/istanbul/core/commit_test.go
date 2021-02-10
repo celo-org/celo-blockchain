@@ -20,13 +20,13 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-bls-go/bls"
 )
 
 func TestHandleCommit(t *testing.T) {

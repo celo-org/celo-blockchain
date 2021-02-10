@@ -21,8 +21,8 @@ import (
 	"io"
 	"sync/atomic"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/celo-org/celo-blockchain/log"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const MetadataApi = "rpc"

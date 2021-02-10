@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/celo-org/celo-blockchain/log"
+	mapset "github.com/deckarep/golang-set"
 )
 
 // fileCache is a cache of files seen during scan of keystore.

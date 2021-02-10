@@ -91,8 +91,8 @@ func TestPruneEntries(t *testing.T) {
 	}
 
 	batch := []*istanbul.AddressEntry{
-		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+		{Address: addressA, Node: nodeA, Version: 2},
+		{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)
@@ -141,8 +141,8 @@ func TestTableToString(t *testing.T) {
 	}
 
 	batch := []*istanbul.AddressEntry{
-		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+		{Address: addressA, Node: nodeA, Version: 2},
+		{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)

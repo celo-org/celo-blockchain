@@ -28,11 +28,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/dop251/goja"
 	"github.com/celo-org/celo-blockchain/internal/jsre"
 	"github.com/celo-org/celo-blockchain/internal/jsre/deps"
 	"github.com/celo-org/celo-blockchain/internal/web3ext"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/dop251/goja"
 	"github.com/mattn/go-colorable"
 	"github.com/peterh/liner"
 )

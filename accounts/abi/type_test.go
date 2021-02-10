@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // typeWithoutStringer is a alias for the Type type which simply doesn't implement

@@ -27,7 +27,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/params"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -38,6 +37,7 @@ import (
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-bls-go/bls"
 
 	elog "github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"

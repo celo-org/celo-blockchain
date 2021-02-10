@@ -59,9 +59,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cespare/cp"
 	"github.com/celo-org/celo-blockchain/internal/build"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/cespare/cp"
 )
 
 var (

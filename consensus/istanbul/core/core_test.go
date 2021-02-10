@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/common"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-bls-go/bls"
 
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"

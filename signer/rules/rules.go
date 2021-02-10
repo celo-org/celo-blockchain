@@ -22,12 +22,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dop251/goja"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/signer/core"
 	"github.com/celo-org/celo-blockchain/signer/rules/deps"
 	"github.com/celo-org/celo-blockchain/signer/storage"
+	"github.com/dop251/goja"
 )
 
 var (

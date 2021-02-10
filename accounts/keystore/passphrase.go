@@ -38,11 +38,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-bls-go/bls"
 
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/pborman/uuid"

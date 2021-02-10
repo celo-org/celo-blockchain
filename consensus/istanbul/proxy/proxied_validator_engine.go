@@ -202,7 +202,7 @@ func (pv *proxiedValidatorEngine) AddProxy(node, externalNode *enode.Node) error
 	}
 
 	select {
-	case pv.addProxies <- []*istanbul.ProxyConfig{&istanbul.ProxyConfig{InternalNode: node, ExternalNode: externalNode}}:
+	case pv.addProxies <- []*istanbul.ProxyConfig{{InternalNode: node, ExternalNode: externalNode}}:
 		return nil
 	case <-pv.quit:
 		return istanbul.ErrStoppedProxiedValidatorEngine

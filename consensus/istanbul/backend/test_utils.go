@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/consensustest"
@@ -24,6 +23,7 @@ import (
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-bls-go/bls"
 )
 
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a

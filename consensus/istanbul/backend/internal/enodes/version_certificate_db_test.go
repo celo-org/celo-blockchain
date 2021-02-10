@@ -124,13 +124,13 @@ func TestVersionCertificateDBPrune(t *testing.T) {
 	}
 
 	batch := []*VersionCertificateEntry{
-		&VersionCertificateEntry{
+		{
 			Address:   addressA,
 			PublicKey: nodeA.Pubkey(),
 			Version:   1,
 			Signature: []byte("foo"),
 		},
-		&VersionCertificateEntry{
+		{
 			Address:   addressB,
 			PublicKey: nodeB.Pubkey(),
 			Version:   1,

@@ -23,13 +23,13 @@ func TestUpsert(t *testing.T) {
 	}
 
 	testCases := []*testCase{
-		&testCase{
+		{
 			ExistingEntry:                 nil,
 			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: false,
 			ExpectedOnNewEntryCalled:      true,
 		},
-		&testCase{
+		{
 			ExistingEntry:                 &mockEntry{},
 			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: true,

@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/pkg/reexec"
 	"github.com/celo-org/celo-blockchain/internal/cmdtest"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/docker/docker/pkg/reexec"
 )
 
 func tmpdir(t *testing.T) string {
