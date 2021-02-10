@@ -26,8 +26,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-bls-go/bls"
 )
 
 var (
