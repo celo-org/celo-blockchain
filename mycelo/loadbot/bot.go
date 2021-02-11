@@ -40,16 +40,34 @@ func Start(ctx context.Context, cfg *Config) error {
 		return cfg.Accounts[idx].Address, cfg.Amount
 	}
 
-	// devloper accounts / TPS = duration in seconds
-	delay := time.Duration(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond) * time.Millisecond
+	// Use no more than 50 clients
+	clientCount := len(cfg.Accounts)
+	if clientCount > 50 {
+		clientCount = 50
+	}
+	clients := make([]bind.ContractBackend, 0, clientCount)
+	for i := 0; i < clientCount; i++ {
+		client, err := cfg.ClientFactory()
+		if err != nil {
+			return err
+		}
+		clients = append(clients, client)
+	}
 
-	for _, acc := range cfg.Accounts {
+	// devloper accounts / TPS = duration in seconds. Need the fudger factor to get up a consistent TPS at the target.
+	delay := time.Duration(int(float64(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond)*0.95)) * time.Millisecond
+	startDelay := delay / time.Duration(len(cfg.Accounts))
+
+	for i, acc := range cfg.Accounts {
+		// Spread out client load accross different diallers
+		client := clients[i%clientCount]
+
+		err := waitFor(ctx, startDelay)
+		if err != nil {
+			return err
+		}
 		acc := acc
 		group.Go(func() error {
-			client, err := cfg.ClientFactory()
-			if err != nil {
-				return err
-			}
 			return runBot(ctx, acc, delay, client, nextTransfer)
 		})
 
@@ -66,11 +84,6 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 	transactor.Context = ctx
 
 	for {
-		err := waitFor(ctx, sleepTime)
-		if err != nil {
-			return err
-		}
-
 		recipient, value := nextTransfer()
 		tx, err := stableToken.TxObj(transactor, "transfer", recipient, value).Send()
 		if err != nil {
@@ -79,6 +92,11 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
 
 		printJSON(tx)
+
+		err = waitFor(ctx, sleepTime)
+		if err != nil {
+			return err
+		}
 	}
 
 }
