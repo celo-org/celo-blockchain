@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
@@ -39,17 +39,17 @@ import (
 
 // Verify that Client implements the ethereum interfaces.
 var (
-	_ = celo.ChainReader(&Client{})
-	_ = celo.TransactionReader(&Client{})
-	_ = celo.ChainStateReader(&Client{})
-	_ = celo.ChainSyncReader(&Client{})
-	_ = celo.ContractCaller(&Client{})
-	_ = celo.GasEstimator(&Client{})
-	_ = celo.GasPricer(&Client{})
-	_ = celo.LogFilterer(&Client{})
-	_ = celo.PendingStateReader(&Client{})
-	// _ = celo.PendingStateEventer(&Client{})
-	_ = celo.PendingContractCaller(&Client{})
+	_ = ethereum.ChainReader(&Client{})
+	_ = ethereum.TransactionReader(&Client{})
+	_ = ethereum.ChainStateReader(&Client{})
+	_ = ethereum.ChainSyncReader(&Client{})
+	_ = ethereum.ContractCaller(&Client{})
+	_ = ethereum.GasEstimator(&Client{})
+	_ = ethereum.GasPricer(&Client{})
+	_ = ethereum.LogFilterer(&Client{})
+	_ = ethereum.PendingStateReader(&Client{})
+	// _ = ethereum.PendingStateEventer(&Client{})
+	_ = ethereum.PendingContractCaller(&Client{})
 )
 
 func TestToFilterArg(t *testing.T) {
@@ -63,13 +63,13 @@ func TestToFilterArg(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name   string
-		input  celo.FilterQuery
+		input  ethereum.FilterQuery
 		output interface{}
 		err    error
 	}{
 		{
 			"without BlockHash",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				FromBlock: big.NewInt(1),
 				ToBlock:   big.NewInt(2),
@@ -85,7 +85,7 @@ func TestToFilterArg(t *testing.T) {
 		},
 		{
 			"with nil fromBlock and nil toBlock",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				Topics:    [][]common.Hash{},
 			},
@@ -99,7 +99,7 @@ func TestToFilterArg(t *testing.T) {
 		},
 		{
 			"with blockhash",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				BlockHash: &blockHash,
 				Topics:    [][]common.Hash{},
@@ -113,7 +113,7 @@ func TestToFilterArg(t *testing.T) {
 		},
 		{
 			"with blockhash and from block",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				BlockHash: &blockHash,
 				FromBlock: big.NewInt(1),
@@ -124,7 +124,7 @@ func TestToFilterArg(t *testing.T) {
 		},
 		{
 			"with blockhash and to block",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				BlockHash: &blockHash,
 				ToBlock:   big.NewInt(1),
@@ -135,7 +135,7 @@ func TestToFilterArg(t *testing.T) {
 		},
 		{
 			"with blockhash and both from / to block",
-			celo.FilterQuery{
+			ethereum.FilterQuery{
 				Addresses: addresses,
 				BlockHash: &blockHash,
 				FromBlock: big.NewInt(1),

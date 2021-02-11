@@ -90,7 +90,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/common"
@@ -102,7 +102,7 @@ import (
 var (
 	_ = big.NewInt
 	_ = strings.NewReader
-	_ = celo.NotFound
+	_ = ethereum.NotFound
 	_ = abi.U256
 	_ = bind.Bind
 	_ = common.Big1
@@ -435,7 +435,7 @@ var (
 			event    string              // Event name to use for unpacking event data
 
 			logs chan types.Log        // Log channel receiving the found contract events
-			sub  celo.Subscription // Subscription for errors, completion and termination
+			sub  ethereum.Subscription // Subscription for errors, completion and termination
 			done bool                  // Whether the subscription completed delivering logs
 			fail error                 // Occurred error to stop iteration
 		}
@@ -579,7 +579,7 @@ const tmplSourceJava = `
 
 package {{.Package}};
 
-import org.celo.geth.*;
+import org.ethereum.geth.*;
 import java.util.*;
 
 {{$structs := .Structs}}

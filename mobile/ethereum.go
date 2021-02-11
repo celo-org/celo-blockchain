@@ -21,14 +21,14 @@ package geth
 import (
 	"errors"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 )
 
 // Subscription represents an event subscription where events are
 // delivered on a data channel.
 type Subscription struct {
-	sub celo.Subscription
+	sub ethereum.Subscription
 }
 
 // Unsubscribe cancels the sending of events to the data channel
@@ -39,7 +39,7 @@ func (s *Subscription) Unsubscribe() {
 
 // CallMsg contains parameters for contract calls.
 type CallMsg struct {
-	msg celo.CallMsg
+	msg ethereum.CallMsg
 }
 
 // NewCallMsg creates an empty contract call parameter list.
@@ -75,7 +75,7 @@ func (msg *CallMsg) SetTo(address *Address) {
 // SyncProgress gives progress indications when the node is synchronising with
 // the Ethereum network.
 type SyncProgress struct {
-	progress celo.SyncProgress
+	progress ethereum.SyncProgress
 }
 
 func (p *SyncProgress) GetStartingBlock() int64 { return int64(p.progress.StartingBlock) }
@@ -128,7 +128,7 @@ func (t *Topics) Append(topics *Hashes) {
 
 // FilterQuery contains options for contract log filtering.
 type FilterQuery struct {
-	query celo.FilterQuery
+	query ethereum.FilterQuery
 }
 
 // NewFilterQuery creates an empty filter query for contract log filtering.

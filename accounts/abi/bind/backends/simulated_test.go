@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/common"
@@ -51,8 +51,8 @@ func TestSimulatedBackend(t *testing.T) {
 	if isPending {
 		t.Fatal("transaction should not be pending")
 	}
-	if err != celo.NotFound {
-		t.Fatalf("err should be `celo.NotFound` but received %v", err)
+	if err != ethereum.NotFound {
+		t.Fatalf("err should be `ethereum.NotFound` but received %v", err)
 	}
 
 	// generate a transaction and confirm you can retrieve it
@@ -374,11 +374,11 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 
 	var cases = []struct {
 		name        string
-		message     celo.CallMsg
+		message     ethereum.CallMsg
 		expect      uint64
 		expectError error
 	}{
-		{"plain transfer(valid)", celo.CallMsg{
+		{"plain transfer(valid)", ethereum.CallMsg{
 			From:     addr,
 			To:       &addr,
 			Gas:      0,
@@ -387,7 +387,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     nil,
 		}, params.TxGas, nil},
 
-		{"plain transfer(invalid)", celo.CallMsg{
+		{"plain transfer(invalid)", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      0,
@@ -396,7 +396,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     nil,
 		}, 0, errors.New("always failing transaction (execution reverted)")},
 
-		{"Revert", celo.CallMsg{
+		{"Revert", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      0,
@@ -405,7 +405,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     common.Hex2Bytes("d8b98391"),
 		}, 0, errors.New("always failing transaction (execution reverted) (revert reason)")},
 
-		{"PureRevert", celo.CallMsg{
+		{"PureRevert", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      0,
@@ -414,7 +414,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     common.Hex2Bytes("aa8b1d30"),
 		}, 0, errors.New("always failing transaction (execution reverted)")},
 
-		{"OOG", celo.CallMsg{
+		{"OOG", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      100000,
@@ -423,7 +423,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     common.Hex2Bytes("50f6fe34"),
 		}, 0, errors.New("gas required exceeds allowance (100000)")},
 
-		{"Assert", celo.CallMsg{
+		{"Assert", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      100000,
@@ -432,7 +432,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 			Data:     common.Hex2Bytes("b9b046f9"),
 		}, 0, errors.New("always failing transaction (invalid opcode: opcode 0xfe not defined)")},
 
-		{"Valid", celo.CallMsg{
+		{"Valid", ethereum.CallMsg{
 			From:     addr,
 			To:       &contractAddr,
 			Gas:      100000,
@@ -878,7 +878,7 @@ func TestSimulatedBackend_PendingAndCallContract(t *testing.T) {
 	}
 
 	// make sure you can call the contract in pending state
-	res, err := sim.PendingCallContract(bgCtx, celo.CallMsg{
+	res, err := sim.PendingCallContract(bgCtx, ethereum.CallMsg{
 		From: testAddr,
 		To:   &addr,
 		Data: input,
@@ -898,7 +898,7 @@ func TestSimulatedBackend_PendingAndCallContract(t *testing.T) {
 	sim.Commit()
 
 	// make sure you can call the contract
-	res, err = sim.CallContract(bgCtx, celo.CallMsg{
+	res, err = sim.CallContract(bgCtx, ethereum.CallMsg{
 		From: testAddr,
 		To:   &addr,
 		Data: input,

@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/celo-org/celo-blockchain"
+	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -121,8 +121,8 @@ func (api *PublicDownloaderAPI) Syncing(ctx context.Context) (*rpc.Subscription,
 
 // SyncingResult provides information about the current synchronisation status for this node.
 type SyncingResult struct {
-	Syncing bool              `json:"syncing"`
-	Status  celo.SyncProgress `json:"status"`
+	Syncing bool                  `json:"syncing"`
+	Status  ethereum.SyncProgress `json:"status"`
 }
 
 // uninstallSyncSubscriptionRequest uninstalles a syncing subscription in the API event loop.
