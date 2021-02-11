@@ -22,7 +22,7 @@ import (
 	"errors"
 	"time"
 
-	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -960,7 +960,7 @@ func (r *Resolver) ProtocolVersion(ctx context.Context) (int32, error) {
 
 // SyncState represents the synchronisation status returned from the `syncing` accessor.
 type SyncState struct {
-	progress ethereum.SyncProgress
+	progress celo.SyncProgress
 }
 
 func (s *SyncState) StartingBlock() hexutil.Uint64 {

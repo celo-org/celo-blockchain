@@ -22,7 +22,7 @@ import (
 
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -102,7 +102,7 @@ func (w *keystoreWallet) ConfirmAddress(path accounts.DerivationPath) (common.Ad
 
 // SelfDerive implements accounts.Wallet, but is a noop for plain wallets since
 // there is no notion of hierarchical account derivation for plain keystore accounts.
-func (w *keystoreWallet) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
+func (w *keystoreWallet) SelfDerive(bases []accounts.DerivationPath, chain celo.ChainStateReader) {
 }
 
 // signHash attempts to sign the given hash with
