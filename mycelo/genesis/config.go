@@ -3,12 +3,10 @@ package genesis
 import (
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/internal/fileutils"
-	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/fixed"
+	"github.com/ethereum/go-ethereum/mycelo/internal/utils"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -162,26 +160,16 @@ func BaseConfig() *Config {
 	}
 }
 
-func WriteConfig(env *config.Environment, cfg Config) error {
-	if !fileutils.FileExists(env.Paths.Workdir) {
-		os.MkdirAll(env.Paths.Workdir, os.ModePerm)
-	}
-
-	if err := config.WriteJson(cfg, env.Paths.GenesisConfig()); err != nil {
-		return err
-	}
-	return nil
+func SaveConfig(cfg *Config, filepath string) error {
+	return utils.WriteJson(cfg, filepath)
 }
 
-func ReadConfig(envpath string) (*Config, error) {
-	env := &config.Environment{
-		Paths: config.Paths{Workdir: envpath},
-	}
-	cfg := &Config{}
-	if err := config.ReadJson(cfg, env.Paths.GenesisConfig()); err != nil {
+func LoadConfig(filepath string) (*Config, error) {
+	var cfg Config
+	if err := utils.ReadJson(&cfg, filepath); err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return &cfg, nil
 }
 
 func (cfg *Config) ChainConfig() *params.ChainConfig {

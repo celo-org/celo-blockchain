@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path"
@@ -15,36 +13,27 @@ import (
 	"github.com/ethereum/go-ethereum/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/mycelo/cluster"
-	"github.com/ethereum/go-ethereum/mycelo/config"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"github.com/ethereum/go-ethereum/mycelo/genesis"
 	"github.com/ethereum/go-ethereum/mycelo/loadbot"
 	"github.com/ethereum/go-ethereum/params"
 	"gopkg.in/urfave/cli.v1"
 )
 
-func writeJSON(genesis *core.Genesis, filepath string) error {
-	genesisBytes, err := json.Marshal(genesis)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(filepath, genesisBytes, 0644)
-}
-
 var (
 	// Git information set by linker when building with ci.go.
 	gitCommit string
 	gitDate   string
 	app       = &cli.App{
-		Name:        filepath.Base(os.Args[0]),
-		Usage:       "mycelo",
-		Version:     params.VersionWithCommit(gitCommit, gitDate),
-		Writer:      os.Stdout,
-		HideVersion: true,
+		Name:                 filepath.Base(os.Args[0]),
+		Usage:                "mycelo",
+		Version:              params.VersionWithCommit(gitCommit, gitDate),
+		Writer:               os.Stdout,
+		HideVersion:          true,
+		EnableBashCompletion: true,
 	}
 )
 
@@ -79,7 +68,11 @@ func main() {
 	exit(app.Run(os.Args))
 }
 
-var cfgOverrideFlags = []cli.Flag{
+var templateFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "template",
+		Usage: "Optional template to use (default: local)",
+	},
 	cli.IntFlag{
 		Name:  "validators",
 		Usage: "Number of Validators",
@@ -102,160 +95,97 @@ var cfgOverrideFlags = []cli.Flag{
 	},
 }
 
-var createGenesisCommand = cli.Command{
-	Name:   "genesis",
-	Usage:  "Creates genesis.json from a template and overrides",
-	Action: createGenesis,
-	Flags: append([]cli.Flag{
-		cli.StringFlag{
-			Name:  "buildpath",
-			Usage: "Directory where smartcontract truffle build file live",
-		},
-		cli.StringFlag{
-			Name:  "template",
-			Usage: "Optional template to use (default: local)",
-		},
-	},
-		cfgOverrideFlags...),
+var buildpathFlag = cli.StringFlag{
+	Name:  "buildpath",
+	Usage: "Directory where smartcontract truffle build file live",
 }
 
-var createGenesisFromConfigCommand = cli.Command{
-	Name:   "genesis-from-config",
-	Usage:  "Creates genesis.json from a genesis-config.json and env.json",
-	Action: createGenesisFromConfig,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:  "buildpath",
-			Usage: "Directory where smartcontract truffle build file live",
-		},
-	},
+var newEnvFlag = cli.StringFlag{
+	Name:  "newenv",
+	Usage: "Creates a new env in desired folder",
+}
+
+var gethPathFlag = cli.StringFlag{
+	Name:  "geth",
+	Usage: "Path to geth binary",
+}
+
+var createGenesisCommand = cli.Command{
+	Name:      "genesis",
+	Usage:     "Creates genesis.json from a template and overrides",
+	Action:    createGenesis,
+	ArgsUsage: "",
+	Flags: append(
+		[]cli.Flag{buildpathFlag, newEnvFlag},
+		templateFlags...),
 }
 
 var createGenesisConfigCommand = cli.Command{
-	Name:   "genesis-config",
-	Usage:  "Creates genesis-config.json from a template and overrides",
-	Action: createGenesisConfig,
-	Flags: append([]cli.Flag{
-		cli.StringFlag{
-			Name:  "template",
-			Usage: "Optional template to use (default: local)",
-		},
-	},
-		cfgOverrideFlags...),
+	Name:      "genesis-config",
+	Usage:     "Creates genesis-config.json from a template and overrides",
+	Action:    createGenesisConfig,
+	ArgsUsage: "[envdir]",
+	Flags:     append([]cli.Flag{}, templateFlags...),
+}
+
+var createGenesisFromConfigCommand = cli.Command{
+	Name:      "genesis-from-config",
+	Usage:     "Creates genesis.json from a genesis-config.json and env.json",
+	ArgsUsage: "[envdir]",
+	Action:    createGenesisFromConfig,
+	Flags:     []cli.Flag{buildpathFlag},
 }
 
 var initValidatorsCommand = cli.Command{
-	Name:   "validator-init",
-	Usage:  "Setup all validators nodes",
-	Action: validatorInit,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:  "geth",
-			Usage: "Path to geth binary",
-		},
-	},
+	Name:      "validator-init",
+	Usage:     "Setup all validators nodes",
+	ArgsUsage: "[envdir]",
+	Action:    validatorInit,
+	Flags:     []cli.Flag{gethPathFlag},
 }
 
 var runValidatorsCommand = cli.Command{
-	Name:   "validator-run",
-	Usage:  "Runs the testnet",
-	Action: validatorRun,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:  "geth",
-			Usage: "Path to geth binary",
-		},
-	},
+	Name:      "validator-run",
+	Usage:     "Runs the testnet",
+	ArgsUsage: "[envdir]",
+	Action:    validatorRun,
+	Flags:     []cli.Flag{gethPathFlag},
 }
 
 var initNodesCommand = cli.Command{
-	Name:   "node-init",
-	Usage:  "Setup all tx nodes",
-	Action: nodeInit,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:  "geth",
-			Usage: "Path to geth binary",
-		},
-	},
+	Name:      "node-init",
+	Usage:     "Setup all tx nodes",
+	ArgsUsage: "[envdir]",
+	Action:    nodeInit,
+	Flags:     []cli.Flag{gethPathFlag},
 }
 
 var runNodesCommand = cli.Command{
-	Name:   "run",
-	Usage:  "Runs the tx nodes",
-	Action: nodeRun,
-	Flags: []cli.Flag{
-		cli.StringFlag{
-			Name:  "geth",
-			Usage: "Path to geth binary",
-		},
-	},
+	Name:      "run",
+	Usage:     "Runs the tx nodes",
+	ArgsUsage: "[envdir]",
+	Action:    nodeRun,
+	Flags:     []cli.Flag{gethPathFlag},
 }
 
 var loadBotCommand = cli.Command{
-	Name:   "load-bot",
-	Usage:  "Runs the load bot on the environment",
-	Action: loadBot,
-	Flags:  []cli.Flag{},
+	Name:      "load-bot",
+	Usage:     "Runs the load bot on the environment",
+	ArgsUsage: "[envdir]",
+	Action:    loadBot,
+	Flags:     []cli.Flag{},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
 	if ctx.NArg() != 1 {
-		return "", fmt.Errorf("Missing directory argument")
-	}
-	return ctx.Args()[0], nil
-}
-
-func readEnv(ctx *cli.Context) (*config.Environment, error) {
-	workdir, err := readWorkdir(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return config.ReadEnv(workdir)
-}
-
-func envFromTemplate(ctx *cli.Context) (*config.Environment, *genesis.Config, error) {
-	workdir, err := readWorkdir(ctx)
-	if err != nil {
-		workdir = "."
-	} else {
-		if !fileutils.FileExists(workdir) {
-			os.MkdirAll(workdir, os.ModePerm)
+		fmt.Println("Using current directory as workdir")
+		dir, err := os.Getwd()
+		if err != nil {
+			return "", err
 		}
+		return dir, err
 	}
-	templateString := ctx.String("template")
-	template := templateFromString(templateString)
-	env, err := template.createEnv(workdir)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Env overrides
-	if ctx.IsSet("validators") {
-		env.Config.InitialValidators = ctx.Int("validators")
-	}
-	if ctx.IsSet("dev.accounts") {
-		env.Config.DeveloperAccounts = ctx.Int("dev.accounts")
-	}
-	if ctx.IsSet("mnemonic") {
-		env.Config.Mnemonic = ctx.String("mnemonic")
-	}
-
-	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env)
-	// Overrides
-	if ctx.IsSet("epoch") {
-		genesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
-	}
-	if ctx.IsSet("blockperiod") {
-		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
-	}
-
-	// Create the accounts after the env overrides are set
-	err = env.CreateGenesisAccounts()
-	if err != nil {
-		return nil, nil, err
-	}
-	return env, genesisConfig, nil
+	return ctx.Args().Get(0), nil
 }
 
 func readBuildPath(ctx *cli.Context) (string, error) {
@@ -284,56 +214,67 @@ func readGethPath(ctx *cli.Context) (string, error) {
 	return buildpath, nil
 }
 
+func readEnv(ctx *cli.Context) (*env.Environment, error) {
+	workdir, err := readWorkdir(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return env.Load(workdir)
+}
+
+func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genesis.Config, error) {
+	templateString := ctx.String("template")
+	template := templateFromString(templateString)
+	env, err := template.createEnv(workdir)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Env overrides
+	if ctx.IsSet("validators") {
+		env.Config.InitialValidators = ctx.Int("validators")
+	}
+	if ctx.IsSet("dev.accounts") {
+		env.Config.DeveloperAccounts = ctx.Int("dev.accounts")
+	}
+	if ctx.IsSet("mnemonic") {
+		env.Config.Mnemonic = ctx.String("mnemonic")
+	}
+
+	// Create the accounts after the env overrides are set
+	err = env.Refresh()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Genesis config
+	genesisConfig, err := template.createGenesisConfig(env)
+	// Overrides
+	if ctx.IsSet("epoch") {
+		genesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
+	}
+	if ctx.IsSet("blockperiod") {
+		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+	}
+
+	return env, genesisConfig, nil
+}
+
 func createGenesis(ctx *cli.Context) error {
-	env, genesisConfig, err := envFromTemplate(ctx)
-	if err != nil {
-		return err
-	}
-
-	buildpath, err := readBuildPath(ctx)
-	if err != nil {
-		return err
-	}
-
-	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
-	if err != nil {
-		return err
-	}
-
-	if envdir := ctx.String("newenv"); envdir != "" || ctx.NArg() == 1 {
-		err = env.WriteEnv()
+	var workdir string
+	var err error
+	if ctx.IsSet("newenv") {
+		workdir = ctx.String("newenv")
+		if !fileutils.FileExists(workdir) {
+			os.MkdirAll(workdir, os.ModePerm)
+		}
+	} else {
+		workdir, err = os.Getwd()
 		if err != nil {
 			return err
 		}
 	}
 
-	return writeJSON(genesis, env.Paths.GenesisJSON())
-}
-
-func createGenesisConfig(ctx *cli.Context) error {
-	env, genesisConfig, err := envFromTemplate(ctx)
-	if err != nil {
-		return err
-	}
-
-	err = env.WriteEnv()
-	if err != nil {
-		return err
-	}
-
-	return genesis.WriteConfig(env, *genesisConfig)
-}
-
-func createGenesisFromConfig(ctx *cli.Context) error {
-	envdir, err := readWorkdir(ctx)
-	if err != nil {
-		envdir = "."
-	}
-	env, err := config.ReadEnv(envdir)
-	if err != nil {
-		return err
-	}
-	genesisConfig, err := genesis.ReadConfig(envdir)
+	env, genesisConfig, err := envFromTemplate(ctx, workdir)
 	if err != nil {
 		return err
 	}
@@ -348,7 +289,60 @@ func createGenesisFromConfig(ctx *cli.Context) error {
 		return err
 	}
 
-	return writeJSON(genesis, env.Paths.GenesisJSON())
+	if ctx.IsSet("newenv") {
+		if err = env.Save(); err != nil {
+			return err
+		}
+	}
+
+	return env.SaveGenesis(genesis)
+}
+
+func createGenesisConfig(ctx *cli.Context) error {
+	workdir, err := readWorkdir(ctx)
+	if err != nil {
+		return err
+	}
+
+	env, genesisConfig, err := envFromTemplate(ctx, workdir)
+	if err != nil {
+		return err
+	}
+
+	err = env.Save()
+	if err != nil {
+		return err
+	}
+
+	return genesis.SaveConfig(genesisConfig, path.Join(workdir, "genesis-config.json"))
+}
+
+func createGenesisFromConfig(ctx *cli.Context) error {
+	workdir, err := readWorkdir(ctx)
+	if err != nil {
+		return err
+	}
+	env, err := env.Load(workdir)
+	if err != nil {
+		return err
+	}
+
+	genesisConfig, err := genesis.LoadConfig(path.Join(workdir, "genesis-config.json"))
+	if err != nil {
+		return err
+	}
+
+	buildpath, err := readBuildPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
+	if err != nil {
+		return err
+	}
+
+	return env.SaveGenesis(genesis)
 }
 
 func validatorInit(ctx *cli.Context) error {
@@ -357,12 +351,12 @@ func validatorInit(ctx *cli.Context) error {
 		return err
 	}
 
-	env.Paths.Geth, err = readGethPath(ctx)
+	gethPath, err := readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(env)
+	cluster := cluster.New(env, gethPath)
 	return cluster.Init()
 }
 
@@ -372,12 +366,12 @@ func validatorRun(ctx *cli.Context) error {
 		return err
 	}
 
-	env.Paths.Geth, err = readGethPath(ctx)
+	gethPath, err := readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(env)
+	cluster := cluster.New(env, gethPath)
 
 	runCtx := context.Background()
 	group, runCtx := errgroup.WithContext(runCtx)
@@ -393,12 +387,12 @@ func nodeInit(ctx *cli.Context) error {
 		return err
 	}
 
-	env.Paths.Geth, err = readGethPath(ctx)
+	gethPath, err := readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(env)
+	cluster := cluster.New(env, gethPath)
 	return cluster.Init()
 }
 
@@ -409,12 +403,12 @@ func nodeRun(ctx *cli.Context) error {
 		return err
 	}
 
-	env.Paths.Geth, err = readGethPath(ctx)
+	gethPath, err := readGethPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	cluster := cluster.New(env)
+	cluster := cluster.New(env, gethPath)
 
 	runCtx := context.Background()
 	group, runCtx := errgroup.WithContext(runCtx)

@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/contract"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 )
 
 var (
@@ -24,20 +24,20 @@ var (
 // deployContext context for deployment
 type deployContext struct {
 	GenesisConfig *Config
-	adminAccount  config.Account
+	adminAccount  env.Account
 	statedb       *state.StateDB
 	runtimeConfig *runtime.Config
 	contracts     *contract.CoreContracts
 	logger        log.Logger
 }
 
-func generateGenesisState(adminAccount config.Account, cfg *Config, buildPath string) (core.GenesisAlloc, error) {
+func generateGenesisState(adminAccount env.Account, cfg *Config, buildPath string) (core.GenesisAlloc, error) {
 	deployment := newDeployment(cfg, adminAccount, buildPath)
 	return deployment.deploy()
 }
 
 // NewDeployment generates a new deployment
-func newDeployment(genesisConfig *Config, adminAccount config.Account, buildPath string) *deployContext {
+func newDeployment(genesisConfig *Config, adminAccount env.Account, buildPath string) *deployContext {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 

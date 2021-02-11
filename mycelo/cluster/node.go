@@ -16,7 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/internal/fileutils"
-	"github.com/ethereum/go-ethereum/mycelo/config"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -27,8 +27,8 @@ type NodeConfig struct {
 	GethPath      string
 	ChainID       *big.Int
 	Number        int
-	Account       config.Account
-	OtherAccounts []config.Account
+	Account       env.Account
+	OtherAccounts []env.Account
 	Datadir       string
 }
 

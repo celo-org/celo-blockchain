@@ -7,13 +7,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/console"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
 
 type Cluster struct {
-	*config.Environment
+	env      *env.Environment
+	gethPath string
 
 	nodes []*Node
 }
@@ -21,9 +22,10 @@ type Cluster struct {
 var scryptN = keystore.LightScryptN
 var scryptP = keystore.LightScryptP
 
-func New(env *config.Environment) *Cluster {
+func New(env *env.Environment, gethPath string) *Cluster {
 	return &Cluster{
-		Environment: env,
+		env:      env,
+		gethPath: gethPath,
 	}
 }
 
@@ -35,7 +37,7 @@ func (cl *Cluster) Init() error {
 	console.Info("Initializing validator nodes")
 	for i, node := range nodes {
 		console.Infof("validator-%d> geth init", i)
-		if err := node.Init(cl.Paths.GenesisJSON()); err != nil {
+		if err := node.Init(cl.env.GenesisPath()); err != nil {
 			return err
 		}
 
@@ -62,15 +64,15 @@ func (cl *Cluster) Init() error {
 func (cl *Cluster) ensureNodes() []*Node {
 
 	if cl.nodes == nil {
-		validators := cl.ValidatorAccounts()
+		validators := cl.env.ValidatorAccounts()
 		cl.nodes = make([]*Node, len(validators))
 		for i, validator := range validators {
 			nodeConfig := &NodeConfig{
-				GethPath: cl.Paths.Geth,
+				GethPath: cl.gethPath,
 				Number:   i,
 				Account:  validator,
-				Datadir:  cl.Paths.ValidatorDatadir(i),
-				ChainID:  cl.Config.ChainID,
+				Datadir:  cl.env.ValidatorDatadir(i),
+				ChainID:  cl.env.Config.ChainID,
 			}
 			cl.nodes[i] = NewNode(nodeConfig)
 		}

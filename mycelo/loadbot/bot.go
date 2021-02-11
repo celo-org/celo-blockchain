@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/mycelo/config"
 	"github.com/ethereum/go-ethereum/mycelo/contract"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -23,7 +23,7 @@ type Range struct {
 }
 
 type LoadBotConfig struct {
-	Accounts         []config.Account
+	Accounts         []env.Account
 	Amount           *big.Int
 	TransactionDelay time.Duration
 	ClientFactory    func() (*ethclient.Client, error)
@@ -52,7 +52,7 @@ func Start(ctx context.Context, cfg *LoadBotConfig) error {
 	return group.Wait()
 }
 
-func runBot(ctx context.Context, acc config.Account, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
+func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(common.HexToAddress("0xd008"), *abi, client)
 

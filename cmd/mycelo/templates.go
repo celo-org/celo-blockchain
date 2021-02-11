@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/mycelo/config"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"github.com/ethereum/go-ethereum/mycelo/genesis"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 type template interface {
-	createEnv(workdir string) (*config.Environment, error)
-	createGenesisConfig(*config.Environment) (*genesis.Config, error)
+	createEnv(workdir string) (*env.Environment, error)
+	createGenesisConfig(*env.Environment) (*genesis.Config, error)
 }
 
 func templateFromString(templateStr string) template {
@@ -28,23 +28,23 @@ func templateFromString(templateStr string) template {
 
 type localEnv struct{}
 
-func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
-	envCfg := &config.Config{
-		Mnemonic:           config.MustNewMnemonic(),
+func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
+	envCfg := &env.Config{
+		Mnemonic:           env.MustNewMnemonic(),
 		InitialValidators:  3,
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10,
 		ChainID:            big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
-	env := &config.Environment{
-		Paths:  config.Paths{Workdir: workdir},
-		Config: *envCfg,
+	env, err := env.New(workdir, envCfg)
+	if err != nil {
+		return nil, err
 	}
 
 	return env, nil
 }
 
-func (e localEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 
 	genesisConfig := genesis.BaseConfig()
 	genesisConfig.ChainID = env.Config.ChainID
@@ -97,8 +97,8 @@ func (e localEnv) createGenesisConfig(env *config.Environment) (*genesis.Config,
 
 type loadtestEnv struct{}
 
-func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
-	envCfg := &config.Config{
+func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
+	envCfg := &env.Config{
 		Mnemonic:           "miss fire behind decide egg buyer honey seven advance uniform profit renew",
 		InitialValidators:  1,
 		ValidatorsPerGroup: 1,
@@ -106,15 +106,15 @@ func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
 		ChainID:            big.NewInt(9099000),
 	}
 
-	env := &config.Environment{
-		Paths:  config.Paths{Workdir: workdir},
-		Config: *envCfg,
+	env, err := env.New(workdir, envCfg)
+	if err != nil {
+		return nil, err
 	}
 
 	return env, nil
 }
 
-func (e loadtestEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 	genesisConfig := genesis.BaseConfig()
 
 	genesisConfig.ChainID = env.Config.ChainID

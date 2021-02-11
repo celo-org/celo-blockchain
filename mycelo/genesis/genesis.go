@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/mycelo/config"
+
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -15,7 +16,7 @@ import (
 var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753e")
 
 // GenerateGenesis will create a new genesis block with full celo blockchain already configured
-func GenerateGenesis(admin config.Account, validators []config.Account, cfg *Config, contractsBuildPath string) (*core.Genesis, error) {
+func GenerateGenesis(admin env.Account, validators []env.Account, cfg *Config, contractsBuildPath string) (*core.Genesis, error) {
 
 	extraData, err := generateGenesisExtraData(validators)
 	if err != nil {
@@ -36,7 +37,7 @@ func GenerateGenesis(admin config.Account, validators []config.Account, cfg *Con
 	}, nil
 }
 
-func generateGenesisExtraData(validatorAccounts []config.Account) ([]byte, error) {
+func generateGenesisExtraData(validatorAccounts []env.Account) ([]byte, error) {
 	addresses := make([]common.Address, len(validatorAccounts))
 	blsKeys := make([]blscrypto.SerializedPublicKey, len(validatorAccounts))
 

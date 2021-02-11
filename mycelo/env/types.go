@@ -1,4 +1,4 @@
-package config
+package env
 
 type GenesisAccounts struct {
 	Admin           Account   // Administrative account that deploys all initial contracts and owner of them if governance is not enabled
