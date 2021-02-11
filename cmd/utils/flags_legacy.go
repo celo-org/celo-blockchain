@@ -40,7 +40,6 @@ var DeprecatedFlags = []cli.Flag{
 	LegacyMinerThreadsFlag,
 	LegacyMinerGasTargetFlag,
 	LegacyMinerGasPriceFlag,
-	LegacyMinerEtherbaseFlag,
 	LegacyMinerExtraDataFlag,
 }
 
@@ -60,11 +59,6 @@ var (
 		Name:  "gasprice",
 		Usage: "Minimum gas price for mining a transaction (deprecated, use --miner.gasprice)",
 		Value: eth.DefaultConfig.Miner.GasPrice,
-	}
-	LegacyMinerEtherbaseFlag = cli.StringFlag{
-		Name:  "etherbase",
-		Usage: "Public address for block mining rewards (default = first account, deprecated, use --tx-fee-recipient and --miner.validator)",
-		Value: "0",
 	}
 	LegacyMinerExtraDataFlag = cli.StringFlag{
 		Name:  "extradata",
@@ -145,9 +139,9 @@ var (
 	}
 
 	// Deprecated in celo-blockchain v1.3.0
-	LegacyMinerDotEtherbaseFlag = cli.StringFlag{
+	LegacyMinerEtherbaseFlag = cli.StringFlag{
 		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
+		Usage: "Public address for block mining rewards (deprecated, use --etherbase or both --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
 	LegacyIstanbulRequestTimeoutFlag = cli.Uint64Flag{

@@ -258,7 +258,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.LegacyIstanbulBlockPeriodFlag,
 			utils.LegacyIstanbulProposerPolicyFlag,
 			utils.LegacyIstanbulLookbackWindowFlag,
-			utils.LegacyMinerEtherbaseFlag,
 			utils.LegacyEthStatsURLFlag,
 			utils.LegacyRPCEnabledFlag,
 			utils.LegacyRPCListenAddrFlag,
