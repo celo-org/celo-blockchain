@@ -47,9 +47,9 @@ type Config struct {
 	DowntimeSlasher            DowntimeSlasherParameters
 }
 
-// BaseContractsConfig creates base parameters for celo
+// BaseConfig creates base parameters for celo
 // Callers must complete missing pieces
-func BaseContractsConfig() *Config {
+func BaseConfig() *Config {
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{

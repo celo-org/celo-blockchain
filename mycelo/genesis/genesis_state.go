@@ -32,12 +32,12 @@ type deployContext struct {
 }
 
 func generateGenesisState(adminAccount config.Account, cfg *Config, buildPath string) (core.GenesisAlloc, error) {
-	deployment := newDeployment(adminAccount, cfg, buildPath)
+	deployment := newDeployment(cfg, adminAccount, buildPath)
 	return deployment.deploy()
 }
 
 // NewDeployment generates a new deployment
-func newDeployment(adminAccount config.Account, genesisConfig *Config, buildPath string) *deployContext {
+func newDeployment(genesisConfig *Config, adminAccount config.Account, buildPath string) *deployContext {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
