@@ -46,6 +46,12 @@ EOF
 fi
 
 # Check imports
-if [ -f ./scripts/check_imports.sh ]; then
-	exec ./scripts/check_imports.sh
+grep --files-with-matches "github.com/ethereum/go-ethereum" --recursive . --include="*.go"
+if [ "$?" -gt "0" ]; then
+    exit 0
+else
+    echo The above files reference "github.com/ethereum/go-ethereum" instead of "github.com/celo-org/celo-blockchain"
+    echo "Run ./scripts/rename_imports.sh to fix."
+    echo "Use --no-verify (-n) to commit anyways."
+    exit 1
 fi
