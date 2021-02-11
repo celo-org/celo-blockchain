@@ -7,8 +7,10 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -380,10 +382,25 @@ func validatorRun(ctx *cli.Context) error {
 
 	cluster := cluster.New(env)
 
-	runCtx := context.Background()
+	runCtx, cancel := context.WithCancel(context.Background())
 	group, runCtx := errgroup.WithContext(runCtx)
 
 	group.Go(func() error { return cluster.Run(runCtx) })
+	go func() {
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+		defer signal.Stop(sigc)
+		<-sigc
+		log.Info("Got interrupt, shutting down...")
+		cancel()
+		for i := 10; i > 0; i-- {
+			<-sigc
+			if i > 1 {
+				log.Warn("Already shutting down, interrupt more to panic.", "times", i-1)
+			}
+		}
+		debug.LoudPanic("boom")
+	}()
 	return group.Wait()
 }
 
