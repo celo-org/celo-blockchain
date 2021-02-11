@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/fileutils"
@@ -93,6 +92,7 @@ var templateFlags = []cli.Flag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
 	},
+	loadTestTPSFlag,
 }
 
 var buildpathFlag = cli.StringFlag{
@@ -108,6 +108,11 @@ var newEnvFlag = cli.StringFlag{
 var gethPathFlag = cli.StringFlag{
 	Name:  "geth",
 	Usage: "Path to geth binary",
+}
+
+var loadTestTPSFlag = cli.IntFlag{
+	Name:  "tps",
+	Usage: "Transactions per second to target in the load test",
 }
 
 var createGenesisCommand = cli.Command{
@@ -173,7 +178,7 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{},
+	Flags:     []cli.Flag{loadTestTPSFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -238,6 +243,9 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("mnemonic") {
 		env.Config.Mnemonic = ctx.String("mnemonic")
+	}
+	if ctx.IsSet("tps") {
+		env.Config.LoadTestTPS = ctx.Int("tps")
 	}
 
 	// Create the accounts after the env overrides are set
@@ -422,6 +430,9 @@ func validatorRun(ctx *cli.Context) error {
 
 func loadBot(ctx *cli.Context) error {
 	env, err := readEnv(ctx)
+	if ctx.IsSet("tps") {
+		env.Config.LoadTestTPS = ctx.Int("tps")
+	}
 	if err != nil {
 		return err
 	}
@@ -430,9 +441,9 @@ func loadBot(ctx *cli.Context) error {
 
 	// TODO: Pull all of these values from env.json
 	return loadbot.Start(runCtx, &loadbot.Config{
-		Accounts:         env.DeveloperAccounts(),
-		Amount:           big.NewInt(10000000),
-		TransactionDelay: 1 * time.Second,
+		Accounts:              env.DeveloperAccounts(),
+		Amount:                big.NewInt(10000000),
+		TransactionsPerSecond: env.Config.LoadTestTPS,
 		ClientFactory: func() (*ethclient.Client, error) {
 			return ethclient.Dial("http://localhost:8545")
 		},

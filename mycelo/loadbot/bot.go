@@ -25,10 +25,10 @@ type Range struct {
 
 // Config represent the load bot run configuration
 type Config struct {
-	Accounts         []env.Account
-	Amount           *big.Int
-	TransactionDelay time.Duration
-	ClientFactory    func() (*ethclient.Client, error)
+	Accounts              []env.Account
+	Amount                *big.Int
+	TransactionsPerSecond int
+	ClientFactory         func() (*ethclient.Client, error)
 }
 
 // Start will start loads bots
@@ -40,6 +40,9 @@ func Start(ctx context.Context, cfg *Config) error {
 		return cfg.Accounts[idx].Address, cfg.Amount
 	}
 
+	// devloper accounts / TPS = duration in seconds
+	delay := time.Duration(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond) * time.Millisecond
+
 	for _, acc := range cfg.Accounts {
 		acc := acc
 		group.Go(func() error {
@@ -47,7 +50,7 @@ func Start(ctx context.Context, cfg *Config) error {
 			if err != nil {
 				return err
 			}
-			return runBot(ctx, acc, cfg.TransactionDelay, client, nextTransfer)
+			return runBot(ctx, acc, delay, client, nextTransfer)
 		})
 
 	}
