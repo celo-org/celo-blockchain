@@ -240,6 +240,12 @@ func envFromTemplate(ctx *cli.Context) (*config.Environment, *genesis.Config, er
 		env.Config.Mnemonic = ctx.String("mnemonic")
 	}
 
+	// Create the accounts after the env overrides are set
+	err = env.CreateGenesisAccounts()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Genesis config
 	genesisConfig, err := template.createGenesisConfig(env)
 	// Overrides
@@ -250,11 +256,6 @@ func envFromTemplate(ctx *cli.Context) (*config.Environment, *genesis.Config, er
 		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
 	}
 
-	// Create the accounts after the env overrides are set
-	err = env.CreateGenesisAccounts()
-	if err != nil {
-		return nil, nil, err
-	}
 	return env, genesisConfig, nil
 }
 

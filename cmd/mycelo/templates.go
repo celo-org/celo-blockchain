@@ -47,22 +47,22 @@ func (e localEnv) createEnv(workdir string) (*config.Environment, error) {
 }
 
 func (e localEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
+	genesisConfig := genesis.BaseContractsConfig()
 
-	genesisConfig := &genesis.Config{
-		ChainID:          env.Config.ChainID,
-		GenesisTimestamp: uint64(time.Now().Unix()),
-		Istanbul: params.IstanbulConfig{
-			Epoch:          10,
-			ProposerPolicy: 2,
-			LookbackWindow: 3,
-			BlockPeriod:    1,
-			RequestTimeout: 3000,
-		},
-		Hardforks: genesis.HardforkConfig{
-			ChurritoBlock: common.Big0,
-			DonutBlock:    common.Big0,
-		},
+	genesisConfig.ChainID = env.Config.ChainID
+	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
+	genesisConfig.Istanbul = params.IstanbulConfig{
+		Epoch:          10,
+		ProposerPolicy: 2,
+		LookbackWindow: 3,
+		BlockPeriod:    1,
+		RequestTimeout: 3000,
 	}
+	genesisConfig.Hardforks = genesis.HardforkConfig{
+		ChurritoBlock: common.Big0,
+		DonutBlock:    common.Big0,
+	}
+
 	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
 
 	// Make admin account manager of Governance & Reserve
@@ -127,20 +127,20 @@ func (e loadtestEnv) createEnv(workdir string) (*config.Environment, error) {
 }
 
 func (e loadtestEnv) createGenesisConfig(env *config.Environment) (*genesis.Config, error) {
-	genesisConfig := &genesis.Config{
-		ChainID:          env.Config.ChainID,
-		GenesisTimestamp: uint64(time.Now().Unix()),
-		Istanbul: params.IstanbulConfig{
-			Epoch:          1000,
-			ProposerPolicy: 2,
-			LookbackWindow: 3,
-			BlockPeriod:    5,
-			RequestTimeout: 3000,
-		},
-		Hardforks: genesis.HardforkConfig{
-			ChurritoBlock: common.Big0,
-			DonutBlock:    common.Big0,
-		},
+	genesisConfig := genesis.BaseContractsConfig()
+
+	genesisConfig.ChainID = env.Config.ChainID
+	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
+	genesisConfig.Istanbul = params.IstanbulConfig{
+		Epoch:          1000,
+		ProposerPolicy: 2,
+		LookbackWindow: 3,
+		BlockPeriod:    5,
+		RequestTimeout: 3000,
+	}
+	genesisConfig.Hardforks = genesis.HardforkConfig{
+		ChurritoBlock: common.Big0,
+		DonutBlock:    common.Big0,
 	}
 
 	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
