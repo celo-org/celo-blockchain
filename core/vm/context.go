@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -87,9 +88,15 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 
 	var engine consensus.Engine
 	var getHeaderByNumberFn func(uint64) *types.Header
+	var getValidatorsFn func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
+	var epochSize uint64
 	if chain != nil {
 		engine = chain.Engine()
 		getHeaderByNumberFn = chain.GetHeaderByNumber
+		if engine != nil {
+			getValidatorsFn = engine.GetValidators
+			epochSize = engine.EpochSize()
+		}
 	}
 
 	return Context{
@@ -103,7 +110,8 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 		BlockNumber:       new(big.Int).Set(header.Number),
 		Time:              new(big.Int).SetUint64(header.Time),
 		GasPrice:          new(big.Int).Set(msg.GasPrice()),
-		Engine:            engine,
+		EpochSize:         epochSize,
+		GetValidators:     getValidatorsFn,
 	}
 }
 

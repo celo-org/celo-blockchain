@@ -34,5 +34,10 @@ func NewEnv(cfg *Config) *vm.EVM {
 		GasPrice:    cfg.GasPrice,
 	}
 
+	// Missing getValidators here
+	if cfg.ChainConfig.Istanbul != nil {
+		context.EpochSize = cfg.ChainConfig.Istanbul.Epoch
+	}
+
 	return vm.NewEVM(context, cfg.State, cfg.ChainConfig, cfg.EVMConfig)
 }
