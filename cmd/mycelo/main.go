@@ -373,8 +373,7 @@ func validatorRun(ctx *cli.Context) error {
 
 	cluster := cluster.New(env, gethPath)
 
-	runCtx := context.Background()
-	group, runCtx := errgroup.WithContext(runCtx)
+	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
 
 	group.Go(func() error { return cluster.Run(runCtx) })
 	return group.Wait()
@@ -410,8 +409,7 @@ func nodeRun(ctx *cli.Context) error {
 
 	cluster := cluster.New(env, gethPath)
 
-	runCtx := context.Background()
-	group, runCtx := errgroup.WithContext(runCtx)
+	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
 
 	group.Go(func() error { return cluster.Run(runCtx) })
 
@@ -435,12 +433,4 @@ func loadBot(ctx *cli.Context) error {
 			return ethclient.Dial("http://localhost:8545")
 		},
 	})
-}
-
-func exit(err interface{}) {
-	if err == nil {
-		os.Exit(0)
-	}
-	fmt.Fprintln(os.Stderr, err)
-	os.Exit(1)
 }
