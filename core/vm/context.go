@@ -93,8 +93,10 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 	if chain != nil {
 		engine = chain.Engine()
 		getHeaderByNumberFn = chain.GetHeaderByNumber
-		getValidatorsFn = engine.GetValidators
-		epochSize = engine.EpochSize()
+		if engine != nil {
+			getValidatorsFn = engine.GetValidators
+			epochSize = engine.EpochSize()
+		}
 	}
 
 	return Context{

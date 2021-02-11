@@ -190,6 +190,10 @@ func (e *MockEngine) accumulateRewards(config *params.ChainConfig, state *state.
 	state.AddBalance(header.Coinbase, reward)
 }
 
+func (e *MockEngine) EpochSize() uint64 {
+	return uint64(17280)
+}
+
 func (e *MockEngine) Finalize(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
 	e.accumulateRewards(chain.Config(), statedb, header)
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
