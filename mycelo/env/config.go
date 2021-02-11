@@ -11,7 +11,7 @@ type Config struct {
 	InitialValidators  int      `json:"initialValidators"`  // Number of initial validators
 	ValidatorsPerGroup int      `json:"validatorsPerGroup"` // Number of validators per group in the initial set
 	DeveloperAccounts  int      `json:"developerAccounts"`  // Number of developers accounts
-
+	LoadTestTPS        int      `json:"loadTestTPS"`        // Transactions per second to target in the load test
 }
 
 func createGenesisAccounts(cfg *Config) (*GenesisAccounts, error) {
