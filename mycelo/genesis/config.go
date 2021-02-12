@@ -77,7 +77,7 @@ func BaseConfig() *Config {
 			Symbol:                      "cUSD",
 			Decimals:                    18,
 			Rate:                        fixed.MustNew("1"),
-			InflationFactorUpdatePeriod: big.NewInt(2 * Year),
+			InflationFactorUpdatePeriod: big.NewInt(1 * Week),
 			GoldPrice:                   fixed.MustNew("1"),
 		},
 		Validators: ValidatorsParameters{
