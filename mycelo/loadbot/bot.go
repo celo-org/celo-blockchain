@@ -84,6 +84,7 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 	transactor.Context = ctx
 
 	for {
+		txSentTime := time.Now()
 		recipient, value := nextTransfer()
 		tx, err := stableToken.TxObj(transactor, "transfer", recipient, value).Send()
 		if err != nil {
@@ -92,8 +93,10 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
 
 		printJSON(tx)
+		tx.WaitMined(ctx)
+		nextSendTime := txSentTime.Add(sleepTime)
 
-		err = waitFor(ctx, sleepTime)
+		err = waitFor(ctx, time.Until(nextSendTime))
 		if err != nil {
 			return err
 		}
