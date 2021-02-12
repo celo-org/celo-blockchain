@@ -135,6 +135,9 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 
 	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
 
+	// 10 billion gas limit, set super high on purpose
+	genesisConfig.Blockchain.BlockGasLimit = big.NewInt(1000000000)
+
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := genesis.MultiSigParameters{
 		Signatories:                      []common.Address{env.AdminAccount().Address},
