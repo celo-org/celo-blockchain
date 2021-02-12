@@ -88,6 +88,10 @@ var templateFlags = []cli.Flag{
 		Name:  "epoch",
 		Usage: "Epoch size",
 	},
+	cli.Int64Flag{
+		Name:  "blockgaslimit",
+		Usage: "Block gas limit",
+	},
 	cli.StringFlag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
@@ -262,6 +266,9 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("blockperiod") {
 		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+	}
+	if ctx.IsSet("blockgaslimit") {
+		genesisConfig.Blockchain.BlockGasLimit = big.NewInt(ctx.Int64("blockgaslimit"))
 	}
 
 	return env, genesisConfig, nil

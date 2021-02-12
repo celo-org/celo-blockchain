@@ -106,6 +106,9 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 		}
 
 		nextSendTime := txSentTime.Add(sleepTime)
+		if time.Now().After(nextSendTime) {
+			continue
+		}
 
 		err = waitFor(ctx, time.Until(nextSendTime))
 		if err != nil {
