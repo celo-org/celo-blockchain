@@ -27,7 +27,7 @@ type deployContext struct {
 	adminAccount  env.Account
 	statedb       *state.StateDB
 	runtimeConfig *runtime.Config
-	contracts     *contract.CoreContracts
+	truffleReader contract.TruffleReader
 	logger        log.Logger
 }
 
@@ -46,7 +46,7 @@ func newDeployment(genesisConfig *Config, adminAccount env.Account, buildPath st
 		adminAccount:  adminAccount,
 		logger:        log.New("obj", "deployment"),
 		statedb:       statedb,
-		contracts:     contract.NewCoreContracts(buildPath),
+		truffleReader: contract.NewTruffleReader(buildPath),
 		runtimeConfig: &runtime.Config{
 			ChainConfig: genesisConfig.ChainConfig(),
 			Origin:      adminAccount.Address,
@@ -200,13 +200,9 @@ func (ctx *deployContext) fundAdminAccount() {
 }
 
 func (ctx *deployContext) deployLibraries() error {
-	libraryByteCodes, err := ctx.contracts.LibraryDeployedBytecodes()
-	if err != nil {
-		return err
-	}
-
-	for addr, bytes := range libraryByteCodes {
-		ctx.statedb.SetCode(addr, bytes)
+	for _, name := range env.Libraries() {
+		bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
+		ctx.statedb.SetCode(env.MustAddressFor(name), bytecode)
 	}
 	return nil
 }
@@ -214,9 +210,9 @@ func (ctx *deployContext) deployLibraries() error {
 // deployProxiedContract will deploy proxied contract
 // It will deploy the proxy contract, the impl contract, and initialize both
 func (ctx *deployContext) deployProxiedContract(name string, initialize func(contract *contract.EVMBackend) error) error {
-	proxyAddress := ctx.contracts.ProxyAddressFor(name)
-	implAddress := ctx.contracts.ImplAddressFor(name)
-	bytecode := ctx.contracts.MustDeployedBytecodeFor(name)
+	proxyAddress := env.MustProxyAddressFor(name)
+	implAddress := env.MustAddressFor(name)
+	bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
 
 	logger := ctx.logger.New("contract", name)
 	logger.Info("Start Deploy of Proxied Contract", "proxyAddress", proxyAddress.Hex(), "implAddress", implAddress.Hex())
@@ -249,7 +245,7 @@ func (ctx *deployContext) deployCoreContract(name string, initialize func(contra
 		return err
 	}
 
-	proxyAddress := ctx.contracts.ProxyAddressFor(name)
+	proxyAddress := env.MustProxyAddressFor(name)
 	ctx.logger.Info("Add entry to registry", "name", name, "address", proxyAddress)
 	if err := ctx.contract("Registry").SimpleCall("setAddressFor", name, proxyAddress); err != nil {
 		return err
@@ -265,8 +261,8 @@ func (ctx *deployContext) deployTransferWhitelist() error {
 	contract, err := contract.DeployCoreContract(
 		ctx.runtimeConfig,
 		"TransferWhitelist",
-		ctx.contracts.MustBytecodeFor("TransferWhitelist"),
-		ctx.contracts.ProxyAddressFor("Registry"),
+		ctx.truffleReader.MustReadBytecodeFor("TransferWhitelist"),
+		env.MustProxyAddressFor("Registry"),
 	)
 	if err != nil {
 		return err
@@ -304,7 +300,7 @@ func (ctx *deployContext) deployMultiSig(name string, params MultiSigParameters)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
-	return ctx.contracts.ProxyAddressFor(name), nil
+	return env.MustProxyAddressFor(name), nil
 }
 
 func (ctx *deployContext) deployReserveSpenderMultisig() error {
@@ -352,7 +348,7 @@ func (ctx *deployContext) deployFreezer() error {
 func (ctx *deployContext) deployGovernanceSlasher() error {
 	err := ctx.deployCoreContract("GovernanceSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 		)
 	})
 	if err != nil {
@@ -370,7 +366,7 @@ func (ctx *deployContext) addSlasher(slasherName string) error {
 func (ctx *deployContext) deployDoubleSigningSlasher() error {
 	err := ctx.deployCoreContract("DoubleSigningSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.DoubleSigningSlasher.Penalty,
 			ctx.GenesisConfig.DoubleSigningSlasher.Reward,
 		)
@@ -385,7 +381,7 @@ func (ctx *deployContext) deployDoubleSigningSlasher() error {
 func (ctx *deployContext) deployDowntimeSlasher() error {
 	err := ctx.deployCoreContract("DowntimeSlasher", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.DowntimeSlasher.Penalty,
 			ctx.GenesisConfig.DowntimeSlasher.Reward,
 			new(big.Int).SetUint64(ctx.GenesisConfig.DowntimeSlasher.SlashableDowntime),
@@ -400,7 +396,7 @@ func (ctx *deployContext) deployDowntimeSlasher() error {
 
 func (ctx *deployContext) deployEscrow() error {
 	return ctx.deployCoreContract("Escrow", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize", ctx.contracts.ProxyAddressFor("Registry"))
+		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
 	})
 }
 
@@ -412,7 +408,7 @@ func (ctx *deployContext) deployFeeCurrencyWhitelist() error {
 
 func (ctx *deployContext) deployGoldToken() error {
 	err := ctx.deployCoreContract("GoldToken", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize", ctx.contracts.ProxyAddressFor("Registry"))
+		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
 	})
 	if err != nil {
 		return err
@@ -420,7 +416,7 @@ func (ctx *deployContext) deployGoldToken() error {
 
 	if ctx.GenesisConfig.GoldToken.Frozen {
 		ctx.logger.Info("Freezing GoldToken")
-		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("GoldToken"))
+		err = ctx.contract("Freezer").SimpleCall("freeze", env.MustProxyAddressFor("GoldToken"))
 		if err != nil {
 			return err
 		}
@@ -436,8 +432,8 @@ func (ctx *deployContext) deployGoldToken() error {
 func (ctx *deployContext) deployExchange() error {
 	err := ctx.deployCoreContract("Exchange", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
-			ctx.contracts.ProxyAddressFor("StableToken"),
+			env.MustProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("StableToken"),
 			ctx.GenesisConfig.Exchange.Spread.BigInt(),
 			ctx.GenesisConfig.Exchange.ReserveFraction.BigInt(),
 			new(big.Int).SetUint64(ctx.GenesisConfig.Exchange.UpdateFrequency),
@@ -450,7 +446,7 @@ func (ctx *deployContext) deployExchange() error {
 
 	if ctx.GenesisConfig.Exchange.Frozen {
 		ctx.logger.Info("Freezing Exchange")
-		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("Exchange"))
+		err = ctx.contract("Freezer").SimpleCall("freeze", env.MustProxyAddressFor("Exchange"))
 		if err != nil {
 			return err
 		}
@@ -461,7 +457,7 @@ func (ctx *deployContext) deployExchange() error {
 func (ctx *deployContext) deployEpochRewards() error {
 	err := ctx.deployCoreContract("EpochRewards", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.EpochRewards.TargetVotingYieldInitial.BigInt(),
 			ctx.GenesisConfig.EpochRewards.TargetVotingYieldMax.BigInt(),
 			ctx.GenesisConfig.EpochRewards.TargetVotingYieldAdjustmentFactor.BigInt(),
@@ -481,7 +477,7 @@ func (ctx *deployContext) deployEpochRewards() error {
 
 	if ctx.GenesisConfig.EpochRewards.Frozen {
 		ctx.logger.Info("Freezing EpochRewards")
-		err = ctx.contract("Freezer").SimpleCall("freeze", ctx.contracts.ProxyAddressFor("EpochRewards"))
+		err = ctx.contract("Freezer").SimpleCall("freeze", env.MustProxyAddressFor("EpochRewards"))
 		if err != nil {
 			return err
 		}
@@ -491,7 +487,7 @@ func (ctx *deployContext) deployEpochRewards() error {
 
 func (ctx *deployContext) deployAccounts() error {
 	return ctx.deployCoreContract("Accounts", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize", ctx.contracts.ProxyAddressFor("Registry"))
+		return contract.SimpleCall("initialize", env.MustProxyAddressFor("Registry"))
 	})
 }
 
@@ -506,7 +502,7 @@ func (ctx *deployContext) deployRandom() error {
 func (ctx *deployContext) deployLockedGold() error {
 	return ctx.deployCoreContract("LockedGold", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.LockedGold.UnlockingPeriod,
 		)
 	})
@@ -515,7 +511,7 @@ func (ctx *deployContext) deployLockedGold() error {
 func (ctx *deployContext) deployValidators() error {
 	return ctx.deployCoreContract("Validators", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.Validators.GroupLockedGoldRequirements.Value,
 			ctx.GenesisConfig.Validators.GroupLockedGoldRequirements.Duration,
 			ctx.GenesisConfig.Validators.ValidatorLockedGoldRequirements.Value,
@@ -533,7 +529,7 @@ func (ctx *deployContext) deployValidators() error {
 func (ctx *deployContext) deployElection() error {
 	return ctx.deployCoreContract("Election", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.Election.MinElectableValidators,
 			ctx.GenesisConfig.Election.MaxElectableValidators,
 			ctx.GenesisConfig.Election.MaxVotesPerAccount,
@@ -553,7 +549,7 @@ func (ctx *deployContext) deploySortedOracles() error {
 func (ctx *deployContext) deployGasPriceMinimum() error {
 	return ctx.deployCoreContract("GasPriceMinimum", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.GasPriceMinimum.MinimunFloor,
 			ctx.GenesisConfig.GasPriceMinimum.TargetDensity.BigInt(),
 			ctx.GenesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
@@ -564,7 +560,7 @@ func (ctx *deployContext) deployGasPriceMinimum() error {
 func (ctx *deployContext) deployReserve() error {
 	err := ctx.deployCoreContract("Reserve", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.Reserve.TobinTaxStalenessThreshold,
 			ctx.GenesisConfig.Reserve.DailySpendingRatio,
 			big.NewInt(0),
@@ -618,7 +614,7 @@ func (ctx *deployContext) deployStableToken() error {
 			ctx.GenesisConfig.StableToken.Name,
 			ctx.GenesisConfig.StableToken.Symbol,
 			ctx.GenesisConfig.StableToken.Decimals,
-			ctx.contracts.ProxyAddressFor("Registry"),
+			env.MustProxyAddressFor("Registry"),
 			ctx.GenesisConfig.StableToken.Rate.BigInt(),
 			ctx.GenesisConfig.StableToken.InflationFactorUpdatePeriod,
 			ctx.GenesisConfig.StableToken.InitialBalances.Accounts(),
@@ -629,7 +625,7 @@ func (ctx *deployContext) deployStableToken() error {
 		return err
 	}
 
-	stableTokenAddress := ctx.contracts.ProxyAddressFor("StableToken")
+	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 
 	if ctx.GenesisConfig.StableToken.Frozen {
 		ctx.logger.Info("Freezing StableToken")
@@ -703,11 +699,11 @@ func (ctx *deployContext) getAddressFromRegistry(name string) (common.Address, e
 }
 
 func (ctx *deployContext) contract(contractName string) *contract.EVMBackend {
-	return contract.CoreContract(ctx.runtimeConfig, contractName, ctx.contracts.ProxyAddressFor(contractName))
+	return contract.CoreContract(ctx.runtimeConfig, contractName, env.MustProxyAddressFor(contractName))
 }
 
 func (ctx *deployContext) proxyContract(contractName string) *contract.EVMBackend {
-	return contract.ProxyContract(ctx.runtimeConfig, contractName, ctx.contracts.ProxyAddressFor(contractName))
+	return contract.ProxyContract(ctx.runtimeConfig, contractName, env.MustProxyAddressFor(contractName))
 }
 
 func (ctx *deployContext) verifyState() error {
@@ -728,13 +724,13 @@ func (ctx *deployContext) verifyState() error {
 		numerator,
 		denominator,
 	}
-	if _, err := ctx.contract("SortedOracles").Query(out, "medianRate", ctx.contracts.ProxyAddressFor("StableToken")); err != nil {
+	if _, err := ctx.contract("SortedOracles").Query(out, "medianRate", env.MustProxyAddressFor("StableToken")); err != nil {
 		return err
 	}
 	fmt.Printf("Checking medianRate. numerator = %s  denominator = %s \n", (*numerator).String(), (*denominator).String())
 
 	var gasPrice *big.Int
-	if _, err := ctx.contract("GasPriceMinimum").Query(&gasPrice, "getGasPriceMinimum", ctx.contracts.ProxyAddressFor("StableToken")); err != nil {
+	if _, err := ctx.contract("GasPriceMinimum").Query(&gasPrice, "getGasPriceMinimum", env.MustProxyAddressFor("StableToken")); err != nil {
 		return err
 	}
 	fmt.Printf("Checking gas price minimun. cusdValue = %s\n", gasPrice.String())

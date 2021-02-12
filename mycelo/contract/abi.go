@@ -8,8 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 )
 
-//go:generate go run ./generate /Users/mcortesi/code/celo/celo-monorepo/packages/protocol/build/contracts
-
 func mustParseABI(abiStr string) *abi.ABI {
 	parsed, err := abi.JSON(strings.NewReader(abiStr))
 	if err != nil {

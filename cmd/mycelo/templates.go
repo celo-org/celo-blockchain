@@ -77,8 +77,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("50000000000000000000000")}
-		goldBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("1000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000000000000000000000")}
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("1000000000000000000000000")}
 	}
 
 	genesisConfig.StableToken.InitialBalances = cusdBalances
@@ -147,8 +147,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
 	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("10000000000000000000000000")}
-		goldBalances[i] = genesis.Balance{acc.Address, genesis.MustBigInt("10000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
 	}
 
 	genesisConfig.StableToken.InitialBalances = cusdBalances

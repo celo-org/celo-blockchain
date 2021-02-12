@@ -17,19 +17,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Range represents an inclusive big.Int range
 type Range struct {
 	From *big.Int
 	To   *big.Int
 }
 
-type LoadBotConfig struct {
+// Config represent the load bot run configuration
+type Config struct {
 	Accounts         []env.Account
 	Amount           *big.Int
 	TransactionDelay time.Duration
 	ClientFactory    func() (*ethclient.Client, error)
 }
 
-func Start(ctx context.Context, cfg *LoadBotConfig) error {
+// Start will start loads bots
+func Start(ctx context.Context, cfg *Config) error {
 	group, ctx := errgroup.WithContext(ctx)
 
 	nextTransfer := func() (common.Address, *big.Int) {
@@ -54,7 +57,7 @@ func Start(ctx context.Context, cfg *LoadBotConfig) error {
 
 func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
-	stableToken := bind.NewBoundContract(common.HexToAddress("0xd008"), *abi, client)
+	stableToken := bind.NewBoundContract(env.MustAddressFor("StableToken"), *abi, client)
 
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx

@@ -7,11 +7,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/mycelo/console"
 	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/ethereum/go-ethereum/mycelo/internal/console"
 	"golang.org/x/sync/errgroup"
 )
 
+// Cluster represent a set of nodes (validators)
+// that are managed together
 type Cluster struct {
 	env      *env.Environment
 	gethPath string
@@ -22,6 +24,7 @@ type Cluster struct {
 var scryptN = keystore.LightScryptN
 var scryptP = keystore.LightScryptP
 
+// New creates a new cluster instance
 func New(env *env.Environment, gethPath string) *Cluster {
 	return &Cluster{
 		env:      env,
@@ -29,6 +32,9 @@ func New(env *env.Environment, gethPath string) *Cluster {
 	}
 }
 
+// Init will initalize the nodes
+// This implies running `geth init` but also
+// configuring static nodes and node accounts
 func (cl *Cluster) Init() error {
 	var err error
 
@@ -80,6 +86,7 @@ func (cl *Cluster) ensureNodes() []*Node {
 	return cl.nodes
 }
 
+// PrintNodeInfo prints debug information about nodes
 func (cl *Cluster) PrintNodeInfo() error {
 	for i, node := range cl.ensureNodes() {
 		endoreURL, err := node.EnodeURL()
@@ -91,6 +98,7 @@ func (cl *Cluster) PrintNodeInfo() error {
 	return nil
 }
 
+// Run will run all the cluster nodes
 func (cl *Cluster) Run(ctx context.Context) error {
 	group, ctx := errgroup.WithContext(ctx)
 	log.Printf("Starting cluster")

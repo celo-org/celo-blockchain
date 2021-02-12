@@ -1,11 +1,10 @@
 package genesis
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/mycelo/fixed"
+	"github.com/ethereum/go-ethereum/common/fixed"
 	"github.com/ethereum/go-ethereum/mycelo/internal/utils"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -20,6 +19,7 @@ const (
 	Year   = 365 * Day
 )
 
+// Config represent all celo-blockchain configuration options for the genesis block
 type Config struct {
 	ChainID          *big.Int              `json:"chainId"` // chainId identifies the current chain and is used for replay protection
 	Istanbul         params.IstanbulConfig `json:"istanbul"`
@@ -45,125 +45,12 @@ type Config struct {
 	DowntimeSlasher            DowntimeSlasherParameters
 }
 
-// BaseConfig creates base parameters for celo
-// Callers must complete missing pieces
-func BaseConfig() *Config {
-
-	return &Config{
-		SortedOracles: SortedOraclesParameters{
-			ReportExpirySeconds: 5 * Minute,
-		},
-		GasPriceMinimum: GasPriceMinimumParameters{
-			MinimunFloor:    new(big.Int).SetUint64(100000000),
-			AdjustmentSpeed: fixed.MustNew("0.5"),
-			TargetDensity:   fixed.MustNew("0.5"),
-		},
-		Reserve: ReserveParameters{
-			TobinTaxStalenessThreshold: big.NewInt(3153600000),
-			TobinTax:                   big.NewInt(0),
-			TobinTaxReserveRatio:       big.NewInt(0),
-			DailySpendingRatio:         MustBigInt("50000000000000000000000"),
-			FrozenDays:                 nil,
-			FrozenGold:                 nil,
-			AssetAllocations: AssetAllocationList{
-				{"cGLD", fixed.MustNew("0.5")},
-				{"BTC", fixed.MustNew("0.3")},
-				{"ETH", fixed.MustNew("0.15")},
-				{"DAI", fixed.MustNew("0.05")},
-			},
-		},
-		StableToken: StableTokenParameters{
-			Name:                        "Celo Dollar",
-			Symbol:                      "cUSD",
-			Decimals:                    18,
-			Rate:                        fixed.MustNew("1"),
-			InflationFactorUpdatePeriod: big.NewInt(2 * Year),
-			GoldPrice:                   fixed.MustNew("1"),
-		},
-		Validators: ValidatorsParameters{
-			GroupLockedGoldRequirements: LockedGoldRequirements{
-				Value:    MustBigInt("10000000000000000000000"), // 10k CELO per validator
-				Duration: big.NewInt(180 * Day),
-			},
-			ValidatorLockedGoldRequirements: LockedGoldRequirements{
-				Value: MustBigInt("10000000000000000000000"), // 10k CELO
-				// MUST BE KEPT IN SYNC WITH MEMBERSHIP HISTORY LENGTH
-				Duration: big.NewInt(60 * Day),
-			},
-			ValidatorScoreExponent:        big.NewInt(10),
-			ValidatorScoreAdjustmentSpeed: fixed.MustNew("0.1"),
-
-			// MUST BE KEPT IN SYNC WITH VALIDATOR LOCKED GOLD DURATION
-			MembershipHistoryLength: big.NewInt(60),
-
-			CommissionUpdateDelay: big.NewInt((3 * Day) / 5), // Approximately 3 days with 5s block times
-			MaxGroupSize:          big.NewInt(5),
-
-			SlashingPenaltyResetPeriod: big.NewInt(30 * Day),
-		},
-		Election: ElectionParameters{
-			MinElectableValidators: big.NewInt(1),
-			MaxElectableValidators: big.NewInt(100),
-			MaxVotesPerAccount:     big.NewInt(10),
-			ElectabilityThreshold:  fixed.MustNew("0.001"),
-		},
-		Exchange: ExchangeParameters{
-			Spread:          fixed.MustNew("0.005"),
-			ReserveFraction: fixed.MustNew("0.01"),
-			UpdateFrequency: 5 * Minute,
-			MinimumReports:  1,
-			Frozen:          false,
-		},
-		EpochRewards: EpochRewardsParameters{
-			TargetVotingYieldInitial:                     fixed.MustNew("0"),      // Change to (x + 1) ^ 365 = 1.06 once Mainnet activated.
-			TargetVotingYieldAdjustmentFactor:            fixed.MustNew("0"),      // Change to 1 / 3650 once Mainnet activated.,
-			TargetVotingYieldMax:                         fixed.MustNew("0.0005"), // (x + 1) ^ 365 = 1.20
-			RewardsMultiplierMax:                         fixed.MustNew("2"),
-			RewardsMultiplierAdjustmentFactorsUnderspend: fixed.MustNew("0.5"),
-			RewardsMultiplierAdjustmentFactorsOverspend:  fixed.MustNew("5"),
-
-			// Intentionally set lower than the expected value at steady state to account for the fact that
-			// users may take some time to start voting with their cGLD.
-			TargetVotingGoldFraction: fixed.MustNew("0.5"),
-			MaxValidatorEpochPayment: MustBigInt("205479452054794520547"), // (75,000 / 365) * 10 ^ 18
-			CommunityRewardFraction:  fixed.MustNew("0.25"),
-			CarbonOffsettingPartner:  common.Address{},
-			CarbonOffsettingFraction: fixed.MustNew("0.001"),
-
-			Frozen: false,
-		},
-		LockedGold: LockedGoldParameters{
-			UnlockingPeriod: big.NewInt(259200),
-		},
-		Random: RandomParameters{
-			RandomnessBlockRetentionWindow: big.NewInt(720),
-		},
-		TransferWhitelist: TransferWhitelistParameters{},
-		GoldToken: GoldTokenParameters{
-			Frozen: false,
-		},
-		Blockchain: BlockchainParameters{
-			Version:                 Version{1, 0, 0},
-			GasForNonGoldCurrencies: big.NewInt(50000),
-			BlockGasLimit:           big.NewInt(13000000),
-			UptimeLookbackWindow:    12,
-		},
-		DoubleSigningSlasher: DoubleSigningSlasherParameters{
-			Reward:  MustBigInt("1000000000000000000000"), // 1000 cGLD
-			Penalty: MustBigInt("9000000000000000000000"), // 9000 cGLD
-		},
-		DowntimeSlasher: DowntimeSlasherParameters{
-			Reward:            MustBigInt("10000000000000000000"),  // 10 cGLD
-			Penalty:           MustBigInt("100000000000000000000"), // 100 cGLD
-			SlashableDowntime: 60,                                  // Should be overridden on public testnets
-		},
-	}
-}
-
-func SaveConfig(cfg *Config, filepath string) error {
+// Save will write config into a json file
+func (cfg *Config) Save(filepath string) error {
 	return utils.WriteJson(cfg, filepath)
 }
 
+// LoadConfig will read config from a json file
 func LoadConfig(filepath string) (*Config, error) {
 	var cfg Config
 	if err := utils.ReadJson(&cfg, filepath); err != nil {
@@ -172,18 +59,19 @@ func LoadConfig(filepath string) (*Config, error) {
 	return &cfg, nil
 }
 
+// ChainConfig returns the chain config objt for the blockchain
 func (cfg *Config) ChainConfig() *params.ChainConfig {
 	return &params.ChainConfig{
 		ChainID:             cfg.ChainID,
-		HomesteadBlock:      big.NewInt(0),
-		EIP150Block:         big.NewInt(0),
+		HomesteadBlock:      common.Big0,
+		EIP150Block:         common.Big0,
 		EIP150Hash:          common.Hash{},
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(0),
+		EIP155Block:         common.Big0,
+		EIP158Block:         common.Big0,
+		ByzantiumBlock:      common.Big0,
+		ConstantinopleBlock: common.Big0,
+		PetersburgBlock:     common.Big0,
+		IstanbulBlock:       common.Big0,
 
 		ChurritoBlock: cfg.Hardforks.ChurritoBlock,
 		DonutBlock:    cfg.Hardforks.DonutBlock,
@@ -408,12 +296,4 @@ func (aa AssetAllocationList) Weights() []*big.Int {
 		res[i] = x.Weight.BigInt()
 	}
 	return res
-}
-
-func MustBigInt(str string) *big.Int {
-	i, ok := new(big.Int).SetString(str, 10)
-	if !ok {
-		panic(fmt.Errorf("Invalid string for big.Int: %s", str))
-	}
-	return i
 }

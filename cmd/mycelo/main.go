@@ -314,7 +314,7 @@ func createGenesisConfig(ctx *cli.Context) error {
 		return err
 	}
 
-	return genesis.SaveConfig(genesisConfig, path.Join(workdir, "genesis-config.json"))
+	return genesisConfig.Save(path.Join(workdir, "genesis-config.json"))
 }
 
 func createGenesisFromConfig(ctx *cli.Context) error {
@@ -425,7 +425,7 @@ func loadBot(ctx *cli.Context) error {
 	runCtx := context.Background()
 
 	// TODO: Pull all of these values from env.json
-	return loadbot.Start(runCtx, &loadbot.LoadBotConfig{
+	return loadbot.Start(runCtx, &loadbot.Config{
 		Accounts:         env.DeveloperAccounts(),
 		Amount:           big.NewInt(10000000),
 		TransactionDelay: 1 * time.Second,
