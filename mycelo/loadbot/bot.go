@@ -17,6 +17,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const clientCap = 100
+
 type Range struct {
 	From *big.Int
 	To   *big.Int
@@ -37,10 +39,10 @@ func Start(ctx context.Context, cfg *LoadBotConfig) error {
 		return cfg.Accounts[idx].Address, cfg.Amount
 	}
 
-	// Use no more than 50 clients
+	// Use no more than clientCap clients
 	clientCount := len(cfg.Accounts)
-	if clientCount > 50 {
-		clientCount = 50
+	if clientCount > clientCap {
+		clientCount = clientCap
 	}
 	clients := make([]bind.ContractBackend, 0, clientCount)
 	for i := 0; i < clientCount; i++ {
@@ -85,12 +87,22 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 		recipient, value := nextTransfer()
 		tx, err := stableToken.TxObj(transactor, "transfer", recipient, value).Send()
 		if err != nil {
+			if err != context.Canceled {
+				fmt.Printf("Error sending transaction: %v\n", err)
+			}
 			return fmt.Errorf("Error sending transaction: %w", err)
 		}
-		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
+		// fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
 
-		printJSON(tx)
-		tx.WaitMined(ctx)
+		// printJSON(tx)
+		_, err = tx.WaitMined(ctx)
+		if err != nil {
+			if err != context.Canceled {
+				fmt.Printf("Error waiting for tx: %v\n", err)
+			}
+			return fmt.Errorf("Error waitin for tx: %w", err)
+		}
+
 		nextSendTime := txSentTime.Add(sleepTime)
 
 		err = waitFor(ctx, time.Until(nextSendTime))

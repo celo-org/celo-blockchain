@@ -21,3 +21,7 @@ func (p paths) envJson() string {
 func (p paths) validatorDatadir(idx int) string {
 	return path.Join(p.Workdir, fmt.Sprintf("validator-%02d", idx))
 }
+
+func (p paths) validatorIPC() string {
+	return path.Join(p.Workdir, fmt.Sprintf("validator-00/geth.ipc"))
+}
