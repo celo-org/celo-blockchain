@@ -30,6 +30,7 @@ type Config struct {
 	Accounts              []env.Account
 	Amount                *big.Int
 	TransactionsPerSecond int
+	ClientCount           int
 	ClientFactory         func() (*ethclient.Client, error)
 }
 
@@ -43,7 +44,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 
 	// Use no more than clientCap clients
-	clientCount := len(cfg.Accounts)
+	clientCount := cfg.ClientCount
 	if clientCount > clientCap {
 		clientCount = clientCap
 	}
@@ -56,7 +57,8 @@ func Start(ctx context.Context, cfg *Config) error {
 		clients = append(clients, client)
 	}
 
-	// devloper accounts / TPS = duration in seconds. Need the fudger factor to get up a consistent TPS at the target.
+	// developer accounts / TPS = duration in seconds.
+	// Need the fudger factor to get up a consistent TPS at the target.
 	delay := time.Duration(int(float64(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond)*0.95)) * time.Millisecond
 	startDelay := delay / time.Duration(len(cfg.Accounts))
 

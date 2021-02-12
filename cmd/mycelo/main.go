@@ -444,6 +444,7 @@ func loadBot(ctx *cli.Context) error {
 		Accounts:              env.DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: env.Config.LoadTestTPS,
+		ClientCount:           1,
 		ClientFactory: func() (*ethclient.Client, error) {
 			return ethclient.Dial(env.IPC())
 		},
