@@ -75,7 +75,9 @@ func (env *Environment) GenesisPath() string { return env.paths.genesisJSON() }
 
 func (env *Environment) ValidatorDatadir(idx int) string { return env.paths.validatorDatadir(idx) }
 
-func (env *Environment) IPC() string { return env.paths.validatorIPC() }
+func (env *Environment) ValidatorIPC(idx int) string { return env.paths.validatorIPC(idx) }
+
+func (env *Environment) IPC() string { return env.paths.validatorIPC(0) }
 
 func (env *Environment) SaveGenesis(genesis *core.Genesis) error {
 	env.ensureWorkdir()
