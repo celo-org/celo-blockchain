@@ -103,7 +103,7 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 		Mnemonic:           "miss fire behind decide egg buyer honey seven advance uniform profit renew",
 		InitialValidators:  1,
 		ValidatorsPerGroup: 1,
-		DeveloperAccounts:  1000,
+		DeveloperAccounts:  10000,
 		ChainID:            big.NewInt(9099000),
 		LoadTestTPS:        50,
 	}
