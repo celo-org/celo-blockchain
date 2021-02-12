@@ -445,7 +445,7 @@ func loadBot(ctx *cli.Context) error {
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: env.Config.LoadTestTPS,
 		ClientFactory: func() (*ethclient.Client, error) {
-			return ethclient.Dial("http://localhost:8545")
+			return ethclient.Dial(env.IPC())
 		},
 	})
 }
