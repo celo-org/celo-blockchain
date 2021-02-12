@@ -389,3 +389,8 @@ func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
 func (e *MockEngine) Close() error {
 	return nil
 }
+
+// EpochSize size of the epoch
+func (e *MockEngine) EpochSize() uint64 {
+	return 100
+}
