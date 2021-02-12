@@ -359,6 +359,7 @@ func TestReorgShortHeaders(t *testing.T) { testReorgShort(t, false) }
 func TestReorgShortBlocks(t *testing.T)  { testReorgShort(t, true) }
 
 func testReorgShort(t *testing.T, full bool) {
+	t.Skip("Disabled reorgs")
 	// Create a long easy chain vs. a short heavy one. Due to difficulty adjustment
 	// we need a fairly long chain of blocks with different difficulties for a short
 	// one to become heavyer than a long one. The 96 is an empirical value.
@@ -374,6 +375,7 @@ func testReorgShort(t *testing.T, full bool) {
 }
 
 func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
+	t.Skip("Disabled reorgs")
 	// Create a pristine chain and database
 	db, blockchain, err := newCanonical(mockEngine.NewFaker(), 0, full)
 	if err != nil {
@@ -811,6 +813,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 
 // Tests that chain reorganisations handle transaction removals and reinsertions.
 func TestChainTxReorgs(t *testing.T) {
+	t.Skip("Reorg disabled")
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		key2, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
@@ -925,6 +928,7 @@ func TestChainTxReorgs(t *testing.T) {
 }
 
 func TestLogReorgs(t *testing.T) {
+	t.Skip("Disabled reorgs")
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
@@ -1091,6 +1095,7 @@ func TestLogRebirth(t *testing.T) {
 }
 
 func TestSideLogRebirth(t *testing.T) {
+	t.Skip("Disable reorgs and side chains")
 	var (
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
@@ -1176,6 +1181,7 @@ func TestSideLogRebirth(t *testing.T) {
 }
 
 func TestReorgSideEvent(t *testing.T) {
+	t.Skip("Disable reorgs and side chains")
 	var (
 		db      = rawdb.NewMemoryDatabase()
 		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -1481,6 +1487,7 @@ func TestEIP161AccountRemoval(t *testing.T) {
 //
 // https://github.com/ethereum/go-ethereum/pull/15941
 func TestBlockchainHeaderchainReorgConsistency(t *testing.T) {
+	t.Skip("Reorg disabled")
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()
 
@@ -1526,6 +1533,7 @@ func TestBlockchainHeaderchainReorgConsistency(t *testing.T) {
 // Tests that importing small side forks doesn't leave junk in the trie database
 // cache (which would eventually cause memory issues).
 func TestTrieForkGC(t *testing.T) {
+	t.Skip("Sidechain disabled")
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()
 
@@ -1572,6 +1580,7 @@ func TestTrieForkGC(t *testing.T) {
 // Tests that doing large reorgs works even if the state associated with the
 // forking point is not available any more.
 func TestLargeReorgTrieGC(t *testing.T) {
+	t.Skip("Disabled reorgs")
 	// Generate the original common chain segment and the two competing forks
 	engine := mockEngine.NewFaker()
 
@@ -1745,6 +1754,7 @@ func TestIncompleteAncientReceiptChainInsertion(t *testing.T) {
 //  - https://github.com/ethereum/go-ethereum/issues/18977
 //  - https://github.com/ethereum/go-ethereum/pull/18988
 func TestLowDiffLongChain(t *testing.T) {
+	t.Skip("Disabled reorgs")
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()
 	db := rawdb.NewMemoryDatabase()
@@ -1864,6 +1874,7 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 // [ Cn, Cn+1, Cc, Sn+3 ... Sm]
 //   ^    ^    ^  pruned
 func TestPrunedImportSide(t *testing.T) {
+	t.Skip("Sidechain disabled")
 	//glogger := log.NewGlogHandler(log.StreamHandler(os.Stdout, log.TerminalFormat(false)))
 	//glogger.Verbosity(3)
 	//log.Root().SetHandler(log.Handler(glogger))
@@ -1977,18 +1988,23 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	}
 	asserter(t, blocks2[len(blocks2)-1])
 
+	fmt.Printf("Current hash antes: %s\n", chain.CurrentBlock().Hash().String())
+
 	// Import a heavier shorter but higher total difficulty chain with some known data as prefix.
-	if err := inserter(append(blocks, blocks3...), append(receipts, receipts3...)); err != nil {
-		t.Fatalf("failed to insert chain data: %v", err)
+	if err := inserter(append(blocks, blocks3...), append(receipts, receipts3...)); err == nil {
+		t.Fatalf("Sidechain insertion should fail")
 	}
-	asserter(t, blocks3[len(blocks3)-1])
+
+	// blocks2 and not block3, because we disabled the reorgs
+	asserter(t, blocks2[len(blocks2)-1])
 
 	// Import a longer but lower total difficulty chain with some known data as prefix.
 	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
 		t.Fatalf("failed to insert chain data: %v", err)
 	}
-	// The head shouldn't change.
-	asserter(t, blocks3[len(blocks3)-1])
+
+	// The head shouldn't change. (again, without reorgs)
+	asserter(t, blocks2[len(blocks2)-1])
 
 	// Rollback the heavier chain and re-insert the longer chain again
 	chain.SetHead(rollback - 1)
@@ -1996,6 +2012,119 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 		t.Fatalf("failed to insert chain data: %v", err)
 	}
 	asserter(t, blocks2[len(blocks2)-1])
+}
+
+func TestInsertDifferentHeadersAfterReset(t *testing.T) {
+	testInsertDifferentChainDataAfterReset(t, "headers", 32, 64)
+}
+func TestInsertDifferentReceiptChainAfterReset(t *testing.T) {
+	testInsertDifferentChainDataAfterReset(t, "receipts", 32, 64)
+}
+func TestInsertDifferentBlocksAfterReset(t *testing.T) {
+	testInsertDifferentChainDataAfterReset(t, "blocks", 32, 64)
+}
+
+func testInsertDifferentChainDataAfterReset(t *testing.T, typ string, setHeadBlock int, chainsBlocksNumber int) {
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+
+	engine := mockEngine.NewFaker()
+
+	db := rawdb.NewMemoryDatabase()
+	genesis := new(Genesis).MustCommit(db)
+
+	originalBlocks, originalReceipts := GenerateChain(params.TestChainConfig, genesis, engine, db, chainsBlocksNumber, func(i int, b *BlockGen) {
+		b.SetCoinbase(common.Address{1})
+	})
+	// Total difficulty is higher to create a different chain.
+	newerBlocks, newerReceipts := GenerateChain(params.TestChainConfig, originalBlocks[setHeadBlock], engine, db, (chainsBlocksNumber - (setHeadBlock + 1)), func(i int, b *BlockGen) {
+		b.SetCoinbase(common.Address{1})
+		b.OffsetTime(-9)
+	})
+	// Import the shared chain and the original canonical one
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("failed to create temp freezer dir: %v", err)
+	}
+	defer os.Remove(dir)
+	chaindb, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), dir, "")
+	if err != nil {
+		t.Fatalf("failed to create temp freezer db: %v", err)
+	}
+	new(Genesis).MustCommit(chaindb)
+	defer os.RemoveAll(dir)
+
+	chain, err := NewBlockChain(chaindb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
+	if err != nil {
+		t.Fatalf("failed to create tester chain: %v", err)
+	}
+
+	var (
+		inserter func(blocks []*types.Block, receipts []types.Receipts) error
+		asserter func(t *testing.T, block *types.Block)
+	)
+	if typ == "headers" {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			headers := make([]*types.Header, 0, len(blocks))
+			for _, block := range blocks {
+				headers = append(headers, block.Header())
+			}
+			_, err := chain.InsertHeaderChain(headers, 1, true)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentHeader().Hash() != block.Hash() {
+				t.Fatalf("current head header mismatch, have %v, want %v", chain.CurrentHeader().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	} else if typ == "receipts" {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			headers := make([]*types.Header, 0, len(blocks))
+			for _, block := range blocks {
+				headers = append(headers, block.Header())
+			}
+			_, err := chain.InsertHeaderChain(headers, 1, true)
+			if err != nil {
+				return err
+			}
+			_, err = chain.InsertReceiptChain(blocks, receipts, 0)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentFastBlock().Hash() != block.Hash() {
+				t.Fatalf("current head fast block mismatch, have %v, want %v", chain.CurrentFastBlock().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	} else {
+		inserter = func(blocks []*types.Block, receipts []types.Receipts) error {
+			_, err := chain.InsertChain(blocks)
+			return err
+		}
+		asserter = func(t *testing.T, block *types.Block) {
+			if chain.CurrentBlock().Hash() != block.Hash() {
+				t.Fatalf("current head block mismatch, have %v, want %v", chain.CurrentBlock().Hash().Hex(), block.Hash().Hex())
+			}
+		}
+	}
+
+	if err := inserter(originalBlocks, originalReceipts); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	// Import a long canonical chain with some known data as prefix.
+	rollback := originalBlocks[setHeadBlock].NumberU64()
+	chain.SetHead(rollback)
+
+	// Import a heavier shorter but higher total difficulty chain with some known data as prefix.
+	auxArray := append([]*types.Block{}, originalBlocks[:setHeadBlock+1]...)
+	if err := inserter(append(auxArray, newerBlocks...), append(originalReceipts[:(setHeadBlock+1)], newerReceipts...)); err != nil {
+		t.Fatalf("failed to insert chain data: %v", err)
+	}
+	asserter(t, newerBlocks[len(newerBlocks)-1])
+
+	// Import a heavier shorter but higher total difficulty chain with some known data as prefix.
+	if err := inserter(originalBlocks, originalReceipts); err == nil {
+		t.Fatalf("should failed, adding a side chain")
+	}
+	asserter(t, newerBlocks[len(newerBlocks)-1])
 }
 
 // Benchmarks large blocks with value transfers to non-existing accounts

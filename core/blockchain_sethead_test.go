@@ -1365,16 +1365,6 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
-	// If sidechain blocks are needed, make a light chain and import it
-	var sideblocks types.Blocks
-	if tt.sidechainBlocks > 0 {
-		sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
-			b.SetCoinbase(common.Address{0x01})
-		})
-		if _, err := chain.InsertChain(sideblocks); err != nil {
-			t.Fatalf("Failed to import side chain: %v", err)
-		}
-	}
 	canonblocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.canonicalBlocks, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0x02})
 		// b.SetDifficulty(big.NewInt(1000000))
@@ -1382,19 +1372,32 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
+	// Notice: Sidechains and reorgs are disabled
+	// If sidechain blocks are needed, make a light chain and import it
+	// var sideblocks types.Blocks
+	// if tt.sidechainBlocks > 0 {
+	// 	sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
+	// 		b.SetCoinbase(common.Address{0x01})
+	// 	})
+	// 	if _, err := chain.InsertChain(sideblocks); err != nil {
+	// 		t.Fatalf("Failed to import side chain: %v", err)
+	// 	}
+	// }
 	if tt.commitBlock > 0 {
 		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
 	}
 	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
+
 	// Manually dereference anything not committed to not have to work with 128+ tries
-	for _, block := range sideblocks {
-		chain.stateCache.TrieDB().Dereference(block.Root())
-	}
 	for _, block := range canonblocks {
 		chain.stateCache.TrieDB().Dereference(block.Root())
 	}
+	// for _, block := range sideblocks {
+	// 	chain.stateCache.TrieDB().Dereference(block.Root())
+	// }
+
 	// Force run a freeze cycle
 	type freezer interface {
 		Freeze(threshold uint64)
@@ -1411,9 +1414,9 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 
 	// Iterate over all the remaining blocks and ensure there are no gaps
 	verifyNoGaps(t, chain, true, canonblocks)
-	verifyNoGaps(t, chain, false, sideblocks)
+	// verifyNoGaps(t, chain, false, sideblocks)
 	verifyCutoff(t, chain, true, canonblocks, tt.expCanonicalBlocks)
-	verifyCutoff(t, chain, false, sideblocks, tt.expSidechainBlocks)
+	// verifyCutoff(t, chain, false, sideblocks, tt.expSidechainBlocks)
 
 	if head := chain.CurrentHeader(); head.Number.Uint64() != tt.expHeadHeader {
 		t.Errorf("Head header mismatch: have %d, want %d", head.Number, tt.expHeadHeader)

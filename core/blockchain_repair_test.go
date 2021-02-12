@@ -21,7 +21,6 @@
 package core
 
 import (
-	//	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -29,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -1175,8 +1173,8 @@ func TestLongNewerForkedFastSyncingDeepRepair(t *testing.T) {
 
 func testRepair(t *testing.T, tt *rewindTest) {
 	// It's hard to follow the test case, visualize the input
-	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
-	//fmt.Println(tt.dump(true))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	// fmt.Println(tt.Dump(true))
 
 	// Create a temporary persistent database
 	datadir, err := ioutil.TempDir("", "")
@@ -1200,16 +1198,7 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
-	// If sidechain blocks are needed, make a light chain and import it
-	var sideblocks types.Blocks
-	if tt.sidechainBlocks > 0 {
-		sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
-			b.SetCoinbase(common.Address{0x01})
-		})
-		if _, err := chain.InsertChain(sideblocks); err != nil {
-			t.Fatalf("Failed to import side chain: %v", err)
-		}
-	}
+
 	canonblocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.canonicalBlocks, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0x02})
 		// b.SetDifficulty(big.NewInt(1000000))
@@ -1217,6 +1206,17 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
+	// Notice: Sidechains and reorgs are disabled
+	// If sidechain blocks are needed, make a light chain and import it
+	// var sideblocks types.Blocks
+	// if tt.sidechainBlocks > 0 {
+	// 	sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
+	// 		b.SetCoinbase(common.Address{0x01})
+	// 	})
+	// 	if _, err := chain.InsertChain(sideblocks); err != nil {
+	// 		t.Fatalf("Failed to import side chain: %v", err)
+	// 	}
+	// }
 	if tt.commitBlock > 0 {
 		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
 	}
@@ -1251,9 +1251,9 @@ func testRepair(t *testing.T, tt *rewindTest) {
 
 	// Iterate over all the remaining blocks and ensure there are no gaps
 	verifyNoGaps(t, chain, true, canonblocks)
-	verifyNoGaps(t, chain, false, sideblocks)
+	// verifyNoGaps(t, chain, false, sideblocks)
 	verifyCutoff(t, chain, true, canonblocks, tt.expCanonicalBlocks)
-	verifyCutoff(t, chain, false, sideblocks, tt.expSidechainBlocks)
+	// verifyCutoff(t, chain, false, sideblocks, tt.expSidechainBlocks)
 
 	if head := chain.CurrentHeader(); head.Number.Uint64() != tt.expHeadHeader {
 		t.Errorf("Head header mismatch: have %d, want %d", head.Number, tt.expHeadHeader)
