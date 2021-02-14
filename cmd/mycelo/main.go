@@ -152,21 +152,21 @@ var runValidatorsCommand = cli.Command{
 	Flags:     []cli.Flag{gethPathFlag},
 }
 
-var initNodesCommand = cli.Command{
-	Name:      "node-init",
-	Usage:     "Setup all tx nodes",
-	ArgsUsage: "[envdir]",
-	Action:    nodeInit,
-	Flags:     []cli.Flag{gethPathFlag},
-}
+// var initNodesCommand = cli.Command{
+// 	Name:      "node-init",
+// 	Usage:     "Setup all tx nodes",
+// 	ArgsUsage: "[envdir]",
+// 	Action:    nodeInit,
+// 	Flags:     []cli.Flag{gethPathFlag},
+// }
 
-var runNodesCommand = cli.Command{
-	Name:      "run",
-	Usage:     "Runs the tx nodes",
-	ArgsUsage: "[envdir]",
-	Action:    nodeRun,
-	Flags:     []cli.Flag{gethPathFlag},
-}
+// var runNodesCommand = cli.Command{
+// 	Name:      "run",
+// 	Usage:     "Runs the tx nodes",
+// 	ArgsUsage: "[envdir]",
+// 	Action:    nodeRun,
+// 	Flags:     []cli.Flag{gethPathFlag},
+// }
 
 var loadBotCommand = cli.Command{
 	Name:      "load-bot",
@@ -248,6 +248,10 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 
 	// Genesis config
 	genesisConfig, err := template.createGenesisConfig(env)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Overrides
 	if ctx.IsSet("epoch") {
 		genesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
@@ -379,42 +383,42 @@ func validatorRun(ctx *cli.Context) error {
 	return group.Wait()
 }
 
-// TODO: Make this run a full node, not a validator node
-func nodeInit(ctx *cli.Context) error {
-	env, err := readEnv(ctx)
-	if err != nil {
-		return err
-	}
+// // TODO: Make this run a full node, not a validator node
+// func nodeInit(ctx *cli.Context) error {
+// 	env, err := readEnv(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	gethPath, err := readGethPath(ctx)
-	if err != nil {
-		return err
-	}
+// 	gethPath, err := readGethPath(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	cluster := cluster.New(env, gethPath)
-	return cluster.Init()
-}
+// 	cluster := cluster.New(env, gethPath)
+// 	return cluster.Init()
+// }
 
-// TODO: Make this run a full node, not a validator node
-func nodeRun(ctx *cli.Context) error {
-	env, err := readEnv(ctx)
-	if err != nil {
-		return err
-	}
+// // TODO: Make this run a full node, not a validator node
+// func nodeRun(ctx *cli.Context) error {
+// 	env, err := readEnv(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	gethPath, err := readGethPath(ctx)
-	if err != nil {
-		return err
-	}
+// 	gethPath, err := readGethPath(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	cluster := cluster.New(env, gethPath)
+// 	cluster := cluster.New(env, gethPath)
 
-	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
+// 	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
 
-	group.Go(func() error { return cluster.Run(runCtx) })
+// 	group.Go(func() error { return cluster.Run(runCtx) })
 
-	return group.Wait()
-}
+// 	return group.Wait()
+// }
 
 func loadBot(ctx *cli.Context) error {
 	env, err := readEnv(ctx)

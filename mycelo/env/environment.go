@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/mycelo/internal/utils"
 )
 
-// Environment represents a mycelo environmet
+// Environment represents a mycelo environment
 // which is the home to any mycelo operation within a computer
 type Environment struct {
 	paths  paths

@@ -2,7 +2,6 @@ package env
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -22,8 +21,9 @@ func TestConfigMarhalling(t *testing.T) {
 	raw, err := json.Marshal(cfg)
 	Ω(err).ShouldNot(HaveOccurred())
 
-	raw2, err := json.MarshalIndent(cfg, " ", " ")
-	fmt.Println(string(raw2))
+	// raw2, err := json.MarshalIndent(cfg, " ", " ")
+	// Ω(err).ShouldNot(HaveOccurred())
+	// fmt.Println(string(raw2))
 
 	var resultCfg Config
 	err = json.Unmarshal(raw, &resultCfg)

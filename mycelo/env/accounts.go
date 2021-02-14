@@ -42,7 +42,7 @@ type Account struct {
 // AccountType represents the different account types for the generator
 type AccountType int
 
-// The differente account types for the generator
+// The difference account types for the generator
 const (
 	Validator AccountType = iota
 	Developer             // load test

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/mycelo/env"
 	"github.com/ethereum/go-ethereum/mycelo/internal/console"
 	"golang.org/x/sync/errgroup"
@@ -21,9 +19,6 @@ type Cluster struct {
 	nodes []*Node
 }
 
-var scryptN = keystore.LightScryptN
-var scryptP = keystore.LightScryptP
-
 // New creates a new cluster instance
 func New(env *env.Environment, gethPath string) *Cluster {
 	return &Cluster{
@@ -32,7 +27,7 @@ func New(env *env.Environment, gethPath string) *Cluster {
 	}
 }
 
-// Init will initalize the nodes
+// Init will initialize the nodes
 // This implies running `geth init` but also
 // configuring static nodes and node accounts
 func (cl *Cluster) Init() error {
@@ -109,15 +104,4 @@ func (cl *Cluster) Run(ctx context.Context) error {
 		group.Go(func() error { return node.Run(ctx) })
 	}
 	return group.Wait()
-}
-
-func toSerializedBlsPublicKey(bs []byte) blscrypto.SerializedPublicKey {
-	if len(bs) != blscrypto.PUBLICKEYBYTES {
-		log.Fatal("Invalid bls key size")
-	}
-	key := blscrypto.SerializedPublicKey{}
-	for i, b := range bs {
-		key[i] = b
-	}
-	return key
 }

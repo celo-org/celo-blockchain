@@ -167,7 +167,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
 	}
-	cmd := exec.Command(n.GethPath, args...)
+	cmd := exec.Command(n.GethPath, args...) // #nosec G204
 
 	log.Println(n.GethPath, strings.Join(args, " "))
 
@@ -207,6 +207,6 @@ func (n *Node) staticNodesFile() string { return path.Join(n.Datadir, "/celo/sta
 
 func (n *Node) runSync(args ...string) ([]byte, error) {
 	args = append([]string{"--datadir", n.Datadir}, args...)
-	cmd := exec.Command(n.GethPath, args...)
+	cmd := exec.Command(n.GethPath, args...) // #nosec G204
 	return cmd.CombinedOutput()
 }

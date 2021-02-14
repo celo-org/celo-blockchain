@@ -167,7 +167,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		return nil, err
 	}
 
-	dump := (map[common.Address]state.DumpAccount)(ctx.statedb.RawDump(false, false, true).Accounts)
+	dump := ctx.statedb.RawDump(false, false, true).Accounts
 	genesisAlloc := make(map[common.Address]core.GenesisAccount)
 	for acc, dumpAcc := range dump {
 		var account core.GenesisAccount
@@ -690,12 +690,6 @@ func (ctx *deployContext) deployStableToken() error {
 	}
 
 	return nil
-}
-
-func (ctx *deployContext) getAddressFromRegistry(name string) (common.Address, error) {
-	var result common.Address
-	_, err := ctx.contract("Registry").Query(&result, "getAddressForString", name)
-	return result, err
 }
 
 func (ctx *deployContext) contract(contractName string) *contract.EVMBackend {
