@@ -29,6 +29,7 @@ type Config struct {
 	Amount                *big.Int
 	TransactionsPerSecond int
 	Clients               []*ethclient.Client
+	Verbose               bool
 }
 
 // Start will start loads bots
@@ -46,7 +47,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	startDelay := delay / time.Duration(len(cfg.Accounts))
 
 	for i, acc := range cfg.Accounts {
-		// Spread out client load accross different diallers
+		// Spread out client load across different diallers
 		client := cfg.Clients[i%len(cfg.Clients)]
 
 		err := waitFor(ctx, startDelay)
@@ -55,7 +56,7 @@ func Start(ctx context.Context, cfg *Config) error {
 		}
 		acc := acc
 		group.Go(func() error {
-			return runBot(ctx, acc, delay, client, nextTransfer)
+			return runBot(ctx, acc, cfg.Verbose, delay, client, nextTransfer)
 		})
 
 	}
@@ -63,7 +64,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	return group.Wait()
 }
 
-func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
+func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustAddressFor("StableToken"), *abi, client)
 
@@ -83,9 +84,11 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 			}
 			return fmt.Errorf("Error sending transaction: %w", err)
 		}
-		// fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
+		if verbose {
+			fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
+			printJSON(tx)
+		}
 
-		// printJSON(tx)
 		_, err = tx.WaitMined(ctx)
 		if err != nil {
 			if err != context.Canceled {

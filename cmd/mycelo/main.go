@@ -119,6 +119,11 @@ var loadTestTPSFlag = cli.IntFlag{
 	Usage: "Transactions per second to target in the load test",
 }
 
+var verboseFlag = cli.BoolFlag{
+	Name:  "verbose",
+	Usage: "Show extra output",
+}
+
 var createGenesisCommand = cli.Command{
 	Name:      "genesis",
 	Usage:     "Creates genesis.json from a template and overrides",
@@ -182,7 +187,7 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag},
+	Flags:     []cli.Flag{loadTestTPSFlag, verboseFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -456,5 +461,6 @@ func loadBot(ctx *cli.Context) error {
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: env.Config.LoadTestTPS,
 		Clients:               []*ethclient.Client{client},
+		Verbose:               ctx.Bool("verbose"),
 	})
 }
