@@ -87,10 +87,13 @@ func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, clien
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx
 
+	stableTokenAddress := common.HexToAddress("0xd008")
+	transactor.FeeCurrency = &stableTokenAddress
+
 	for {
 		txSentTime := time.Now()
 		recipient, value := nextTransfer()
-		tx, err := stableToken.TxObj(transactor, "transfer", recipient, value).Send()
+		tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 		if err != nil {
 			if err != context.Canceled {
 				fmt.Printf("Error sending transaction: %v\n", err)
