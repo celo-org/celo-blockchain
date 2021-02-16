@@ -447,13 +447,14 @@ func loadBot(ctx *cli.Context) error {
 	runCtx := context.Background()
 
 	// TODO: Pull all of these values from env.json
+	client, err := ethclient.Dial(env.IPC())
+	if err != nil {
+		return err
+	}
 	return loadbot.Start(runCtx, &loadbot.Config{
 		Accounts:              env.DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: env.Config.LoadTestTPS,
-		ClientCount:           1,
-		ClientFactory: func() (*ethclient.Client, error) {
-			return ethclient.Dial(env.IPC())
-		},
+		Clients:               []*ethclient.Client{client},
 	})
 }

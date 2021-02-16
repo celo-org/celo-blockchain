@@ -17,8 +17,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const clientCap = 100
-
 // Range represents an inclusive big.Int range
 type Range struct {
 	From *big.Int
@@ -30,8 +28,7 @@ type Config struct {
 	Accounts              []env.Account
 	Amount                *big.Int
 	TransactionsPerSecond int
-	ClientCount           int
-	ClientFactory         func() (*ethclient.Client, error)
+	Clients               []*ethclient.Client
 }
 
 // Start will start loads bots
@@ -43,20 +40,6 @@ func Start(ctx context.Context, cfg *Config) error {
 		return cfg.Accounts[idx].Address, cfg.Amount
 	}
 
-	// Use no more than clientCap clients
-	clientCount := cfg.ClientCount
-	if clientCount > clientCap {
-		clientCount = clientCap
-	}
-	clients := make([]bind.ContractBackend, 0, clientCount)
-	for i := 0; i < clientCount; i++ {
-		client, err := cfg.ClientFactory()
-		if err != nil {
-			return err
-		}
-		clients = append(clients, client)
-	}
-
 	// developer accounts / TPS = duration in seconds.
 	// Need the fudger factor to get up a consistent TPS at the target.
 	delay := time.Duration(int(float64(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond)*0.95)) * time.Millisecond
@@ -64,7 +47,7 @@ func Start(ctx context.Context, cfg *Config) error {
 
 	for i, acc := range cfg.Accounts {
 		// Spread out client load accross different diallers
-		client := clients[i%clientCount]
+		client := cfg.Clients[i%len(cfg.Clients)]
 
 		err := waitFor(ctx, startDelay)
 		if err != nil {
