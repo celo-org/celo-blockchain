@@ -57,7 +57,7 @@ func Start(ctx context.Context, cfg *Config) error {
 
 func runBot(ctx context.Context, acc env.Account, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
-	stableToken := bind.NewBoundContract(env.MustAddressFor("StableToken"), *abi, client)
+	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx
