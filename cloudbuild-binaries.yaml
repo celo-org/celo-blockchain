@@ -21,7 +21,7 @@ steps:
     - 'docker run --rm
         -v $(pwd)/build/bin:/build
         -v $(pwd)/build/archives:/archives
-        -v $(pwd):/go/src/github.com/ethereum/go-ethereum
+        -v $(pwd):/go/src/github.com/celo-org/celo-blockchain
         --entrypoint /bin/sh
         --env BUILD_TARGETS=$_BUILD_TARGETS
         --env TAG_NAME=$TAG_NAME
@@ -40,7 +40,7 @@ steps:
     - 'docker run --rm
         -v $(pwd)/build/bin:/build
         -v $(pwd)/build/archives:/archives
-        -v $(pwd):/go/src/github.com/ethereum/go-ethereum
+        -v $(pwd):/go/src/github.com/celo-org/celo-blockchain
         --entrypoint /bin/sh
         --env BUILD_TARGETS=$_BUILD_TARGETS
         --env TAG_NAME=$TAG_NAME

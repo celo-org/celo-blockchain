@@ -17,7 +17,7 @@
 package vm
 
 import (
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 type (

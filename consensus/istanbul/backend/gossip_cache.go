@@ -19,8 +19,8 @@ package backend
 import (
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
 func (sb *Backend) markMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) {

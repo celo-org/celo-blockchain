@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/celo-org/celo-blockchain/metrics"
 )
 
 const float64EqualityThreshold = 1e-9

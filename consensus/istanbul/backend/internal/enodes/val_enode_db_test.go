@@ -3,10 +3,10 @@ package enodes
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -91,8 +91,8 @@ func TestPruneEntries(t *testing.T) {
 	}
 
 	batch := []*istanbul.AddressEntry{
-		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+		{Address: addressA, Node: nodeA, Version: 2},
+		{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)
@@ -141,8 +141,8 @@ func TestTableToString(t *testing.T) {
 	}
 
 	batch := []*istanbul.AddressEntry{
-		&istanbul.AddressEntry{Address: addressA, Node: nodeA, Version: 2},
-		&istanbul.AddressEntry{Address: addressB, Node: nodeB, Version: 2},
+		{Address: addressA, Node: nodeA, Version: 2},
+		{Address: addressB, Node: nodeB, Version: 2},
 	}
 
 	vet.UpsertVersionAndEnode(batch)

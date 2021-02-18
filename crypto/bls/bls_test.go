@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	//nolint:goimports
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-bls-go/bls"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func TestECDSAToBLS(t *testing.T) {

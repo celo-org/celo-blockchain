@@ -121,7 +121,7 @@ We create the following standalone bundles:
 -   64bit archives (`.tar.gz`) on macOS
 -   32bit and 64bit archives (`.zip`) and installers (`.exe`) on Windows
 
-We provide archives containing only Geth, and archives containing Geth along with the developer tools from our repository (`abigen`, `bootnode`, `disasm`, `evm`, `rlpdump`). Read our [`README`](https://github.com/ethereum/go-ethereum#executables) for more information about these executables.
+We provide archives containing only Geth, and archives containing Geth along with the developer tools from our repository (`abigen`, `bootnode`, `disasm`, `evm`, `rlpdump`). Read our [`README`](https://github.com/celo-org/celo-blockchain#executables) for more information about these executables.
 
 Download these bundles from the [Go Ethereum Downloads](https://geth.ethereum.org/downloads) page.
 
@@ -166,16 +166,16 @@ Go Ethereum is written in [Go](https://golang.org), so to build from source code
 With Go installed, you can download the project into you `GOPATH` workspace via:
 
 ```shell
-go get -d github.com/ethereum/go-ethereum
+go get -d github.com/celo-org/celo-blockchain
 ```
 
 The above command does not build any executables. To do that you can either build one specifically:
 
 ```shell
-go install github.com/ethereum/go-ethereum/cmd/geth
+go install github.com/celo-org/celo-blockchain/cmd/geth
 ```
 
-Or you can build the entire project and install `geth` along with all developer tools by running `go install ./...` in the `ethereum/go-ethereum` repository root inside your `GOPATH` workspace.
+Or you can build the entire project and install `geth` along with all developer tools by running `go install ./...` in the `celo-org/celo-blockchain` repository root inside your `GOPATH` workspace.
 
 If you are using macOS and see errors related to macOS header files, install XCode Command Line Tools with `xcode-select --install`, and try again.
 
@@ -197,7 +197,7 @@ The following steps don't need Administrator privileges. First create and set up
 
 ```shell
 C:\Users\xxx> mkdir src\github.com\ethereum
-C:\Users\xxx> git clone https://github.com/ethereum/go-ethereum src\github.com\ethereum\go-ethereum
+C:\Users\xxx> git clone https://github.com/celo-org/celo-blockchain src\github.com\ethereum\go-ethereum
 C:\Users\xxx> cd src\github.com\ethereum\go-ethereum
 C:\Users\xxx> go get -u -v golang.org/x/net/context
 C:\Users\xxx\src\github.com\ethereum\go-ethereum> go install -v ./cmd/...
@@ -210,7 +210,7 @@ Ports are slightly more up to date (1.8.14 at the time of writing)
 Clone the repository to a directory of your choosing:
 
 ```shell
-git clone https://github.com/ethereum/go-ethereum
+git clone https://github.com/celo-org/celo-blockchain
 ```
 
 Building `geth` requires the Go compiler:
@@ -240,7 +240,7 @@ You can now run `build/bin/geth` to start your node.
 If you do not want to set up Go workspaces on your machine, but only build `geth` and forget about the build process, you can clone our repository and use the `make` command, which configures everything for a temporary build and cleans up afterwards. This method of building only works on UNIX-like operating systems, and you still need Go installed.
 
 ```shell
-git clone https://github.com/ethereum/go-ethereum.git
+git clone https://github.com/celo-org/celo-blockchain.git
 cd go-ethereum
 make geth
 ```

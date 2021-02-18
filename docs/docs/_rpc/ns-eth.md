@@ -140,7 +140,7 @@ The above *simple example* showed how to call a method already exposed by an on-
 smart contract. What if we want to access some data not exposed by it?
 
 We can gut out the
-[original](https://github.com/ethereum/go-ethereum/blob/master/contracts/checkpointoracle/contract/oracle.sol)
+[original](https://github.com/celo-org/celo-blockchain/blob/master/contracts/checkpointoracle/contract/oracle.sol)
 checkpoint oracle contract with one that retains the same fields (to retain the same
 storage layout), but one that includes a different method set:
 

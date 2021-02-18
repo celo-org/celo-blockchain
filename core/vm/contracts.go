@@ -24,20 +24,20 @@ import (
 	"math/big"
 
 	//nolint:goimports
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/crypto/blake2b"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/crypto/bls12377"
+	"github.com/celo-org/celo-blockchain/crypto/bls12381"
+	"github.com/celo-org/celo-blockchain/crypto/bn256"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-bls-go/bls"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/blake2b"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/crypto/bls12377"
-	"github.com/ethereum/go-ethereum/crypto/bls12381"
-	"github.com/ethereum/go-ethereum/crypto/bn256"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 	ed25519 "github.com/hdevalence/ed25519consensus"
 
 	//lint:ignore SA1019 Needed for precompile
@@ -974,7 +974,7 @@ func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas ui
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
@@ -1025,7 +1025,7 @@ func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	// Ensure index, which is guaranteed to be non-negative, is valid.
 	if index.Cmp(big.NewInt(int64(len(validators)))) >= 0 {
@@ -1084,7 +1084,7 @@ func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, ga
 	}
 
 	// Note: Passing empty hash as here as it is an extra expense and the hash is not actually used.
-	validators := evm.Context.Engine.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
+	validators := evm.Context.GetValidators(new(big.Int).Sub(blockNumber, common.Big1), common.Hash{})
 
 	numberValidators := big.NewInt(int64(len(validators))).Bytes()
 	numberValidatorsBytes := common.LeftPadBytes(numberValidators[:], 32)
@@ -1102,7 +1102,7 @@ func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint6
 	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
-	epochSize := new(big.Int).SetUint64(evm.Context.Engine.EpochSize()).Bytes()
+	epochSize := new(big.Int).SetUint64(evm.Context.EpochSize).Bytes()
 	epochSizeBytes := common.LeftPadBytes(epochSize[:], 32)
 
 	return epochSizeBytes, gas, nil
@@ -1183,7 +1183,7 @@ func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM,
 	}
 
 	// Ensure the request is for a sufficiently recent block to limit state expansion.
-	historyLimit := new(big.Int).SetUint64(evm.Context.Engine.EpochSize() * 4)
+	historyLimit := new(big.Int).SetUint64(evm.Context.EpochSize * 4)
 	if blockNumber.Cmp(new(big.Int).Sub(evm.Context.BlockNumber, historyLimit)) <= 0 {
 		return nil, gas, ErrBlockNumberOutOfBounds
 	}

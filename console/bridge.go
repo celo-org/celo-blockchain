@@ -24,12 +24,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/accounts/scwallet"
+	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/internal/jsre"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/dop251/goja"
-	"github.com/ethereum/go-ethereum/accounts/scwallet"
-	"github.com/ethereum/go-ethereum/accounts/usbwallet"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/internal/jsre"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // bridge is a collection of JavaScript utility methods to bride the .js runtime
