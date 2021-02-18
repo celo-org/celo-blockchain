@@ -28,7 +28,7 @@ func NewTruffleReader(buildPath string) TruffleReader {
 
 	librariesMapping := make(map[string]common.Address, len(env.Libraries()))
 	for _, name := range env.Libraries() {
-		librariesMapping[name] = env.MustAddressFor(name)
+		librariesMapping[name] = env.MustLibraryAddressFor(name)
 	}
 
 	return &truffleReader{

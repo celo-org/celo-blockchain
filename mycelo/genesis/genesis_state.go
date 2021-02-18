@@ -202,7 +202,7 @@ func (ctx *deployContext) fundAdminAccount() {
 func (ctx *deployContext) deployLibraries() error {
 	for _, name := range env.Libraries() {
 		bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
-		ctx.statedb.SetCode(env.MustAddressFor(name), bytecode)
+		ctx.statedb.SetCode(env.MustLibraryAddressFor(name), bytecode)
 	}
 	return nil
 }
@@ -211,7 +211,7 @@ func (ctx *deployContext) deployLibraries() error {
 // It will deploy the proxy contract, the impl contract, and initialize both
 func (ctx *deployContext) deployProxiedContract(name string, initialize func(contract *contract.EVMBackend) error) error {
 	proxyAddress := env.MustProxyAddressFor(name)
-	implAddress := env.MustAddressFor(name)
+	implAddress := env.MustImplAddressFor(name)
 	bytecode := ctx.truffleReader.MustReadDeployedBytecodeFor(name)
 
 	logger := ctx.logger.New("contract", name)
