@@ -156,6 +156,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--syncmode", "full",
 		"--mine",
 		"--allow-insecure-unlock",
+		"--nodiscover",
 		"--nat", "extip:127.0.0.1",
 		"--port", strconv.FormatInt(n.NodePort(), 10),
 		"--rpc",
@@ -192,8 +193,8 @@ func (n *Node) Run(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		if err := cmd.Process.Kill(); err != nil {
-			log.Fatal("Failed to kill geth cmd")
+		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			log.Fatal("Failed to send interrupt signal to geth cmd")
 		}
 	}()
 
