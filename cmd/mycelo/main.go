@@ -149,7 +149,10 @@ var runValidatorsCommand = cli.Command{
 	Usage:     "Runs the testnet",
 	ArgsUsage: "[envdir]",
 	Action:    validatorRun,
-	Flags:     []cli.Flag{gethPathFlag},
+	Flags: []cli.Flag{
+		gethPathFlag,
+		cli.BoolFlag{Name: "init", Usage: "Init nodes before running them"},
+	},
 }
 
 // var initNodesCommand = cli.Command{
@@ -376,6 +379,12 @@ func validatorRun(ctx *cli.Context) error {
 	}
 
 	cluster := cluster.New(env, gethPath)
+
+	if ctx.IsSet("init") {
+		if err := cluster.Init(); err != nil {
+			return fmt.Errorf("error running init: %w", err)
+		}
+	}
 
 	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
 
