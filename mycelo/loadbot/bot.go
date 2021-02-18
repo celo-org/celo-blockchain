@@ -8,12 +8,12 @@ import (
 	"math/rand"
 	"time"
 
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind_v2"
-	"github.com/ethereum/go-ethereum/common"
+	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
+	"github.com/celo-org/celo-blockchain/common"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/mycelo/contract"
-	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/mycelo/contract"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
 

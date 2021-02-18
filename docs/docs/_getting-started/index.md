@@ -33,7 +33,7 @@ We create the following archives:
 For all binaries we provide two options, one containing only Geth, and another containing
 Geth along with all the developer tools from our repository (`abigen`, `bootnode`,
 `disasm`, `evm`, `rlpdump`). Read our
-[`README`](https://github.com/ethereum/go-ethereum#executables) for more information about
+[`README`](https://github.com/celo-org/celo-blockchain#executables) for more information about
 these executables.
 
 ### Creating an account

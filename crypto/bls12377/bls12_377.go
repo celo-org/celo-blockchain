@@ -135,40 +135,40 @@ var psiy = &fe2{
 // z = -1
 var frobeniusCoeffs2 = [2]fe{
 	// z ^ (( p ^ 0 - 1) / 2)
-	fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
+	{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
 	// z ^ (( p ^ 1 - 1) / 2)
-	fe{0x823ac00000000099, 0xc5cabdc0b000004f, 0x7f75ae862f8c080d, 0x9ed4423b9278b089, 0x79467000ec64c452, 0x0120d3e434c71c50},
+	{0x823ac00000000099, 0xc5cabdc0b000004f, 0x7f75ae862f8c080d, 0x9ed4423b9278b089, 0x79467000ec64c452, 0x0120d3e434c71c50},
 }
 
 // z = u + 1
 var frobeniusCoeffs61 = [6]fe2{
 	// z ^ (( p ^ 0 - 1) / 3)
-	fe2{
+	{
 		fe{0x2cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( p ^ 1 - 1) / 3)
-	fe2{
+	{
 		fe{0x5892506da58478da, 0x133366940ac2a74b, 0x9b64a150cdf726cf, 0x5cc426090a9c587e, 0x5cf848adfdcd640c, 0x004702bf3ac02380},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( p ^ 2 - 1) / 3)
-	fe2{
+	{
 		fe{0xdacd106da5847973, 0xd8fe2454bac2a79a, 0x1ada4fd6fd832edc, 0xfb9868449d150908, 0xd63eb8aeea32285e, 0x0167d6a36f873fd0},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( p ^ 3 - 1) / 3)
-	fe2{
+	{
 		fe{0x823ac00000000099, 0xc5cabdc0b000004f, 0x7f75ae862f8c080d, 0x9ed4423b9278b089, 0x79467000ec64c452, 0x0120d3e434c71c50},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( p ^ 4 - 1) / 3)
-	fe2{
+	{
 		fe{0x2c766f925a7b8727, 0x03d7f6b0253d58b5, 0x838ec0deec122131, 0xbd5eb3e9f658bb10, 0x6942bd126ed3e52e, 0x1673786dd04ed6a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( p ^ 5 - 1) / 3)
-	fe2{
+	{
 		fe{0xaa3baf925a7b868e, 0x3e0d38ef753d5865, 0x4191258bc861923, 0x1e8a71ae63e00a87, 0xeffc4d11826f20dc, 0x004663a2a83dd119},
 		fe{0, 0, 0, 0, 0, 0},
 	},
@@ -177,32 +177,32 @@ var frobeniusCoeffs61 = [6]fe2{
 // z = u + 1
 var frobeniusCoeffs62 = [6]fe2{
 	// z ^ (( 2 * p ^ 0 - 2) / 3)
-	fe2{
+	{
 		fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( 2 * p ^ 1 - 2) / 3)
-	fe2{
+	{
 		fe{0xdacd106da5847973, 0xd8fe2454bac2a79a, 0x1ada4fd6fd832edc, 0xfb9868449d150908, 0xd63eb8aeea32285e, 0x0167d6a36f873fd0},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( 2 * p ^ 2 - 2) / 3)
-	fe2{
+	{
 		fe{0x2c766f925a7b8727, 0x03d7f6b0253d58b5, 0x838ec0deec122131, 0xbd5eb3e9f658bb10, 0x6942bd126ed3e52e, 0x01673786dd04ed6a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( 2 * p ^ 3 - 2) / 3)
-	fe2{
+	{
 		fe{0x2cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( 2 * p ^ 4 - 2) / 3)
-	fe2{
+	{
 		fe{0xdacd106da5847973, 0xd8fe2454bac2a79a, 0x1ada4fd6fd832edc, 0xfb9868449d150908, 0xd63eb8aeea32285e, 0x0167d6a36f873fd0},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ (( 2 * p ^ 5 - 2) / 3)
-	fe2{
+	{
 		fe{0x2c766f925a7b8727, 0x03d7f6b0253d58b5, 0x838ec0deec122131, 0xbd5eb3e9f658bb10, 0x6942bd126ed3e52e, 0x01673786dd04ed6a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
@@ -211,62 +211,62 @@ var frobeniusCoeffs62 = [6]fe2{
 var frobeniusCoeffs12 = [12]fe2{
 	// z = u + 1
 	// z ^ ((p ^ 0 - 1) / 6)
-	fe2{
+	{
 		fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 1 - 1) / 6)
-	fe2{
+	{
 		fe{0x6ec47a04a3f7ca9e, 0xa42e0cb968c1fa44, 0x578d5187fbd2bd23, 0x930eeb0ac79dd4bd, 0xa24883de1e09a9ee, 0x00daa7058067d46f},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 2 - 1) / 6)
-	fe2{
+	{
 		fe{0x5892506da58478da, 0x133366940ac2a74b, 0x9b64a150cdf726cf, 0x5cc426090a9c587e, 0x5cf848adfdcd640c, 0x004702bf3ac02380},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 3 - 1) / 6)
-	fe2{
+	{
 		fe{0x982c13d9d084771f, 0xfd49de0c6da34a32, 0x61a530d183ab0e53, 0xdf8fe44106dd9879, 0x40f29b58d88472bc, 0x0158723199046d5d},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 4 - 1) / 6)
-	fe2{
+	{
 		fe{0xdacd106da5847973, 0xd8fe2454bac2a79a, 0x1ada4fd6fd832edc, 0xfb9868449d150908, 0xd63eb8aeea32285e, 0x167d6a36f873fd0},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 5 - 1) / 6)
-	fe2{
+	{
 		fe{0x296799d52c8cac81, 0x591bd15304e14fee, 0xa17df4987d85130, 0x4c80f9363f3fc3bc, 0x9eaa177aba7ac8ce, 0x7dcb2c189c98ed},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 6 - 1) / 6)
-	fe2{
+	{
 		fe{0x823ac00000000099, 0xc5cabdc0b000004f, 0x7f75ae862f8c080d, 0x9ed4423b9278b089, 0x79467000ec64c452, 0x120d3e434c71c50},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 7 - 1) / 6)
-	fe2{
+	{
 		fe{0x164445fb5c083563, 0x72dd508ac73e05bc, 0xc76610a7be368adc, 0x8713eee839573ed1, 0x23f281e24e979f4c, 0x0d39340975d3c7b},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 8 - 1) / 6)
-	fe2{
+	{
 		fe{0x2c766f925a7b8727, 0x3d7f6b0253d58b5, 0x838ec0deec122131, 0xbd5eb3e9f658bb10, 0x6942bd126ed3e52e, 0x01673786dd04ed6a},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 9 - 1) / 6)
-	fe2{
+	{
 		fe{0xecdcac262f7b88e2, 0x19c17f37c25cb5cd, 0xbd4e315e365e39ac, 0x3a92f5b1fa177b15, 0x85486a67941cd67e, 0x0055c8147ec0a38d},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 10 - 1) / 6)
-	fe2{
+	{
 		fe{0xaa3baf925a7b868e, 0x3e0d38ef753d5865, 0x4191258bc861923, 0x1e8a71ae63e00a87, 0xeffc4d11826f20dc, 0x004663a2a83dd119},
 		fe{0, 0, 0, 0, 0, 0},
 	},
 	// z ^ ((p ^ 11 - 1) / 6)
-	fe2{
+	{
 		fe{0x5ba1262ad3735380, 0xbdef8bf12b1eb012, 0x14db82e63230f6cf, 0xcda1e0bcc1b54fd3, 0x2790ee45b226806c, 0x01306f19ff2877fd},
 		fe{0, 0, 0, 0, 0, 0},
 	},

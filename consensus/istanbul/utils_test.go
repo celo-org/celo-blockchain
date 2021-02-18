@@ -20,8 +20,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/celo-org/celo-blockchain/common"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 func TestValidatorSetDiff(t *testing.T) {

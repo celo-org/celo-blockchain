@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/mycelo/cluster"
-	"github.com/ethereum/go-ethereum/mycelo/env"
-	"github.com/ethereum/go-ethereum/mycelo/genesis"
-	"github.com/ethereum/go-ethereum/mycelo/loadbot"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/mycelo/cluster"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/celo-org/celo-blockchain/mycelo/genesis"
+	"github.com/celo-org/celo-blockchain/mycelo/loadbot"
+	"github.com/celo-org/celo-blockchain/params"
 	"gopkg.in/urfave/cli.v1"
 )
 

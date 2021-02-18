@@ -76,8 +76,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/whisper"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/whisper"
 	"github.com/obscuren/secp256k1-go"
 )
 

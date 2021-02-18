@@ -3,10 +3,10 @@ package contract
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm/runtime"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/vm/runtime"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // EVMBackend represents a contract interface that talks directly to an EVM

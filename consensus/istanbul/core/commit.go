@@ -21,9 +21,9 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports

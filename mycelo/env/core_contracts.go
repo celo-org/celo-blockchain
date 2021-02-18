@@ -3,7 +3,7 @@ package env
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
 var addr = common.HexToAddress

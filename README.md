@@ -199,7 +199,7 @@ merge a PR.
 
 
 Individual package tests can be run with
-`./build/env.sh go test github.com/ethereum/go-ethereum/$(PATH_TO_GO_PACKAGE)`
+`./build/env.sh go test github.com/celo-org/celo-blockchain/$(PATH_TO_GO_PACKAGE)`
 if you don't have `GOPATH` set-up.
 
 
