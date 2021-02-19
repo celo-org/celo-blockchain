@@ -50,15 +50,20 @@ func Start(ctx context.Context, cfg *Config) error {
 		// Spread out client load across different diallers
 		client := cfg.Clients[i%len(cfg.Clients)]
 		acc := acc
+
+		err := waitFor(ctx, startDelay)
+		if err != nil {
+			return err
+		}
 		group.Go(func() error {
-			return runBot(ctx, acc, cfg.Verbose, startDelay, delay, client, nextTransfer)
+			return runBot(ctx, acc, cfg.Verbose, delay, client, nextTransfer)
 		})
 	}
 
 	return group.Wait()
 }
 
-func runBot(ctx context.Context, acc env.Account, verbose bool, startDelay, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
+func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
@@ -67,11 +72,6 @@ func runBot(ctx context.Context, acc env.Account, verbose bool, startDelay, slee
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
-
-	err := waitFor(ctx, startDelay)
-	if err != nil {
-		return err
-	}
 
 	for {
 		txSentTime := time.Now()
