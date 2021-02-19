@@ -59,9 +59,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/internal/build"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/cespare/cp"
-	"github.com/ethereum/go-ethereum/internal/build"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -287,7 +287,7 @@ func buildFlags(env build.Environment) (flags []string) {
 		ld = append(ld, "-pthread")
 	}
 	if env.MetricsDefault {
-		ld = append(ld, "-X", "'github.com/ethereum/go-ethereum/metrics.EnabledDefaultValue=true'")
+		ld = append(ld, "-X", "'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'")
 	}
 
 	if len(ld) > 0 {
@@ -870,9 +870,9 @@ func doAndroidArchive(cmdline []string) {
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
 	ldflags := "-s -w"
 	if env.MetricsDefault {
-		ldflags = ldflags + " -X 'github.com/ethereum/go-ethereum/metrics.EnabledDefaultValue=true'"
+		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
-	build.MustRun(gomobileTool("bind", "-ldflags", ldflags, "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"))
+	build.MustRun(gomobileTool("bind", "-ldflags", ldflags, "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/celo-org/celo-blockchain/mobile"))
 
 	if *local {
 		// If we're building locally, copy bundle to build dir and skip Maven
@@ -993,9 +993,9 @@ func doXCodeFramework(cmdline []string) {
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
 	ldflags := "-s -w"
 	if env.MetricsDefault {
-		ldflags = ldflags + " -X 'github.com/ethereum/go-ethereum/metrics.EnabledDefaultValue=true'"
+		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
-	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/ethereum/go-ethereum/mobile")
+	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/celo-org/celo-blockchain/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards

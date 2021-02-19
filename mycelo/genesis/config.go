@@ -3,10 +3,10 @@ package genesis
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/fixed"
-	"github.com/ethereum/go-ethereum/mycelo/internal/utils"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/mycelo/internal/utils"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // durations in seconds

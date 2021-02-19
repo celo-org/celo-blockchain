@@ -7,9 +7,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
 )
 
 type TruffleReader interface {
@@ -28,7 +28,7 @@ func NewTruffleReader(buildPath string) TruffleReader {
 
 	librariesMapping := make(map[string]common.Address, len(env.Libraries()))
 	for _, name := range env.Libraries() {
-		librariesMapping[name] = env.MustAddressFor(name)
+		librariesMapping[name] = env.MustLibraryAddressFor(name)
 	}
 
 	return &truffleReader{

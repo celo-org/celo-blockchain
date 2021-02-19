@@ -14,13 +14,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/internal/fileutils"
-	"github.com/ethereum/go-ethereum/mycelo/env"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
 // NodeConfig represents the configuration of a celo-blockchain node runner
@@ -156,6 +156,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--syncmode", "full",
 		"--mine",
 		"--allow-insecure-unlock",
+		"--nodiscover",
 		"--nat", "extip:127.0.0.1",
 		"--port", strconv.FormatInt(n.NodePort(), 10),
 		"--rpc",
@@ -192,8 +193,8 @@ func (n *Node) Run(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		if err := cmd.Process.Kill(); err != nil {
-			log.Fatal("Failed to kill geth cmd")
+		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			log.Fatal("Failed to send interrupt signal to geth cmd")
 		}
 	}()
 

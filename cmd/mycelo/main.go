@@ -8,17 +8,17 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/mycelo/cluster"
-	"github.com/ethereum/go-ethereum/mycelo/env"
-	"github.com/ethereum/go-ethereum/mycelo/genesis"
-	"github.com/ethereum/go-ethereum/mycelo/loadbot"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/mycelo/cluster"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/celo-org/celo-blockchain/mycelo/genesis"
+	"github.com/celo-org/celo-blockchain/mycelo/loadbot"
+	"github.com/celo-org/celo-blockchain/params"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -163,7 +163,10 @@ var runValidatorsCommand = cli.Command{
 	Usage:     "Runs the testnet",
 	ArgsUsage: "[envdir]",
 	Action:    validatorRun,
-	Flags:     []cli.Flag{gethPathFlag},
+	Flags: []cli.Flag{
+		gethPathFlag,
+		cli.BoolFlag{Name: "init", Usage: "Init nodes before running them"},
+	},
 }
 
 // var initNodesCommand = cli.Command{
@@ -396,6 +399,12 @@ func validatorRun(ctx *cli.Context) error {
 	}
 
 	cluster := cluster.New(env, gethPath)
+
+	if ctx.IsSet("init") {
+		if err := cluster.Init(); err != nil {
+			return fmt.Errorf("error running init: %w", err)
+		}
+	}
 
 	group, runCtx := errgroup.WithContext(withExitSignals(context.Background()))
 

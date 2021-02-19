@@ -8,12 +8,12 @@ import (
 	"math/rand"
 	"time"
 
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind_v2"
-	"github.com/ethereum/go-ethereum/common"
+	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
+	"github.com/celo-org/celo-blockchain/common"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/mycelo/contract"
-	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/mycelo/contract"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -66,7 +66,7 @@ func Start(ctx context.Context, cfg *Config) error {
 
 func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
-	stableToken := bind.NewBoundContract(env.MustAddressFor("StableToken"), *abi, client)
+	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx

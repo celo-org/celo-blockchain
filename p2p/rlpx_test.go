@@ -31,11 +31,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/crypto/ecies"
+	"github.com/celo-org/celo-blockchain/p2p/simulations/pipes"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/p2p/simulations/pipes"
-	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 

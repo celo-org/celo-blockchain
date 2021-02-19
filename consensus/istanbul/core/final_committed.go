@@ -16,7 +16,7 @@
 
 package core
 
-import "github.com/ethereum/go-ethereum/common"
+import "github.com/celo-org/celo-blockchain/common"
 
 func (c *core) handleFinalCommitted() error {
 	logger := c.newLogger("func", "handleFinalCommitted")

@@ -51,16 +51,16 @@ without needing any third party tools. External dependencies are vendored locall
 `go-ethereum` in your own project, please follow these best practices and vendor it
 yourself too to avoid any accidental API breakages!
 
-The canonical import path for `go-ethereum` is `github.com/ethereum/go-ethereum`, with all
+The canonical import path for `go-ethereum` is `github.com/celo-org/celo-blockchain`, with all
 packages residing underneath. Although there are [quite a
-number](https://godoc.org/github.com/ethereum/go-ethereum#pkg-subdirectories) of them,
+number](https://godoc.org/github.com/celo-org/celo-blockchain#pkg-subdirectories) of them,
 you'll only need to care about a limited subset, each of which will be properly introduced
 in their relevant section.
 
 You can download all our packages via:
 
 ```
-$ go get -d github.com/ethereum/go-ethereum/...
+$ go get -d github.com/celo-org/celo-blockchain/...
 ```
 
 You may also need Go's original context package. Although this was moved into the official

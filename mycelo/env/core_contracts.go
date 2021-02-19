@@ -3,12 +3,12 @@ package env
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
 var addr = common.HexToAddress
 
-var genesisAddresses = map[string]common.Address{
+var libraryAddresses = map[string]common.Address{
 	"FixidityLib":                       addr("0xa001"),
 	"Proposals":                         addr("0xa002"),
 	"LinkedList":                        addr("0xa003"),
@@ -19,7 +19,9 @@ var genesisAddresses = map[string]common.Address{
 	"IntegerSortedLinkedList":           addr("0xa008"),
 	"AddressSortedLinkedListWithMedian": addr("0xa009"),
 	"Signatures":                        addr("0xa010"),
+}
 
+var genesisAddresses = map[string]common.Address{
 	// Contract implementations
 	"Registry":                   addr("0xce11"),
 	"Freezer":                    addr("0xf001"),
@@ -89,8 +91,17 @@ var libraries = []string{
 // Libraries returns all celo-blockchain library names
 func Libraries() []string { return libraries }
 
-// AddressFor obtains the address for a core contract
-func AddressFor(name string) (common.Address, error) {
+// LibraryAddressFor obtains the address for a core contract
+func LibraryAddressFor(name string) (common.Address, error) {
+	address, ok := libraryAddresses[name]
+	if !ok {
+		return common.ZeroAddress, fmt.Errorf("can't find genesis address for %s", name)
+	}
+	return address, nil
+}
+
+// ImplAddressFor obtains the address for a core contract
+func ImplAddressFor(name string) (common.Address, error) {
 	address, ok := genesisAddresses[name]
 	if !ok {
 		return common.ZeroAddress, fmt.Errorf("can't find genesis address for %s", name)
@@ -107,10 +118,20 @@ func ProxyAddressFor(name string) (common.Address, error) {
 	return address, nil
 }
 
-// MustAddressFor obtains the address for a core contract
+// MustLibraryAddressFor obtains the address for a core contract
 // this variant panics on error
-func MustAddressFor(name string) common.Address {
-	address, err := AddressFor(name)
+func MustLibraryAddressFor(name string) common.Address {
+	address, err := LibraryAddressFor(name)
+	if err != nil {
+		panic(err)
+	}
+	return address
+}
+
+// MustImplAddressFor obtains the address for a core contract
+// this variant panics on error
+func MustImplAddressFor(name string) common.Address {
+	address, err := ImplAddressFor(name)
 	if err != nil {
 		panic(err)
 	}

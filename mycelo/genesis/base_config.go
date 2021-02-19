@@ -3,8 +3,8 @@ package genesis
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/fixed"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/fixed"
 )
 
 // BaseConfig creates base parameters for celo

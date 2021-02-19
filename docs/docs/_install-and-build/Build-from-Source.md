@@ -9,12 +9,12 @@ Go Ethereum (as its name implies) is written in [Go](https://golang.org), and as
 Assuming you have Go installed, you can download our project via:
 
 ```shell
-go get -d github.com/ethereum/go-ethereum
+go get -d github.com/celo-org/celo-blockchain
 ```
 
 The above command will checkout the default version of Go Ethereum into your local `GOPATH` work space, but it will not build any executables for you. To do that you can either build one specifically:
 
-    go install github.com/ethereum/go-ethereum/cmd/geth
+    go install github.com/celo-org/celo-blockchain/cmd/geth
 
 Or you can also build the entire project and install `geth` along with all developer tools by running `go install ./...` in the repository root inside your `GOPATH` work space.
 
@@ -22,7 +22,7 @@ Or you can also build the entire project and install `geth` along with all devel
 
 If you do not want to set up Go work spaces on your machine, only build `geth` and forget about the build process, you can clone our repository directly into a folder of your choosing and invoke `make`, which will configure everything for a temporary build and clean up after itself:
 
-    git clone https://github.com/ethereum/go-ethereum.git
+    git clone https://github.com/celo-org/celo-blockchain.git
     cd go-ethereum
     make geth
 
