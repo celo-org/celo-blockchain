@@ -34,7 +34,6 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 		InitialValidators:  3,
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10,
-		LoadTestTPS:        10,
 		ChainID:            big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
 	env, err := env.New(workdir, envCfg)
@@ -105,7 +104,6 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 		ValidatorsPerGroup: 1,
 		DeveloperAccounts:  10000,
 		ChainID:            big.NewInt(9099000),
-		LoadTestTPS:        50,
 	}
 
 	env, err := env.New(workdir, envCfg)

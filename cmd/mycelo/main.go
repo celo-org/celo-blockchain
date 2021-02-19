@@ -96,7 +96,6 @@ var templateFlags = []cli.Flag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
 	},
-	loadTestTPSFlag,
 }
 
 var buildpathFlag = cli.StringFlag{
@@ -117,6 +116,7 @@ var gethPathFlag = cli.StringFlag{
 var loadTestTPSFlag = cli.IntFlag{
 	Name:  "tps",
 	Usage: "Transactions per second to target in the load test",
+	Value: 20,
 }
 
 var createGenesisCommand = cli.Command{
@@ -250,9 +250,6 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("mnemonic") {
 		env.Config.Mnemonic = ctx.String("mnemonic")
-	}
-	if ctx.IsSet("tps") {
-		env.Config.LoadTestTPS = ctx.Int("tps")
 	}
 
 	// Create the accounts after the env overrides are set
@@ -446,9 +443,6 @@ func validatorRun(ctx *cli.Context) error {
 
 func loadBot(ctx *cli.Context) error {
 	env, err := readEnv(ctx)
-	if ctx.IsSet("tps") {
-		env.Config.LoadTestTPS = ctx.Int("tps")
-	}
 	if err != nil {
 		return err
 	}
@@ -466,7 +460,7 @@ func loadBot(ctx *cli.Context) error {
 	return loadbot.Start(runCtx, &loadbot.Config{
 		Accounts:              env.DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
-		TransactionsPerSecond: env.Config.LoadTestTPS,
+		TransactionsPerSecond: ctx.Int("tps"),
 		Clients:               []*ethclient.Client{client},
 		Verbose:               verbose,
 	})
