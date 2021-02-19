@@ -448,7 +448,7 @@ func loadBot(ctx *cli.Context) error {
 	}
 
 	verbosityLevel := ctx.GlobalInt("verbosity")
-	verbose := verbosityLevel == 5
+	verbose := verbosityLevel >= 4
 
 	runCtx := context.Background()
 
