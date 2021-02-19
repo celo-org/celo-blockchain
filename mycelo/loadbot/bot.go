@@ -93,7 +93,7 @@ func runBot(ctx context.Context, acc env.Account, verbose bool, startDelay, slee
 			if err != context.Canceled {
 				fmt.Printf("Error waiting for tx: %v\n", err)
 			}
-			return fmt.Errorf("Error waitin for tx: %w", err)
+			return fmt.Errorf("Error waiting for tx: %w", err)
 		}
 
 		nextSendTime := txSentTime.Add(sleepTime)
