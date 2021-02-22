@@ -18,12 +18,14 @@ package core
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 func (c *core) handleRequest(request *istanbul.Request) error {
+	istanbul.IBFTStart = time.Now()
 	logger := c.newLogger("func", "handleRequest")
 
 	err := c.checkRequestMsg(request)

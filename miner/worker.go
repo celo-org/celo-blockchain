@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/contract_comm/currency"
 	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
@@ -927,6 +928,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			localTxs[account] = txs
 		}
 	}
+	start := time.Now()
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
 		if w.commitTransactions(txs, w.coinbase, interrupt) {
@@ -939,6 +941,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
+	istanbul.TxTime = time.Now().Sub(start)
 	w.commit(w.fullTaskHook, true, tstart)
 }
 
