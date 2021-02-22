@@ -935,6 +935,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 
+	start := time.Now()
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
@@ -948,6 +949,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
+	istanbul.TxTime = time.Now().Sub(start)
 	w.commit(w.fullTaskHook, true, tstart)
 }
 

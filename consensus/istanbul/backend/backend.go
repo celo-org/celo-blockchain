@@ -471,6 +471,21 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 
+	now := time.Now()
+	cycle := now.Sub(istanbul.CycleStart)
+	ibft := now.Sub(istanbul.IBFTStart)
+	istanbul.CycleStart = now
+
+	printHeader := func() {
+		fmt.Println("blockNumber,txCount,usedGas,round,sleep,miner,tx_add,verify,ibft,consensus,cycle")
+	}
+	istanbul.Once.Do(printHeader)
+	round := aggregatedSeal.Round.Uint64()
+	// CSV Line in nano-seconds
+	fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+		block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), round,
+		istanbul.SleepTime.Nanoseconds(), (cycle - istanbul.SleepTime - ibft).Nanoseconds(), istanbul.TxTime.Nanoseconds(),
+		istanbul.VerifyTime.Nanoseconds(), ibft.Nanoseconds(), (ibft - istanbul.VerifyTime).Nanoseconds(), cycle.Nanoseconds())
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.

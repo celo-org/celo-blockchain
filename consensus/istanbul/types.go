@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -31,6 +32,10 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+var Once sync.Once                              // csv header printer
+var SleepTime, VerifyTime, TxTime time.Duration // durations for specific parts
+var IBFTStart, CycleStart time.Time             // start times
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
 // decrypted

@@ -761,8 +761,11 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		return 0, verificationStatus
 	} else {
 		logger.Trace("verification status cache miss")
-
+		// Need to manually do this to get greater than second scale resolution
+		start := time.Now()
 		duration, err := c.backend.Verify(proposal)
+		istanbul.VerifyTime = time.Now().Sub(start)
+
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
