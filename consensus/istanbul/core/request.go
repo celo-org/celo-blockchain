@@ -18,12 +18,14 @@ package core
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
 func (c *core) handleRequest(request *istanbul.Request) error {
+	istanbul.IBFTStart = time.Now()
 	logger := c.newLogger("func", "handleRequest")
 
 	err := c.checkRequestMsg(request)
