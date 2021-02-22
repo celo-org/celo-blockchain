@@ -154,7 +154,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
 	}
 
-	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Week)
+	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)
 	genesisConfig.StableToken.InitialBalances = cusdBalances
 	genesisConfig.GoldToken.InitialBalances = goldBalances
 
