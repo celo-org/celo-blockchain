@@ -36,7 +36,7 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
-  "github.com/ethereum/go-ethereum/metrics"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
 	mapset "github.com/deckarep/golang-set"
 )
