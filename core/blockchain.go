@@ -79,6 +79,7 @@ var (
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errCommitmentNotFound   = errors.New("randomness commitment not found")
+	errParentNotCanonical   = errors.New("parent not canonical, reorgs disabled")
 )
 
 const (
@@ -1280,7 +1281,7 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 		// if err := bc.reorg(current, block); err != nil {
 		// 	return err
 		// }
-		return errors.New("Not saving block. Reorgs are disabled")
+		return errParentNotCanonical
 	}
 	bc.writeHeadBlock(block)
 	return nil
@@ -1302,7 +1303,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 		log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
-		return NonStatTy, errors.New("Not saving block. Reorgs are disabled")
+		return NonStatTy, errParentNotCanonical
 	}
 
 	randomCommitment := common.Hash{}

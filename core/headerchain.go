@@ -36,6 +36,10 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+var (
+	errParentNotCanonical = errors.New("parent not canonical, reorgs disabled")
+)
+
 const (
 	headerCacheLimit = 512
 	tdCacheLimit     = 1024
@@ -151,7 +155,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 
 	if cannonicalHash := hc.GetCanonicalHash(number); (cannonicalHash != common.Hash{} && cannonicalHash != hash) {
 		log.Error("Found two headers with same height", "old", cannonicalHash, "new", hash)
-		return NonStatTy, errors.New("Not saving header. Reorgs are disabled")
+		return NonStatTy, errParentNotCanonical
 	}
 
 	// Calculate the total difficulty of the header.
