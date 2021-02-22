@@ -36,10 +36,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-var (
-	errParentNotCanonical = errors.New("parent not canonical, reorgs disabled")
-)
-
 const (
 	headerCacheLimit = 512
 	tdCacheLimit     = 1024
