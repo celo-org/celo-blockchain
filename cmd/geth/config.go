@@ -20,15 +20,16 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"reflect"
 	"unicode"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/params"
+	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
 	"github.com/naoina/toml"
 	cli "gopkg.in/urfave/cli.v1"
 )
@@ -97,8 +98,8 @@ func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
 	cfg.Name = clientIdentifier
 	cfg.Version = params.VersionWithCommit(gitCommit, gitDate)
-	cfg.HTTPModules = append(cfg.HTTPModules, "eth", "shh")
-	cfg.WSModules = append(cfg.WSModules, "eth", "shh")
+	cfg.HTTPModules = append(cfg.HTTPModules, "eth")
+	cfg.WSModules = append(cfg.WSModules, "eth")
 	cfg.IPCPath = "geth.ipc"
 	return cfg
 }
@@ -126,8 +127,10 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)
 	}
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
-	if ctx.GlobalIsSet(utils.EthStatsURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
+	if ctx.GlobalIsSet(utils.CeloStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.CeloStatsURLFlag.Name)
+	} else if ctx.GlobalIsSet(utils.EthStatsLegacyURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsLegacyURLFlag.Name)
 	}
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
 
@@ -146,6 +149,12 @@ func enableWhisper(ctx *cli.Context) bool {
 
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
+	if ctx.GlobalIsSet(utils.OverrideChurritoFlag.Name) {
+		cfg.Eth.OverrideChurrito = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideChurritoFlag.Name))
+	}
+	if ctx.GlobalIsSet(utils.OverrideDonutFlag.Name) {
+		cfg.Eth.OverrideDonut = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideDonutFlag.Name))
+	}
 	utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Whisper must be explicitly enabled by specifying at least 1 whisper flag or in dev mode
@@ -168,7 +177,7 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		utils.RegisterGraphQLService(stack, cfg.Node.GraphQLEndpoint(), cfg.Node.GraphQLCors, cfg.Node.GraphQLVirtualHosts, cfg.Node.HTTPTimeouts)
 	}
 	// Add the Ethereum Stats daemon if requested.
-	if cfg.Ethstats.URL != "" {
+	if cfg.Ethstats.URL != "" || cfg.Eth.Istanbul.Proxied {
 		utils.RegisterEthStatsService(stack, cfg.Ethstats.URL)
 	}
 	return stack

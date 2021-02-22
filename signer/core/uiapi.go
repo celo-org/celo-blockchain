@@ -24,11 +24,11 @@ import (
 	"io/ioutil"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/crypto"
 )
 
 // SignerUIAPI implements methods Clef provides for a UI to query, in the bidirectional communication
@@ -193,6 +193,16 @@ func (api *UIServerAPI) Import(ctx context.Context, keyJSON json.RawMessage, old
 		return accounts.Account{}, fmt.Errorf("password requirements not met: %v", err)
 	}
 	return be[0].(*keystore.KeyStore).Import(keyJSON, oldPassphrase, newPassphrase)
+}
+
+// New creates a new password protected Account. The private key is protected with
+// the given password. Users are responsible to backup the private key that is stored
+// in the keystore location that was specified when this API was created.
+// This method is the same as New on the external API, the difference being that
+// this implementation does not ask for confirmation, since it's initiated by
+// the user
+func (api *UIServerAPI) New(ctx context.Context) (common.Address, error) {
+	return api.extApi.newAccount()
 }
 
 // Other methods to be added, not yet implemented are:

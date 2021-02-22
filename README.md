@@ -12,7 +12,7 @@ Most functionality of this client is similar to `go-ethereum`, also known as `ge
 
 ## Building the source
 
-Building `geth` requires both a Go (version 1.13) and a C compiler.
+Building `geth` requires both a Go (version 1.14) and a C compiler.
 You can install them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
@@ -25,6 +25,22 @@ or, to build the full suite of utilities:
 make all
 ```
 
+### Mobile Clients
+
+There are two different commands in the `Makefile` to build the `ios` and the `android` clients.
+
+```shell
+make ios
+```
+
+and
+
+```shell
+make android
+```
+
+Note: The `android` command it applies a git patch (`patches/mobileLibsForBuild.patch`) required to swap some libs from the `go.mod` for the client to work, installs those libs, builds the client, and then reverts the patch.
+
 ## Executables
 
 The Celo blockchain client comes with several wrappers/executables found in the `cmd` directory.
@@ -34,7 +50,7 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 | **`geth`** | The main Celo Blockchain client. It is the entry point into the Celo network, capable of running as a full node (default), archive node (retaining all historical state), light node (retrieving data live), or lightest node (retrieving minimum number of block headers to verify existing validator set). It can be used by other processes as a gateway into the Celo network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [Ethereum CLI Wiki page](https://github.com/ethereum/go-ethereum/wiki/Command-Line-Options) for command line options. |
 | `abigen` | Source code generator to convert Celo contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI) with expanded functionality if the contract bytecode is also available. However it also accepts Solidity source files, making development much more streamlined. Please see [Ethereum's Native DApps](https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
 | `bootnode` | Stripped down version of the Celo client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks. |
-| `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug`). |
+| `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`). |
 | `gethrpctest` | Developer utility tool to support the [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [ethereum test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
 | `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Celo protocol both network as well as consensus wise) to user friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
 
@@ -183,12 +199,22 @@ merge a PR.
 
 
 Individual package tests can be run with
-`./build/env.sh go test github.com/ethereum/go-ethereum/$(PATH_TO_GO_PACKAGE)`
+`./build/env.sh go test github.com/celo-org/celo-blockchain/$(PATH_TO_GO_PACKAGE)`
 if you don't have `GOPATH` set-up.
 
 
 Once a PR is approved, adding on the `automerge` label will keep it up to date
 and do a squash merge once all the required tests have passed.
+
+### Benchmarking
+
+Golang has built in support for running benchmarks with go tool
+`go test -run=ThisIsNotATestName -bench=. ./$PACKAGE_NAME` will run all benchmarks in a package.
+
+One note around running benchmarks is that `BenchmarkHandlePreprepare` is quite takes a while to run, particularly when testing with a larger number of validators.
+Substituting `-bench=REGEX` for `-bench=.` will specify which tests to run. Adding `-cpuprofile=cpu.out` which can be visualized with `go tool pprof -html:8080 cpu.out` if `graphviz` is installed.
+
+See the [go testing flags](https://golang.org/cmd/go/#hdr-Testing_flags) and [go docs](https://golang.org/pkg/testing/#hdr-Benchmarks) for more information on benchmarking.
 
 
 ## License

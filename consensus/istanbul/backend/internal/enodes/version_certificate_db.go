@@ -26,10 +26,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 const (
@@ -38,7 +39,7 @@ const (
 
 // VersionCertificateDB stores
 type VersionCertificateDB struct {
-	gdb    *genericDB
+	gdb    *db.GenericDB
 	logger log.Logger
 }
 
@@ -52,7 +53,7 @@ type VersionCertificateEntry struct {
 	Signature []byte
 }
 
-func versionCertificateEntryFromGenericEntry(entry genericEntry) (*VersionCertificateEntry, error) {
+func versionCertificateEntryFromGenericEntry(entry db.GenericEntry) (*VersionCertificateEntry, error) {
 	signedAnnVersionEntry, ok := entry.(*VersionCertificateEntry)
 	if !ok {
 		return nil, errIncorrectEntryType
@@ -96,7 +97,7 @@ func (entry *VersionCertificateEntry) String() string {
 func OpenVersionCertificateDB(path string) (*VersionCertificateDB, error) {
 	logger := log.New("db", "VersionCertificateDB")
 
-	gdb, err := newGenericDB(int64(versionCertificateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
+	gdb, err := db.New(int64(versionCertificateDBVersion), path, logger, &opt.WriteOptions{NoWriteMerge: true})
 	if err != nil {
 		logger.Error("Error creating db", "err", err)
 		return nil, err
@@ -137,7 +138,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*VersionCertificateEntry) 
 
 	var newEntries []*VersionCertificateEntry
 
-	getExistingEntry := func(entry genericEntry) (genericEntry, error) {
+	getExistingEntry := func(entry db.GenericEntry) (db.GenericEntry, error) {
 		savEntry, err := versionCertificateEntryFromGenericEntry(entry)
 		if err != nil {
 			return entry, err
@@ -145,7 +146,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*VersionCertificateEntry) 
 		return svdb.Get(savEntry.Address)
 	}
 
-	onNewEntry := func(batch *leveldb.Batch, entry genericEntry) error {
+	onNewEntry := func(batch *leveldb.Batch, entry db.GenericEntry) error {
 		savEntry, err := versionCertificateEntryFromGenericEntry(entry)
 		if err != nil {
 			return err
@@ -161,7 +162,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*VersionCertificateEntry) 
 		return nil
 	}
 
-	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry genericEntry, newEntry genericEntry) error {
+	onUpdatedEntry := func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error {
 		existingSav, err := versionCertificateEntryFromGenericEntry(existingEntry)
 		if err != nil {
 			return err
@@ -177,9 +178,9 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*VersionCertificateEntry) 
 		return onNewEntry(batch, newEntry)
 	}
 
-	entries := make([]genericEntry, len(savEntries))
+	entries := make([]db.GenericEntry, len(savEntries))
 	for i, sav := range savEntries {
-		entries[i] = genericEntry(sav)
+		entries[i] = db.GenericEntry(sav)
 	}
 
 	if err := svdb.gdb.Upsert(entries, getExistingEntry, onUpdatedEntry, onNewEntry); err != nil {

@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
 func TestClientPoolL10C100Free(t *testing.T) {
@@ -517,7 +517,7 @@ func TestNodeDBExpiration(t *testing.T) {
 	for _, c := range cases {
 		ndb.setNB(c.ip, c.balance)
 	}
-	time.Sleep(100 * time.Millisecond) // Ensure the db expirer is registered.
+	clock.WaitForTimers(1)
 	clock.Run(time.Hour + time.Minute)
 	select {
 	case <-done:
@@ -527,7 +527,7 @@ func TestNodeDBExpiration(t *testing.T) {
 	if iterated != 4 {
 		t.Fatalf("Failed to evict useless negative balances, want %v, got %d", 4, iterated)
 	}
-
+	clock.WaitForTimers(1)
 	for _, c := range cases {
 		ndb.setNB(c.ip, c.balance)
 	}

@@ -19,12 +19,12 @@ package backend
 import (
 	"encoding/json"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 const (
@@ -63,6 +63,14 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 	if err := json.Unmarshal(blob, snap); err != nil {
 		return nil, err
 	}
+
+	if !snap.ValSet.HasBLSKeyCache() {
+		log.Debug("Updating outdated snapshot", "hash", hash)
+		if err := snap.store(db); err != nil {
+			return nil, err
+		}
+	}
+
 	snap.Epoch = epoch
 
 	return snap, nil
@@ -70,6 +78,7 @@ func loadSnapshot(epoch uint64, db ethdb.Database, hash common.Hash) (*Snapshot,
 
 // store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
+	s.ValSet.CacheUncompressedBLSKey()
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -162,11 +171,11 @@ type snapshotJSON struct {
 	Hash   common.Hash `json:"hash"`
 
 	// for validator set
-	Validators []istanbul.ValidatorData `json:"validators"`
+	Validators []istanbul.ValidatorDataWithBLSKeyCache `json:"validators"`
 }
 
 func (s *Snapshot) toJSONStruct() *snapshotJSON {
-	validators := s.validators()
+	validators := validator.MapValidatorsToDataWithBLSKeyCache(s.ValSet.List())
 	return &snapshotJSON{
 		Epoch:      s.Epoch,
 		Number:     s.Number,
@@ -185,7 +194,7 @@ func (s *Snapshot) UnmarshalJSON(b []byte) error {
 	s.Epoch = j.Epoch
 	s.Number = j.Number
 	s.Hash = j.Hash
-	s.ValSet = validator.NewSet(j.Validators)
+	s.ValSet = validator.NewSetFromDataWithBLSKeyCache(j.Validators)
 	return nil
 }
 

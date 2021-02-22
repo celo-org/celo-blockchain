@@ -17,28 +17,37 @@
 package core
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"math/big"
-	"testing"
 	"time"
 
-	"github.com/celo-org/celo-bls-go/bls"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
+	"github.com/celo-org/celo-blockchain/params"
 
-	elog "github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-bls-go/bls"
+
+	elog "github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
+
+// ErrorReporter is the intersection of the testing.B and testing.T interfaces.
+// This enables setup functions to be used by both benchmarks and tests.
+type ErrorReporter interface {
+	Errorf(format string, args ...interface{})
+}
 
 var testLogger = elog.New()
 
@@ -61,6 +70,8 @@ type testSystemBackend struct {
 	// Function pointer to a verify function, so that the test core_test.go/TestVerifyProposal
 	// can inject in different proposal verification statuses.
 	verifyImpl func(proposal istanbul.Proposal) (time.Duration, error)
+
+	donutBlock *big.Int
 }
 
 type testCommittedMsgs struct {
@@ -85,6 +96,32 @@ func (self *testSystemBackend) Address() common.Address {
 // Peers returns all connected peers
 func (self *testSystemBackend) Validators(proposal istanbul.Proposal) istanbul.ValidatorSet {
 	return self.peers
+}
+
+func (self *testSystemBackend) IsValidating() bool {
+	return true
+}
+
+func (self *testSystemBackend) ChainConfig() *params.ChainConfig {
+	return &params.ChainConfig{
+		DonutBlock: self.donutBlock,
+	}
+}
+
+func (self *testSystemBackend) HashForBlock(number uint64) common.Hash {
+	buffer := new(bytes.Buffer)
+	_ = binary.Write(buffer, binary.LittleEndian, number)
+	hash := common.Hash{}
+	copy(hash[:], buffer.Bytes())
+	return hash
+}
+
+func (self *testSystemBackend) IsPrimary() bool {
+	return true
+}
+
+func (self *testSystemBackend) IsPrimaryForSeq(seq *big.Int) bool {
+	return true
 }
 
 func (self *testSystemBackend) NextBlockValidators(proposal istanbul.Proposal) (istanbul.ValidatorSet, error) {
@@ -121,11 +158,11 @@ func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return nil
 }
 
-func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
-	signature, _ := privateKey.SignMessage(data, extra, useComposite)
+	signature, _ := privateKey.SignMessage(data, extra, useComposite, cip22)
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
@@ -225,6 +262,8 @@ func (self *testSystemBackend) ParentBlockValidators(proposal istanbul.Proposal)
 	return self.peers
 }
 
+func (self *testSystemBackend) UpdateReplicaState(seq *big.Int) { /* pass */ }
+
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
 	data, err := self.engine.(*core).finalizeMessage(msg)
@@ -233,6 +272,26 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 	}
 	err = message.FromPayload(data, self.engine.(*core).validateFn)
 	return *message, err
+}
+
+func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
+	preprepare := &istanbul.Preprepare{
+		View:                   &view,
+		RoundChangeCertificate: roundChangeCertificate,
+		Proposal:               proposal,
+	}
+
+	payload, err := Encode(preprepare)
+	if err != nil {
+		return istanbul.Message{}, err
+	}
+
+	msg := &istanbul.Message{
+		Code: istanbul.MsgPreprepare,
+		Msg:  payload,
+	}
+
+	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
@@ -339,7 +398,6 @@ type testSystem struct {
 }
 
 func newTestSystem(n uint64, f uint64, keys [][]byte) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
 	return &testSystem{
 		backends:       make([]*testSystemBackend, n),
 		validatorsKeys: keys,
@@ -374,9 +432,7 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-// FIXME: int64 is needed for N and F
-func NewTestSystemWithBackend(n, f uint64) *testSystem {
-	testLogger.SetHandler(elog.StdoutHandler)
+func newTestSystemWithBackend(n, f uint64) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
@@ -390,7 +446,7 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
-		backend := sys.NewBackend(i)
+		backend := sys.NewBackend(i, nil)
 		backend.peers = vset
 		backend.address = vset.GetByIndex(i).Address()
 		backend.key = *keys[i]
@@ -404,6 +460,52 @@ func NewTestSystemWithBackend(n, f uint64) *testSystem {
 	}
 
 	return sys
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+
+	validators, blsKeys, keys := generateValidators(int(n))
+	sys := newTestSystem(n, f, blsKeys)
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = 300
+	config.TimeoutBackoffFactor = 100
+	config.MinResendRoundChangeTimeout = 1000
+	config.MaxResendRoundChangeTimeout = 10000
+	config.Epoch = epoch
+
+	for i := uint64(0); i < n; i++ {
+		vset := validator.NewSet(validators)
+		backend := sys.NewBackend(i, big.NewInt(donutBlock))
+		backend.peers = vset
+		backend.address = vset.GetByIndex(i).Address()
+		backend.key = *keys[i]
+		backend.blsKey = blsKeys[i]
+
+		core := New(backend, &config).(*core)
+		core.logger = testLogger
+		core.validateFn = backend.CheckValidatorSignature
+
+		backend.engine = core
+	}
+
+	return sys
+}
+
+// FIXME: int64 is needed for N and F
+func NewTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.StdoutHandler)
+	return newTestSystemWithBackend(n, f)
+}
+
+// FIXME: int64 is needed for N and F
+func NewMutedTestSystemWithBackend(n, f uint64) *testSystem {
+	testLogger.SetHandler(elog.DiscardHandler())
+	return newTestSystemWithBackend(n, f)
+
 }
 
 // listen will consume messages from queue and deliver a message to core
@@ -455,13 +557,14 @@ func (t *testSystem) Stop(core bool) {
 	}
 }
 
-func (t *testSystem) NewBackend(id uint64) *testSystemBackend {
+func (t *testSystem) NewBackend(id uint64, donutBlock *big.Int) *testSystemBackend {
 	// assume always success
 	backend := &testSystemBackend{
-		id:     id,
-		sys:    t,
-		events: new(event.TypeMux),
-		db:     rawdb.NewMemoryDatabase(),
+		id:         id,
+		sys:        t,
+		events:     new(event.TypeMux),
+		db:         rawdb.NewMemoryDatabase(),
+		donutBlock: donutBlock,
 	}
 
 	t.backends[id] = backend
@@ -476,7 +579,7 @@ func (t *testSystem) MinQuorumSize() uint64 {
 	return uint64(math.Ceil(float64(2*t.n) / 3))
 }
 
-func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
+func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
 		Proposal:                proposal,
 		PrepareOrCommitMessages: []istanbul.Message{},
@@ -500,7 +603,7 @@ func (sys *testSystem) getPreparedCertificate(t *testing.T, views []istanbul.Vie
 	return preparedCertificate
 }
 
-func (sys *testSystem) getRoundChangeCertificate(t *testing.T, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
+func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanbul.View, preparedCertificate istanbul.PreparedCertificate) istanbul.RoundChangeCertificate {
 	var roundChangeCertificate istanbul.RoundChangeCertificate
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {

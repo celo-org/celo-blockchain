@@ -20,14 +20,14 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // keystoreWallet implements the accounts.Wallet interface for the original
@@ -129,14 +129,14 @@ func (w *keystoreWallet) GetPublicKey(account accounts.Account) (*ecdsa.PublicKe
 	return w.keystore.GetPublicKey(account)
 }
 
-func (w *keystoreWallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (w *keystoreWallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	// Make sure the requested account is contained within
 	if !w.Contains(account) {
 		log.Debug(accounts.ErrUnknownAccount.Error(), "account", account)
 		return blscrypto.SerializedSignature{}, accounts.ErrUnknownAccount
 	}
 	// Account seems valid, request the keystore to sign
-	return w.keystore.SignBLS(account, msg, extraData, useComposite)
+	return w.keystore.SignBLS(account, msg, extraData, useComposite, cip22)
 }
 
 func (w *keystoreWallet) GenerateProofOfPossession(account accounts.Account, address common.Address) ([]byte, []byte, error) {

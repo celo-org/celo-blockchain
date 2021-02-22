@@ -24,16 +24,16 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 type testerValSetDiff struct {
@@ -241,7 +241,12 @@ func TestValSetChange(t *testing.T) {
 		genesis.ExtraData = h.Extra
 		db := rawdb.NewMemoryDatabase()
 
-		config := istanbul.DefaultConfig
+		config := *istanbul.DefaultConfig
+		config.ReplicaStateDBPath = ""
+		config.Validator = true
+		config.ValidatorEnodeDBPath = ""
+		config.VersionCertificateDBPath = ""
+		config.RoundStateDBPath = ""
 		if tt.epoch != 0 {
 			config.Epoch = tt.epoch
 		}
@@ -250,12 +255,12 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		engine := New(config, db).(*Backend)
+		engine := New(&config, db).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
 
-		engine.Authorize(address, address, &privateKey.PublicKey, decryptFn, SignFn(privateKey), SignBLSFn(privateKey))
+		engine.Authorize(address, address, &privateKey.PublicKey, DecryptFn(privateKey), SignFn(privateKey), SignBLSFn(privateKey), SignHashFn(privateKey))
 
 		chain.AddHeader(0, genesis.ToBlock(nil).Header())
 

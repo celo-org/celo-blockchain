@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
+	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
 )
 
 // Client defines typed wrappers for the Ethereum RPC API.
@@ -79,6 +79,26 @@ func (ec *Client) ChainID(ctx context.Context) (*big.Int, error) {
 		return nil, err
 	}
 	return (*big.Int)(&result), err
+}
+
+// Validtor retrieves full nodes validator address
+func (ec *Client) Validator(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_validator")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
+}
+
+// TxFeeRecipient retrieves full nodes TxFeeRecipient
+func (ec *Client) TxFeeRecipient(ctx context.Context) (*common.Address, error) {
+	var result common.Address
+	err := ec.c.CallContext(ctx, &result, "eth_txFeeRecipient")
+	if err != nil {
+		return nil, err
+	}
+	return &result, err
 }
 
 // Coinbase retrieves full nodes coinbase

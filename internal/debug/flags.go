@@ -24,9 +24,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/metrics/exp"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
+	"github.com/celo-org/celo-blockchain/metrics/exp"
 	"github.com/fjl/memsize/memsizeui"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
@@ -145,7 +145,7 @@ func init() {
 
 // Setup initializes profiling and logging based on the CLI flags.
 // It should be called as early as possible in the program.
-func Setup(ctx *cli.Context, logdir string) error {
+func Setup(ctx *cli.Context) error {
 	// logging
 
 	consoleFormat := ctx.GlobalString(consoleFormatFlag.Name)
@@ -155,17 +155,6 @@ func Setup(ctx *cli.Context, logdir string) error {
 	glogger = log.NewGlogHandler(ostream)
 
 	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
-	if logdir != "" {
-		rfh, err := log.RotatingFileHandler(
-			logdir,
-			262144,
-			log.JSONFormatOrderedEx(false, true),
-		)
-		if err != nil {
-			return err
-		}
-		glogger.SetHandler(log.MultiHandler(ostream, rfh))
-	}
 	glogger.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
 	glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
 	glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))

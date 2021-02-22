@@ -17,23 +17,33 @@
 package istanbul
 
 import (
-	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/celo-org/celo-blockchain/p2p"
 )
 
 // Constants to match up protocol versions and messages
 const (
-	Celo64 = 64
-	Celo65 = 65
+	Celo64 = 64 // eth/63 + the istanbul messages
+	Celo65 = 65 // incorporates changes from eth/64 (EIP)
+	Celo66 = 66 // incorporates changes from eth/65 (EIP-2464)
 )
 
 // protocolName is the official short name of the protocol used during capability negotiation.
 const ProtocolName = "istanbul"
 
-// ProtocolVersions are the supported versions of the eth protocol (first is primary).
-var ProtocolVersions = []uint{Celo65, Celo64}
+// ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
+// (First is primary in the sense that it's the most current one supported, not in the sense of IsPrimary() below)
+var ProtocolVersions = []uint{Celo66, Celo65, Celo64}
+
+// Returns whether this version of Istanbul should have Primary: true (a legacy property that was needed to work
+// around an upstream bug in the LES protocol which prevented two LES servers from connecting to each other).
+// Versions up to Celo65 need to have it, for backwards compatibility. Newer versions don't need it, since the
+// upstream LES bug has now been fixed.
+func IsPrimary(version uint) bool {
+	return version <= Celo65
+}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27}
+var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 27}
 
 // Message codes for istanbul related messages
 // If you want to add a code, you need to increment the protocolLengths Array size
@@ -51,4 +61,9 @@ const (
 
 func IsIstanbulMsg(msg p2p.Msg) bool {
 	return msg.Code >= ConsensusMsg && msg.Code <= ValidatorHandshakeMsg
+}
+
+// IsGossipedMsg specifies which messages should be gossiped throughout the network (as opposed to directly sent to a peer).
+func IsGossipedMsg(msgCode uint64) bool {
+	return msgCode == QueryEnodeMsg || msgCode == VersionCertificatesMsg
 }

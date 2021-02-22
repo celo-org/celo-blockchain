@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/celo-org/celo-blockchain/common/mclock"
 )
 
 type testDistReq struct {
@@ -105,8 +105,9 @@ func (p *testDistPeer) canQueue() bool {
 	return true
 }
 
-func (p *testDistPeer) queueSend(f func()) {
+func (p *testDistPeer) queueSend(f func()) bool {
 	f()
+	return true
 }
 
 func TestRequestDistributor(t *testing.T) {

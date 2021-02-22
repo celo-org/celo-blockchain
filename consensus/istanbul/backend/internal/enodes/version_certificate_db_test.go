@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -124,13 +124,13 @@ func TestVersionCertificateDBPrune(t *testing.T) {
 	}
 
 	batch := []*VersionCertificateEntry{
-		&VersionCertificateEntry{
+		{
 			Address:   addressA,
 			PublicKey: nodeA.Pubkey(),
 			Version:   1,
 			Signature: []byte("foo"),
 		},
-		&VersionCertificateEntry{
+		{
 			Address:   addressB,
 			PublicKey: nodeB.Pubkey(),
 			Version:   1,

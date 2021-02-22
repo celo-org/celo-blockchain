@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"math/big"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -67,38 +67,58 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	return common.Address{}, fmt.Errorf("not an elected validator %s", signer.Hex())
 }
 
-// Retrieves the block number within an epoch.  The return value will be 1-based.
-// There is a special case if the number == 0.  It is basically the last block of the 0th epoch, and should have a value of epochSize
+// GetNumberWithinEpoch retrieves the block number within an epoch.
+// The return value will be 1-based; thus first block of epoch is 1, and last block of epoch is `epochSize`
+// There is a special case if the number == 0. It is basically the last block of the 0th epoch, and should have a value of epochSize
 func GetNumberWithinEpoch(number uint64, epochSize uint64) uint64 {
 	number = number % epochSize
 	if number == 0 {
 		return epochSize
-	} else {
-		return number
 	}
+	return number
 }
 
+// IsLastBlockOfEpoch indicates if block number is the last block of its epoch
 func IsLastBlockOfEpoch(number uint64, epochSize uint64) bool {
 	return GetNumberWithinEpoch(number, epochSize) == epochSize
 }
 
+// IsFirstBlockOfEpoch indicates if block number is the first block of its epoch
 func IsFirstBlockOfEpoch(number uint64, epochSize uint64) bool {
 	return GetNumberWithinEpoch(number, epochSize) == 1
 }
 
-// Retrieves the epoch number given the block number.
-// There is a special case if the number == 0 (the genesis block).  That block will be in the
-// 1st epoch.
+// GetEpochNumber retrieves the epoch number given the block number.
+// Epoch 0 is a special block that only contains the genesis block (block 0), epoch 1
+// starts at block 1
 func GetEpochNumber(number uint64, epochSize uint64) uint64 {
-	epochNumber := number / epochSize
 	if IsLastBlockOfEpoch(number, epochSize) {
-		return epochNumber
+		return number / epochSize
 	} else {
-		return epochNumber + 1
+		return number/epochSize + 1
 	}
 }
 
+// MustGetEpochFirstBlockGivenBlockNumber is a variant of GetEpochFirstBlockGivenBlockNumber
+// that panics if called for epoch 0 (genesis)
+func MustGetEpochFirstBlockGivenBlockNumber(blockNumber uint64, epochSize uint64) uint64 {
+	firstBlock, err := GetEpochFirstBlockGivenBlockNumber(blockNumber, epochSize)
+	if err != nil {
+		panic(err)
+	}
+	return firstBlock
+}
+
+// GetEpochFirstBlockGivenBlockNumber retrieves first block of a given block's epoch
+// Fails when try to obtain first block of epoch 0 (genesis)
+func GetEpochFirstBlockGivenBlockNumber(blockNumber uint64, epochSize uint64) (uint64, error) {
+	epochNumber := GetEpochNumber(blockNumber, epochSize)
+	return GetEpochFirstBlockNumber(epochNumber, epochSize)
+}
+
+// GetEpochFirstBlockNumber retrieves first block of epoch.
 func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, error) {
+	// Epoch 0 is just the genesis block, it doesn't have a first block (only last)
 	if epochNumber == 0 {
 		return 0, errors.New("No first block for epoch 0")
 	}
@@ -106,33 +126,14 @@ func GetEpochFirstBlockNumber(epochNumber uint64, epochSize uint64) (uint64, err
 	return ((epochNumber - 1) * epochSize) + 1, nil
 }
 
+// GetEpochLastBlockNumber retrieves last block of epoch
 func GetEpochLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
 	if epochNumber == 0 {
 		return 0
 	}
-
-	firstBlockNum, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
-	return firstBlockNum + (epochSize - 1)
-}
-
-func GetValScoreTallyFirstBlockNumber(epochNumber uint64, epochSize uint64, lookbackWindowSize uint64) uint64 {
-	// We need to wait for the completion of the first window with the start window's block being the
-	// 2nd block of the epoch, before we start tallying the validator score for epoch "epochNumber".
-	// We can't include the epoch's first block since it's aggregated parent seals
-	// is for the previous epoch's valset.
-
-	epochFirstBlock, _ := GetEpochFirstBlockNumber(epochNumber, epochSize)
-	return epochFirstBlock + 1 + (lookbackWindowSize - 1)
-}
-
-func GetValScoreTallyLastBlockNumber(epochNumber uint64, epochSize uint64) uint64 {
-	// We stop tallying for epoch "epochNumber" at the second to last block of that epoch.
-	// We can't include that epoch's last block as part of the tally because the epoch val score is calculated
-	// using a tally that is updated AFTER a block is finalized.
-	// Note that it's possible to count up to the last block of the epoch, but it's much harder to implement
-	// than couting up to the second to last one.
-
-	return GetEpochLastBlockNumber(epochNumber, epochSize) - 1
+	// Epoch 0 is just the genesis bock, so epoch 1 starts at block 1 and ends at block epochSize
+	// And from then on, it's epochSize more for each epoch
+	return epochNumber * epochSize
 }
 
 func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]ValidatorData, *big.Int) {
@@ -155,8 +156,8 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 		} else {
 			// We found a new validator that is not in the old validator set
 			addedValidators = append(addedValidators, ValidatorData{
-				newVal.Address,
-				newVal.BLSPublicKey,
+				Address:      newVal.Address,
+				BLSPublicKey: newVal.BLSPublicKey,
 			})
 		}
 	}
@@ -169,7 +170,9 @@ func ValidatorSetDiff(oldValSet []ValidatorData, newValSet []ValidatorData) ([]V
 	return addedValidators, removedValidatorsBitmap
 }
 
-// This function assumes that valSet1 and valSet2 are ordered in the same way
+// CompareValidatorSlices compares 2 validator slices and indicate if they are equal.
+// Equality is defined as: valseSet1[i] must be equal to valSet2[i] for every i.
+// (aka. order matters)
 func CompareValidatorSlices(valSet1 []common.Address, valSet2 []common.Address) bool {
 	if len(valSet1) != len(valSet2) {
 		return false
@@ -215,4 +218,11 @@ func GetNodeID(enodeURL string) (*enode.ID, error) {
 
 	id := node.ID()
 	return &id, nil
+}
+
+// RandomnessCommitmentDBLocation will return the key for where the
+// given commitment's cached key-value entry
+func RandomnessCommitmentDBLocation(commitment common.Hash) []byte {
+	dbRandomnessPrefix := []byte("db-randomness-prefix")
+	return append(dbRandomnessPrefix, commitment.Bytes()...)
 }

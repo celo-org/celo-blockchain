@@ -28,7 +28,7 @@
 # You also need to mount:
 #    $(pwd)/build/bin:/build - where binaries will be written
 #    $(pwd)/build/archives:/archives - where the archives (final release artfeact) will be written
-#    $(pwd):/go/src/github.com/ethereum/go-ethereum - the source code
+#    $(pwd):/go/src/github.com/celo-org/celo-blockchain - the source code
 #
 # With all of the above in place the container needs to execute two commands:
 # (see ./cloudbuild-binaries.yaml for example of the full command)
@@ -41,7 +41,7 @@
 # In the CI flow these are then uploaded to cloud storage as artefacts.
 
 # Build Geth binaries in the xgo builder container
-FROM techknowlogick/xgo:go-1.13.x
+FROM techknowlogick/xgo:go-1.14.x
 # techknowlogic/xgo is a fork of karalabe/xgo updated to ubunut-18, it is more maintained
 # by the community and allows us to backport mingw in order to build for windows
 # See discussion in PR celo-blockchain#<number> about downsides of this image
@@ -52,5 +52,5 @@ RUN apt update && apt install -y  --no-install-recommends software-properties-co
 RUN add-apt-repository -y ppa:mati865/mingw-w64
 RUN apt update && apt -y upgrade
 
-RUN mkdir -p /go/src/github.com/ethereum/go-ethereum
-WORKDIR /go/src/github.com/ethereum/go-ethereum
+RUN mkdir -p /go/src/github.com/celo-org/celo-blockchain
+WORKDIR /go/src/github.com/celo-org/celo-blockchain

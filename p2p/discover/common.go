@@ -20,9 +20,11 @@ import (
 	"crypto/ecdsa"
 	"net"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/p2p/enr"
+	"github.com/celo-org/celo-blockchain/p2p/netutil"
 )
 
 // UDPConn is a network connection on which discovery can operate.
@@ -44,6 +46,21 @@ type Config struct {
 	Unhandled        chan<- ReadPacket // unhandled packets are sent on this channel
 	Log              log.Logger        // if set, log messages go here
 	PingIPFromPacket bool
+	ValidSchemes     enr.IdentityScheme // allowed identity schemes
+	Clock            mclock.Clock
+}
+
+func (cfg Config) withDefaults() Config {
+	if cfg.Log == nil {
+		cfg.Log = log.Root()
+	}
+	if cfg.ValidSchemes == nil {
+		cfg.ValidSchemes = enode.ValidSchemes
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = mclock.System{}
+	}
+	return cfg
 }
 
 // ListenUDP starts listening for discovery packets on the given UDP socket.
@@ -52,8 +69,15 @@ func ListenUDP(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 }
 
 // ReadPacket is a packet that couldn't be handled. Those packets are sent to the unhandled
-// channel if configured. This is exported for internal use, do not use this type.
+// channel if configured.
 type ReadPacket struct {
 	Data []byte
 	Addr *net.UDPAddr
+}
+
+func min(x, y int) int {
+	if x > y {
+		return y
+	}
+	return x
 }

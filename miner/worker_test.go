@@ -17,34 +17,33 @@
 package miner
 
 import (
-	"fmt"
 	"math/big"
 	"math/rand"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/consensustest"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/backend"
-	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/consensustest"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/contract_comm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/crypto/ecies"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -181,8 +180,11 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	if shouldAddPendingTxs {
 		backend.txPool.AddLocals(pendingTxs)
 	}
-	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, &backend.db, false)
-	w.setEtherbase(testBankAddress)
+
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, backend.db, false)
+	w.setTxFeeRecipient(testBankAddress)
+	w.setValidator(testBankAddress)
+
 	return w, backend
 }
 
@@ -198,41 +200,34 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
 	defer w.close()
 
+	// This test chain imports the mined blocks.
 	db2 := rawdb.NewMemoryDatabase()
 	b.genesis.MustCommit(db2)
 	chain, _ := core.NewBlockChain(db2, nil, b.chain.Config(), engine, vm.Config{}, nil)
 	defer chain.Stop()
 
-	loopErr := make(chan error)
-	newBlock := make(chan struct{})
-	listenNewBlock := func() {
-		sub := w.mux.Subscribe(core.NewMinedBlockEvent{})
-		defer sub.Unsubscribe()
-
-		for item := range sub.Chan() {
-			block := item.Data.(core.NewMinedBlockEvent).Block
-			_, err := chain.InsertChain([]*types.Block{block})
-			if err != nil {
-				loopErr <- fmt.Errorf("failed to insert new mined block:%d, error:%v", block.NumberU64(), err)
-			}
-			newBlock <- struct{}{}
-		}
-	}
-	// Ignore empty commit here for less noise
+	// Ignore empty commit here for less noise.
 	w.skipSealHook = func(task *task) bool {
 		return len(task.receipts) == 0
 	}
-	w.start() // Start mining!
-	go listenNewBlock()
+
+	// Wait for mined blocks.
+	sub := w.mux.Subscribe(core.NewMinedBlockEvent{})
+	defer sub.Unsubscribe()
+
+	// Start mining!
+	w.start()
 
 	for i := 0; i < 5; i++ {
 		b.txPool.AddLocal(b.newRandomTx(true))
 		b.txPool.AddLocal(b.newRandomTx(false))
 		select {
-		case e := <-loopErr:
-			t.Fatal(e)
-		case <-newBlock:
-		case <-time.NewTimer(3 * time.Second).C: // Worker needs 1s to include new changes.
+		case ev := <-sub.Chan():
+			block := ev.Data.(core.NewMinedBlockEvent).Block
+			if _, err := chain.InsertChain([]*types.Block{block}); err != nil {
+				t.Fatalf("failed to insert new mined block %d: %v", block.NumberU64(), err)
+			}
+		case <-time.After(3 * time.Second): // Worker needs 1s to include new changes.
 			t.Fatalf("timeout")
 		}
 	}
@@ -247,17 +242,19 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 
 	signerFn := backend.SignFn(testBankKey)
 	signBLSFn := backend.SignBLSFn(testBankKey)
+	signHashFn := backend.SignHashFn(testBankKey)
 	address := crypto.PubkeyToAddress(testBankKey.PublicKey)
 
 	config := istanbul.DefaultConfig
+	config.ReplicaStateDBPath = ""
 	config.RoundStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 
 	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
-	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer())
-	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn)
+	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer(nil))
+	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn, signHashFn)
 	engine.(*istanbulBackend.Backend).StartAnnouncing()
 	return engine
 }

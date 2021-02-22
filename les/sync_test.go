@@ -22,12 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/light"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // Test light syncing which will download all headers from genesis.
@@ -110,14 +110,12 @@ func testCheckpointSyncing(t *testing.T, protocol int, syncMode int) {
 	}
 
 	// Create connected peer pair.
-	_, err1, _, err2 := newTestPeerPair("peer", protocol, server.handler, client.handler)
-	select {
-	case <-time.After(time.Millisecond * 100):
-	case err := <-err1:
-		t.Fatalf("peer 1 handshake error: %v", err)
-	case err := <-err2:
-		t.Fatalf("peer 2 handshake error: %v", err)
+	peer1, peer2, err := newTestPeerPair("peer", protocol, server.handler, client.handler)
+	if err != nil {
+		t.Fatalf("Failed to connect testing peers %v", err)
 	}
+	defer peer1.close()
+	defer peer2.close()
 
 	select {
 	case err := <-done:
@@ -185,7 +183,7 @@ func testMissOracleBackend(t *testing.T, hasCheckpoint bool) {
 	// that user wants to unlock something which blocks the oracle backend
 	// initialisation. But at the same time syncing starts.
 	//
-	// See https://github.com/ethereum/go-ethereum/issues/20097 for more detail.
+	// See https://github.com/celo-org/celo-blockchain/issues/20097 for more detail.
 	//
 	// In this case, client should run light sync or legacy checkpoint sync
 	// if hardcoded checkpoint is configured.
@@ -207,17 +205,10 @@ func testMissOracleBackend(t *testing.T, hasCheckpoint bool) {
 			done <- fmt.Errorf("blockchain length mismatch, want %d, got %d", expected, header.Number)
 		}
 	}
-
 	// Create connected peer pair.
-	_, err1, _, err2 := newTestPeerPair("peer", 2, server.handler, client.handler)
-	select {
-	case <-time.After(time.Millisecond * 100):
-	case err := <-err1:
-		t.Fatalf("peer 1 handshake error: %v", err)
-	case err := <-err2:
-		t.Fatalf("peer 2 handshake error: %v", err)
+	if _, _, err := newTestPeerPair("peer", 2, server.handler, client.handler); err != nil {
+		t.Fatalf("Failed to connect testing peers %v", err)
 	}
-
 	select {
 	case err := <-done:
 		if err != nil {

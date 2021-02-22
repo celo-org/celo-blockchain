@@ -21,7 +21,7 @@ package geth
 import (
 	"errors"
 
-	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/celo-org/celo-blockchain/p2p"
 )
 
 // NodeInfo represents pi short summary of the information known about the host.
@@ -52,6 +52,8 @@ type PeerInfo struct {
 func (pi *PeerInfo) GetID() string            { return pi.info.ID }
 func (pi *PeerInfo) GetName() string          { return pi.info.Name }
 func (pi *PeerInfo) GetCaps() *Strings        { return &Strings{pi.info.Caps} }
+func (pi *PeerInfo) GetEnode() string         { return pi.info.Enode }
+func (pi *PeerInfo) GetPurposes() string      { return pi.info.Purposes }
 func (pi *PeerInfo) GetLocalAddress() string  { return pi.info.Network.LocalAddress }
 func (pi *PeerInfo) GetRemoteAddress() string { return pi.info.Network.RemoteAddress }
 

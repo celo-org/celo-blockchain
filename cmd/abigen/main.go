@@ -25,12 +25,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common/compiler"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
+	"github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common/compiler"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -101,6 +102,10 @@ var (
 		Name:  "alias",
 		Usage: "Comma separated aliases for function and event renaming, e.g. foo=bar",
 	}
+	version2Flag = cli.BoolFlag{
+		Name:  "v2",
+		Usage: "Use version 2 bindings",
+	}
 )
 
 func init() {
@@ -120,6 +125,7 @@ func init() {
 		outFlag,
 		langFlag,
 		aliasFlag,
+		version2Flag,
 	}
 	app.Action = utils.MigrateFlags(abigen)
 	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
@@ -130,6 +136,11 @@ func abigen(c *cli.Context) error {
 	if c.GlobalString(pkgFlag.Name) == "" {
 		utils.Fatalf("No destination package specified (--pkg)")
 	}
+
+	if c.GlobalIsSet(version2Flag.Name) && c.GlobalIsSet(langFlag.Name) {
+		utils.Fatalf("No --lang when using --v2 flag")
+	}
+
 	var lang bind.Lang
 	switch c.GlobalString(langFlag.Name) {
 	case "go":
@@ -283,11 +294,21 @@ func abigen(c *cli.Context) error {
 			aliases[match[1]] = match[2]
 		}
 	}
-	// Generate the contract binding
-	code, err := bind.Bind(types, abis, bins, sigs, c.GlobalString(pkgFlag.Name), lang, libs, aliases)
-	if err != nil {
-		utils.Fatalf("Failed to generate ABI binding: %v", err)
+
+	var code string
+	var err error
+	if c.GlobalIsSet(version2Flag.Name) {
+		code, err = bind_v2.Bind(types, abis, bins, sigs, c.GlobalString(pkgFlag.Name), bind_v2.LangGo, libs, aliases)
+		if err != nil {
+			utils.Fatalf("Failed to generate ABI binding: %v", err)
+		}
+	} else {
+		code, err = bind.Bind(types, abis, bins, sigs, c.GlobalString(pkgFlag.Name), lang, libs, aliases)
+		if err != nil {
+			utils.Fatalf("Failed to generate ABI binding: %v", err)
+		}
 	}
+
 	// Either flush it out to a file or display on the standard output
 	if !c.GlobalIsSet(outFlag.Name) {
 		fmt.Printf("%s\n", code)

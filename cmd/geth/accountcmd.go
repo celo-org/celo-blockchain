@@ -21,14 +21,14 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/accounts/usbwallet"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -264,7 +264,11 @@ func accountProofOfPossession(ctx *cli.Context) error {
 	ks := am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
 	signer := common.HexToAddress(ctx.Args()[0])
-	message := common.HexToAddress(ctx.Args()[1])
+	messageString := ctx.Args()[1]
+	if !common.IsHexAddress(messageString) {
+		utils.Fatalf("Address to sign is an invalid address")
+	}
+	message := common.HexToAddress(messageString)
 
 	var err error
 	var wallet accounts.Wallet

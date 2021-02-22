@@ -25,18 +25,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/ethstats"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/les"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/nat"
-	"github.com/ethereum/go-ethereum/params"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/ethstats"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/les"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/nat"
+	"github.com/celo-org/celo-blockchain/params"
+	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
 )
 
 // I am intentionally duplicating these constants different from downloader.SyncMode integer values, to ensure the
@@ -153,6 +153,7 @@ func NewNodeConfig() *NodeConfig {
 // Node represents a Geth Ethereum node instance.
 type Node struct {
 	node *node.Node
+	les  *les.LightEthereum
 }
 
 // NewNode creates and configures a new Geth node.
@@ -210,6 +211,8 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	debug.Memsize.Add("node", rawStack)
 
 	var genesis *core.Genesis
+	var nodeResponse = Node{}
+	nodeResponse.node = rawStack
 	if config.EthereumGenesis != "" {
 		// Parse the user supplied genesis spec if not mainnet
 		genesis = new(core.Genesis)
@@ -237,13 +240,16 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.SyncMode = getSyncMode(config.SyncMode)
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
+		// Use an in memory DB for replica state
+		ethConf.Istanbul.ReplicaStateDBPath = ""
 		// Use an in memory DB for validatorEnode table
 		ethConf.Istanbul.ValidatorEnodeDBPath = ""
 		ethConf.Istanbul.VersionCertificateDBPath = ""
 		// Use an in memory DB for roundState table
 		ethConf.Istanbul.RoundStateDBPath = ""
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			return les.New(ctx, &ethConf)
+			nodeResponse.les, err = les.New(ctx, &ethConf)
+			return nodeResponse.les, err
 		}); err != nil {
 			return nil, fmt.Errorf("ethereum init: %v", err)
 		}
@@ -252,7 +258,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 				var lesServ *les.LightEthereum
 				ctx.Service(&lesServ)
-
 				return ethstats.New(config.EthereumNetStats, nil, lesServ)
 			}); err != nil {
 				return nil, fmt.Errorf("netstats init: %v", err)
@@ -267,7 +272,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			return nil, fmt.Errorf("whisper init: %v", err)
 		}
 	}
-	return &Node{rawStack}, nil
+	return &nodeResponse, nil
 }
 
 func getSyncMode(syncMode int) downloader.SyncMode {
@@ -323,6 +328,33 @@ func (n *Node) GetNodeInfo() *NodeInfo {
 }
 
 // GetPeersInfo returns an array of metadata objects describing connected peers.
-func (n *Node) GetPeersInfo() *PeerInfos {
+func (n *Node) GetPeerInfos() *PeerInfos {
 	return &PeerInfos{n.node.Server().PeersInfo()}
+}
+
+func (n *Node) GetGethStats() (*Stats, error) {
+	stats := NewStats()
+
+	stats.SyncToRegistryStats()
+	if err := n.GetBlockchainStats(stats); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+func (n *Node) GetBlockchainStats(stats *Stats) error {
+	if n.les == nil {
+		return fmt.Errorf("les was not initialised")
+	}
+
+	header := n.les.BlockChain().CurrentHeader()
+	downloaderSync := n.les.Downloader().Progress()
+	lastBlockNumber := n.les.BlockChain().CurrentHeader().Number.Uint64()
+	stats.SetBool("chain/syncing", lastBlockNumber >= downloaderSync.HighestBlock)
+	stats.SetUInt("chain/downloader/highestBlockNumber", downloaderSync.HighestBlock)
+	stats.SetInt("chain/lastBlockTotalDifficulty", n.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64()).Int64())
+	stats.SetUInt("chain/lastBlockTimestamp", header.Time)
+
+	return nil
 }

@@ -25,8 +25,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,8 +104,8 @@ func TestEventId(t *testing.T) {
 		}
 
 		for name, event := range abi.Events {
-			if event.ID() != test.expectations[name] {
-				t.Errorf("expected id to be %x, got %x", test.expectations[name], event.ID())
+			if event.ID != test.expectations[name] {
+				t.Errorf("expected id to be %x, got %x", test.expectations[name], event.ID)
 			}
 		}
 	}

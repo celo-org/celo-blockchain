@@ -23,10 +23,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
 var (
@@ -405,9 +405,9 @@ func (api *PrivateLightClientAPI) GatewayFeeCache() map[string]*GatewayFeeInform
 
 // RequestPeerGatewayFees updates cache by pulling gateway fee peer nodes
 func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
-	peerNodes := api.le.peers.AllPeers()
+	peerNodes := api.le.peers.allPeers()
 	for _, peerNode := range peerNodes {
-		cost := peerNode.GetRequestCost(GetGatewayFeeMsg, int(1))
+		cost := peerNode.getRequestCost(GetGatewayFeeMsg, int(1))
 		err := peerNode.RequestGatewayFee(genReqID(), cost)
 		if err != nil {
 			return err

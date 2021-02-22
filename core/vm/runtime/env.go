@@ -17,21 +17,26 @@
 package runtime
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
 func NewEnv(cfg *Config) *vm.EVM {
+
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
 		Transfer:    vm.Transfer,
-		GetHash:     func(uint64) common.Hash { return common.Hash{} },
+
+		GetHash: cfg.GetHashFn,
 
 		Origin:      cfg.Origin,
 		Coinbase:    cfg.Coinbase,
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
+	}
+
+	if cfg.ChainConfig.Istanbul != nil {
+		context.EpochSize = cfg.ChainConfig.Istanbul.Epoch
 	}
 
 	return vm.NewEVM(context, cfg.State, cfg.ChainConfig, cfg.EVMConfig)

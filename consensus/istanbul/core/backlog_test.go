@@ -23,12 +23,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/event"
-	elog "github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/event"
+	elog "github.com/celo-org/celo-blockchain/log"
 )
 
 func TestCheckMessage(t *testing.T) {
@@ -315,6 +315,56 @@ func TestStoreBacklog(t *testing.T) {
 	msg = backlog.backlogBySeq[v11.Sequence.Uint64()].PopItem()
 	if !reflect.DeepEqual(msg, mPreprepare2) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare2)
+	}
+}
+
+func TestClearBacklogForSequence(t *testing.T) {
+	testLogger.SetHandler(elog.StdoutHandler)
+
+	processed := false
+	backlog := newMsgBacklog(
+		func(msg *istanbul.Message) { processed = true },
+		func(msgCode uint64, msgView *istanbul.View) error { return nil },
+	).(*msgBacklogImpl)
+
+	// The backlog's state is sequence number 1, round 0.  Store future messages with sequence number 2
+	v := &istanbul.View{
+		Round:    big.NewInt(0),
+		Sequence: big.NewInt(2),
+	}
+	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
+	preprepare := &istanbul.Preprepare{
+		View:     v,
+		Proposal: makeBlock(2),
+	}
+	prepreparePayload, _ := Encode(preprepare)
+	mPreprepare := &istanbul.Message{
+		Code:    istanbul.MsgPreprepare,
+		Msg:     prepreparePayload,
+		Address: p1.Address(),
+	}
+	numMsgs := 20
+	for i := 0; i < numMsgs; i++ {
+		backlog.store(mPreprepare)
+	}
+
+	// Sanity check that storing the messages worked
+	if backlog.msgCount != numMsgs {
+		t.Errorf("initial message count mismatch: have %d, want %d", backlog.msgCount, numMsgs)
+	}
+	// Try clearing a different sequence number, there should be no effect
+	backlog.clearBacklogForSeq(3)
+	if backlog.msgCount != numMsgs {
+		t.Errorf("middle message count mismatch: have %d, want %d", backlog.msgCount, numMsgs)
+	}
+	// Clear the messages with the right sequence number, should empty the backlog
+	backlog.clearBacklogForSeq(2)
+	if backlog.msgCount > 0 {
+		t.Errorf("backlog was not empty: msgCount %d", backlog.msgCount)
+	}
+	// The processor should not be called with the messages when clearBacklogForSeq() is called
+	if processed {
+		t.Errorf("backlog messages were processed during clearing")
 	}
 }
 

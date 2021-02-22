@@ -65,7 +65,7 @@
     <script type="text/javascript">
       // Download the developer guide ToC and convert it into a guide sidebar
       $.ajax({
-        url: 'https://raw.githubusercontent.com/wiki/ethereum/go-ethereum/Developer-Guide.md',
+        url: 'https://raw.githubusercontent.com/wiki/celo-org/celo-blockchain/Developer-Guide.md',
         error: function() {
           alert("Failed to load latest release!");
         },
@@ -108,7 +108,7 @@
                   $.ajax({
                     url: link,
                     error: function() {
-                      $('#content').html("<div class='alert alert-dismissible alert-danger'>Failed to load guide page \"" + name + "\". Please report this issue on our <a href='https://github.com/ethereum/go-ethereum/issues' class='alert-link'>bug tracker</a>. Thank you!</div>");
+                      $('#content').html("<div class='alert alert-dismissible alert-danger'>Failed to load guide page \"" + name + "\". Please report this issue on our <a href='https://github.com/celo-org/celo-blockchain/issues' class='alert-link'>bug tracker</a>. Thank you!</div>");
                     },
                     dataType: 'text',
                     success: function(data) {

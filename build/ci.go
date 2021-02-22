@@ -59,9 +59,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/internal/build"
+	"github.com/celo-org/celo-blockchain/params"
 	"github.com/cespare/cp"
-	"github.com/ethereum/go-ethereum/internal/build"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -286,6 +286,9 @@ func buildFlags(env build.Environment) (flags []string) {
 		ld = append(ld, "-extldflags")
 		ld = append(ld, "-pthread")
 	}
+	if env.MetricsDefault {
+		ld = append(ld, "-X", "'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'")
+	}
 
 	if len(ld) > 0 {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
@@ -388,7 +391,7 @@ func doLint(cmdline []string) {
 
 // downloadLinter downloads and unpacks golangci-lint.
 func downloadLinter(cachedir string) string {
-	const version = "1.23.6"
+	const version = "1.25.0"
 
 	csdb := build.MustLoadChecksums("build/checksums.txt")
 	base := fmt.Sprintf("golangci-lint-%s-%s-%s", version, runtime.GOOS, runtime.GOARCH)
@@ -865,7 +868,11 @@ func doAndroidArchive(cmdline []string) {
 	}
 	// Build the Android archive and Maven resources
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"))
+	ldflags := "-s -w"
+	if env.MetricsDefault {
+		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
+	}
+	build.MustRun(gomobileTool("bind", "-ldflags", ldflags, "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/celo-org/celo-blockchain/mobile"))
 
 	if *local {
 		// If we're building locally, copy bundle to build dir and skip Maven
@@ -984,7 +991,11 @@ func doXCodeFramework(cmdline []string) {
 
 	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
+	ldflags := "-s -w"
+	if env.MetricsDefault {
+		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
+	}
+	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/celo-org/celo-blockchain/mobile")
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards

@@ -24,12 +24,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p/netutil"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -357,6 +357,8 @@ func (net *Network) loop() {
 		bucketRefreshTimer = time.NewTimer(bucketRefreshInterval)
 		refreshDone        chan struct{} // closed when the 'refresh' lookup has ended
 	)
+	defer refreshTimer.Stop()
+	defer bucketRefreshTimer.Stop()
 
 	// Tracking the next ticket to register.
 	var (
@@ -393,11 +395,13 @@ func (net *Network) loop() {
 		searchInfo                = make(map[Topic]topicSearchInfo)
 		activeSearchCount         int
 	)
+	defer topicRegisterLookupTick.Stop()
 	topicSearchLookupDone := make(chan topicSearchResult, 100)
 	topicSearch := make(chan Topic, 100)
 	<-topicRegisterLookupTick.C
 
 	statsDump := time.NewTicker(10 * time.Second)
+	defer statsDump.Stop()
 
 loop:
 	for {
@@ -637,7 +641,7 @@ loop:
 	}
 	log.Trace("loop stopped")
 
-	log.Debug(fmt.Sprintf("shutting down"))
+	log.Debug("shutting down")
 	if net.conn != nil {
 		net.conn.Close()
 	}

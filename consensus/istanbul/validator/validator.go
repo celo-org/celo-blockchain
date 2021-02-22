@@ -17,16 +17,17 @@
 package validator
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 func New(addr common.Address, blsPublicKey blscrypto.SerializedPublicKey) istanbul.Validator {
 	return &defaultValidator{
-		address:      addr,
-		blsPublicKey: blsPublicKey,
+		address:                  addr,
+		blsPublicKey:             blsPublicKey,
+		uncompressedBlsPublicKey: nil,
 	}
 }
 
@@ -42,6 +43,10 @@ func DeserializeValidator(binaryData []byte) (istanbul.Validator, error) {
 
 func NewSet(validators []istanbul.ValidatorData) istanbul.ValidatorSet {
 	return newDefaultSet(validators)
+}
+
+func NewSetFromDataWithBLSKeyCache(validators []istanbul.ValidatorDataWithBLSKeyCache) istanbul.ValidatorSet {
+	return newDefaultSetFromDataWithBLSKeyCache(validators)
 }
 
 func DeserializeValidatorSet(binaryData []byte) (istanbul.ValidatorSet, error) {

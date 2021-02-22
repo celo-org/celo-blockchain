@@ -25,18 +25,18 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -57,12 +57,18 @@ type MockP2PServer struct {
 	Node *enode.Node
 }
 
-func NewMockP2PServer() *MockP2PServer {
+var defaultPubKey *ecdsa.PublicKey = &ecdsa.PublicKey{
+	Curve: crypto.S256(),
+	X:     hexutil.MustDecodeBig("0x760c4460e5336ac9bbd87952a3c7ec4363fc0a97bd31c86430806e287b437fd1"),
+	Y:     hexutil.MustDecodeBig("0xb01abc6e1db640cf3106b520344af1d58b00b57823db3e1407cbc433e1b6d04d")}
+
+func NewMockP2PServer(pubKey *ecdsa.PublicKey) *MockP2PServer {
+	if pubKey == nil {
+		pubKey = defaultPubKey
+	}
+
 	mockNode := enode.NewV4(
-		&ecdsa.PublicKey{
-			Curve: crypto.S256(),
-			X:     hexutil.MustDecodeBig("0x760c4460e5336ac9bbd87952a3c7ec4363fc0a97bd31c86430806e287b437fd1"),
-			Y:     hexutil.MustDecodeBig("0xb01abc6e1db640cf3106b520344af1d58b00b57823db3e1407cbc433e1b6d04d")},
+		pubKey,
 		net.IP{192, 168, 0, 1},
 		30303,
 		30303)
@@ -81,6 +87,41 @@ func (serv *MockP2PServer) RemovePeer(node *enode.Node, purpose p2p.PurposeFlag)
 func (serv *MockP2PServer) AddTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
 
 func (serv *MockP2PServer) RemoveTrustedPeer(node *enode.Node, purpose p2p.PurposeFlag) {}
+
+type MockPeer struct {
+	node     *enode.Node
+	purposes p2p.PurposeFlag
+}
+
+func NewMockPeer(node *enode.Node, purposes p2p.PurposeFlag) *MockPeer {
+	mockPeer := &MockPeer{node: node, purposes: purposes}
+
+	return mockPeer
+}
+
+func (mp *MockPeer) Send(msgCode uint64, data interface{}) error {
+	return nil
+}
+
+func (mp *MockPeer) Node() *enode.Node {
+	return mp.node
+}
+
+func (mp *MockPeer) Version() int {
+	return 0
+}
+
+func (mp *MockPeer) ReadMsg() (p2p.Msg, error) {
+	return p2p.Msg{}, nil
+}
+
+func (mp *MockPeer) Inbound() bool {
+	return false
+}
+
+func (mp *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return true
+}
 
 type Mode uint
 
@@ -347,4 +388,9 @@ func (e *MockEngine) APIs(chain consensus.ChainReader) []rpc.API {
 // Close closes the exit channel to notify all backend threads exiting.
 func (e *MockEngine) Close() error {
 	return nil
+}
+
+// EpochSize size of the epoch
+func (e *MockEngine) EpochSize() uint64 {
+	return 100
 }

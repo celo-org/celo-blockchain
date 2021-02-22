@@ -21,14 +21,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/contract_comm"
-	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -67,21 +67,36 @@ const (
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  },
-	  {
+	},
+	{
 		"constant": true,
 		"inputs": [],
-		"name": "intrinsicGasForAlternativeFeeCurrency",
+		"name": "getUptimeLookbackWindow",
 		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
+			{
+				"internalType": "uint256",
+				"name": "lookbackWindow",
+				"type": "uint256"
+			}
 		],
 		"payable": false,
 		"stateMutability": "view",
 		"type": "function"
-	  }
+	},
+	{
+		"constant": true,
+		"inputs": [],
+		"name": "intrinsicGasForAlternativeFeeCurrency",
+		"outputs": [
+			{
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	}
 ]`
 )
 
@@ -188,4 +203,27 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		return params.DefaultGasLimit, err
 	}
 	return gasLimit.Uint64(), nil
+}
+
+func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
+	var lookbackWindow *big.Int
+	_, err := contract_comm.MakeStaticCall(
+		params.BlockchainParametersRegistryId,
+		blockchainParametersABI,
+		"getUptimeLookbackWindow",
+		[]interface{}{},
+		&lookbackWindow,
+		params.MaxGasForReadBlockchainParameter,
+		header,
+		state,
+	)
+	if err != nil {
+		if err == errors.ErrRegistryContractNotDeployed {
+			log.Debug("Error obtaining lookback window", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		} else {
+			log.Warn("Error obtaining lookback window", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
+		}
+		return 0, err
+	}
+	return lookbackWindow.Uint64(), nil
 }

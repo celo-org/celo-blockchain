@@ -20,13 +20,16 @@
 package geth
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/shared/signer"
 )
 
 const (
@@ -103,6 +106,11 @@ func (ks *KeyStore) GetAccounts() *Accounts {
 	return &Accounts{ks.keystore.Accounts()}
 }
 
+// Decrypt decrypts an ECIES ciphertext.
+func (ks *KeyStore) Decrypt(account *Account, cipher []byte) ([]byte, error) {
+	return ks.keystore.Decrypt(account.account, cipher, nil, nil)
+}
+
 // DeleteAccount deletes the key matched by account if the passphrase is correct.
 // If a contains no filename, the address must match a unique key.
 func (ks *KeyStore) DeleteAccount(account *Account, passphrase string) error {
@@ -113,6 +121,31 @@ func (ks *KeyStore) DeleteAccount(account *Account, passphrase string) error {
 // is in the [R || S || V] format where V is 0 or 1.
 func (ks *KeyStore) SignHash(address *Address, hash []byte) (signature []byte, _ error) {
 	return ks.keystore.SignHash(accounts.Account{Address: address.address}, common.CopyBytes(hash))
+}
+
+// SignTypedData signs EIP-712 conformant typed data
+// hash = keccak256("\x19${byteVersion}${domainSeparator}${hashStruct(message)}")
+func (ks *KeyStore) SignTypedData(account *Account, typedDataJSON []byte) ([]byte, error) {
+	var typedData signer.TypedData
+	err := json.Unmarshal(typedDataJSON, &typedData)
+	if err != nil {
+		return nil, err
+	}
+	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	if err != nil {
+		return nil, err
+	}
+	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
+	if err != nil {
+		return nil, err
+	}
+	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
+	sighash := crypto.Keccak256(rawData)
+	signature, err := ks.keystore.SignHash(account.account, sighash)
+	if err != nil {
+		return nil, err
+	}
+	return signature, nil
 }
 
 // SignTx signs the given transaction with the requested account.
@@ -218,4 +251,12 @@ func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount 
 		return nil, err
 	}
 	return &Account{account}, nil
+}
+
+// ComputeECDHSharedSecret computes an ECDH shared secret between the given account's
+// private key and the public key provided. The account has to be unlocked first.
+// The public key format is a 65 byte array, with byte[0] == 4, 32 bytes for X,
+// and 32 bytes for Y (encoded in base256).
+func (ks *KeyStore) ComputeECDHSharedSecret(a *Account, publicKey []byte) ([]byte, error) {
+	return ks.keystore.ComputeECDHSharedSecret(a.account, publicKey)
 }

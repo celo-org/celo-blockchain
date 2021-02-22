@@ -6,11 +6,11 @@ import (
 	"math/rand"
 	"testing"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 )
 
 func TestRSDBRoundStateDB(t *testing.T) {
@@ -18,8 +18,8 @@ func TestRSDBRoundStateDB(t *testing.T) {
 	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	dummyRoundState := func() RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
-			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
-			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
+			{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
+			{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 		})
 		return newRoundState(newView(2, 1), valSet, valSet.GetByIndex(0))
 	}
@@ -60,8 +60,8 @@ func TestRSDBDeleteEntriesOlderThan(t *testing.T) {
 	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	createRoundState := func(view *istanbul.View) RoundState {
 		valSet := validator.NewSet([]istanbul.ValidatorData{
-			{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
-			{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
+			{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
+			{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 		})
 		return newRoundState(view, valSet, valSet.GetByIndex(0))
 	}
@@ -134,8 +134,8 @@ func TestRSDBGetOldestValidView(t *testing.T) {
 	pubkey1 := blscrypto.SerializedPublicKey{1, 2, 3}
 	pubkey2 := blscrypto.SerializedPublicKey{3, 1, 4}
 	valSet := validator.NewSet([]istanbul.ValidatorData{
-		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: pubkey1},
-		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: pubkey2},
+		{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: pubkey1},
+		{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: pubkey2},
 	})
 	sequencesToSave := uint64(100)
 	runTestCase := func(name string, viewToStore, expectedView *istanbul.View) {

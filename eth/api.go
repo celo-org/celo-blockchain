@@ -28,16 +28,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 // PublicEthereumAPI provides an API to access Ethereum full node-related
@@ -51,14 +51,19 @@ func NewPublicEthereumAPI(e *Ethereum) *PublicEthereumAPI {
 	return &PublicEthereumAPI{e}
 }
 
-// Etherbase is the address that mining rewards will be send to
-func (api *PublicEthereumAPI) Etherbase() (common.Address, error) {
-	return api.e.Etherbase()
+// Validator is the address that will sign messages
+func (api *PublicEthereumAPI) Validator() (common.Address, error) {
+	return api.e.Validator()
 }
 
-// Coinbase is the address that mining rewards will be send to (alias for Etherbase)
+// TxFeeRecipient is the address that mining rewards will be sent to
+func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
+	return api.e.TxFeeRecipient()
+}
+
+// Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
-	return api.Etherbase()
+	return api.TxFeeRecipient()
 }
 
 // Hashrate returns the POW hashrate
@@ -144,7 +149,8 @@ func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 
 // SetEtherbase sets the etherbase of the miner
 func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
-	api.e.SetEtherbase(etherbase)
+	api.e.SetValidator(etherbase)
+	api.e.SetTxFeeRecipient(etherbase)
 	return true
 }
 
@@ -355,70 +361,50 @@ func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, 
 	return results, nil
 }
 
-// AccountRangeResult returns a mapping from the hash of an account addresses
-// to its preimage. It will return the JSON null if no preimage is found.
-// Since a query can return a limited amount of results, a "next" field is
-// also present for paging.
-type AccountRangeResult struct {
-	Accounts map[common.Hash]*common.Address `json:"accounts"`
-	Next     common.Hash                     `json:"next"`
-}
-
-func accountRange(st state.Trie, start *common.Hash, maxResults int) (AccountRangeResult, error) {
-	if start == nil {
-		start = &common.Hash{0}
-	}
-	it := trie.NewIterator(st.NodeIterator(start.Bytes()))
-	result := AccountRangeResult{Accounts: make(map[common.Hash]*common.Address), Next: common.Hash{}}
-
-	if maxResults > AccountRangeMaxResults {
-		maxResults = AccountRangeMaxResults
-	}
-
-	for i := 0; i < maxResults && it.Next(); i++ {
-		if preimage := st.GetKey(it.Key); preimage != nil {
-			addr := &common.Address{}
-			addr.SetBytes(preimage)
-			result.Accounts[common.BytesToHash(it.Key)] = addr
-		} else {
-			result.Accounts[common.BytesToHash(it.Key)] = nil
-		}
-	}
-
-	if it.Next() {
-		result.Next = common.BytesToHash(it.Key)
-	}
-
-	return result, nil
-}
-
 // AccountRangeMaxResults is the maximum number of results to be returned per call
 const AccountRangeMaxResults = 256
 
-// AccountRange enumerates all accounts in the latest state
-func (api *PrivateDebugAPI) AccountRange(ctx context.Context, start *common.Hash, maxResults int) (AccountRangeResult, error) {
-	var statedb *state.StateDB
+// AccountRangeAt enumerates all accounts in the given block and start point in paging request
+func (api *PublicDebugAPI) AccountRange(blockNrOrHash rpc.BlockNumberOrHash, start []byte, maxResults int, nocode, nostorage, incompletes bool) (state.IteratorDump, error) {
+	var stateDb *state.StateDB
 	var err error
-	block := api.eth.blockchain.CurrentBlock()
 
-	if len(block.Transactions()) == 0 {
-		statedb, err = api.computeStateDB(block, defaultTraceReexec)
-		if err != nil {
-			return AccountRangeResult{}, err
+	if number, ok := blockNrOrHash.Number(); ok {
+		if number == rpc.PendingBlockNumber {
+			// If we're dumping the pending state, we need to request
+			// both the pending block as well as the pending state from
+			// the miner and operate on those
+			_, stateDb = api.eth.miner.Pending()
+		} else {
+			var block *types.Block
+			if number == rpc.LatestBlockNumber {
+				block = api.eth.blockchain.CurrentBlock()
+			} else {
+				block = api.eth.blockchain.GetBlockByNumber(uint64(number))
+			}
+			if block == nil {
+				return state.IteratorDump{}, fmt.Errorf("block #%d not found", number)
+			}
+			stateDb, err = api.eth.BlockChain().StateAt(block.Root())
+			if err != nil {
+				return state.IteratorDump{}, err
+			}
 		}
-	} else {
-		_, _, statedb, err = api.computeTxEnv(block.Hash(), len(block.Transactions())-1, 0)
+	} else if hash, ok := blockNrOrHash.Hash(); ok {
+		block := api.eth.blockchain.GetBlockByHash(hash)
+		if block == nil {
+			return state.IteratorDump{}, fmt.Errorf("block %s not found", hash.Hex())
+		}
+		stateDb, err = api.eth.BlockChain().StateAt(block.Root())
 		if err != nil {
-			return AccountRangeResult{}, err
+			return state.IteratorDump{}, err
 		}
 	}
 
-	trie, err := statedb.Database().OpenTrie(block.Header().Root)
-	if err != nil {
-		return AccountRangeResult{}, err
+	if maxResults > AccountRangeMaxResults || maxResults <= 0 {
+		maxResults = AccountRangeMaxResults
 	}
-
-	return accountRange(trie, start, maxResults)
+	return stateDb.IteratorDump(nocode, nostorage, incompletes, start, maxResults), nil
 }
 
 // StorageRangeResult is the result of a debug_storageRangeAt API call.
@@ -435,7 +421,7 @@ type storageEntry struct {
 }
 
 // StorageRangeAt returns the storage at the given block height and transaction index.
-func (api *PrivateDebugAPI) StorageRangeAt(ctx context.Context, blockHash common.Hash, txIndex int, contractAddress common.Address, keyStart hexutil.Bytes, maxResult int) (StorageRangeResult, error) {
+func (api *PrivateDebugAPI) StorageRangeAt(blockHash common.Hash, txIndex int, contractAddress common.Address, keyStart hexutil.Bytes, maxResult int) (StorageRangeResult, error) {
 	_, _, statedb, err := api.computeTxEnv(blockHash, txIndex, 0)
 	if err != nil {
 		return StorageRangeResult{}, err

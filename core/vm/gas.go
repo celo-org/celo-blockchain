@@ -30,7 +30,7 @@ const (
 	GasExtStep     uint64 = 20
 )
 
-// calcGas returns the actual gas cost of the call.
+// callGas returns the actual gas cost of the call.
 //
 // The cost of gas was changed during the homestead price change HF.
 // As part of EIP 150 (TangerineWhistle), the returned gas is gas - base * 63 / 64.
@@ -46,7 +46,7 @@ func callGas(isEip150 bool, availableGas, base uint64, callCost *big.Int) (uint6
 		}
 	}
 	if !callCost.IsUint64() {
-		return 0, errGasUintOverflow
+		return 0, ErrGasUintOverflow
 	}
 
 	return callCost.Uint64(), nil

@@ -26,11 +26,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -196,22 +196,13 @@ func TestUptimeStorage(t *testing.T) {
 	if entry := ReadAccumulatedEpochUptime(db, epoch); entry != nil {
 		t.Fatalf("Non existent uptime returned: %v", entry)
 	}
-	// Write and verify the uptime in the database
-	uptimeEntries := make([]istanbul.UptimeEntry, 3)
-	uptimeEntries[0] = istanbul.UptimeEntry{
-		ScoreTally:      0,
-		LastSignedBlock: 1,
-	}
-	uptimeEntries[1] = istanbul.UptimeEntry{
-		ScoreTally:      2,
-		LastSignedBlock: 2,
-	}
-	uptimeEntries[2] = istanbul.UptimeEntry{
-		ScoreTally:      8,
-		LastSignedBlock: 8,
-	}
-	uptime := &istanbul.Uptime{
-		Entries:     uptimeEntries,
+
+	uptime := &uptime.Uptime{
+		Entries: []uptime.UptimeEntry{
+			{UpBlocks: 0, LastSignedBlock: 1},
+			{UpBlocks: 2, LastSignedBlock: 2},
+			{UpBlocks: 8, LastSignedBlock: 8},
+		},
 		LatestBlock: 5,
 	}
 	WriteAccumulatedEpochUptime(db, epoch, uptime)

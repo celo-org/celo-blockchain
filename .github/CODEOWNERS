@@ -2,21 +2,12 @@
 # Each line is a file pattern followed by one or more owners.
 
 # default owners, overridden by package specific owners below
-* @asaj @timmoreton
+* @celo-org/blockchain
 
-/accounts/ @kobigurk
-/cmd/ @kevjue @mcortesi
-/consensus/ @kevjue @mcortesi @trianglesphere
-/consensus/istanbul/backend/ @tkporter
-/contract_comm/ @kevjue
-/core/ @kevjue
+/consensus/ @trianglesphere @celo-org/blockchain
 /crypto/ @kobigurk
-/eth/ @kevjue @tkporter
-/ethstats/ @diminator
-/les/ @kevjue
-/light/ @kevjue
-/logging/ @timmoreton @mcortesi
-/metrics/ @timmoreton
-/miner/ @kevjue
-/node/ @kevjue
-/p2p/ @kevjue
+/ethstats/ @gastonponti @celo-org/blockchain
+/les/ @hbandura @nategraf @celo-org/blockchain
+/light/ @hbandura @nategraf @celo-org/blockchain
+/metrics/ @gastonponti @celo-org/blockchain
+/p2p/ @oneeman @celo-org/blockchain

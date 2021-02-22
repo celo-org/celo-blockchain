@@ -23,18 +23,21 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	ethCore "github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -80,9 +83,8 @@ var (
 	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
 	// an unregistered validator
 	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
-	// errUnauthorizedValEnodesShareMessage is returned when the received valEnodeshare message is from
-	// an unauthorized sender
-	errUnauthorizedValEnodesShareMessage = errors.New("unauthorized valenodesshare message")
+	// errNotAValidator is returned when the node is not configured as a validator
+	errNotAValidator = errors.New("Not configured as a validator")
 )
 
 var (
@@ -332,7 +334,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
 	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false)
+	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false, false)
 	if err != nil {
 		logger.Error("Unable to verify aggregated signature", "err", err)
 		return errInvalidSignature
@@ -367,9 +369,6 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	// unused fields, force to set to empty
-	header.Coinbase = sb.address
-
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
 	parent := chain.GetHeader(header.ParentHash, number-1)
@@ -416,19 +415,30 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
-// Returns whether or not a particular header represents the last block in the epoch.
+// IsLastBlockOfEpoch returns whether or not a particular header represents the last block in the epoch.
 func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
 	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
 }
 
-// Returns the size of epochs in blocks.
+// EpochSize returns the size of epochs in blocks.
 func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch
 }
 
-// Returns the size of the lookback window for calculating uptime (in blocks)
-func (sb *Backend) LookbackWindow() uint64 {
-	return sb.config.LookbackWindow
+// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
+// Value is constant during an epoch
+func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) uint64 {
+	// Check if donut was already active at the beginning of the epoch
+	// as we want to activate the change at epoch change
+	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
+	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
+
+	return uptime.ComputeLookbackWindow(
+		sb.config.Epoch,
+		sb.config.DefaultLookbackWindow,
+		cip21Activated,
+		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(header, state) },
+	)
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
@@ -586,10 +596,55 @@ func (sb *Backend) SetChain(chain consensus.ChainReader, currentBlock func() *ty
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
+
+	if bc, ok := chain.(*ethCore.BlockChain); ok {
+		go sb.newChainHeadLoop(bc)
+		go sb.updateReplicaStateLoop(bc)
+	}
+
 }
 
-// StartValidating implements consensus.Istanbul.StartValidating
-func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
+// Loop to run on new chain head events. Chain head events may be batched.
+func (sb *Backend) newChainHeadLoop(bc *ethCore.BlockChain) {
+	// Batched. For stats & announce
+	chainHeadCh := make(chan ethCore.ChainHeadEvent, 10)
+	chainHeadSub := bc.SubscribeChainHeadEvent(chainHeadCh)
+	defer chainHeadSub.Unsubscribe()
+
+	for {
+		select {
+		case chainHeadEvent := <-chainHeadCh:
+			sb.newChainHead(chainHeadEvent.Block)
+		case err := <-chainHeadSub.Err():
+			log.Error("Error in istanbul's subscription to the blockchain's chainhead event", "err", err)
+			return
+		}
+	}
+}
+
+// Loop to update replica state. Listens to chain events to avoid batching.
+func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
+	// Unbatched event listener
+	chainEventCh := make(chan ethCore.ChainEvent, 10)
+	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+	defer chainEventSub.Unsubscribe()
+
+	for {
+		select {
+		case chainEvent := <-chainEventCh:
+			if !sb.coreStarted && sb.replicaState != nil {
+				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
+				sb.replicaState.NewChainHead(consensusBlock)
+			}
+		case err := <-chainEventSub.Err():
+			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
+			return
+		}
+	}
+}
+
+// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
+func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
 	sb.coreMu.Lock()
@@ -598,16 +653,31 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 		return istanbul.ErrStartedEngine
 	}
 
+	sb.hasBadBlock = hasBadBlock
+	sb.processBlock = processBlock
+	sb.validateState = validateState
+
+	return nil
+}
+
+// StartValidating implements consensus.Istanbul.StartValidating
+func (sb *Backend) StartValidating() error {
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
+	if sb.coreStarted {
+		return istanbul.ErrStartedEngine
+	}
+
+	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
+		return errors.New("Must SetBlockProcessors prior to StartValidating")
+	}
+
 	// clear previous data
 	sb.proposedBlockHash = common.Hash{}
 	if sb.commitCh != nil {
 		close(sb.commitCh)
 	}
 	sb.commitCh = make(chan *types.Block, 1)
-
-	sb.hasBadBlock = hasBadBlock
-	sb.processBlock = processBlock
-	sb.validateState = validateState
 
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
@@ -618,7 +688,7 @@ func (sb *Backend) StartValidating(hasBadBlock func(common.Hash) bool,
 	// will be updated by the time announce messages in the announceThread begin
 	// being generated
 	if !sb.IsProxiedValidator() {
-		sb.updateAnnounceVersion()
+		sb.UpdateAnnounceVersion()
 	}
 
 	sb.coreStarted = true
@@ -652,14 +722,15 @@ func (sb *Backend) StopValidating() error {
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
 	sb.announceMu.Lock()
+	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
 
 	go sb.announceThread()
 
+	sb.announceThreadQuit = make(chan struct{})
 	sb.announceRunning = true
-	sb.announceMu.Unlock()
 
 	if err := sb.vph.startThread(); err != nil {
 		sb.StopAnnouncing()
@@ -678,7 +749,7 @@ func (sb *Backend) StopAnnouncing() error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
-	sb.announceThreadQuit <- struct{}{}
+	close(sb.announceThreadQuit)
 	sb.announceThreadWg.Wait()
 
 	sb.announceRunning = false
@@ -686,54 +757,54 @@ func (sb *Backend) StopAnnouncing() error {
 	return sb.vph.stopThread()
 }
 
-// StartProxyHandler implements consensus.Istanbul.StartProxyHandler
-func (sb *Backend) StartProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+// StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
+func (sb *Backend) StartProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if sb.proxyHandlerRunning {
-		return istanbul.ErrStartedProxyHandler
+	if sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStartedProxiedValidatorEngine
 	}
 
-	if !sb.IsProxiedValidator() {
+	if !sb.config.Proxied {
 		return istanbul.ErrValidatorNotProxied
 	}
 
-	// At this point, we can be sure that this node is a proxied validator.
-	if sb.config.ProxyInternalFacingNode != nil && sb.config.ProxyExternalFacingNode != nil {
-		if err := sb.addProxy(sb.config.ProxyInternalFacingNode, sb.config.ProxyExternalFacingNode); err != nil {
-			sb.logger.Error("Issue in adding proxy on istanbul start", "err", err)
-		}
-	}
-
-	go sb.valEnodesShareThread()
-
-	sb.proxyHandlerRunning = true
+	sb.proxiedValidatorEngine.Start()
+	sb.proxiedValidatorEngineRunning = true
 
 	return nil
 }
 
-// StopProxyHandler implements consensus.Istanbul.StopProxyHandler
-func (sb *Backend) StopProxyHandler() error {
-	sb.proxyHandlerMu.Lock()
-	defer sb.proxyHandlerMu.Unlock()
+// StopProxiedValidatorEngine implements consensus.Istanbul.StopProxiedValidatorEngine
+func (sb *Backend) StopProxiedValidatorEngine() error {
+	sb.proxiedValidatorEngineMu.Lock()
+	defer sb.proxiedValidatorEngineMu.Unlock()
 
-	if !sb.proxyHandlerRunning {
-		return istanbul.ErrStoppedProxyHandler
+	if !sb.proxiedValidatorEngineRunning {
+		return istanbul.ErrStoppedProxiedValidatorEngine
 	}
 
-	if sb.IsProxiedValidator() {
-		sb.valEnodesShareThreadQuit <- struct{}{}
-		sb.valEnodesShareThreadWg.Wait()
-
-		if sb.proxyNode != nil {
-			sb.removeProxy(sb.proxyNode.node)
-		}
-	}
-
-	sb.proxyHandlerRunning = false
+	sb.proxiedValidatorEngine.Stop()
+	sb.proxiedValidatorEngineRunning = false
 
 	return nil
+}
+
+// MakeReplica clears the start/stop state & stops this node from participating in consensus
+func (sb *Backend) MakeReplica() error {
+	if sb.replicaState != nil {
+		return sb.replicaState.MakeReplica()
+	}
+	return istanbul.ErrUnauthorizedAddress
+}
+
+// MakePrimary clears the start/stop state & makes this node participate in consensus
+func (sb *Backend) MakePrimary() error {
+	if sb.replicaState != nil {
+		return sb.replicaState.MakePrimary()
+	}
+	return istanbul.ErrUnauthorizedAddress
 }
 
 // snapshot retrieves the validator set needed to sign off on the block immediately after 'number'.  E.g. if you need to find the validator set that needs to sign off on block 6,
@@ -952,6 +1023,28 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 	}
 
 	return writeAggregatedSeal(header, createParentSeal(), true)
+}
+
+// SetStartValidatingBlock sets block that the validator will start validating on (inclusive)
+func (sb *Backend) SetStartValidatingBlock(blockNumber *big.Int) error {
+	if sb.replicaState == nil {
+		return errNotAValidator
+	}
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
+	return sb.replicaState.SetStartValidatingBlock(blockNumber)
+}
+
+// SetStopValidatingBlock sets the block that the validator will stop just before (exclusive range)
+func (sb *Backend) SetStopValidatingBlock(blockNumber *big.Int) error {
+	if sb.replicaState == nil {
+		return errNotAValidator
+	}
+	if blockNumber.Cmp(sb.currentBlock().Number()) < 0 {
+		return errors.New("blockNumber should be greater than the current block number")
+	}
+	return sb.replicaState.SetStopValidatingBlock(blockNumber)
 }
 
 // FIXME: Need to update this for Istanbul

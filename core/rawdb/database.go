@@ -24,11 +24,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/ethdb/leveldb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/ethdb/leveldb"
+	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -238,7 +238,7 @@ func NewLevelDBDatabaseWithFreezer(file string, cache int, handles int, freezer 
 // InspectDatabase traverses the entire database and checks the size
 // of all different categories of data.
 func InspectDatabase(db ethdb.Database) error {
-	it := db.NewIterator()
+	it := db.NewIterator(nil, nil)
 	defer it.Release()
 
 	var (
@@ -247,17 +247,19 @@ func InspectDatabase(db ethdb.Database) error {
 		logged = time.Now()
 
 		// Key-value store statistics
-		total          common.StorageSize
-		headerSize     common.StorageSize
-		bodySize       common.StorageSize
-		receiptSize    common.StorageSize
-		tdSize         common.StorageSize
-		numHashPairing common.StorageSize
-		hashNumPairing common.StorageSize
-		trieSize       common.StorageSize
-		txlookupSize   common.StorageSize
-		preimageSize   common.StorageSize
-		bloomBitsSize  common.StorageSize
+		total           common.StorageSize
+		headerSize      common.StorageSize
+		bodySize        common.StorageSize
+		receiptSize     common.StorageSize
+		tdSize          common.StorageSize
+		numHashPairing  common.StorageSize
+		hashNumPairing  common.StorageSize
+		trieSize        common.StorageSize
+		txlookupSize    common.StorageSize
+		accountSnapSize common.StorageSize
+		storageSnapSize common.StorageSize
+		preimageSize    common.StorageSize
+		bloomBitsSize   common.StorageSize
 
 		// Ancient store statistics
 		ancientHeaders  common.StorageSize
@@ -296,6 +298,10 @@ func InspectDatabase(db ethdb.Database) error {
 			receiptSize += size
 		case bytes.HasPrefix(key, txLookupPrefix) && len(key) == (len(txLookupPrefix)+common.HashLength):
 			txlookupSize += size
+		case bytes.HasPrefix(key, SnapshotAccountPrefix) && len(key) == (len(SnapshotAccountPrefix)+common.HashLength):
+			accountSnapSize += size
+		case bytes.HasPrefix(key, SnapshotStoragePrefix) && len(key) == (len(SnapshotStoragePrefix)+2*common.HashLength):
+			storageSnapSize += size
 		case bytes.HasPrefix(key, preimagePrefix) && len(key) == (len(preimagePrefix)+common.HashLength):
 			preimageSize += size
 		case bytes.HasPrefix(key, bloomBitsPrefix) && len(key) == (len(bloomBitsPrefix)+10+common.HashLength):
@@ -345,6 +351,8 @@ func InspectDatabase(db ethdb.Database) error {
 		{"Key-Value store", "Bloombit index", bloomBitsSize.String()},
 		{"Key-Value store", "Trie nodes", trieSize.String()},
 		{"Key-Value store", "Trie preimages", preimageSize.String()},
+		{"Key-Value store", "Account snapshot", accountSnapSize.String()},
+		{"Key-Value store", "Storage snapshot", storageSnapSize.String()},
 		{"Key-Value store", "Singleton metadata", metadata.String()},
 		{"Ancient store", "Headers", ancientHeaders.String()},
 		{"Ancient store", "Bodies", ancientBodies.String()},

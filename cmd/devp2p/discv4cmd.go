@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/p2p/discover"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 
 	"gopkg.in/urfave/cli.v1"
 )
@@ -36,6 +36,7 @@ var (
 	discv4Command = cli.Command{
 		Name:  "discv4",
 		Usage: "Node Discovery v4 tools",
+		Flags: []cli.Flag{networkIdFlag},
 		Subcommands: []cli.Command{
 			discv4PingCommand,
 			discv4RequestRecordCommand,
@@ -82,6 +83,18 @@ var (
 	bootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
 		Usage: "Comma separated nodes used for bootstrapping",
+	}
+	nodekeyFlag = cli.StringFlag{
+		Name:  "nodekey",
+		Usage: "Hex-encoded node key",
+	}
+	nodedbFlag = cli.StringFlag{
+		Name:  "nodedb",
+		Usage: "Nodes database location",
+	}
+	listenAddrFlag = cli.StringFlag{
+		Name:  "addr",
+		Usage: "Listening address",
 	}
 	crawlTimeoutFlag = cli.DurationFlag{
 		Name:  "timeout",
@@ -180,6 +193,63 @@ func discv4Crawl(ctx *cli.Context) error {
 	return nil
 }
 
+// startV4 starts an ephemeral discovery V4 node.
+func startV4(ctx *cli.Context) *discover.UDPv4 {
+	ln, config := makeDiscoveryConfig(ctx)
+	socket := listen(ln, ctx.String(listenAddrFlag.Name))
+	disc, err := discover.ListenV4(socket, ln, config)
+	if err != nil {
+		exit(err)
+	}
+	return disc
+}
+
+func makeDiscoveryConfig(ctx *cli.Context) (*enode.LocalNode, discover.Config) {
+	var cfg discover.Config
+
+	if ctx.IsSet(nodekeyFlag.Name) {
+		key, err := crypto.HexToECDSA(ctx.String(nodekeyFlag.Name))
+		if err != nil {
+			exit(fmt.Errorf("-%s: %v", nodekeyFlag.Name, err))
+		}
+		cfg.PrivateKey = key
+	} else {
+		cfg.PrivateKey, _ = crypto.GenerateKey()
+	}
+
+	if commandHasFlag(ctx, bootnodesFlag) {
+		bn, err := parseBootnodes(ctx)
+		if err != nil {
+			exit(err)
+		}
+		cfg.Bootnodes = bn
+	}
+
+	dbpath := ctx.String(nodedbFlag.Name)
+	db, err := enode.OpenDB(dbpath)
+	if err != nil {
+		exit(err)
+	}
+	networkId := ctx.GlobalUint64(networkIdFlag.Name)
+	ln := enode.NewLocalNode(db, cfg.PrivateKey, networkId)
+	return ln, cfg
+}
+
+func listen(ln *enode.LocalNode, addr string) *net.UDPConn {
+	if addr == "" {
+		addr = "0.0.0.0:0"
+	}
+	socket, err := net.ListenPacket("udp4", addr)
+	if err != nil {
+		exit(err)
+	}
+	usocket := socket.(*net.UDPConn)
+	uaddr := socket.LocalAddr().(*net.UDPAddr)
+	ln.SetFallbackIP(net.IP{127, 0, 0, 1})
+	ln.SetFallbackUDP(uaddr.Port)
+	return usocket
+}
+
 func parseBootnodes(ctx *cli.Context) ([]*enode.Node, error) {
 	s := utils.GetBootstrapNodes(ctx)
 	if ctx.IsSet(bootnodesFlag.Name) {
@@ -194,42 +264,4 @@ func parseBootnodes(ctx *cli.Context) ([]*enode.Node, error) {
 		}
 	}
 	return nodes, nil
-}
-
-// startV4 starts an ephemeral discovery V4 node.
-func startV4(ctx *cli.Context) *discover.UDPv4 {
-	networkId := ctx.GlobalUint64(networkIdFlag.Name)
-	socket, ln, cfg, err := listen(networkId)
-	if err != nil {
-		exit(err)
-	}
-	if commandHasFlag(ctx, bootnodesFlag) {
-		bn, err := parseBootnodes(ctx)
-		if err != nil {
-			exit(err)
-		}
-		cfg.Bootnodes = bn
-	}
-	disc, err := discover.ListenV4(socket, ln, cfg)
-	if err != nil {
-		exit(err)
-	}
-	return disc
-}
-
-func listen(networkId uint64) (*net.UDPConn, *enode.LocalNode, discover.Config, error) {
-	var cfg discover.Config
-	cfg.PrivateKey, _ = crypto.GenerateKey()
-	db, _ := enode.OpenDB("")
-	ln := enode.NewLocalNode(db, cfg.PrivateKey, networkId)
-
-	socket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IP{0, 0, 0, 0}})
-	if err != nil {
-		db.Close()
-		return nil, nil, cfg, err
-	}
-	addr := socket.LocalAddr().(*net.UDPAddr)
-	ln.SetFallbackIP(net.IP{127, 0, 0, 1})
-	ln.SetFallbackUDP(addr.Port)
-	return socket, ln, cfg, nil
 }

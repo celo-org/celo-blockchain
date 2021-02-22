@@ -20,11 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/light"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // LesOdr implements light.OdrBackend
@@ -107,17 +107,17 @@ func (odr *LesOdr) Retrieve(ctx context.Context, req light.OdrRequest) (err erro
 	reqID := genReqID()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
-			return lreq.GetCost(dp.(*peer))
+			return lreq.GetCost(dp.(*serverPeer))
 		},
 		canSend: func(dp distPeer) bool {
-			p := dp.(*peer)
+			p := dp.(*serverPeer)
 			if !p.onlyAnnounce {
 				return lreq.CanSend(p)
 			}
 			return false
 		},
 		request: func(dp distPeer) func() {
-			p := dp.(*peer)
+			p := dp.(*serverPeer)
 			cost := lreq.GetCost(p)
 			p.fcServer.QueuedRequest(reqID, cost)
 			return func() { lreq.Request(reqID, p) }

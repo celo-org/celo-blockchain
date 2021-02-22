@@ -24,17 +24,18 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/state/snapshot"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // A BlockTest checks handling of entire blocks.
@@ -85,7 +86,7 @@ type btHeaderMarshaling struct {
 	Timestamp math.HexOrDecimal64
 }
 
-func (t *BlockTest) Run() error {
+func (t *BlockTest) Run(snapshotter bool) error {
 	config, ok := Forks[t.json.Network]
 	if !ok {
 		return UnsupportedForkError{t.json.Network}
@@ -104,7 +105,12 @@ func (t *BlockTest) Run() error {
 		return fmt.Errorf("genesis block state root does not match test: computed=%x, test=%x", gblock.Root().Bytes()[:6], t.json.Genesis.StateRoot[:6])
 	}
 	engine := mockEngine.NewFaker()
-	chain, err := core.NewBlockChain(db, &core.CacheConfig{TrieCleanLimit: 0}, config, engine, vm.Config{}, nil)
+	cache := &core.CacheConfig{TrieCleanLimit: 0}
+	if snapshotter {
+		cache.SnapshotLimit = 1
+		cache.SnapshotWait = true
+	}
+	chain, err := core.NewBlockChain(db, cache, config, engine, vm.Config{}, nil)
 	if err != nil {
 		return err
 	}
@@ -124,6 +130,19 @@ func (t *BlockTest) Run() error {
 	}
 	if err = t.validatePostState(newDB); err != nil {
 		return fmt.Errorf("post state validation failed: %v", err)
+	}
+	// Cross-check the snapshot-to-hash against the trie hash
+	if snapshotter {
+		snapTree := chain.Snapshot()
+		root := chain.CurrentBlock().Root()
+		it, err := snapTree.AccountIterator(root, common.Hash{})
+		if err != nil {
+			return fmt.Errorf("Could not create iterator for root %x: %v", root, err)
+		}
+		generatedRoot := snapshot.GenerateTrieRoot(it)
+		if generatedRoot != root {
+			return fmt.Errorf("Snapshot corruption, got %d exp %d", generatedRoot, root)
+		}
 	}
 	return t.validateImportedHeaders(chain, validBlocks)
 }

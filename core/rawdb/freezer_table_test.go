@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/fdlimit"
-	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/celo-org/celo-blockchain/common/fdlimit"
+	"github.com/celo-org/celo-blockchain/metrics"
 )
 
 func init() {
@@ -205,10 +205,8 @@ func TestFreezerRepairDanglingHeadLarge(t *testing.T) {
 			f.Append(uint64(x), data)
 		}
 		// The last item should be there
-		if _, err = f.Retrieve(f.items - 1); err == nil {
-			if err != nil {
-				t.Fatal(err)
-			}
+		if _, err = f.Retrieve(f.items - 1); err != nil {
+			t.Fatal(err)
 		}
 		f.Close()
 	}

@@ -88,6 +88,37 @@ Path of the secret key file: .*UTC--.+--[0-9a-f]{40}
 `)
 }
 
+func TestAccountImport(t *testing.T) {
+	tests := []struct{ key, output string }{
+		{
+			key:    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			output: "Address: {fcad0b19bb29d4674531d6f115237e16afce377c}\n",
+		},
+		{
+			key:    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1",
+			output: "Fatal: Failed to load the private key: invalid character '1' at end of key file\n",
+		},
+	}
+	for _, test := range tests {
+		importAccountWithExpect(t, test.key, test.output)
+	}
+}
+
+func importAccountWithExpect(t *testing.T, key string, expected string) {
+	dir := tmpdir(t)
+	keyfile := filepath.Join(dir, "key.prv")
+	if err := ioutil.WriteFile(keyfile, []byte(key), 0600); err != nil {
+		t.Error(err)
+	}
+	passwordFile := filepath.Join(dir, "password.txt")
+	if err := ioutil.WriteFile(passwordFile, []byte("foobar"), 0600); err != nil {
+		t.Error(err)
+	}
+	geth := runGeth(t, "account", "import", keyfile, "-password", passwordFile)
+	defer geth.ExpectExit()
+	geth.Expect(expected)
+}
+
 func TestAccountNewBadRepeat(t *testing.T) {
 	geth := runGeth(t, "account", "new", "--lightkdf")
 	defer geth.ExpectExit()
@@ -183,7 +214,7 @@ Fatal: Failed to unlock account f466859ead1932d743d622cb74fc058882e8648a (could 
 `)
 }
 
-// https://github.com/ethereum/go-ethereum/issues/1785
+// https://github.com/celo-org/celo-blockchain/issues/1785
 func TestUnlockFlagMultiIndex(t *testing.T) {
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,

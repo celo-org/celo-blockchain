@@ -23,22 +23,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+  "github.com/ethereum/go-ethereum/metrics"
+	"github.com/celo-org/celo-blockchain/params"
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/contract_comm/currency"
-	gpm "github.com/ethereum/go-ethereum/contract_comm/gasprice_minimum"
-	"github.com/ethereum/go-ethereum/contract_comm/random"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -81,13 +81,8 @@ const (
 	staleThreshold = 7
 )
 
-var (
-	randomSeedString = []byte("Randomness seed string")
-	randomSeed       []byte
-
-	// Gauge used to measure block finalization time from created to after written to chain.
-	blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
-)
+// Gauge used to measure block finalization time from created to after written to chain.
+var blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
 
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
@@ -165,9 +160,10 @@ type worker struct {
 	current     *environment       // An environment for current running cycle.
 	unconfirmed *unconfirmedBlocks // A set of locally mined blocks pending canonicalness confirmations.
 
-	mu       sync.RWMutex // The lock used to protect the coinbase and extra fields
-	coinbase common.Address
-	extra    []byte
+	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
+	validator      common.Address
+	txFeeRecipient common.Address
+	extra          []byte
 
 	pendingMu    sync.RWMutex
 	pendingTasks map[common.Hash]*task
@@ -190,10 +186,10 @@ type worker struct {
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
 	// Needed for randomness
-	db *ethdb.Database
+	db ethdb.Database
 }
 
-func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db *ethdb.Database, init bool) *worker {
+func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
 	worker := &worker{
 		config:             config,
 		chainConfig:        chainConfig,
@@ -241,11 +237,18 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	return worker
 }
 
-// setEtherbase sets the etherbase used to initialize the block coinbase field.
-func (w *worker) setEtherbase(addr common.Address) {
+// setValidator sets the validator address that signs messages and commits randomness
+func (w *worker) setValidator(addr common.Address) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.coinbase = addr
+	w.validator = addr
+}
+
+// setTxFeeRecipient sets the address to receive tx fees, stored in header.Coinbase
+func (w *worker) setTxFeeRecipient(addr common.Address) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.txFeeRecipient = addr
 }
 
 // setExtra sets the content used to initialize the block extra field.
@@ -285,13 +288,16 @@ func (w *worker) start() {
 	w.startCh <- struct{}{}
 
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.StartValidating(w.chain.HasBadBlock,
+		istanbul.SetBlockProcessors(w.chain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return w.chain.Validator().ValidateState(block, state, receipts, usedGas)
 			})
+		if istanbul.IsPrimary() {
+			istanbul.StartValidating()
+		}
 	}
 }
 
@@ -328,6 +334,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	)
 
 	timer := time.NewTimer(0)
+	defer timer.Stop()
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
@@ -462,7 +469,11 @@ func (w *worker) mainLoop() {
 					continue
 				}
 				w.mu.RLock()
-				coinbase := w.coinbase
+				txFeeRecipient := w.txFeeRecipient
+				if !w.chainConfig.IsDonut(w.current.header.Number) && w.txFeeRecipient != w.validator {
+					txFeeRecipient = w.validator
+					log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+				}
 				w.mu.RUnlock()
 
 				txs := make(map[common.Address]types.Transactions)
@@ -473,7 +484,7 @@ func (w *worker) mainLoop() {
 
 				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
 				tcount := w.current.tcount
-				w.commitTransactions(txset, coinbase, nil)
+				w.commitTransactions(txset, txFeeRecipient, nil)
 				// Only update the snapshot if any new transactons were added
 				// to the pending block
 				if tcount != w.current.tcount {
@@ -655,10 +666,10 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -669,7 +680,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -737,7 +748,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, coinbase)
+		logs, err := w.commitTransaction(tx, txFeeRecipient)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -816,13 +827,20 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		Extra:      w.extra,
 		Time:       uint64(timestamp),
 	}
+
+	txFeeRecipient := w.txFeeRecipient
+	if !w.chainConfig.IsDonut(header.Number) && w.txFeeRecipient != w.validator {
+		txFeeRecipient = w.validator
+		log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+	}
+
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
-		if w.coinbase == (common.Address{}) {
+		if txFeeRecipient == (common.Address{}) {
 			log.Error("Refusing to mine without etherbase")
 			return
 		}
-		header.Coinbase = w.coinbase
+		header.Coinbase = txFeeRecipient
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
@@ -869,40 +887,48 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
-		if randomSeed == nil {
-			account := accounts.Account{Address: w.coinbase}
-			wallet, err := w.eth.AccountManager().Find(account)
-			if err == nil {
-				// TODO: Use SignData instead
-				randomSeed, err = wallet.SignHash(account, common.BytesToHash(randomSeedString).Bytes())
+		istanbul, ok := w.engine.(consensus.Istanbul)
+		if !ok {
+			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
+		}
+
+		lastCommitment, err := random.GetLastCommitment(w.validator, w.current.header, w.current.state)
+		if err != nil {
+			log.Error("Failed to get last commitment", "err", err)
+			return
+		}
+
+		lastRandomness := common.Hash{}
+		if (lastCommitment != common.Hash{}) {
+			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
+			if (lastRandomnessParentHash == common.Hash{}) {
+				log.Error("Failed to get last randomness cache entry")
+				return
 			}
+
+			var err error
+			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
-				log.Error("Unable to create random seed", "err", err)
+				log.Error("Failed to generate last randomness", "err", err)
 				return
 			}
 		}
 
-		lastRandomness, err := random.GetLastRandomness(w.coinbase, w.db, w.current.header, w.current.state, w.chain, randomSeed)
+		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash)
 		if err != nil {
-			log.Error("Failed to get last randomness", "err", err)
+			log.Error("Failed to generate new randomness", "err", err)
 			return
 		}
 
-		commitment, err := random.GenerateNewRandomnessAndCommitment(w.current.header, w.current.state, w.db, randomSeed)
+		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, w.current.header, w.current.state)
 		if err != nil {
-			log.Error("Failed to generate randomness commitment", "err", err)
-			return
-		}
-
-		err = random.RevealAndCommit(lastRandomness, commitment, w.coinbase, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", commitment.Hex(), "err", err)
+			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
 			return
 		}
 		// always true (EIP158)
 		w.current.state.IntermediateRoot(true)
 
-		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: commitment}
+		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
 	} else {
 		w.current.randomness = &types.EmptyRandomness
 	}
@@ -931,13 +957,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}

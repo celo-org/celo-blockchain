@@ -28,21 +28,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/les"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
+	"github.com/celo-org/celo-blockchain/node"
 	"github.com/elastic/gosigar"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/les"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/node"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -70,6 +70,8 @@ var (
 		utils.ExternalSignerFlag,
 		utils.NoUSBFlag,
 		utils.SmartCardDaemonPathFlag,
+		utils.OverrideChurritoFlag,
+		utils.OverrideDonutFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -84,6 +86,7 @@ var (
 		utils.SyncModeFlag,
 		utils.ExitWhenSyncedFlag,
 		utils.GCModeFlag,
+		utils.SnapshotFlag,
 		utils.LightServeFlag,
 		utils.LightIngressFlag,
 		utils.LightEgressFlag,
@@ -95,16 +98,20 @@ var (
 		utils.UltraLightOnlyAnnounceFlag,
 		utils.WhitelistFlag,
 		utils.EtherbaseFlag,
+		utils.TxFeeRecipientFlag,
 		utils.BLSbaseFlag,
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
 		utils.CacheTrieFlag,
 		utils.CacheGCFlag,
+		utils.CacheSnapshotFlag,
 		utils.CacheNoPrefetchFlag,
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
+		utils.MinerEtherbaseFlag,
 		utils.MiningEnabledFlag,
+		utils.MinerValidatorFlag,
 		utils.MinerThreadsFlag,
 		utils.MinerLegacyThreadsFlag,
 		utils.MinerNotifyFlag,
@@ -123,13 +130,15 @@ var (
 		utils.NetrestrictFlag,
 		utils.NodeKeyFileFlag,
 		utils.NodeKeyHexFlag,
+		utils.DNSDiscoveryFlag,
 		utils.DeveloperFlag,
 		utils.DeveloperPeriodFlag,
 		utils.BaklavaFlag,
 		utils.AlfajoresFlag,
 		utils.VMEnableDebugFlag,
 		utils.NetworkIdFlag,
-		utils.EthStatsURLFlag,
+		utils.CeloStatsURLFlag,
+		utils.EthStatsLegacyURLFlag,
 		utils.FakePoWFlag,
 		utils.NoCompactionFlag,
 		utils.EWASMInterpreterFlag,
@@ -139,6 +148,7 @@ var (
 		utils.IstanbulBlockPeriodFlag,
 		utils.IstanbulProposerPolicyFlag,
 		utils.IstanbulLookbackWindowFlag,
+		utils.IstanbulReplicaFlag,
 		utils.AnnounceQueryEnodeGossipPeriodFlag,
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		utils.PingIPFromPacketFlag,
@@ -148,7 +158,8 @@ var (
 		utils.ProxyInternalFacingEndpointFlag,
 		utils.ProxiedValidatorAddressFlag,
 		utils.ProxiedFlag,
-		utils.ProxyEnodeURLPairFlag,
+		utils.ProxyEnodeURLPairsFlag,
+		utils.ProxyEnodeURLPairsLegacyFlag,
 		utils.ProxyAllowPrivateIPFlag,
 	}
 
@@ -209,6 +220,7 @@ func init() {
 		copydbCommand,
 		removedbCommand,
 		dumpCommand,
+		dumpGenesisCommand,
 		inspectCommand,
 		// See accountcmd.go:
 		accountCommand,
@@ -235,7 +247,7 @@ func init() {
 	app.Flags = append(app.Flags, metricsFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
-		return debug.Setup(ctx, "")
+		return debug.Setup(ctx)
 	}
 	app.After = func(ctx *cli.Context) error {
 		debug.Exit()
@@ -254,6 +266,20 @@ func main() {
 // prepare manipulates memory cache allowance and setups metric system.
 // This function should be called before launching devp2p stack.
 func prepare(ctx *cli.Context) {
+	// If we're running a known preset, log it for convenience.
+	switch {
+	case ctx.GlobalIsSet(utils.BaklavaFlag.Name):
+		log.Info("Starting Geth on Baklava testnet...")
+
+	case ctx.GlobalIsSet(utils.AlfajoresFlag.Name):
+		log.Info("Starting Geth on Alfajores testnet...")
+
+	case ctx.GlobalIsSet(utils.DeveloperFlag.Name):
+		log.Info("Starting Geth in ephemeral dev mode...")
+
+	case !ctx.GlobalIsSet(utils.NetworkIdFlag.Name):
+		log.Info("Starting Geth on Celo mainnet...")
+	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" && !ctx.GlobalIsSet(utils.CacheFlag.Name) && !ctx.GlobalIsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
@@ -415,6 +441,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
+	// Replicas only makes sense if we are mining
+	if ctx.GlobalBool(utils.IstanbulReplicaFlag.Name) {
+		if !(ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name)) {
+			utils.Fatalf("Must run a replica with mining enabled or in dev mode.")
+		}
+	}
 
 	// Start auxiliary services if enabled
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
@@ -439,12 +471,6 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 		if err := ethereum.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
-		}
-		// Start the proxy handler if this is a node is proxied and "mining"
-		if ctx.GlobalBool(utils.ProxiedFlag.Name) {
-			if err := ethereum.StartProxyHandler(); err != nil {
-				utils.Fatalf("Failed to start the proxy handler: %v", err)
-			}
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {

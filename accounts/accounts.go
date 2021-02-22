@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"math/big"
 
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/event"
+	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/event"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -152,7 +152,7 @@ type Wallet interface {
 	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, error)
 
 	// SignBLS generates a BLS signature over the provided data with a direct or composite hasher
-	SignBLS(account Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error)
+	SignBLS(account Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error)
 
 	GenerateProofOfPossession(account Account, address common.Address) ([]byte, []byte, error)
 	GenerateProofOfPossessionBLS(account Account, address common.Address) ([]byte, []byte, error)

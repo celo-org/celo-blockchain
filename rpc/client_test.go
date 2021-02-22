@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func TestClientRequest(t *testing.T) {
@@ -46,6 +46,23 @@ func TestClientRequest(t *testing.T) {
 	}
 	if !reflect.DeepEqual(resp, echoResult{"hello", 10, &echoArgs{"world"}}) {
 		t.Errorf("incorrect result %#v", resp)
+	}
+}
+
+func TestClientResponseType(t *testing.T) {
+	server := newTestServer()
+	defer server.Stop()
+	client := DialInProc(server)
+	defer client.Close()
+
+	if err := client.Call(nil, "test_echo", "hello", 10, &echoArgs{"world"}); err != nil {
+		t.Errorf("Passing nil as result should be fine, but got an error: %v", err)
+	}
+	var resultVar echoResult
+	// Note: passing the var, not a ref
+	err := client.Call(resultVar, "test_echo", "hello", 10, &echoArgs{"world"})
+	if err == nil {
+		t.Error("Passing a var as result should be an error")
 	}
 }
 
@@ -162,7 +179,7 @@ func testClientCancel(transport string, t *testing.T) {
 	var (
 		wg       sync.WaitGroup
 		nreqs    = 10
-		ncallers = 6
+		ncallers = 10
 	)
 	caller := func(index int) {
 		defer wg.Done()
@@ -183,14 +200,16 @@ func testClientCancel(transport string, t *testing.T) {
 				// deadline.
 				ctx, cancel = context.WithTimeout(context.Background(), timeout)
 			}
+
 			// Now perform a call with the context.
 			// The key thing here is that no call will ever complete successfully.
-			sleepTime := maxContextCancelTimeout + 20*time.Millisecond
-			err := client.CallContext(ctx, nil, "test_sleep", sleepTime)
-			if err != nil {
-				log.Debug(fmt.Sprint("got expected error:", err))
-			} else {
-				t.Errorf("no error for call with %v wait time", timeout)
+			err := client.CallContext(ctx, nil, "test_block")
+			switch {
+			case err == nil:
+				_, hasDeadline := ctx.Deadline()
+				t.Errorf("no error for call with %v wait time (deadline: %v)", timeout, hasDeadline)
+				// default:
+				// 	t.Logf("got expected error with %v wait time: %v", timeout, err)
 			}
 			cancel()
 		}
@@ -280,7 +299,7 @@ func TestClientSubscribeClose(t *testing.T) {
 
 	var (
 		nc   = make(chan int)
-		errc = make(chan error)
+		errc = make(chan error, 1)
 		sub  *ClientSubscription
 		err  error
 	)
@@ -306,7 +325,7 @@ func TestClientSubscribeClose(t *testing.T) {
 	}
 }
 
-// This test reproduces https://github.com/ethereum/go-ethereum/issues/17837 where the
+// This test reproduces https://github.com/celo-org/celo-blockchain/issues/17837 where the
 // client hangs during shutdown when Unsubscribe races with Client.Close.
 func TestClientCloseUnsubscribeRace(t *testing.T) {
 	server := newTestServer()
@@ -394,15 +413,14 @@ func TestClientHTTP(t *testing.T) {
 	// Launch concurrent requests.
 	var (
 		results    = make([]echoResult, 100)
-		errc       = make(chan error)
+		errc       = make(chan error, len(results))
 		wantResult = echoResult{"a", 1, new(echoArgs)}
 	)
 	defer client.Close()
 	for i := range results {
 		i := i
 		go func() {
-			errc <- client.Call(&results[i], "test_echo",
-				wantResult.String, wantResult.Int, wantResult.Args)
+			errc <- client.Call(&results[i], "test_echo", wantResult.String, wantResult.Int, wantResult.Args)
 		}()
 	}
 

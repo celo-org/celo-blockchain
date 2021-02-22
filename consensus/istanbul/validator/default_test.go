@@ -21,12 +21,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/rlp"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 var (
@@ -115,7 +115,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if !valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				Address:      common.BytesToAddress([]byte(string(3))),
+				Address:      common.BytesToAddress([]byte(string(rune(3)))),
 				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
@@ -125,7 +125,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 	if valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				Address:      common.BytesToAddress([]byte(string(3))),
+				Address:      common.BytesToAddress([]byte(string(rune(3)))),
 				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
@@ -135,11 +135,11 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.AddValidators(
 		[]istanbul.ValidatorData{
 			{
-				Address:      common.BytesToAddress([]byte(string(2))),
+				Address:      common.BytesToAddress([]byte(string(rune(2)))),
 				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 			{
-				Address:      common.BytesToAddress([]byte(string(1))),
+				Address:      common.BytesToAddress([]byte(string(rune(1)))),
 				BLSPublicKey: blscrypto.SerializedPublicKey{},
 			},
 		},
@@ -150,7 +150,7 @@ func testAddAndRemoveValidator(t *testing.T) {
 
 	expectedOrder := []int{3, 2, 1}
 	for i, v := range valSet.List() {
-		expected := common.BytesToAddress([]byte(string(expectedOrder[i])))
+		expected := common.BytesToAddress([]byte(string(rune(expectedOrder[i]))))
 		if v.Address() != expected {
 			t.Errorf("the order of validators is wrong: have %v, want %v", v.Address().Hex(), expected.Hex())
 		}
@@ -215,7 +215,7 @@ func testQuorumSizes(t *testing.T) {
 
 func TestValidatorRLPEncoding(t *testing.T) {
 
-	val := New(common.BytesToAddress([]byte(string(2))), blscrypto.SerializedPublicKey{1, 2, 3})
+	val := New(common.BytesToAddress([]byte(string(rune(2)))), blscrypto.SerializedPublicKey{1, 2, 3})
 
 	rawVal, err := rlp.EncodeToBytes(val)
 	if err != nil {
@@ -235,8 +235,8 @@ func TestValidatorRLPEncoding(t *testing.T) {
 func TestValidatorSetRLPEncoding(t *testing.T) {
 
 	valSet := NewSet([]istanbul.ValidatorData{
-		{Address: common.BytesToAddress([]byte(string(2))), BLSPublicKey: blscrypto.SerializedPublicKey{1, 2, 3}},
-		{Address: common.BytesToAddress([]byte(string(4))), BLSPublicKey: blscrypto.SerializedPublicKey{3, 1, 4}},
+		{Address: common.BytesToAddress([]byte(string(rune(2)))), BLSPublicKey: blscrypto.SerializedPublicKey{1, 2, 3}},
+		{Address: common.BytesToAddress([]byte(string(rune(4)))), BLSPublicKey: blscrypto.SerializedPublicKey{3, 1, 4}},
 	})
 
 	rawVal, err := rlp.EncodeToBytes(valSet)

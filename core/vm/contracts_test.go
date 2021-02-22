@@ -18,21 +18,25 @@ package vm
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"reflect"
 	"testing"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -54,7 +58,11 @@ func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Val
 	hash := sha3.Sum256(preimage)
 	var validators []istanbul.Validator
 	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
-		validators = append(validators, validator.New(common.BytesToAddress(hash[:]), blscrypto.SerializedPublicKey{}))
+		key, _ := crypto.ToECDSA(hash[:])
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		validators = append(validators, validator.New(addr, blsPublicKey))
 	}
 	return validators
 }
@@ -122,6 +130,43 @@ var mockEVM = &EVM{
 	),
 }
 
+func loadJSON(name string) ([]precompiledTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledTestFromJSON
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledTest{input: jsonTest.Input, expected: jsonTest.Expected, name: jsonTest.Name, errorExpected: false, noBenchmark: jsonTest.NoBenchmark}
+	}
+	return testcases, err
+}
+
+func loadJSONFail(name string) ([]precompiledFailureTest, error) {
+	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
+	if err != nil {
+		return nil, err
+	}
+	var jsonTests []precompiledFailureTestFromJSON
+	err = json.Unmarshal(data, &jsonTests)
+	if err != nil {
+		return nil, err
+	}
+	testcases := make([]precompiledFailureTest, len(jsonTests))
+	for i := 0; i < len(jsonTests); i++ {
+		jsonTest := jsonTests[i]
+		testcases[i] = precompiledFailureTest{input: jsonTest.Input, expectedError: errors.New(jsonTest.ExpectedError), name: jsonTest.Name}
+	}
+	err = json.Unmarshal(data, &testcases)
+	return testcases, err
+}
+
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	input, expected string
@@ -136,6 +181,50 @@ type precompiledFailureTest struct {
 	input         string
 	expectedError error
 	name          string
+}
+
+type precompiledTestFromJSON struct {
+	Input, Expected string
+	Name            string
+	NoBenchmark     bool // Benchmark primarily the worst-cases
+}
+
+// precompiledFailureTest defines the input/error pairs for precompiled
+// contract failure tests.
+type precompiledFailureTestFromJSON struct {
+	Input         string
+	ExpectedError string
+	Name          string
+}
+
+func testJSON(name, addr string, t *testing.T) {
+	tests, err := loadJSON(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiled(addr, test, t)
+	}
+}
+
+func testJSONFail(name, addr string, t *testing.T) {
+	tests, err := loadJSONFail(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range tests {
+		testPrecompiledFailure(addr, test, t)
+	}
+}
+
+func benchJSON(name, addr string, b *testing.B) {
+	tests, err := loadJSON(name)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, test := range tests {
+		benchmarkPrecompiled(addr, test, b)
+	}
 }
 
 // modexpTests are the test and benchmark data for the modexp precompiled contract.
@@ -495,6 +584,50 @@ var blake2FTests = []precompiledTest{
 	},
 }
 
+// CIP-25 test vectors
+var ed25519VerifyTests = []precompiledTest{
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde0546b3624c07c18b1abdb8f4808f0115e6a33d7323ac821976479cfae8426e86c178bd32dacce8f0d52456da8dfaf88cb42f352679674f9d4980635c9c686c6c560d74657374206d657373616765",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+		name:     "valid_input",
+	},
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde054687c59853650187fbdd565e159f8a22066f1c9b2ef8afe781d8b832f99fd3d7b5e59c6dfaae767195d63fc56bfb5af4d37c00737c4ab58e185cd91f9128b8dd0c74657374206d6573736167652076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279206c6f6f6e67",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+		name:     "valid_input_2_word_msg",
+	},
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde0546851cb1374b1610225a8f549fb9559f7dc729fb6c6703c8ab07cf24cbb9aafff6d8ff927d2e019c81f75483ac11d0a78df645420b5f5045e2f9dcbba099dde10774657374206d657373616765207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279207665727920766572792076657279206c6e67",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+		name:     "valid_input_4_word_msg",
+	},
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde05462704ebb486f5810d4f5b593185addf56b4c7e82667b27c59625fc037106d10906bacd848d1fecd2c06a1a56721bb2961a5cead52c9bd8bba60dc5bf92ec35f04",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+		name:     "valid_input_with_empty_message",
+	},
+	{
+		input:    "204b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde0546b3624c07c18b1abdb8f4808f0115e6a33d7323ac821976479cfae8426e86c178bd32dacce8f0d52456da8dfaf88cb42f352679674f9d4980635c9c686c6c560d74657374206d657373616765",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		name:     "invalid_input_malformed_public_key",
+	},
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde0546b3624c07c18b1abdb8f4808f0115e6a33d7323ac821976479cfae8426e86c178bd32dacce8f0d52456da8dfaf88cb42f352679674f9d4980635c9c686c6c560f74657374206d657373616765",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		name:     "invalid_input_malformed_signature",
+	},
+	{
+		input:    "304b6bb12f4dcffd4b147881bdeebfc63b7fb61412a3b696a530df076dde0546b3624c07c18b1abdb8f4808f0115e6a33d7323ac821976479cfae8426e86c178bd32dacce8f0d52456da8dfaf88cb42f352679674f9d4980635c9c686c6c560d",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		name:     "invalid_input_msg_too_short",
+	},
+	{
+		input:    "",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		name:     "invalid_input_empty",
+	},
+}
+
 var fractionMulExpTests = []precompiledTest{
 	{
 		input:    "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000150000000000000000000000000000000000000000000000000000000000000f1000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004",
@@ -579,12 +712,12 @@ var getValidatorTests = []precompiledTest{
 	},
 	{
 		input:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff",
-		expected: "000000000000000000000000fa55ba38ef5f98473db2771dd03c17c02bbe0fdc",
+		expected: "000000000000000000000000fbb697cf00d3de24bc81225b4b2a9e7e763f8136",
 		name:     "correct_block_0xff_index_0x0",
 	},
 	{
 		input:    "000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000ff",
-		expected: "00000000000000000000000068e2962e75d952ffabb71170783df3c2c85f7939",
+		expected: "0000000000000000000000003e70ba60978582c2770aa95579e542a521456668",
 		name:     "correct_block_0xff_index_0xa",
 	},
 	{
@@ -595,7 +728,50 @@ var getValidatorTests = []precompiledTest{
 	},
 	{
 		input:    "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
-		expected: "00000000000000000000000024e11f684408ce3e35772daa281facf81d8be157",
+		expected: "000000000000000000000000a7fdb33d85f63259ff56133b5be795ef669a5756",
+		name:     "correct_chain_head",
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002711",
+		expected:      "block number out of bounds",
+		name:          "invalid_future_block",
+		errorExpected: true,
+	},
+}
+
+var getValidatorBLSPublicKeyTests = []precompiledTest{
+	// Input is { validator index | block number }. Output is validator BLS public key.
+	{
+		input:         "",
+		expected:      "invalid input length",
+		name:          "input_invalid_empty",
+		errorExpected: true,
+	},
+	{
+		input:         "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		expected:      "validator index out of bounds",
+		name:          "invalid_genesis_block",
+		errorExpected: true,
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "00000000000000000000000000000000001fd78b7dee6db285d05c16aedcc6f33652607220efb1ab99d512c77d3dd77dba78c81d4190b4a633720d92c1a577f9000000000000000000000000000000000021bd7f370c65fba1afbcf16e256a82b6cdfea0a27d8df313edd1a881f41780609ee055b78974b1c8d97dac3c9461c300000000000000000000000000000000016366c10606045d43fb18300560995394a24bd1358b9210540f4ec29fdaaf8506af7651a8504230734a62b6599f744c0000000000000000000000000000000000209e3562ca2dc97e0182cd354662ff20bc2f312866b4655c3eed0af045de4133ab8b5f5a4cde9b2f12113e47d1157e",
+		name:     "correct_block_0xff_index_0x0",
+	},
+	{
+		input:    "000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000ff",
+		expected: "00000000000000000000000000000000015398774c6805e5f7edc1cd2ce40c44bd5b430caa3dfefe740b12efa1708bb20aeadce71d5bfe288158b87f07dc82c700000000000000000000000000000000000d3dca6f108fa022d1e106db969e36622eaec7b2a4b3eefa94aee9982a0133ca09a86b142b71fab14c770e7e70763a0000000000000000000000000000000000ac437ff49e987559a9c9ec9a421d46f6b1044b2888e4c23653827e94b9c3729c897fc02db7364694f8bc5e783529c30000000000000000000000000000000000bc9531ebddea1c9ca9a08c0eafd7d0d734d17d54150d75c5d3d0ab3d416807693da02dababe8ef734a50083c2ef889",
+		name:     "correct_block_0xff_index_0xa",
+	},
+	{
+		input:         "000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000ff",
+		expected:      "validator index out of bounds",
+		name:          "invalid_index_out_of_bounds",
+		errorExpected: true,
+	},
+	{
+		input:    "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710",
+		expected: "000000000000000000000000000000000173d1ea9889757e8f176737629c7b6c446a6832ddec53562ebe0cda09455792927597a3025dd613021de96ebc2ecc130000000000000000000000000000000000866721e8b88328b0df9e6c52bd9bdcce076d9febeba542cf7d48e7fae54bbe783c785131678fb3f15c665f5c1fd1c500000000000000000000000000000000008a6412232130f837d31ce5223e088e338997fad1de25908ae7e4b65bfe2fe4839dcd41f5ae613d146796d98d65255c000000000000000000000000000000000039d57467b392c8c30b81e961469ff750a3473ffa423c12f671264ea9967f5bfd21b0247d02e132cdfd2682cf207ff9",
 		name:     "correct_chain_head",
 	},
 	{
@@ -706,7 +882,7 @@ var getVerifiedSealBitmapTests = []precompiledTest{
 }
 
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
@@ -734,7 +910,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 }
 
 func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in)-1)
@@ -752,7 +928,7 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 }
 
 func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing.T) {
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	contract := NewContract(AccountRef(common.HexToAddress("31337")),
 		nil, new(big.Int), p.RequiredGas(in))
@@ -774,7 +950,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 	if test.noBenchmark {
 		return
 	}
-	p := PrecompiledContractsIstanbul[common.HexToAddress(addr)]
+	p := PrecompiledContractsDonut[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.input)
 	reqGas := p.RequiredGas(in)
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
@@ -926,6 +1102,20 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	}
 }
 
+// Tests the sample inputs from the ed25519 verify check CIP 25
+func TestPrecompiledEd25519Verify(t *testing.T) {
+	for _, test := range ed25519VerifyTests {
+		testPrecompiled("f3", test, t)
+	}
+}
+
+// Benchmarks the sample inputs from the ed25519 verify check CIP 25
+func BenchmarkPrecompiledEd25519Verify(bench *testing.B) {
+	for _, test := range ed25519VerifyTests {
+		benchmarkPrecompiled("f3", test, bench)
+	}
+}
+
 // Tests sample inputs for fractionMulExp
 // NOTE: This currently only verifies that inputs of invalid length are rejected
 func TestPrecompiledFractionMulExp(t *testing.T) {
@@ -946,6 +1136,12 @@ func TestPrecompiledProofOfPossession(t *testing.T) {
 func TestGetValidator(t *testing.T) {
 	for _, test := range getValidatorTests {
 		testPrecompiled("fa", test, t)
+	}
+}
+
+func TestGetValidatorBLSPublicKey(t *testing.T) {
+	for _, test := range getValidatorBLSPublicKeyTests {
+		testPrecompiled("e1", test, t)
 	}
 }
 
@@ -983,3 +1179,181 @@ func TestGetVerifiedSealBitmap(t *testing.T) {
 		testPrecompiled("f4", test, t)
 	}
 }
+
+const defaultBlake2sConfig = "2000010100000000000000000000000000000000000000000000000000000000"
+
+type cip20Test struct {
+	Preimage  string `json:"preimage"`
+	Sha2_512  string `json:"sha2_512"`
+	Keccak512 string `json:"keccak512"`
+	Sha3_256  string `json:"sha3_256"`
+	Sha3_512  string `json:"sha3_512"`
+	Blake2s   string `json:"blake2s"`
+}
+
+func loadCip20JSON() ([]cip20Test, error) {
+	data, err := ioutil.ReadFile("testdata/precompiles/cip20.json")
+	if err != nil {
+		return nil, err
+	}
+	var tests []cip20Test
+	err = json.Unmarshal(data, &tests)
+	if err != nil {
+		return nil, err
+	}
+	return tests, nil
+}
+
+func (c *cip20Test) toPrecompiledTests() []precompiledTest {
+	return []precompiledTest{
+		{
+			input:    "00" + c.Preimage,
+			expected: c.Sha3_256,
+			name:     "sha3_256 of 0x" + c.Preimage,
+		},
+		{
+			input:    "01" + c.Preimage,
+			expected: c.Sha3_512,
+			name:     "sha3_25sha3_5126 of 0x" + c.Preimage,
+		},
+		{
+			input:    "02" + c.Preimage,
+			expected: c.Keccak512,
+			name:     "keccak512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "03" + c.Preimage,
+			expected: c.Sha2_512,
+			name:     "sha2_512 of 0x" + c.Preimage,
+		},
+		{
+			input:    "10" + defaultBlake2sConfig + c.Preimage,
+			expected: c.Blake2s,
+			name:     "blake2s of 0x" + c.Preimage,
+		},
+	}
+}
+
+var cip20Tests = []precompiledTest{
+	{
+		input:    "10" + defaultBlake2sConfig,
+		expected: "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
+		name:     "default blake2s of empty string",
+	},
+	{
+		input:    "10" + "20000101" + "00000000" + "00000000" + "60000000" + "0000000000000000" + "0000000000000000",
+		expected: "7a746244ad211d351f57a218255888174e719b54e683651e9314f55402eed414",
+		name:     "celo-bls-snark-rs test_crh_empty",
+	},
+}
+
+func TestCip20(t *testing.T) {
+	cip20ShaVariantTests, err := loadCip20JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, vector := range cip20ShaVariantTests {
+		for _, test := range vector.toPrecompiledTests() {
+			testPrecompiled("e2", test, t)
+		}
+	}
+
+	for _, test := range cip20Tests {
+		testPrecompiled("e2", test, t)
+	}
+}
+
+func TestPrecompiledBLS12377G1Add(t *testing.T) {
+	testJSON("bls12377G1Add_matter", "e9", t)
+	testJSON("bls12377G1Add_zexe", "e9", t)
+}
+
+func TestPrecompiledBLS12377G1Mul(t *testing.T) {
+	testJSON("bls12377G1Mul_matter", "e8", t)
+	testJSON("bls12377G1Mul_zexe", "e8", t)
+}
+
+func TestPrecompiledBLS12377G1ZMultiExp(t *testing.T) {
+	testJSON("bls12377G1MultiExp_matter", "e7", t)
+	testJSON("bls12377G1MultiExp_zexe", "e7", t)
+}
+
+func TestPrecompiledBLS12377G2Add(t *testing.T) {
+	testJSON("bls12377G2Add_matter", "e6", t)
+	testJSON("bls12377G2Add_zexe", "e6", t)
+}
+
+func TestPrecompiledBLS12377G2Mul(t *testing.T) {
+	testJSON("bls12377G2Mul_matter", "e5", t)
+	testJSON("bls12377G2Mul_zexe", "e5", t)
+}
+
+func TestPrecompiledBLS12377G2MultiExp(t *testing.T) {
+	testJSON("bls12377G2MultiExp_matter", "e4", t)
+	testJSON("bls12377G2MultiExp_zexe", "e4", t)
+}
+
+func TestPrecompiledBLS12377Pairing(t *testing.T) {
+	testJSON("bls12377Pairing_matter", "e3", t)
+	testJSON("bls12377Pairing_zexe", "e3", t)
+}
+
+func TestPrecompiledBLS12377G1AddFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Add", "e9", t)
+}
+
+func TestPrecompiledBLS12377G1MulFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Mul", "e8", t)
+}
+
+func TestPrecompiledBLS12377G1MultiexpFail(t *testing.T) {
+	testJSONFail("fail-bls12377G1Multiexp", "e7", t)
+}
+
+func TestPrecompiledBLS12377G2AddFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Add", "e6", t)
+}
+
+func TestPrecompiledBLS12377G2MulFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Mul", "e5", t)
+}
+
+func TestPrecompiledBLS12377G2MultiexpFail(t *testing.T) {
+	testJSONFail("fail-bls12377G2Multiexp", "e4", t)
+}
+
+func TestPrecompiledBLS12377PairingFail(t *testing.T) {
+	testJSONFail("fail-bls12377Pairing", "e3", t)
+}
+
+func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJSON("blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1Mul(t *testing.T)      { testJSON("blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJSON("blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJSON("blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2Mul(t *testing.T)      { testJSON("blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJSON("blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJSON("blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJSON("blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJSON("blsMapG2", "ea", t) }
+
+func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJSON("blsG1Add", "0a", b) }
+func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJSON("blsG1Mul", "0b", b) }
+func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJSON("blsG1MultiExp", "0c", b) }
+func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJSON("blsG2Add", "0d", b) }
+func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B)      { benchJSON("blsG2Mul", "0e", b) }
+func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJSON("blsG2MultiExp", "0f", b) }
+func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJSON("blsPairing", "10", b) }
+func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJSON("blsMapG1", "11", b) }
+func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJSON("blsMapG2", "12", b) }
+
+// Failure tests
+func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJSONFail("fail-blsG1Add", "f2", t) }
+func TestPrecompiledBLS12381G1MulFail(t *testing.T)      { testJSONFail("fail-blsG1Mul", "f1", t) }
+func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJSONFail("fail-blsG1MultiExp", "f0", t) }
+func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJSONFail("fail-blsG2Add", "ef", t) }
+func TestPrecompiledBLS12381G2MulFail(t *testing.T)      { testJSONFail("fail-blsG2Mul", "ee", t) }
+func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJSONFail("fail-blsG2MultiExp", "ed", t) }
+func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJSONFail("fail-blsPairing", "ec", t) }
+func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJSONFail("fail-blsMapG1", "eb", t) }
+func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJSONFail("fail-blsMapG2", "ea", t) }

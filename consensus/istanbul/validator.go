@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"math/big"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
 var (
@@ -36,13 +36,23 @@ type ValidatorData struct {
 	BLSPublicKey blscrypto.SerializedPublicKey
 }
 
+type ValidatorDataWithBLSKeyCache struct {
+	Address                  common.Address
+	BLSPublicKey             blscrypto.SerializedPublicKey
+	UncompressedBLSPublicKey []byte
+}
+
 type Validator interface {
 	fmt.Stringer
 
 	// Address returns address
 	Address() common.Address
 
+	// BLSPublicKey returns the BLS public key (compressed format)
 	BLSPublicKey() blscrypto.SerializedPublicKey
+
+	// BLSPublicKeyUncompressed returns the BLS public key (uncompressed format)
+	BLSPublicKeyUncompressed() []byte
 
 	// Serialize returns binary reprenstation of the Validator
 	// can be use used to instantiate a validator with DeserializeValidator()
@@ -50,6 +60,15 @@ type Validator interface {
 
 	// AsData returns Validator representation as ValidatorData
 	AsData() *ValidatorData
+
+	// AsData returns Validator representation as ValidatorData
+	AsDataWithBLSKeyCache() *ValidatorDataWithBLSKeyCache
+
+	// CacheUncompressedBLSKey stores the uncompressed BLS public key to cache
+	CacheUncompressedBLSKey()
+
+	// Copy validator
+	Copy() Validator
 }
 
 // MapValidatorsToAddresses maps a slice of validator to a slice of addresses
@@ -120,6 +139,12 @@ type ValidatorSet interface {
 	// Copy validator set
 	Copy() ValidatorSet
 
+	// CacheUncompressedBLSKey stores the uncompressed BLS public key to cache for each validator in the valset
+	CacheUncompressedBLSKey()
+
+	// HasBLSKeyCache tests that all uncompressed BLS public keys are in the cache, otherwise returns false
+	HasBLSKeyCache() bool
+
 	// Serialize returns binary reprentation of the ValidatorSet
 	// can be use used to instantiate a validator with DeserializeValidatorSet()
 	Serialize() ([]byte, error)
@@ -127,6 +152,11 @@ type ValidatorSet interface {
 
 type ValidatorSetData struct {
 	Validators []ValidatorData
+	Randomness common.Hash
+}
+
+type ValidatorSetDataWithBLSKeyCache struct {
+	Validators []ValidatorDataWithBLSKeyCache
 	Randomness common.Hash
 }
 

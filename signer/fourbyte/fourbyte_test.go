@@ -22,8 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/common"
 )
 
 // Tests that all the selectors contained in the 4byte database are valid.
@@ -48,8 +48,8 @@ func TestEmbeddedDatabase(t *testing.T) {
 			t.Errorf("Failed to get method by id (%s): %v", id, err)
 			continue
 		}
-		if m.Sig() != selector {
-			t.Errorf("Selector mismatch: have %v, want %v", m.Sig(), selector)
+		if m.Sig != selector {
+			t.Errorf("Selector mismatch: have %v, want %v", m.Sig, selector)
 		}
 	}
 }

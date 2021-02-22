@@ -23,9 +23,9 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 func generateMessageParams() (*MessageParams, error) {
@@ -36,7 +36,7 @@ func generateMessageParams() (*MessageParams, error) {
 	sz := mrand.Intn(400)
 
 	var p MessageParams
-	p.PoW = 0.01
+	p.PoW = 0.001
 	p.WorkTime = 1
 	p.TTL = uint32(mrand.Intn(1024))
 	p.Payload = make([]byte, sz)

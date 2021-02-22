@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
 )
 
 func init() {
@@ -106,7 +106,7 @@ func TestBadProof(t *testing.T) {
 			if proof == nil {
 				t.Fatalf("prover %d: nil proof", i)
 			}
-			it := proof.NewIterator()
+			it := proof.NewIterator(nil, nil)
 			for i, d := 0, mrand.Intn(proof.Len()); i <= d; i++ {
 				it.Next()
 			}

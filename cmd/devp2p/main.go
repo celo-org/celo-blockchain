@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -45,7 +45,7 @@ func init() {
 	// Set up the CLI app.
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Before = func(ctx *cli.Context) error {
-		return debug.Setup(ctx, "")
+		return debug.Setup(ctx)
 	}
 	app.After = func(ctx *cli.Context) error {
 		debug.Exit()
@@ -59,6 +59,7 @@ func init() {
 	app.Commands = []cli.Command{
 		enrdumpCommand,
 		discv4Command,
+		discv5Command,
 		dnsCommand,
 		nodesetCommand,
 	}

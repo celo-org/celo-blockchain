@@ -24,19 +24,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // Tests that block headers can be retrieved from a remote chain based on user queries.
@@ -318,7 +318,7 @@ func testGetNodeData(t *testing.T, protocol int) {
 	// Fetch for now the entire chain db
 	hashes := []common.Hash{}
 
-	it := db.NewIterator()
+	it := db.NewIterator(nil, nil)
 	for it.Next() {
 		if key := it.Key(); len(key) == common.HashLength {
 			hashes = append(hashes, common.BytesToHash(key))
@@ -350,7 +350,7 @@ func testGetNodeData(t *testing.T, protocol int) {
 	}
 	accounts := []common.Address{testBank, acc1Addr, acc2Addr}
 	for i := uint64(0); i <= pm.blockchain.CurrentBlock().NumberU64(); i++ {
-		trie, _ := state.New(pm.blockchain.GetBlockByNumber(i).Root(), state.NewDatabase(statedb))
+		trie, _ := state.New(pm.blockchain.GetBlockByNumber(i).Root(), state.NewDatabase(statedb), nil)
 
 		for j, acc := range accounts {
 			state, _ := pm.blockchain.State()
@@ -488,7 +488,7 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), new(testTxPool), mockEngine.NewFaker(), blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, cht, syncmode, DefaultConfig.NetworkId, new(event.TypeMux), &testTxPool{pool: make(map[common.Hash]*types.Transaction)}, mockEngine.NewFaker(), blockchain, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -527,7 +527,7 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 		}
 	}
 	// Wait until the test timeout passes to ensure proper cleanup
-	time.Sleep(syncChallengeTimeout + 100*time.Millisecond)
+	time.Sleep(syncChallengeTimeout + 300*time.Millisecond)
 
 	// Verify that the remote peer is maintained or dropped
 	if drop {
@@ -547,12 +547,12 @@ func TestBroadcastBlock(t *testing.T) {
 		broadcastExpected int
 	}{
 		{1, 1},
-		{2, 2},
-		{3, 3},
-		{4, 4},
-		{5, 4},
-		{9, 4},
-		{12, 4},
+		{2, 1},
+		{3, 1},
+		{4, 2},
+		{5, 2},
+		{9, 3},
+		{12, 3},
 		{16, 4},
 		{26, 5},
 		{100, 10},
@@ -575,7 +575,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	if err != nil {
 		t.Fatalf("failed to create new blockchain: %v", err)
 	}
-	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, new(testTxPool), pow, blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(config, nil, downloader.FullSync, DefaultConfig.NetworkId, evmux, &testTxPool{pool: make(map[common.Hash]*types.Transaction)}, pow, blockchain, db, 1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to start test protocol manager: %v", err)
 	}
@@ -585,6 +585,7 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	for i := 0; i < totalPeers; i++ {
 		peer, _ := newTestPeer(fmt.Sprintf("peer %d", i), istanbul.Celo64, pm, true)
 		defer peer.close()
+
 		peers = append(peers, peer)
 	}
 	chain, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
@@ -601,31 +602,23 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 			}
 		}(peer)
 	}
-	timeout := time.After(2 * time.Second)
-	var receivedCount int
-outer:
+	var received int
 	for {
 		select {
-		case err = <-errCh:
-			break outer
 		case <-doneCh:
-			receivedCount++
-			if receivedCount == totalPeers {
-				break outer
+			received++
+
+		case <-time.After(time.Second):
+			if received != broadcastExpected {
+				t.Errorf("broadcast count mismatch: have %d, want %d", received, broadcastExpected)
 			}
-		case <-timeout:
-			break outer
+			return
+
+		case err = <-errCh:
+			t.Fatalf("broadcast failed: %v", err)
 		}
 	}
-	for _, peer := range peers {
-		peer.app.Close()
-	}
-	if err != nil {
-		t.Errorf("error matching block by peer: %v", err)
-	}
-	if receivedCount != broadcastExpected {
-		t.Errorf("block broadcast to %d peers, expected %d", receivedCount, broadcastExpected)
-	}
+
 }
 
 // Tests that a propagated malformed block (uncles or transactions don't match
@@ -665,7 +658,7 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 	malformedTransactions.TxHash[0]++
 
 	// Keep listening to broadcasts and notify if any arrives
-	notify := make(chan struct{})
+	notify := make(chan struct{}, 1)
 	go func() {
 		if _, err := sink.app.ReadMsg(); err == nil {
 			notify <- struct{}{}

@@ -16,6 +16,8 @@
 
 package params
 
+import "github.com/celo-org/celo-blockchain/common"
+
 // MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ethereum network.
 var MainnetBootnodes = []string{"enode://5c9a3afb564b48cc2fa2e06b76d0c5d8f6910e1930ea7d0930213a0cbc20450434cd442f6483688eff436ad14dc29cb90c9592cc5c1d27ca62f28d4d8475d932@34.82.79.155:30301"}
@@ -42,3 +44,12 @@ var AlfajoresBootnodes = []string{
 // DiscoveryV5Bootnodes are the enode URLs of the P2P bootstrap nodes for the
 // experimental RLPx v5 topic-discovery network.
 var DiscoveryV5Bootnodes = []string{}
+
+// These DNS names provide bootstrap connectivity for public testnets and the mainnet.
+// See https://github.com/ethereum/discv4-dns-lists for more information.
+// For now, Celo doesn't use DNS discovery, so urls are blank
+var KnownDNSNetworks = map[common.Hash]string{
+	MainnetGenesisHash:   "",
+	AlfajoresGenesisHash: "",
+	BaklavaGenesisHash:   "",
+}

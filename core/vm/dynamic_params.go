@@ -3,10 +3,10 @@ package vm
 import (
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -49,7 +49,7 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments || err == errExecutionReverted {
+	if err == abi.ErrEmptyArguments || err == ErrExecutionReverted {
 		return nil, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return nil, err

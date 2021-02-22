@@ -18,16 +18,19 @@ package vm
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/core/types"
 )
+
+var errTraceLimitReached = errors.New("the number of logs reached the specified limit")
 
 // Storage represents a contract's storage.
 type Storage map[common.Hash]common.Hash
@@ -140,7 +143,7 @@ func (l *StructLogger) CaptureStart(from common.Address, to common.Address, crea
 func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, contract *Contract, depth int, err error) error {
 	// check if already accumulated the specified number of logs
 	if l.cfg.Limit != 0 && l.cfg.Limit <= len(l.logs) {
-		return ErrTraceLimitReached
+		return errTraceLimitReached
 	}
 
 	// initialise new changed values storage container for this contract

@@ -19,46 +19,50 @@ package les
 
 import (
 	"fmt"
+	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/consensus"
-	istanbulBackend "github.com/ethereum/go-ethereum/consensus/istanbul/backend"
-	"github.com/ethereum/go-ethereum/contract_comm"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/bloombits"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/les/checkpointoracle"
-	"github.com/ethereum/go-ethereum/light"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/consensus"
+	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/bloombits"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/filters"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/les/checkpointoracle"
+	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
+	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rpc"
 )
 
 type LightEthereum struct {
 	lesCommons
 
-	reqDist     *requestDistributor
-	retriever   *retrieveManager
-	odr         *LesOdr
-	relay       *lesTxRelay
-	handler     *clientHandler
-	txPool      *light.TxPool
-	blockchain  *light.LightChain
-	serverPool  *serverPool
-	chainreader *LightChainReader
+	peers        *serverPeerSet
+	reqDist      *requestDistributor
+	retriever    *retrieveManager
+	odr          *LesOdr
+	relay        *lesTxRelay
+	handler      *clientHandler
+	txPool       *light.TxPool
+	blockchain   *light.LightChain
+	serverPool   *serverPool
+	chainreader  *LightChainReader
+	valueTracker *lpc.ValueTracker
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -90,14 +94,18 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	lespayDb, err := ctx.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
+	if err != nil {
+		return nil, err
+	}
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis,
-		config.OverrideIstanbul)
+		config.OverrideChurrito, config.OverrideDonut)
 	if _, isCompat := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !isCompat {
 		return nil, genesisErr
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
-	peers := newPeerSet()
+	peers := newServerPeerSet()
 	leth := &LightEthereum{
 		lesCommons: lesCommons{
 			genesis:     genesisHash,
@@ -105,9 +113,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 			chainConfig: chainConfig,
 			iConfig:     light.DefaultClientIndexerConfig,
 			chainDb:     chainDb,
-			peers:       peers,
 			closeCh:     make(chan struct{}),
 		},
+		peers:          peers,
 		eventMux:       ctx.EventMux,
 		reqDist:        newRequestDistributor(peers, &mclock.System{}),
 		accountManager: ctx.AccountManager,
@@ -115,13 +123,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		serverPool:     newServerPool(chainDb, config.UltraLightServers),
+		valueTracker:   lpc.NewValueTracker(lespayDb, &mclock.System{}, requestList, time.Minute, 1/float64(time.Hour), 1/float64(time.Hour*100), 1/float64(time.Hour*1000)),
 	}
-
-	if syncMode == downloader.LightestSync && chainConfig.Istanbul == nil {
-		msg := fmt.Sprintf(
-			"To use 'lightest' sync mode, run the node with Istanbul BFT consensus %v", chainConfig)
-		panic(msg)
-	}
+	peers.subscribe((*vtSubscription)(leth.valueTracker))
 	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
 	leth.relay = newLesTxRelay(peers, leth.retriever)
 
@@ -195,6 +199,23 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	return leth, nil
 }
 
+// vtSubscription implements serverPeerSubscriber
+type vtSubscription lpc.ValueTracker
+
+// registerPeer implements serverPeerSubscriber
+func (v *vtSubscription) registerPeer(p *serverPeer) {
+	vt := (*lpc.ValueTracker)(v)
+	p.setValueTracker(vt, vt.Register(p.ID()))
+	p.updateVtParams()
+}
+
+// unregisterPeer implements serverPeerSubscriber
+func (v *vtSubscription) unregisterPeer(p *serverPeer) {
+	vt := (*lpc.ValueTracker)(v)
+	vt.Unregister(p.ID())
+	p.setValueTracker(nil, nil)
+}
+
 type LightDummyAPI struct{}
 
 // Etherbase is the address that mining rewards will be send to
@@ -253,6 +274,11 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Version:   "1.0",
 			Service:   NewPrivateLightAPI(&s.lesCommons),
 			Public:    false,
+		}, {
+			Namespace: "lespay",
+			Version:   "1.0",
+			Service:   lpc.NewPrivateClientAPI(s.valueTracker),
+			Public:    false,
 		},
 	}...)
 }
@@ -267,12 +293,13 @@ func (s *LightEthereum) Engine() consensus.Engine           { return s.engine }
 func (s *LightEthereum) LesVersion() int                    { return int(ClientProtocolVersions[0]) }
 func (s *LightEthereum) Downloader() *downloader.Downloader { return s.handler.downloader }
 func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux }
+func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPool }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.
 func (s *LightEthereum) Protocols() []p2p.Protocol {
 	return s.makeProtocols(ClientProtocolVersions, s.handler.runPeer, func(id enode.ID) interface{} {
-		if p := s.peers.Peer(peerIdToString(id)); p != nil {
+		if p := s.peers.peer(peerIdToString(id)); p != nil {
 			return p.Info()
 		}
 		return nil
@@ -304,7 +331,7 @@ func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
 	close(s.closeCh)
-	s.peers.Close()
+	s.peers.close()
 	s.reqDist.close()
 	s.odr.Stop()
 	s.relay.Stop()
@@ -320,6 +347,7 @@ func (s *LightEthereum) Stop() error {
 	s.engine.Close()
 	s.eventMux.Stop()
 	s.serverPool.stop()
+	s.valueTracker.Stop()
 	s.chainDb.Close()
 	s.wg.Wait()
 	log.Info("Light ethereum stopped")

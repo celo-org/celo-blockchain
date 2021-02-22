@@ -22,8 +22,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
 )
 
 func TestIterator(t *testing.T) {
@@ -120,7 +120,7 @@ func TestNodeIteratorCoverage(t *testing.T) {
 			}
 		}
 	}
-	it := db.diskdb.NewIterator()
+	it := db.diskdb.NewIterator(nil, nil)
 	for it.Next() {
 		key := it.Key()
 		if _, ok := hashes[common.BytesToHash(key)]; !ok {
@@ -312,7 +312,7 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool) {
 	if memonly {
 		memKeys = triedb.Nodes()
 	} else {
-		it := diskdb.NewIterator()
+		it := diskdb.NewIterator(nil, nil)
 		for it.Next() {
 			diskKeys = append(diskKeys, it.Key())
 		}

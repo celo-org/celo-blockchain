@@ -16,6 +16,8 @@
 
 package istanbul
 
+import "github.com/celo-org/celo-blockchain/p2p/enode"
+
 // RequestEvent is posted to propose a proposal
 type RequestEvent struct {
 	Proposal Proposal
@@ -23,6 +25,12 @@ type RequestEvent struct {
 
 // MessageEvent is posted for Istanbul engine communication
 type MessageEvent struct {
+	Payload []byte
+}
+
+// MessageWithPeerIDEvent is a MessageEvent with the peerID that sent the message
+type MessageWithPeerIDEvent struct {
+	PeerID  enode.ID
 	Payload []byte
 }
 

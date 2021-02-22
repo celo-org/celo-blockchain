@@ -34,13 +34,13 @@ import (
 	"sync"
 	"time"
 
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/log"
+	ethereum "github.com/celo-org/celo-blockchain"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/log"
 	pcsc "github.com/gballet/go-libpcsclite"
 	"github.com/status-im/keycard-go/derivationpath"
 )
@@ -314,15 +314,15 @@ func (w *Wallet) Status() (string, error) {
 	}
 	switch {
 	case !w.session.verified && status.PinRetryCount == 0 && status.PukRetryCount == 0:
-		return fmt.Sprintf("Bricked, waiting for full wipe"), nil
+		return "Bricked, waiting for full wipe", nil
 	case !w.session.verified && status.PinRetryCount == 0:
 		return fmt.Sprintf("Blocked, waiting for PUK (%d attempts left) and new PIN", status.PukRetryCount), nil
 	case !w.session.verified:
 		return fmt.Sprintf("Locked, waiting for PIN (%d attempts left)", status.PinRetryCount), nil
 	case !status.Initialized:
-		return fmt.Sprintf("Empty, waiting for initialization"), nil
+		return "Empty, waiting for initialization", nil
 	default:
-		return fmt.Sprintf("Online"), nil
+		return "Online", nil
 	}
 }
 
@@ -614,7 +614,7 @@ func (w *Wallet) Decrypt(account accounts.Account, c, s1, s2 []byte) ([]byte, er
 	return nil, accounts.ErrNotSupported
 }
 
-func (w *Wallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite bool) (blscrypto.SerializedSignature, error) {
+func (w *Wallet) SignBLS(account accounts.Account, msg []byte, extraData []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	return blscrypto.SerializedSignature{}, accounts.ErrNotSupported
 }
 

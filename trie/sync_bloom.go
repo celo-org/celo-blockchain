@@ -24,10 +24,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/steakknife/bloomfilter"
 )
 
@@ -99,7 +99,7 @@ func (b *SyncBloom) init(database ethdb.Iteratee) {
 	// Note, this is fine, because everything inserted into leveldb by fast sync is
 	// also pushed into the bloom directly, so we're not missing anything when the
 	// iterator is swapped out for a new one.
-	it := database.NewIterator()
+	it := database.NewIterator(nil, nil)
 
 	var (
 		start = time.Now()
@@ -116,7 +116,7 @@ func (b *SyncBloom) init(database ethdb.Iteratee) {
 			key := common.CopyBytes(it.Key())
 
 			it.Release()
-			it = database.NewIteratorWithStart(key)
+			it = database.NewIterator(nil, key)
 
 			log.Info("Initializing fast sync bloom", "items", b.bloom.N(), "errorrate", b.errorRate(), "elapsed", common.PrettyDuration(time.Since(start)))
 			swap = time.Now()
