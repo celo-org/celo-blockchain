@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
@@ -89,6 +88,10 @@ var templateFlags = []cli.Flag{
 		Name:  "epoch",
 		Usage: "Epoch size",
 	},
+	cli.Int64Flag{
+		Name:  "blockgaslimit",
+		Usage: "Block gas limit",
+	},
 	cli.StringFlag{
 		Name:  "mnemonic",
 		Usage: "Mnemonic to generate accounts",
@@ -108,6 +111,12 @@ var newEnvFlag = cli.StringFlag{
 var gethPathFlag = cli.StringFlag{
 	Name:  "geth",
 	Usage: "Path to geth binary",
+}
+
+var loadTestTPSFlag = cli.IntFlag{
+	Name:  "tps",
+	Usage: "Transactions per second to target in the load test",
+	Value: 20,
 }
 
 var createGenesisCommand = cli.Command{
@@ -176,7 +185,7 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{},
+	Flags:     []cli.Flag{loadTestTPSFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -261,6 +270,9 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	if ctx.IsSet("blockperiod") {
 		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
+	}
+	if ctx.IsSet("blockgaslimit") {
+		genesisConfig.Blockchain.BlockGasLimit = big.NewInt(ctx.Int64("blockgaslimit"))
 	}
 
 	return env, genesisConfig, nil
@@ -435,15 +447,26 @@ func loadBot(ctx *cli.Context) error {
 		return err
 	}
 
+	verbosityLevel := ctx.GlobalInt("verbosity")
+	verbose := verbosityLevel >= 4
+
 	runCtx := context.Background()
 
-	// TODO: Pull all of these values from env.json
+	var clients []*ethclient.Client
+	for i := 0; i < env.Config.InitialValidators; i++ {
+		// TODO: Pull all of these values from env.json
+		client, err := ethclient.Dial(env.ValidatorIPC(i))
+		if err != nil {
+			return err
+		}
+		clients = append(clients, client)
+	}
+
 	return loadbot.Start(runCtx, &loadbot.Config{
-		Accounts:         env.DeveloperAccounts(),
-		Amount:           big.NewInt(10000000),
-		TransactionDelay: 1 * time.Second,
-		ClientFactory: func() (*ethclient.Client, error) {
-			return ethclient.Dial("http://localhost:8545")
-		},
+		Accounts:              env.DeveloperAccounts(),
+		Amount:                big.NewInt(10000000),
+		TransactionsPerSecond: ctx.Int("tps"),
+		Clients:               clients,
+		Verbose:               verbose,
 	})
 }
