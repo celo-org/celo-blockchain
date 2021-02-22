@@ -452,16 +452,21 @@ func loadBot(ctx *cli.Context) error {
 
 	runCtx := context.Background()
 
-	// TODO: Pull all of these values from env.json
-	client, err := ethclient.Dial(env.IPC())
-	if err != nil {
-		return err
+	var clients []*ethclient.Client
+	for i := 0; i < env.Config.InitialValidators; i++ {
+		// TODO: Pull all of these values from env.json
+		client, err := ethclient.Dial(env.ValidatorIPC(i))
+		if err != nil {
+			return err
+		}
+		clients = append(clients, client)
 	}
+
 	return loadbot.Start(runCtx, &loadbot.Config{
 		Accounts:              env.DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: ctx.Int("tps"),
-		Clients:               []*ethclient.Client{client},
+		Clients:               clients,
 		Verbose:               verbose,
 	})
 }
