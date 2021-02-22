@@ -150,7 +150,6 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		hash     = header.Hash()
 		number   = header.Number.Uint64()
 		externTd *big.Int
-		// localTd  *big.Int
 	)
 
 	if cannonicalHash := hc.GetCanonicalHash(number); (cannonicalHash != common.Hash{} && cannonicalHash != hash) {
@@ -166,13 +165,8 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		}
-		// localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 	}
-	// else {
-	// 	localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
-	// }
 
-	// head := hc.CurrentHeader().Number.Uint64()
 	externTd = big.NewInt(int64(number + 1))
 
 	// Irrelevant of the canonical status, write the td and header to the database
@@ -185,23 +179,6 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	if err := headerBatch.Write(); err != nil {
 		log.Crit("Failed to write header into disk", "err", err)
 	}
-	// // If the total difficulty is higher than our known, add it to the canonical chain
-	// // Second clause in the if statement reduces the vulnerability to selfish mining.
-	// // Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
-	// reorg := externTd.Cmp(localTd) > 0
-	// if !reorg && externTd.Cmp(localTd) == 0 {
-	// 	if header.Number.Uint64() < head {
-	// 		reorg = true
-	// 	} else if header.Number.Uint64() == head {
-	// 		reorg = mrand.Float64() < 0.5
-	// 	}
-	// }
-	// if reorg {
-	// 	// If the header can be added into canonical chain, adjust the
-	// 	// header chain markers(canonical indexes and head header flag).
-	// 	//
-	// 	// Note all markers should be written atomically.
-
 	// If the header can be added into canonical chain, adjust the
 	// header chain markers(canonical indexes and head header flag).
 	//
@@ -250,11 +227,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	headHeaderGauge.Update(header.Number.Int64())
 
 	status = CanonStatTy
-	// } else {
-	// 	log.Debug("Encountered a block with difficulty lower than main chain",
-	// 		"extern total difficulty", externTd, "local total difficulty", localTd)
-	// 	status = SideStatTy
-	// }
+
 	hc.tdCache.Add(hash, externTd)
 	hc.headerCache.Add(hash, header)
 	hc.numberCache.Add(hash, number)
