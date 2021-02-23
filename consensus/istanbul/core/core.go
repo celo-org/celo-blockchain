@@ -29,6 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	core2 "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/event"
@@ -63,11 +64,11 @@ type CoreBackend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error
+	Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, stateProcessResult *core2.StateProcessResult) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(istanbul.Proposal) (time.Duration, error)
+	Verify(istanbul.Proposal) (time.Duration, *core2.StateProcessResult, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
@@ -377,7 +378,13 @@ func (c *core) commit() error {
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
+
+		result, isCached := c.current.GetStateProcessResult(proposal.Hash())
+		if !isCached {
+			log.Crit("StateProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
+			return errStateProcessResultNotFound
+		}
+		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
@@ -769,12 +776,16 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 	} else {
 		logger.Trace("verification status cache miss")
 
-		duration, err := c.backend.Verify(proposal)
+		duration, result, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
+		}
+
+		if result != nil {
+			c.current.SetStateProcessResult(proposal.Hash(), result)
 		}
 
 		return duration, err

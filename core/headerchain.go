@@ -140,7 +140,7 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 // without the real blocks. Hence, writing headers directly should only be done
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
-func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, err error) {
+func (hc *HeaderChain) WriteHeader(header *types.Header) (status types.WriteStatus, err error) {
 	// Cache some values to prevent constant recalculation
 	var (
 		hash     = header.Hash()
@@ -155,7 +155,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 	ptd := hc.GetTd(header.ParentHash, number-1)
 	if ptd == nil {
 		if hc.config.FullHeaderChainAvailable {
-			return NonStatTy, consensus.ErrUnknownAncestor
+			return types.NonStatTy, consensus.ErrUnknownAncestor
 		}
 		localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
 	} else {
@@ -234,11 +234,11 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 		hc.currentHeader.Store(types.CopyHeader(header))
 		headHeaderGauge.Update(header.Number.Int64())
 
-		status = CanonStatTy
+		status = types.CanonStatTy
 	} else {
 		log.Debug("Encountered a block with difficulty lower than main chain",
 			"extern total difficulty", externTd, "local total difficulty", localTd)
-		status = SideStatTy
+		status = types.SideStatTy
 	}
 	hc.tdCache.Add(hash, externTd)
 	hc.headerCache.Add(hash, header)

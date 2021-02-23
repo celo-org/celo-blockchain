@@ -187,8 +187,9 @@ type Backend struct {
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
 	replicaState replica.State
 
-	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
-	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) (types.WriteStatus, error)
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -463,7 +464,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *core.StateProcessResult) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -497,9 +498,20 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	if sb.broadcaster != nil {
-		sb.broadcaster.Enqueue(fetcherID, block)
+	// For DEBUG, delete when merged to master
+	if err := sb.validateState(block, result.State, result.Receipts, result.UsedGas); err != nil {
+		sb.logger.Error("validateState failed", "err", err)
+		return err
 	}
+	if _, err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
+		sb.logger.Crit("Failed writeBlockWithState", "err", err)
+		return err
+	}
+
+	sb.logger.Info("Inserted block from consensus", "number", block.Number(), "hash", block.Hash(),
+		"txs", len(block.Transactions()), "gas", block.GasUsed(),
+		"root", block.Root())
+
 	return nil
 }
 
@@ -509,23 +521,23 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.StateProcessResult, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
-		return 0, errInvalidProposal
+		return 0, nil, errInvalidProposal
 	}
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return 0, core.ErrBlacklistedHash
+		return 0, nil, core.ErrBlacklistedHash
 	}
 
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions())
 	if txnHash != block.Header().TxHash {
-		return 0, errMismatchTxhashes
+		return 0, nil, errMismatchTxhashes
 	}
 
 	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
@@ -533,10 +545,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return 0, errInvalidProposal
+			return 0, nil, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
 			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
-			return 0, errInvalidCoinbase
+			return 0, nil, errInvalidCoinbase
 		}
 	}
 
@@ -545,9 +557,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
-			return time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
+			return time.Unix(int64(block.Header().Time), 0).Sub(now()), nil, consensus.ErrFutureBlock
 		} else {
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
@@ -556,34 +568,35 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// Make a copy of the state
 	state = state.Copy()
 
 	// Apply this block's transactions to update the state
-	receipts, _, usedGas, err := sb.processBlock(block, state)
+	receipts, logs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
-		return 0, err
+		return 0, nil, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
 			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
-	return 0, err
+	result := &core.StateProcessResult{Receipts: receipts, Logs: logs, State: state, UsedGas: usedGas}
+	return 0, result, nil
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {

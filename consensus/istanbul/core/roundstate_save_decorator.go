@@ -17,6 +17,7 @@
 package core
 
 import (
+	core2 "github.com/celo-org/celo-blockchain/core"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -80,6 +81,9 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
+func (rsp *rsSaveDecorator) SetStateProcessResult(proposalHash common.Hash, result *core2.StateProcessResult) {
+	rsp.rs.SetStateProcessResult(proposalHash, result)
+}
 
 // DesiredRound implements RoundState.DesiredRound
 func (rsp *rsSaveDecorator) DesiredRound() *big.Int { return rsp.rs.DesiredRound() }
@@ -131,9 +135,14 @@ func (rsp *rsSaveDecorator) GetValidatorByAddress(address common.Address) istanb
 	return rsp.rs.GetValidatorByAddress(address)
 }
 
-// GetValidatorByAddress implements RoundState.GetProposalVerificationStatus
+// GetProposalVerificationStatus implements RoundState.GetProposalVerificationStatus
 func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
+}
+
+// GetStateProcessResult implements RoundState.GetStateProcessResult
+func (rsp *rsSaveDecorator) GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult, isCached bool) {
+	return rsp.rs.GetStateProcessResult(proposalHash)
 }
 
 // IsProposer implements RoundState.IsProposer

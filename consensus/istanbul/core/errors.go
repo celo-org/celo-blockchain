@@ -86,4 +86,6 @@ var (
 	errInvalidValidatorAddress = errors.New("failed to find an existing validator by address")
 	// Invalid round state
 	errInvalidState = errors.New("invalid round state")
+	// errStateProcessResultNotFound is returned when result is not found in cache
+	errStateProcessResultNotFound = errors.New("failed to retrieve errStateProcessResultNotFound")
 )

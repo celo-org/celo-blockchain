@@ -85,14 +85,16 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	b.StartAnnouncing()
 
 	if !isProxy {
-		b.SetBlockProcessors(blockchain.HasBadBlock,
+		b.SetCallBacks(blockchain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
 			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
 				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
+			},
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status types.WriteStatus, err error) {
+				return blockchain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
 			})
-
 		if isProxied {
 			b.StartProxiedValidatorEngine()
 		}
@@ -169,7 +171,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
 	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
-	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
+	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal, &core.StateProcessResult{})
 	if err != nil {
 		return nil, err
 	}

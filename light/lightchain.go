@@ -406,11 +406,11 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		status, err := lc.hc.WriteHeader(header)
 
 		switch status {
-		case core.CanonStatTy:
+		case types.CanonStatTy:
 			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
 			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
 
-		case core.SideStatTy:
+		case types.SideStatTy:
 			log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
 			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
 		}

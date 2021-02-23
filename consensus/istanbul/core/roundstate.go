@@ -19,6 +19,8 @@ package core
 import (
 	"bytes"
 	"errors"
+	core2 "github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"io"
 	"math/big"
 	"sync"
@@ -49,6 +51,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
+	SetStateProcessResult(proposalHash common.Hash, blockProcessResult *core2.StateProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -70,6 +73,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
+	GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult, isCached bool)
 	Summary() *RoundStateSummary
 }
 
@@ -97,6 +101,9 @@ type roundStateImpl struct {
 	// which doesn't have a native RLP encoding.  Also, this is a cache, so it's not necessary for it
 	// to be persisted.
 	proposalVerificationStatus map[common.Hash]error
+
+	// Cache for StateProcessResult in this sequence.
+	stateProcessResults map[common.Hash]*core2.StateProcessResult
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -307,6 +314,7 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 	rs.pendingRequest = nil
 	rs.parentCommits = parentCommits
 	rs.proposalVerificationStatus = nil
+	rs.stateProcessResults = nil
 
 	// Update sequence gauge
 	rs.sequenceGauge.Update(nextSequence.Int64())
@@ -462,6 +470,57 @@ func (rs *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash
 	}
 
 	return
+}
+
+func (rs *roundStateImpl) SetStateProcessResult(proposalHash common.Hash, stateProcessResult *core2.StateProcessResult) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.stateProcessResults == nil {
+		rs.stateProcessResults = make(map[common.Hash]*core2.StateProcessResult)
+	}
+
+	rs.stateProcessResults[proposalHash] = stateProcessResult
+}
+
+func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (stateProcessResult *core2.StateProcessResult, isCached bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if rs.stateProcessResults != nil {
+		stateProcessResult, isCached = rs.stateProcessResults[proposalHash]
+		//if stateProcessResult, isCached = rs.stateProcessResults[proposalHash]; isCached {
+		//	stateProcessResult = deepCopy(stateProcessResult)
+		//}
+	}
+
+	return
+}
+
+//deepCopy will deep copy a StateProcessResult.
+func deepCopy(result *core2.StateProcessResult) *core2.StateProcessResult {
+	var (
+		cpyReceipts = make([]*types.Receipt, len(result.Receipts))
+		cpyLogs     []*types.Log
+	)
+	// Deep copy receipts
+	for i, receipt := range result.Receipts {
+		cpyReceipts[i] = new(types.Receipt)
+		*cpyReceipts[i] = *receipt
+		// Deep copy logs
+		for _, log := range receipt.Logs {
+			cpyLog := new(types.Log)
+			*cpyLog = *log
+			cpyLogs = append(cpyLogs, cpyLog)
+		}
+	}
+	return &core2.StateProcessResult{
+		State:    result.State.Copy(),
+		Receipts: cpyReceipts,
+		Logs:     cpyLogs,
+		UsedGas:  result.UsedGas,
+		Err:      result.Err,
+	}
 }
 
 func (rs *roundStateImpl) Summary() *RoundStateSummary {

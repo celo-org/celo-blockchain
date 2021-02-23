@@ -430,3 +430,12 @@ func (b *Block) Hash() common.Hash {
 }
 
 type Blocks []*Block
+
+// WriteStatus status of write
+type WriteStatus byte
+
+const (
+	NonStatTy WriteStatus = iota
+	CanonStatTy
+	SideStatTy
+)

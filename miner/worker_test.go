@@ -136,6 +136,9 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		istanbul.SetChain(chain, chain.CurrentBlock, func(parentHash common.Hash) (*state.StateDB, error) {
 			parentStateRoot := chain.GetHeaderByHash(parentHash).Root
 			return chain.StateAt(parentStateRoot)
+		}, func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
+			_, err := chain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
+			return err
 		})
 	}
 
