@@ -44,6 +44,16 @@ func BaseConfig() *Config {
 			Rate:                        fixed("1"),
 			InflationFactorUpdatePeriod: bigInt(2 * Year),
 			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "Exchange",
+		},
+		StableTokenEUR: StableTokenParameters{
+			Name:                        "Celo Euro",
+			Symbol:                      "cEUR",
+			Decimals:                    18,
+			Rate:                        fixed("1"),
+			InflationFactorUpdatePeriod: bigInt(2 * Year),
+			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "ExchangeEUR",
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
@@ -73,6 +83,13 @@ func BaseConfig() *Config {
 			ElectabilityThreshold:  fixed("0.001"),
 		},
 		Exchange: ExchangeParameters{
+			Spread:          fixed("0.005"),
+			ReserveFraction: fixed("0.01"),
+			UpdateFrequency: 5 * Minute,
+			MinimumReports:  1,
+			Frozen:          false,
+		},
+		ExchangeEUR: ExchangeParameters{
 			Spread:          fixed("0.005"),
 			ReserveFraction: fixed("0.01"),
 			UpdateFrequency: 5 * Minute,

@@ -98,11 +98,11 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// 08 ReserveSpenderMultisig (requires reserve to work)
 		ctx.deployReserveSpenderMultisig,
 
-		// 09 StableToken
-		ctx.deployStableToken,
+		// 09 StableToken and StableTokenEUR
+		ctx.deployStableTokens,
 
-		// 10 Exchange
-		ctx.deployExchange,
+		// 10 Exchange and ExchangeEUR
+		ctx.deployExchanges,
 
 		// 11 Accounts
 		ctx.deployAccounts,
@@ -429,26 +429,37 @@ func (ctx *deployContext) deployGoldToken() error {
 	return nil
 }
 
-func (ctx *deployContext) deployExchange() error {
-	err := ctx.deployCoreContract("Exchange", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize",
-			env.MustProxyAddressFor("Registry"),
-			env.MustProxyAddressFor("StableToken"),
-			ctx.GenesisConfig.Exchange.Spread.BigInt(),
-			ctx.GenesisConfig.Exchange.ReserveFraction.BigInt(),
-			new(big.Int).SetUint64(ctx.GenesisConfig.Exchange.UpdateFrequency),
-			new(big.Int).SetUint64(ctx.GenesisConfig.Exchange.MinimumReports),
-		)
-	})
-	if err != nil {
-		return err
+func (ctx *deployContext) deployExchanges() error {
+	type ExchangeConfig struct {
+		contract            string
+		stableTokenContract string
+		cfg                 ExchangeParameters
 	}
-
-	if ctx.GenesisConfig.Exchange.Frozen {
-		ctx.logger.Info("Freezing Exchange")
-		err = ctx.contract("Freezer").SimpleCall("freeze", env.MustProxyAddressFor("Exchange"))
+	exchanges := []ExchangeConfig{
+		{"Exchange", "StableToken", ctx.GenesisConfig.Exchange},
+		{"ExchangeEUR", "StableTokenEUR", ctx.GenesisConfig.ExchangeEUR},
+	}
+	for _, exchange := range exchanges {
+		err := ctx.deployCoreContract(exchange.contract, func(contract *contract.EVMBackend) error {
+			return contract.SimpleCall("initialize",
+				env.MustProxyAddressFor("Registry"),
+				env.MustProxyAddressFor(exchange.stableTokenContract),
+				exchange.cfg.Spread.BigInt(),
+				exchange.cfg.ReserveFraction.BigInt(),
+				new(big.Int).SetUint64(exchange.cfg.UpdateFrequency),
+				new(big.Int).SetUint64(exchange.cfg.MinimumReports),
+			)
+		})
 		if err != nil {
 			return err
+		}
+
+		if exchange.cfg.Frozen {
+			ctx.logger.Info("Freezing Exchange", "contract", exchange.contract)
+			err = ctx.contract("Freezer").SimpleCall("freeze", env.MustProxyAddressFor("Exchange"))
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -608,87 +619,97 @@ func (ctx *deployContext) deployReserve() error {
 	return nil
 }
 
-func (ctx *deployContext) deployStableToken() error {
-	err := ctx.deployCoreContract("StableToken", func(contract *contract.EVMBackend) error {
-		return contract.SimpleCall("initialize",
-			ctx.GenesisConfig.StableToken.Name,
-			ctx.GenesisConfig.StableToken.Symbol,
-			ctx.GenesisConfig.StableToken.Decimals,
-			env.MustProxyAddressFor("Registry"),
-			ctx.GenesisConfig.StableToken.Rate.BigInt(),
-			ctx.GenesisConfig.StableToken.InflationFactorUpdatePeriod,
-			ctx.GenesisConfig.StableToken.InitialBalances.Accounts(),
-			ctx.GenesisConfig.StableToken.InitialBalances.Amounts(),
-		)
-	})
-	if err != nil {
-		return err
+func (ctx *deployContext) deployStableTokens() error {
+	type StableTokenConfig struct {
+		contract string
+		cfg      StableTokenParameters
 	}
-
-	stableTokenAddress := env.MustProxyAddressFor("StableToken")
-
-	if ctx.GenesisConfig.StableToken.Frozen {
-		ctx.logger.Info("Freezing StableToken")
-		err = ctx.contract("Freezer").SimpleCall("freeze", stableTokenAddress)
+	tokens := []StableTokenConfig{
+		{"StableToken", ctx.GenesisConfig.StableToken},
+		{"StableTokenEUR", ctx.GenesisConfig.StableTokenEUR},
+	}
+	for _, token := range tokens {
+		err := ctx.deployCoreContract(token.contract, func(contract *contract.EVMBackend) error {
+			return contract.SimpleCall("initialize",
+				token.cfg.Name,
+				token.cfg.Symbol,
+				token.cfg.Decimals,
+				env.MustProxyAddressFor("Registry"),
+				token.cfg.Rate.BigInt(),
+				token.cfg.InflationFactorUpdatePeriod,
+				token.cfg.InitialBalances.Accounts(),
+				token.cfg.InitialBalances.Amounts(),
+				token.cfg.ExchangeIdentifier,
+			)
+		})
 		if err != nil {
 			return err
 		}
-	}
 
-	// Configure StableToken Oracles
-	for _, oracleAddress := range ctx.GenesisConfig.StableToken.Oracles {
-		ctx.logger.Info("Adding oracle for StableToken", "oracle", oracleAddress)
-		err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, oracleAddress)
-		if err != nil {
-			return err
-		}
-	}
+		stableTokenAddress := env.MustProxyAddressFor("StableToken")
 
-	// If requested, fix golPrice of stable token
-	if ctx.GenesisConfig.StableToken.GoldPrice != nil {
-		ctx.logger.Info("Fixing StableToken goldPrice")
-
-		// first check if the admin is an authorized oracle
-		authorized := false
-		for _, oracleAddress := range ctx.GenesisConfig.StableToken.Oracles {
-			if oracleAddress == ctx.adminAccount.Address {
-				authorized = true
-				break
-			}
-		}
-
-		if !authorized {
-			ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAccount.Address)
-			err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAccount.Address)
+		if token.cfg.Frozen {
+			ctx.logger.Info("Freezing StableToken", "contract", token.contract)
+			err = ctx.contract("Freezer").SimpleCall("freeze", stableTokenAddress)
 			if err != nil {
 				return err
 			}
 		}
 
-		ctx.logger.Info("Reporting price of StableToken to oracle")
-		err = ctx.contract("SortedOracles").SimpleCall("report",
-			stableTokenAddress,
-			ctx.GenesisConfig.StableToken.GoldPrice.BigInt(),
-			common.ZeroAddress,
-			common.ZeroAddress,
-		)
-		if err != nil {
-			return err
+		// Configure StableToken Oracles
+		for _, oracleAddress := range token.cfg.Oracles {
+			ctx.logger.Info("Adding oracle for StableToken", "contract", token.contract, "oracle", oracleAddress)
+			err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, oracleAddress)
+			if err != nil {
+				return err
+			}
 		}
 
-		ctx.logger.Info("Add StableToken to the reserve")
-		err = ctx.contract("Reserve").SimpleCall("addToken", stableTokenAddress)
+		// If requested, fix goldPrice of stable token
+		if token.cfg.GoldPrice != nil {
+			ctx.logger.Info("Fixing StableToken goldPrice", "contract", token.contract)
+
+			// first check if the admin is an authorized oracle
+			authorized := false
+			for _, oracleAddress := range token.cfg.Oracles {
+				if oracleAddress == ctx.adminAccount.Address {
+					authorized = true
+					break
+				}
+			}
+
+			if !authorized {
+				ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAccount.Address)
+				err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAccount.Address)
+				if err != nil {
+					return err
+				}
+			}
+
+			ctx.logger.Info("Reporting price of StableToken to oracle", "contract", token.contract)
+			err = ctx.contract("SortedOracles").SimpleCall("report",
+				stableTokenAddress,
+				token.cfg.GoldPrice.BigInt(),
+				common.ZeroAddress,
+				common.ZeroAddress,
+			)
+			if err != nil {
+				return err
+			}
+
+			ctx.logger.Info("Add StableToken to the reserve", "contract", token.contract)
+			err = ctx.contract("Reserve").SimpleCall("addToken", stableTokenAddress)
+			if err != nil {
+				return err
+			}
+		}
+
+		ctx.logger.Info("Whitelisting StableToken as a fee currency", "contract", token.contract)
+		err = ctx.contract("FeeCurrencyWhitelist").SimpleCall("addToken", stableTokenAddress)
 		if err != nil {
 			return err
 		}
 	}
-
-	ctx.logger.Info("Whitelisting StableToken as a fee currency")
-	err = ctx.contract("FeeCurrencyWhitelist").SimpleCall("addToken", stableTokenAddress)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

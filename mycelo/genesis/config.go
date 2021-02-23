@@ -30,7 +30,9 @@ type Config struct {
 	GasPriceMinimum            GasPriceMinimumParameters
 	Reserve                    ReserveParameters
 	StableToken                StableTokenParameters
+	StableTokenEUR             StableTokenParameters
 	Exchange                   ExchangeParameters
+	ExchangeEUR                ExchangeParameters
 	LockedGold                 LockedGoldParameters
 	GoldToken                  GoldTokenParameters
 	Validators                 ValidatorsParameters
@@ -227,6 +229,7 @@ type StableTokenParameters struct {
 	Frozen                      bool             `json:"frozen"`
 	Oracles                     []common.Address `json:"oracles"`
 	GoldPrice                   *fixed.Fixed     `json:"goldPrice"`
+	ExchangeIdentifier          string           `json:"exchangeIdentifier"`
 }
 
 // ExchangeParameters are the initial configuration parameters for Exchange
