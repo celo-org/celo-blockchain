@@ -19,7 +19,7 @@ func BaseConfig() *Config {
 			ReportExpirySeconds: 5 * Minute,
 		},
 		GasPriceMinimum: GasPriceMinimumParameters{
-			MinimunFloor:    bigInt(100000000),
+			MinimumFloor:    bigInt(100000000),
 			AdjustmentSpeed: fixed("0.5"),
 			TargetDensity:   fixed("0.5"),
 		},

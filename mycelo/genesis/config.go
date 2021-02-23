@@ -193,7 +193,7 @@ type SortedOraclesParameters struct {
 
 // GasPriceMinimumParameters are the initial configuration parameters for GasPriceMinimum
 type GasPriceMinimumParameters struct {
-	MinimunFloor    *big.Int     `json:"minimunFloor"`
+	MinimumFloor    *big.Int     `json:"minimumFloor"`
 	TargetDensity   *fixed.Fixed `json:"targetDensity"`
 	AdjustmentSpeed *fixed.Fixed `json:"adjustmentSpeed"`
 }

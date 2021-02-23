@@ -550,7 +550,7 @@ func (ctx *deployContext) deployGasPriceMinimum() error {
 	return ctx.deployCoreContract("GasPriceMinimum", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
-			ctx.GenesisConfig.GasPriceMinimum.MinimunFloor,
+			ctx.GenesisConfig.GasPriceMinimum.MinimumFloor,
 			ctx.GenesisConfig.GasPriceMinimum.TargetDensity.BigInt(),
 			ctx.GenesisConfig.GasPriceMinimum.AdjustmentSpeed.BigInt(),
 		)
@@ -727,7 +727,7 @@ func (ctx *deployContext) verifyState() error {
 	if _, err := ctx.contract("GasPriceMinimum").Query(&gasPrice, "getGasPriceMinimum", env.MustProxyAddressFor("StableToken")); err != nil {
 		return err
 	}
-	fmt.Printf("Checking gas price minimun. cusdValue = %s\n", gasPrice.String())
+	fmt.Printf("Checking gas price minimum. cusdValue = %s\n", gasPrice.String())
 
 	return nil
 }
