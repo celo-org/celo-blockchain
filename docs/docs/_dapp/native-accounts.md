@@ -46,26 +46,26 @@ environments.
 *For those interested in the cryptographic and/or implementation details, the key-store
 uses the `secp256k1` elliptic curve as defined in the [Standards for Efficient
 Cryptography](sec2), implemented by the [`libsecp256k`](secp256k1) library and wrapped by
-[`github.com/ethereum/go-ethereum/accounts`](accounts-go). Accounts are stored on disk in
+[`github.com/celo-org/celo-blockchain/accounts`](accounts-go). Accounts are stored on disk in
 the [Web3 Secret Storage](secstore) format.*
 
 [sec2]: http://www.secg.org/sec2-v2.pdf
-[accounts-go]: https://godoc.org/github.com/ethereum/go-ethereum/accounts
+[accounts-go]: https://godoc.org/github.com/celo-org/celo-blockchain/accounts
 [secp256k1]: https://github.com/bitcoin-core/secp256k1
 [secstore]: https://github.com/ethereum/wiki/wiki/Web3-Secret-Storage-Definition
 
 ### Keystores from Go
 
 The encrypted keystore is implemented by the
-[`accounts.Manager`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager)
+[`accounts.Manager`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager)
 struct from the
-[`github.com/ethereum/go-ethereum/accounts`](https://godoc.org/github.com/ethereum/go-ethereum/accounts)
+[`github.com/celo-org/celo-blockchain/accounts`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts)
 package, which also contains the configuration constants for the *standard* or *light*
 security modes described above. Hence to do client side account management from Go, you'll
 need to import only the `accounts` package into your code:
 
 ```go
-import "github.com/ethereum/go-ethereum/accounts"
+import "github.com/celo-org/celo-blockchain/accounts"
 ```
 
 Afterwards you can create a new encrypted account manager via:
@@ -80,11 +80,11 @@ recommend placing it either inside your user's home directory or even more locke
 backend applications.
 
 The last two arguments of
-[`accounts.NewManager`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#NewManager)
+[`accounts.NewManager`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#NewManager)
 are the crypto parameters defining how resource-intensive the keystore encryption should
 be. You can choose between [`accounts.StandardScryptN, accounts.StandardScryptP`,
 `accounts.LightScryptN,
-accounts.LightScryptP`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#pkg-constants)
+accounts.LightScryptP`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#pkg-constants)
 or specify your own numbers (please make sure you understand the underlying cryptography
 for this). We recommend using the *standard* version.
 
@@ -131,11 +131,11 @@ guarantee that account credentials cannot be brute forced in any meaningful time
 ### Accounts from Go
 
 An Ethereum account is implemented by the
-[`accounts.Account`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Account)
+[`accounts.Account`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Account)
 struct from the
-[`github.com/ethereum/go-ethereum/accounts`](https://godoc.org/github.com/ethereum/go-ethereum/accounts)
+[`github.com/celo-org/celo-blockchain/accounts`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts)
 package. Assuming we already have an instance of an
-[`accounts.Manager`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager)
+[`accounts.Manager`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager)
 called `am` from the previous section, we can easily execute all of the described
 lifecycle operations with a handful of function calls (error handling omitted).
 
@@ -159,7 +159,7 @@ impAcc, _ := am.Import(jsonAcc, "Export password", "Import password");
 ```
 
 *Although instances of
-[`accounts.Account`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Account)
+[`accounts.Account`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Account)
 can be used to access various information about specific Ethereum accounts, they do not
 contain any sensitive data (such as passphrases or private keys), rather act solely as
 identifiers for client code and the keystore.*
@@ -203,12 +203,12 @@ authorization signature into it will be covered later.*
 ### Signing from Go
 
 Assuming we already have an instance of an
-[`accounts.Manager`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager)
+[`accounts.Manager`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager)
 called `am` from the previous sections, we can create a new account to sign transactions
 with via it's already demonstrated
-[`NewAccount`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager.NewAccount)
+[`NewAccount`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager.NewAccount)
 method; and to avoid going into transaction creation for now, we can hard-code a random
-[`common.Hash`](https://godoc.org/github.com/ethereum/go-ethereum/common#Hash) to sign
+[`common.Hash`](https://godoc.org/github.com/celo-org/celo-blockchain/common#Hash) to sign
 instead.
 
 ```go
@@ -235,18 +235,18 @@ signature, _ = am.Sign(signer.Address, txHash.Bytes());
 ```
 
 You may wonder why
-[`SignWithPassphrase`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager.SignWithPassphrase)
+[`SignWithPassphrase`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager.SignWithPassphrase)
 takes an
-[`accounts.Account`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Account)
+[`accounts.Account`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Account)
 as the signer, whereas
-[`Sign`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager.Sign) takes
+[`Sign`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager.Sign) takes
 only a
-[`common.Address`](https://godoc.org/github.com/ethereum/go-ethereum/common#Address). The
+[`common.Address`](https://godoc.org/github.com/celo-org/celo-blockchain/common#Address). The
 reason is that an
-[`accounts.Account`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Account)
+[`accounts.Account`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Account)
 object may also contain a custom key-path, allowing
-[`SignWithPassphrase`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager.SignWithPassphrase)
+[`SignWithPassphrase`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager.SignWithPassphrase)
 to sign using accounts outside of the keystore; however
-[`Sign`](https://godoc.org/github.com/ethereum/go-ethereum/accounts#Manager.Sign) relies
+[`Sign`](https://godoc.org/github.com/celo-org/celo-blockchain/accounts#Manager.Sign) relies
 on accounts already unlocked within the keystore, so it cannot specify custom paths.
 

@@ -16,7 +16,7 @@
 
 package discover
 
-import "github.com/ethereum/go-ethereum/metrics"
+import "github.com/celo-org/celo-blockchain/metrics"
 
 var (
 	ingressTrafficMeter = metrics.NewRegisteredMeter("discover/ingress", nil)

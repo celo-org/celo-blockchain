@@ -25,16 +25,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // So we can deterministically seed different blockchains
@@ -1042,7 +1042,6 @@ func TestIncompleteAncientReceiptChainInsertion(t *testing.T) {
 		t.Fatalf("failed to insert ancient recept chain after rollback")
 	}
 }
-
 func TestInsertKnownHeaders(t *testing.T)      { testInsertKnownChainData(t, "headers") }
 func TestInsertKnownReceiptChain(t *testing.T) { testInsertKnownChainData(t, "receipts") }
 func TestInsertKnownBlocks(t *testing.T)       { testInsertKnownChainData(t, "blocks") }

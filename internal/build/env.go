@@ -130,7 +130,7 @@ func stringToBool(str string) bool {
 
 // LocalEnv returns build environment metadata gathered from git.
 func LocalEnv() Environment {
-	env := applyEnvFlags(Environment{Name: "local", Repo: "ethereum/go-ethereum"})
+	env := applyEnvFlags(Environment{Name: "local", Repo: "celo-org/celo-blockchain"})
 
 	head := readGitFile("HEAD")
 	if fields := strings.Fields(head); len(fields) == 2 {

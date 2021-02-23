@@ -9,7 +9,7 @@ You have found the user manual for celo-blockchain, the Go language implementati
 * [JavaScript Console](./interface/javascript-console)
 
 For the Geth Go API reference and developer documentation head over to
-[GoDoc](https://godoc.org/github.com/ethereum/go-ethereum).
+[GoDoc](https://godoc.org/github.com/celo-org/celo-blockchain).
 
 ### Other Celo Documentation
 

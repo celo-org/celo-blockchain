@@ -23,9 +23,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/karalabe/usb"
 )
 

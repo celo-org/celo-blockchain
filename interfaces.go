@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// Package ethereum defines interfaces for interacting with Ethereum.
-package ethereum
+// Package celo defines interfaces for interacting with Celo.
+package celo
 
 import (
 	"context"
 	"errors"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 )
 
 // NotFound is returned by API methods if the requested item does not exist.
