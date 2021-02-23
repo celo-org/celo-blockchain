@@ -22,10 +22,8 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -713,126 +711,6 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	assert(t, "light", light, height/2, 0, 0)
 }
 
-func TestLogRebirth(t *testing.T) {
-	var (
-		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
-		db      = rawdb.NewMemoryDatabase()
-
-		// this code generates a log
-		code        = common.Hex2Bytes("60606040525b7f24ec1d3ff24c2f6ff210738839dbc339cd45a5294d85c79361016243157aae7b60405180905060405180910390a15b600a8060416000396000f360606040526008565b00")
-		gspec       = &Genesis{Config: params.IstanbulTestChainConfig, Alloc: GenesisAlloc{addr1: {Balance: big.NewInt(10000000000000)}}}
-		genesis     = gspec.MustCommit(db)
-		signer      = types.NewEIP155Signer(gspec.Config.ChainID)
-		newLogCh    = make(chan bool)
-		removeLogCh = make(chan bool)
-	)
-
-	// validateLogEvent checks whether the received logs number is equal with expected.
-	validateLogEvent := func(sink interface{}, result chan bool, expect int) {
-		chanval := reflect.ValueOf(sink)
-		chantyp := chanval.Type()
-		if chantyp.Kind() != reflect.Chan || chantyp.ChanDir()&reflect.RecvDir == 0 {
-			// t.Fatalf won't work since it's called in another goroutine
-			panic(fmt.Sprintf("invalid channel, given type %v", chantyp))
-		}
-		cnt := 0
-		timeout := time.After(1 * time.Second)
-		cases := []reflect.SelectCase{{Chan: chanval, Dir: reflect.SelectRecv}, {Chan: reflect.ValueOf(timeout), Dir: reflect.SelectRecv}}
-		for {
-			chose, _, _ := reflect.Select(cases)
-			if chose == 1 {
-				// Not enough event received
-				result <- false
-				return
-			}
-			cnt += 1
-			if cnt == expect {
-				break
-			}
-		}
-		done := time.After(50 * time.Millisecond)
-		cases = cases[:1]
-		cases = append(cases, reflect.SelectCase{Chan: reflect.ValueOf(done), Dir: reflect.SelectRecv})
-		chose, _, _ := reflect.Select(cases)
-		// If chose equal 0, it means receiving redundant events.
-		if chose == 1 {
-			result <- true
-		} else {
-			result <- false
-		}
-	}
-
-	blockchain, _ := NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil)
-	defer blockchain.Stop()
-
-	logsCh := make(chan []*types.Log)
-	blockchain.SubscribeLogsEvent(logsCh)
-
-	rmLogsCh := make(chan RemovedLogsEvent)
-	blockchain.SubscribeRemovedLogsEvent(rmLogsCh)
-
-	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
-		if i == 1 {
-			tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, code), signer, key1)
-			if err != nil {
-				t.Fatalf("failed to create tx: %v", err)
-			}
-			gen.AddTx(tx)
-		}
-	})
-
-	// Spawn a goroutine to receive log events
-	go validateLogEvent(logsCh, newLogCh, 1)
-	if _, err := blockchain.InsertChain(chain); err != nil {
-		t.Fatalf("failed to insert chain: %v", err)
-	}
-	if !<-newLogCh {
-		t.Fatal("failed to receive new log event")
-	}
-
-	// Generate long reorg chain
-	forkChain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
-		if i == 2 {
-			tx, err := types.SignTx(types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), 1000000, new(big.Int), nil, nil, nil, code), signer, key1)
-			if err != nil {
-				t.Fatalf("failed to create tx: %v", err)
-			}
-			gen.AddTx(tx)
-			// Higher block difficulty
-			gen.OffsetTime(-9)
-		}
-	})
-
-	// Spawn a goroutine to receive log events
-	go validateLogEvent(logsCh, newLogCh, 1)
-	go validateLogEvent(rmLogsCh, removeLogCh, 1)
-	if _, err := blockchain.InsertChain(forkChain); err != nil {
-		t.Fatalf("failed to insert forked chain: %v", err)
-	}
-	if !<-newLogCh {
-		t.Fatal("failed to receive new log event")
-	}
-	if !<-removeLogCh {
-		t.Fatal("failed to receive removed log event")
-	}
-
-	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, chain[len(chain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
-	go validateLogEvent(logsCh, newLogCh, 1)
-	go validateLogEvent(rmLogsCh, removeLogCh, 1)
-	if _, err := blockchain.InsertChain(newBlocks); err != nil {
-		t.Fatalf("failed to insert forked chain: %v", err)
-	}
-	// Rebirth logs should omit a newLogEvent
-	if !<-newLogCh {
-		t.Fatal("failed to receive new log event")
-	}
-	// Ensure removedLog events received
-	if !<-removeLogCh {
-		t.Fatal("failed to receive removed log event")
-	}
-}
-
 // Tests if the canonical block can be fetched from the database during chain insertion.
 func TestCanonicalBlockRetrieval(t *testing.T) {
 	_, blockchain, err := newCanonical(mockEngine.NewFaker(), 0, true)
@@ -1162,68 +1040,6 @@ func TestIncompleteAncientReceiptChainInsertion(t *testing.T) {
 	}
 	if ancient.CurrentFastBlock().NumberU64() != blocks[len(blocks)-1].NumberU64() {
 		t.Fatalf("failed to insert ancient recept chain after rollback")
-	}
-}
-
-// Tests that importing a sidechain (S), where
-// - S is sidechain, containing blocks [Sn...Sm]
-// - C is canon chain, containing blocks [G..Cn..Cm]
-// - A common ancestor is placed at prune-point + blocksBetweenCommonAncestorAndPruneblock
-// - The sidechain S is prepended with numCanonBlocksInSidechain blocks from the canon chain
-func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommonAncestorAndPruneblock int) {
-
-	// Generate a canonical chain to act as the main dataset
-	engine := mockEngine.NewFaker()
-	db := rawdb.NewMemoryDatabase()
-	genesis := new(Genesis).MustCommit(db)
-
-	// Generate and import the canonical chain
-	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 2*TriesInMemory, nil)
-	diskdb := rawdb.NewMemoryDatabase()
-	new(Genesis).MustCommit(diskdb)
-	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
-	if err != nil {
-		t.Fatalf("failed to create tester chain: %v", err)
-	}
-	if n, err := chain.InsertChain(blocks); err != nil {
-		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
-	}
-
-	lastPrunedIndex := len(blocks) - TriesInMemory - 1
-	lastPrunedBlock := blocks[lastPrunedIndex]
-	firstNonPrunedBlock := blocks[len(blocks)-TriesInMemory]
-
-	// Verify pruning of lastPrunedBlock
-	if chain.HasBlockAndState(lastPrunedBlock.Hash(), lastPrunedBlock.NumberU64()) {
-		t.Errorf("Block %d not pruned", lastPrunedBlock.NumberU64())
-	}
-	// Verify firstNonPrunedBlock is not pruned
-	if !chain.HasBlockAndState(firstNonPrunedBlock.Hash(), firstNonPrunedBlock.NumberU64()) {
-		t.Errorf("Block %d pruned", firstNonPrunedBlock.NumberU64())
-	}
-	// Generate the sidechain
-	// First block should be a known block, block after should be a pruned block. So
-	// canon(pruned), side, side...
-
-	// Generate fork chain, make it longer than canon
-	parentIndex := lastPrunedIndex + blocksBetweenCommonAncestorAndPruneblock
-	parent := blocks[parentIndex]
-	fork, _ := GenerateChain(params.TestChainConfig, parent, engine, db, 2*TriesInMemory, func(i int, b *BlockGen) {
-		b.SetCoinbase(common.Address{2})
-	})
-	// Prepend the parent(s)
-	var sidechain []*types.Block
-	for i := numCanonBlocksInSidechain; i > 0; i-- {
-		sidechain = append(sidechain, blocks[parentIndex+1-i])
-	}
-	sidechain = append(sidechain, fork...)
-	_, err = chain.InsertChain(sidechain)
-	if err != nil {
-		t.Errorf("Got error, %v", err)
-	}
-	head := chain.CurrentBlock()
-	if got := fork[len(fork)-1].Hash(); got != head.Hash() {
-		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
 	}
 }
 

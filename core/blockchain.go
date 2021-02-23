@@ -71,8 +71,6 @@ var (
 	blockValidationTimer = metrics.NewRegisteredTimer("chain/validation", nil)
 	blockExecutionTimer  = metrics.NewRegisteredTimer("chain/execution", nil)
 	blockWriteTimer      = metrics.NewRegisteredTimer("chain/write", nil)
-	blockReorgAddMeter   = metrics.NewRegisteredMeter("chain/reorg/add", nil)
-	blockReorgDropMeter  = metrics.NewRegisteredMeter("chain/reorg/drop", nil)
 
 	blockPrefetchExecuteTimer   = metrics.NewRegisteredTimer("chain/prefetch/executes", nil)
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
@@ -944,7 +942,6 @@ type WriteStatus byte
 const (
 	NonStatTy WriteStatus = iota
 	CanonStatTy
-	SideStatTy
 )
 
 // truncateAncient rewinds the blockchain to the specified header and deletes all
@@ -1254,24 +1251,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 
 var lastWrite uint64
 
-// writeBlockWithoutState writes only the block and its metadata to the database,
-// but does not write any state. This is used to construct competing side forks
-// up to the point where they exceed the canonical total difficulty.
-func (bc *BlockChain) writeBlockWithoutState(block *types.Block, td *big.Int) (err error) {
-	bc.wg.Add(1)
-	defer bc.wg.Done()
-
-	batch := bc.db.NewBatch()
-	rawdb.WriteTd(batch, block.Hash(), block.NumberU64(), td)
-	rawdb.WriteBlock(batch, block)
-	if err := batch.Write(); err != nil {
-		log.Crit("Failed to write block into disk", "err", err)
-	}
-	return nil
-}
-
-// writeKnownBlock updates the head block flag with a known block
-// and introduces chain reorg if necessary.
+// writeKnownBlock updates the head block flag with a known block.
 func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
@@ -1570,10 +1550,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		// Falls through to the block import
 	}
 	switch {
-	// First block is pruned, insert as sidechain and reorg only if TD grows enough
+	// First block is pruned
 	case err == consensus.ErrPrunedAncestor:
-		log.Debug("Pruned ancestor, inserting as sidechain", "number", block.Number(), "hash", block.Hash())
-		return it.index, nil
+		log.Debug("Pruned ancestor", "number", block.Number(), "hash", block.Hash())
+		return bc.insertPrunedChain(block, it)
 	// First block is future, shove it (and all children) to the future queue (unknown ancestor)
 	case err == consensus.ErrFutureBlock || (err == consensus.ErrUnknownAncestor && bc.futureBlocks.Contains(it.first().ParentHash())):
 		for block != nil && (it.index == 0 || err == consensus.ErrUnknownAncestor) {
@@ -1715,13 +1695,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			// Only count canonical blocks for GC processing time
 			bc.gcproc += proctime
 
-		case SideStatTy:
-			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(),
-				"elapsed", common.PrettyDuration(time.Since(start)),
-				"txs", len(block.Transactions()), "gas", block.GasUsed(),
-				"root", block.Root())
-			log.Error("We are not handling Side chains")
-
 		default:
 			// This in theory is impossible, but lets be nice to our future selves and leave
 			// a log, instead of trying to track down blocks imports that don't emit logs.
@@ -1753,6 +1726,95 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 	stats.ignored += it.remaining()
 
 	return it.index, err
+}
+
+// insertPrunedChain is called when an import batch hits upon a pruned ancestor
+// error.
+//
+// The method writes all (header-and-body-valid) blocks to disk, then tries to
+// switch over to the new chain if the TD exceeded the current chain.
+func (bc *BlockChain) insertPrunedChain(block *types.Block, it *insertIterator) (int, error) {
+	var (
+		current = bc.CurrentBlock()
+	)
+	// The first sidechain block error is already verified to be ErrPrunedAncestor.
+	// Since we don't import them here, we expect ErrUnknownAncestor for the remaining
+	// ones. Any other errors means that the block is invalid, and should not be written
+	// to disk.
+	err := consensus.ErrPrunedAncestor
+	for ; block != nil && (err == consensus.ErrPrunedAncestor); block, err = it.next() {
+		// Check the canonical state root for that number
+		if number := block.NumberU64(); current.NumberU64() >= number {
+			canonical := bc.GetBlockByNumber(number)
+			if canonical != nil && canonical.Hash() == block.Hash() {
+				// Not a sidechain block, this is a re-import of a canon block which has it's state pruned
+
+				continue
+			}
+			if canonical != nil && canonical.Root() == block.Root() {
+				// This is most likely a shadow-state attack. When a fork is imported into the
+				// database, and it eventually reaches a block height which is not pruned, we
+				// just found that the state already exist! This means that the sidechain block
+				// refers to a state which already exists in our canon chain.
+				//
+				// If left unchecked, we would now proceed importing the blocks, without actually
+				// having verified the state of the previous blocks.
+				log.Warn("Sidechain ghost-state attack detected", "number", block.NumberU64(), "sideroot", block.Root(), "canonroot", canonical.Root())
+
+				// If someone legitimately side-mines blocks, they would still be imported as usual. However,
+				// we cannot risk writing unverified blocks to disk when they obviously target the pruning
+				// mechanism.
+				return it.index, errors.New("sidechain ghost-state attack")
+			}
+			return it.index, errors.New("non canonical chain import")
+		}
+	}
+	// Gather all the pruned hashes (full blocks may be memory heavy)
+	var (
+		hashes  []common.Hash
+		numbers []uint64
+	)
+	parent := it.previous()
+	for parent != nil && !bc.HasState(parent.Root) {
+		hashes = append(hashes, parent.Hash())
+		numbers = append(numbers, parent.Number.Uint64())
+
+		parent = bc.GetHeader(parent.ParentHash, parent.Number.Uint64()-1)
+	}
+	// Import all the pruned blocks to make the state available
+	var (
+		blocks []*types.Block
+		memory common.StorageSize
+	)
+	for i := len(hashes) - 1; i >= 0; i-- {
+		// Append the next block to our batch
+		block := bc.GetBlock(hashes[i], numbers[i])
+
+		blocks = append(blocks, block)
+		memory += block.Size()
+
+		// If memory use grew too large, import and continue. Sadly we need to discard
+		// all raised events and logs from notifications since we're too heavy on the
+		// memory here.
+		if len(blocks) >= 2048 || memory > 64*1024*1024 {
+			log.Info("Importing heavy pruned segment", "blocks", len(blocks), "start", blocks[0].NumberU64(), "end", block.NumberU64())
+			if _, err := bc.insertChain(blocks, false); err != nil {
+				return 0, err
+			}
+			blocks, memory = blocks[:0], 0
+
+			// If the chain is terminating, stop processing blocks
+			if atomic.LoadInt32(&bc.procInterrupt) == 1 {
+				log.Debug("Premature abort during blocks processing")
+				return 0, nil
+			}
+		}
+	}
+	if len(blocks) > 0 {
+		log.Info("Importing pruned segment", "start", blocks[0].NumberU64(), "end", blocks[len(blocks)-1].NumberU64())
+		return bc.insertChain(blocks, false)
+	}
+	return 0, nil
 }
 
 func (bc *BlockChain) purge() {

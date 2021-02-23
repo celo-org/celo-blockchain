@@ -410,9 +410,6 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
 			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
 
-		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
 		}
 		return err
 	}
