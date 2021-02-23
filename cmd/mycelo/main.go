@@ -60,6 +60,7 @@ func init() {
 		// initNodesCommand,
 		// runNodesCommand,
 		loadBotCommand,
+		envCommand,
 	}
 }
 

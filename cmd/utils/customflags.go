@@ -125,6 +125,15 @@ func (f TextMarshalerFlag) Apply(set *flag.FlagSet) {
 	})
 }
 
+// LocalTextMarshaler returns the value of a TextMarshalerFlag from the flag set.
+func LocalTextMarshaler(ctx *cli.Context, name string) TextMarshaler {
+	val := ctx.Generic(name)
+	if val == nil {
+		return nil
+	}
+	return val.(textMarshalerVal).v
+}
+
 // GlobalTextMarshaler returns the value of a TextMarshalerFlag from the global flag set.
 func GlobalTextMarshaler(ctx *cli.Context, name string) TextMarshaler {
 	val := ctx.GlobalGeneric(name)
