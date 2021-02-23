@@ -533,6 +533,7 @@ func (ctx *deployContext) deployValidators() error {
 			ctx.GenesisConfig.Validators.SlashingPenaltyResetPeriod,
 			ctx.GenesisConfig.Validators.MaxGroupSize,
 			ctx.GenesisConfig.Validators.CommissionUpdateDelay,
+			ctx.GenesisConfig.Validators.DowntimeGracePeriod,
 		)
 	})
 }
@@ -646,7 +647,7 @@ func (ctx *deployContext) deployStableTokens() error {
 			return err
 		}
 
-		stableTokenAddress := env.MustProxyAddressFor("StableToken")
+		stableTokenAddress := env.MustProxyAddressFor(token.contract)
 
 		if token.cfg.Frozen {
 			ctx.logger.Info("Freezing StableToken", "contract", token.contract)

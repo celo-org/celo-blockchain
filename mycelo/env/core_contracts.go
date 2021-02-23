@@ -75,8 +75,8 @@ var genesisAddresses = map[string]common.Address{
 	"DowntimeSlasherProxy":            addr("0xd021"),
 	"GovernanceApproverMultiSigProxy": addr("0xd022"),
 	"GovernanceProxy":                 addr("0xd023"),
-	"StableTokenProxyEUR":             addr("0xd024"),
-	"ExchangeProxyEUR":                addr("0xd025"),
+	"StableTokenEURProxy":             addr("0xd024"),
+	"ExchangeEURProxy":                addr("0xd025"),
 }
 
 var libraries = []string{

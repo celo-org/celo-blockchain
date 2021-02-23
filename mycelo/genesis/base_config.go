@@ -75,6 +75,8 @@ func BaseConfig() *Config {
 			MaxGroupSize:          bigInt(5),
 
 			SlashingPenaltyResetPeriod: bigInt(30 * Day),
+
+			DowntimeGracePeriod: bigInt(0),
 		},
 		Election: ElectionParameters{
 			MinElectableValidators: bigInt(1),

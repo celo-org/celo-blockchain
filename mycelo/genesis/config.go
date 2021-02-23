@@ -153,6 +153,7 @@ type ValidatorsParameters struct {
 	SlashingPenaltyResetPeriod      *big.Int               `json:"slashingPenaltyResetPeriod"`
 	MaxGroupSize                    *big.Int               `json:"maxGroupSize"`
 	CommissionUpdateDelay           *big.Int               `json:"commissionUpdateDelay"`
+	DowntimeGracePeriod             *big.Int               `json:"downtimeGracePeriod"`
 }
 
 // EpochRewardsParameters are the initial configuration parameters for EpochRewards
