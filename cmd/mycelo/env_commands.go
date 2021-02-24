@@ -10,7 +10,7 @@ import (
 
 var envCommand = cli.Command{
 	Name:  "env",
-	Usage: "Family on environment commands",
+	Usage: "Environment utility commands",
 	Subcommands: []cli.Command{
 		getAccountCommand,
 	},
@@ -52,6 +52,6 @@ func getAccount(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("AccountType: %s\nIndex:%d\nAddress: %s\nPrivateKey: %s", accountType, idx, account.Address.Hex(), account.PrivateKeyHex())
+	fmt.Printf("AccountType: %s\nIndex:%d\nAddress: %s\nPrivateKey: %s\n", accountType, idx, account.Address.Hex(), account.PrivateKeyHex())
 	return nil
 }

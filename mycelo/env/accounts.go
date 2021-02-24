@@ -62,7 +62,7 @@ func (a *Account) BLSPublicKey() (blscrypto.SerializedPublicKey, error) {
 	return blscrypto.PrivateToPublic(privateKey)
 }
 
-// PrivateKeyHex hex represenation of the private key
+// PrivateKeyHex hex representation of the private key
 func (a *Account) PrivateKeyHex() string {
 	return common.Bytes2Hex(crypto.FromECDSA(a.PrivateKey))
 }
@@ -121,7 +121,7 @@ func (accountType AccountType) String() string {
 	case Admin:
 		return "admin"
 	default:
-		return "unkown"
+		return "unknown"
 	}
 }
 
@@ -153,7 +153,7 @@ func (accountType AccountType) MarshalText() ([]byte, error) {
 	case Admin:
 		return []byte("admin"), nil
 	default:
-		return nil, fmt.Errorf("unknown sync mode %d", accountType)
+		return nil, fmt.Errorf("unknown account type %d", accountType)
 	}
 }
 
@@ -185,7 +185,7 @@ func (accountType *AccountType) UnmarshalText(text []byte) error {
 	case "admin":
 		*accountType = Admin
 	default:
-		return fmt.Errorf(`unknown sync mode %q, want "validator", "developer", "txNode", "faucet", "attestation", "priceOracle", "proxy", "attestationBot", "votingBot", "txNodePrivate", "validatorGroup", "admin"`, text)
+		return fmt.Errorf(`unknown account type %q, want "validator", "developer", "txNode", "faucet", "attestation", "priceOracle", "proxy", "attestationBot", "votingBot", "txNodePrivate", "validatorGroup", "admin"`, text)
 	}
 	return nil
 }
