@@ -278,24 +278,17 @@ func (odr *dummyOdr) IndexerConfig() *IndexerConfig {
 	return odr.indexerConfig
 }
 
-// Tests that reorganizing a long difficult chain after a short easy one
-// overwrites the canonical numbers and links in the database.
-func TestReorgLongHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 4}, []int{1, 2, 3, 4}, 5)
-}
-
-// Tests that reorganizing a short difficult chain after a long easy one
-// overwrites the canonical numbers and links in the database.
-func TestReorgShortHeaders(t *testing.T) {
-	testReorg(t, []int{1, 2, 3, 4}, []int{1, 10}, 5)
-}
-
-func testReorg(t *testing.T, first, second []int, td int64) {
+func TestFailHeaderChainFork(t *testing.T) {
 	bc := newTestLightChain()
 
 	// Insert an easy and a difficult chain afterwards
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, first, 11), 1, true)
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22), 1, true)
+	if i, err := bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 3, 4}, 11), 1, true); err != nil {
+		t.Errorf("initial headers failing: i->%d, err-> %s", i, err)
+	}
+
+	if _, err := bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 10}, 22), 1, true); err == nil {
+		t.Errorf("should fail to save the second header chain")
+	}
 	// Check that the chain is valid number and link wise
 	prev := bc.CurrentHeader()
 	for header := bc.GetHeaderByNumber(bc.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, bc.GetHeaderByNumber(header.Number.Uint64()-1) {
@@ -304,7 +297,7 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 		}
 	}
 	// Make sure the chain total difficulty is the correct one
-	want := big.NewInt(td)
+	want := big.NewInt(5)
 	if have := bc.GetTdByHash(bc.CurrentHeader().Hash()); have.Cmp(want) != 0 {
 		t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
 	}
@@ -326,7 +319,7 @@ func TestBadHeaderHashes(t *testing.T) {
 
 // Tests that bad hashes are detected on boot, and the chan rolled back to a
 // good state prior to the bad hash.
-func TestReorgBadHeaderHashes(t *testing.T) {
+func TestRollbackBadHeaderHashes(t *testing.T) {
 	bc := newTestLightChain()
 
 	// Create a chain, import and ban afterwards

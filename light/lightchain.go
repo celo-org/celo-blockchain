@@ -374,7 +374,8 @@ func (lc *LightChain) postChainEvents(events []interface{}) {
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local
-// chain, possibly creating a reorg. If an error is returned, it will return the
+// chain (it fails if it tries to fork from the canonical chain).
+// If an error is returned, it will return the
 // index number of the failing header as well an error describing what went wrong.
 //
 // The verify parameter can be used to fine tune whether nonce verification
