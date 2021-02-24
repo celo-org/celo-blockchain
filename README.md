@@ -196,6 +196,11 @@ merge a PR.
   * Lint: `make lint` (Fix go format errors with `gofmt -s`)
   * Build: `make`
   * End to end sync and transfer tests
+  * Check imports: `./scripts/check_imports.sh`
+ 
+ `celo-blockchain` is based on `go-ethereum`, but the import path has been renamed from `github.com/ethereum/go-ethereum` to `github.com/celo-org/celo-blockchain`.
+ Developers are encouraged to run `./scripts/setup_git_hooks.sh` to enable checking that import path has been changed to `celo-org` on `git merge` and `git commit`.
+ Imports can automatically be renamed with `./scripts/rename_imports.sh`.
 
 
 Individual package tests can be run with
