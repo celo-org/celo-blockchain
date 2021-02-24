@@ -40,21 +40,42 @@ func NewEVMBackend(abi *abi.ABI, runtimeConfig *runtime.Config, receiver common.
 	}
 }
 
+func (ecb *EVMBackend) runtimeConfigFor(origin common.Address) *runtime.Config {
+	newCfg := *ecb.runtimeConfig
+	newCfg.Origin = origin
+	return &newCfg
+}
+
+// SimpleCallFrom makes an evm call with given sender address and just returns the error status
+func (ecb *EVMBackend) SimpleCallFrom(origin common.Address, method string, args ...interface{}) error {
+	_, err := ecb.CallFrom(origin, method, args...)
+	return err
+}
+
 // SimpleCall makes an evm call and just returns the error status
 func (ecb *EVMBackend) SimpleCall(method string, args ...interface{}) error {
 	_, err := ecb.Call(method, args...)
 	return err
 }
 
+// CallFrom makes an evm call with given sender address and returns error and gasLeft
+func (ecb *EVMBackend) CallFrom(origin common.Address, method string, args ...interface{}) (uint64, error) {
+	return ecb.call(ecb.runtimeConfigFor(origin), method, args...)
+}
+
 // Call makes an evm call and returns error and gasLeft
 func (ecb *EVMBackend) Call(method string, args ...interface{}) (uint64, error) {
+	return ecb.call(ecb.runtimeConfig, method, args...)
+}
+
+func (ecb *EVMBackend) call(runtimeCfg *runtime.Config, method string, args ...interface{}) (uint64, error) {
 	log.Trace("SmartContract Call", "method", method, "arguments", args)
 	calldata, err := ecb.abi.Pack(method, args...)
 	if err != nil {
 		return 0, err
 	}
 
-	ret, gasLeft, err := runtime.Call(ecb.Address, calldata, ecb.runtimeConfig)
+	ret, gasLeft, err := runtime.Call(ecb.Address, calldata, runtimeCfg)
 
 	if err != nil {
 		// try unpacking the revert (if it is one)
