@@ -5,6 +5,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/shopspring/decimal"
 )
 
 // BaseConfig creates base parameters for celo
@@ -13,6 +14,7 @@ func BaseConfig() *Config {
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
+	decimal := decimal.RequireFromString
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{
@@ -121,6 +123,12 @@ func BaseConfig() *Config {
 		},
 		Random: RandomParameters{
 			RandomnessBlockRetentionWindow: bigInt(720),
+		},
+		Attestations: AttestationsParameters{
+			AttestationExpiryBlocks:        bigInt(Hour / 5), // 1 hour assuming 5 second blocks, but ok anyway
+			SelectIssuersWaitBlocks:        bigInt(4),
+			MaxAttestations:                bigInt(100),
+			AttestationRequestFeeInDollars: decimal("0.05"), // use decimal rather than fixed, since we use this to multiply by
 		},
 		TransferWhitelist: TransferWhitelistParameters{},
 		GoldToken: GoldTokenParameters{

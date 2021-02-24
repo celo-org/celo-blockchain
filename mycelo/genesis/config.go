@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/fixed"
 	"github.com/celo-org/celo-blockchain/mycelo/internal/utils"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/shopspring/decimal"
 )
 
 // durations in seconds
@@ -40,6 +41,7 @@ type Config struct {
 	EpochRewards               EpochRewardsParameters
 	Blockchain                 BlockchainParameters
 	Random                     RandomParameters
+	Attestations               AttestationsParameters
 	TransferWhitelist          TransferWhitelistParameters
 	ReserveSpenderMultiSig     MultiSigParameters
 	GovernanceApproverMultiSig MultiSigParameters
@@ -187,6 +189,14 @@ type GoldTokenParameters struct {
 // RandomParameters are the initial configuration parameters for Random
 type RandomParameters struct {
 	RandomnessBlockRetentionWindow *big.Int `json:"randomnessBlockRetentionWindow"`
+}
+
+// AttestationParameters are the initial configuration parameters for Attestations
+type AttestationsParameters struct {
+	AttestationExpiryBlocks        *big.Int        `json:"attestationExpiryBlocks"`
+	SelectIssuersWaitBlocks        *big.Int        `json:"selectIssuersWaitBlocks"`
+	MaxAttestations                *big.Int        `json:"maxAttestations"`
+	AttestationRequestFeeInDollars decimal.Decimal `json:"AttestationRequestFeeInDollars"`
 }
 
 // SortedOraclesParameters are the initial configuration parameters for SortedOracles

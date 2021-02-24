@@ -13,6 +13,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/contract"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -122,8 +123,8 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// 16 Random
 		ctx.deployRandom,
 
-		// // 17 Attestations
-		// ctx.deployAttestations,
+		// 17 Attestations
+		ctx.deployAttestations,
 
 		// 18 Escrow
 		ctx.deployEscrow,
@@ -392,6 +393,21 @@ func (ctx *deployContext) deployDowntimeSlasher() error {
 	}
 
 	return ctx.addSlasher("DowntimeSlasher")
+}
+
+func (ctx *deployContext) deployAttestations() error {
+	return ctx.deployCoreContract("Attestations", func(contract *contract.EVMBackend) error {
+		dollar := decimal.NewFromBigInt(common.Big1, int32(ctx.GenesisConfig.StableToken.Decimals))
+		fee := dollar.Mul(ctx.GenesisConfig.Attestations.AttestationRequestFeeInDollars)
+		return contract.SimpleCall("initialize",
+			env.MustProxyAddressFor("Registry"),
+			ctx.GenesisConfig.Attestations.AttestationExpiryBlocks,
+			ctx.GenesisConfig.Attestations.SelectIssuersWaitBlocks,
+			ctx.GenesisConfig.Attestations.MaxAttestations,
+			[]common.Address{env.MustProxyAddressFor("StableToken")},
+			[]*big.Int{fee.BigInt()},
+		)
+	})
 }
 
 func (ctx *deployContext) deployEscrow() error {
