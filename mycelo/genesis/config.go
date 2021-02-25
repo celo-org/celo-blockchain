@@ -47,6 +47,7 @@ type Config struct {
 	GovernanceApproverMultiSig MultiSigParameters
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
 	DowntimeSlasher            DowntimeSlasherParameters
+	Governance                 GovernanceParameters
 }
 
 // Save will write config into a json file
@@ -143,6 +144,22 @@ type DowntimeSlasherParameters struct {
 	Penalty           *big.Int `json:"penalty"`
 	Reward            *big.Int `json:"reward"`
 	SlashableDowntime uint64   `json:"slashableDowntime"`
+}
+
+// GovernanceParameters are the initial configuration parameters for Governance
+type GovernanceParameters struct {
+	UseMultiSig             bool         `json:"useMultiSig"` // whether the approver should be the multisig (otherwise it's the admin)
+	ConcurrentProposals     uint64       `json:"concurrentProposals"`
+	MinDeposit              *big.Int     `json:"MinDeposit"`
+	QueueExpiry             uint64       `json:"QueueExpiry"`
+	DequeueFrequency        uint64       `json:"DequeueFrequency"`
+	ApprovalStageDuration   uint64       `json:"ApprovalStageDuration"`
+	ReferendumStageDuration uint64       `json:"ReferendumStageDuration"`
+	ExecutionStageDuration  uint64       `json:"ExecutionStageDuration"`
+	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline`
+	ParticipationFloor      *fixed.Fixed `json:"participationFloor`
+	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor`
+	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor`
 }
 
 // ValidatorsParameters are the initial configuration parameters for Validators

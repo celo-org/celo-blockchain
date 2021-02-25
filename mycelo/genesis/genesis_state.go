@@ -144,8 +144,8 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 		// 23 GovernanceApproverMultiSig
 		ctx.deployGovernanceApproverMultiSig,
 
-		// // 24 Governance
-		// ctx.deployGovernance,
+		// 24 Governance
+		ctx.deployGovernance,
 	}
 
 	logger := ctx.logger.New()
@@ -319,6 +319,39 @@ func (ctx *deployContext) deployReserveSpenderMultisig() error {
 func (ctx *deployContext) deployGovernanceApproverMultiSig() error {
 	_, err := ctx.deployMultiSig("GovernanceApproverMultiSig", ctx.GenesisConfig.GovernanceApproverMultiSig)
 	return err
+}
+
+func (ctx *deployContext) deployGovernance() error {
+	approver := ctx.adminAccount.Address
+	if ctx.GenesisConfig.Governance.UseMultiSig {
+		approver = env.MustProxyAddressFor("GovernanceApproverMultiSig")
+	}
+	err := ctx.deployCoreContract("Governance", func(contract *contract.EVMBackend) error {
+		return contract.SimpleCall("initialize",
+			env.MustProxyAddressFor("Registry"),
+			approver,
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.ConcurrentProposals),
+			ctx.GenesisConfig.Governance.MinDeposit,
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.QueueExpiry),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.DequeueFrequency),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.ApprovalStageDuration),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.ReferendumStageDuration),
+			new(big.Int).SetUint64(ctx.GenesisConfig.Governance.ExecutionStageDuration),
+			ctx.GenesisConfig.Governance.ParticipationBaseline.BigInt(),
+			ctx.GenesisConfig.Governance.ParticipationFloor.BigInt(),
+			ctx.GenesisConfig.Governance.BaselineUpdateFactor.BigInt(),
+			ctx.GenesisConfig.Governance.BaselineQuorumFactor.BigInt(),
+		)
+	})
+	if err != nil {
+		return err
+	}
+	// We are skipping two steps for now:
+	// 1. Setting the governance thresholds from a constitution
+	// 2. Transferring ownership of the core contracts to governance
+	// While the monorepo migrations code does support them, in the configurations it's always
+	// set to skip them, so we can skip supporting them until it's needed.
+	return nil
 }
 
 func (ctx *deployContext) deployRegistry() error {

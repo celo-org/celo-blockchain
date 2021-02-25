@@ -149,5 +149,19 @@ func BaseConfig() *Config {
 			Penalty:           bigIntStr("100000000000000000000"), // 100 cGLD
 			SlashableDowntime: 60,                                 // Should be overridden on public testnets
 		},
+		Governance: GovernanceParameters{
+			UseMultiSig:             true,
+			ConcurrentProposals:     3,
+			MinDeposit:              bigIntStr("100000000000000000000"), // 100 cGLD
+			QueueExpiry:             4 * Week,
+			DequeueFrequency:        30 * Minute,
+			ApprovalStageDuration:   30 * Minute,
+			ReferendumStageDuration: Hour,
+			ExecutionStageDuration:  Day,
+			ParticipationBaseline:   fixed("0.005"),
+			ParticipationFloor:      fixed("0.01"),
+			BaselineUpdateFactor:    fixed("0.2"),
+			BaselineQuorumFactor:    fixed("1"),
+		},
 	}
 }
