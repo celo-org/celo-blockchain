@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"time"
 
 	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
@@ -36,9 +35,10 @@ type Config struct {
 func Start(ctx context.Context, cfg *Config) error {
 	group, ctx := errgroup.WithContext(ctx)
 
+	idx := len(cfg.Accounts) / 2
 	nextTransfer := func() (common.Address, *big.Int) {
-		idx := rand.Intn(len(cfg.Accounts))
-		return cfg.Accounts[idx].Address, cfg.Amount
+		idx++
+		return cfg.Accounts[idx%len(cfg.Accounts)].Address, cfg.Amount
 	}
 
 	// developer accounts / TPS = duration in seconds.

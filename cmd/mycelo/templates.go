@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/fixed"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/params"
@@ -157,6 +158,10 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)
 	genesisConfig.StableToken.InitialBalances = cusdBalances
 	genesisConfig.GoldToken.InitialBalances = goldBalances
+
+	// Disable gas price min being updated
+	genesisConfig.GasPriceMinimum.TargetDensity = fixed.MustNew("0.9999")
+	genesisConfig.GasPriceMinimum.AdjustmentSpeed = fixed.MustNew("0")
 
 	// Ensure nothing is frozen
 	genesisConfig.GoldToken.Frozen = false
