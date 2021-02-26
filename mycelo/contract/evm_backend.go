@@ -69,7 +69,7 @@ func (ecb *EVMBackend) Call(method string, args ...interface{}) (uint64, error) 
 }
 
 func (ecb *EVMBackend) call(runtimeCfg *runtime.Config, method string, args ...interface{}) (uint64, error) {
-	log.Trace("SmartContract Call", "method", method, "arguments", args)
+	log.Trace("SmartContract Call", "from", runtimeCfg.Origin, "to", ecb.Address, "method", method, "arguments", args)
 	calldata, err := ecb.abi.Pack(method, args...)
 	if err != nil {
 		return 0, err

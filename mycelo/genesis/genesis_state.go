@@ -26,7 +26,6 @@ var (
 type deployContext struct {
 	genesisConfig *Config
 	accounts      *env.AccountsConfig
-	adminAccount  env.Account
 	statedb       *state.StateDB
 	runtimeConfig *runtime.Config
 	truffleReader contract.TruffleReader
@@ -40,14 +39,16 @@ func generateGenesisState(accounts *env.AccountsConfig, cfg *Config, buildPath s
 
 // NewDeployment generates a new deployment
 func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPath string) *deployContext {
-
+	logger := log.New("obj", "deployment")
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	adminAddress := accounts.AdminAccount().Address
+
+	logger.Info("New deployment", "admin_address", adminAddress.Hex())
 	return &deployContext{
 		genesisConfig: genesisConfig,
 		accounts:      accounts,
-		logger:        log.New("obj", "deployment"),
+		logger:        logger,
 		statedb:       statedb,
 		truffleReader: contract.NewTruffleReader(buildPath),
 		runtimeConfig: &runtime.Config{
@@ -148,6 +149,9 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 		// 24 Governance
 		ctx.deployGovernance,
+
+		// 25 Elect Validators
+		ctx.electValidators,
 	}
 
 	logger := ctx.logger.New()
@@ -199,7 +203,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 // Initialize Admin
 func (ctx *deployContext) fundAdminAccount() {
-	ctx.statedb.SetBalance(ctx.adminAccount.Address, new(big.Int).Set(adminGoldBalance))
+	ctx.statedb.SetBalance(ctx.accounts.AdminAccount().Address, new(big.Int).Set(adminGoldBalance))
 }
 
 func (ctx *deployContext) deployLibraries() error {
@@ -222,7 +226,7 @@ func (ctx *deployContext) deployProxiedContract(name string, initialize func(con
 
 	logger.Info("Deploy Proxy")
 	ctx.statedb.SetCode(proxyAddress, proxyByteCode)
-	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.adminAccount.Address.Hash())
+	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.accounts.AdminAccount().Address.Hash())
 
 	logger.Info("Deploy Implementation")
 	ctx.statedb.SetCode(implAddress, bytecode)
@@ -324,7 +328,7 @@ func (ctx *deployContext) deployGovernanceApproverMultiSig() error {
 }
 
 func (ctx *deployContext) deployGovernance() error {
-	approver := ctx.adminAccount.Address
+	approver := ctx.accounts.AdminAccount().Address
 	if ctx.genesisConfig.Governance.UseMultiSig {
 		approver = env.MustProxyAddressFor("GovernanceApproverMultiSig")
 	}
@@ -724,15 +728,15 @@ func (ctx *deployContext) deployStableTokens() error {
 			// first check if the admin is an authorized oracle
 			authorized := false
 			for _, oracleAddress := range token.cfg.Oracles {
-				if oracleAddress == ctx.adminAccount.Address {
+				if oracleAddress == ctx.accounts.AdminAccount().Address {
 					authorized = true
 					break
 				}
 			}
 
 			if !authorized {
-				ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAccount.Address)
-				err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAccount.Address)
+				ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.accounts.AdminAccount().Address)
+				err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.accounts.AdminAccount().Address)
 				if err != nil {
 					return err
 				}
@@ -762,6 +766,54 @@ func (ctx *deployContext) deployStableTokens() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (ctx *deployContext) electValidators() error {
+	accountsContract := ctx.contract("Accounts")
+
+	groups := ctx.accounts.ValidatorGroups()
+	var err error
+	for _, group := range groups {
+		ctx.logger.Info("Creating group account", "group", group.Group.Address, "name", group.Name)
+		err = accountsContract.SimpleCallFrom(group.Group.Address, "createAccount")
+		if err != nil {
+			return err
+		}
+
+		for _, validator := range group.Validators {
+			ctx.logger.Info("Creating validator account", "group", group.Group.Address, "name", group.Name, "validator", validator.Address)
+			err = accountsContract.SimpleCallFrom(validator.Address, "createAccount")
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
+	// register validators accounts
+	// register group accounts
+
+	// lock gold on validator accounts (validator amount)
+	// lock gold on each group account (number defined by # of validators)
+
+	// register
+
+	// check that we have enough validators (validators >= election.minElectableValidators)
+	// check that validatorsPerGroup is <= valdiators.maxGroupSize
+
+	// what's the votesRatioOfLastVsFirstGroup ?
+
+	// compute how much locked gold each group needs (depends on the number of validators it has)
+
+	// for each group
+	//   register Group
+
+	// for each validator
+	//    register Validator
+
+	// Add validators to group
+
 	return nil
 }
 
