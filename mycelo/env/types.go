@@ -1,6 +1,9 @@
 package env
 
-import "math/big"
+import (
+	"fmt"
+	"math/big"
+)
 
 // Config represents mycelo environment parameters
 type Config struct {
@@ -79,15 +82,20 @@ func (ac *AccountsConfig) ValidatorGroups() []ValidatorGroup {
 	groupAccounts := ac.ValidatorGroupAccounts()
 	validatorAccounts := ac.ValidatorAccounts()
 
-	for i, group := range groups {
-		group.Group = groupAccounts[i]
-
-		if ac.ValidatorsPerGroup*(i+1) > len(validatorAccounts) {
-			group.Validators = validatorAccounts[ac.ValidatorsPerGroup*i:]
-		} else {
-			group.Validators = validatorAccounts[ac.ValidatorsPerGroup*i : ac.ValidatorsPerGroup*(i+1)]
-
+	for i := 0; i < (len(groups) - 1); i++ {
+		groups[i] = ValidatorGroup{
+			Name:       fmt.Sprintf("group %02d", i+1),
+			Group:      groupAccounts[i],
+			Validators: validatorAccounts[ac.ValidatorsPerGroup*i : ac.ValidatorsPerGroup*(i+1)],
 		}
+	}
+
+	// last group might not be full, use an open slice for validators
+	i := len(groups) - 1
+	groups[i] = ValidatorGroup{
+		Name:       fmt.Sprintf("group %02d", i+1),
+		Group:      groupAccounts[i],
+		Validators: validatorAccounts[ac.ValidatorsPerGroup*i:],
 	}
 
 	return groups
