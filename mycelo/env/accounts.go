@@ -79,46 +79,46 @@ type AccountType int
 
 // The difference account types for the generator
 var (
-	Validator      AccountType = 0
-	Developer      AccountType = 1 // load test
-	TxNode         AccountType = 2
-	Faucet         AccountType = 3
-	Attestation    AccountType = 4
-	PriceOracle    AccountType = 5
-	Proxy          AccountType = 6
-	AttestationBot AccountType = 7
-	VotingBot      AccountType = 8
-	TxNodePrivate  AccountType = 9
-	ValidatorGroup AccountType = 10 // Not in celotool
-	Admin          AccountType = 11 // Not in celotool
+	ValidatorAT      AccountType = 0
+	DeveloperAT      AccountType = 1 // load test
+	TxNodeAT         AccountType = 2
+	FaucetAT         AccountType = 3
+	AttestationAT    AccountType = 4
+	PriceOracleAT    AccountType = 5
+	ProxyAT          AccountType = 6
+	AttestationBotAT AccountType = 7
+	VotingBotAT      AccountType = 8
+	TxNodePrivateAT  AccountType = 9
+	ValidatorGroupAT AccountType = 10 // Not in celotool
+	AdminAT          AccountType = 11 // Not in celotool
 )
 
 // String implements the stringer interface.
 func (accountType AccountType) String() string {
 	switch accountType {
-	case Validator:
+	case ValidatorAT:
 		return "validator"
-	case Developer:
+	case DeveloperAT:
 		return "developer"
-	case TxNode:
+	case TxNodeAT:
 		return "txNode"
-	case Faucet:
+	case FaucetAT:
 		return "faucet"
-	case Attestation:
+	case AttestationAT:
 		return "attestation"
-	case PriceOracle:
+	case PriceOracleAT:
 		return "priceOracle"
-	case Proxy:
+	case ProxyAT:
 		return "proxy"
-	case AttestationBot:
+	case AttestationBotAT:
 		return "attestationBot"
-	case VotingBot:
+	case VotingBotAT:
 		return "votingBot"
-	case TxNodePrivate:
+	case TxNodePrivateAT:
 		return "txNodePrivate"
-	case ValidatorGroup:
+	case ValidatorGroupAT:
 		return "validatorGroup"
-	case Admin:
+	case AdminAT:
 		return "admin"
 	default:
 		return "unknown"
@@ -128,29 +128,29 @@ func (accountType AccountType) String() string {
 // MarshalText marshall account type into text
 func (accountType AccountType) MarshalText() ([]byte, error) {
 	switch accountType {
-	case Validator:
+	case ValidatorAT:
 		return []byte("validator"), nil
-	case Developer:
+	case DeveloperAT:
 		return []byte("developer"), nil
-	case TxNode:
+	case TxNodeAT:
 		return []byte("txNode"), nil
-	case Faucet:
+	case FaucetAT:
 		return []byte("faucet"), nil
-	case Attestation:
+	case AttestationAT:
 		return []byte("attestation"), nil
-	case PriceOracle:
+	case PriceOracleAT:
 		return []byte("priceOracle"), nil
-	case Proxy:
+	case ProxyAT:
 		return []byte("proxy"), nil
-	case AttestationBot:
+	case AttestationBotAT:
 		return []byte("attestationBot"), nil
-	case VotingBot:
+	case VotingBotAT:
 		return []byte("votingBot"), nil
-	case TxNodePrivate:
+	case TxNodePrivateAT:
 		return []byte("txNodePrivate"), nil
-	case ValidatorGroup:
+	case ValidatorGroupAT:
 		return []byte("validatorGroup"), nil
-	case Admin:
+	case AdminAT:
 		return []byte("admin"), nil
 	default:
 		return nil, fmt.Errorf("unknown account type %d", accountType)
@@ -161,29 +161,29 @@ func (accountType AccountType) MarshalText() ([]byte, error) {
 func (accountType *AccountType) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "validator":
-		*accountType = Validator
+		*accountType = ValidatorAT
 	case "developer":
-		*accountType = Developer
+		*accountType = DeveloperAT
 	case "txNode":
-		*accountType = TxNode
+		*accountType = TxNodeAT
 	case "faucet":
-		*accountType = Faucet
+		*accountType = FaucetAT
 	case "attestation":
-		*accountType = Attestation
+		*accountType = AttestationAT
 	case "priceOracle":
-		*accountType = PriceOracle
+		*accountType = PriceOracleAT
 	case "proxy":
-		*accountType = Proxy
+		*accountType = ProxyAT
 	case "attestationBot":
-		*accountType = AttestationBot
+		*accountType = AttestationBotAT
 	case "votingBot":
-		*accountType = VotingBot
+		*accountType = VotingBotAT
 	case "txNodePrivate":
-		*accountType = TxNodePrivate
+		*accountType = TxNodePrivateAT
 	case "validatorGroup":
-		*accountType = ValidatorGroup
+		*accountType = ValidatorGroupAT
 	case "admin":
-		*accountType = Admin
+		*accountType = AdminAT
 	default:
 		return fmt.Errorf(`unknown account type %q, want "validator", "developer", "txNode", "faucet", "attestation", "priceOracle", "proxy", "attestationBot", "votingBot", "txNodePrivate", "validatorGroup", "admin"`, text)
 	}
@@ -216,8 +216,8 @@ func DeriveAccount(mnemonic string, accountType AccountType, idx int) (*Account,
 	}, nil
 }
 
-// GenerateAccounts will generate the desired number of accounts using mnemonic & accountType
-func GenerateAccounts(mnemonic string, accountType AccountType, qty int) ([]Account, error) {
+// DeriveAccountList will generate the desired number of accounts using mnemonic & accountType
+func DeriveAccountList(mnemonic string, accountType AccountType, qty int) ([]Account, error) {
 	wallet, err := hdwallet.NewFromMnemonic(mnemonic)
 	if err != nil {
 		log.Fatal(err)

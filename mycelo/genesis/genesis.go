@@ -16,14 +16,14 @@ import (
 var genesisMsgHash = common.HexToHash("ecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753e")
 
 // GenerateGenesis will create a new genesis block with full celo blockchain already configured
-func GenerateGenesis(admin env.Account, validators []env.Account, cfg *Config, contractsBuildPath string) (*core.Genesis, error) {
+func GenerateGenesis(accounts *env.AccountsConfig, cfg *Config, contractsBuildPath string) (*core.Genesis, error) {
 
-	extraData, err := generateGenesisExtraData(validators)
+	extraData, err := generateGenesisExtraData(accounts.ValidatorAccounts())
 	if err != nil {
 		return nil, err
 	}
 
-	genesisAlloc, err := generateGenesisState(admin, cfg, contractsBuildPath)
+	genesisAlloc, err := generateGenesisState(accounts, cfg, contractsBuildPath)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func GenerateGenesis(admin env.Account, validators []env.Account, cfg *Config, c
 	return &core.Genesis{
 		Config:    cfg.ChainConfig(),
 		ExtraData: extraData,
-		Coinbase:  admin.Address,
+		Coinbase:  accounts.AdminAccount().Address,
 		Timestamp: cfg.GenesisTimestamp,
 		Alloc:     genesisAlloc,
 	}, nil
