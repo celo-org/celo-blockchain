@@ -33,7 +33,7 @@ var genesisAddresses = map[string]common.Address{
 	"Reserve":                    addr("0xf007"),
 	"StableToken":                addr("0xf008"),
 	"Exchange":                   addr("0xf009"),
-	"Accounts":                   addr("0xf011"),
+	"Accounts":                   addr("0xf010"),
 	"LockedGold":                 addr("0xf011"),
 	"Validators":                 addr("0xf012"),
 	"Election":                   addr("0xf013"),
