@@ -1,7 +1,6 @@
 package env
 
 import (
-	"fmt"
 	"math/big"
 )
 
@@ -21,8 +20,7 @@ type AccountsConfig struct {
 
 // ValidatorGroup represents a group plus its validators members
 type ValidatorGroup struct {
-	Name       string
-	Group      Account
+	Account
 	Validators []Account
 }
 
@@ -84,8 +82,7 @@ func (ac *AccountsConfig) ValidatorGroups() []ValidatorGroup {
 
 	for i := 0; i < (len(groups) - 1); i++ {
 		groups[i] = ValidatorGroup{
-			Name:       fmt.Sprintf("group %02d", i+1),
-			Group:      groupAccounts[i],
+			Account:    groupAccounts[i],
 			Validators: validatorAccounts[ac.ValidatorsPerGroup*i : ac.ValidatorsPerGroup*(i+1)],
 		}
 	}
@@ -93,8 +90,7 @@ func (ac *AccountsConfig) ValidatorGroups() []ValidatorGroup {
 	// last group might not be full, use an open slice for validators
 	i := len(groups) - 1
 	groups[i] = ValidatorGroup{
-		Name:       fmt.Sprintf("group %02d", i+1),
-		Group:      groupAccounts[i],
+		Account:    groupAccounts[i],
 		Validators: validatorAccounts[ac.ValidatorsPerGroup*i:],
 	}
 

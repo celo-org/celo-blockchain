@@ -26,7 +26,6 @@ var (
 type deployContext struct {
 	genesisConfig *Config
 	accounts      *env.AccountsConfig
-	adminAccount  env.Account
 	statedb       *state.StateDB
 	runtimeConfig *runtime.Config
 	truffleReader contract.TruffleReader
@@ -40,14 +39,16 @@ func generateGenesisState(accounts *env.AccountsConfig, cfg *Config, buildPath s
 
 // NewDeployment generates a new deployment
 func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPath string) *deployContext {
-
+	logger := log.New("obj", "deployment")
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	adminAddress := accounts.AdminAccount().Address
+
+	logger.Info("New deployment", "admin_address", adminAddress.Hex())
 	return &deployContext{
 		genesisConfig: genesisConfig,
 		accounts:      accounts,
-		logger:        log.New("obj", "deployment"),
+		logger:        logger,
 		statedb:       statedb,
 		truffleReader: contract.NewTruffleReader(buildPath),
 		runtimeConfig: &runtime.Config{
@@ -148,6 +149,9 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 		// 24 Governance
 		ctx.deployGovernance,
+
+		// 25 Elect Validators
+		ctx.electValidators,
 	}
 
 	logger := ctx.logger.New()
@@ -199,7 +203,7 @@ func (ctx *deployContext) deploy() (core.GenesisAlloc, error) {
 
 // Initialize Admin
 func (ctx *deployContext) fundAdminAccount() {
-	ctx.statedb.SetBalance(ctx.adminAccount.Address, new(big.Int).Set(adminGoldBalance))
+	ctx.statedb.SetBalance(ctx.accounts.AdminAccount().Address, new(big.Int).Set(adminGoldBalance))
 }
 
 func (ctx *deployContext) deployLibraries() error {
@@ -222,7 +226,7 @@ func (ctx *deployContext) deployProxiedContract(name string, initialize func(con
 
 	logger.Info("Deploy Proxy")
 	ctx.statedb.SetCode(proxyAddress, proxyByteCode)
-	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.adminAccount.Address.Hash())
+	ctx.statedb.SetState(proxyAddress, proxyOwnerStorageLocation, ctx.accounts.AdminAccount().Address.Hash())
 
 	logger.Info("Deploy Implementation")
 	ctx.statedb.SetCode(implAddress, bytecode)
@@ -324,7 +328,7 @@ func (ctx *deployContext) deployGovernanceApproverMultiSig() error {
 }
 
 func (ctx *deployContext) deployGovernance() error {
-	approver := ctx.adminAccount.Address
+	approver := ctx.accounts.AdminAccount().Address
 	if ctx.genesisConfig.Governance.UseMultiSig {
 		approver = env.MustProxyAddressFor("GovernanceApproverMultiSig")
 	}
@@ -724,15 +728,15 @@ func (ctx *deployContext) deployStableTokens() error {
 			// first check if the admin is an authorized oracle
 			authorized := false
 			for _, oracleAddress := range token.cfg.Oracles {
-				if oracleAddress == ctx.adminAccount.Address {
+				if oracleAddress == ctx.accounts.AdminAccount().Address {
 					authorized = true
 					break
 				}
 			}
 
 			if !authorized {
-				ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.adminAccount.Address)
-				err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.adminAccount.Address)
+				ctx.logger.Warn("Fixing StableToken goldprice requires setting admin as oracle", "admin", ctx.accounts.AdminAccount().Address)
+				err = ctx.contract("SortedOracles").SimpleCall("addOracle", stableTokenAddress, ctx.accounts.AdminAccount().Address)
 				if err != nil {
 					return err
 				}
@@ -762,6 +766,212 @@ func (ctx *deployContext) deployStableTokens() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (ctx *deployContext) createAccounts(accs []env.Account, namePrefix string) error {
+	accounts := ctx.contract("Accounts")
+
+	for i, acc := range accs {
+		name := fmt.Sprintf("%s %02d", namePrefix, i)
+		ctx.logger.Info("Create account", "address", acc.Address, "name", name)
+
+		if err := accounts.SimpleCallFrom(acc.Address, "createAccount"); err != nil {
+			return err
+		}
+
+		if err := accounts.SimpleCallFrom(acc.Address, "setName", name); err != nil {
+			return err
+		}
+
+		if err := accounts.SimpleCallFrom(acc.Address, "setAccountDataEncryptionKey", acc.PublicKey()); err != nil {
+			return err
+		}
+
+		// Missing: authorizeAttestationSigner
+	}
+	return nil
+}
+
+func (ctx *deployContext) registerValidators() error {
+	validatorAccounts := ctx.accounts.ValidatorAccounts()
+	requiredAmount := ctx.genesisConfig.Validators.ValidatorLockedGoldRequirements.Value
+
+	if err := ctx.createAccounts(validatorAccounts, "validator"); err != nil {
+		return err
+	}
+
+	lockedGold := ctx.contract("LockedGold")
+	validators := ctx.contract("Validators")
+
+	for _, validator := range validatorAccounts {
+		address := validator.Address
+		logger := ctx.logger.New("validator", address)
+
+		ctx.statedb.AddBalance(address, requiredAmount)
+
+		logger.Info("Lock validator gold", "amount", requiredAmount)
+		if _, err := lockedGold.Call(contract.CallOpts{Origin: address, Value: requiredAmount}, "lock"); err != nil {
+			return err
+		}
+
+		logger.Info("Register validator")
+		blsPub, err := validator.BLSPublicKey()
+		if err != nil {
+			return err
+		}
+
+		// remove the 0x04 prefix from the pub key (we need the 64 bytes variant)
+		pubKey := validator.PublicKey()[1:]
+		err = validators.SimpleCallFrom(address, "registerValidator", pubKey, blsPub[:], validator.MustBLSProofOfPosession())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (ctx *deployContext) registerValidatorGroups() error {
+	validatorGroupsAccounts := ctx.accounts.ValidatorGroupAccounts()
+
+	if err := ctx.createAccounts(validatorGroupsAccounts, "group"); err != nil {
+		return err
+	}
+
+	lockedGold := ctx.contract("LockedGold")
+	validators := ctx.contract("Validators")
+
+	groupRequiredGold := new(big.Int).Mul(
+		ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
+		big.NewInt(int64(ctx.accounts.ValidatorsPerGroup)),
+	)
+	groupComission := ctx.genesisConfig.Validators.Commission.BigInt()
+
+	for _, group := range validatorGroupsAccounts {
+		address := group.Address
+		logger := ctx.logger.New("group", address)
+
+		ctx.statedb.AddBalance(address, groupRequiredGold)
+
+		logger.Info("Lock group gold", "amount", groupRequiredGold)
+		if _, err := lockedGold.Call(contract.CallOpts{Origin: address, Value: groupRequiredGold}, "lock"); err != nil {
+			return err
+		}
+
+		logger.Info("Register group")
+		if err := validators.SimpleCallFrom(address, "registerValidatorGroup", groupComission); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) addValidatorsToGroups() error {
+	validators := ctx.contract("Validators")
+
+	validatorGroups := ctx.accounts.ValidatorGroups()
+	for groupIdx, group := range validatorGroups {
+		groupAddress := group.Address
+		prevGroupAddress := common.ZeroAddress
+		if groupIdx > 0 {
+			prevGroupAddress = validatorGroups[groupIdx-1].Address
+		}
+
+		for i, validator := range group.Validators {
+			ctx.logger.Info("Add validator to group", "validator", validator.Address, "group", groupAddress)
+
+			// affiliate validators to group
+			if err := validators.SimpleCallFrom(validator.Address, "affiliate", groupAddress); err != nil {
+				return err
+			}
+
+			// accept validator as group member
+			if i == 0 {
+				if err := validators.SimpleCallFrom(groupAddress, "addFirstMember", validator.Address, common.ZeroAddress, prevGroupAddress); err != nil {
+					return err
+				}
+			} else {
+				if err := validators.SimpleCallFrom(groupAddress, "addMember", validator.Address); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) voteForGroups() error {
+	election := ctx.contract("Election")
+
+	validatorGroups := ctx.accounts.ValidatorGroupAccounts()
+
+	// value previously locked on registerValidatorGroups()
+	lockedGoldOnGroup := new(big.Int).Mul(
+		ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
+		big.NewInt(int64(ctx.accounts.ValidatorsPerGroup)),
+	)
+
+	// current group order (see `addFirstMember` on addValidatorsToGroup) is:
+	// [ 1stGroup, 2ndGroup, ..., lastgroup]
+
+	// each group votes for themselves.
+	// each group votes the SAME AMOUNT
+	// each group starts with 0 votes
+
+	// so, everytime we vote, that group becomes the one with most votes (most or equal)
+	// hence, we use:
+	//    greater = zero (we become the one with most votes)
+	//    lesser = currentLeader
+
+	// special case: only one group (no lesser or greater)
+	if len(validatorGroups) == 1 {
+		groupAddress := validatorGroups[0].Address
+		ctx.logger.Info("Vote for group", "group", groupAddress, "amount", lockedGoldOnGroup)
+		if err := election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, common.ZeroAddress, common.ZeroAddress); err != nil {
+			return err
+		}
+	}
+
+	// first to vote is group 1, which is already the leader. Hence lesser should go to group2
+	currentLeader := validatorGroups[1].Address
+	for _, group := range validatorGroups {
+		groupAddress := group.Address
+
+		ctx.logger.Info("Vote for group", "group", groupAddress, "amount", lockedGoldOnGroup)
+		if err := election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, currentLeader, common.ZeroAddress); err != nil {
+			return err
+		}
+
+		// we now become the currentLeader
+		currentLeader = groupAddress
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) electValidators() error {
+	if err := ctx.registerValidators(); err != nil {
+		return err
+	}
+
+	if err := ctx.registerValidatorGroups(); err != nil {
+		return err
+	}
+
+	if err := ctx.addValidatorsToGroups(); err != nil {
+		return err
+	}
+
+	if err := ctx.voteForGroups(); err != nil {
+		return err
+	}
+
+	// TODO: Config checks
+	// check that we have enough validators (validators >= election.minElectableValidators)
+	// check that validatorsPerGroup is <= valdiators.maxGroupSize
+
 	return nil
 }
 
