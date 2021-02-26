@@ -120,6 +120,12 @@ var loadTestTPSFlag = cli.IntFlag{
 	Value: 20,
 }
 
+var loadTestMaxPendingFlag = cli.UintFlag{
+	Name:  "maxpending",
+	Usage: "Maximum number of in flight txs. Set to 0 to disable.",
+	Value: 200,
+}
+
 var createGenesisCommand = cli.Command{
 	Name:      "genesis",
 	Usage:     "Creates genesis.json from a template and overrides",
@@ -186,7 +192,7 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag},
+	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -469,5 +475,6 @@ func loadBot(ctx *cli.Context) error {
 		TransactionsPerSecond: ctx.Int("tps"),
 		Clients:               clients,
 		Verbose:               verbose,
+		MaxPending:            ctx.Uint64("maxpending"),
 	})
 }
