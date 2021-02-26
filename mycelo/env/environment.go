@@ -13,9 +13,6 @@ import (
 type Environment struct {
 	paths  paths
 	Config Config
-
-	// Derived Fields
-	accounts *GenesisAccounts
 }
 
 // New creates a new environment
@@ -25,9 +22,6 @@ func New(envpath string, cfg *Config) (*Environment, error) {
 		Config: *cfg,
 	}
 
-	if err := env.Refresh(); err != nil {
-		return nil, err
-	}
 	return env, nil
 }
 
@@ -40,13 +34,6 @@ func Load(envpath string) (*Environment, error) {
 	if err := utils.ReadJson(&env.Config, env.paths.envJSON()); err != nil {
 		return nil, err
 	}
-
-	accounts, err := createGenesisAccounts(&env.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	env.accounts = accounts
 
 	return env, nil
 }
@@ -61,30 +48,8 @@ func (env *Environment) Save() error {
 	return nil
 }
 
-// Refresh recomputes environment derived values
-// Use this function after modifing the env.Config
-func (env *Environment) Refresh() error {
-	accounts, err := createGenesisAccounts(&env.Config)
-	if err != nil {
-		return err
-	}
-	env.accounts = accounts
-	return nil
-}
-
-// AdminAccount returns the environment's admin account
-func (env *Environment) AdminAccount() Account { return env.accounts.Admin }
-
-// Account retrieves the account corresponding to the (accountType, idx)
-func (env *Environment) Account(accType AccountType, idx int) (*Account, error) {
-	return DeriveAccount(env.Config.Mnemonic, accType, idx)
-}
-
-// DeveloperAccounts returns the environment's developers accounts
-func (env *Environment) DeveloperAccounts() []Account { return env.accounts.Developers }
-
-// ValidatorAccounts returns the environment's validators accounts
-func (env *Environment) ValidatorAccounts() []Account { return env.accounts.Validators }
+// Accounts retrieves accounts config
+func (env *Environment) Accounts() *AccountsConfig { return &env.Config.Accounts }
 
 // GenesisPath returns the paths to the genesis.json file (if present on the environment)
 func (env *Environment) GenesisPath() string { return env.paths.genesisJSON() }
@@ -111,34 +76,4 @@ func (env *Environment) ensureWorkdir() {
 	if !fileutils.FileExists(env.paths.Workdir) {
 		os.MkdirAll(env.paths.Workdir, os.ModePerm)
 	}
-}
-
-func createGenesisAccounts(cfg *Config) (*GenesisAccounts, error) {
-	admin, err := GenerateAccounts(cfg.Mnemonic, Admin, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	validators, err := GenerateAccounts(cfg.Mnemonic, Validator, cfg.InitialValidators)
-	if err != nil {
-		return nil, err
-	}
-
-	groups, err := GenerateAccounts(cfg.Mnemonic, ValidatorGroup, cfg.InitialValidators/cfg.ValidatorsPerGroup)
-	if err != nil {
-		return nil, err
-	}
-
-	developers, err := GenerateAccounts(cfg.Mnemonic, Developer, cfg.DeveloperAccounts)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GenesisAccounts{
-		Admin:           admin[0],
-		Validators:      validators,
-		ValidatorGroups: groups,
-		Developers:      developers,
-	}, nil
-
 }

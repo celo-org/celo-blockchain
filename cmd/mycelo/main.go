@@ -244,19 +244,13 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	// Env overrides
 	if ctx.IsSet("validators") {
-		env.Config.InitialValidators = ctx.Int("validators")
+		env.Accounts().InitialValidators = ctx.Int("validators")
 	}
 	if ctx.IsSet("dev.accounts") {
-		env.Config.DeveloperAccounts = ctx.Int("dev.accounts")
+		env.Accounts().DeveloperAccountsQty = ctx.Int("dev.accounts")
 	}
 	if ctx.IsSet("mnemonic") {
-		env.Config.Mnemonic = ctx.String("mnemonic")
-	}
-
-	// Create the accounts after the env overrides are set
-	err = env.Refresh()
-	if err != nil {
-		return nil, nil, err
+		env.Accounts().Mnemonic = ctx.String("mnemonic")
 	}
 
 	// Genesis config
@@ -304,7 +298,7 @@ func createGenesis(ctx *cli.Context) error {
 		return err
 	}
 
-	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
+	genesis, err := genesis.GenerateGenesis(env.Accounts(), genesisConfig, buildpath)
 	if err != nil {
 		return err
 	}
@@ -357,7 +351,7 @@ func createGenesisFromConfig(ctx *cli.Context) error {
 		return err
 	}
 
-	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
+	genesis, err := genesis.GenerateGenesis(env.Accounts(), genesisConfig, buildpath)
 	if err != nil {
 		return err
 	}
@@ -454,7 +448,7 @@ func loadBot(ctx *cli.Context) error {
 	runCtx := context.Background()
 
 	var clients []*ethclient.Client
-	for i := 0; i < env.Config.InitialValidators; i++ {
+	for i := 0; i < env.Accounts().InitialValidators; i++ {
 		// TODO: Pull all of these values from env.json
 		client, err := ethclient.Dial(env.ValidatorIPC(i))
 		if err != nil {
@@ -464,7 +458,7 @@ func loadBot(ctx *cli.Context) error {
 	}
 
 	return loadbot.Start(runCtx, &loadbot.Config{
-		Accounts:              env.DeveloperAccounts(),
+		Accounts:              env.Accounts().DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: ctx.Int("tps"),
 		Clients:               clients,
