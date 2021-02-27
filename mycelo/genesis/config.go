@@ -156,10 +156,10 @@ type GovernanceParameters struct {
 	ApprovalStageDuration   uint64       `json:"ApprovalStageDuration"`
 	ReferendumStageDuration uint64       `json:"ReferendumStageDuration"`
 	ExecutionStageDuration  uint64       `json:"ExecutionStageDuration"`
-	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline`
-	ParticipationFloor      *fixed.Fixed `json:"participationFloor`
-	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor`
-	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor`
+	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
+	ParticipationFloor      *fixed.Fixed `json:"participationFloor"`
+	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor"`
+	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor"`
 }
 
 // ValidatorsParameters are the initial configuration parameters for Validators
@@ -173,6 +173,8 @@ type ValidatorsParameters struct {
 	MaxGroupSize                    *big.Int               `json:"maxGroupSize"`
 	CommissionUpdateDelay           *big.Int               `json:"commissionUpdateDelay"`
 	DowntimeGracePeriod             *big.Int               `json:"downtimeGracePeriod"`
+
+	Commission *fixed.Fixed `json:"commission"` // commision for genesis registered validator groups
 }
 
 // EpochRewardsParameters are the initial configuration parameters for EpochRewards
@@ -208,7 +210,7 @@ type RandomParameters struct {
 	RandomnessBlockRetentionWindow *big.Int `json:"randomnessBlockRetentionWindow"`
 }
 
-// AttestationParameters are the initial configuration parameters for Attestations
+// AttestationsParameters are the initial configuration parameters for Attestations
 type AttestationsParameters struct {
 	AttestationExpiryBlocks        *big.Int        `json:"attestationExpiryBlocks"`
 	SelectIssuersWaitBlocks        *big.Int        `json:"selectIssuersWaitBlocks"`

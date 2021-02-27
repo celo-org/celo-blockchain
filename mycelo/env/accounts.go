@@ -12,6 +12,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/mycelo/hdwallet"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/tyler-smith/go-bip39"
 )
 
@@ -52,6 +53,41 @@ func (a Account) MarshalJSON() ([]byte, error) {
 	return json.Marshal(data)
 }
 
+// MustBLSProofOfPosession variant of BLSProofOfPosession that panics on error
+func (a *Account) MustBLSProofOfPosession() []byte {
+	pop, err := a.BLSProofOfPosession()
+	if err != nil {
+		panic(err)
+	}
+	return pop
+}
+
+// BLSProofOfPosession generates bls proof of posession
+func (a *Account) BLSProofOfPosession() ([]byte, error) {
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(a.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignPoP(a.Address.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return signatureBytes, nil
+}
+
 // BLSPublicKey returns the bls public key
 func (a *Account) BLSPublicKey() (blscrypto.SerializedPublicKey, error) {
 	privateKey, err := blscrypto.ECDSAToBLS(a.PrivateKey)
@@ -60,6 +96,11 @@ func (a *Account) BLSPublicKey() (blscrypto.SerializedPublicKey, error) {
 	}
 
 	return blscrypto.PrivateToPublic(privateKey)
+}
+
+// PublicKeyHex hex representation of the public key
+func (a *Account) PublicKey() []byte {
+	return crypto.FromECDSAPub(&a.PrivateKey.PublicKey)
 }
 
 // PrivateKeyHex hex representation of the private key

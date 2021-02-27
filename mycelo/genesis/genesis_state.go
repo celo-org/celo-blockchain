@@ -769,50 +769,208 @@ func (ctx *deployContext) deployStableTokens() error {
 	return nil
 }
 
-func (ctx *deployContext) electValidators() error {
-	accountsContract := ctx.contract("Accounts")
+func (ctx *deployContext) createAccounts(accs []env.Account, namePrefix string) error {
+	accounts := ctx.contract("Accounts")
 
-	groups := ctx.accounts.ValidatorGroups()
-	var err error
-	for _, group := range groups {
-		ctx.logger.Info("Creating group account", "group", group.Group.Address, "name", group.Name)
-		err = accountsContract.SimpleCallFrom(group.Group.Address, "createAccount")
+	for i, acc := range accs {
+		name := fmt.Sprintf("%s %02d", namePrefix, i)
+		ctx.logger.Info("Create account", "address", acc.Address, "name", name)
+
+		if err := accounts.SimpleCallFrom(acc.Address, "createAccount"); err != nil {
+			return err
+		}
+
+		if err := accounts.SimpleCallFrom(acc.Address, "setName", name); err != nil {
+			return err
+		}
+
+		if err := accounts.SimpleCallFrom(acc.Address, "setAccountDataEncryptionKey", acc.PublicKey()); err != nil {
+			return err
+		}
+
+		// Missing: authorizeAttestationSigner
+	}
+	return nil
+}
+
+func (ctx *deployContext) registerValidators() error {
+	validatorAccounts := ctx.accounts.ValidatorAccounts()
+	requiredAmount := ctx.genesisConfig.Validators.ValidatorLockedGoldRequirements.Value
+
+	if err := ctx.createAccounts(validatorAccounts, "validator"); err != nil {
+		return err
+	}
+
+	lockedGold := ctx.contract("LockedGold")
+	validators := ctx.contract("Validators")
+
+	for _, validator := range validatorAccounts {
+		address := validator.Address
+		logger := ctx.logger.New("validator", address)
+
+		ctx.statedb.AddBalance(address, requiredAmount)
+
+		logger.Info("Lock validator gold", "amount", requiredAmount)
+		if _, err := lockedGold.Call(contract.CallOpts{Origin: address, Value: requiredAmount}, "lock"); err != nil {
+			return err
+		}
+
+		logger.Info("Register validator")
+		blsPub, err := validator.BLSPublicKey()
 		if err != nil {
 			return err
 		}
 
-		for _, validator := range group.Validators {
-			ctx.logger.Info("Creating validator account", "group", group.Group.Address, "name", group.Name, "validator", validator.Address)
-			err = accountsContract.SimpleCallFrom(validator.Address, "createAccount")
-			if err != nil {
-				return err
-			}
+		// remove the 0x04 prefix from the pub key (we need the 64 bytes variant)
+		pubKey := validator.PublicKey()[1:]
+		err = validators.SimpleCallFrom(address, "registerValidator", pubKey, blsPub[:], validator.MustBLSProofOfPosession())
+		if err != nil {
+			return err
 		}
+	}
+	return nil
+}
 
+func (ctx *deployContext) registerValidatorGroups() error {
+	validatorGroupsAccounts := ctx.accounts.ValidatorGroupAccounts()
+
+	if err := ctx.createAccounts(validatorGroupsAccounts, "group"); err != nil {
+		return err
 	}
 
-	// register validators accounts
-	// register group accounts
+	lockedGold := ctx.contract("LockedGold")
+	validators := ctx.contract("Validators")
 
-	// lock gold on validator accounts (validator amount)
-	// lock gold on each group account (number defined by # of validators)
+	groupRequiredGold := new(big.Int).Mul(
+		ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
+		big.NewInt(int64(ctx.accounts.ValidatorsPerGroup)),
+	)
+	groupComission := ctx.genesisConfig.Validators.Commission.BigInt()
 
-	// register
+	for _, group := range validatorGroupsAccounts {
+		address := group.Address
+		logger := ctx.logger.New("group", address)
 
+		ctx.statedb.AddBalance(address, groupRequiredGold)
+
+		logger.Info("Lock group gold", "amount", groupRequiredGold)
+		if _, err := lockedGold.Call(contract.CallOpts{Origin: address, Value: groupRequiredGold}, "lock"); err != nil {
+			return err
+		}
+
+		logger.Info("Register group")
+		if err := validators.SimpleCallFrom(address, "registerValidatorGroup", groupComission); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) addValidatorsToGroups() error {
+	validators := ctx.contract("Validators")
+
+	validatorGroups := ctx.accounts.ValidatorGroups()
+	for groupIdx, group := range validatorGroups {
+		groupAddress := group.Address
+		prevGroupAddress := common.ZeroAddress
+		if groupIdx > 0 {
+			prevGroupAddress = validatorGroups[groupIdx-1].Address
+		}
+
+		for i, validator := range group.Validators {
+			ctx.logger.Info("Add validator to group", "validator", validator.Address, "group", groupAddress)
+
+			// affiliate validators to group
+			if err := validators.SimpleCallFrom(validator.Address, "affiliate", groupAddress); err != nil {
+				return err
+			}
+
+			// accept validator as group member
+			if i == 0 {
+				if err := validators.SimpleCallFrom(groupAddress, "addFirstMember", validator.Address, common.ZeroAddress, prevGroupAddress); err != nil {
+					return err
+				}
+			} else {
+				if err := validators.SimpleCallFrom(groupAddress, "addMember", validator.Address); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) voteForGroups() error {
+	election := ctx.contract("Election")
+
+	validatorGroups := ctx.accounts.ValidatorGroupAccounts()
+
+	// value previously locked on registerValidatorGroups()
+	lockedGoldOnGroup := new(big.Int).Mul(
+		ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
+		big.NewInt(int64(ctx.accounts.ValidatorsPerGroup)),
+	)
+
+	// current group order (see `addFirstMember` on addValidatorsToGroup) is:
+	// [ 1stGroup, 2ndGroup, ..., lastgroup]
+
+	// each group votes for themselves.
+	// each group votes the SAME AMOUNT
+	// each group starts with 0 votes
+
+	// so, everytime we vote, that group becomes the one with most votes (most or equal)
+	// hence, we use:
+	//    greater = zero (we become the one with most votes)
+	//    lesser = currentLeader
+
+	// special case: only one group (no lesser or greater)
+	if len(validatorGroups) == 1 {
+		groupAddress := validatorGroups[0].Address
+		ctx.logger.Info("Vote for group", "group", groupAddress, "amount", lockedGoldOnGroup)
+		if err := election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, common.ZeroAddress, common.ZeroAddress); err != nil {
+			return err
+		}
+	}
+
+	// first to vote is group 1, which is already the leader. Hence lesser should go to group2
+	currentLeader := validatorGroups[1].Address
+	for _, group := range validatorGroups {
+		groupAddress := group.Address
+
+		ctx.logger.Info("Vote for group", "group", groupAddress, "amount", lockedGoldOnGroup)
+		if err := election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, currentLeader, common.ZeroAddress); err != nil {
+			return err
+		}
+
+		// we now become the currentLeader
+		currentLeader = groupAddress
+	}
+
+	return nil
+}
+
+func (ctx *deployContext) electValidators() error {
+	if err := ctx.registerValidators(); err != nil {
+		return err
+	}
+
+	if err := ctx.registerValidatorGroups(); err != nil {
+		return err
+	}
+
+	if err := ctx.addValidatorsToGroups(); err != nil {
+		return err
+	}
+
+	if err := ctx.voteForGroups(); err != nil {
+		return err
+	}
+
+	// TODO: Config checks
 	// check that we have enough validators (validators >= election.minElectableValidators)
 	// check that validatorsPerGroup is <= valdiators.maxGroupSize
-
-	// what's the votesRatioOfLastVsFirstGroup ?
-
-	// compute how much locked gold each group needs (depends on the number of validators it has)
-
-	// for each group
-	//   register Group
-
-	// for each validator
-	//    register Validator
-
-	// Add validators to group
 
 	return nil
 }

@@ -79,6 +79,8 @@ func BaseConfig() *Config {
 			SlashingPenaltyResetPeriod: bigInt(30 * Day),
 
 			DowntimeGracePeriod: bigInt(0),
+
+			Commission: fixed("0.1"),
 		},
 		Election: ElectionParameters{
 			MinElectableValidators: bigInt(1),
