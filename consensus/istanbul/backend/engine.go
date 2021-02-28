@@ -643,7 +643,7 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	}
 }
 
-// SetCallBack implements consensus.Istanbul.SetCallBacks
+// SetCallBacks implements consensus.Istanbul.SetCallBacks
 func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,

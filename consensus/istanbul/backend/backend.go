@@ -498,20 +498,26 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	// For DEBUG, delete when merged to master
-	if err := sb.validateState(block, result.State, result.Receipts, result.UsedGas); err != nil {
-		sb.logger.Error("validateState failed", "err", err)
-		return err
+	// If no cached result, we import block through fetcher, which requires processing the block one more time.
+	// Else if cache hit, we directly write the block.
+	if result == nil {
+		sb.logger.Warn("state process cache miss, enqueuing the block to fetcher", "number", block.Number(), "hash", block.Hash())
+		if sb.broadcaster != nil {
+			sb.broadcaster.Enqueue(fetcherID, block)
+			return nil
+		}
+	}
+
+	if block := sb.chain.GetBlock(block.Hash(), block.NumberU64()); block != nil {
+		sb.logger.Debug("Commit duplicate block", "number", block.Number(), "hash", block.Hash())
+		return nil
 	}
 	if _, err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
-		sb.logger.Crit("Failed writeBlockWithState", "err", err)
+		sb.logger.Error("Failed writeBlockWithState", "err", err)
 		return err
 	}
-
 	sb.logger.Info("Inserted block from consensus", "number", block.Number(), "hash", block.Hash(),
-		"txs", len(block.Transactions()), "gas", block.GasUsed(),
-		"root", block.Root())
-
+		"txs", len(block.Transactions()), "gas", block.GasUsed(), "root", block.Root())
 	return nil
 }
 
@@ -521,23 +527,23 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.StateProcessResult, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (*core.StateProcessResult, time.Duration, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
-		return 0, nil, errInvalidProposal
+		return nil, 0, errInvalidProposal
 	}
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return 0, nil, core.ErrBlacklistedHash
+		return nil, 0, core.ErrBlacklistedHash
 	}
 
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions())
 	if txnHash != block.Header().TxHash {
-		return 0, nil, errMismatchTxhashes
+		return nil, 0, errMismatchTxhashes
 	}
 
 	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
@@ -545,10 +551,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.Stat
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return 0, nil, errInvalidProposal
+			return nil, 0, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
 			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
-			return 0, nil, errInvalidCoinbase
+			return nil, 0, errInvalidCoinbase
 		}
 	}
 
@@ -557,9 +563,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.Stat
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
-			return time.Unix(int64(block.Header().Time), 0).Sub(now()), nil, consensus.ErrFutureBlock
+			return nil, time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
-			return 0, nil, err
+			return nil, 0, err
 		}
 	}
 
@@ -568,7 +574,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.Stat
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-		return 0, nil, err
+		return nil, 0, err
 	}
 
 	// Make a copy of the state
@@ -578,25 +584,25 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, *core.Stat
 	receipts, logs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
-		return 0, nil, err
+		return nil, 0, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
-		return 0, nil, err
+		return nil, 0, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
 			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
-			return 0, nil, err
+			return nil, 0, err
 		}
 	}
 
-	result := &core.StateProcessResult{Receipts: receipts, Logs: logs, State: state, UsedGas: usedGas}
-	return 0, result, nil
+	result := &core.StateProcessResult{Receipts: receipts, Logs: logs, State: state}
+	return result, 0, nil
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {

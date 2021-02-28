@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	core2 "github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"io"
 	"math/big"
 	"sync"
@@ -489,38 +488,9 @@ func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (state
 
 	if rs.stateProcessResults != nil {
 		stateProcessResult, isCached = rs.stateProcessResults[proposalHash]
-		//if stateProcessResult, isCached = rs.stateProcessResults[proposalHash]; isCached {
-		//	stateProcessResult = deepCopy(stateProcessResult)
-		//}
 	}
 
 	return
-}
-
-//deepCopy will deep copy a StateProcessResult.
-func deepCopy(result *core2.StateProcessResult) *core2.StateProcessResult {
-	var (
-		cpyReceipts = make([]*types.Receipt, len(result.Receipts))
-		cpyLogs     []*types.Log
-	)
-	// Deep copy receipts
-	for i, receipt := range result.Receipts {
-		cpyReceipts[i] = new(types.Receipt)
-		*cpyReceipts[i] = *receipt
-		// Deep copy logs
-		for _, log := range receipt.Logs {
-			cpyLog := new(types.Log)
-			*cpyLog = *log
-			cpyLogs = append(cpyLogs, cpyLog)
-		}
-	}
-	return &core2.StateProcessResult{
-		State:    result.State.Copy(),
-		Receipts: cpyReceipts,
-		Logs:     cpyLogs,
-		UsedGas:  result.UsedGas,
-		Err:      result.Err,
-	}
 }
 
 func (rs *roundStateImpl) Summary() *RoundStateSummary {

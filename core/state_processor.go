@@ -161,6 +161,4 @@ type StateProcessResult struct {
 	State    *state.StateDB
 	Receipts types.Receipts
 	Logs     []*types.Log
-	UsedGas  uint64
-	Err      error
 }

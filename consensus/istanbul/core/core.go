@@ -68,7 +68,7 @@ type CoreBackend interface {
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
-	Verify(istanbul.Proposal) (time.Duration, *core2.StateProcessResult, error)
+	Verify(istanbul.Proposal) (*core2.StateProcessResult, time.Duration, error)
 
 	// Sign signs input data with the backend's private key
 	Sign([]byte) ([]byte, error)
@@ -379,11 +379,7 @@ func (c *core) commit() error {
 			return nil
 		}
 
-		result, isCached := c.current.GetStateProcessResult(proposal.Hash())
-		if !isCached {
-			log.Crit("StateProcessResult not found in cache", "number", proposal.Number(), "hash", proposal.Hash())
-			return errStateProcessResultNotFound
-		}
+		result, _ := c.current.GetStateProcessResult(proposal.Hash())
 		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
@@ -776,7 +772,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 	} else {
 		logger.Trace("verification status cache miss")
 
-		duration, result, err := c.backend.Verify(proposal)
+		result, duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)
 
 		// Don't cache the verification status if it's a future block
