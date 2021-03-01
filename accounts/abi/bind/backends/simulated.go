@@ -350,6 +350,18 @@ func (b *SimulatedBackend) CallContract(ctx context.Context, call ethereum.CallM
 		return nil, err
 	}
 	res, err := b.callContract(ctx, call, b.blockchain.CurrentBlock(), state)
+
+	if res != nil && res.Err != vm.ErrOutOfGas {
+		if len(res.Revert()) > 0 {
+			ret, err := abi.UnpackRevert(res.Revert())
+			if err != nil {
+				return nil, fmt.Errorf("execution reverted: %#x", res.Revert())
+			} else {
+				return nil, fmt.Errorf("execution reverted: %s", ret)
+			}
+		}
+	}
+
 	if err != nil {
 		return nil, err
 	}
