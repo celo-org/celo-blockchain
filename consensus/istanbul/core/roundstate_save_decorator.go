@@ -17,11 +17,11 @@
 package core
 
 import (
-	core2 "github.com/celo-org/celo-blockchain/core"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	core2 "github.com/celo-org/celo-blockchain/core"
 )
 
 // createOrRestoreRoundState will obtain the last saved RoundState and use it if it's newer than the given Sequence,

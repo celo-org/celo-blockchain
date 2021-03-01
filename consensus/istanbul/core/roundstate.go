@@ -19,7 +19,6 @@ package core
 import (
 	"bytes"
 	"errors"
-	core2 "github.com/celo-org/celo-blockchain/core"
 	"io"
 	"math/big"
 	"sync"
@@ -27,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	core2 "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/rlp"

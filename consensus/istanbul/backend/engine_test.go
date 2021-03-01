@@ -124,7 +124,7 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 		<-results
 	}
 	// this commit should _NOT_ push a new message to the queue
-	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
 
 	select {
 	case res := <-results:
