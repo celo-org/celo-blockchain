@@ -878,6 +878,17 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if err != nil {
 		return nil, err
 	}
+
+	if result != nil && result.Err != vm.ErrOutOfGas {
+		if len(result.Revert()) > 0 {
+			ret, err := abi.UnpackRevert(result.Revert())
+			if err != nil {
+				return nil, fmt.Errorf("execution reverted: %#x", result.Revert())
+			} else {
+				return nil, fmt.Errorf("execution reverted: %s", ret)
+			}
+		}
+	}
 	return result.Return(), nil
 }
 
