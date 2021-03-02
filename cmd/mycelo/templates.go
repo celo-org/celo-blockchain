@@ -7,6 +7,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/common/token"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/params"
@@ -80,8 +81,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	cusdBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
 	goldBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000000000000000000000")}
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("1000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
 	}
 
 	genesisConfig.StableToken.InitialBalances = cusdBalances
@@ -155,8 +156,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	cusdBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
 	goldBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
 	}
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)
