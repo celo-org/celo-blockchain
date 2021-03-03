@@ -307,11 +307,10 @@ func (pm *ProtocolManager) doSync(op *chainSyncOp) error {
 		return err
 	}
 
-	// TODO(lucas): figure out how to fix this
-	// knownProofs := rawdb.KnownPlumoProofs(pm.proofDb)
-	// if err := peer.requestProofs(knownProofs, true); err != nil {
-	// 	return err
-	// }
+	knownProofs := rawdb.KnownPlumoProofs(pm.proofDb)
+	if err := op.peer.RequestPlumoProofs(knownProofs, true); err != nil {
+		return err
+	}
 
 	if atomic.LoadUint32(&pm.fastSync) == 1 {
 		log.Info("Fast sync complete, auto disabling")

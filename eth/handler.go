@@ -935,7 +935,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		requestSpecificProofs := func(proofsMetadata []types.PlumoProofMetadata) error {
 			log.Error("Requesting proofs")
-			return p.RequestProofs(proofsMetadata, false)
+			return p.RequestPlumoProofs(proofsMetadata, false)
 		}
 		log.Error("Len of unknown", "len", len(unknown))
 		for _, proofMetadata := range unknown {
@@ -1046,7 +1046,10 @@ func (pm *ProtocolManager) Enqueue(id string, block *types.Block) {
 func (pm *ProtocolManager) BroadcastPlumoProof(plumoProof *types.PlumoProof) {
 	// Broadcast plumo proof to a batch of peers not knowing about it
 	peers := pm.peers.PeersWithoutPlumoProof(&plumoProof.Metadata)
-	for _, peer := range peers {
+
+	// Send the block to a subset of our peers
+	transfer := peers[:int(math.Sqrt(float64(len(peers))))]
+	for _, peer := range transfer {
 		peer.AsyncSendPlumoProof(plumoProof)
 	}
 	// TODO (lucas): trace

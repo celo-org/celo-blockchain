@@ -623,33 +623,35 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 
 }
 
-func TestBroadcastProof(t *testing.T) {
+func TestBroadcastPlumoProof(t *testing.T) {
 	var tests = []struct {
 		totalPeers        int
 		broadcastExpected int
 	}{
 		{1, 1},
-		{2, 2},
-		{3, 3},
-		{4, 4},
-		{5, 4},
-		{9, 4},
-		{12, 4},
+		{2, 1},
+		{3, 1},
+		{4, 2},
+		{5, 2},
+		{9, 3},
+		{12, 3},
 		{16, 4},
 		{26, 5},
 		{100, 10},
 	}
 	for _, test := range tests {
-		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected)
+		testBroadcastPlumoProof(t, test.totalPeers, test.broadcastExpected)
 	}
 }
 
-func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
+func testBroadcastPlumoProof(t *testing.T, totalPeers, broadcastExpected int) {
 	var (
-		evmux  = new(event.TypeMux)
-		pow    = mockEngine.NewFaker()
-		db     = rawdb.NewMemoryDatabase()
-		config = &params.ChainConfig{}
+		evmux   = new(event.TypeMux)
+		pow     = mockEngine.NewFaker()
+		db      = rawdb.NewMemoryDatabase()
+		config  = &params.ChainConfig{}
+		gspec   = &core.Genesis{Config: config}
+		genesis = gspec.MustCommit(db)
 	)
 	blockchain, err := core.NewBlockChain(db, nil, config, pow, vm.Config{}, nil)
 	if err != nil {
@@ -667,6 +669,7 @@ func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
 		defer peer.close()
 		peers = append(peers, peer)
 	}
+	core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, 1, func(i int, gen *core.BlockGen) {})
 	proofDec, _ := hex.DecodeString("33796bc0cdbc50464a385a36e2c1ef80ae43372efc3a61f6274d6d51e6e3416986255d51a2259a11bf1195b25ac99f45958aaf352bfbd95be29d452aebdc566b54db0088f4ef5ca5365e2f3932c753c54c285ecd320e2a909edc4ac4ee3b2a82fc26bc53b4823a344578112646803524e13835d82ec38437d309d8e7d4d2094444bf0ecc61e3342e3260361fec644dc092346f03f9d1b796be7ef33579a38bddff69b4a9e080d90ce9712e974a450c5f6757807459ff257ccbb76e654ccccb90b4e82e1be04756b49f07f52a9a9eefd5f1ed3896df3ea10d55a6504d38012f60a6dda539ddc258a27004a9f30206c280230ee2928a6562f8e0bf67c60e2770cbc0020051b88c3c087abe93951e492e25a5b15dd99fa04fa0638dbc3b9fe358b9874f68d88e247cbaa0fae4ce250f432acafcc01ec6d248910884a3c9f78f5b0a1020db8c7b5cdca1a8dccb697d56f1a3592c5ae9f629fa17df7df08f94c31d21955dc4de4d5429ef742a69e9b35ff22b1649d4528a52d2f28f97abeeac93c665e1296da84a03723165e9e8fc71c09fd389bb1282fa212777ade68a7bed836ffb79dc1d2f9c091d5dd12c39705ccb4121de3bcf0e21a571a2c777e6271bb9c1e556ed46276fbe31a20aa488f13211883e5cce80692fe08b3ac3f6131435b2dbd28208fc114accdc69cb8b")
 	plumoProof := types.PlumoProof{
 		Proof: proofDec,
@@ -676,13 +679,16 @@ func testBroadcastProof(t *testing.T, totalPeers, broadcastExpected int) {
 			VersionNumber: 0,
 		},
 	}
+	// Sends out `NewPlumoProofsMsg` of the metadata of new plumo proofs available
 	pm.BroadcastPlumoProof(&plumoProof)
 
 	errCh := make(chan error, totalPeers)
 	doneCh := make(chan struct{}, totalPeers)
+	proofsMetadata := []types.PlumoProofMetadata{plumoProof.Metadata}
 	for _, peer := range peers {
 		go func(p *testPeer) {
-			if err := p2p.ExpectMsg(p.app, PlumoProofsMsg, &plumoProof); err != nil {
+			// Verifies that we receive `sqrt(numPeers)` of `NewPlumoProofsMsg`s
+			if err := p2p.ExpectMsg(p.app, NewPlumoProofsMsg, &proofsMetadata); err != nil {
 				errCh <- err
 			} else {
 				doneCh <- struct{}{}
