@@ -15,7 +15,7 @@ func TestConfigMarhalling(t *testing.T) {
 		ChainID: big.NewInt(1500),
 		Accounts: AccountsConfig{
 			Mnemonic:           "aloha hawai",
-			InitialValidators:  6,
+			NumValidators:      6,
 			ValidatorsPerGroup: 2,
 		},
 	}
@@ -40,7 +40,7 @@ func TestConfigReadJson(t *testing.T) {
 		"chainId": 1500,
 		"accounts": {
 		  "mnemonic": "aloha hawai",
-		  "initialValidators": 6,
+		  "validators": 6,
 		  "validatorsPerGroup": 2
 		}
 	 }`)
@@ -49,7 +49,7 @@ func TestConfigReadJson(t *testing.T) {
 		ChainID: big.NewInt(1500),
 		Accounts: AccountsConfig{
 			Mnemonic:           "aloha hawai",
-			InitialValidators:  6,
+			NumValidators:      6,
 			ValidatorsPerGroup: 2,
 		},
 	}
