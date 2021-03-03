@@ -504,12 +504,13 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		sb.logger.Warn("state process cache miss, enqueuing the block to fetcher", "number", block.Number(), "hash", block.Hash())
 		if sb.broadcaster != nil {
 			sb.broadcaster.Enqueue(fetcherID, block)
-			return nil
 		}
+		sb.logger.Warn("Cannot import consensus block", "number", block.Number(), "hash", block.Hash())
+		return nil
 	}
 
 	if block := sb.chain.GetBlock(block.Hash(), block.NumberU64()); block != nil {
-		sb.logger.Debug("Commit duplicate block", "number", block.Number(), "hash", block.Hash())
+		sb.logger.Info("Duplicate block to commit", "number", block.Number(), "hash", block.Hash())
 		return nil
 	}
 	if _, err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
