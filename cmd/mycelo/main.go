@@ -472,9 +472,9 @@ func loadBot(ctx *cli.Context) error {
 	return loadbot.Start(runCtx, &loadbot.Config{
 		Accounts:              env.DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
-		TransactionsPerSecond: ctx.Int("tps"),
+		TransactionsPerSecond: ctx.Int(loadTestTPSFlag.Name),
 		Clients:               clients,
 		Verbose:               verbose,
-		MaxPending:            ctx.Uint64("maxpending"),
+		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
 	})
 }
