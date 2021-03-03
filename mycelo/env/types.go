@@ -12,10 +12,11 @@ type Config struct {
 
 // AccountsConfig represents accounts configuration for the environment
 type AccountsConfig struct {
-	Mnemonic             string `json:"mnemonic"`           // Accounts mnemonic
-	NumValidators        int    `json:"validators"`         // Number of initial validators
-	ValidatorsPerGroup   int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
-	NumDeveloperAccounts int    `json:"developerAccounts"`  // Number of developers accounts
+	Mnemonic             string `json:"mnemonic"`            // Accounts mnemonic
+	NumValidators        int    `json:"validators"`          // Number of initial validators
+	ValidatorsPerGroup   int    `json:"validatorsPerGroup"`  // Number of validators per group in the initial set
+	NumDeveloperAccounts int    `json:"developerAccounts"`   // Number of developers accounts
+	UseValidatorAsAdmin  bool   `json:"useValidatorAsAdmin"` // Whether to use the first validator as the admin (for compatibility with monorepo)
 }
 
 // ValidatorGroup represents a group plus its validators members
@@ -34,7 +35,11 @@ func (ac *AccountsConfig) NumValidatorGroups() int {
 
 // AdminAccount returns the environment's admin account
 func (ac *AccountsConfig) AdminAccount() *Account {
-	acc, err := DeriveAccount(ac.Mnemonic, AdminAT, 0)
+	at := AdminAT
+	if ac.UseValidatorAsAdmin {
+		at = ValidatorAT
+	}
+	acc, err := DeriveAccount(ac.Mnemonic, at, 0)
 	if err != nil {
 		panic(err)
 	}
