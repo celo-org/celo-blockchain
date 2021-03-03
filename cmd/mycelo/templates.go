@@ -81,8 +81,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 
 	genesisConfig.StableToken.InitialBalances = cusdBalances
@@ -156,8 +156,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)
