@@ -846,7 +846,7 @@ func (ctx *deployContext) registerValidatorGroups() error {
 		ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
 		big.NewInt(int64(ctx.accounts.ValidatorsPerGroup)),
 	)
-	groupComission := ctx.genesisConfig.Validators.Comission.BigInt()
+	groupCommission := ctx.genesisConfig.Validators.Commission.BigInt()
 
 	for _, group := range validatorGroupsAccounts {
 		address := group.Address
@@ -860,7 +860,7 @@ func (ctx *deployContext) registerValidatorGroups() error {
 		}
 
 		logger.Info("Register group")
-		if err := validators.SimpleCallFrom(address, "registerValidatorGroup", groupComission); err != nil {
+		if err := validators.SimpleCallFrom(address, "registerValidatorGroup", groupCommission); err != nil {
 			return err
 		}
 	}
