@@ -935,9 +935,7 @@ func (ctx *deployContext) voteForGroups() error {
 	if len(validatorGroups) == 1 {
 		groupAddress := validatorGroups[0].Address
 		ctx.logger.Info("Vote for group", "group", groupAddress, "amount", lockedGoldOnGroup)
-		if err := election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, common.ZeroAddress, common.ZeroAddress); err != nil {
-			return err
-		}
+		return election.SimpleCallFrom(groupAddress, "vote", groupAddress, lockedGoldOnGroup, common.ZeroAddress, common.ZeroAddress)
 	}
 
 	// first to vote is group 0, which is already the leader. Hence lesser should go to group 1
