@@ -80,7 +80,7 @@ func BaseConfig() *Config {
 
 			DowntimeGracePeriod: bigInt(0),
 
-			Commission: fixed("0.1"),
+			Comission: fixed("0.1"),
 		},
 		Election: ElectionParameters{
 			MinElectableValidators: bigInt(1),
