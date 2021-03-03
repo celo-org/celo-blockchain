@@ -174,7 +174,7 @@ type ValidatorsParameters struct {
 	CommissionUpdateDelay           *big.Int               `json:"commissionUpdateDelay"`
 	DowntimeGracePeriod             *big.Int               `json:"downtimeGracePeriod"`
 
-	Commission *fixed.Fixed `json:"commission"` // commision for genesis registered validator groups
+	Comission *fixed.Fixed `json:"comission"` // comision for genesis registered validator groups
 }
 
 // EpochRewardsParameters are the initial configuration parameters for EpochRewards

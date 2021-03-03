@@ -56,7 +56,7 @@ func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPat
 			ChainConfig: genesisConfig.ChainConfig(),
 			Origin:      adminAddress,
 			State:       statedb,
-			GasLimit:    token.MustNew("1000").BigInt().Uint64(), // 1k CELO
+			GasLimit:    token.MustNew("10").BigInt().Uint64(), // 10 CELO should be more than enough for gas fees
 			GasPrice:    big.NewInt(0),
 			Value:       big.NewInt(0),
 			Time:        new(big.Int).SetUint64(genesisConfig.GenesisTimestamp),
@@ -774,7 +774,7 @@ func (ctx *deployContext) createAccounts(accs []env.Account, namePrefix string) 
 	accounts := ctx.contract("Accounts")
 
 	for i, acc := range accs {
-		name := fmt.Sprintf("%s %02d", namePrefix, i)
+		name := fmt.Sprintf("%s %03d", namePrefix, i)
 		ctx.logger.Info("Create account", "address", acc.Address, "name", name)
 
 		if err := accounts.SimpleCallFrom(acc.Address, "createAccount"); err != nil {
@@ -889,6 +889,11 @@ func (ctx *deployContext) addValidatorsToGroups() error {
 
 			// accept validator as group member
 			if i == 0 {
+				// when adding first member, we define group voting order
+				// since every group start with zero votes, we just use the prevGroup Address as the greater address
+				// thus ending group order is:
+				// [ groupZero, groupOne, ..., lastgroup]
+
 				if err := validators.SimpleCallFrom(groupAddress, "addFirstMember", validator.Address, common.ZeroAddress, prevGroupAddress); err != nil {
 					return err
 				}
@@ -915,7 +920,7 @@ func (ctx *deployContext) voteForGroups() error {
 	)
 
 	// current group order (see `addFirstMember` on addValidatorsToGroup) is:
-	// [ 1stGroup, 2ndGroup, ..., lastgroup]
+	// [ groupZero, groupOne, ..., lastgroup]
 
 	// each group votes for themselves.
 	// each group votes the SAME AMOUNT
@@ -935,7 +940,7 @@ func (ctx *deployContext) voteForGroups() error {
 		}
 	}
 
-	// first to vote is group 1, which is already the leader. Hence lesser should go to group2
+	// first to vote is group 0, which is already the leader. Hence lesser should go to group 1
 	currentLeader := validatorGroups[1].Address
 	for _, group := range validatorGroups {
 		groupAddress := group.Address
