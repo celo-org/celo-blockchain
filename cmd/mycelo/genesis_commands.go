@@ -102,10 +102,10 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 	// Env overrides
 	if ctx.IsSet("validators") {
-		env.Accounts().InitialValidators = ctx.Int("validators")
+		env.Accounts().NumValidators = ctx.Int("validators")
 	}
 	if ctx.IsSet("dev.accounts") {
-		env.Accounts().DeveloperAccountsQty = ctx.Int("dev.accounts")
+		env.Accounts().NumDeveloperAccounts = ctx.Int("dev.accounts")
 	}
 	if ctx.IsSet("mnemonic") {
 		env.Accounts().Mnemonic = ctx.String("mnemonic")

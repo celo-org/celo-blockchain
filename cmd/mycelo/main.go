@@ -243,7 +243,7 @@ func loadBot(ctx *cli.Context) error {
 	runCtx := context.Background()
 
 	var clients []*ethclient.Client
-	for i := 0; i < env.Accounts().InitialValidators; i++ {
+	for i := 0; i < env.Accounts().NumValidators; i++ {
 		// TODO: Pull all of these values from env.json
 		client, err := ethclient.Dial(env.ValidatorIPC(i))
 		if err != nil {

@@ -13,9 +13,9 @@ type Config struct {
 // AccountsConfig represents accounts configuration for the environment
 type AccountsConfig struct {
 	Mnemonic             string `json:"mnemonic"`           // Accounts mnemonic
-	InitialValidators    int    `json:"initialValidators"`  // Number of initial validators
+	NumValidators        int    `json:"validators"`         // Number of initial validators
 	ValidatorsPerGroup   int    `json:"validatorsPerGroup"` // Number of validators per group in the initial set
-	DeveloperAccountsQty int    `json:"developerAccounts"`  // Number of developers accounts
+	NumDeveloperAccounts int    `json:"developerAccounts"`  // Number of developers accounts
 }
 
 // ValidatorGroup represents a group plus its validators members
@@ -24,12 +24,12 @@ type ValidatorGroup struct {
 	Validators []Account
 }
 
-// ValidatorGroupsQty retrieves the number of validator groups for the genesis
-func (ac *AccountsConfig) ValidatorGroupsQty() int {
-	if (ac.InitialValidators % ac.ValidatorsPerGroup) > 0 {
-		return (ac.InitialValidators / ac.ValidatorsPerGroup) + 1
+// NumValidatorGroups retrieves the number of validator groups for the genesis
+func (ac *AccountsConfig) NumValidatorGroups() int {
+	if (ac.NumValidators % ac.ValidatorsPerGroup) > 0 {
+		return (ac.NumValidators / ac.ValidatorsPerGroup) + 1
 	}
-	return ac.InitialValidators / ac.ValidatorsPerGroup
+	return ac.NumValidators / ac.ValidatorsPerGroup
 }
 
 // AdminAccount returns the environment's admin account
@@ -43,7 +43,7 @@ func (ac *AccountsConfig) AdminAccount() *Account {
 
 // DeveloperAccounts returns the environment's developers accounts
 func (ac *AccountsConfig) DeveloperAccounts() []Account {
-	accounts, err := DeriveAccountList(ac.Mnemonic, DeveloperAT, ac.DeveloperAccountsQty)
+	accounts, err := DeriveAccountList(ac.Mnemonic, DeveloperAT, ac.NumDeveloperAccounts)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +57,7 @@ func (ac *AccountsConfig) Account(accType AccountType, idx int) (*Account, error
 
 // ValidatorAccounts returns the environment's validators accounts
 func (ac *AccountsConfig) ValidatorAccounts() []Account {
-	accounts, err := DeriveAccountList(ac.Mnemonic, ValidatorAT, ac.InitialValidators)
+	accounts, err := DeriveAccountList(ac.Mnemonic, ValidatorAT, ac.NumValidators)
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +66,7 @@ func (ac *AccountsConfig) ValidatorAccounts() []Account {
 
 // ValidatorGroupAccounts returns the environment's validators group accounts
 func (ac *AccountsConfig) ValidatorGroupAccounts() []Account {
-	accounts, err := DeriveAccountList(ac.Mnemonic, ValidatorGroupAT, ac.ValidatorGroupsQty())
+	accounts, err := DeriveAccountList(ac.Mnemonic, ValidatorGroupAT, ac.NumValidatorGroups())
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +75,7 @@ func (ac *AccountsConfig) ValidatorGroupAccounts() []Account {
 
 // ValidatorGroups return the list of validator groups on genesis
 func (ac *AccountsConfig) ValidatorGroups() []ValidatorGroup {
-	groups := make([]ValidatorGroup, ac.ValidatorGroupsQty())
+	groups := make([]ValidatorGroup, ac.NumValidatorGroups())
 
 	groupAccounts := ac.ValidatorGroupAccounts()
 	validatorAccounts := ac.ValidatorAccounts()

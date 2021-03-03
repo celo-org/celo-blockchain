@@ -34,9 +34,9 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             env.MustNewMnemonic(),
-			InitialValidators:    3,
+			NumValidators:        3,
 			ValidatorsPerGroup:   1,
-			DeveloperAccountsQty: 10,
+			NumDeveloperAccounts: 10,
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
@@ -78,8 +78,8 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
-	goldBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
+	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
 		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
 		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
@@ -105,9 +105,9 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             "miss fire behind decide egg buyer honey seven advance uniform profit renew",
-			InitialValidators:    1,
+			NumValidators:        1,
 			ValidatorsPerGroup:   1,
-			DeveloperAccountsQty: 10000,
+			NumDeveloperAccounts: 10000,
 		},
 		ChainID: big.NewInt(9099000),
 	}
@@ -153,8 +153,8 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
-	goldBalances := make([]genesis.Balance, env.Accounts().DeveloperAccountsQty)
+	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
 	for i, acc := range env.Accounts().DeveloperAccounts() {
 		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000")}         // 50k Celo
 		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
