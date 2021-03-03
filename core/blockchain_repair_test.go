@@ -445,8 +445,8 @@ func testRepair(t *testing.T, tt *rewindTest) {
 	defer chain.Stop()
 
 	// Iterate over all the remaining blocks and ensure there are no gaps
-	verifyNoGaps(t, chain, true, canonblocks)
-	verifyCutoff(t, chain, true, canonblocks, tt.expCanonicalBlocks)
+	verifyNoGaps(t, chain, canonblocks)
+	verifyCutoff(t, chain, canonblocks, tt.expCanonicalBlocks)
 
 	if head := chain.CurrentHeader(); head.Number.Uint64() != tt.expHeadHeader {
 		t.Errorf("Head header mismatch: have %d, want %d", head.Number, tt.expHeadHeader)
