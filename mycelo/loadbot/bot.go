@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"math/rand"
+	"sync"
 	"time"
 
 	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
@@ -16,6 +16,10 @@ import (
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
+
+var maxPending uint64
+var pending uint64
+var pendingLock sync.Mutex
 
 // Range represents an inclusive big.Int range
 type Range struct {
@@ -30,21 +34,24 @@ type Config struct {
 	TransactionsPerSecond int
 	Clients               []*ethclient.Client
 	Verbose               bool
+	MaxPending            uint64
 }
 
 // Start will start loads bots
 func Start(ctx context.Context, cfg *Config) error {
 	group, ctx := errgroup.WithContext(ctx)
 
+	idx := len(cfg.Accounts) / 2
 	nextTransfer := func() (common.Address, *big.Int) {
-		idx := rand.Intn(len(cfg.Accounts))
-		return cfg.Accounts[idx].Address, cfg.Amount
+		idx++
+		return cfg.Accounts[idx%len(cfg.Accounts)].Address, cfg.Amount
 	}
 
 	// developer accounts / TPS = duration in seconds.
 	// Need the fudger factor to get up a consistent TPS at the target.
 	delay := time.Duration(int(float64(len(cfg.Accounts)*1000/cfg.TransactionsPerSecond)*0.95)) * time.Millisecond
 	startDelay := delay / time.Duration(len(cfg.Accounts))
+	maxPending = cfg.MaxPending
 
 	for i, acc := range cfg.Accounts {
 		// Spread out client load across different diallers
@@ -63,7 +70,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	return group.Wait()
 }
 
-func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.Duration, client bind.ContractBackend, nextTransfer func() (common.Address, *big.Int)) error {
+func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.Duration, client *ethclient.Client, nextTransfer func() (common.Address, *big.Int)) error {
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
@@ -74,6 +81,14 @@ func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.D
 	transactor.FeeCurrency = &stableTokenAddress
 
 	for {
+		pendingLock.Lock()
+		if maxPending != 0 && pending > maxPending {
+			pendingLock.Unlock()
+			continue
+		} else {
+			pending++
+			pendingLock.Unlock()
+		}
 		txSentTime := time.Now()
 		recipient, value := nextTransfer()
 		tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
@@ -89,6 +104,12 @@ func runBot(ctx context.Context, acc env.Account, verbose bool, sleepTime time.D
 		}
 
 		_, err = tx.WaitMined(ctx)
+		pendingLock.Lock()
+		if maxPending != 0 {
+			pending--
+		}
+		pendingLock.Unlock()
+
 		if err != nil {
 			if err != context.Canceled {
 				fmt.Printf("Error waiting for tx: %v\n", err)

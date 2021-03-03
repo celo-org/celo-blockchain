@@ -75,6 +75,11 @@ func (env *Environment) Refresh() error {
 // AdminAccount returns the environment's admin account
 func (env *Environment) AdminAccount() Account { return env.accounts.Admin }
 
+// Account retrieves the account corresponding to the (accountType, idx)
+func (env *Environment) Account(accType AccountType, idx int) (*Account, error) {
+	return DeriveAccount(env.Config.Mnemonic, accType, idx)
+}
+
 // DeveloperAccounts returns the environment's developers accounts
 func (env *Environment) DeveloperAccounts() []Account { return env.accounts.Developers }
 
