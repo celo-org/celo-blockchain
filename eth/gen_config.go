@@ -6,12 +6,12 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/miner"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // MarshalTOML marshals as TOML.
@@ -52,8 +52,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideIstanbul        *big.Int                       `toml:",omitempty"`
-		OverrideMuirGlacier     *big.Int                       `toml:",omitempty"`
+		OverrideChurrito        *big.Int                       `toml:",omitempty"`
+		OverrideDonut           *big.Int                       `toml:",omitempty"`
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -91,6 +91,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasCap = c.RPCGasCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
+	enc.OverrideChurrito = c.OverrideChurrito
+	enc.OverrideDonut = c.OverrideDonut
 	return &enc, nil
 }
 
@@ -132,8 +134,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCGasCap               *big.Int                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideIstanbul        *big.Int                       `toml:",omitempty"`
-		OverrideMuirGlacier     *big.Int                       `toml:",omitempty"`
+		OverrideChurrito        *big.Int                       `toml:",omitempty"`
+		OverrideDonut           *big.Int                       `toml:",omitempty"`
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -243,6 +245,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
+	}
+	if dec.OverrideChurrito != nil {
+		c.OverrideChurrito = dec.OverrideChurrito
+	}
+	if dec.OverrideDonut != nil {
+		c.OverrideDonut = dec.OverrideDonut
 	}
 	return nil
 }

@@ -19,11 +19,12 @@ package vm
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // Message represents a message sent to a contract.
@@ -85,26 +86,27 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 		beneficiary = *txFeeRecipient
 	}
 
-	var engine consensus.Engine
-	var getHeaderByNumberFn func(uint64) *types.Header
-	if chain != nil {
-		engine = chain.Engine()
-		getHeaderByNumberFn = chain.GetHeaderByNumber
+	ctx := Context{
+		CanTransfer: CanTransfer,
+		Transfer:    Transfer,
+		GetHash:     GetHashFn(header, chain),
+		VerifySeal:  VerifySealFn(header, chain),
+		Origin:      msg.From(),
+		Coinbase:    beneficiary,
+		BlockNumber: new(big.Int).Set(header.Number),
+		Time:        new(big.Int).SetUint64(header.Time),
+		GasPrice:    new(big.Int).Set(msg.GasPrice()),
 	}
 
-	return Context{
-		CanTransfer:       CanTransfer,
-		Transfer:          Transfer,
-		GetHash:           GetHashFn(header, chain),
-		GetHeaderByNumber: getHeaderByNumberFn,
-		VerifySeal:        VerifySealFn(header, chain),
-		Origin:            msg.From(),
-		Coinbase:          beneficiary,
-		BlockNumber:       new(big.Int).Set(header.Number),
-		Time:              new(big.Int).SetUint64(header.Time),
-		GasPrice:          new(big.Int).Set(msg.GasPrice()),
-		Engine:            engine,
+	if chain != nil {
+		ctx.EpochSize = chain.Engine().EpochSize()
+		ctx.GetValidators = chain.Engine().GetValidators
+		ctx.GetHeaderByNumber = chain.GetHeaderByNumber
+	} else {
+		ctx.GetValidators = func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator { return nil }
+		ctx.GetHeaderByNumber = func(uint64) *types.Header { panic("evm context without blockchain context") }
 	}
+	return ctx
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number

@@ -27,16 +27,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	mockEngine "github.com/ethereum/go-ethereum/consensus/consensustest"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // So we can deterministically seed different blockchains
@@ -1139,7 +1139,7 @@ func TestSideLogRebirth(t *testing.T) {
 	logsCh := make(chan []*types.Log)
 	blockchain.SubscribeLogsEvent(logsCh)
 
-	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {
+	chain, _ := GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), db, 3, func(i int, gen *BlockGen) {
 		if i == 1 {
 			// Higher block difficulty
 			gen.OffsetTime(-9)
@@ -1163,8 +1163,8 @@ func TestSideLogRebirth(t *testing.T) {
 		t.Fatalf("failed to insert forked chain: %v", err)
 	}
 
-	// Generate a new block based on side chain
-	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 1, func(i int, gen *BlockGen) {})
+	// Generate two new blocks based on side chain, to trigger a reorg
+	newBlocks, _ := GenerateChain(params.IstanbulTestChainConfig, sideChain[len(sideChain)-1], mockEngine.NewFaker(), db, 2, func(i int, gen *BlockGen) {})
 	go listenNewLog(logsCh, 1)
 	if _, err := blockchain.InsertChain(newBlocks); err != nil {
 		t.Fatalf("failed to insert forked chain: %v", err)
@@ -1479,7 +1479,7 @@ func TestEIP161AccountRemoval(t *testing.T) {
 // tests that under weird reorg conditions the blockchain and its internal header-
 // chain return the same latest block/header.
 //
-// https://github.com/ethereum/go-ethereum/pull/15941
+// https://github.com/celo-org/celo-blockchain/pull/15941
 func TestBlockchainHeaderchainReorgConsistency(t *testing.T) {
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()
@@ -1742,8 +1742,8 @@ func TestIncompleteAncientReceiptChainInsertion(t *testing.T) {
 // overtake the 'canon' chain until after it's passed canon by about 200 blocks.
 //
 // Details at:
-//  - https://github.com/ethereum/go-ethereum/issues/18977
-//  - https://github.com/ethereum/go-ethereum/pull/18988
+//  - https://github.com/celo-org/celo-blockchain/issues/18977
+//  - https://github.com/celo-org/celo-blockchain/pull/18988
 func TestLowDiffLongChain(t *testing.T) {
 	// Generate a canonical chain to act as the main dataset
 	engine := mockEngine.NewFaker()

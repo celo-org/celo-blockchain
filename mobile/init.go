@@ -21,8 +21,8 @@ package geth
 import (
 	"runtime"
 
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 func init() {

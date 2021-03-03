@@ -20,12 +20,12 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/miner"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -132,4 +132,10 @@ type Config struct {
 
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
+
+	// Churrito block override (TODO: remove after the fork)
+	OverrideChurrito *big.Int `toml:",omitempty"`
+
+	// Donut block override (TODO: remove after the fork)
+	OverrideDonut *big.Int `toml:",omitempty"`
 }

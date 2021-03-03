@@ -16,7 +16,10 @@
 
 package common
 
-import "math/big"
+import (
+	"fmt"
+	"math/big"
+)
 
 // Common big integers often used
 var (
@@ -28,3 +31,13 @@ var (
 	Big256 = big.NewInt(256)
 	Big257 = big.NewInt(257)
 )
+
+// MustBigInt creates a big.Int from a string
+// panics on error
+func MustBigInt(str string) *big.Int {
+	i, ok := new(big.Int).SetString(str, 10)
+	if !ok {
+		panic(fmt.Errorf("Invalid string for big.Int: %s", str))
+	}
+	return i
+}
