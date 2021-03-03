@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/accounts/external"
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/scwallet"
 	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -523,14 +522,6 @@ func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
 				log.Warn(fmt.Sprintf("Failed to start WebUSB Trezor hub, disabling: %v", err))
 			} else {
 				backends = append(backends, trezorhub)
-			}
-		}
-		if len(conf.SmartCardDaemonPath) > 0 {
-			// Start a smart card hub
-			if schub, err := scwallet.NewHub(conf.SmartCardDaemonPath, scwallet.Scheme, keydir); err != nil {
-				log.Warn(fmt.Sprintf("Failed to start smart card hub, disabling: %v", err))
-			} else {
-				backends = append(backends, schub)
 			}
 		}
 	}
