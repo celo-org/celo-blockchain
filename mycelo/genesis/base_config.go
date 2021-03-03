@@ -26,12 +26,10 @@ func BaseConfig() *Config {
 			TargetDensity:   fixed("0.5"),
 		},
 		Reserve: ReserveParameters{
-			TobinTaxStalenessThreshold: bigInt(3153600000),
-			TobinTax:                   common.Big0,
-			TobinTaxReserveRatio:       common.Big0,
-			DailySpendingRatio:         bigIntStr("50000000000000000000000"),
-			FrozenDays:                 nil,
-			FrozenGold:                 nil,
+			TobinTaxStalenessThreshold: 3153600000,
+			TobinTax:                   fixed("0"),
+			TobinTaxReserveRatio:       fixed("0"),
+			DailySpendingRatio:         fixed("0.05"),
 			AssetAllocations: AssetAllocationList{
 				{"cGLD", fixed("0.5")},
 				{"BTC", fixed("0.3")},
@@ -44,7 +42,7 @@ func BaseConfig() *Config {
 			Symbol:                      "cUSD",
 			Decimals:                    18,
 			Rate:                        fixed("1"),
-			InflationFactorUpdatePeriod: bigInt(2 * Year),
+			InflationFactorUpdatePeriod: 2 * Year,
 			GoldPrice:                   fixed("1"),
 			ExchangeIdentifier:          "Exchange",
 		},
@@ -53,38 +51,38 @@ func BaseConfig() *Config {
 			Symbol:                      "cEUR",
 			Decimals:                    18,
 			Rate:                        fixed("1"),
-			InflationFactorUpdatePeriod: bigInt(2 * Year),
+			InflationFactorUpdatePeriod: 2 * Year,
 			GoldPrice:                   fixed("1"),
 			ExchangeIdentifier:          "ExchangeEUR",
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
 				Value:    bigIntStr("10000000000000000000000"), // 10k CELO per validator
-				Duration: bigInt(180 * Day),
+				Duration: 180 * Day,
 			},
 			ValidatorLockedGoldRequirements: LockedGoldRequirements{
 				Value: bigIntStr("10000000000000000000000"), // 10k CELO
 				// MUST BE KEPT IN SYNC WITH MEMBERSHIP HISTORY LENGTH
-				Duration: bigInt(60 * Day),
+				Duration: 60 * Day,
 			},
-			ValidatorScoreExponent:        bigInt(10),
+			ValidatorScoreExponent:        10,
 			ValidatorScoreAdjustmentSpeed: fixed("0.1"),
 
 			// MUST BE KEPT IN SYNC WITH VALIDATOR LOCKED GOLD DURATION
-			MembershipHistoryLength: bigInt(60),
+			MembershipHistoryLength: 60,
 
-			CommissionUpdateDelay: bigInt((3 * Day) / 5), // Approximately 3 days with 5s block times
-			MaxGroupSize:          bigInt(5),
+			CommissionUpdateDelay: (3 * Day) / 5, // Approximately 3 days with 5s block times
+			MaxGroupSize:          5,
 
-			SlashingPenaltyResetPeriod: bigInt(30 * Day),
+			SlashingPenaltyResetPeriod: 30 * Day,
 
-			DowntimeGracePeriod: bigInt(0),
+			DowntimeGracePeriod: 0,
 
 			Commission: fixed("0.1"),
 		},
 		Election: ElectionParameters{
-			MinElectableValidators: bigInt(1),
-			MaxElectableValidators: bigInt(100),
+			MinElectableValidators: 1,
+			MaxElectableValidators: 100,
 			MaxVotesPerAccount:     bigInt(10),
 			ElectabilityThreshold:  fixed("0.001"),
 		},
@@ -121,15 +119,15 @@ func BaseConfig() *Config {
 			Frozen: false,
 		},
 		LockedGold: LockedGoldParameters{
-			UnlockingPeriod: bigInt(259200),
+			UnlockingPeriod: 259200,
 		},
 		Random: RandomParameters{
-			RandomnessBlockRetentionWindow: bigInt(720),
+			RandomnessBlockRetentionWindow: 720,
 		},
 		Attestations: AttestationsParameters{
-			AttestationExpiryBlocks:        bigInt(Hour / 5), // 1 hour assuming 5 second blocks, but ok anyway
-			SelectIssuersWaitBlocks:        bigInt(4),
-			MaxAttestations:                bigInt(100),
+			AttestationExpiryBlocks:        Hour / 5, // 1 hour assuming 5 second blocks, but ok anyway
+			SelectIssuersWaitBlocks:        4,
+			MaxAttestations:                100,
 			AttestationRequestFeeInDollars: decimal("0.05"), // use decimal rather than fixed, since we use this to multiply by
 		},
 		TransferWhitelist: TransferWhitelistParameters{},
@@ -138,8 +136,8 @@ func BaseConfig() *Config {
 		},
 		Blockchain: BlockchainParameters{
 			Version:                 Version{1, 0, 0},
-			GasForNonGoldCurrencies: bigInt(50000),
-			BlockGasLimit:           bigInt(13000000),
+			GasForNonGoldCurrencies: 50000,
+			BlockGasLimit:           13000000,
 			UptimeLookbackWindow:    12,
 		},
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{

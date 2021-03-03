@@ -65,7 +65,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 		DonutBlock:    common.Big0,
 	}
 
-	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
+	genesisConfig.Blockchain.UptimeLookbackWindow = genesisConfig.Istanbul.LookbackWindow
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := genesis.MultiSigParameters{
@@ -92,8 +92,6 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	genesisConfig.GoldToken.Frozen = false
 	genesisConfig.StableToken.Frozen = false
 	genesisConfig.Exchange.Frozen = false
-	genesisConfig.Reserve.FrozenDays = nil
-	genesisConfig.Reserve.FrozenAssetsDays = nil
 	genesisConfig.EpochRewards.Frozen = false
 
 	return genesisConfig, nil
@@ -137,10 +135,10 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		DonutBlock:    common.Big0,
 	}
 
-	genesisConfig.Blockchain.UptimeLookbackWindow = int64(genesisConfig.Istanbul.LookbackWindow)
+	genesisConfig.Blockchain.UptimeLookbackWindow = genesisConfig.Istanbul.LookbackWindow
 
 	// 10 billion gas limit, set super high on purpose
-	genesisConfig.Blockchain.BlockGasLimit = big.NewInt(1000000000)
+	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := genesis.MultiSigParameters{
@@ -160,7 +158,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 
-	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)
+	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * genesis.Year
 	genesisConfig.StableToken.InitialBalances = cusdBalances
 	genesisConfig.GoldToken.InitialBalances = goldBalances
 
@@ -172,8 +170,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.GoldToken.Frozen = false
 	genesisConfig.StableToken.Frozen = false
 	genesisConfig.Exchange.Frozen = false
-	genesisConfig.Reserve.FrozenDays = nil
-	genesisConfig.Reserve.FrozenAssetsDays = nil
+	genesisConfig.Reserve.FrozenAssetsDays = 0
 	genesisConfig.EpochRewards.Frozen = false
 
 	return genesisConfig, nil

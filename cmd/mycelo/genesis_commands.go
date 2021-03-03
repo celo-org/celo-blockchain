@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"path"
 
@@ -131,7 +130,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
 	}
 	if ctx.IsSet("blockgaslimit") {
-		genesisConfig.Blockchain.BlockGasLimit = big.NewInt(ctx.Int64("blockgaslimit"))
+		genesisConfig.Blockchain.BlockGasLimit = ctx.Uint64("blockgaslimit")
 	}
 
 	return env, genesisConfig, nil
