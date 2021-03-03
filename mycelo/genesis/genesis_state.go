@@ -56,7 +56,7 @@ func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPat
 			ChainConfig: genesisConfig.ChainConfig(),
 			Origin:      adminAddress,
 			State:       statedb,
-			GasLimit:    token.MustNew("10").BigInt().Uint64(), // 10 CELO should be more than enough for gas fees
+			GasLimit:    1000000000000000,
 			GasPrice:    big.NewInt(0),
 			Value:       big.NewInt(0),
 			Time:        new(big.Int).SetUint64(genesisConfig.GenesisTimestamp),
