@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
 	"github.com/shopspring/decimal"
 )
 
