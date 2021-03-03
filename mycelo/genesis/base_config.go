@@ -4,7 +4,8 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
+	"github.com/shopspring/decimal"
 )
 
 // BaseConfig creates base parameters for celo
@@ -13,13 +14,14 @@ func BaseConfig() *Config {
 	bigInt := big.NewInt
 	bigIntStr := common.MustBigInt
 	fixed := fixed.MustNew
+	decimal := decimal.RequireFromString
 
 	return &Config{
 		SortedOracles: SortedOraclesParameters{
 			ReportExpirySeconds: 5 * Minute,
 		},
 		GasPriceMinimum: GasPriceMinimumParameters{
-			MinimunFloor:    bigInt(100000000),
+			MinimumFloor:    bigInt(100000000),
 			AdjustmentSpeed: fixed("0.5"),
 			TargetDensity:   fixed("0.5"),
 		},
@@ -44,6 +46,16 @@ func BaseConfig() *Config {
 			Rate:                        fixed("1"),
 			InflationFactorUpdatePeriod: bigInt(2 * Year),
 			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "Exchange",
+		},
+		StableTokenEUR: StableTokenParameters{
+			Name:                        "Celo Euro",
+			Symbol:                      "cEUR",
+			Decimals:                    18,
+			Rate:                        fixed("1"),
+			InflationFactorUpdatePeriod: bigInt(2 * Year),
+			GoldPrice:                   fixed("1"),
+			ExchangeIdentifier:          "ExchangeEUR",
 		},
 		Validators: ValidatorsParameters{
 			GroupLockedGoldRequirements: LockedGoldRequirements{
@@ -65,6 +77,10 @@ func BaseConfig() *Config {
 			MaxGroupSize:          bigInt(5),
 
 			SlashingPenaltyResetPeriod: bigInt(30 * Day),
+
+			DowntimeGracePeriod: bigInt(0),
+
+			Commission: fixed("0.1"),
 		},
 		Election: ElectionParameters{
 			MinElectableValidators: bigInt(1),
@@ -73,6 +89,13 @@ func BaseConfig() *Config {
 			ElectabilityThreshold:  fixed("0.001"),
 		},
 		Exchange: ExchangeParameters{
+			Spread:          fixed("0.005"),
+			ReserveFraction: fixed("0.01"),
+			UpdateFrequency: 5 * Minute,
+			MinimumReports:  1,
+			Frozen:          false,
+		},
+		ExchangeEUR: ExchangeParameters{
 			Spread:          fixed("0.005"),
 			ReserveFraction: fixed("0.01"),
 			UpdateFrequency: 5 * Minute,
@@ -103,6 +126,12 @@ func BaseConfig() *Config {
 		Random: RandomParameters{
 			RandomnessBlockRetentionWindow: bigInt(720),
 		},
+		Attestations: AttestationsParameters{
+			AttestationExpiryBlocks:        bigInt(Hour / 5), // 1 hour assuming 5 second blocks, but ok anyway
+			SelectIssuersWaitBlocks:        bigInt(4),
+			MaxAttestations:                bigInt(100),
+			AttestationRequestFeeInDollars: decimal("0.05"), // use decimal rather than fixed, since we use this to multiply by
+		},
 		TransferWhitelist: TransferWhitelistParameters{},
 		GoldToken: GoldTokenParameters{
 			Frozen: false,
@@ -121,6 +150,20 @@ func BaseConfig() *Config {
 			Reward:            bigIntStr("10000000000000000000"),  // 10 cGLD
 			Penalty:           bigIntStr("100000000000000000000"), // 100 cGLD
 			SlashableDowntime: 60,                                 // Should be overridden on public testnets
+		},
+		Governance: GovernanceParameters{
+			UseMultiSig:             true,
+			ConcurrentProposals:     3,
+			MinDeposit:              bigIntStr("100000000000000000000"), // 100 cGLD
+			QueueExpiry:             4 * Week,
+			DequeueFrequency:        30 * Minute,
+			ApprovalStageDuration:   30 * Minute,
+			ReferendumStageDuration: Hour,
+			ExecutionStageDuration:  Day,
+			ParticipationBaseline:   fixed("0.005"),
+			ParticipationFloor:      fixed("0.01"),
+			BaselineUpdateFactor:    fixed("0.2"),
+			BaselineQuorumFactor:    fixed("1"),
 		},
 	}
 }

@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
+	"github.com/celo-org/celo-blockchain/common/decimal/token"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/params"
@@ -31,11 +32,13 @@ type localEnv struct{}
 
 func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
-		Mnemonic:           env.MustNewMnemonic(),
-		InitialValidators:  3,
-		ValidatorsPerGroup: 1,
-		DeveloperAccounts:  10,
-		ChainID:            big.NewInt(1000 * (1 + rand.Int63n(9999))),
+		Accounts: env.AccountsConfig{
+			Mnemonic:             env.MustNewMnemonic(),
+			NumValidators:        3,
+			ValidatorsPerGroup:   1,
+			NumDeveloperAccounts: 10,
+		},
+		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
 	}
 	env, err := env.New(workdir, envCfg)
 	if err != nil {
@@ -66,7 +69,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := genesis.MultiSigParameters{
-		Signatories:                      []common.Address{env.AdminAccount().Address},
+		Signatories:                      []common.Address{env.Accounts().AdminAccount().Address},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
@@ -75,11 +78,11 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
-	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
-	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("50000000000000000000000")}
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("1000000000000000000000000")}
+	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	for i, acc := range env.Accounts().DeveloperAccounts() {
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 
 	genesisConfig.StableToken.InitialBalances = cusdBalances
@@ -100,11 +103,13 @@ type loadtestEnv struct{}
 
 func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
-		Mnemonic:           "miss fire behind decide egg buyer honey seven advance uniform profit renew",
-		InitialValidators:  1,
-		ValidatorsPerGroup: 1,
-		DeveloperAccounts:  10000,
-		ChainID:            big.NewInt(9099000),
+		Accounts: env.AccountsConfig{
+			Mnemonic:             "miss fire behind decide egg buyer honey seven advance uniform profit renew",
+			NumValidators:        1,
+			ValidatorsPerGroup:   1,
+			NumDeveloperAccounts: 10000,
+		},
+		ChainID: big.NewInt(9099000),
 	}
 
 	env, err := env.New(workdir, envCfg)
@@ -139,7 +144,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := genesis.MultiSigParameters{
-		Signatories:                      []common.Address{env.AdminAccount().Address},
+		Signatories:                      []common.Address{env.Accounts().AdminAccount().Address},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
@@ -148,11 +153,11 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.GovernanceApproverMultiSig = adminMultisig
 
 	// Add balances to developer accounts
-	cusdBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
-	goldBalances := make([]genesis.Balance, len(env.DeveloperAccounts()))
-	for i, acc := range env.DeveloperAccounts() {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: common.MustBigInt("10000000000000000000000000")}
+	cusdBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	goldBalances := make([]genesis.Balance, env.Accounts().NumDeveloperAccounts)
+	for i, acc := range env.Accounts().DeveloperAccounts() {
+		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = big.NewInt(1 * genesis.Year)

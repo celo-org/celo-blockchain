@@ -65,7 +65,7 @@ func (cl *Cluster) Init() error {
 func (cl *Cluster) ensureNodes() []*Node {
 
 	if cl.nodes == nil {
-		validators := cl.env.ValidatorAccounts()
+		validators := cl.env.Accounts().ValidatorAccounts()
 		cl.nodes = make([]*Node, len(validators))
 		for i, validator := range validators {
 			nodeConfig := &NodeConfig{

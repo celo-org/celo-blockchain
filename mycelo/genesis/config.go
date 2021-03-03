@@ -4,9 +4,10 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fixed"
+	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
 	"github.com/celo-org/celo-blockchain/mycelo/internal/utils"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/shopspring/decimal"
 )
 
 // durations in seconds
@@ -30,7 +31,9 @@ type Config struct {
 	GasPriceMinimum            GasPriceMinimumParameters
 	Reserve                    ReserveParameters
 	StableToken                StableTokenParameters
+	StableTokenEUR             StableTokenParameters
 	Exchange                   ExchangeParameters
+	ExchangeEUR                ExchangeParameters
 	LockedGold                 LockedGoldParameters
 	GoldToken                  GoldTokenParameters
 	Validators                 ValidatorsParameters
@@ -38,11 +41,13 @@ type Config struct {
 	EpochRewards               EpochRewardsParameters
 	Blockchain                 BlockchainParameters
 	Random                     RandomParameters
+	Attestations               AttestationsParameters
 	TransferWhitelist          TransferWhitelistParameters
 	ReserveSpenderMultiSig     MultiSigParameters
 	GovernanceApproverMultiSig MultiSigParameters
 	DoubleSigningSlasher       DoubleSigningSlasherParameters
 	DowntimeSlasher            DowntimeSlasherParameters
+	Governance                 GovernanceParameters
 }
 
 // Save will write config into a json file
@@ -141,6 +146,22 @@ type DowntimeSlasherParameters struct {
 	SlashableDowntime uint64   `json:"slashableDowntime"`
 }
 
+// GovernanceParameters are the initial configuration parameters for Governance
+type GovernanceParameters struct {
+	UseMultiSig             bool         `json:"useMultiSig"` // whether the approver should be the multisig (otherwise it's the admin)
+	ConcurrentProposals     uint64       `json:"concurrentProposals"`
+	MinDeposit              *big.Int     `json:"MinDeposit"`
+	QueueExpiry             uint64       `json:"QueueExpiry"`
+	DequeueFrequency        uint64       `json:"DequeueFrequency"`
+	ApprovalStageDuration   uint64       `json:"ApprovalStageDuration"`
+	ReferendumStageDuration uint64       `json:"ReferendumStageDuration"`
+	ExecutionStageDuration  uint64       `json:"ExecutionStageDuration"`
+	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
+	ParticipationFloor      *fixed.Fixed `json:"participationFloor"`
+	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor"`
+	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor"`
+}
+
 // ValidatorsParameters are the initial configuration parameters for Validators
 type ValidatorsParameters struct {
 	GroupLockedGoldRequirements     LockedGoldRequirements `json:"groupLockedGoldRequirements"`
@@ -151,6 +172,9 @@ type ValidatorsParameters struct {
 	SlashingPenaltyResetPeriod      *big.Int               `json:"slashingPenaltyResetPeriod"`
 	MaxGroupSize                    *big.Int               `json:"maxGroupSize"`
 	CommissionUpdateDelay           *big.Int               `json:"commissionUpdateDelay"`
+	DowntimeGracePeriod             *big.Int               `json:"downtimeGracePeriod"`
+
+	Commission *fixed.Fixed `json:"commission"` // commission for genesis registered validator groups
 }
 
 // EpochRewardsParameters are the initial configuration parameters for EpochRewards
@@ -186,6 +210,14 @@ type RandomParameters struct {
 	RandomnessBlockRetentionWindow *big.Int `json:"randomnessBlockRetentionWindow"`
 }
 
+// AttestationsParameters are the initial configuration parameters for Attestations
+type AttestationsParameters struct {
+	AttestationExpiryBlocks        *big.Int        `json:"attestationExpiryBlocks"`
+	SelectIssuersWaitBlocks        *big.Int        `json:"selectIssuersWaitBlocks"`
+	MaxAttestations                *big.Int        `json:"maxAttestations"`
+	AttestationRequestFeeInDollars decimal.Decimal `json:"AttestationRequestFeeInDollars"`
+}
+
 // SortedOraclesParameters are the initial configuration parameters for SortedOracles
 type SortedOraclesParameters struct {
 	ReportExpirySeconds int64 `json:"reportExpirySeconds"`
@@ -193,7 +225,7 @@ type SortedOraclesParameters struct {
 
 // GasPriceMinimumParameters are the initial configuration parameters for GasPriceMinimum
 type GasPriceMinimumParameters struct {
-	MinimunFloor    *big.Int     `json:"minimunFloor"`
+	MinimumFloor    *big.Int     `json:"minimumFloor"`
 	TargetDensity   *fixed.Fixed `json:"targetDensity"`
 	AdjustmentSpeed *fixed.Fixed `json:"adjustmentSpeed"`
 }
@@ -227,6 +259,7 @@ type StableTokenParameters struct {
 	Frozen                      bool             `json:"frozen"`
 	Oracles                     []common.Address `json:"oracles"`
 	GoldPrice                   *fixed.Fixed     `json:"goldPrice"`
+	ExchangeIdentifier          string           `json:"exchangeIdentifier"`
 }
 
 // ExchangeParameters are the initial configuration parameters for Exchange
