@@ -53,17 +53,17 @@ func (a Account) MarshalJSON() ([]byte, error) {
 	return json.Marshal(data)
 }
 
-// MustBLSProofOfPosession variant of BLSProofOfPosession that panics on error
-func (a *Account) MustBLSProofOfPosession() []byte {
-	pop, err := a.BLSProofOfPosession()
+// MustBLSProofOfPossession variant of BLSProofOfPossession that panics on error
+func (a *Account) MustBLSProofOfPossession() []byte {
+	pop, err := a.BLSProofOfPossession()
 	if err != nil {
 		panic(err)
 	}
 	return pop
 }
 
-// BLSProofOfPosession generates bls proof of posession
-func (a *Account) BLSProofOfPosession() ([]byte, error) {
+// BLSProofOfPossession generates bls proof of possession
+func (a *Account) BLSProofOfPossession() ([]byte, error) {
 	privateKeyBytes, err := blscrypto.ECDSAToBLS(a.PrivateKey)
 	if err != nil {
 		return nil, err
