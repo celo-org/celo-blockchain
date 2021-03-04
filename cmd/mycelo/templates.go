@@ -24,6 +24,8 @@ func templateFromString(templateStr string) template {
 		return localEnv{}
 	case "loadtest":
 		return loadtestEnv{}
+	case "monorepo":
+		return monorepoEnv{}
 	}
 	return localEnv{}
 }
@@ -151,6 +153,42 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	// Disable gas price min being updated
 	genesisConfig.GasPriceMinimum.TargetDensity = fixed.MustNew("0.9999")
 	genesisConfig.GasPriceMinimum.AdjustmentSpeed = fixed.MustNew("0")
+
+	return genesisConfig, nil
+}
+
+type monorepoEnv struct{}
+
+func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
+	envCfg := &env.Config{
+		Accounts: env.AccountsConfig{
+			Mnemonic:             env.MustNewMnemonic(),
+			NumValidators:        3,
+			ValidatorsPerGroup:   1,
+			NumDeveloperAccounts: 0,
+			UseValidatorAsAdmin:  true, // monorepo doesn't use the admin account type, uses first validator instead
+		},
+		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
+	}
+	env, err := env.New(workdir, envCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return env, nil
+}
+
+func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+		Epoch:          10,
+		ProposerPolicy: 2,
+		LookbackWindow: 3,
+		BlockPeriod:    1,
+		RequestTimeout: 3000,
+	})
+
+	// Add balances to validator accounts instead of developer accounts
+	fundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
 
 	return genesisConfig, nil
 }
