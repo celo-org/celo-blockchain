@@ -17,7 +17,9 @@
 package core
 
 import (
+	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -199,6 +201,8 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 	logger.Trace("Accepted prepare")
+	dur := time.Since(handleStart)
+	fmt.Printf("handlePrepare:%v\n", dur.Nanoseconds())
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.

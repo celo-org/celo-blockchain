@@ -18,8 +18,10 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -233,6 +235,8 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	numberOfCommits := c.current.Commits().Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
+	dur := time.Since(handleStart)
+	fmt.Printf("handleCommit:%v\n", dur.Nanoseconds())
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
@@ -259,6 +263,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.sendCommit()
 	}
+
 	return nil
 
 }
