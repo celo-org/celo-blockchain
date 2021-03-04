@@ -69,7 +69,6 @@ var (
 		utils.KeyStoreDirFlag,
 		utils.ExternalSignerFlag,
 		utils.NoUSBFlag,
-		utils.SmartCardDaemonPathFlag,
 		utils.OverrideChurritoFlag,
 		utils.OverrideDonutFlag,
 		utils.TxPoolLocalsFlag,
