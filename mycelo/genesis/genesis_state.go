@@ -33,6 +33,10 @@ type deployContext struct {
 	logger        log.Logger
 }
 
+// Helper function to reduce boilerplate, limited to this package on purpose
+// Like big.NewInt() except it takes uint64 instead of int64
+func newBigInt(x uint64) *big.Int { return new(big.Int).SetUint64(x) }
+
 func generateGenesisState(accounts *env.AccountsConfig, cfg *Config, buildPath string) (core.GenesisAlloc, error) {
 	deployment := newDeployment(cfg, accounts, buildPath)
 	return deployment.deploy()
@@ -59,9 +63,9 @@ func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPat
 			GasLimit:    1000000000000000,
 			GasPrice:    big.NewInt(0),
 			Value:       big.NewInt(0),
-			Time:        new(big.Int).SetUint64(genesisConfig.GenesisTimestamp),
+			Time:        newBigInt(genesisConfig.GenesisTimestamp),
 			Coinbase:    adminAddress,
-			BlockNumber: new(big.Int).SetUint64(0),
+			BlockNumber: newBigInt(0),
 			EVMConfig: vm.Config{
 				Tracer: nil,
 				Debug:  false,
@@ -301,8 +305,8 @@ func (ctx *deployContext) deployMultiSig(name string, params MultiSigParameters)
 	err := ctx.deployProxiedContract(name, func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			params.Signatories,
-			new(big.Int).SetUint64(params.NumRequiredConfirmations),
-			new(big.Int).SetUint64(params.NumInternalRequiredConfirmations),
+			newBigInt(params.NumRequiredConfirmations),
+			newBigInt(params.NumInternalRequiredConfirmations),
 		)
 	})
 	if err != nil {
@@ -337,13 +341,13 @@ func (ctx *deployContext) deployGovernance() error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			approver,
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.ConcurrentProposals),
+			newBigInt(ctx.genesisConfig.Governance.ConcurrentProposals),
 			ctx.genesisConfig.Governance.MinDeposit,
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.QueueExpiry),
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.DequeueFrequency),
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.ApprovalStageDuration),
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.ReferendumStageDuration),
-			new(big.Int).SetUint64(ctx.genesisConfig.Governance.ExecutionStageDuration),
+			newBigInt(ctx.genesisConfig.Governance.QueueExpiry),
+			newBigInt(ctx.genesisConfig.Governance.DequeueFrequency),
+			newBigInt(ctx.genesisConfig.Governance.ApprovalStageDuration),
+			newBigInt(ctx.genesisConfig.Governance.ReferendumStageDuration),
+			newBigInt(ctx.genesisConfig.Governance.ExecutionStageDuration),
 			ctx.genesisConfig.Governance.ParticipationBaseline.BigInt(),
 			ctx.genesisConfig.Governance.ParticipationFloor.BigInt(),
 			ctx.genesisConfig.Governance.BaselineUpdateFactor.BigInt(),
@@ -373,9 +377,9 @@ func (ctx *deployContext) deployBlockchainParameters() error {
 			big.NewInt(ctx.genesisConfig.Blockchain.Version.Major),
 			big.NewInt(ctx.genesisConfig.Blockchain.Version.Minor),
 			big.NewInt(ctx.genesisConfig.Blockchain.Version.Patch),
-			new(big.Int).SetUint64(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
-			new(big.Int).SetUint64(ctx.genesisConfig.Blockchain.BlockGasLimit),
-			new(big.Int).SetUint64(ctx.genesisConfig.Blockchain.UptimeLookbackWindow),
+			newBigInt(ctx.genesisConfig.Blockchain.GasForNonGoldCurrencies),
+			newBigInt(ctx.genesisConfig.Blockchain.BlockGasLimit),
+			newBigInt(ctx.genesisConfig.Blockchain.UptimeLookbackWindow),
 		)
 	})
 }
@@ -425,7 +429,7 @@ func (ctx *deployContext) deployDowntimeSlasher() error {
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.DowntimeSlasher.Penalty,
 			ctx.genesisConfig.DowntimeSlasher.Reward,
-			new(big.Int).SetUint64(ctx.genesisConfig.DowntimeSlasher.SlashableDowntime),
+			newBigInt(ctx.genesisConfig.DowntimeSlasher.SlashableDowntime),
 		)
 	})
 	if err != nil {
@@ -441,9 +445,9 @@ func (ctx *deployContext) deployAttestations() error {
 		fee := dollar.Mul(ctx.genesisConfig.Attestations.AttestationRequestFeeInDollars)
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
-			new(big.Int).SetUint64(ctx.genesisConfig.Attestations.AttestationExpiryBlocks),
-			new(big.Int).SetUint64(ctx.genesisConfig.Attestations.SelectIssuersWaitBlocks),
-			new(big.Int).SetUint64(ctx.genesisConfig.Attestations.MaxAttestations),
+			newBigInt(ctx.genesisConfig.Attestations.AttestationExpiryBlocks),
+			newBigInt(ctx.genesisConfig.Attestations.SelectIssuersWaitBlocks),
+			newBigInt(ctx.genesisConfig.Attestations.MaxAttestations),
 			[]common.Address{env.MustProxyAddressFor("StableToken")},
 			[]*big.Int{fee.BigInt()},
 		)
@@ -502,8 +506,8 @@ func (ctx *deployContext) deployExchanges() error {
 				env.MustProxyAddressFor(exchange.stableTokenContract),
 				exchange.cfg.Spread.BigInt(),
 				exchange.cfg.ReserveFraction.BigInt(),
-				new(big.Int).SetUint64(exchange.cfg.UpdateFrequency),
-				new(big.Int).SetUint64(exchange.cfg.MinimumReports),
+				newBigInt(exchange.cfg.UpdateFrequency),
+				newBigInt(exchange.cfg.MinimumReports),
 			)
 		})
 		if err != nil {
@@ -561,7 +565,7 @@ func (ctx *deployContext) deployAccounts() error {
 func (ctx *deployContext) deployRandom() error {
 	return ctx.deployCoreContract("Random", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			new(big.Int).SetUint64(ctx.genesisConfig.Random.RandomnessBlockRetentionWindow),
+			newBigInt(ctx.genesisConfig.Random.RandomnessBlockRetentionWindow),
 		)
 	})
 }
@@ -570,7 +574,7 @@ func (ctx *deployContext) deployLockedGold() error {
 	return ctx.deployCoreContract("LockedGold", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
-			new(big.Int).SetUint64(ctx.genesisConfig.LockedGold.UnlockingPeriod),
+			newBigInt(ctx.genesisConfig.LockedGold.UnlockingPeriod),
 		)
 	})
 }
@@ -580,16 +584,16 @@ func (ctx *deployContext) deployValidators() error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
 			ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Value,
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Duration),
+			newBigInt(ctx.genesisConfig.Validators.GroupLockedGoldRequirements.Duration),
 			ctx.genesisConfig.Validators.ValidatorLockedGoldRequirements.Value,
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.ValidatorLockedGoldRequirements.Duration),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.ValidatorScoreExponent),
+			newBigInt(ctx.genesisConfig.Validators.ValidatorLockedGoldRequirements.Duration),
+			newBigInt(ctx.genesisConfig.Validators.ValidatorScoreExponent),
 			ctx.genesisConfig.Validators.ValidatorScoreAdjustmentSpeed.BigInt(),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.MembershipHistoryLength),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.SlashingPenaltyResetPeriod),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.MaxGroupSize),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.CommissionUpdateDelay),
-			new(big.Int).SetUint64(ctx.genesisConfig.Validators.DowntimeGracePeriod),
+			newBigInt(ctx.genesisConfig.Validators.MembershipHistoryLength),
+			newBigInt(ctx.genesisConfig.Validators.SlashingPenaltyResetPeriod),
+			newBigInt(ctx.genesisConfig.Validators.MaxGroupSize),
+			newBigInt(ctx.genesisConfig.Validators.CommissionUpdateDelay),
+			newBigInt(ctx.genesisConfig.Validators.DowntimeGracePeriod),
 		)
 	})
 }
@@ -598,8 +602,8 @@ func (ctx *deployContext) deployElection() error {
 	return ctx.deployCoreContract("Election", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
-			new(big.Int).SetUint64(ctx.genesisConfig.Election.MinElectableValidators),
-			new(big.Int).SetUint64(ctx.genesisConfig.Election.MaxElectableValidators),
+			newBigInt(ctx.genesisConfig.Election.MinElectableValidators),
+			newBigInt(ctx.genesisConfig.Election.MaxElectableValidators),
 			ctx.genesisConfig.Election.MaxVotesPerAccount,
 			ctx.genesisConfig.Election.ElectabilityThreshold.BigInt(),
 		)
@@ -609,7 +613,7 @@ func (ctx *deployContext) deployElection() error {
 func (ctx *deployContext) deploySortedOracles() error {
 	return ctx.deployCoreContract("SortedOracles", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
-			new(big.Int).SetUint64(ctx.genesisConfig.SortedOracles.ReportExpirySeconds),
+			newBigInt(ctx.genesisConfig.SortedOracles.ReportExpirySeconds),
 		)
 	})
 }
@@ -629,7 +633,7 @@ func (ctx *deployContext) deployReserve() error {
 	err := ctx.deployCoreContract("Reserve", func(contract *contract.EVMBackend) error {
 		return contract.SimpleCall("initialize",
 			env.MustProxyAddressFor("Registry"),
-			new(big.Int).SetUint64(ctx.genesisConfig.Reserve.TobinTaxStalenessThreshold),
+			newBigInt(ctx.genesisConfig.Reserve.TobinTaxStalenessThreshold),
 			ctx.genesisConfig.Reserve.DailySpendingRatio.BigInt(),
 			big.NewInt(0),
 			big.NewInt(0),
@@ -653,7 +657,7 @@ func (ctx *deployContext) deployReserve() error {
 		if ctx.genesisConfig.Reserve.FrozenAssetsDays > 0 && ctx.genesisConfig.Reserve.FrozenAssetsStartBalance.Cmp(big.NewInt(0)) > 0 {
 			err := contract.SimpleCall("setFrozenGold",
 				ctx.genesisConfig.Reserve.FrozenAssetsStartBalance,
-				new(big.Int).SetUint64(ctx.genesisConfig.Reserve.FrozenAssetsDays),
+				newBigInt(ctx.genesisConfig.Reserve.FrozenAssetsDays),
 			)
 			if err != nil {
 				return err
@@ -693,7 +697,7 @@ func (ctx *deployContext) deployStableTokens() error {
 				token.cfg.Decimals,
 				env.MustProxyAddressFor("Registry"),
 				token.cfg.Rate.BigInt(),
-				new(big.Int).SetUint64(token.cfg.InflationFactorUpdatePeriod),
+				newBigInt(token.cfg.InflationFactorUpdatePeriod),
 				token.cfg.InitialBalances.Accounts(),
 				token.cfg.InitialBalances.Amounts(),
 				token.cfg.ExchangeIdentifier,
