@@ -138,7 +138,6 @@ var (
 		utils.NetworkIdFlag,
 		utils.CeloStatsURLFlag,
 		utils.EthStatsLegacyURLFlag,
-		utils.FakePoWFlag,
 		utils.NoCompactionFlag,
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,

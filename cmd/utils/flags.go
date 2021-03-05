@@ -495,10 +495,6 @@ var (
 		Name:  "celostats",
 		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
 	}
-	FakePoWFlag = cli.BoolFlag{
-		Name:  "fakepow",
-		Usage: "Disables proof-of-work verification",
-	}
 	NoCompactionFlag = cli.BoolFlag{
 		Name:  "nocompaction",
 		Usage: "Disables db compaction after import",
@@ -1935,9 +1931,6 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("%v", err)
 	}
 	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
-	if !ctx.GlobalBool(FakePoWFlag.Name) {
-		Fatalf("Only fake PoW engine is available")
-	}
 	engine := mockEngine.NewFaker()
 
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {

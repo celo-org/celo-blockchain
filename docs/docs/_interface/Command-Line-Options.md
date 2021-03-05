@@ -164,7 +164,6 @@ VIRTUAL MACHINE OPTIONS:
   --vm.ewasm value                    External ewasm configuration (default = built-in interpreter)
 
 LOGGING AND DEBUGGING OPTIONS:
-  --fakepow                           Disables proof-of-work verification
   --nocompaction                      Disables db compaction after import
   --verbosity value                   Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail (default: 3)
   --vmodule value                     Per-module verbosity: comma-separated list of <pattern>=<level> (e.g. eth/*=5,p2p=4)
