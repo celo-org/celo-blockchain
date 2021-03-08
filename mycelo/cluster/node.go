@@ -26,6 +26,7 @@ import (
 // NodeConfig represents the configuration of a celo-blockchain node runner
 type NodeConfig struct {
 	GethPath      string
+	ExtraFlags    string
 	ChainID       *big.Int
 	Number        int
 	Account       env.Account
@@ -167,6 +168,9 @@ func (n *Node) Run(ctx context.Context) error {
 		"--etherbase", n.Account.Address.Hex(),
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
+	}
+	if n.ExtraFlags != "" {
+		args = append(args, n.ExtraFlags)
 	}
 	cmd := exec.Command(n.GethPath, args...) // #nosec G204
 

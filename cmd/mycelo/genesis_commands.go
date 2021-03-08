@@ -53,12 +53,6 @@ var newEnvFlag = cli.StringFlag{
 	Usage: "Creates a new env in desired folder",
 }
 
-var loadTestMaxPendingFlag = cli.UintFlag{
-	Name:  "maxpending",
-	Usage: "Maximum number of in flight txs. Set to 0 to disable.",
-	Value: 200,
-}
-
 var createGenesisCommand = cli.Command{
 	Name:      "genesis",
 	Usage:     "Creates genesis.json from a template and overrides",
