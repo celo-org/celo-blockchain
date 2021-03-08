@@ -72,7 +72,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
-	GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult, isCached bool)
+	GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult)
 	Summary() *RoundStateSummary
 }
 
@@ -482,12 +482,12 @@ func (rs *roundStateImpl) SetStateProcessResult(proposalHash common.Hash, stateP
 	rs.stateProcessResults[proposalHash] = stateProcessResult
 }
 
-func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (stateProcessResult *core2.StateProcessResult, isCached bool) {
+func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (stateProcessResult *core2.StateProcessResult) {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
 	if rs.stateProcessResults != nil {
-		stateProcessResult, isCached = rs.stateProcessResults[proposalHash]
+		stateProcessResult, _ = rs.stateProcessResults[proposalHash]
 	}
 
 	return

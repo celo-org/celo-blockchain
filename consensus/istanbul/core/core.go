@@ -379,7 +379,7 @@ func (c *core) commit() error {
 			return nil
 		}
 
-		result, _ := c.current.GetStateProcessResult(proposal.Hash())
+		result := c.current.GetStateProcessResult(proposal.Hash())
 		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal, result); err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)

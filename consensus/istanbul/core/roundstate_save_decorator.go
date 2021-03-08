@@ -141,7 +141,7 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 }
 
 // GetStateProcessResult implements RoundState.GetStateProcessResult
-func (rsp *rsSaveDecorator) GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult, isCached bool) {
+func (rsp *rsSaveDecorator) GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult) {
 	return rsp.rs.GetStateProcessResult(proposalHash)
 }
 
