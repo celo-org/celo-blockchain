@@ -12,6 +12,7 @@ import (
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
@@ -61,6 +62,7 @@ func init() {
 		loadBotCommand,
 		envCommand,
 	}
+	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
 }
 
 func main() {
@@ -72,10 +74,21 @@ var gethPathFlag = cli.StringFlag{
 	Usage: "Path to geth binary",
 }
 
+var gethExtraFlagsFlag = cli.StringFlag{
+	Name:  "extraFlags",
+	Usage: "extra flags to pass to the validators",
+}
+
 var loadTestTPSFlag = cli.IntFlag{
 	Name:  "tps",
 	Usage: "Transactions per second to target in the load test",
 	Value: 20,
+}
+
+var loadTestMaxPendingFlag = cli.UintFlag{
+	Name:  "maxpending",
+	Usage: "Maximum number of in flight txs. Set to 0 to disable.",
+	Value: 200,
 }
 
 var initValidatorsCommand = cli.Command{
@@ -93,6 +106,7 @@ var runValidatorsCommand = cli.Command{
 	Action:    validatorRun,
 	Flags: []cli.Flag{
 		gethPathFlag,
+		gethExtraFlagsFlag,
 		cli.BoolFlag{Name: "init", Usage: "Init nodes before running them"},
 	},
 }
@@ -164,8 +178,9 @@ func validatorInit(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	cfg := cluster.Config{GethPath: gethPath}
 
-	cluster := cluster.New(env, gethPath)
+	cluster := cluster.New(env, cfg)
 	return cluster.Init()
 }
 
@@ -179,8 +194,16 @@ func validatorRun(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	extra := ""
+	if ctx.IsSet(gethExtraFlagsFlag.Name) {
+		extra = ctx.String(gethExtraFlagsFlag.Name)
+	}
+	cfg := cluster.Config{
+		GethPath:   gethPath,
+		ExtraFlags: extra,
+	}
 
-	cluster := cluster.New(env, gethPath)
+	cluster := cluster.New(env, cfg)
 
 	if ctx.IsSet("init") {
 		if err := cluster.Init(); err != nil {
