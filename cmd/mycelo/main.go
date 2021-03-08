@@ -75,7 +75,7 @@ var gethPathFlag = cli.StringFlag{
 }
 
 var gethExtraFlagsFlag = cli.StringFlag{
-	Name:  "extraFlags",
+	Name:  "extraflags",
 	Usage: "extra flags to pass to the validators",
 }
 
