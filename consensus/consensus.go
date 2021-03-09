@@ -182,7 +182,7 @@ type Istanbul interface {
 	SetCallBacks(hasBadBlock func(common.Hash) bool,
 		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-		writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) (types.WriteStatus, error)) error
+		writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) error) error
 
 	// StartValidating starts the validating engine
 	StartValidating() error

@@ -293,7 +293,10 @@ func (w *worker) start() {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
 			w.chain.Validator().ValidateState,
-			w.chain.WriteBlockWithState)
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
+				_, err := w.chain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
+				return err
+			})
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()
 		}

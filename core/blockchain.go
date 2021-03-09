@@ -936,6 +936,15 @@ func (bc *BlockChain) procFutureBlocks() {
 	}
 }
 
+// WriteStatus status of write
+type WriteStatus byte
+
+const (
+	NonStatTy WriteStatus = iota
+	CanonStatTy
+	SideStatTy
+)
+
 // truncateAncient rewinds the blockchain to the specified header and deletes all
 // data in the ancient store that exceeds the specified header.
 func (bc *BlockChain) truncateAncient(head uint64) error {
@@ -1276,7 +1285,7 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status types.WriteStatus, err error) {
+func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
@@ -1285,7 +1294,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status types.WriteStatus, err error) {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
@@ -1301,7 +1310,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, lookbackWindow)
 		err = uptimeMonitor.ProcessBlock(block)
 		if err != nil {
-			return types.NonStatTy, err
+			return NonStatTy, err
 		}
 
 		blockAuthor, err := istEngine.Author(block.Header())
@@ -1315,7 +1324,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 			if err != nil {
 				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
-				return types.NonStatTy, err
+				return NonStatTy, err
 			}
 		}
 	}
@@ -1323,7 +1332,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
-		return types.NonStatTy, consensus.ErrUnknownAncestor
+		return NonStatTy, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
 	currentBlock := bc.CurrentBlock()
@@ -1350,14 +1359,14 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Commit all cached state changes into underlying memory database.
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
-		return types.NonStatTy, err
+		return NonStatTy, err
 	}
 	triedb := bc.stateCache.TrieDB()
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
 		if err := triedb.Commit(root, false); err != nil {
-			return types.NonStatTy, err
+			return NonStatTy, err
 		}
 	} else {
 		// Full but not archive node, do proper garbage collection
@@ -1428,20 +1437,20 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		// Reorganise the chain if the parent is not the head block
 		if block.ParentHash() != currentBlock.Hash() {
 			if err := bc.reorg(currentBlock, block); err != nil {
-				return types.NonStatTy, err
+				return NonStatTy, err
 			}
 		}
-		status = types.CanonStatTy
+		status = CanonStatTy
 	} else {
-		status = types.SideStatTy
+		status = SideStatTy
 	}
 	// Set new head.
-	if status == types.CanonStatTy {
+	if status == CanonStatTy {
 		bc.writeHeadBlock(block)
 	}
 	bc.futureBlocks.Remove(block.Hash())
 
-	if status == types.CanonStatTy {
+	if status == CanonStatTy {
 		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
@@ -1734,7 +1743,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		blockInsertTimer.UpdateSince(start)
 
 		switch status {
-		case types.CanonStatTy:
+		case CanonStatTy:
 			log.Debug("Inserted new block", "number", block.Number(), "txs", len(block.Transactions()), "gas", block.GasUsed(),
 				"elapsed", common.PrettyDuration(time.Since(start)),
 				"root", block.Root())
@@ -1744,7 +1753,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			// Only count canonical blocks for GC processing time
 			bc.gcproc += proctime
 
-		case types.SideStatTy:
+		case SideStatTy:
 			log.Debug("Inserted forked block", "number", block.Number(), "hash", block.Hash(),
 				"elapsed", common.PrettyDuration(time.Since(start)),
 				"txs", len(block.Transactions()), "gas", block.GasUsed(),

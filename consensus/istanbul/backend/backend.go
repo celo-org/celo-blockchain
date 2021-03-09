@@ -189,7 +189,7 @@ type Backend struct {
 
 	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
-	writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) (types.WriteStatus, error)
+	writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) error
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -513,7 +513,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		sb.logger.Info("Duplicate block to commit", "number", block.Number(), "hash", block.Hash())
 		return nil
 	}
-	if _, err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
+	if err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
 		sb.logger.Error("Failed writeBlockWithState", "err", err)
 		return err
 	}
