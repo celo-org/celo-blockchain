@@ -158,7 +158,7 @@ The export-preimages command export hash preimages to an RLP encoded stream`,
 		Action:    utils.MigrateFlags(copyDb),
 		Name:      "copydb",
 		Usage:     "Create a local chain from a target chaindata folder",
-		ArgsUsage: "<sourceChaindataDir>",
+		ArgsUsage: "<sourceChainDataDir> <sourceAncientChainDataDir>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 			utils.AlfajoresFlag,
@@ -168,7 +168,8 @@ The export-preimages command export hash preimages to an RLP encoded stream`,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
-The first argument must be the directory containing the blockchain to download from`,
+The first argument must be the directory containing the blockchain to download from,
+the second argument must be the directory containing the ancient blockchain to download from`,
 	}
 	removedbCommand = cli.Command{
 		Action:    utils.MigrateFlags(removeDB),
@@ -203,7 +204,7 @@ Remove blockchain and state databases`,
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
 The arguments are interpreted as block numbers or hashes.
-Use "ethereum dump 0" to dump the genesis block.`,
+Use "geth dump 0" to dump the genesis block.`,
 	}
 	inspectCommand = cli.Command{
 		Action:    utils.MigrateFlags(inspect),
@@ -302,15 +303,9 @@ func importChain(ctx *cli.Context) error {
 	// Import the chain
 	start := time.Now()
 
-	if len(ctx.Args()) == 1 {
-		if err := utils.ImportChain(chain, ctx.Args().First()); err != nil {
-			log.Error("Import error", "err", err)
-		}
-	} else {
-		for _, arg := range ctx.Args() {
-			if err := utils.ImportChain(chain, arg); err != nil {
-				log.Error("Import error", "file", arg, "err", err)
-			}
+	for _, arg := range ctx.Args() {
+		if err := utils.ImportChain(chain, arg); err != nil {
+			log.Error("Import error", "file", arg, "err", err)
 		}
 	}
 	chain.Stop()
