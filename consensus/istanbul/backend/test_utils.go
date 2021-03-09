@@ -89,12 +89,8 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
-			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
-			},
-			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status types.WriteStatus, err error) {
-				return blockchain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
-			})
+			blockchain.Validator().ValidateState,
+			blockchain.WriteBlockWithState)
 		if isProxied {
 			b.StartProxiedValidatorEngine()
 		}
