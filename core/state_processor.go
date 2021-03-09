@@ -155,10 +155,3 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecip
 
 	return receipt, err
 }
-
-// StateProcessResult represents processing results from StateProcessor.
-type StateProcessResult struct {
-	State    *state.StateDB
-	Receipts types.Receipts
-	Logs     []*types.Log
-}

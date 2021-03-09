@@ -26,7 +26,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	core2 "github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -50,7 +51,7 @@ type RoundState interface {
 	AddParentCommit(msg *istanbul.Message) error
 	SetPendingRequest(pendingRequest *istanbul.Request) error
 	SetProposalVerificationStatus(proposalHash common.Hash, verificationStatus error)
-	SetStateProcessResult(proposalHash common.Hash, blockProcessResult *core2.StateProcessResult)
+	SetStateProcessResult(proposalHash common.Hash, blockProcessResult *StateProcessResult)
 
 	// view functions
 	DesiredRound() *big.Int
@@ -72,7 +73,7 @@ type RoundState interface {
 	View() *istanbul.View
 	PreparedCertificate() istanbul.PreparedCertificate
 	GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isCached bool)
-	GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult)
+	GetStateProcessResult(proposalHash common.Hash) (result *StateProcessResult)
 	Summary() *RoundStateSummary
 }
 
@@ -102,7 +103,7 @@ type roundStateImpl struct {
 	proposalVerificationStatus map[common.Hash]error
 
 	// Cache for StateProcessResult in this sequence.
-	stateProcessResults map[common.Hash]*core2.StateProcessResult
+	stateProcessResults map[common.Hash]*StateProcessResult
 
 	mu     *sync.RWMutex
 	logger log.Logger
@@ -471,23 +472,30 @@ func (rs *roundStateImpl) GetProposalVerificationStatus(proposalHash common.Hash
 	return
 }
 
-func (rs *roundStateImpl) SetStateProcessResult(proposalHash common.Hash, stateProcessResult *core2.StateProcessResult) {
+// StateProcessResult represents processing results from StateProcessor.
+type StateProcessResult struct {
+	State    *state.StateDB
+	Receipts types.Receipts
+	Logs     []*types.Log
+}
+
+func (rs *roundStateImpl) SetStateProcessResult(proposalHash common.Hash, stateProcessResult *StateProcessResult) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
 	if rs.stateProcessResults == nil {
-		rs.stateProcessResults = make(map[common.Hash]*core2.StateProcessResult)
+		rs.stateProcessResults = make(map[common.Hash]*StateProcessResult)
 	}
 
 	rs.stateProcessResults[proposalHash] = stateProcessResult
 }
 
-func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (stateProcessResult *core2.StateProcessResult) {
+func (rs *roundStateImpl) GetStateProcessResult(proposalHash common.Hash) (stateProcessResult *StateProcessResult) {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
 	if rs.stateProcessResults != nil {
-		stateProcessResult, _ = rs.stateProcessResults[proposalHash]
+		stateProcessResult = rs.stateProcessResults[proposalHash]
 	}
 
 	return

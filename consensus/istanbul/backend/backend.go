@@ -24,8 +24,6 @@ import (
 	"sync"
 	"time"
 
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -42,6 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -464,7 +463,7 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *core.StateProcessResult) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbulCore.StateProcessResult) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -528,7 +527,7 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (*core.StateProcessResult, time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProcessResult, time.Duration, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -602,7 +601,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*core.StateProcessResult,
 		}
 	}
 
-	result := &core.StateProcessResult{Receipts: receipts, Logs: logs, State: state}
+	result := &istanbulCore.StateProcessResult{Receipts: receipts, Logs: logs, State: state}
 	return result, 0, nil
 }
 

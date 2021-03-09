@@ -21,7 +21,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	core2 "github.com/celo-org/celo-blockchain/core"
 )
 
 // createOrRestoreRoundState will obtain the last saved RoundState and use it if it's newer than the given Sequence,
@@ -81,7 +80,7 @@ func (rsp *rsSaveDecorator) SetProposalVerificationStatus(proposalHash common.Ha
 	// Don't persist on proposal verification status change, since it's just a cache
 	rsp.rs.SetProposalVerificationStatus(proposalHash, verificationStatus)
 }
-func (rsp *rsSaveDecorator) SetStateProcessResult(proposalHash common.Hash, result *core2.StateProcessResult) {
+func (rsp *rsSaveDecorator) SetStateProcessResult(proposalHash common.Hash, result *StateProcessResult) {
 	rsp.rs.SetStateProcessResult(proposalHash, result)
 }
 
@@ -141,7 +140,7 @@ func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Ha
 }
 
 // GetStateProcessResult implements RoundState.GetStateProcessResult
-func (rsp *rsSaveDecorator) GetStateProcessResult(proposalHash common.Hash) (result *core2.StateProcessResult) {
+func (rsp *rsSaveDecorator) GetStateProcessResult(proposalHash common.Hash) (result *StateProcessResult) {
 	return rsp.rs.GetStateProcessResult(proposalHash)
 }
 
