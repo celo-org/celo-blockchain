@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -113,6 +114,13 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, non
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
+
+	if n := rand.Intn(2); n == 0 {
+		transactor.FeeCurrency = &stableTokenAddress
+
+	} else {
+		transactor.FeeCurrency = nil
+	}
 	if skipEstimation {
 		transactor.GasLimit = GasForTransferWithComment
 	}
