@@ -170,7 +170,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--password", n.pwdFile(),
 	}
 	if n.ExtraFlags != "" {
-		args = append(args, n.ExtraFlags)
+		args = append(args, strings.Fields(n.ExtraFlags)...)
 	}
 	cmd := exec.Command(n.GethPath, args...) // #nosec G204
 
