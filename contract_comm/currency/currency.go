@@ -147,7 +147,8 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 }
 
 func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
-	if currency1 == currency2 {
+	// Short circuit if the fee currency is the same. nil currency => native currency
+	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
 		return val1.Cmp(val2)
 	}
 
