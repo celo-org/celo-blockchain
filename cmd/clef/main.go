@@ -222,7 +222,6 @@ func init() {
 		chainIdFlag,
 		utils.LightKDFFlag,
 		utils.NoUSBFlag,
-		utils.SmartCardDaemonPathFlag,
 		utils.RPCListenAddrFlag,
 		utils.RPCVirtualHostsFlag,
 		utils.IPCDisabledFlag,
@@ -416,7 +415,7 @@ func newAccount(c *cli.Context) error {
 		lightKdf                  = c.GlobalBool(utils.LightKDFFlag.Name)
 	)
 	log.Info("Starting clef", "keystore", ksLoc, "light-kdf", lightKdf)
-	am := core.StartClefAccountManager(ksLoc, true, lightKdf, "")
+	am := core.StartClefAccountManager(ksLoc, true, lightKdf)
 	// This gives is us access to the external API
 	apiImpl := core.NewSignerAPI(am, 0, true, ui, nil, false, pwStorage)
 	// This gives us access to the internal API
@@ -549,11 +548,10 @@ func signer(c *cli.Context) error {
 		lightKdf = c.GlobalBool(utils.LightKDFFlag.Name)
 		advanced = c.GlobalBool(advancedMode.Name)
 		nousb    = c.GlobalBool(utils.NoUSBFlag.Name)
-		scpath   = c.GlobalString(utils.SmartCardDaemonPathFlag.Name)
 	)
 	log.Info("Starting signer", "chainid", chainId, "keystore", ksLoc,
 		"light-kdf", lightKdf, "advanced", advanced)
-	am := core.StartClefAccountManager(ksLoc, nousb, lightKdf, scpath)
+	am := core.StartClefAccountManager(ksLoc, nousb, lightKdf)
 	apiImpl := core.NewSignerAPI(am, chainId, nousb, ui, db, advanced, pwStorage)
 
 	// Establish the bidirectional communication, by creating a new UI backend and registering
