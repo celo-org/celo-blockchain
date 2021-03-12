@@ -779,10 +779,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
 		}
-
-		if result != nil {
-			c.current.SetStateProcessResult(proposal.Hash(), result)
-		}
+		c.current.SetStateProcessResult(proposal.Hash(), result)
 
 		return duration, err
 	}

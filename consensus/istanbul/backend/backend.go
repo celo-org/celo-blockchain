@@ -497,21 +497,18 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	// If no cached result, we import block through fetcher, which requires processing the block one more time.
-	// Else if cache hit, we directly write the block.
+	// Note that result should NOT be nil, one edge case is when the validator re-start in the middle of a sequence.
+	// When happening, we re-verify the proposal and write it.
 	if result == nil {
-		sb.logger.Warn("state process cache miss, enqueuing the block to fetcher", "number", block.Number(), "hash", block.Hash())
-		if sb.broadcaster != nil {
-			sb.broadcaster.Enqueue(fetcherID, block)
+		sb.logger.Error("state process cache miss, Verifying the block again", "number", block.Number(), "hash", block.Hash())
+		result, _, err = sb.Verify(proposal)
+
+		// Don't cache the verification status if it's a future block
+		if err != consensus.ErrFutureBlock {
+			return err
 		}
-		sb.logger.Warn("Cannot import consensus block", "number", block.Number(), "hash", block.Hash())
-		return nil
 	}
 
-	if block := sb.chain.GetBlock(block.Hash(), block.NumberU64()); block != nil {
-		sb.logger.Info("Duplicate block to commit", "number", block.Number(), "hash", block.Hash())
-		return nil
-	}
 	if err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
 		sb.logger.Error("Failed writeBlockWithState", "err", err)
 		return err
