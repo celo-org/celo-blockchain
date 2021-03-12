@@ -362,6 +362,9 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		err  error
 	)
 
+	if pool.donut && !tx.Protected() {
+		return core.ErrUnprotectedTransaction
+	}
 	if tx.EthCompatible() && !pool.donut {
 		return core.ErrEthCompatibleTransactionsNotSupported
 	}
