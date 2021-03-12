@@ -24,18 +24,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rlp"
+	"bitbucket.org/bertimus9/systemstat"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
-var Once sync.Once                              // csv header printer
-var SleepTime, VerifyTime, TxTime time.Duration // durations for specific parts
-var IBFTStart, CycleStart time.Time             // start times
+var Once sync.Once                                       // csv header printer
+var SleepTime, VerifyTime, TxTime time.Duration          // durations for specific parts
+var IBFTStart, CycleStart time.Time                      // start times
+var FirstCPUSample, SecondCPUSample systemstat.CPUSample // cpu sample used to determine average load
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
 // decrypted

@@ -24,29 +24,31 @@ import (
 	"sync"
 	"time"
 
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"bitbucket.org/bertimus9/systemstat"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/enodes"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/replica"
-	istanbulCore "github.com/ethereum/go-ethereum/consensus/istanbul/core"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/proxy"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/contract_comm/election"
-	comm_errors "github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/contract_comm/random"
-	"github.com/ethereum/go-ethereum/contract_comm/validators"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/contract_comm/election"
+	comm_errors "github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -477,15 +479,19 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	istanbul.CycleStart = now
 
 	printHeader := func() {
-		fmt.Println("blockNumber,txCount,usedGas,round,sleep,miner,tx_add,verify,ibft,consensus,cycle")
+		fmt.Println("blockNumber,txCount,usedGas,round,sleep,miner,tx_add,verify,ibft,consensus,cycle,cpuUsage")
 	}
 	istanbul.Once.Do(printHeader)
 	round := aggregatedSeal.Round.Uint64()
+	istanbul.FirstCPUSample = istanbul.SecondCPUSample
+	istanbul.SecondCPUSample = systemstat.GetCPUSample()
+	avg := systemstat.GetSimpleCPUAverage(istanbul.FirstCPUSample, istanbul.SecondCPUSample)
 	// CSV Line in nano-seconds
-	fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+	fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 		block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), round,
 		istanbul.SleepTime.Nanoseconds(), (cycle - istanbul.SleepTime - ibft).Nanoseconds(), istanbul.TxTime.Nanoseconds(),
-		istanbul.VerifyTime.Nanoseconds(), ibft.Nanoseconds(), (ibft - istanbul.VerifyTime).Nanoseconds(), cycle.Nanoseconds())
+		istanbul.VerifyTime.Nanoseconds(), ibft.Nanoseconds(), (ibft - istanbul.VerifyTime).Nanoseconds(), cycle.Nanoseconds(),
+		avg.BusyPct)
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.
