@@ -501,12 +501,10 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// When happening, we re-verify the proposal and write it.
 	if result == nil {
 		sb.logger.Error("state process cache miss, Verifying the block again", "number", block.Number(), "hash", block.Hash())
-		result, _, err = sb.Verify(proposal)
-
-		// Don't cache the verification status if it's a future block
-		if err != consensus.ErrFutureBlock {
-			return err
+		if sb.broadcaster == nil {
+			sb.broadcaster.Enqueue(fetcherID, block)
 		}
+		return nil
 	}
 
 	if err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
