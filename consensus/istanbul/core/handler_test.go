@@ -172,7 +172,9 @@ func BenchmarkHandleMsg(b *testing.B) {
 	}
 }
 
-func newInitializedTestSystem() *testSystem {
+// newInitializedTestSystem creates a test system
+// It requires go >= 1.15 to optionally create a round state db in a temporary directory
+func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 	N := uint64(2)
 	F := uint64(1) // F does not affect tests
 
@@ -182,17 +184,36 @@ func newInitializedTestSystem() *testSystem {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 
-		c.current = newTestRoundState(
-			&istanbul.View{
-				Round:    big.NewInt(0),
-				Sequence: big.NewInt(1),
-			},
-			backend.peers,
-		)
+		if useRoundStateDB {
+			rsdb, err := newRoundStateDB(b.TempDir(), nil)
+			if err != nil {
+				b.Errorf("Failed to create rsdb: %v", err)
+			}
 
-		if i == 0 {
-			// replica 0 is the proposer
-			c.current.(*roundStateImpl).state = StatePreprepared
+			c.current = withSavingDecorator(rsdb, newTestRoundState(
+				&istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(1),
+				},
+				backend.peers,
+			))
+
+			if i == 0 {
+				// replica 0 is the proposer
+				c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
+			}
+		} else {
+			c.current = newTestRoundState(
+				&istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(1),
+				},
+				backend.peers,
+			)
+			if i == 0 {
+				// replica 0 is the proposer
+				c.current.(*roundStateImpl).state = StatePreprepared
+			}
 		}
 	}
 
@@ -201,81 +222,17 @@ func newInitializedTestSystem() *testSystem {
 }
 
 func BenchmarkE2EHandleCommit(b *testing.B) {
-	sys := newInitializedTestSystem()
-
-	v0 := sys.backends[0]
-	v1 := sys.backends[1]
-	c := v0.engine.(*core)
-	subject := v0.engine.(*core).current.Subject()
-
-	committedSeal, err := v0.engine.(*core).generateCommittedSeal(subject)
-	if err != nil {
-		b.Errorf("Got error: %v", err)
-	}
-	committedSubject := &istanbul.CommittedSubject{
-		Subject:       subject,
-		CommittedSeal: committedSeal[:],
-	}
-	payload, err := Encode(committedSubject)
-	if err != nil {
-		b.Errorf("Got error: %v", err)
-	}
-
-	msg := istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  payload,
-	}
-
-	msg, err = v1.finalizeAndReturnMessage(&msg)
-	if err != nil {
-		b.Errorf("Got error: %v", err)
-	}
-	payload, _ = c.finalizeMessage(&msg)
-	if err != nil {
-		b.Errorf("Got error: %v", err)
-	}
-
-	// benchmarked portion
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := c.handleMsg(payload)
-		if err != nil {
-			b.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}
+	sys := newInitializedTestSystem(b, false)
+	bemchmarkE2EHandleCommit(b, sys)
 }
 
 func BenchmarkE2EHandleCommitWithSave(b *testing.B) {
-	N := uint64(2)
-	F := uint64(1) // F does not affect tests
+	sys := newInitializedTestSystem(b, true)
+	bemchmarkE2EHandleCommit(b, sys)
 
-	sys := NewMutedTestSystemWithBackend(N, F)
-	// sys := NewTestSystemWithBackend(N, F)
+}
 
-	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
-		rsdb, err := newRoundStateDB(b.TempDir(), nil)
-		if err != nil {
-			b.Errorf("Failed to create rsdb: %v", err)
-		}
-
-		c.current = withSavingDecorator(rsdb, newTestRoundState(
-			&istanbul.View{
-				Round:    big.NewInt(0),
-				Sequence: big.NewInt(1),
-			},
-			backend.peers,
-		))
-
-		if i == 0 {
-			// replica 0 is the proposer
-			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
-
-		}
-	}
-
-	sys.Run(false)
-
+func bemchmarkE2EHandleCommit(b *testing.B, sys *testSystem) {
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
 	c := v0.engine.(*core)
@@ -319,62 +276,17 @@ func BenchmarkE2EHandleCommitWithSave(b *testing.B) {
 }
 
 func BenchmarkE2EHandlePrepareWithSave(b *testing.B) {
-	N := uint64(2)
-	F := uint64(1) // F does not affect tests
-
-	sys := NewMutedTestSystemWithBackend(N, F)
-	// sys := NewTestSystemWithBackend(N, F)
-
-	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
-		rsdb, err := newRoundStateDB(b.TempDir(), nil)
-		if err != nil {
-			b.Errorf("Failed to create rsdb: %v", err)
-		}
-
-		c.current = withSavingDecorator(rsdb, newTestRoundState(
-			&istanbul.View{
-				Round:    big.NewInt(0),
-				Sequence: big.NewInt(1),
-			},
-			backend.peers,
-		))
-
-		if i == 0 {
-			// replica 0 is the proposer
-			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
-		}
-	}
-
-	sys.Run(false)
-
-	v0 := sys.backends[0]
-	v1 := sys.backends[1]
-	c := v0.engine.(*core)
-	sub := v0.engine.(*core).current.Subject()
-
-	payload, _ := Encode(sub)
-	msg := istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  payload,
-	}
-
-	msg, _ = v1.finalizeAndReturnMessage(&msg)
-	payload, _ = c.finalizeMessage(&msg)
-
-	// benchmarked portion
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := c.handleMsg(payload)
-		if err != nil {
-			b.Errorf("error mismatch: have %v, want nil", err)
-		}
-	}
+	sys := newInitializedTestSystem(b, true)
+	benchmarkE2EHandlePrepare(b, sys)
 }
 
 func BenchmarkE2EHandlePrepare(b *testing.B) {
-	sys := newInitializedTestSystem()
+	sys := newInitializedTestSystem(b, false)
+	benchmarkE2EHandlePrepare(b, sys)
 
+}
+
+func benchmarkE2EHandlePrepare(b *testing.B, sys *testSystem) {
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
 	c := v0.engine.(*core)
