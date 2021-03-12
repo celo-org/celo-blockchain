@@ -60,7 +60,6 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
-	pcsclite "github.com/gballet/go-libpcsclite"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -153,11 +152,6 @@ var (
 	NoUSBFlag = cli.BoolFlag{
 		Name:  "nousb",
 		Usage: "Disables monitoring for and managing USB hardware wallets",
-	}
-	SmartCardDaemonPathFlag = cli.StringFlag{
-		Name:  "pcscdpath",
-		Usage: "Path to the smartcard daemon (pcscd) socket file",
-		Value: pcsclite.PCSCDSockName,
 	}
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
@@ -500,10 +494,6 @@ var (
 	CeloStatsURLFlag = cli.StringFlag{
 		Name:  "celostats",
 		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
-	}
-	FakePoWFlag = cli.BoolFlag{
-		Name:  "fakepow",
-		Usage: "Disables proof-of-work verification",
 	}
 	NoCompactionFlag = cli.BoolFlag{
 		Name:  "nocompaction",
@@ -1322,7 +1312,6 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	setWS(ctx, cfg)
 	setNodeUserIdent(ctx, cfg)
 	setDataDir(ctx, cfg)
-	setSmartCard(ctx, cfg)
 
 	if ctx.GlobalIsSet(ExternalSignerFlag.Name) {
 		cfg.ExternalSigner = ctx.GlobalString(ExternalSignerFlag.Name)
@@ -1340,26 +1329,6 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(InsecureUnlockAllowedFlag.Name) {
 		cfg.InsecureUnlockAllowed = ctx.GlobalBool(InsecureUnlockAllowedFlag.Name)
 	}
-}
-
-func setSmartCard(ctx *cli.Context, cfg *node.Config) {
-	// Skip enabling smartcards if no path is set
-	path := ctx.GlobalString(SmartCardDaemonPathFlag.Name)
-	if path == "" {
-		return
-	}
-	// Sanity check that the smartcard path is valid
-	fi, err := os.Stat(path)
-	if err != nil {
-		log.Info("Smartcard socket not found, disabling", "err", err)
-		return
-	}
-	if fi.Mode()&os.ModeType != os.ModeSocket {
-		log.Error("Invalid smartcard daemon path", "path", path, "type", fi.Mode().String())
-		return
-	}
-	// Smartcard daemon path exists and is a socket, enable it
-	cfg.SmartCardDaemonPath = path
 }
 
 func setDataDir(ctx *cli.Context, cfg *node.Config) {
@@ -1962,9 +1931,6 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("%v", err)
 	}
 	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
-	if !ctx.GlobalBool(FakePoWFlag.Name) {
-		Fatalf("Only fake PoW engine is available")
-	}
 	engine := mockEngine.NewFaker()
 
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
