@@ -70,7 +70,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.AncientFlag,
 			utils.KeyStoreDirFlag,
 			utils.NoUSBFlag,
-			utils.SmartCardDaemonPathFlag,
 			utils.NetworkIdFlag,
 			utils.BaklavaFlag,
 			utils.AlfajoresFlag,
@@ -214,7 +213,6 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "LOGGING AND DEBUGGING",
 		Flags: append([]cli.Flag{
-			utils.FakePoWFlag,
 			utils.NoCompactionFlag,
 		}, debug.Flags...),
 	},
