@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"bitbucket.org/bertimus9/systemstat"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -471,15 +472,19 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	istanbul.CycleStart = now
 
 	printHeader := func() {
-		fmt.Println("blockNumber,txCount,usedGas,round,sleep,miner,tx_add,verify,ibft,consensus,cycle")
+		fmt.Println("blockNumber,txCount,usedGas,round,sleep,miner,tx_add,verify,ibft,consensus,cycle,cpuUsage")
 	}
 	istanbul.Once.Do(printHeader)
 	round := aggregatedSeal.Round.Uint64()
+	istanbul.FirstCPUSample = istanbul.SecondCPUSample
+	istanbul.SecondCPUSample = systemstat.GetCPUSample()
+	avg := systemstat.GetSimpleCPUAverage(istanbul.FirstCPUSample, istanbul.SecondCPUSample)
 	// CSV Line in nano-seconds
-	fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+	fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 		block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), round,
 		istanbul.SleepTime.Nanoseconds(), (cycle - istanbul.SleepTime - ibft).Nanoseconds(), istanbul.TxTime.Nanoseconds(),
-		istanbul.VerifyTime.Nanoseconds(), ibft.Nanoseconds(), (ibft - istanbul.VerifyTime).Nanoseconds(), cycle.Nanoseconds())
+		istanbul.VerifyTime.Nanoseconds(), ibft.Nanoseconds(), (ibft - istanbul.VerifyTime).Nanoseconds(), cycle.Nanoseconds(),
+		avg.BusyPct)
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.

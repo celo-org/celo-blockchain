@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"bitbucket.org/bertimus9/systemstat"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -33,9 +34,10 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var Once sync.Once                              // csv header printer
-var SleepTime, VerifyTime, TxTime time.Duration // durations for specific parts
-var IBFTStart, CycleStart time.Time             // start times
+var Once sync.Once                                       // csv header printer
+var SleepTime, VerifyTime, TxTime time.Duration          // durations for specific parts
+var IBFTStart, CycleStart time.Time                      // start times
+var FirstCPUSample, SecondCPUSample systemstat.CPUSample // cpu sample used to determine average load
 
 // Decrypt is a decrypt callback function to request an ECIES ciphertext to be
 // decrypted
