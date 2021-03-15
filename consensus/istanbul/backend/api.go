@@ -43,17 +43,21 @@ type API struct {
 
 // getHeaderByNumber retrieves the header requested block or current if unspecified.
 func (api *API) getHeaderByNumber(number *rpc.BlockNumber) (*types.Header, error) {
-	if number == nil || *number == rpc.LatestBlockNumber || *number == rpc.PendingBlockNumber {
-		head := api.chain.CurrentHeader()
-		if head == nil {
-			return nil, errUnknownBlock
-		}
-		return head, nil
+	var header *types.Header
+	if number == nil || *number == rpc.LatestBlockNumber {
+		header = api.chain.CurrentHeader()
+	} else if *number == rpc.PendingBlockNumber {
+		return nil, fmt.Errorf("can't use pending block within istanbul")
 	} else if *number == rpc.EarliestBlockNumber {
-		return api.chain.GetHeaderByNumber(0), errUnknownBlock
+		header = api.chain.GetHeaderByNumber(0)
+	} else {
+		header = api.chain.GetHeaderByNumber(uint64(*number))
 	}
 
-	return api.chain.GetHeaderByNumber(uint64(*number)), nil
+	if header == nil {
+		return nil, errUnknownBlock
+	}
+	return header, nil
 }
 
 // getParentHeaderByNumber retrieves the parent header requested block or current if unspecified.
