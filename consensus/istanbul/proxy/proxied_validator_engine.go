@@ -529,7 +529,8 @@ func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 			for valAddress := range assignedValidators {
 				valAddresses = append(valAddresses, valAddress)
 			}
-			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
+			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses length", len(valAddresses))
+			logger.Trace("Sending val enode share msg to proxy with validator addresses", "valAddresses", common.ConvertToStringSlice(valAddresses))
 			pv.sendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}

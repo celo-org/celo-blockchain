@@ -12,10 +12,12 @@ func TestConfigMarhalling(t *testing.T) {
 	RegisterTestingT(t)
 
 	cfg := Config{
-		ChainID:            big.NewInt(1500),
-		Mnemonic:           "aloha hawai",
-		InitialValidators:  6,
-		ValidatorsPerGroup: 2,
+		ChainID: big.NewInt(1500),
+		Accounts: AccountsConfig{
+			Mnemonic:           "aloha hawai",
+			NumValidators:      6,
+			ValidatorsPerGroup: 2,
+		},
 	}
 
 	raw, err := json.Marshal(cfg)
@@ -36,16 +38,20 @@ func TestConfigReadJson(t *testing.T) {
 
 	jsonStr := []byte(`{
 		"chainId": 1500,
-		"mnemonic": "aloha hawai",
-		"initialValidators": 6,
-		"validatorsPerGroup": 2
+		"accounts": {
+		  "mnemonic": "aloha hawai",
+		  "validators": 6,
+		  "validatorsPerGroup": 2
+		}
 	 }`)
 
 	expectedCfg := Config{
-		ChainID:            big.NewInt(1500),
-		Mnemonic:           "aloha hawai",
-		InitialValidators:  6,
-		ValidatorsPerGroup: 2,
+		ChainID: big.NewInt(1500),
+		Accounts: AccountsConfig{
+			Mnemonic:           "aloha hawai",
+			NumValidators:      6,
+			ValidatorsPerGroup: 2,
+		},
 	}
 
 	var resultCfg Config

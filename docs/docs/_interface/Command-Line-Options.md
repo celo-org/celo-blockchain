@@ -45,7 +45,6 @@ ETHEREUM OPTIONS:
   --datadir.ancient value             Data directory for ancient chain segments (default = inside chaindata)
   --keystore value                    Directory for the keystore (default = inside the datadir)
   --nousb                             Disables monitoring for and managing USB hardware wallets
-  --pcscdpath value                   Path to the smartcard daemon (pcscd) socket file
   --networkid value                   Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten, 4=Rinkeby) (default: 1)
   --testnet                           Ropsten network: pre-configured proof-of-work test network
   --rinkeby                           Rinkeby network: pre-configured proof-of-authority test network
@@ -165,7 +164,6 @@ VIRTUAL MACHINE OPTIONS:
   --vm.ewasm value                    External ewasm configuration (default = built-in interpreter)
 
 LOGGING AND DEBUGGING OPTIONS:
-  --fakepow                           Disables proof-of-work verification
   --nocompaction                      Disables db compaction after import
   --verbosity value                   Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail (default: 3)
   --vmodule value                     Per-module verbosity: comma-separated list of <pattern>=<level> (e.g. eth/*=5,p2p=4)

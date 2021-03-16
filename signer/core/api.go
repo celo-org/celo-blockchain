@@ -22,12 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/scwallet"
 	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -126,7 +124,7 @@ type Metadata struct {
 	Origin    string `json:"Origin"`
 }
 
-func StartClefAccountManager(ksLocation string, nousb, lightKDF bool, scpath string) *accounts.Manager {
+func StartClefAccountManager(ksLocation string, nousb, lightKDF bool) *accounts.Manager {
 	var (
 		backends []accounts.Backend
 		n, p     = keystore.StandardScryptN, keystore.StandardScryptP
@@ -159,25 +157,6 @@ func StartClefAccountManager(ksLocation string, nousb, lightKDF bool, scpath str
 		} else {
 			backends = append(backends, trezorhub)
 			log.Debug("Trezor support enabled via WebUSB")
-		}
-	}
-
-	// Start a smart card hub
-	if len(scpath) > 0 {
-		// Sanity check that the smartcard path is valid
-		fi, err := os.Stat(scpath)
-		if err != nil {
-			log.Info("Smartcard socket file missing, disabling", "err", err)
-		} else {
-			if fi.Mode()&os.ModeType != os.ModeSocket {
-				log.Error("Invalid smartcard socket file type", "path", scpath, "type", fi.Mode().String())
-			} else {
-				if schub, err := scwallet.NewHub(scpath, scwallet.Scheme, ksLocation); err != nil {
-					log.Warn(fmt.Sprintf("Failed to start smart card hub, disabling: %v", err))
-				} else {
-					backends = append(backends, schub)
-				}
-			}
 		}
 	}
 
