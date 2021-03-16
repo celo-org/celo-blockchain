@@ -647,7 +647,7 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
-	writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) error) error {
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -657,8 +657,7 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
 	sb.validateState = validateState
-	sb.writeBlockWithState = writeBlockWithState
-
+	sb.onNewConsensusBlock = onNewConsensusBlock
 	return nil
 }
 

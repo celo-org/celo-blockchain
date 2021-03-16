@@ -90,9 +90,11 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
 			blockchain.Validator().ValidateState,
-			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
-				_, err := blockchain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
-				return err
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+				_, err := blockchain.WriteBlockWithState(block, receipts, logs, state, true)
+				if err != nil {
+					panic("could not WriteBlockWithState")
+				}
 			})
 		if isProxied {
 			b.StartProxiedValidatorEngine()

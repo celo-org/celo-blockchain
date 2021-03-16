@@ -293,9 +293,14 @@ func (w *worker) start() {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
 			w.chain.Validator().ValidateState,
-			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
-				_, err := w.chain.WriteBlockWithState(block, receipts, logs, state, emitHeadEvent)
-				return err
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+				_, err := w.chain.WriteBlockWithState(block, receipts, logs, state, true)
+				if err != nil {
+					log.Error("Failed writeBlockWithState in onNewConsensusBlock", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+					return
+				}
+				log.Info("Successfully imported new block in onNewConsensusBlock", "number", block.Number(), "hash", block.Hash(), "elapsed")
+				w.mux.Post(core.NewMinedBlockEvent{Block: block})
 			})
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()

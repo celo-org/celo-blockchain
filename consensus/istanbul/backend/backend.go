@@ -188,7 +188,7 @@ type Backend struct {
 
 	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
-	writeBlockWithState func(*types.Block, []*types.Receipt, []*types.Log, *state.StateDB, bool) error
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
 	// the channels for istanbul engine notifications
 	commitCh          chan *types.Block
@@ -500,19 +500,12 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// Note that result should NOT be nil, one edge case is when the validator re-start in the middle of a sequence.
 	// When happening, we re-verify the proposal and write it.
 	if result == nil {
-		sb.logger.Error("state process cache miss, Verifying the block again", "number", block.Number(), "hash", block.Hash())
-		if sb.broadcaster == nil {
-			sb.broadcaster.Enqueue(fetcherID, block)
-		}
+		sb.logger.Error("state process cache miss, verifying the block again", "number", block.Number(), "hash", block.Hash())
+		result, _, _ = sb.Verify(proposal)
+		sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 		return nil
 	}
 
-	if err := sb.writeBlockWithState(block, result.Receipts, result.Logs, result.State, true); err != nil {
-		sb.logger.Error("Failed writeBlockWithState", "err", err)
-		return err
-	}
-	sb.logger.Info("Inserted block from consensus", "number", block.Number(), "hash", block.Hash(),
-		"txs", len(block.Transactions()), "gas", block.GasUsed(), "root", block.Root())
 	return nil
 }
 
