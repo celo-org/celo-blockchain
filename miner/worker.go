@@ -300,7 +300,10 @@ func (w *worker) start() {
 					return
 				}
 				log.Info("Successfully imported new block in onNewConsensusBlock", "number", block.Number(), "hash", block.Hash(), "elapsed")
-				w.mux.Post(core.NewMinedBlockEvent{Block: block})
+				if err = w.mux.Post(core.NewMinedBlockEvent{Block: block}); err != nil {
+					log.Error("Error when posting NewMinedBlockEvent", "err", err)
+				}
+
 			})
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()
