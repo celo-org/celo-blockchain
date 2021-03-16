@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/blake2b"
@@ -599,7 +600,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	if err != nil {
 		return nil, gas, err
 	}
-	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
+	celoGoldAddress, err := contracts.GetRegisteredAddress(NewCaller(evm), params.GoldTokenRegistryId)
 	if err != nil {
 		return nil, gas, err
 	}

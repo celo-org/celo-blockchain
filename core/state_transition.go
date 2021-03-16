@@ -24,8 +24,9 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	commerrs "github.com/celo-org/celo-blockchain/contract_comm/errors"
 	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts"
+	commerrs "github.com/celo-org/celo-blockchain/contracts/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -442,7 +443,7 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+	governanceAddress, err := contracts.GetRegisteredAddress(vm.NewCaller(st.evm), params.GovernanceRegistryId)
 	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 		return err
 	} else if err != nil {

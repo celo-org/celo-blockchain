@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"

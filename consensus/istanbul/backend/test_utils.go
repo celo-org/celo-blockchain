@@ -14,6 +14,7 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contracts/callers/evm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -99,7 +100,8 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		b.StartValidating()
 	}
 
-	contract_comm.SetInternalEVMHandler(blockchain)
+	evm.SetInternalEVMHandler(blockchain)
+	contract_comm.SetDefaultCallerFactory(evm.CreateEVMCaller)
 
 	return blockchain, b, &config
 }

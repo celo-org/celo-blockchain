@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	goerrors "errors"
@@ -25,10 +24,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	abipkg "github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
@@ -38,9 +36,6 @@ import (
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
 // deployed contract addresses (relevant after the account abstraction).
 var emptyCodeHash = crypto.Keccak256Hash(nil)
-
-// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
-var systemCaller = AccountRef(common.HexToAddress("0x0"))
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
@@ -533,7 +528,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+	reserveAddress, err = contracts.GetRegisteredAddress(NewCaller(evm), params.ReserveRegistryId)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -585,76 +580,4 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
 	evm.Context.Transfer(db, sender, recipient, amount)
 	return gas, nil
-}
-
-func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
-	}
-
-	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
-}
-
-func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
-	}
-	return evm.handleABICall(abi, funcName, args, returnObj, call)
-}
-
-var (
-	errorSig     = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
-	abiString, _ = abipkg.NewType("string", "", nil)
-)
-
-func unpackError(result []byte) (string, error) {
-	if len(result) < 4 || !bytes.Equal(result[:4], errorSig) {
-		return "<tx result not Error(string)>", goerrors.New("TX result not of type Error(string)")
-	}
-	vs, err := abipkg.Arguments{{Type: abiString}}.UnpackValues(result[4:])
-	if err != nil {
-		return "<invalid tx result>", err
-	}
-	return vs[0].(string), nil
-}
-
-func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
-	transactionData, err := abi.Pack(funcName, args...)
-	if err != nil {
-		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
-		return 0, err
-	}
-
-	ret, leftoverGas, err := call(transactionData)
-
-	if err != nil {
-		msg, _ := unpackError(ret)
-		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
-		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
-		if funcName == "getAddressFor" {
-			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
-		} else {
-			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
-		}
-		return leftoverGas, err
-	}
-
-	log.Trace("EVM call successful", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
-
-	if returnObj != nil {
-		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-
-			// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
-			// `ErrEmptyArguments` is expected when when syncing & importing blocks
-			// before a contract has been deployed
-			if err == abipkg.ErrEmptyArguments {
-				log.Trace("Error in unpacking EVM call return bytes", "err", err)
-			} else {
-				log.Error("Error in unpacking EVM call return bytes", "err", err)
-			}
-			return leftoverGas, err
-		}
-	}
-
-	return leftoverGas, nil
 }
