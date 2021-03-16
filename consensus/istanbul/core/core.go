@@ -779,7 +779,10 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		if err != consensus.ErrFutureBlock {
 			c.current.SetProposalVerificationStatus(proposal.Hash(), err)
 		}
-		c.current.SetStateProcessResult(proposal.Hash(), result)
+		// If err is nil, then result is non-nil, only then we set the cache
+		if err == nil {
+			c.current.SetStateProcessResult(proposal.Hash(), result)
+		}
 
 		return duration, err
 	}
