@@ -497,7 +497,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	if result == nil {
 		sb.logger.Error("state process cache miss, verifying the block again", "number", block.Number(), "hash", block.Hash())
 		result, _, _ = sb.Verify(proposal)
-		sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
+		go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 		return nil
 	}
 
