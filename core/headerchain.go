@@ -524,6 +524,11 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		var nums []uint64
 		parent := hc.GetHeader(hdr.ParentHash, num-1)
 		if parent == nil {
+			// if the parent of the header is nil, it means that we don't have any header until that point,
+			// EXCEPT for the lightest sync, which could have non correlative headers, because it only
+			// downloads the last header of the epoch.
+			// Adding those levels to the nums array, will force us to specifically search them and erase
+			// them from the database
 			if !hc.config.FullHeaderChainAvailable {
 				for i := hc.config.Istanbul.Epoch; i < num; i += hc.config.Istanbul.Epoch {
 					nums = append(nums, i)
