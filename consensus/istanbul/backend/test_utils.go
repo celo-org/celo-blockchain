@@ -91,9 +91,8 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			},
 			blockchain.Validator().ValidateState,
 			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
-				_, err := blockchain.WriteBlockWithState(block, receipts, logs, state, true)
-				if err != nil {
-					panic("could not WriteBlockWithState")
+				if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+					panic("could not InsertPreprocessedBlock")
 				}
 			})
 		if isProxied {

@@ -294,16 +294,19 @@ func (w *worker) start() {
 			},
 			w.chain.Validator().ValidateState,
 			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
-				_, err := w.chain.WriteBlockWithState(block, receipts, logs, state, true)
-				if err != nil {
-					log.Error("Failed writeBlockWithState in onNewConsensusBlock", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+				if err := w.chain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+					if err == core.ErrNotHeadBlock {
+						log.Warn("Tried to insert duplicated produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+					} else {
+						log.Error("Failed to insert produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+					}
 					return
 				}
-				log.Info("Successfully imported new block in onNewConsensusBlock", "number", block.Number(), "hash", block.Hash(), "elapsed")
-				if err = w.mux.Post(core.NewMinedBlockEvent{Block: block}); err != nil {
+				log.Info("Successfully produced new block", "number", block.Number(), "hash", block.Hash())
+
+				if err := w.mux.Post(core.NewMinedBlockEvent{Block: block}); err != nil {
 					log.Error("Error when posting NewMinedBlockEvent", "err", err)
 				}
-
 			})
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()
@@ -613,9 +616,12 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
-			if err != nil {
-				log.Error("Failed writing block to chain", "err", err)
+			if err := w.chain.InsertPreprocessedBlock(block, receipts, logs, task.state); err != nil {
+				if err == core.ErrNotHeadBlock {
+					log.Warn("Tried to insert duplicated produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+				} else {
+					log.Error("Failed writing block to chain", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+				}
 				continue
 			}
 			blockFinalizationTimeGauge.Update(time.Now().UnixNano() - int64(block.Time())*1000000000)

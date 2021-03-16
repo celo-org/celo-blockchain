@@ -1284,12 +1284,19 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-// WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+// InsertPreprocessedBlock inserts a block which is already processed.
+// It can only insert the new Head block
+func (bc *BlockChain) InsertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) error {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
-	return bc.writeBlockWithState(block, receipts, logs, state, emitHeadEvent)
+	// check we are trying to insert the NEXT block
+	if block.Header().ParentHash != bc.CurrentHeader().Hash() {
+		return ErrNotHeadBlock
+	}
+
+	_, err := bc.writeBlockWithState(block, receipts, logs, state, true)
+	return err
 }
 
 // writeBlockWithState writes the block and all associated state to the database,
