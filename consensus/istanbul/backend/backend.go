@@ -495,7 +495,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	// Note that result should NOT be nil, one edge case is when the validator re-start in the middle of a sequence.
 	// When happening, we re-verify the proposal and write it.
 	if result == nil {
-		sb.logger.Error("nil StateProcessResult, verifying the block again", "number", block.Number(), "hash", block.Hash())
+		sb.logger.Error("Verifying the block again", "number", block.Number(), "hash", block.Hash())
 		if result, _, err = sb.Verify(proposal); err != nil {
 			sb.logger.Info("Verified proposal", "err", err)
 			return err
