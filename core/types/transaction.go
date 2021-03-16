@@ -32,7 +32,7 @@ import (
 //go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
 
 const (
-	ETH_COMPATIBLE_TX_NUM_FIELDS = 9
+	ethCompatibleTxNumFields = 9
 )
 
 var (
@@ -232,7 +232,7 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) (err error) {
 	if err != nil {
 		return err
 	}
-	if numElems == ETH_COMPATIBLE_TX_NUM_FIELDS {
+	if numElems == ethCompatibleTxNumFields {
 		ethCompatibleData := ethcompatibletxdata{}
 		err = rlp.DecodeBytes(raw, &ethCompatibleData)
 		tx.data = fromEthCompatibleTxData(ethCompatibleData)
