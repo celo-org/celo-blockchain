@@ -17,9 +17,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var maxPending uint64
-var pending uint64
-var pendingLock sync.Mutex
+// LoadGenerator keeps track of in-flight transactions
+type LoadGenerator struct {
+	MaxPending uint64
+	Pending    uint64
+	PendingMu  sync.Mutex
+}
 
 // Config represent the load bot run configuration
 type Config struct {
@@ -54,20 +57,23 @@ func Start(ctx context.Context, cfg *Config) error {
 	period := 1 * time.Second / time.Duration(cfg.TransactionsPerSecond)
 	ticker := time.NewTicker(period)
 	group, ctx := errgroup.WithContext(ctx)
+	lg := &LoadGenerator{
+		MaxPending: cfg.MaxPending,
+	}
 
 	for {
 		select {
 		case <-ticker.C:
-			pendingLock.Lock()
-			if maxPending != 0 && pending > maxPending {
-				pendingLock.Unlock()
+			lg.PendingMu.Lock()
+			if lg.MaxPending != 0 && lg.Pending > lg.MaxPending {
+				lg.PendingMu.Unlock()
 				continue
 			} else {
-				pending++
-				pendingLock.Unlock()
+				lg.Pending++
+				lg.PendingMu.Unlock()
 			}
 			group.Go(func() error {
-				return runTransaction(ctx, nextSender(), cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
+				return runTransaction(ctx, lg, nextSender(), cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -75,13 +81,13 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, acc env.Account, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
+func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
 	defer func() {
-		pendingLock.Lock()
-		if maxPending != 0 {
-			pending--
+		lg.PendingMu.Lock()
+		if lg.MaxPending != 0 {
+			lg.Pending--
 		}
-		pendingLock.Unlock()
+		lg.PendingMu.Unlock()
 	}()
 
 	abi := contract.AbiFor("StableToken")
