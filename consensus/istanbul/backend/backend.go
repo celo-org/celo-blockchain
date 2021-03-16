@@ -492,12 +492,12 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return nil
 	}
 
-	// Note that result should NOT be nil, one edge case is when the validator re-start in the middle of a sequence.
-	// When happening, we re-verify the proposal and write it.
+	// If caller didn't provide a result, try verifying the block to produce one
 	if result == nil {
-		sb.logger.Error("Verifying the block again", "number", block.Number(), "hash", block.Hash())
+		// This is a suboptimal path, since caller is expected to already have a result avaiable
+		// and thus to avoid doing the block processing again
+		sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
 		if result, _, err = sb.Verify(proposal); err != nil {
-			sb.logger.Info("Verified proposal", "err", err)
 			return err
 		}
 	}
