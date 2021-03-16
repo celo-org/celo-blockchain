@@ -494,7 +494,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 
 	// If caller didn't provide a result, try verifying the block to produce one
 	if result == nil {
-		// This is a suboptimal path, since caller is expected to already have a result avaiable
+		// This is a suboptimal path, since caller is expected to already have a result available
 		// and thus to avoid doing the block processing again
 		sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
 		if result, _, err = sb.Verify(proposal); err != nil {
