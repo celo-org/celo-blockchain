@@ -177,7 +177,7 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
-	// TODO(Donut): Add instances
+	// New in Donut hard fork
 	ed25519Address:           &ed25519Verify{},
 	b12_381G1AddAddress:      &bls12381G1Add{},
 	b12_381G1MulAddress:      &bls12381G1Mul{},
