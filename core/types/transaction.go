@@ -92,34 +92,34 @@ type ethCompatibleTxRlpList struct {
 
 func toEthCompatibleRlpList(data txdata) ethCompatibleTxRlpList {
 	return ethCompatibleTxRlpList{
-		data.AccountNonce,
-		data.Price,
-		data.GasLimit,
-		data.Recipient,
-		data.Amount,
-		data.Payload,
-		data.V,
-		data.R,
-		data.S,
+		AccountNonce: data.AccountNonce,
+		Price:        data.Price,
+		GasLimit:     data.GasLimit,
+		Recipient:    data.Recipient,
+		Amount:       data.Amount,
+		Payload:      data.Payload,
+		V:            data.V,
+		R:            data.R,
+		S:            data.S,
 	}
 }
 
 func fromEthCompatibleRlpList(data ethCompatibleTxRlpList) txdata {
 	return txdata{
-		data.AccountNonce,
-		data.Price,
-		data.GasLimit,
-		nil,
-		nil,
-		big.NewInt(0),
-		data.Recipient,
-		data.Amount,
-		data.Payload,
-		data.V,
-		data.R,
-		data.S,
-		nil, // txdata.Hash is calculated and saved inside tx.Hash()
-		true,
+		AccountNonce:        data.AccountNonce,
+		Price:               data.Price,
+		GasLimit:            data.GasLimit,
+		FeeCurrency:         nil,
+		GatewayFeeRecipient: nil,
+		GatewayFee:          big.NewInt(0),
+		Recipient:           data.Recipient,
+		Amount:              data.Amount,
+		Payload:             data.Payload,
+		V:                   data.V,
+		R:                   data.R,
+		S:                   data.S,
+		Hash:                nil, // txdata.Hash is calculated and saved inside tx.Hash()
+		EthCompatible:       true,
 	}
 }
 
