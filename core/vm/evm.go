@@ -155,7 +155,7 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	DontMeterGas bool
+	dontMeterGas bool
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -168,7 +168,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
-		DontMeterGas: false,
+		dontMeterGas: false,
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {

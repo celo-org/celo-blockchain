@@ -28,3 +28,10 @@ func (caller *EVMCaller) Call(addr common.Address, input []byte, gas uint64, val
 func (caller *EVMCaller) ContractDeployed(addr common.Address) bool {
 	return caller.evm.GetStateDB().GetCodeSize(addr) == 0
 }
+
+func (caller *EVMCaller) StartNoGas() (reactivate func()) {
+	caller.evm.dontMeterGas = true
+	return func() {
+		caller.evm.dontMeterGas = false
+	}
+}

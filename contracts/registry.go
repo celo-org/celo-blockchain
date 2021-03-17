@@ -41,9 +41,7 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm ContractCaller) (*comm
 }
 
 func GetRegisteredAddress(evm ContractCaller, registryId common.Hash) (*common.Address, error) {
-	// FIXME(mcortesi)
-	// evm.DontMeterGas = true
-	// defer func() { evm.DontMeterGas = false }()
+	defer evm.StartNoGas()()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
 	if !evm.ContractDeployed(params.RegistrySmartContractAddress) {

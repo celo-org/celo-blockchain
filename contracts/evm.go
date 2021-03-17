@@ -32,6 +32,10 @@ import (
 )
 
 type ContractCaller interface {
+	// StartNoGas will stop metering gas until `reactive` is called
+	// TODO remove after refactoring
+	StartNoGas() (reactivate func())
+
 	StaticCall(addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
 	Call(addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
 	ContractDeployed(addr common.Address) bool
