@@ -73,28 +73,25 @@ type txdata struct {
 	EthCompatible bool `json:"ethCompatible" rlp:"-"`
 }
 
-type ethcompatibletxdata struct {
-	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
-	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
-	GasLimit     uint64          `json:"gas"      gencodec:"required"`
-	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
-	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	Payload      []byte          `json:"input"    gencodec:"required"`
-
-	// Signature values
-	V *big.Int `json:"v" gencodec:"required"`
-	R *big.Int `json:"r" gencodec:"required"`
-	S *big.Int `json:"s" gencodec:"required"`
-
-	// This is only used when marshaling to JSON.
-	Hash *common.Hash `json:"hash" rlp:"-"`
-
-	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
-	EthCompatible bool `rlp:"-"`
+// ethCompatibleTxRlpList is used for RLP encoding/decoding of eth-compatible transactions.
+// As such, it:
+// (a) excludes the Celo-only fields,
+// (b) doesn't need the Hash or EthCompatible fields, and
+// (c) doesn't need the `json` or `gencodec` tags
+type ethCompatibleTxRlpList struct {
+	AccountNonce uint64
+	Price        *big.Int
+	GasLimit     uint64
+	Recipient    *common.Address `rlp:"nil"` // nil means contract creation
+	Amount       *big.Int
+	Payload      []byte
+	V            *big.Int
+	R            *big.Int
+	S            *big.Int
 }
 
-func toEthCompatibleTxData(data txdata) ethcompatibletxdata {
-	return ethcompatibletxdata{
+func toEthCompatibleRlpList(data txdata) ethCompatibleTxRlpList {
+	return ethCompatibleTxRlpList{
 		data.AccountNonce,
 		data.Price,
 		data.GasLimit,
@@ -104,12 +101,10 @@ func toEthCompatibleTxData(data txdata) ethcompatibletxdata {
 		data.V,
 		data.R,
 		data.S,
-		data.Hash,
-		false,
 	}
 }
 
-func fromEthCompatibleTxData(data ethcompatibletxdata) txdata {
+func fromEthCompatibleRlpList(data ethCompatibleTxRlpList) txdata {
 	return txdata{
 		data.AccountNonce,
 		data.Price,
@@ -123,7 +118,7 @@ func fromEthCompatibleTxData(data ethcompatibletxdata) txdata {
 		data.V,
 		data.R,
 		data.S,
-		data.Hash,
+		nil, // txdata.Hash is calculated and saved inside tx.Hash()
 		true,
 	}
 }
@@ -216,7 +211,7 @@ func isProtectedV(V *big.Int) bool {
 // EncodeRLP implements rlp.Encoder
 func (tx *Transaction) EncodeRLP(w io.Writer) error {
 	if tx.data.EthCompatible {
-		return rlp.Encode(w, toEthCompatibleTxData(tx.data))
+		return rlp.Encode(w, toEthCompatibleRlpList(tx.data))
 	} else {
 		return rlp.Encode(w, &tx.data)
 	}
@@ -236,9 +231,9 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) (err error) {
 		return err
 	}
 	if numElems == ethCompatibleTxNumFields {
-		ethCompatibleData := ethcompatibletxdata{}
-		err = rlp.DecodeBytes(raw, &ethCompatibleData)
-		tx.data = fromEthCompatibleTxData(ethCompatibleData)
+		rlpList := ethCompatibleTxRlpList{}
+		err = rlp.DecodeBytes(raw, &rlpList)
+		tx.data = fromEthCompatibleRlpList(rlpList)
 	} else {
 		err = rlp.DecodeBytes(raw, &tx.data)
 	}
