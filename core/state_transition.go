@@ -363,8 +363,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if st.msg.EthCompatible() && !st.evm.ChainConfig().IsDonut(st.evm.BlockNumber) {
 		return nil, ErrEthCompatibleTransactionsNotSupported
 	}
-	if st.msg.EthCompatible() && !(st.msg.FeeCurrency() == nil && st.msg.GatewayFeeRecipient() == nil && st.msg.GatewayFee().Sign() == 0) {
-		return nil, ErrEthCompatibleTransactionIsntCompatible
+	if err := vm.CheckEthCompatibility(st.msg); err != nil {
+		return nil, err
 	}
 
 	// Check clauses 1-2

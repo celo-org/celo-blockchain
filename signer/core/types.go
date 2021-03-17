@@ -90,6 +90,10 @@ func (args SendTxArgs) String() string {
 	return err.Error()
 }
 
+func (args SendTxArgs) CheckEthCompatibility() error {
+	return args.toTransaction().CheckEthCompatibility()
+}
+
 func (args *SendTxArgs) toTransaction() *types.Transaction {
 	var input []byte
 	if args.Data != nil {

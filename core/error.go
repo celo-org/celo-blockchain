@@ -81,10 +81,6 @@ var (
 	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
 	ErrEthCompatibleTransactionsNotSupported = errors.New("support for eth-compatible transactions is not enabled")
 
-	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
-	// but has non-nil-or-0 values for some of the Celo-only fields
-	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
-
 	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
 	// use it.
 	ErrUnprotectedTransaction = errors.New("replay protection is required")

@@ -23,7 +23,6 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	celoCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/signer/core"
 )
 
@@ -34,8 +33,8 @@ func (db *Database) ValidateTransaction(selector *string, tx *core.SendTxArgs) (
 	messages := new(core.ValidationMessages)
 
 	// Reject if EthCompatible is true but the transaction has non-nil-or-0 values for the non-eth-compatible fields
-	if tx.EthCompatible && !(tx.FeeCurrency == nil && tx.GatewayFeeRecipient == nil && tx.GatewayFee.ToInt().Sign() == 0) {
-		return nil, celoCore.ErrEthCompatibleTransactionIsntCompatible
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return nil, err
 	}
 	// Prevent accidental erroneous usage of both 'input' and 'data' (show stopper)
 	if tx.Data != nil && tx.Input != nil && !bytes.Equal(*tx.Data, *tx.Input) {

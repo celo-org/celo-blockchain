@@ -37,6 +37,9 @@ const (
 
 var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
+	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
+	// but has non-nil-or-0 values for some of the Celo-only fields
+	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
 )
 
 type Transaction struct {
@@ -321,6 +324,14 @@ func (tx *Transaction) Size() common.StorageSize {
 	rlp.Encode(&c, &tx.data)
 	tx.size.Store(common.StorageSize(c))
 	return common.StorageSize(c)
+}
+
+// CheckEthCompatibility checks that the Celo-only fields are nil-or-0 if EthCompatible is true
+func (tx *Transaction) CheckEthCompatibility() error {
+	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
+		return ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
 }
 
 // AsMessage returns the transaction as a core.Message.

@@ -1396,9 +1396,8 @@ type SendTxArgs struct {
 
 // setDefaults is a helper function that fills in default values for unspecified tx fields.
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
-	// Reject if Celo-only fields set when EthCompatible is true
-	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
-		return core.ErrEthCompatibleTransactionIsntCompatible
+	if err := args.checkEthCompatibility(); err != nil {
+		return err
 	}
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
@@ -1489,6 +1488,14 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	}
 	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil {
 		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
+	}
+	return nil
+}
+
+func (args *SendTxArgs) checkEthCompatibility() error {
+	// Reject if Celo-only fields set when EthCompatible is true
+	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
 	}
 	return nil
 }

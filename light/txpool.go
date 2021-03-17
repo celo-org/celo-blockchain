@@ -368,8 +368,8 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	if tx.EthCompatible() && !pool.donut {
 		return core.ErrEthCompatibleTransactionsNotSupported
 	}
-	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
-		return core.ErrEthCompatibleTransactionIsntCompatible
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return err
 	}
 
 	// Validate the transaction sender and it's sig. Throw
