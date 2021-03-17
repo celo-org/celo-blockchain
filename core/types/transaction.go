@@ -73,6 +73,21 @@ type txdata struct {
 	EthCompatible bool `json:"ethCompatible" rlp:"-"`
 }
 
+type txdataMarshaling struct {
+	AccountNonce        hexutil.Uint64
+	Price               *hexutil.Big
+	GasLimit            hexutil.Uint64
+	FeeCurrency         *common.Address
+	GatewayFeeRecipient *common.Address
+	GatewayFee          *hexutil.Big
+	Amount              *hexutil.Big
+	Payload             hexutil.Bytes
+	V                   *hexutil.Big
+	R                   *hexutil.Big
+	S                   *hexutil.Big
+	EthCompatible       bool
+}
+
 // ethCompatibleTxRlpList is used for RLP encoding/decoding of eth-compatible transactions.
 // As such, it:
 // (a) excludes the Celo-only fields,
@@ -121,21 +136,6 @@ func fromEthCompatibleRlpList(data ethCompatibleTxRlpList) txdata {
 		Hash:                nil, // txdata.Hash is calculated and saved inside tx.Hash()
 		EthCompatible:       true,
 	}
-}
-
-type txdataMarshaling struct {
-	AccountNonce        hexutil.Uint64
-	Price               *hexutil.Big
-	GasLimit            hexutil.Uint64
-	FeeCurrency         *common.Address
-	GatewayFeeRecipient *common.Address
-	GatewayFee          *hexutil.Big
-	Amount              *hexutil.Big
-	Payload             hexutil.Bytes
-	V                   *hexutil.Big
-	R                   *hexutil.Big
-	S                   *hexutil.Big
-	EthCompatible       bool
 }
 
 func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
