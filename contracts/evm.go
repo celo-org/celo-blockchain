@@ -63,19 +63,8 @@ func MakeCallFromSystem(caller ContractCaller, scAddress common.Address, abi abi
 	return gasLeft, nil
 }
 
-// TODO
-// func SetInternalEVMHandler(chain vm.ChainContext) {
-// 	if internalEvmHandlerSingleton == nil {
-// 		log.Trace("Setting the InternalEVMHandler Singleton")
-// 		internalEvmHandler := InternalEVMHandler{
-// 			chain: chain,
-// 		}
-// 		internalEvmHandlerSingleton = &internalEvmHandler
-// 	}
-// }
-
 func MakeCallWithContractId(caller ContractCaller, registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, static bool) (uint64, error) {
-	scAddress, err := GetRegisteredAddressWithEvm(registryId, caller)
+	scAddress, err := GetRegisteredAddress(caller, registryId)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {

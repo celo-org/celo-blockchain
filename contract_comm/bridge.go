@@ -52,5 +52,5 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 	if err != nil {
 		return nil, err
 	}
-	return contracts.GetRegisteredAddressWithEvm(registryId, vmevm)
+	return contracts.GetRegisteredAddress(vmevm, registryId)
 }
