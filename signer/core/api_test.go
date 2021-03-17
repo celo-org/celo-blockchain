@@ -27,16 +27,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/signer/core"
-	"github.com/ethereum/go-ethereum/signer/fourbyte"
-	"github.com/ethereum/go-ethereum/signer/storage"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/celo-org/celo-blockchain/signer/fourbyte"
+	"github.com/celo-org/celo-blockchain/signer/storage"
 )
 
 //Used for testing
@@ -125,7 +125,7 @@ func setup(t *testing.T) (*core.SignerAPI, *headlessUi) {
 		t.Fatal(err.Error())
 	}
 	ui := &headlessUi{make(chan string, 20), make(chan string, 20)}
-	am := core.StartClefAccountManager(tmpDirName(t), true, true, "")
+	am := core.StartClefAccountManager(tmpDirName(t), true, true)
 	api := core.NewSignerAPI(am, 1337, true, ui, db, true, &storage.NoStorage{})
 	return api, ui
 

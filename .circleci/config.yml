@@ -85,6 +85,14 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
+  check-imports:
+    executor: golang
+    steps:
+      - checkout
+      - run:
+          name: Check imports to ensure we are using github.com/celo-org/celo-blockchain
+          command: ./scripts/check_imports.sh
+
   android:
     docker:
       - image: celohq/circleci:android-v2
@@ -252,6 +260,7 @@ workflows:
     jobs:
       - checkout-monorepo
       - build-geth
+      - check-imports
       - lint:
           requires:
             - build-geth

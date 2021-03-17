@@ -20,12 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
 // BackendForProxiedValidatorEngine provides the Istanbul backend application specific functions for Istanbul proxied validator engine
@@ -202,7 +202,7 @@ func (pv *proxiedValidatorEngine) AddProxy(node, externalNode *enode.Node) error
 	}
 
 	select {
-	case pv.addProxies <- []*istanbul.ProxyConfig{&istanbul.ProxyConfig{InternalNode: node, ExternalNode: externalNode}}:
+	case pv.addProxies <- []*istanbul.ProxyConfig{{InternalNode: node, ExternalNode: externalNode}}:
 		return nil
 	case <-pv.quit:
 		return istanbul.ErrStoppedProxiedValidatorEngine
@@ -529,7 +529,8 @@ func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 			for valAddress := range assignedValidators {
 				valAddresses = append(valAddresses, valAddress)
 			}
-			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
+			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses length", len(valAddresses))
+			logger.Trace("Sending val enode share msg to proxy with validator addresses", "valAddresses", common.ConvertToStringSlice(valAddresses))
 			pv.sendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}

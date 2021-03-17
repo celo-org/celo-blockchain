@@ -22,8 +22,8 @@ import (
 	"io"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/internal/debug"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/internal/debug"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -70,7 +70,6 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.AncientFlag,
 			utils.KeyStoreDirFlag,
 			utils.NoUSBFlag,
-			utils.SmartCardDaemonPathFlag,
 			utils.NetworkIdFlag,
 			utils.BaklavaFlag,
 			utils.AlfajoresFlag,
@@ -213,7 +212,6 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "LOGGING AND DEBUGGING",
 		Flags: append([]cli.Flag{
-			utils.FakePoWFlag,
 			utils.NoCompactionFlag,
 		}, debug.Flags...),
 	},

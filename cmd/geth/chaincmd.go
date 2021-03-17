@@ -26,18 +26,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
+	"github.com/celo-org/celo-blockchain/trie"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -158,18 +158,18 @@ The export-preimages command export hash preimages to an RLP encoded stream`,
 		Action:    utils.MigrateFlags(copyDb),
 		Name:      "copydb",
 		Usage:     "Create a local chain from a target chaindata folder",
-		ArgsUsage: "<sourceChaindataDir>",
+		ArgsUsage: "<sourceChainDataDir> <sourceAncientChainDataDir>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 			utils.AlfajoresFlag,
 			utils.BaklavaFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
-			utils.FakePoWFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
-The first argument must be the directory containing the blockchain to download from`,
+The first argument must be the directory containing the blockchain to download from,
+the second argument must be the directory containing the ancient blockchain to download from`,
 	}
 	removedbCommand = cli.Command{
 		Action:    utils.MigrateFlags(removeDB),
@@ -204,7 +204,7 @@ Remove blockchain and state databases`,
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
 The arguments are interpreted as block numbers or hashes.
-Use "ethereum dump 0" to dump the genesis block.`,
+Use "geth dump 0" to dump the genesis block.`,
 	}
 	inspectCommand = cli.Command{
 		Action:    utils.MigrateFlags(inspect),
@@ -303,15 +303,9 @@ func importChain(ctx *cli.Context) error {
 	// Import the chain
 	start := time.Now()
 
-	if len(ctx.Args()) == 1 {
-		if err := utils.ImportChain(chain, ctx.Args().First()); err != nil {
-			log.Error("Import error", "err", err)
-		}
-	} else {
-		for _, arg := range ctx.Args() {
-			if err := utils.ImportChain(chain, arg); err != nil {
-				log.Error("Import error", "file", arg, "err", err)
-			}
+	for _, arg := range ctx.Args() {
+		if err := utils.ImportChain(chain, arg); err != nil {
+			log.Error("Import error", "file", arg, "err", err)
 		}
 	}
 	chain.Stop()

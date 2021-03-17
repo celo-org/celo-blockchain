@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -23,13 +23,13 @@ func TestUpsert(t *testing.T) {
 	}
 
 	testCases := []*testCase{
-		&testCase{
+		{
 			ExistingEntry:                 nil,
 			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: false,
 			ExpectedOnNewEntryCalled:      true,
 		},
-		&testCase{
+		{
 			ExistingEntry:                 &mockEntry{},
 			NewEntry:                      &mockEntry{},
 			ExpectedOnExistingEntryCalled: true,
