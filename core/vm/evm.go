@@ -565,7 +565,7 @@ func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas 
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
+		numerator, denominator, reserveAddress, err := contracts.TobinTax(NewCaller(evm), sender)
 		if err == nil {
 			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
 			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
