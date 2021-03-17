@@ -522,7 +522,7 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	block, err = sb.updateBlock(parent, block)
+	block, err = sb.signBlock(block)
 	if err != nil {
 		return err
 	}
@@ -565,8 +565,8 @@ func (sb *Backend) SealHash(header *types.Header) common.Hash {
 	return sigHash(header)
 }
 
-// update timestamp and signature of the block based on its number of transactions
-func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types.Block, error) {
+// signBlock signs block with a seal
+func (sb *Backend) signBlock(block *types.Block) (*types.Block, error) {
 	header := block.Header()
 	// sign the hash
 	seal, err := sb.Sign(sigHash(header).Bytes())
@@ -579,7 +579,7 @@ func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types
 		return nil, err
 	}
 
-	return block.WithSeal(header), nil
+	return block.WithHeader(header), nil
 }
 
 // APIs returns the RPC APIs this consensus engine provides.

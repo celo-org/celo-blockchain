@@ -136,7 +136,7 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 func TestSealCommitted(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
+	expectedBlock, _ := engine.signBlock(block)
 
 	results := make(chan *types.Block)
 	go func() {
@@ -157,7 +157,7 @@ func TestVerifyHeader(t *testing.T) {
 
 	// errEmptyAggregatedSeal case
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	block, _ = engine.updateBlock(chain.Genesis().Header(), block)
+	block, _ = engine.signBlock(block)
 	err := engine.VerifyHeader(chain, block.Header(), false)
 	if err != errEmptyAggregatedSeal {
 		t.Errorf("error mismatch: have %v, want %v", err, errEmptyAggregatedSeal)

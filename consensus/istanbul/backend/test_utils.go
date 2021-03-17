@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
@@ -23,6 +24,7 @@ import (
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -92,7 +94,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			blockchain.Validator().ValidateState,
 			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
 				if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
-					panic("could not InsertPreprocessedBlock")
+					panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
 				}
 			})
 		if isProxied {
@@ -144,6 +146,38 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	return genesis, nodeKeys
 }
 
+func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul.ValidatorData) {
+	if len(genesis.ExtraData) < types.IstanbulExtraVanity {
+		genesis.ExtraData = append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...)
+	}
+	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
+
+	var addrs []common.Address
+	var publicKeys []blscrypto.SerializedPublicKey
+
+	for i := range validators {
+		if (validators[i].BLSPublicKey == blscrypto.SerializedPublicKey{}) {
+			panic("BLSPublicKey is nil")
+		}
+		addrs = append(addrs, validators[i].Address)
+		publicKeys = append(publicKeys, validators[i].BLSPublicKey)
+	}
+
+	ist := &types.IstanbulExtra{
+		AddedValidators:           addrs,
+		AddedValidatorsPublicKeys: publicKeys,
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+	}
+
+	istPayload, err := rlp.EncodeToBytes(&ist)
+	if err != nil {
+		panic("failed to encode istanbul extra")
+	}
+	genesis.ExtraData = append(genesis.ExtraData, istPayload...)
+}
+
 func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
@@ -157,7 +191,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 
 func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
-	block, _ = engine.updateBlock(parent.Header(), block)
+	block, _ = engine.signBlock(block)
 
 	// start the sealing procedure
 	results := make(chan *types.Block)
