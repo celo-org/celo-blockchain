@@ -27,6 +27,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/params"
 	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"

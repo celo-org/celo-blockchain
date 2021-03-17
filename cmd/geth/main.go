@@ -135,7 +135,7 @@ var (
 		utils.VMEnableDebugFlag,
 		utils.NetworkIdFlag,
 		utils.CeloStatsURLFlag,
-		utils.EthStatsLegacyURLFlag,
+		utils.LegacyEthStatsURLFlag,
 		utils.NoCompactionFlag,
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,
