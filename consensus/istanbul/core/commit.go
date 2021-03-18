@@ -177,9 +177,6 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
 	if headBlock.Number().Uint64() > 0 {
 		if err := c.verifyEpochValidatorSetSeal(commit, headBlock.Number().Uint64(), c.current.ValidatorSet(), validator); err != nil {
 			return errInvalidEpochValidatorSetSeal
@@ -207,10 +204,6 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
-
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {
 		return err
@@ -230,34 +223,21 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		logger.Error("Failed to record commit message", "m", msg, "err", err)
 		return err
 	}
-	numberOfCommits := c.current.Commits().Size()
+	commits := c.current.Commits()
+	numberOfCommits := commits.Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
-	// If we already have a proposal, we may have chance to speed up the consensus process
-	// by committing the proposal without PREPARE messages.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
-		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", commits)
 		err := c.commit()
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)
 			return err
 		}
-
-	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.current.State().Cmp(StatePrepared) < 0 {
-		err := c.current.TransitionToPrepared(minQuorumSize)
-		if err != nil {
-			logger.Error("Failed to create and set prepared certificate", "err", err)
-			return err
-		}
-		// Process Backlog Messages
-		c.backlog.updateState(c.current.View(), c.current.State())
-
-		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.sendCommit()
 	}
 	return nil
 
