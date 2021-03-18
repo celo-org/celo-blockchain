@@ -151,10 +151,15 @@ func TestSealCommitted(t *testing.T) {
 		}
 	}()
 
-	finalBlock := <-results
-	if finalBlock.Hash() != expectedBlock.Hash() {
-		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
+	select {
+	case finalBlock := <-results:
+		if finalBlock.Hash() != expectedBlock.Hash() {
+			t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
+		}
+	case <-time.After(1 * time.Second):
+		t.Errorf("Seal should finished within 1s")
 	}
+
 }
 
 func TestVerifyHeader(t *testing.T) {
