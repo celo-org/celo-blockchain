@@ -363,14 +363,15 @@ func (c *core) commit() error {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
+		commits := c.current.Commits()
+		aggregatedSeal, err := GetAggregatedSeal(commits, c.current.Round())
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
+		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, commits)
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
