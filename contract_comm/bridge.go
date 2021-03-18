@@ -10,14 +10,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-var defaultCallerFactory func(header *types.Header, state vm.StateDB) (contracts.ContractCaller, error)
-
-func SetDefaultCallerFactory(fn func(header *types.Header, state vm.StateDB) (contracts.ContractCaller, error)) {
-	defaultCallerFactory = fn
-}
-
 func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	caller, err := defaultCallerFactory(header, state)
+	caller, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -26,7 +20,7 @@ func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []in
 }
 
 func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	caller, err := defaultCallerFactory(header, state)
+	caller, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -39,7 +33,7 @@ func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interfac
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	caller, err := defaultCallerFactory(header, state)
+	caller, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -48,7 +42,7 @@ func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName s
 }
 
 func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	vmevm, err := defaultCallerFactory(header, state)
+	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return nil, err
 	}

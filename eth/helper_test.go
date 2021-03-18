@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -65,6 +66,9 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 		genesis       = gspec.MustCommit(db)
 		blockchain, _ = core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
 	)
+
+	contract_comm.SetInternalEVMHandler(blockchain)
+
 	chain, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, blocks, generator)
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		panic(err)

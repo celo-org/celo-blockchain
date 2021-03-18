@@ -26,10 +26,14 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts/errors"
+	"github.com/celo-org/celo-blockchain/core/vm"
 
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
+var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
 
 type ContractCaller interface {
 	// StartNoGas will stop metering gas until `reactive` is called
@@ -41,7 +45,7 @@ type ContractCaller interface {
 	ContractDeployed(addr common.Address) bool
 }
 
-func MakeCallFromSystem(caller ContractCaller, scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, static bool) (uint64, error) {
+func MakeCallFromSystem(evm *vm.EVM, scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, static bool) (uint64, error) {
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
 	start := time.Now()
@@ -51,9 +55,9 @@ func MakeCallFromSystem(caller ContractCaller, scAddress common.Address, abi abi
 	var err error
 
 	if static {
-		gasLeft, err = StaticCallFromSystem(caller, scAddress, abi, funcName, args, returnObj, gas)
+		gasLeft, err = StaticCallFromSystem(evm, scAddress, abi, funcName, args, returnObj, gas)
 	} else {
-		gasLeft, err = callFromSystem(caller, scAddress, abi, funcName, args, returnObj, gas, value)
+		gasLeft, err = callFromSystem(evm, scAddress, abi, funcName, args, returnObj, gas, value)
 	}
 	if err != nil {
 		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft, "value", value)
@@ -63,8 +67,8 @@ func MakeCallFromSystem(caller ContractCaller, scAddress common.Address, abi abi
 	return gasLeft, nil
 }
 
-func MakeCallWithContractId(caller ContractCaller, registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, static bool) (uint64, error) {
-	scAddress, err := GetRegisteredAddress(caller, registryId)
+func MakeCallWithContractId(evm *vm.EVM, registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, static bool) (uint64, error) {
+	scAddress, err := GetRegisteredAddress(evm, registryId)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
@@ -79,24 +83,24 @@ func MakeCallWithContractId(caller ContractCaller, registryId [32]byte, abi abi.
 		}
 	}
 
-	gasLeft, err := MakeCallFromSystem(caller, scAddress, abi, funcName, args, returnObj, gas, value, static)
+	gasLeft, err := MakeCallFromSystem(evm, scAddress, abi, funcName, args, returnObj, gas, value, static)
 	if err != nil {
 		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 	}
 	return gasLeft, err
 }
 
-func StaticCallFromSystem(evm ContractCaller, contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func StaticCallFromSystem(evm *vm.EVM, contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.StaticCall(contractAddress, transactionData, gas)
+		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
 
 	return handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
-func callFromSystem(evm ContractCaller, contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func callFromSystem(evm *vm.EVM, contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.Call(contractAddress, transactionData, gas, value)
+		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 	return handleABICall(abi, funcName, args, returnObj, call)
 }

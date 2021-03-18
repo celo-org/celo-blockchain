@@ -22,6 +22,7 @@ import (
 	"time"
 
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -44,6 +45,8 @@ func TestHeaderVerification(t *testing.T) {
 	// Run the header checker for blocks one-by-one, checking for both valid and invalid nonces
 	chain, _ := NewBlockChain(testdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil)
 	defer chain.Stop()
+
+	contract_comm.SetInternalEVMHandler(chain)
 
 	for i := 0; i < len(blocks); i++ {
 		for j, valid := range []bool{true, false} {

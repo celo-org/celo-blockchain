@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -178,7 +178,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
-	context := contracts.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
+	context := contract_comm.NewEVMContext(msg, block.Header(), nil, &t.json.Env.Coinbase)
 	context.GetHash = vmTestBlockHash
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 

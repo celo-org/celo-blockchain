@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind/backends"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/contracts/checkpointoracle/contract"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -177,6 +178,8 @@ func TestCheckpointRegister(t *testing.T) {
 	// Deploy registrar contract
 	contractBackend := backends.NewSimulatedBackend(core.GenesisAlloc{accounts[0].addr: {Balance: big.NewInt(1000000000)}, accounts[1].addr: {Balance: big.NewInt(1000000000)}, accounts[2].addr: {Balance: big.NewInt(1000000000)}})
 	defer contractBackend.Close()
+
+	contract_comm.SetInternalEVMHandler(contractBackend.Blockchain())
 
 	transactOpts := bind.NewKeyedTransactor(accounts[0].key)
 

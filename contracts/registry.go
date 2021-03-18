@@ -35,11 +35,11 @@ const (
 
 var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
-func GetRegisteredAddress(evm ContractCaller, registryId common.Hash) (common.Address, error) {
-	defer evm.StartNoGas()()
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+	defer startNoGas(evm)()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if !evm.ContractDeployed(params.RegistrySmartContractAddress) {
+	if !contractDeployed(evm, params.RegistrySmartContractAddress) {
 		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -136,6 +137,7 @@ func TestSetupGenesis(t *testing.T) {
 
 				bc, _ := NewBlockChain(db, nil, oldcustomg.Config, mockEngine.NewFullFaker(), vm.Config{}, nil)
 				defer bc.Stop()
+				contract_comm.SetInternalEVMHandler(bc)
 
 				blocks, _ := GenerateChain(oldcustomg.Config, genesis, mockEngine.NewFaker(), db, 4, nil)
 				bc.InsertChain(blocks)

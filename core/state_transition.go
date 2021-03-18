@@ -443,7 +443,7 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := contracts.GetRegisteredAddress(contracts.NewCaller(st.evm), params.GovernanceRegistryId)
+	governanceAddress, err := contracts.GetRegisteredAddress(st.evm, params.GovernanceRegistryId)
 	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 		return err
 	} else if err != nil {

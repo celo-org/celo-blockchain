@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -56,6 +57,8 @@ func newCanonical(n int) (ethdb.Database, *LightChain, error) {
 	gspec := core.Genesis{Config: params.IstanbulTestChainConfig}
 	genesis := gspec.MustCommit(db)
 	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, mockEngine.NewFaker(), nil)
+
+	contract_comm.SetInternalEVMHandler(blockchain)
 
 	// Create and inject the requested chain
 	if n == 0 {

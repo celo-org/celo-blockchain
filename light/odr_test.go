@@ -27,7 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -244,7 +244,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
 		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, new(big.Int), data, false)}
-		context := contracts.NewEVMContext(msg, header, chain, nil)
+		context := contract_comm.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
 		result, _ := core.ApplyMessage(vmenv, msg, gp)
@@ -296,6 +296,9 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
 	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
+
+	contract_comm.SetInternalEVMHandler(blockchain)
+
 	gchain, _ := core.GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)

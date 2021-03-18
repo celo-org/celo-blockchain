@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -14,13 +15,13 @@ var (
 	ErrTobinTaxInvalidNumerator = errors.New("Tobin tax numerator greater than denominator")
 )
 
-func TobinTax(evm ContractCaller, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress common.Address, err error) {
+func TobinTax(evm *vm.EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress common.Address, err error) {
 	reserveAddress, err = GetRegisteredAddress(evm, params.ReserveRegistryId)
 	if err != nil {
 		return nil, nil, common.ZeroAddress, err
 	}
 
-	ret, _, err := evm.Call(reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, _, err := evm.Call(systemCaller, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return nil, nil, common.ZeroAddress, err
 	}
@@ -41,7 +42,7 @@ func TobinTax(evm ContractCaller, sender common.Address) (numerator *big.Int, de
 	return numerator, denominator, reserveAddress, nil
 }
 
-func ComputeTobinTax(evm ContractCaller, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error) {
+func ComputeTobinTax(evm *vm.EVM, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error) {
 	numerator, denominator, recipient, err := TobinTax(evm, sender)
 	if err != nil {
 		return nil, common.ZeroAddress, err
