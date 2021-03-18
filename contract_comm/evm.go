@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -122,6 +123,7 @@ func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, 
 }
 
 func SetInternalEVMHandler(chain vm.ChainContext) {
+	caller.SetInternalEVMHandler(chain)
 	if internalEvmHandlerSingleton == nil {
 		log.Trace("Setting the InternalEVMHandler Singleton")
 		internalEvmHandler := InternalEVMHandler{
