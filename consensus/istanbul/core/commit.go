@@ -250,7 +250,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.current.State().Cmp(StatePrepared) < 0 {
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
+			logger.Error("Failed to create and set prepared certificate", "err", err)
 			return err
 		}
 		// Process Backlog Messages
