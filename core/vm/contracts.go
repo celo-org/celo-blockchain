@@ -635,10 +635,10 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 			return nil, gas, ErrInsufficientBalance
 		}
 
-		gas, err = evm.TobinTransfer(evm.StateDB, from, to, gas, value)
+		evm.Context.Transfer(evm, from, to, value)
 	}
 
-	return input, gas, err
+	return input, gas, nil
 }
 
 // computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions

@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -41,7 +40,8 @@ type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	// TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	TransferFunc func(*EVM, common.Address, common.Address, *big.Int)
 	// GetHashFunc returns the n'th block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
@@ -268,11 +268,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, gas, err
-	}
+
+	evm.Context.Transfer(evm, caller.Address(), to.Address(), value)
+
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -451,11 +449,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
 	}
-	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, address, gas, err
-	}
+	evm.Transfer(evm, caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -552,31 +546,4 @@ func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominat
 		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
 	}
 	return numerator, denominator, reserveAddress, nil
-}
-
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-// NB: Gas is not charged or accounted for this calculation.
-func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		tax, taxCollector, err := contracts.ComputeTobinTax(NewCaller(evm), sender, amount)
-		if err == nil {
-			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tax))
-			evm.Context.Transfer(db, sender, taxCollector, tax)
-			return gas, nil
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
-		}
-	}
-
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	evm.Context.Transfer(db, sender, recipient, amount)
-	return gas, nil
 }

@@ -24,7 +24,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.Transfer,
+		Transfer:    vm.TobinTransfer,
 
 		GetHash: cfg.GetHashFn,
 
