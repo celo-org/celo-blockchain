@@ -25,13 +25,14 @@ import (
 
 // NodeConfig represents the configuration of a celo-blockchain node runner
 type NodeConfig struct {
-	GethPath      string
-	ExtraFlags    string
-	ChainID       *big.Int
-	Number        int
-	Account       env.Account
-	OtherAccounts []env.Account
-	Datadir       string
+	GethPath              string
+	ExtraFlags            string
+	ChainID               *big.Int
+	Number                int
+	Account               env.Account
+	TxFeeRecipientAccount env.Account
+	OtherAccounts         []env.Account
+	Datadir               string
 }
 
 // RPCPort is the rpc port this node will use
@@ -165,7 +166,8 @@ func (n *Node) Run(ctx context.Context) error {
 		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
 		"--rpcapi", "eth,net,web3,debug,admin,personal",
 		// "--nodiscover", "--nousb ",
-		"--etherbase", n.Account.Address.Hex(),
+		"--miner.validator", n.Account.Address.Hex(),
+		"--tx-fee-recipient", n.TxFeeRecipientAccount.Address.Hex(),
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
 	}
