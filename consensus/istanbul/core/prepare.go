@@ -195,15 +195,15 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		return err
 	}
 
-	preparesAndCommits := c.current.GetPrepareOrCommitSize()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
-	logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
+	psize := c.current.Prepares().Size()
+	logger = logger.New("prepares", psize)
 	logger.Trace("Accepted prepare")
 
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if (preparesAndCommits >= minQuorumSize) && c.current.State().Cmp(StatePrepared) < 0 {
+	if (psize >= minQuorumSize) && c.current.State().Cmp(StatePrepared) < 0 {
 
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
