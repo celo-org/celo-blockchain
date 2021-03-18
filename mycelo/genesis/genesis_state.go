@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -66,6 +67,13 @@ func newDeployment(genesisConfig *Config, accounts *env.AccountsConfig, buildPat
 			Time:        newBigInt(genesisConfig.GenesisTimestamp),
 			Coinbase:    adminAddress,
 			BlockNumber: newBigInt(0),
+			GetAddressFromRegistry: func(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+				return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
+			},
+			GetHashFn: func(n uint64) common.Hash {
+				log.Error("Calling GetHash. Not implemented")
+				return common.Hash{}
+			},
 			EVMConfig: vm.Config{
 				Tracer: nil,
 				Debug:  false,

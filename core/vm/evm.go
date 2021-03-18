@@ -17,16 +17,13 @@
 package vm
 
 import (
-	"encoding/binary"
 	"errors"
-	goerrors "errors"
 	"math/big"
 	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
@@ -53,6 +50,9 @@ type (
 
 	// GetValidatorsFunc is the signature for the GetValidators function
 	GetValidatorsFunc func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
+
+	// GetAddressFromRegistryFunc is a function that retrieves an address from the registry
+	GetAddressFromRegistryFunc func(evm *EVM, registryId common.Hash) (common.Address, error)
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -114,8 +114,9 @@ type Context struct {
 
 	Header *types.Header
 
-	EpochSize     uint64
-	GetValidators GetValidatorsFunc
+	EpochSize              uint64
+	GetValidators          GetValidatorsFunc
+	GetAddressFromRegistry GetAddressFromRegistryFunc
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -155,7 +156,7 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	dontMeterGas bool
+	DontMeterGas bool
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -168,7 +169,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
-		dontMeterGas: false,
+		DontMeterGas: false,
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {

@@ -1,15 +1,45 @@
-package evm
+package contracts
 
 import (
+	"math/big"
 	"reflect"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 )
+
+// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
+var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
+
+type EVMCaller struct {
+	evm *vm.EVM
+}
+
+func NewCaller(evm *vm.EVM) *EVMCaller {
+	return &EVMCaller{evm}
+}
+
+func (caller *EVMCaller) StaticCall(addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+	return caller.evm.StaticCall(systemCaller, addr, input, gas)
+}
+
+func (caller *EVMCaller) Call(addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+	return caller.evm.Call(systemCaller, addr, input, gas, value)
+}
+
+func (caller *EVMCaller) ContractDeployed(addr common.Address) bool {
+	return caller.evm.GetStateDB().GetCodeSize(addr) == 0
+}
+
+func (caller *EVMCaller) StartNoGas() (reactivate func()) {
+	caller.evm.DontMeterGas = true
+	return func() {
+		caller.evm.DontMeterGas = false
+	}
+}
 
 var (
 	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
@@ -44,18 +74,18 @@ func CreateEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	context := NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
 	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil
 }
 
-func CreateEVMCaller(header *types.Header, state vm.StateDB) (contracts.ContractCaller, error) {
+func CreateEVMCaller(header *types.Header, state vm.StateDB) (ContractCaller, error) {
 	evmInstance, err := CreateEVM(header, state)
 	if err != nil {
 		return nil, err
 	}
-	return vm.NewCaller(evmInstance), nil
+	return NewCaller(evmInstance), nil
 }
 
 func SetInternalEVMHandler(chain vm.ChainContext) {

@@ -79,7 +79,7 @@ func MakeCallWithContractId(caller ContractCaller, registryId [32]byte, abi abi.
 		}
 	}
 
-	gasLeft, err := MakeCallFromSystem(caller, *scAddress, abi, funcName, args, returnObj, gas, value, static)
+	gasLeft, err := MakeCallFromSystem(caller, scAddress, abi, funcName, args, returnObj, gas, value, static)
 	if err != nil {
 		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 	}

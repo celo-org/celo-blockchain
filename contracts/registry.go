@@ -6,6 +6,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/errors"
+	"github.com/celo-org/celo-blockchain/core/vm"
 
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -34,12 +35,12 @@ const (
 
 var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
-func GetRegisteredAddress(evm ContractCaller, registryId common.Hash) (*common.Address, error) {
+func GetRegisteredAddress(evm ContractCaller, registryId common.Hash) (common.Address, error) {
 	defer evm.StartNoGas()()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
 	if !evm.ContractDeployed(params.RegistrySmartContractAddress) {
-		return nil, errors.ErrRegistryContractNotDeployed
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
@@ -47,18 +48,15 @@ func GetRegisteredAddress(evm ContractCaller, registryId common.Hash) (*common.A
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments {
-
-		// FIXME(mcortesi)
-		// if err == abi.ErrEmptyArguments || err == vm.ErrExecutionReverted {
-		return nil, errors.ErrRegistryContractNotDeployed
+	if err == abi.ErrEmptyArguments || err == vm.ErrExecutionReverted {
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
-		return nil, err
+		return common.ZeroAddress, err
 	}
 
 	if contractAddress == common.ZeroAddress {
-		return nil, errors.ErrSmartContractNotDeployed
+		return common.ZeroAddress, errors.ErrSmartContractNotDeployed
 	}
 
-	return &contractAddress, nil
+	return contractAddress, nil
 }

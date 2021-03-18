@@ -43,8 +43,9 @@ type Config struct {
 	Debug       bool
 	EVMConfig   vm.Config
 
-	State     *state.StateDB
-	GetHashFn func(n uint64) common.Hash
+	State                  *state.StateDB
+	GetHashFn              func(n uint64) common.Hash
+	GetAddressFromRegistry vm.GetAddressFromRegistryFunc
 }
 
 // sets defaults on the config

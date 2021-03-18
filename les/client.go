@@ -29,7 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/contract_comm"
-	"github.com/celo-org/celo-blockchain/contracts/callers/evm"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -151,8 +151,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	evm.SetInternalEVMHandler(leth.blockchain)
-	contract_comm.SetDefaultCallerFactory(evm.CreateEVMCaller)
+	contracts.SetInternalEVMHandler(leth.blockchain)
+	contract_comm.SetDefaultCallerFactory(contracts.CreateEVMCaller)
 
 	leth.chainReader = leth.blockchain
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)

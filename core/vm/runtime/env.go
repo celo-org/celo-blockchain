@@ -17,6 +17,9 @@
 package runtime
 
 import (
+	"math/big"
+
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
@@ -24,7 +27,6 @@ func NewEnv(cfg *Config) *vm.EVM {
 
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.TobinTransfer,
 
 		GetHash: cfg.GetHashFn,
 
@@ -33,6 +35,11 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
+
+		Transfer: func(e *vm.EVM, sender, recipient common.Address, amount *big.Int) {
+			vm.Transfer(e.StateDB, sender, recipient, amount)
+		},
+		GetAddressFromRegistry: cfg.GetAddressFromRegistry,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

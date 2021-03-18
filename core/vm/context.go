@@ -22,7 +22,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
@@ -76,8 +75,13 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
+type ContractsContext interface {
+	GetAddressFromRegistry(evm *EVM, registryId common.Hash) (common.Address, error)
+	ComputeTobinTax(evm *EVM, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error)
+}
+
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, contractsCtx ContractsContext, txFeeRecipient *common.Address) Context {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
@@ -89,15 +93,16 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 	}
 
 	ctx := Context{
-		CanTransfer: CanTransfer,
-		Transfer:    TobinTransfer,
-		GetHash:     GetHashFn(header, chain),
-		VerifySeal:  VerifySealFn(header, chain),
-		Origin:      msg.From(),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).SetUint64(header.Time),
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
+		CanTransfer:            CanTransfer,
+		Transfer:               createTransferFunction(contractsCtx.ComputeTobinTax),
+		GetHash:                GetHashFn(header, chain),
+		VerifySeal:             VerifySealFn(header, chain),
+		Origin:                 msg.From(),
+		Coinbase:               beneficiary,
+		BlockNumber:            new(big.Int).Set(header.Number),
+		Time:                   new(big.Int).SetUint64(header.Time),
+		GasPrice:               new(big.Int).Set(msg.GasPrice()),
+		GetAddressFromRegistry: contractsCtx.GetAddressFromRegistry,
 	}
 
 	if chain != nil {
@@ -178,28 +183,30 @@ func VerifySealFn(ref *types.Header, chain ChainContext) func(*types.Header) boo
 	}
 }
 
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-func TobinTransfer(evm *EVM, sender, recipient common.Address, amount *big.Int) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		tax, taxCollector, err := contracts.ComputeTobinTax(NewCaller(evm), sender, amount)
-		if err == nil {
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxCollector, tax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
+func createTransferFunction(computeTax func(evm *EVM, sender common.Address, transferAmount *big.Int) (tax *big.Int, taxRecipient common.Address, err error)) TransferFunc {
+	// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
+	// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
+	return func(evm *EVM, sender, recipient common.Address, amount *big.Int) {
+		// Run only primary evm.Call() with tracer
+		if evm.GetDebug() {
+			evm.SetDebug(false)
+			defer func() { evm.SetDebug(true) }()
 		}
-	}
 
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
-	return
+		if amount.Cmp(big.NewInt(0)) != 0 {
+			tax, taxCollector, err := computeTax(evm, sender, amount)
+			if err == nil {
+				Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
+				Transfer(evm.StateDB, sender, taxCollector, tax)
+				return
+			} else {
+				log.Error("Failed to get tobin tax", "error", err)
+			}
+		}
+
+		// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
+		// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
+		Transfer(evm.StateDB, sender, recipient, amount)
+		return
+	}
 }

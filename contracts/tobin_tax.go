@@ -14,29 +14,29 @@ var (
 	ErrTobinTaxInvalidNumerator = errors.New("Tobin tax numerator greater than denominator")
 )
 
-func TobinTax(evm ContractCaller, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
+func TobinTax(evm ContractCaller, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress common.Address, err error) {
 	reserveAddress, err = GetRegisteredAddress(evm, params.ReserveRegistryId)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, common.ZeroAddress, err
 	}
 
-	ret, _, err := evm.Call(*reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, _, err := evm.Call(reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, common.ZeroAddress, err
 	}
 
 	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
 	// each of which is equivalent to 32 bytes
 	if binary.Size(ret) != 64 {
-		return nil, nil, nil, errors.New("Length of tobin tax not equal to 64 bytes")
+		return nil, nil, common.ZeroAddress, errors.New("Length of tobin tax not equal to 64 bytes")
 	}
 	numerator = new(big.Int).SetBytes(ret[0:32])
 	denominator = new(big.Int).SetBytes(ret[32:64])
 	if denominator.Cmp(common.Big0) == 0 {
-		return nil, nil, nil, ErrTobinTaxZeroDenominator
+		return nil, nil, common.ZeroAddress, ErrTobinTaxZeroDenominator
 	}
 	if numerator.Cmp(denominator) == 1 {
-		return nil, nil, nil, ErrTobinTaxInvalidNumerator
+		return nil, nil, common.ZeroAddress, ErrTobinTaxInvalidNumerator
 	}
 	return numerator, denominator, reserveAddress, nil
 }
@@ -48,5 +48,5 @@ func ComputeTobinTax(evm ContractCaller, sender common.Address, transferAmount *
 	}
 
 	tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, transferAmount), denominator)
-	return tobinTax, *recipient, nil
+	return tobinTax, recipient, nil
 }

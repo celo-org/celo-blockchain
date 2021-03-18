@@ -443,12 +443,12 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := contracts.GetRegisteredAddress(vm.NewCaller(st.evm), params.GovernanceRegistryId)
+	governanceAddress, err := contracts.GetRegisteredAddress(contracts.NewCaller(st.evm), params.GovernanceRegistryId)
 	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 		return err
 	} else if err != nil {
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = &common.ZeroAddress
+		governanceAddress = common.ZeroAddress
 		refund.Add(refund, baseTxFee)
 		baseTxFee = new(big.Int)
 	}
@@ -456,18 +456,18 @@ func (st *StateTransition) distributeTxFees() error {
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
-		"comunityFundRecipient", *governanceAddress, "communityFundFee", baseTxFee)
+		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		if governanceAddress != &common.ZeroAddress {
-			st.state.AddBalance(*governanceAddress, baseTxFee)
+		if governanceAddress != common.ZeroAddress {
+			st.state.AddBalance(governanceAddress, baseTxFee)
 		}
 		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
-		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, &governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
 			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
 			return err
 		}

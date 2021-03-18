@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -208,6 +209,13 @@ func runCmd(ctx *cli.Context) error {
 			Tracer:         tracer,
 			Debug:          ctx.GlobalBool(DebugFlag.Name) || ctx.GlobalBool(MachineFlag.Name),
 			EVMInterpreter: ctx.GlobalString(EVMInterpreterFlag.Name),
+		},
+		GetAddressFromRegistry: func(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+			return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
+		},
+		GetHashFn: func(n uint64) common.Hash {
+			log.Error("Calling GetHash. Not implemented")
+			return common.Hash{}
 		},
 	}
 

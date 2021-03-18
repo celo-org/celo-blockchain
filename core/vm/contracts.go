@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/blake2b"
@@ -600,7 +599,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	if err != nil {
 		return nil, gas, err
 	}
-	celoGoldAddress, err := contracts.GetRegisteredAddress(NewCaller(evm), params.GoldTokenRegistryId)
+	celoGoldAddress, err := evm.Context.GetAddressFromRegistry(evm, params.GoldTokenRegistryId)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -614,7 +613,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, ErrInputLength
 	}
 
-	if caller != *celoGoldAddress {
+	if caller != celoGoldAddress {
 		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	from := common.BytesToAddress(input[0:32])
