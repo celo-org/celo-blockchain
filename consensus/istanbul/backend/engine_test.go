@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -135,6 +136,10 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 
 func TestSealCommitted(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
+	// In normal case, the StateProcessResult should be passed into Commit
+	engine.abortCommitHook = func(result *core.StateProcessResult) bool {
+		return result == nil
+	}
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.signBlock(block)
 
