@@ -26,20 +26,20 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-// SystemContractCaller Provides an interfaces for making core contract calls as the system against the supplied provider
+// SystemContractCaller runs core contract calls. The implementation provides the state on which the calls are ran
 type SystemContractCaller interface {
 	AddressCaller
 	RegistryCaller
 	GetRegisteredAddress(registryId common.Hash) (*common.Address, error)
 }
 
-// Core Contract given a specific address
+// AddressCaller makes a call with a specified address
 type AddressCaller interface {
 	MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
 	MakeCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error)
 }
 
-// Core Contract given a registry ID to lookup in the registry
+// RegistryCaller looks up the contract address from the registry ID and then makes an address cal
 type RegistryCaller interface {
 	MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
 	MakeCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error)
@@ -50,7 +50,7 @@ type evmBuilder interface {
 	createEVM() *vm.EVM
 }
 
-// Private struct that implements CachingSystemCaller.
+// Private struct that implements SystemContractCaller.
 type contractCommunicator struct {
 	builder evmBuilder
 }
@@ -70,6 +70,7 @@ func (c specificStateCaller) createEVM() *vm.EVM {
 }
 
 // TODO(Joshua): Inject chain here instead of using singleton
+// currentStateCaller creates an EVM from the current blockchain state
 type currentStateCaller struct{}
 
 var internalEvmHandlerSingleton *InternalEVMHandler
@@ -79,6 +80,7 @@ type InternalEVMHandler struct {
 	chain vm.ChainContext
 }
 
+// Sets the singletone. Currently required. To eliminate must pass install of contract caller to each contract_comm method
 func SetInternalEVMHandler(chain vm.ChainContext) {
 	if internalEvmHandlerSingleton == nil {
 		// log.Trace("Setting the InternalEVMHandler Singleton")
@@ -100,7 +102,8 @@ func (c currentStateCaller) createEVM() *vm.EVM {
 	return vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 }
 
-// NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state, and chain
+// NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state
+// SetIEVMHandler must be called prior to using this (to maintain backwards compatibility)
 func NewCaller(header *types.Header, state vm.StateDB) SystemContractCaller {
 	if header == nil || state == nil || reflect.ValueOf(state).IsNil() {
 		return NewCurrentStateCaller()
