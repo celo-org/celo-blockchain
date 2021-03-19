@@ -44,7 +44,8 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 
 func createCurrentEVMCaller() evmCaller {
 	header := internalEvmHandlerSingleton.chain.CurrentHeader()
-	state, _ := internalEvmHandlerSingleton.chain.State()
+	var state vm.StateDB
+	state, _ = internalEvmHandlerSingleton.chain.State()
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
