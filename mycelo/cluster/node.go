@@ -164,7 +164,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--rpc",
 		"--rpcaddr", "127.0.0.1",
 		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
-		"--rpcapi", "eth,net,web3,debug,admin,personal",
+		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul",
 		// "--nodiscover", "--nousb ",
 		"--miner.validator", n.Account.Address.Hex(),
 		"--tx-fee-recipient", n.TxFeeRecipientAccount.Address.Hex(),
