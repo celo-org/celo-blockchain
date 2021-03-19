@@ -37,7 +37,8 @@ import (
 // }
 
 func (c evmCaller) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
-	return vm.GetRegisteredAddressWithEvm(registryId, c.evm)
+	nc := createCurrentEVMCaller()
+	return vm.GetRegisteredAddressWithEvm(registryId, nc.evm)
 }
 
 func (c evmCaller) StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
