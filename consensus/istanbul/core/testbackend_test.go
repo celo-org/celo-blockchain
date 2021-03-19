@@ -170,6 +170,7 @@ func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, 
 }
 
 func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+	println("---------committing", proposal.Number().Uint64(), aggregatedSeal.Round.Uint64())
 	testLogger.Info("commit message", "address", self.Address())
 	self.committedMsgs = append(self.committedMsgs, testCommittedMsgs{
 		commitProposal:                  proposal,
