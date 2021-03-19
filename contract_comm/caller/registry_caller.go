@@ -58,6 +58,24 @@ func (c evmCaller) StaticCallFromSystemWithRegistryLookup(registryId common.Hash
 
 }
 
+func (c evmCaller) MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	scAddress, err := c.getRegisteredAddress(registryId, funcName)
+	if err != nil {
+		return 0, err // TODO(joshua): should this be gas instead of 0?
+	}
+	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
+	start := time.Now()
+	defer timer.UpdateSince(start)
+
+	gasLeft, err := c.MemoizedStaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
+	if err != nil {
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
+	}
+	return gasLeft, err
+
+}
+
 func (c evmCaller) CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {

@@ -59,6 +59,11 @@ func (c currentStateCaller) StaticCallFromSystem(contractAddress common.Address,
 	return nc.StaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
 }
 
+func (c currentStateCaller) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	nc := createCurrentEVMCaller()
+	return nc.MemoizedStaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
+}
+
 func (c currentStateCaller) CallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	nc := createCurrentEVMCaller()
 	return nc.CallFromSystem(contractAddress, abi, funcName, args, returnObj, gas, value)
@@ -67,6 +72,11 @@ func (c currentStateCaller) CallFromSystem(contractAddress common.Address, abi a
 func (c currentStateCaller) StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	nc := createCurrentEVMCaller()
 	return nc.StaticCallFromSystemWithRegistryLookup(registryId, abi, funcName, args, returnObj, gas)
+}
+
+func (c currentStateCaller) MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	nc := createCurrentEVMCaller()
+	return nc.MemoizedStaticCallFromSystemWithRegistryLookup(registryId, abi, funcName, args, returnObj, gas)
 }
 
 func (c currentStateCaller) CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
