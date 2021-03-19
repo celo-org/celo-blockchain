@@ -22,8 +22,10 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
+	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // SystemContractCaller runs core contract calls. The implementation provides the state on which the calls are ran
@@ -47,7 +49,7 @@ type RegistryCaller interface {
 
 // Creates a new EVM on demand.
 type evmBuilder interface {
-	createEVM() *vm.EVM
+	createEVM() (*vm.EVM, error)
 }
 
 // Private struct that implements SystemContractCaller.
@@ -64,9 +66,12 @@ type specificStateCaller struct {
 	chain  vm.ChainContext
 }
 
-func (c specificStateCaller) createEVM() *vm.EVM {
+func (c specificStateCaller) createEVM() (*vm.EVM, error) {
+	if internalEvmHandlerSingleton == nil {
+		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
+	}
 	context := vm.NewEVMContext(emptyMessage, c.header, c.chain, nil)
-	return vm.NewEVM(context, c.state, c.chain.Config(), *c.chain.GetVMConfig())
+	return vm.NewEVM(context, c.state, c.chain.Config(), *c.chain.GetVMConfig()), nil
 }
 
 // TODO(Joshua): Inject chain here instead of using singleton
@@ -83,7 +88,7 @@ type InternalEVMHandler struct {
 // Sets the singletone. Currently required. To eliminate must pass install of contract caller to each contract_comm method
 func SetInternalEVMHandler(chain vm.ChainContext) {
 	if internalEvmHandlerSingleton == nil {
-		// log.Trace("Setting the InternalEVMHandler Singleton")
+		log.Trace("Setting the InternalEVMHandler Singleton")
 		internalEvmHandler := InternalEVMHandler{
 			chain: chain,
 		}
@@ -91,15 +96,22 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 	}
 }
 
-func (c currentStateCaller) createEVM() *vm.EVM {
+func (c currentStateCaller) createEVM() (*vm.EVM, error) {
+	if internalEvmHandlerSingleton == nil {
+		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
+	}
 	header := internalEvmHandlerSingleton.chain.CurrentHeader()
 	var state vm.StateDB
-	state, _ = internalEvmHandlerSingleton.chain.State()
+	state, err := internalEvmHandlerSingleton.chain.State()
+	if err != nil {
+		log.Error("Error in retrieving the state from the blockchain", "err", err)
+		return nil, err
+	}
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
-	return vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
+	return vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig()), nil
 }
 
 // NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state

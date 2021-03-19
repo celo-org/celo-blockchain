@@ -37,17 +37,27 @@ func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm
 
 // Contract Communicator Implementation
 func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	evm := c.builder.createEVM()
+	evm, err := c.builder.createEVM()
+	if err != nil {
+		return gas, err // TODO(Joshua): 0 or gas for gas left?
+	}
 	return evm.StaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
 }
 
 func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	evm := c.builder.createEVM()
+	evm, err := c.builder.createEVM()
+	if err != nil {
+		return gas, err // TODO(Joshua): 0 or gas for gas left?
+	}
 	return evm.CallFromSystem(contractAddress, abi, funcName, args, returnObj, gas, value)
 }
 
 func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
-	return vm.GetRegisteredAddressWithEvm(registryId, c.builder.createEVM())
+	evm, err := c.builder.createEVM()
+	if err != nil {
+		return nil, err // TODO(Joshua): 0 or gas for gas left?
+	}
+	return vm.GetRegisteredAddressWithEvm(registryId, evm)
 }
 
 func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
