@@ -35,6 +35,14 @@ type SystemContractCaller interface {
 	GetRegisteredAddress(registryId common.Hash) (*common.Address, error)
 }
 
+// CachingSystemContractCaller runs core contract calls. The implementation provides the state on which the calls are ran.celo-blockchain
+// Memoized versions of the static call functions are available. The cache is only used with a clean state.
+type CachingSystemContractCaller interface {
+	SystemContractCaller
+	MakeMemoizedStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
+	MakeMemoizedStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
+}
+
 // AddressCaller makes a call with a specified address
 type AddressCaller interface {
 	MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
@@ -126,6 +134,6 @@ func NewCaller(header *types.Header, state vm.StateDB) SystemContractCaller {
 
 // NewCurrentStateCaller creates a caller object that uses the current chain state
 // SetIEVMHandler must be called before this method is able to be used
-func NewCurrentStateCaller() SystemContractCaller {
+func NewCurrentStateCaller() CachingSystemContractCaller {
 	return contractCommunicator{builder: currentStateCaller{}}
 }

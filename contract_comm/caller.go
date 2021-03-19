@@ -44,6 +44,14 @@ func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.A
 	return evm.StaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
 }
 
+func (c contractCommunicator) MakeMemoizedStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	evm, err := c.builder.createEVM()
+	if err != nil {
+		return gas, err // TODO(Joshua): 0 or gas for gas left?
+	}
+	return evm.MemoizedStaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
+}
+
 func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	evm, err := c.builder.createEVM()
 	if err != nil {
@@ -71,6 +79,24 @@ func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI
 	defer timer.UpdateSince(start)
 
 	gasLeft, err := c.MakeStaticCallWithAddress(scAddress, abi, funcName, args, returnObj, gas)
+	if err != nil {
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
+	}
+	return gasLeft, err
+
+}
+
+func (c contractCommunicator) MakeMemoizedStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	scAddress, err := c.getRegisteredAddress(registryId, funcName)
+	if err != nil {
+		return 0, err // TODO(joshua): should this be gas instead of 0?
+	}
+	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
+	start := time.Now()
+	defer timer.UpdateSince(start)
+
+	gasLeft, err := c.MakeMemoizedStaticCallWithAddress(scAddress, abi, funcName, args, returnObj, gas)
 	if err != nil {
 		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 	}
