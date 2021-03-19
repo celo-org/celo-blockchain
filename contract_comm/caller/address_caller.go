@@ -34,6 +34,8 @@ type addressCaller struct {
 	evm *vm.EVM
 }
 
+// Note: These are lifted from the bottom of core/vm/evm.go
+
 var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
 
 func (c contractCommunicator) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
