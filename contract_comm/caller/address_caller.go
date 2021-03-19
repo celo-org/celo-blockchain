@@ -36,7 +36,7 @@ type addressCaller struct {
 
 var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
 
-func (c contractCommunicator) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
 		evm := c.builder.createEVM()
 		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
@@ -45,7 +45,7 @@ func (c contractCommunicator) StaticCallFromSystem(contractAddress common.Addres
 	return handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
-func (c contractCommunicator) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
 		evm := c.builder.createEVM()
 		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
