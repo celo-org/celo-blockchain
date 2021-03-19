@@ -32,7 +32,9 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -592,6 +594,65 @@ func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.
 		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
 
+	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
+}
+
+type cacheKey struct {
+	StateRoot       common.Hash
+	TransactionData string
+}
+
+type cacheResult struct {
+	ret     []byte
+	gasLeft uint64
+}
+
+var staticCallCache, _ = lru.New(100)
+var (
+	cacheHits    = metrics.NewRegisteredMeter("contract_comm/caller/cache_hits", nil)
+	cacheMisses  = metrics.NewRegisteredMeter("contract_comm/caller/cache_misses", nil)
+	cacheSkipped = metrics.NewRegisteredMeter("contract_comm/caller/cache_skipped", nil)
+	cacheBadCast = metrics.NewRegisteredMeter("contract_comm/caller/cache_bad_cast", nil)
+)
+
+func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
+		clean, stateRoot := evm.StateDB.CleanStateRoot()
+		if clean {
+			key := cacheKey{
+				TransactionData: string(transactionData),
+				StateRoot:       stateRoot,
+			}
+			if result, ok := staticCallCache.Get(key); ok {
+				cachedResult, castOk := result.(cacheResult)
+				if !castOk {
+					cacheBadCast.Mark(1)
+					staticCallCache.Remove(key)
+					return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+				}
+				cacheHits.Mark(1)
+				ret := make([]byte, len(cachedResult.ret))
+				copy(ret, cachedResult.ret)
+				return ret, cachedResult.gasLeft, nil
+			} else {
+				cacheMisses.Mark(1)
+				ret, gasLeft, err := evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+				if err != nil {
+					return ret, gasLeft, err
+				}
+				result := cacheResult{
+					ret:     make([]byte, len(ret)),
+					gasLeft: gasLeft,
+				}
+				copy(result.ret, ret)
+				staticCallCache.Add(key, result)
+				return ret, gasLeft, nil
+			}
+		} else {
+			cacheSkipped.Mark(1)
+			return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+		}
+	}
 	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
