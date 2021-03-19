@@ -187,7 +187,9 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
 	comm := caller.NewCaller(header, state)
 	_, err := comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue)
-	// TODO(joshua): comm.Finalise here
+	if err == nil {
+		state.Finalise(true)
+	}
 	return err
 }
 

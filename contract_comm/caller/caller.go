@@ -31,7 +31,6 @@ type SystemContractCaller interface {
 	AddressCaller
 	RegistryCaller
 	GetRegisteredAddress(registryId common.Hash) (*common.Address, error)
-	// FinalizeState() error // TODO(joshua): This is used with random instead of finaliseState bool on MakeCall
 }
 
 // Core Contract given a specific address
