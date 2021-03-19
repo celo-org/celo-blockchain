@@ -24,6 +24,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestRoundChangeSet(t *testing.T) {
@@ -549,12 +551,22 @@ func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
 			committed, _ := b.GetCurrentHeadBlockAndAuthor()
 			// We expect to commit the block proposed by the first proposer.
 			expectedCommitted := makeBlock(1)
+
 			if committed.Number().Cmp(common.Big1) != 0 {
 				t.Errorf("Backend %v got committed block with unexpected number: expected %v, got %v", i, 1, committed.Number())
 			}
 			if expectedCommitted.Hash() != committed.Hash() {
 				t.Errorf("Backend %v got committed block with unexpected hash: expected %v, got %v", i, expectedCommitted.Hash(), committed.Hash())
 			}
+			spew.Dump(committed.Header())
+			extra, err := types.ExtractIstanbulExtra(committed.Header())
+			if err != nil {
+				t.Errorf("Failed to extract istanbulExtra %v", err)
+			}
+			if extra.AggregatedSeal.Round.Uint64() != 2 {
+				t.Errorf("Expecting round to be 2, got %d", extra.AggregatedSeal.Round.Uint64())
+			}
+
 		}
 	}
 
