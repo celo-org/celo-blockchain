@@ -134,6 +134,7 @@ func newFreezer(datadir string, namespace string) (*freezer, error) {
 
 // Close terminates the chain freezer, unmapping all the data files.
 func (f *freezer) Close() error {
+	f.quit <- struct{}{}
 	var errs []error
 	for _, table := range f.tables {
 		if err := table.Close(); err != nil {
