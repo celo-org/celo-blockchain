@@ -19,6 +19,7 @@ package core
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"sync"
@@ -318,6 +319,7 @@ func (rs *roundStateImpl) StartNewSequence(nextSequence *big.Int, validatorSet i
 func (rs *roundStateImpl) TransitionToCommitted() error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+	fmt.Printf("Transition to committed, seq %d, round %d\n", rs.sequence.Uint64(), rs.round.Uint64())
 
 	rs.state = StateCommitted
 	return nil
@@ -327,6 +329,7 @@ func (rs *roundStateImpl) TransitionToPreprepared(preprepare *istanbul.Preprepar
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
+	fmt.Printf("Transition to pre-prepared, seq %d, round %d\n", rs.sequence.Uint64(), rs.round.Uint64())
 	rs.preprepare = preprepare
 	rs.state = StatePreprepared
 	return nil
@@ -336,6 +339,7 @@ func (rs *roundStateImpl) TransitionToWaitingForNewRound(desiredRound *big.Int, 
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
+	fmt.Printf("Transition to waiting for new round, seq %d, round %d\n", rs.sequence.Uint64(), rs.round.Uint64())
 	if rs.round.Cmp(desiredRound) > 0 {
 		return errInvalidState
 	}
@@ -384,6 +388,7 @@ func (rs *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 		PrepareOrCommitMessages: messages,
 	}
 
+	fmt.Printf("Transition to prepared, seq %d, round %d\n", rs.sequence.Uint64(), rs.round.Uint64())
 	rs.state = StatePrepared
 	return nil
 }

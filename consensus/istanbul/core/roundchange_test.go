@@ -499,7 +499,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 // This tests that when F+1 nodes receive 2F+1 PREPARE messages for a particular proposal, the
 // system enforces that as the only valid proposal for this sequence.
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
-	sys := NewTestSystemWithBackend(4, 1)
+	sys := NewMutedTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
 		b.engine.Start() // start Istanbul core
