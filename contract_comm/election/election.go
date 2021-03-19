@@ -44,7 +44,7 @@ const electionABIString string = `[
         "stateMutability": "view",
         "type": "function"
        },
-           {
+			     {
       "constant": true,
       "inputs": [],
       "name": "getTotalVotesForEligibleValidatorGroups",
