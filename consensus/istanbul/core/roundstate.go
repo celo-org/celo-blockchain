@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"runtime/debug"
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -389,6 +390,8 @@ func (rs *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	}
 
 	fmt.Printf("Transition to prepared, seq %d, round %d\n", rs.sequence.Uint64(), rs.round.Uint64())
+	debug.PrintStack()
+	println()
 	rs.state = StatePrepared
 	return nil
 }

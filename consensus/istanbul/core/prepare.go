@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -194,6 +195,10 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		logger.Error("Failed to add PREPARE message to round state", "err", err)
 		return err
 	}
+
+	preparesSize := c.current.Prepares().Size()
+	commitsSize := c.current.Commits().Size()
+	fmt.Printf("prepares %d, commits %d %s\n", preparesSize, commitsSize, c.address.String()[:6])
 
 	preparesAndCommits := c.current.GetPrepareOrCommitSize()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()

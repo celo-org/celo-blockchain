@@ -18,8 +18,10 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
+	"runtime/debug"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -32,6 +34,8 @@ import (
 const maxValidators = uint32(150)
 
 func (c *core) sendCommit() {
+	fmt.Printf("sending commit %s\n", c.address.String()[:6])
+	debug.PrintStack()
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
