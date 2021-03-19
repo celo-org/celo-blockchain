@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package caller
+package contract_comm
 
 import (
 	"math/big"
@@ -24,10 +24,16 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (*common.Address, error) {
+	cc := NewCaller(header, state)
+	return cc.GetRegisteredAddress(registryId)
+}
 
 // Contract Communicator Implementation
 func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
