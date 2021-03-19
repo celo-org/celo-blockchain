@@ -866,22 +866,3 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	}
 	return root, err
 }
-
-func (s *StateDB) CleanStateRoot() (bool, common.Hash) {
-	if len(s.stateObjects) > 0 {
-		return false, common.Hash{}
-	}
-	if len(s.stateObjectsDirty) > 0 {
-		return false, common.Hash{}
-	}
-	if len(s.stateObjectsPending) > 0 {
-		return false, common.Hash{}
-	}
-	if len(s.journal.dirties) > 0 {
-		return false, common.Hash{}
-	}
-	if len(s.journal.entries) > 0 {
-		return false, common.Hash{}
-	}
-	return true, s.trie.Hash()
-}

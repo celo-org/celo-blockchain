@@ -33,13 +33,6 @@ type SystemContractCaller interface {
 	// FinalizeState() error // TODO(joshua): This is used with random instead of finaliseState bool on MakeCall
 }
 
-// CachingSystemCaller extends the SystemContractCaller with a memoizing static call function
-type CachingSystemCaller interface {
-	SystemContractCaller
-	MemoizedStaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-	MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-}
-
 // Core Contract given a specific address
 type AddressCaller interface {
 	StaticCallFromSystem(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
@@ -115,6 +108,6 @@ func NewCaller(header *types.Header, state vm.StateDB, chain vm.ChainContext) Sy
 
 // NewCurrentStateCaller creates a caller object that uses the current chain state
 // SetIEVMHandler must be called before this method is able to be used
-func NewCurrentStateCaller() CachingSystemCaller {
+func NewCurrentStateCaller() SystemContractCaller {
 	return contractCommunicator{builder: currentStateCaller{}}
 }
