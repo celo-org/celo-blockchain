@@ -13,8 +13,7 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
-package caller
+package vm
 
 import (
 	"bytes"
@@ -24,30 +23,23 @@ import (
 	abipkg "github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
-type addressCaller struct {
-	evm *vm.EVM
-}
-
 // Note: These are lifted from the bottom of core/vm/evm.go
 
-var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
+var systemCaller = AccountRef(common.HexToAddress("0x0"))
 
-func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (evm *EVM) MakeStaticCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		evm := c.builder.createEVM()
 		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
 
 	return handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
-func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func (evm *EVM) MakeCallWithAddress(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		evm := c.builder.createEVM()
 		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
 	}
 	return handleABICall(abi, funcName, args, returnObj, call)
