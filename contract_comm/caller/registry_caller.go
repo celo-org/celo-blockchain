@@ -29,13 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/metrics"
 )
 
-// // Core Contract given a registry ID to lookup in the registry
-// type RegistryCaller interface {
-// 	StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-// 	MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-// 	CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, finaliseState bool) (uint64, error)
-// }
-
 func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
 	return vm.GetRegisteredAddressWithEvm(registryId, c.builder.createEVM())
 }
