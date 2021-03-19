@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -221,7 +222,7 @@ func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) erro
 		logger.Trace("Timed out but now on a different view")
 		return nil
 	}
-
+	fmt.Printf("timing out %s\n", c.address.String()[:6])
 	logger.Debug("Timed out, trying to wait for next round")
 	nextRound := new(big.Int).Add(timedOutView.Round, common.Big1)
 	return c.waitForDesiredRound(nextRound)
