@@ -23,7 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -113,15 +113,14 @@ func init() {
 func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	var err error
-	_, err = contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"getMinimumClientVersion",
 		[]interface{}{},
 		&version,
 		params.MaxGasForReadBlockchainParameter,
-		header,
-		state,
 	)
 	if err != nil {
 		return nil, err
@@ -132,15 +131,14 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
 	var gas *big.Int
 	var err error
-	_, err = contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		method,
 		[]interface{}{},
 		&gas,
 		params.MaxGasForReadBlockchainParameter,
-		header,
-		state,
 	)
 	if err != nil {
 		log.Trace("Default gas", "gas", defaultGas, "method", method)
@@ -184,15 +182,14 @@ func SpawnCheck() {
 
 func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 	var gasLimit *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"blockGasLimit",
 		[]interface{}{},
 		&gasLimit,
 		params.MaxGasForReadBlockchainParameter,
-		header,
-		state,
 	)
 	if err != nil {
 		if err == errors.ErrRegistryContractNotDeployed {
@@ -207,15 +204,14 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 
 func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
 	var lookbackWindow *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"getUptimeLookbackWindow",
 		[]interface{}{},
 		&lookbackWindow,
 		params.MaxGasForReadBlockchainParameter,
-		header,
-		state,
 	)
 	if err != nil {
 		if err == errors.ErrRegistryContractNotDeployed {

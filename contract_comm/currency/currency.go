@@ -109,7 +109,8 @@ type exchangeRate struct {
 }
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
-	celoGoldAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, nil, nil)
+	comm := caller.NewCurrentStateCaller()
+	celoGoldAddress, err := comm.GetRegisteredAddress(params.GoldTokenRegistryId)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return val, err
@@ -194,7 +195,7 @@ func medianRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	defaultRate := exchangeRate{big.NewInt(1), big.NewInt(1)}
 
 	comm := caller.NewCurrentStateCaller()
-	leftoverGas, err := comm.StaticCallFromSystemWithRegistryLookup(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate)
+	leftoverGas, err := comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate)
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &defaultRate, err
@@ -210,7 +211,8 @@ func medianRate(currencyAddress *common.Address) (*exchangeRate, error) {
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
-	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
+	comm := caller.NewCaller(header, state)
+	leftoverGas, err := comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas)
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
@@ -229,7 +231,8 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, g
 func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
 
-	_, err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList)
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)

@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
-	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
@@ -54,12 +54,15 @@ var (
 )
 
 func IsFrozen(registryId [32]byte, header *types.Header, state vm.StateDB) (bool, error) {
-	address, err := contract_comm.GetRegisteredAddress(registryId, header, state)
+	// TODO(joshua): can this be a single lookup?
+	comm := caller.NewCaller(header, state)
+	address, err := comm.GetRegisteredAddress(registryId)
 	if err != nil {
 		return false, err
 	}
 	var isFrozen bool
-	if _, err := contract_comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{address}, &isFrozen, params.MaxGasForIsFrozen, header, state); err != nil {
+	comm = caller.NewCaller(header, state)
+	if _, err := comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{address}, &isFrozen, params.MaxGasForIsFrozen); err != nil {
 		return false, err
 	}
 

@@ -21,7 +21,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -53,8 +53,9 @@ var (
 
 func retrieveWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var whitelist []common.Address
+	comm := caller.NewCaller(header, state)
 
-	if _, err := contract_comm.MakeStaticCall(params.TransferWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &whitelist, params.MaxGasForGetTransferWhitelist, header, state); err != nil {
+	if _, err := comm.MakeStaticCall(params.TransferWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &whitelist, params.MaxGasForGetTransferWhitelist); err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Warn("Registry address lookup failed", "err", err)
 		} else {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
@@ -91,21 +91,21 @@ func init() {
 
 func GetTotalSupply(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var totalSupply *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(
 		params.GoldTokenRegistryId,
 		totalSupplyFuncABI,
 		"totalSupply",
 		[]interface{}{},
 		&totalSupply,
 		params.MaxGasForTotalSupply,
-		header,
-		state,
 	)
 	return totalSupply, err
 }
 
 func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) error {
-	_, err := contract_comm.MakeCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeCall(
 		params.GoldTokenRegistryId,
 		increaseSupplyFuncABI,
 		"increaseSupply",
@@ -113,9 +113,6 @@ func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) erro
 		nil,
 		params.MaxGasForIncreaseSupply,
 		common.Big0,
-		header,
-		state,
-		false,
 	)
 	return err
 }
@@ -124,8 +121,9 @@ func Mint(header *types.Header, state vm.StateDB, benficiary common.Address, val
 	if value.Cmp(new(big.Int)) <= 0 {
 		return nil
 	}
+	comm := caller.NewCaller(header, state)
 
-	_, err := contract_comm.MakeCall(
+	_, err := comm.MakeCall(
 		params.GoldTokenRegistryId,
 		mintFuncABI,
 		"mint",
@@ -133,9 +131,6 @@ func Mint(header *types.Header, state vm.StateDB, benficiary common.Address, val
 		nil,
 		params.MaxGasForMintGas,
 		common.Big0,
-		header,
-		state,
-		false,
 	)
 	return err
 }

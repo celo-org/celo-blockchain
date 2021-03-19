@@ -22,8 +22,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -95,7 +95,8 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 	var err error
 
 	if currency == nil {
-		currencyAddress, err = contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, header, state)
+		comm := caller.NewCaller(header, state)
+		currencyAddress, err = comm.GetRegisteredAddress(params.GoldTokenRegistryId)
 
 		if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 			return FallbackGasPriceMinimum, nil
@@ -111,15 +112,14 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 	}
 
 	var gasPriceMinimum *big.Int
-	_, err = contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err = comm.MakeStaticCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"getGasPriceMinimum",
 		[]interface{}{currencyAddress},
 		&gasPriceMinimum,
 		params.MaxGasForGetGasPriceMinimum,
-		header,
-		state,
 	)
 
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
@@ -140,8 +140,8 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 
 	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by contract_comm
 	gasLimit, _ := blockchain_parameters.GetBlockGasLimit(header, state)
-
-	_, err := contract_comm.MakeCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeCall(
 		params.GasPriceMinimumRegistryId,
 		gasPriceMinimumABI,
 		"updateGasPriceMinimum",
@@ -150,9 +150,6 @@ func UpdateGasPriceMinimum(header *types.Header, state vm.StateDB) (*big.Int, er
 		&updatedGasPriceMinimum,
 		params.MaxGasForUpdateGasPriceMinimum,
 		big.NewInt(0),
-		header,
-		state,
-		false,
 	)
 	if err != nil {
 		return nil, err

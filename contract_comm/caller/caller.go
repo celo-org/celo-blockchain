@@ -101,8 +101,8 @@ func (c currentStateCaller) createEVM() *vm.EVM {
 }
 
 // NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state, and chain
-func NewCaller(header *types.Header, state vm.StateDB, chain vm.ChainContext) SystemContractCaller {
-	evmBuilder := specificStateCaller{header: header, state: state, chain: chain}
+func NewCaller(header *types.Header, state vm.StateDB) SystemContractCaller {
+	evmBuilder := specificStateCaller{header: header, state: state, chain: internalEvmHandlerSingleton.chain}
 	return contractCommunicator{builder: evmBuilder}
 }
 

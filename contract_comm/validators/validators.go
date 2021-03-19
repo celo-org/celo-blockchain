@@ -23,7 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/caller"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
@@ -188,9 +188,10 @@ var validatorsABI, _ = abi.JSON(strings.NewReader(validatorsABIString))
 
 func RetrieveRegisteredValidatorSigners(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var regVals []common.Address
+	comm := caller.NewCaller(header, state)
 
 	// Get the new epoch's validator signer set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidatorSigners", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators); err != nil {
 		return nil, err
 	}
 
@@ -199,9 +200,10 @@ func RetrieveRegisteredValidatorSigners(header *types.Header, state vm.StateDB) 
 
 func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var regVals []common.Address
+	comm := caller.NewCaller(header, state)
 
 	// Get the new epoch's validator set
-	if _, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators, header, state); err != nil {
+	if _, err := comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getRegisteredValidators", []interface{}{}, &regVals, params.MaxGasForGetRegisteredValidators); err != nil {
 		return nil, err
 	}
 
@@ -210,15 +212,14 @@ func RetrieveRegisteredValidators(header *types.Header, state vm.StateDB) ([]com
 
 func GetValidator(header *types.Header, state vm.StateDB, validatorAddress common.Address) (ValidatorContractData, error) {
 	var validator ValidatorContractData
-	_, err := contract_comm.MakeStaticCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"getValidator",
 		[]interface{}{validatorAddress},
 		&validator,
 		params.MaxGasForGetValidator,
-		header,
-		state,
 	)
 	if err != nil {
 		return validator, err
@@ -233,7 +234,8 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 	var validatorData []istanbul.ValidatorData
 	for _, addr := range validatorAddresses {
 		var blsKey []byte
-		_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator, header, state)
+		comm := caller.NewCaller(header, state)
+		_, err := comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getValidatorBlsPublicKeyFromSigner", []interface{}{addr}, &blsKey, params.MaxGasForGetValidator)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +255,8 @@ func GetValidatorData(header *types.Header, state vm.StateDB, validatorAddresses
 }
 
 func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common.Address, uptime *big.Int) error {
-	_, err := contract_comm.MakeCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"updateValidatorScoreFromSigner",
@@ -261,16 +264,14 @@ func UpdateValidatorScore(header *types.Header, state vm.StateDB, address common
 		nil,
 		params.MaxGasForUpdateValidatorScore,
 		common.Big0,
-		header,
-		state,
-		false,
 	)
 	return err
 }
 
 func DistributeEpochReward(header *types.Header, state vm.StateDB, address common.Address, maxReward *big.Int) (*big.Int, error) {
 	var epochReward *big.Int
-	_, err := contract_comm.MakeCall(
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeCall(
 		params.ValidatorsRegistryId,
 		validatorsABI,
 		"distributeEpochPaymentsFromSigner",
@@ -278,16 +279,14 @@ func DistributeEpochReward(header *types.Header, state vm.StateDB, address commo
 		&epochReward,
 		params.MaxGasForDistributeEpochPayment,
 		common.Big0,
-		header,
-		state,
-		false,
 	)
 	return epochReward, err
 }
 
 func GetMembershipInLastEpoch(header *types.Header, state vm.StateDB, validator common.Address) (common.Address, error) {
 	var group common.Address
-	_, err := contract_comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpochFromSigner", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch, header, state)
+	comm := caller.NewCaller(header, state)
+	_, err := comm.MakeStaticCall(params.ValidatorsRegistryId, validatorsABI, "getMembershipInLastEpochFromSigner", []interface{}{validator}, &group, params.MaxGasForGetMembershipInLastEpoch)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
