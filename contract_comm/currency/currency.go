@@ -194,7 +194,7 @@ func medianRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	defaultRate := exchangeRate{big.NewInt(1), big.NewInt(1)}
 
 	comm, _ := caller.NewCurrentStateCaller()
-	leftoverGas, err := comm.StaticCallFromSystemWithRegistryLookup(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate)
+	leftoverGas, err := comm.MemoizedStaticCallFromSystemWithRegistryLookup(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate)
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &defaultRate, err
