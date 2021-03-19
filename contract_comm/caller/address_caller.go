@@ -30,21 +30,27 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
-
-func (c evmCaller) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return c.evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
-	}
-
-	return c.handleABICall(abi, funcName, args, returnObj, staticCall)
+type addressCaller struct {
+	evm *vm.EVM
 }
 
-func (c evmCaller) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return c.evm.Call(systemCaller, contractAddress, transactionData, gas, value)
+var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
+
+func (c contractCommunicator) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
+		evm := c.builder.createEVM()
+		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 	}
-	return c.handleABICall(abi, funcName, args, returnObj, call)
+
+	return handleABICall(abi, funcName, args, returnObj, staticCall)
+}
+
+func (c contractCommunicator) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	call := func(transactionData []byte) ([]byte, uint64, error) {
+		evm := c.builder.createEVM()
+		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
+	}
+	return handleABICall(abi, funcName, args, returnObj, call)
 }
 
 var (
@@ -65,9 +71,10 @@ type cacheResult struct {
 	gasLeft uint64
 }
 
-func (c evmCaller) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (c contractCommunicator) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		clean, stateRoot := c.evm.StateDB.CleanStateRoot()
+		evm := c.builder.createEVM()
+		clean, stateRoot := evm.StateDB.CleanStateRoot()
 		if clean {
 			key := cacheKey{
 				TransactionData: string(transactionData),
@@ -78,7 +85,7 @@ func (c evmCaller) MemoizedStaticCallFromSystem(contractAddress common.Address, 
 				if !castOk {
 					cacheBadCast.Mark(1)
 					staticCallCache.Remove(key)
-					return c.evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+					return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 				}
 				cacheHits.Mark(1)
 				ret := make([]byte, len(cachedResult.ret))
@@ -86,7 +93,7 @@ func (c evmCaller) MemoizedStaticCallFromSystem(contractAddress common.Address, 
 				return ret, cachedResult.gasLeft, nil
 			} else {
 				cacheMisses.Mark(1)
-				ret, gasLeft, err := c.evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+				ret, gasLeft, err := c.builder.createEVM().StaticCall(systemCaller, contractAddress, transactionData, gas)
 				if err != nil {
 					return ret, gasLeft, err
 				}
@@ -100,10 +107,10 @@ func (c evmCaller) MemoizedStaticCallFromSystem(contractAddress common.Address, 
 			}
 		} else {
 			cacheSkipped.Mark(1)
-			return c.evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+			return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 		}
 	}
-	return c.handleABICall(abi, funcName, args, returnObj, staticCall)
+	return handleABICall(abi, funcName, args, returnObj, staticCall)
 }
 
 // Internal functions
@@ -125,7 +132,7 @@ func unpackError(result []byte) (string, error) {
 }
 
 // handleABICall packs and unpacks the given parameters according to the abi and then uses the specified direct call
-func (c evmCaller) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
+func handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
 	transactionData, err := abi.Pack(funcName, args...)
 	if err != nil {
 		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)

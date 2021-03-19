@@ -32,16 +32,15 @@ import (
 // // Core Contract given a registry ID to lookup in the registry
 // type RegistryCaller interface {
 // 	StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
-// 	// MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
+// 	MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
 // 	CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, finaliseState bool) (uint64, error)
 // }
 
-func (c evmCaller) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
-	nc := createCurrentEVMCaller()
-	return vm.GetRegisteredAddressWithEvm(registryId, nc.evm)
+func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
+	return vm.GetRegisteredAddressWithEvm(registryId, c.builder.createEVM())
 }
 
-func (c evmCaller) StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (c contractCommunicator) StaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
@@ -59,7 +58,7 @@ func (c evmCaller) StaticCallFromSystemWithRegistryLookup(registryId common.Hash
 
 }
 
-func (c evmCaller) MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func (c contractCommunicator) MemoizedStaticCallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
@@ -77,7 +76,7 @@ func (c evmCaller) MemoizedStaticCallFromSystemWithRegistryLookup(registryId com
 
 }
 
-func (c evmCaller) CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func (c contractCommunicator) CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
@@ -95,7 +94,7 @@ func (c evmCaller) CallFromSystemWithRegistryLookup(registryId common.Hash, abi 
 }
 
 // getRegisteredAddress gets the address from the registry and logs if the lookup fails
-func (c evmCaller) getRegisteredAddress(registryId common.Hash, funcName string) (common.Address, error) {
+func (c contractCommunicator) getRegisteredAddress(registryId common.Hash, funcName string) (common.Address, error) {
 	scAddress, err := c.GetRegisteredAddress(registryId)
 
 	if err != nil {

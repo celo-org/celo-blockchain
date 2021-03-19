@@ -52,27 +52,69 @@ type RegistryCaller interface {
 	CallFromSystemWithRegistryLookup(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error)
 }
 
-// evmCaller implements the SystemContractCaller interface
-type evmCaller struct {
-	evm *vm.EVM
+// Creates a new EVM on demand.
+type evmBuilder interface {
+	createEVM() *vm.EVM
 }
 
-// This needs to pass each method through
-type currentStateCaller struct{}
+// Private struct that implements CachingSystemCaller.
+type contractCommunicator struct {
+	builder evmBuilder
+}
 
 var emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
 
-// NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state, and chain
-func NewCaller(header *types.Header, state vm.StateDB, chain vm.ChainContext) SystemContractCaller {
+// specificStateCaller implements evmBuilder for a given state. This allows core contract calls against and arbitrary state
+type specificStateCaller struct {
+	header *types.Header
+	state  vm.StateDB
+	chain  vm.ChainContext
+}
+
+func (c specificStateCaller) createEVM() *vm.EVM {
+	context := vm.NewEVMContext(emptyMessage, c.header, c.chain, nil)
+	return vm.NewEVM(context, c.state, c.chain.Config(), *c.chain.GetVMConfig())
+}
+
+// TODO(Joshua): Inject chain here instead of using singleton
+type currentStateCaller struct{}
+
+var internalEvmHandlerSingleton *InternalEVMHandler
+
+// An EVM handler to make calls to smart contracts from within geth
+type InternalEVMHandler struct {
+	chain vm.ChainContext
+}
+
+func SetInternalEVMHandler(chain vm.ChainContext) {
+	if internalEvmHandlerSingleton == nil {
+		// log.Trace("Setting the InternalEVMHandler Singleton")
+		internalEvmHandler := InternalEVMHandler{
+			chain: chain,
+		}
+		internalEvmHandlerSingleton = &internalEvmHandler
+	}
+}
+
+func (c currentStateCaller) createEVM() *vm.EVM {
+	header := internalEvmHandlerSingleton.chain.CurrentHeader()
+	var state vm.StateDB
+	state, _ = internalEvmHandlerSingleton.chain.State()
+
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, chain, nil)
-	evm := vm.NewEVM(context, state, chain.Config(), *chain.GetVMConfig())
-	return evmCaller{evm: evm}
+	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	return vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
+}
+
+// NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state, and chain
+func NewCaller(header *types.Header, state vm.StateDB, chain vm.ChainContext) SystemContractCaller {
+	evmBuilder := specificStateCaller{header: header, state: state, chain: chain}
+	return contractCommunicator{builder: evmBuilder}
 }
 
 // NewCurrentStateCaller creates a caller object that uses the current chain state
 // SetIEVMHandler must be called before this method is able to be used
-func NewCurrentStateCaller() (CachingSystemCaller, error) {
-	return currentStateCaller{}, nil
+func NewCurrentStateCaller() CachingSystemCaller {
+	return contractCommunicator{builder: currentStateCaller{}}
 }
