@@ -52,7 +52,7 @@ js:
           <p>Please select your desired platform from the lists below and download your bundle of choice. Please be aware that the <code>MD5</code> checksums are provided by our binary hosting platform (Azure Blobstore) to help check for download errors. <strong>For security guarantees please verify any downloads via the attached PGP signature files</strong> (see <a href="#openpgp_signatures">OpenPGP Signatures</a> for details).</p>
 
           <h3>Stable releases</h3>
-          <p>These are the current and previous stable releases of go-ethereum, updated automatically when a new version is tagged in our <a href="https://github.com/ethereum/go-ethereum" targer="_blank">GitHub repository</a>.</p>
+          <p>These are the current and previous stable releases of go-ethereum, updated automatically when a new version is tagged in our <a href="https://github.com/celo-org/celo-blockchain" targer="_blank">GitHub repository</a>.</p>
 
           <ul id="dl_stable" class="nav nav-tabs">
             <li><a data-toggle="tab" href="#dl_stable_android">Android</a></li>
@@ -81,7 +81,7 @@ js:
           </div>
 
           <h3>Develop builds</h3>
-          <p>These are the develop snapshots of go-ethereum, updated automatically when a new commit is pushed into our <a href="https://github.com/ethereum/go-ethereum" targer="_blank">GitHub repository</a>.</p>
+          <p>These are the develop snapshots of go-ethereum, updated automatically when a new commit is pushed into our <a href="https://github.com/celo-org/celo-blockchain" targer="_blank">GitHub repository</a>.</p>
 
           <ul id="dl_develop" class="nav nav-tabs">
             <li><a data-toggle="tab" href="#dl_develop_android">Android</a></li>
@@ -467,7 +467,7 @@ js:
                 // Append the archive to the download table
                 $("<tr style='text-align: center; " + (k == 0 && bin.primary ? " font-weight: bold;" : "") + "' class='" + (group == "develop" && k == 0 ? "latest" : "") + (k >= 2 && entires >= 10 ? " collapse out" : "") + "'>" +
                   "  <td><a href='https://gethstore.blob.core.windows.net/builds/" + bin.file + "' style='text-decoration: none;'>" + bin.name + "</a></td>" +
-                  "  <td><a href='https://github.com/ethereum/go-ethereum/tree/" + bin.commit + "' target='_blank' style='text-decoration: none; font-family: monospace;'>" + bin.commit + "&hellip;</a></td>" +
+                  "  <td><a href='https://github.com/celo-org/celo-blockchain/tree/" + bin.commit + "' target='_blank' style='text-decoration: none; font-family: monospace;'>" + bin.commit + "&hellip;</a></td>" +
                   "  <td>" + bin.kind + "</td>" +
                   "  <td>" + bin.arch + "</td>" +
                   "  <td>" + filesize(bin.size) + "</td>" +
@@ -500,7 +500,7 @@ js:
     <script type="text/javascript">
       // Retrieve the latest release from GitHub for the ribbon and primary buttons
       $.ajax({
-        url: 'https://api.github.com/repos/ethereum/go-ethereum/releases/latest',
+        url: 'https://api.github.com/repos/celo-org/celo-blockchain/releases/latest',
         error: function() {
           alert("Failed to load latest release!");
         },
@@ -519,7 +519,7 @@ js:
 
           // Retrieve the commit of the latest release for the download links
           $.ajax({
-            url: 'https://api.github.com/repos/ethereum/go-ethereum/commits/' + release.tag_name,
+            url: 'https://api.github.com/repos/celo-org/celo-blockchain/commits/' + release.tag_name,
             error: function() {
               alert("Failed to load latest release!");
             },
@@ -531,7 +531,7 @@ js:
               $('#download_linux').attr("href", "https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-" + version + "-" + commit + ".tar.gz");
               $('#download_darwin').attr("href", "https://gethstore.blob.core.windows.net/builds/geth-darwin-amd64-" + version + "-" + commit + ".tar.gz");
               $('#download_windows').attr("href", "https://gethstore.blob.core.windows.net/builds/geth-windows-amd64-" + version + "-" + commit + ".exe");
-              $('#download_source').attr("href", "https://github.com/ethereum/go-ethereum/archive/" + release.tag_name + ".tar.gz");
+              $('#download_source').attr("href", "https://github.com/celo-org/celo-blockchain/archive/" + release.tag_name + ".tar.gz");
 
               $('#download_linux').html("<i class='fa fa-linux' aria-hidden='true'></i> Geth " + version + " for Linux");
               $('#download_darwin').html("<i class='fa fa-apple' aria-hidden='true'></i> Geth " + version + " for macOS");

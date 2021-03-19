@@ -26,7 +26,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/celo-org/celo-blockchain/common/math"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -123,6 +123,15 @@ func (f TextMarshalerFlag) Apply(set *flag.FlagSet) {
 	eachName(f.Name, func(name string) {
 		set.Var(textMarshalerVal{f.Value}, f.Name, f.Usage)
 	})
+}
+
+// LocalTextMarshaler returns the value of a TextMarshalerFlag from the flag set.
+func LocalTextMarshaler(ctx *cli.Context, name string) TextMarshaler {
+	val := ctx.Generic(name)
+	if val == nil {
+		return nil
+	}
+	return val.(textMarshalerVal).v
 }
 
 // GlobalTextMarshaler returns the value of a TextMarshalerFlag from the global flag set.

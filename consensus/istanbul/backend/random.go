@@ -17,10 +17,10 @@
 package backend
 
 import (
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contract_comm/random"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/crypto"
 )
 
 // String for creating the random seed

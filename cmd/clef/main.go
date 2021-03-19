@@ -35,25 +35,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/rpc"
-	shsigner "github.com/ethereum/go-ethereum/shared/signer"
-	"github.com/ethereum/go-ethereum/signer/core"
-	"github.com/ethereum/go-ethereum/signer/fourbyte"
-	"github.com/ethereum/go-ethereum/signer/rules"
-	"github.com/ethereum/go-ethereum/signer/storage"
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/rpc"
+	shsigner "github.com/celo-org/celo-blockchain/shared/signer"
+	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/celo-org/celo-blockchain/signer/fourbyte"
+	"github.com/celo-org/celo-blockchain/signer/rules"
+	"github.com/celo-org/celo-blockchain/signer/storage"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"gopkg.in/urfave/cli.v1"
@@ -222,7 +222,6 @@ func init() {
 		chainIdFlag,
 		utils.LightKDFFlag,
 		utils.NoUSBFlag,
-		utils.SmartCardDaemonPathFlag,
 		utils.HTTPListenAddrFlag,
 		utils.HTTPVirtualHostsFlag,
 		utils.IPCDisabledFlag,
@@ -416,7 +415,7 @@ func newAccount(c *cli.Context) error {
 		lightKdf                  = c.GlobalBool(utils.LightKDFFlag.Name)
 	)
 	log.Info("Starting clef", "keystore", ksLoc, "light-kdf", lightKdf)
-	am := core.StartClefAccountManager(ksLoc, true, lightKdf, "")
+	am := core.StartClefAccountManager(ksLoc, true, lightKdf)
 	// This gives is us access to the external API
 	apiImpl := core.NewSignerAPI(am, 0, true, ui, nil, false, pwStorage)
 	// This gives us access to the internal API
@@ -549,11 +548,10 @@ func signer(c *cli.Context) error {
 		lightKdf = c.GlobalBool(utils.LightKDFFlag.Name)
 		advanced = c.GlobalBool(advancedMode.Name)
 		nousb    = c.GlobalBool(utils.NoUSBFlag.Name)
-		scpath   = c.GlobalString(utils.SmartCardDaemonPathFlag.Name)
 	)
 	log.Info("Starting signer", "chainid", chainId, "keystore", ksLoc,
 		"light-kdf", lightKdf, "advanced", advanced)
-	am := core.StartClefAccountManager(ksLoc, nousb, lightKdf, scpath)
+	am := core.StartClefAccountManager(ksLoc, nousb, lightKdf)
 	apiImpl := core.NewSignerAPI(am, chainId, nousb, ui, db, advanced, pwStorage)
 
 	// Establish the bidirectional communication, by creating a new UI backend and registering

@@ -20,13 +20,13 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-bls-go/bls"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/istanbul"
-	"github.com/ethereum/go-ethereum/consensus/istanbul/validator"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestHandleCommit(t *testing.T) {
@@ -385,6 +385,75 @@ func TestVerifyCommit(t *testing.T) {
 			if err != test.expected {
 				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 			}
+		}
+	}
+}
+
+// BenchmarkHandleCommit benchmarks handling a commit message
+func BenchmarkHandleCommit(b *testing.B) {
+	N := uint64(2)
+	F := uint64(1) // F does not affect tests
+
+	sys := NewMutedTestSystemWithBackend(N, F)
+	// sys := NewTestSystemWithBackend(N, F)
+
+	// create block 4
+	proposal := newTestProposalWithNum(4)
+	expectedSubject := &istanbul.Subject{
+		View: &istanbul.View{
+			Round:    big.NewInt(0),
+			Sequence: proposal.Number(),
+		},
+		Digest: proposal.Hash(),
+	}
+
+	for i, backend := range sys.backends {
+		c := backend.engine.(*core)
+		// same view as the expected one to everyone
+		c.current = newTestRoundState(
+			expectedSubject.View,
+			backend.peers,
+		)
+
+		if i == 0 {
+			// replica 0 is the proposer
+			c.current.(*roundStateImpl).state = StatePrepared
+		}
+	}
+
+	sys.Run(false)
+
+	v0 := sys.backends[0]
+	r0 := v0.engine.(*core)
+
+	var im *istanbul.Message
+	for i, v := range sys.backends {
+		validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
+		privateKey, _ := bls.DeserializePrivateKey(sys.validatorsKeys[i])
+		defer privateKey.Destroy()
+
+		hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
+		defer signature.Destroy()
+		signatureBytes, _ := signature.Serialize()
+		committedSubject := &istanbul.CommittedSubject{
+			Subject:       v.engine.(*core).current.Subject(),
+			CommittedSeal: signatureBytes,
+		}
+		m, _ := Encode(committedSubject)
+		im = &istanbul.Message{
+			Code:      istanbul.MsgCommit,
+			Msg:       m,
+			Address:   validator.Address(),
+			Signature: []byte{},
+		}
+	}
+	// benchmarked portion
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := r0.handleCommit(im)
+		if err != nil {
+			b.Errorf("Error handling the pre-prepare message. err: %v", err)
 		}
 	}
 }

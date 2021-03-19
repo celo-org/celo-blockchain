@@ -28,21 +28,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/accounts"
+	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/les"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
+	"github.com/celo-org/celo-blockchain/node"
 	"github.com/elastic/gosigar"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/console"
-	"github.com/ethereum/go-ethereum/contract_comm/blockchain_parameters"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/les"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/node"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -69,7 +69,6 @@ var (
 		utils.KeyStoreDirFlag,
 		utils.ExternalSignerFlag,
 		utils.NoUSBFlag,
-		utils.SmartCardDaemonPathFlag,
 		utils.OverrideChurritoFlag,
 		utils.OverrideDonutFlag,
 		utils.TxPoolLocalsFlag,
@@ -137,7 +136,6 @@ var (
 		utils.NetworkIdFlag,
 		utils.CeloStatsURLFlag,
 		utils.LegacyEthStatsURLFlag,
-		utils.FakePoWFlag,
 		utils.NoCompactionFlag,
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,

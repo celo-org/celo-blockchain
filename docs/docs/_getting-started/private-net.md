@@ -69,7 +69,7 @@ See [[the Private Network Page|Private network]] for more information.
 ### Setup bootnode
 
 The first time a node connects to the network it uses one of the predefined
-[bootnodes](https://github.com/ethereum/go-ethereum/blob/master/params/bootnodes.go).
+[bootnodes](https://github.com/celo-org/celo-blockchain/blob/master/params/bootnodes.go).
 Through these bootnodes a node can join the network and find other nodes. In the case of a
 private cluster these predefined bootnodes are not of much use. Therefore go-ethereum
 offers a bootnode implementation that can be configured and run in your private network.

@@ -20,14 +20,14 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contract_comm"
-	"github.com/ethereum/go-ethereum/contract_comm/errors"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/celo-org/celo-blockchain/accounts/abi"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -147,7 +147,8 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 }
 
 func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
-	if currency1 == currency2 {
+	// Short circuit if the fee currency is the same. nil currency => native currency
+	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
 		return val1.Cmp(val2)
 	}
 

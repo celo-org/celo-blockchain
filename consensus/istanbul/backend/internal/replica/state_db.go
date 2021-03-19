@@ -22,9 +22,9 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
-	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/db"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // Keys in the node database.

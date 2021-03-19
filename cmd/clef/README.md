@@ -32,7 +32,6 @@ GLOBAL OPTIONS:
    --chainid value         Chain id to use for signing (1=mainnet, 3=Ropsten, 4=Rinkeby, 5=Goerli) (default: 1)
    --lightkdf              Reduce key-derivation RAM & CPU usage at some expense of KDF strength
    --nousb                 Disables monitoring for and managing USB hardware wallets
-   --pcscdpath value       Path to the smartcard daemon (pcscd) socket file (default: "/run/pcscd/pcscd.comm")
    --rpcaddr value         HTTP-RPC server listening interface (default: "localhost")
    --rpcvhosts value       Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (default: "localhost")
    --ipcdisable            Disable the IPC-RPC server
