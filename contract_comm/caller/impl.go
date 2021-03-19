@@ -13,7 +13,7 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
+
 package caller
 
 import (
@@ -23,11 +23,22 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	ccerrors "github.com/celo-org/celo-blockchain/errors"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+// Contract Communicator Implementation
+func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	evm := c.builder.createEVM()
+	return evm.MakeStaticCallWithAddress(contractAddress, abi, funcName, args, returnObj, gas)
+}
+
+func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+	evm := c.builder.createEVM()
+	return evm.MakeCallWithAddress(contractAddress, abi, funcName, args, returnObj, gas, value)
+}
 
 func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
 	return vm.GetRegisteredAddressWithEvm(registryId, c.builder.createEVM())
