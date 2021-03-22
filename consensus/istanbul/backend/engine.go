@@ -276,7 +276,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 		return err
 	}
 	validators := snap.ValSet.Copy()
-	err = sb.verifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
+	err = sb.VerifyAggregatedSeal(header.Hash(), validators, extra.AggregatedSeal)
 	if err != nil {
 		return err
 	}
@@ -308,13 +308,13 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 		// parent.Hash() would correspond to the previous epoch
 		// block in ultralight, while the extra.ParentCommit is made on the block which was
 		// immediately before the current block.
-		return sb.verifyAggregatedSeal(header.ParentHash, parentValidators, extra.ParentAggregatedSeal)
+		return sb.VerifyAggregatedSeal(header.ParentHash, parentValidators, extra.ParentAggregatedSeal)
 	}
 
 	return nil
 }
 
-func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error {
+func (sb *Backend) VerifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error {
 	logger := sb.logger.New("func", "Backend.verifyAggregatedSeal()")
 	if len(aggregatedSeal.Signature) != types.IstanbulExtraBlsSignature {
 		return errInvalidAggregatedSeal
@@ -329,6 +329,7 @@ func (sb *Backend) verifyAggregatedSeal(headerHash common.Hash, validators istan
 			publicKeys = append(publicKeys, pubKey)
 		}
 	}
+
 	// The length of a valid seal should be greater than the minimum quorum size
 	if len(publicKeys) < validators.MinQuorumSize() {
 		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
@@ -363,7 +364,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	// happens to be the same as the canonical chain at the same block number (as would be the case
 	// for a fork from the canonical chain which does not cross an epoch boundary)
 	valSet := sb.getValidators(header.Number.Uint64()-1, header.ParentHash)
-	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
+	return sb.VerifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
 // Prepare initializes the consensus fields of a block header according to the
@@ -1013,7 +1014,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 		// (otherwise we'd be getting the validators for the current block)
 		parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
 		// only update to use the union if we indeed provided a valid aggregate signature for this block
-		if err := sb.verifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
+		if err := sb.VerifyAggregatedSeal(parent.Hash(), parentValidators, unionAggregatedSeal); err != nil {
 			logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
 			return parentExtra.AggregatedSeal
 		}
