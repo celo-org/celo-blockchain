@@ -108,6 +108,10 @@ type exchangeRate struct {
 }
 
 func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error) {
+	if currencyFrom == nil {
+		return val, nil
+	}
+
 	comm := caller.NewCurrentStateCaller()
 	celoGoldAddress, err := comm.GetRegisteredAddress(params.GoldTokenRegistryId)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
@@ -116,12 +120,14 @@ func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error)
 	}
 
 	if currencyFrom == celoGoldAddress {
-		return val, err
+		// This function shouldn't really be called with the token's address, but if it is the value
+		// is correct, so return nil as the error
+		return val, nil
 	} else if err != nil {
 		log.Error(err.Error())
 		return val, err
 	}
-	return Convert(val, currencyFrom, celoGoldAddress)
+	return Convert(val, currencyFrom, nil)
 }
 
 // NOTE (jarmg 4/24/19): values are rounded down which can cause
@@ -144,6 +150,12 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 	// (val * d1 * n2) / (n1 * d2)
 	numerator := new(big.Int).Mul(val, new(big.Int).Mul(exchangeRateFrom.Denominator, exchangeRateTo.Numerator))
 	denominator := new(big.Int).Mul(exchangeRateFrom.Numerator, exchangeRateTo.Denominator)
+
+	if denominator.Sign() == 0 {
+		log.Error("Convert - Error in retreiving currency exchange rates")
+		return nil, errors.ErrExchangeRateZero
+	}
+
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
