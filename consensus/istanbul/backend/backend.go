@@ -462,7 +462,8 @@ func (sb *Backend) GetValidators(blockNumber *big.Int, headerHash common.Hash) [
 	return validatorSet.List()
 }
 
-// Commit implements istanbul.Backend.Commit
+// Commit implements istanbul.Backend.Commit, unless this is committing the
+// last block of an epoch the aggregatedEpochValidatorSetSeal will be empty.
 func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
