@@ -613,6 +613,7 @@ var (
 	cacheMisses  = metrics.NewRegisteredMeter("contract_comm/caller/cache_misses", nil)
 	cacheSkipped = metrics.NewRegisteredMeter("contract_comm/caller/cache_skipped", nil)
 	cacheBadCast = metrics.NewRegisteredMeter("contract_comm/caller/cache_bad_cast", nil)
+	cacheCheck   = metrics.NewRegisteredMeter("contract_comm/caller/cache_check", nil)
 )
 
 func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
@@ -633,8 +634,7 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 				cacheHits.Mark(1)
 				ret := make([]byte, len(cachedResult.ret))
 				copy(ret, cachedResult.ret)
-				// TODO(joshua): Hide this behind a feature flag
-				if true {
+				if evm.vmConfig.CheckStaticCallCache {
 					actualRet, actualGasLeft, actualErr := evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 					if actualErr != nil {
 						log.Error("non nil error when performing evm static call that wanted to use the cached result")
@@ -649,8 +649,8 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 					if cachedResult.gasLeft != actualGasLeft {
 						log.Error("cached result bytes not equal to static call bytes")
 					}
+					cacheCheck.Mark(1)
 				}
-
 				return ret, cachedResult.gasLeft, nil
 			} else {
 				cacheMisses.Mark(1)
