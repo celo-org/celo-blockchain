@@ -192,6 +192,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			EnablePreimageRecording: config.EnablePreimageRecording,
 			EWASMInterpreter:        config.EWASMInterpreter,
 			EVMInterpreter:          config.EVMInterpreter,
+			CheckStaticCallCache:    config.CheckStaticCallCache,
 		}
 		cacheConfig = &core.CacheConfig{
 			TrieCleanLimit:      config.TrieCleanCache,

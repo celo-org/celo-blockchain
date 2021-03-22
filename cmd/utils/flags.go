@@ -750,6 +750,10 @@ var (
 		Usage: "External EVM configuration (default = built-in interpreter)",
 		Value: "",
 	}
+	CheckStaticCallCacheFlag = cli.BoolFlag{
+		Name:  "vm.checkcache",
+		Usage: "If true, this checks the results of the static call cache. Note: this flag is experimental and will be removed",
+	}
 
 	// Istanbul settings
 
@@ -1710,6 +1714,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
+	}
+	if ctx.GlobalIsSet(CheckStaticCallCacheFlag.Name) {
+		cfg.CheckStaticCallCache = ctx.GlobalBool(CheckStaticCallCacheFlag.Name)
 	}
 
 	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
