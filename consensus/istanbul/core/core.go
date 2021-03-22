@@ -215,33 +215,49 @@ func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	return buf.Bytes()
 }
 
-// GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
-// signature and bitmap
-func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
-	bitmap := big.NewInt(0)
-	committedSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
+// AggregateSeals returns the bls aggregation of the committed seals for the
+// messgages in mset. It returns a big.Int that represents a bitmap where each
+// set bit corresponds to the position of a validator in the list of validators
+// for this epoch that contributed a seal to the returned aggregate. It is
+// assumed that mset contains only commit messages.
+func AggregateSeals(mset MessageSet) (bitmap *big.Int, aggregateSeal []byte, err error) {
+	bitmap = big.NewInt(0)
+	committedSeals := make([][]byte, mset.Size())
+	for i, v := range mset.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
 		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
+			return nil, nil, fmt.Errorf("failed to decode commit message for seal aggregation: %v", err)
 		}
 		copy(committedSeals[i][:], commit.CommittedSeal[:])
 
-		j, err := seals.GetAddressIndex(v.Address)
+		j, err := mset.GetAddressIndex(v.Address)
 		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
+			return nil, nil, fmt.Errorf(
+				"missing validator %q for committed seal at %s: %v",
+				v.Address.String(),
+				commit.Subject.View.String(),
+				err,
+			)
 		}
 		bitmap.SetBit(bitmap, int(j), 1)
 	}
 
-	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	aggregateSeal, err = blscrypto.AggregateSignatures(committedSeals)
 	if err != nil {
-		return types.IstanbulAggregatedSeal{}, err
+		return nil, nil, fmt.Errorf("aggregating signatures failed: %v", err)
 	}
-	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
+
+	return bitmap, aggregateSeal, nil
+}
+
+// GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
+// signature and bitmap
+func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
+	bitmap, aggregate, err := AggregateSeals(seals)
+	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: round}, err
 }
 
 // UnionOfSeals combines a BLS aggregated signature with an array of signatures. Accounts for
@@ -391,35 +407,13 @@ func (c *core) commit() error {
 }
 
 // GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
+// to a bls aggregated signature.
 func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
 		return types.IstanbulEpochValidatorSetSeal{}, nil
 	}
-	bitmap := big.NewInt(0)
-	epochSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
-		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
-
-		j, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		bitmap.SetBit(bitmap, int(j), 1)
-	}
-
-	asig, err := blscrypto.AggregateSignatures(epochSeals)
-	if err != nil {
-		return types.IstanbulEpochValidatorSetSeal{}, err
-	}
-	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
+	bitmap, aggregate, err := AggregateSeals(seals)
+	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: aggregate}, err
 }
 
 // Generates the next preprepare request and associated round change certificate
