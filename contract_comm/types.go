@@ -76,7 +76,7 @@ type specificStateCaller struct {
 }
 
 func (c specificStateCaller) createEVM() (*vm.EVM, error) {
-	if internalEvmHandlerSingleton == nil {
+	if internalEvmHandlerSingleton == nil || c.chain == nil {
 		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
 	}
 	context := vm.NewEVMContext(emptyMessage, c.header, c.chain, nil)
@@ -129,7 +129,13 @@ func NewCaller(header *types.Header, state vm.StateDB) SystemContractCaller {
 	if header == nil || state == nil || reflect.ValueOf(state).IsNil() {
 		return NewCurrentStateCaller()
 	}
-	evmBuilder := specificStateCaller{header: header, state: state, chain: internalEvmHandlerSingleton.chain}
+	var chain vm.ChainContext
+	if internalEvmHandlerSingleton != nil {
+		chain = internalEvmHandlerSingleton.chain
+	} else {
+		chain = nil
+	}
+	evmBuilder := specificStateCaller{header: header, state: state, chain: chain}
 	return contractCommunicator{builder: evmBuilder}
 }
 
