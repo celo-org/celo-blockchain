@@ -868,7 +868,13 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 }
 
 func (s *StateDB) CleanStateRoot() (bool, common.Hash) {
-	if len(s.stateObjects) > 0 {
+	if s.txIndex > 0 {
+		return false, common.Hash{}
+	}
+	if s.thash != (common.Hash{}) {
+		return false, common.Hash{}
+	}
+	if s.bhash != (common.Hash{}) {
 		return false, common.Hash{}
 	}
 	if len(s.stateObjectsDirty) > 0 {
