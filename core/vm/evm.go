@@ -633,6 +633,24 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 				cacheHits.Mark(1)
 				ret := make([]byte, len(cachedResult.ret))
 				copy(ret, cachedResult.ret)
+				// TODO(joshua): Hide this behind a feature flag
+				if true {
+					actualRet, actualGasLeft, actualErr := evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+					if actualErr != nil {
+						log.Error("non nil error when performing evm static call that wanted to use the cached result")
+					}
+					if len(ret) != len(actualRet) {
+						log.Error("length of cached result bytes not equal to length static call bytes")
+					}
+					if string(ret) != string(actualRet) {
+						log.Error("cached result bytes not equal to static call bytes")
+					}
+
+					if cachedResult.gasLeft != actualGasLeft {
+						log.Error("cached result bytes not equal to static call bytes")
+					}
+				}
+
 				return ret, cachedResult.gasLeft, nil
 			} else {
 				cacheMisses.Mark(1)
