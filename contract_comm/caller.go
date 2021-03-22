@@ -65,7 +65,15 @@ func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*com
 	if err != nil {
 		return nil, err // TODO(Joshua): 0 or gas for gas left?
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, evm)
+	return vm.GetRegisteredAddressWithEvm(registryId, evm, false)
+}
+
+func (c contractCommunicator) MemoizedGetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
+	evm, err := c.builder.createEVM()
+	if err != nil {
+		return nil, err // TODO(Joshua): 0 or gas for gas left?
+	}
+	return vm.GetRegisteredAddressWithEvm(registryId, evm, true)
 }
 
 func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
