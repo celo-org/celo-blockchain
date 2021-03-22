@@ -80,7 +80,7 @@ var (
 	getVerifiedSealBitmapAddress = celoPrecompileAddress(11)
 
 	// New in Donut
-	edd25519Address          = celoPrecompileAddress(12)
+	ed25519Address           = celoPrecompileAddress(12)
 	b12_381G1AddAddress      = celoPrecompileAddress(13)
 	b12_381G1MulAddress      = celoPrecompileAddress(14)
 	b12_381G1MultiExpAddress = celoPrecompileAddress(15)
@@ -177,8 +177,8 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	getParentSealBitmapAddress:   &getParentSealBitmap{},
 	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
 
-	// TODO(Donut): Add instances
-	edd25519Address:          &ed25519Verify{},
+	// New in Donut hard fork
+	ed25519Address:           &ed25519Verify{},
 	b12_381G1AddAddress:      &bls12381G1Add{},
 	b12_381G1MulAddress:      &bls12381G1Mul{},
 	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
