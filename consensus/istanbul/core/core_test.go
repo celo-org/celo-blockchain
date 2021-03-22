@@ -53,7 +53,6 @@ func newTestProposal() istanbul.Proposal {
 var InvalidProposalError = errors.New("invalid proposal")
 
 func TestNewRequest(t *testing.T) {
-
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	N := uint64(4)

@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
@@ -217,18 +218,20 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return errInvalidValidatorAddress
 	}
 
+	// ensure that the commit is for the current proposal
+	if err := c.verifyCommit(commit); err != nil {
+		return err
+	}
+
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 	if err != nil {
 		return err
 	}
 
+	// Verifies the individual seal for this commit message for the epoch
+	// block, no-op unless this is the last block of an epoch.
 	if err := c.verifyEpochValidatorSetSeal(commit, c.current.Proposal().Number().Uint64(), newValSet, validator); err != nil {
 		return errInvalidEpochValidatorSetSeal
-	}
-
-	// ensure that the commit is in the current proposal
-	if err := c.verifyCommit(commit); err != nil {
-		return err
 	}
 
 	// Add the COMMIT message to current round state
@@ -236,6 +239,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		logger.Error("Failed to record commit message", "m", msg, "err", err)
 		return err
 	}
+
 	commits := c.current.Commits()
 	numberOfCommits := commits.Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
@@ -247,8 +251,51 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	// by committing the proposal without PREPARE messages.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
+		proposal := c.current.Proposal()
+		// TODO understand how proposal can be nil.
+		if proposal == nil {
+			return nil
+		}
+
+		// Generate aggregate seal
+		bitmap, aggregate, err := AggregateSeals(
+			c.current.Commits(),
+			func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
+		)
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+		aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
+		err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
+		if err != nil {
+			// TODO remove bad seals from message set
+			// return fmt.Errorf("failed to verify epoch validator set seal: %v", err)
+			return nil
+		}
+
+		// Set the epoch aggregate seal if this is the last block of the epoch
+		aggregatedEpochValidatorSetSeal := types.IstanbulEpochValidatorSetSeal{}
+		if istanbul.IsLastBlockOfEpoch(proposal.Number().Uint64(), c.config.Epoch) {
+			epochBitmap, epochAggregate, err := AggregateSeals(
+				c.current.Commits(),
+				func(c *istanbul.CommittedSubject) []byte { return c.EpochValidatorSetSeal },
+			)
+			if err != nil {
+				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+				logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+				c.waitForDesiredRound(nextRound)
+				return nil
+			}
+
+			aggregatedEpochValidatorSetSeal.Bitmap = epochBitmap
+			aggregatedEpochValidatorSetSeal.Signature = epochAggregate
+		}
+
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", commits)
-		err := c.commit()
+		err = c.commit(aggregatedSeal, aggregatedEpochValidatorSetSeal)
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)
 			return err
