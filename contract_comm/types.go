@@ -53,6 +53,7 @@ type AddressCaller interface {
 type RegistryCaller interface {
 	MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error)
 	MakeCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error)
+	MemoizedGetRegisteredAddress(registryId common.Hash) (*common.Address, error)
 }
 
 // Creates a new EVM on demand.

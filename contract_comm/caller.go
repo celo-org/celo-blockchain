@@ -77,7 +77,7 @@ func (c contractCommunicator) MemoizedGetRegisteredAddress(registryId common.Has
 }
 
 func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	scAddress, err := c.getRegisteredAddress(registryId, funcName)
+	scAddress, err := c.getRegisteredAddress(registryId, funcName, false)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
 	}
@@ -95,7 +95,7 @@ func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI
 }
 
 func (c contractCommunicator) MakeMemoizedStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	scAddress, err := c.getRegisteredAddress(registryId, funcName)
+	scAddress, err := c.getRegisteredAddress(registryId, funcName, true)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
 	}
@@ -113,7 +113,7 @@ func (c contractCommunicator) MakeMemoizedStaticCall(registryId common.Hash, abi
 }
 
 func (c contractCommunicator) MakeCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	scAddress, err := c.getRegisteredAddress(registryId, funcName)
+	scAddress, err := c.getRegisteredAddress(registryId, funcName, false)
 	if err != nil {
 		return 0, err // TODO(joshua): should this be gas instead of 0?
 	}
@@ -130,8 +130,15 @@ func (c contractCommunicator) MakeCall(registryId common.Hash, abi abi.ABI, func
 }
 
 // getRegisteredAddress gets the address from the registry and logs if the lookup fails
-func (c contractCommunicator) getRegisteredAddress(registryId common.Hash, funcName string) (common.Address, error) {
-	scAddress, err := c.GetRegisteredAddress(registryId)
+func (c contractCommunicator) getRegisteredAddress(registryId common.Hash, funcName string, memoize bool) (common.Address, error) {
+	var scAddress *common.Address
+	var err error
+	if memoize {
+		scAddress, err = c.MemoizedGetRegisteredAddress(registryId)
+
+	} else {
+		scAddress, err = c.GetRegisteredAddress(registryId)
+	}
 
 	if err != nil {
 		if err == ccerrors.ErrSmartContractNotDeployed {
