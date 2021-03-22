@@ -188,6 +188,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
 		comm := caller.NewCurrentStateCaller()
+		// TODO(Joshua): Refactor to "medianRate" call & hide this memoization behind a feature flag
 		if leftoverGas, err := comm.MakeMemoizedStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate); err != nil {
 			if err == errors.ErrSmartContractNotDeployed {
 				log.Warn("Registry address lookup failed", "err", err)
