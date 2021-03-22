@@ -499,6 +499,7 @@ func TestCommitsBlocksAfterRoundChange(t *testing.T) {
 // This tests that when F+1 nodes receive 2F+1 PREPARE messages for a particular proposal, the
 // system enforces that as the only valid proposal for this sequence.
 func TestPreparedCertificatePersistsThroughRoundChanges(t *testing.T) {
+	t.Skip("This test is not working as expected, and was actually committing in the first round")
 	sys := NewTestSystemWithBackend(4, 1)
 
 	for _, b := range sys.backends {
