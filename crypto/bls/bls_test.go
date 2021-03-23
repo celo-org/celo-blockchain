@@ -1,12 +1,17 @@
 package blscrypto
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/hex"
+	"math/big"
 	"testing"
 
 	//nolint:goimports
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/stretchr/testify/require"
 )
 
 func TestECDSAToBLS(t *testing.T) {
@@ -55,4 +60,50 @@ func TestEncodeEpochSnarkData(t *testing.T) {
 	}
 	t.Logf("Encoded epoch block: %x", encodedEpochBlock)
 	t.Logf("Encoded epoch block extra data: %x", encodedEpochBlockExtraData)
+}
+
+func BenchmarkBLSVerification(b *testing.B) {
+	k, err := crypto.GenerateKey()
+	require.NoError(b, err)
+
+	blsKeyBytes, err := ECDSAToBLS(k)
+	require.NoError(b, err)
+
+	blsPublicKeyBytes, err := PrivateToPublic(blsKeyBytes)
+	require.NoError(b, err)
+
+	blsKey, err := bls.DeserializePrivateKey(blsKeyBytes)
+	require.NoError(b, err)
+
+	hashBytes := make([]byte, common.HashLength)
+	_, err = rand.Read(hashBytes)
+	require.NoError(b, err)
+
+	hash := common.Hash{}
+	copy(hash[:], hashBytes)
+	useCompositeHasher := false
+	useCIP22 := false
+	extraData := []byte{}
+	seal := PrepareCommittedSeal(hash, big.NewInt(0))
+	sig, err := blsKey.SignMessage(seal, extraData, useCompositeHasher, useCIP22)
+	require.NoError(b, err)
+	defer sig.Destroy()
+
+	sigBytes, err := sig.Serialize()
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := VerifySignature(blsPublicKeyBytes, seal, extraData, sigBytes, useCompositeHasher, useCIP22)
+		require.NoError(b, err)
+	}
+}
+
+// PrepareCommittedSeal returns a committed seal for the given hash and round number.
+func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
+	var buf bytes.Buffer
+	buf.Write(hash.Bytes())
+	buf.Write(round.Bytes())
+	buf.Write([]byte{byte(2)})
+	return buf.Bytes()
 }
