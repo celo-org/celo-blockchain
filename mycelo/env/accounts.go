@@ -123,15 +123,17 @@ var (
 	ValidatorAT      AccountType = 0
 	DeveloperAT      AccountType = 1 // load test
 	TxNodeAT         AccountType = 2
-	FaucetAT         AccountType = 3
-	AttestationAT    AccountType = 4
-	PriceOracleAT    AccountType = 5
-	ProxyAT          AccountType = 6
-	AttestationBotAT AccountType = 7
-	VotingBotAT      AccountType = 8
-	TxNodePrivateAT  AccountType = 9
-	ValidatorGroupAT AccountType = 10 // Not in celotool
-	AdminAT          AccountType = 11 // Not in celotool
+	BootnodeAT       AccountType = 3
+	FaucetAT         AccountType = 4
+	AttestationAT    AccountType = 5
+	PriceOracleAT    AccountType = 6
+	ProxyAT          AccountType = 7
+	AttestationBotAT AccountType = 8
+	VotingBotAT      AccountType = 9
+	TxNodePrivateAT  AccountType = 10
+	ValidatorGroupAT AccountType = 11 // Not in celotool (yet)
+	AdminAT          AccountType = 12 // Not in celotool (yet)
+	TxFeeRecipientAT AccountType = 13 // Not in celotool (yet)
 )
 
 // String implements the stringer interface.

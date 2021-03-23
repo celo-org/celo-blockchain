@@ -69,6 +69,15 @@ func (ac *AccountsConfig) ValidatorAccounts() []Account {
 	return accounts
 }
 
+// ValidatorAccounts returns the environment's validators accounts
+func (ac *AccountsConfig) TxFeeRecipientAccounts() []Account {
+	accounts, err := DeriveAccountList(ac.Mnemonic, TxFeeRecipientAT, ac.NumValidators)
+	if err != nil {
+		panic(err)
+	}
+	return accounts
+}
+
 // ValidatorGroupAccounts returns the environment's validators group accounts
 func (ac *AccountsConfig) ValidatorGroupAccounts() []Account {
 	accounts, err := DeriveAccountList(ac.Mnemonic, ValidatorGroupAT, ac.NumValidatorGroups())
