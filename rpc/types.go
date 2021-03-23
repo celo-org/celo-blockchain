@@ -92,6 +92,7 @@ type RPCTransaction struct {
 	V                   *hexutil.Big    `json:"v"`
 	R                   *hexutil.Big    `json:"r"`
 	S                   *hexutil.Big    `json:"s"`
+	EthCompatible       bool            `json:"ethCompatible"`
 }
 
 // UnmarshalJSON parses the given JSON fragment into a BlockNumber. It supports:

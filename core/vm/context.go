@@ -46,6 +46,16 @@ type Message interface {
 	Nonce() uint64
 	CheckNonce() bool
 	Data() []byte
+
+	// Whether this transaction omitted the 3 Celo-only fields (FeeCurrency & co.)
+	EthCompatible() bool
+}
+
+func CheckEthCompatibility(msg Message) error {
+	if msg.EthCompatible() && !(msg.FeeCurrency() == nil && msg.GatewayFeeRecipient() == nil && msg.GatewayFee().Sign() == 0) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
 }
 
 // ChainContext supports retrieving chain data and consensus parameters

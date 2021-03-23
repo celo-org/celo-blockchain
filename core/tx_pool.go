@@ -256,6 +256,7 @@ type TxPool struct {
 	mu          sync.RWMutex
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicator for the Donut fork.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -487,6 +488,20 @@ func (pool *TxPool) SetGasLimit(gasLimit uint64) {
 	}
 }
 
+// handleDonutActivation removes from the pool all transactions without EIP-155 replay protection
+func (pool *TxPool) handleDonutActivation() {
+	toRemove := make(map[common.Hash]struct{})
+	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+		if !tx.Protected() {
+			toRemove[hash] = struct{}{}
+		}
+		return true
+	})
+	for hash := range toRemove {
+		pool.removeTx(hash, true)
+	}
+}
+
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *TxPool) Nonce(addr common.Address) uint64 {
@@ -577,6 +592,15 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
+	if pool.donut && !tx.Protected() {
+		return ErrUnprotectedTransaction
+	}
+	if tx.EthCompatible() && !pool.donut {
+		return ErrEthCompatibleTransactionsNotSupported
+	}
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return err
+	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -1272,6 +1296,11 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
+	wasDonut := pool.donut
+	pool.donut = pool.chainconfig.IsDonut(next)
+	if pool.donut && !wasDonut {
+		pool.handleDonutActivation()
+	}
 }
 
 // promoteExecutables moves transactions that have become processable from the

@@ -57,7 +57,7 @@ type contractCommunicator struct {
 	builder evmBuilder
 }
 
-var emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
+var emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false, false)
 
 // specificStateCaller implements evmBuilder for a given state. This allows core contract calls against and arbitrary state
 type specificStateCaller struct {
