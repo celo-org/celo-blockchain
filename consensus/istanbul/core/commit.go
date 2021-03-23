@@ -167,6 +167,16 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	return c.handleCheckedCommitForCurrentSequence(msg, commit)
 }
 
+// handleCheckedCommitForPreviousSequence adds messages for the previous
+// sequence to the parent commit set, if the subject digest of msg does not
+// match that of the previous block or it was not sent by one of the previous
+// block's validators an error is returned. If this is the last block of the
+// epoch then the epoch seal will also be validated.
+//
+// The parent commit set is maintained for the sole purpose of tracking uptime,
+// allowing commits that did not arrive in time to be part of their intended
+// block to be collected during the subsequent block and to count towards the
+// uptime of the sender.
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
@@ -178,6 +188,8 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 		return errInvalidValidatorAddress
 	}
 	if headBlock.Number().Uint64() > 0 {
+		// Verifies the individual seal for this commit message for the epoch
+		// block, no-op unless this is the last block of an epoch.
 		if err := c.verifyEpochValidatorSetSeal(commit, headBlock.Number().Uint64(), c.current.ValidatorSet(), validator); err != nil {
 			return errInvalidEpochValidatorSetSeal
 		}
