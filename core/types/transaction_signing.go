@@ -154,18 +154,30 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.data.AccountNonce,
-		tx.data.Price,
-		tx.data.GasLimit,
-		tx.data.FeeCurrency,
-		tx.data.GatewayFeeRecipient,
-		tx.data.GatewayFee,
-		tx.data.Recipient,
-		tx.data.Amount,
-		tx.data.Payload,
-		s.chainId, uint(0), uint(0),
-	})
+	if tx.data.EthCompatible {
+		return rlpHash([]interface{}{
+			tx.data.AccountNonce,
+			tx.data.Price,
+			tx.data.GasLimit,
+			tx.data.Recipient,
+			tx.data.Amount,
+			tx.data.Payload,
+			s.chainId, uint(0), uint(0),
+		})
+	} else {
+		return rlpHash([]interface{}{
+			tx.data.AccountNonce,
+			tx.data.Price,
+			tx.data.GasLimit,
+			tx.data.FeeCurrency,
+			tx.data.GatewayFeeRecipient,
+			tx.data.GatewayFee,
+			tx.data.Recipient,
+			tx.data.Amount,
+			tx.data.Payload,
+			s.chainId, uint(0), uint(0),
+		})
+	}
 }
 
 // HomesteadTransaction implements TransactionInterface using the
@@ -219,17 +231,28 @@ func (fs FrontierSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v *
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.data.AccountNonce,
-		tx.data.Price,
-		tx.data.GasLimit,
-		tx.data.FeeCurrency,
-		tx.data.GatewayFeeRecipient,
-		tx.data.GatewayFee,
-		tx.data.Recipient,
-		tx.data.Amount,
-		tx.data.Payload,
-	})
+	if tx.data.EthCompatible {
+		return rlpHash([]interface{}{
+			tx.data.AccountNonce,
+			tx.data.Price,
+			tx.data.GasLimit,
+			tx.data.Recipient,
+			tx.data.Amount,
+			tx.data.Payload,
+		})
+	} else {
+		return rlpHash([]interface{}{
+			tx.data.AccountNonce,
+			tx.data.Price,
+			tx.data.GasLimit,
+			tx.data.FeeCurrency,
+			tx.data.GatewayFeeRecipient,
+			tx.data.GatewayFee,
+			tx.data.Recipient,
+			tx.data.Amount,
+			tx.data.Payload,
+		})
+	}
 }
 
 func (fs FrontierSigner) Sender(tx *Transaction) (common.Address, error) {

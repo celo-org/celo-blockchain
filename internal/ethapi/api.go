@@ -694,6 +694,7 @@ type CallArgs struct {
 	GatewayFee          hexutil.Big     `json:"gatewayFee"`
 	Value               *hexutil.Big    `json:"value"`
 	Data                *hexutil.Bytes  `json:"data"`
+	EthCompatible       bool            `json:"ethCompatible"`
 }
 
 // ToMessage converts CallArgs to the Message type used by the core evm
@@ -728,7 +729,7 @@ func (args *CallArgs) ToMessage(globalGasCap *big.Int) types.Message {
 		data = []byte(*args.Data)
 	}
 
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, false)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, args.EthCompatible, false)
 	return msg
 }
 
@@ -1130,6 +1131,7 @@ type RPCTransaction struct {
 	V                   *hexutil.Big    `json:"v"`
 	R                   *hexutil.Big    `json:"r"`
 	S                   *hexutil.Big    `json:"s"`
+	EthCompatible       bool            `json:"ethCompatible"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1157,6 +1159,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		V:                   (*hexutil.Big)(v),
 		R:                   (*hexutil.Big)(r),
 		S:                   (*hexutil.Big)(s),
+		EthCompatible:       tx.EthCompatible(),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = &blockHash
@@ -1391,6 +1394,7 @@ type SendTxArgs struct {
 	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
 	Value               *hexutil.Big    `json:"value"`
 	Nonce               *hexutil.Uint64 `json:"nonce"`
+	EthCompatible       bool            `json:"ethCompatible"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1399,6 +1403,9 @@ type SendTxArgs struct {
 
 // setDefaults is a helper function that fills in default values for unspecified tx fields.
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
+	if err := args.checkEthCompatibility(); err != nil {
+		return err
+	}
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
 		defaultGas := uint64(90000)
@@ -1456,7 +1463,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 	}
 
-	if args.GatewayFeeRecipient == nil {
+	if args.GatewayFeeRecipient == nil && !args.EthCompatible {
 		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
 			args.GatewayFeeRecipient = &recipient
@@ -1492,6 +1499,14 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	return nil
 }
 
+func (args *SendTxArgs) checkEthCompatibility() error {
+	// Reject if Celo-only fields set when EthCompatible is true
+	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
+}
+
 func (args *SendTxArgs) toTransaction() *types.Transaction {
 	var input []byte
 	if args.Input != nil {
@@ -1500,7 +1515,13 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Data
 	}
 	if args.To == nil {
+		if args.EthCompatible {
+			return types.NewContractCreationEthCompatible(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+		}
 		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
+	}
+	if args.EthCompatible {
+		return types.NewTransactionEthCompatible(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
 	}
 	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
 }
