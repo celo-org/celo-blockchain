@@ -183,22 +183,17 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 	return stack
 }
 
-// dumpConfig is the dumpconfig command.
+// dumpConfig encodes config, overwrite it with ctx and then write it to a file.
 func dumpConfig(ctx *cli.Context) error {
 	_, cfg := makeConfigNode(ctx)
-	comment := ""
-
-	if cfg.Eth.Genesis != nil {
-		cfg.Eth.Genesis = nil
-		comment += "# Note: this config doesn't contain the genesis block.\n\n"
-	}
-
 	out, err := tomlSettings.Marshal(&cfg)
 	if err != nil {
 		return err
 	}
 
+	// Use stdout as default
 	dump := os.Stdout
+	// Or use datadir if present
 	if ctx.NArg() > 0 {
 		dump, err = os.OpenFile(ctx.Args().Get(0), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
@@ -206,7 +201,11 @@ func dumpConfig(ctx *cli.Context) error {
 		}
 		defer dump.Close()
 	}
-	dump.WriteString(comment)
+
+	if cfg.Eth.Genesis != nil {
+		cfg.Eth.Genesis = nil
+		dump.WriteString("# Note: this config doesn't contain the genesis block.\n\n")
+	}
 	dump.Write(out)
 
 	return nil

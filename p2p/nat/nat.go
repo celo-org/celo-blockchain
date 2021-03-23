@@ -134,10 +134,21 @@ type ExtIP net.IP
 func (n ExtIP) ExternalIP() (net.IP, error) { return net.IP(n), nil }
 func (n ExtIP) String() string              { return fmt.Sprintf("ExtIP(%v)", net.IP(n)) }
 
-// These do nothing.
-
+// AddMapping does nothing
 func (ExtIP) AddMapping(string, int, int, string, time.Duration) error { return nil }
-func (ExtIP) DeleteMapping(string, int, int) error                     { return nil }
+
+// DeleteMapping does nothing
+func (ExtIP) DeleteMapping(string, int, int) error { return nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler
+func (n *ExtIP) UnmarshalText(text []byte) error {
+	nat, err := Parse(string(text))
+	if err == nil {
+		s, _ := nat.(*ExtIP)
+		*n = *s
+	}
+	return err
+}
 
 // Any returns a port mapper that tries to discover any supported
 // mechanism on the local network.
