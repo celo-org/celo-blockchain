@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 
@@ -255,21 +256,22 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		}
 
 		// Generate aggregate seal
-		bitmap, aggregate, err := AggregateSeals(
-			c.current.Commits(),
-			func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
-		)
+		aggregatedSeal, err := c.generateAggregateCommittedSeal()
+		if err != nil {
+			logger.Warn("Initial verificaction of aggregate commit signature failed", "err", err)
+			// Remove any bad committed seals and try again if sufficient commits remain
+			c.removeInvalidCommittedSeals()
+			if c.current.Commits().Size() < c.current.ValidatorSet().MinQuorumSize() {
+				// Wait for more commits
+				return nil
+			}
+			aggregatedSeal, err = c.generateAggregateCommittedSeal()
+		}
+		// If there is still an error then sit this round out, we can't continue.
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to aggregate commit seals", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
-		err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
-		if err != nil {
-			// TODO remove bad seals from message set
-			// return fmt.Errorf("failed to verify epoch validator set seal: %v", err)
 			return nil
 		}
 
@@ -300,6 +302,49 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	}
 	return nil
 
+}
+
+// generateAggregateCommittedSeal will generate the aggregate committed seal
+// verify it and return it.
+func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, error) {
+	commits := c.current.Commits()
+	if commits.Size() < c.current.ValidatorSet().MinQuorumSize() {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("insufficient commits to construct aggregate seal")
+	}
+	bitmap, aggregate, err := AggregateSeals(
+		commits,
+		func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
+	)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed to aggregate seals: %v", err)
+	}
+
+	aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
+	err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed verify aggregate seal: %v", err)
+	}
+	return aggregatedSeal, nil
+}
+
+// removeInvalidCommittedSeals individually verifies the committed seal on each
+// commit message and discards commits with invalid committed seals.
+//
+// Note that when commit messages are discarded they are not removed from the
+// round state database, this should not pose a problem however because if this
+// step is reached again they will again be discarded.
+func (c *core) removeInvalidCommittedSeals() {
+
+	commits := c.current.Commits()
+
+	for _, msg := range commits.Values() {
+		var commit *istanbul.CommittedSubject
+		msg.Decode(&commit)
+		err := c.verifyCommittedSeal(commit, c.current.GetValidatorByAddress(msg.Address))
+		if err != nil {
+			commits.Remove(msg.Address)
+		}
+	}
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
