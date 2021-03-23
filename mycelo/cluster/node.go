@@ -166,11 +166,25 @@ func (n *Node) Run(ctx context.Context) error {
 		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
 		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul",
 		// "--nodiscover", "--nousb ",
-		"--miner.validator", n.Account.Address.Hex(),
-		"--tx-fee-recipient", n.TxFeeRecipientAccount.Address.Hex(),
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
 	}
+
+	// Once we're sure we won't run v1.2.x and older, can get rid of this check
+	// and just use the new options
+	helpBytes, _ := exec.Command(n.GethPath, "--help").Output() // #nosec G204
+	useTxFeeRecipient := strings.Contains(string(helpBytes), "miner.validator")
+	if useTxFeeRecipient {
+		args = append(args,
+			"--miner.validator", n.Account.Address.Hex(),
+			"--tx-fee-recipient", n.TxFeeRecipientAccount.Address.Hex(),
+		)
+	} else {
+		args = append(args,
+			"--etherbase", n.Account.Address.Hex(),
+		)
+	}
+
 	if n.ExtraFlags != "" {
 		args = append(args, strings.Fields(n.ExtraFlags)...)
 	}
