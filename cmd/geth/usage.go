@@ -76,6 +76,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.SyncModeFlag,
 			utils.ExitWhenSyncedFlag,
 			utils.GCModeFlag,
+			utils.TxLookupLimitFlag,
 			utils.CeloStatsURLFlag,
 			utils.IdentityFlag,
 			utils.LightKDFFlag,
