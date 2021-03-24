@@ -98,6 +98,7 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, ver
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
+	transactor.GasLimit = 110000 // 110lk gas for stable token transfer is pretty reasonable. It's just under 100k in practice
 
 	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
