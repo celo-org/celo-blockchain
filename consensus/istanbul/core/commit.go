@@ -173,7 +173,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 
 // handleCheckedCommitForPreviousSequence adds messages for the previous
 // sequence to the parent commit set, if the subject digest of msg does not
-// match that of the previous block or it was not sentby one of the previous
+// match that of the previous block or it was not sent by one of the previous
 // block's validators an error is returned. If this is the last block of the
 // epoch then the epoch seal will also be validated.
 //
@@ -313,12 +313,12 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 // generateAggregateCommittedSeal will generate the aggregate committed seal
 // verify it and return it. If verification fails it will individually verify
-// the commit signatures on all commit messages and discard the messgaes that
+// the commit signatures on all commit messages and discard the messages that
 // fail individual verification, then it will attempt to aggregate the
 // signatures on the remaining commit messages and verify it. If an
 // unrecoverable error is encountered it will be returned. Note that when
 // commit messages are discarded they are not removed from the round state
-// database, this should not pose a problem however becasue if this step is
+// database, this should not pose a problem however because if this step is
 // reached again they will again be discarded.
 func (c *core) generateAggregateCommittedSeal(logger log.Logger) (types.IstanbulAggregatedSeal, error) {
 	commits := c.current.Commits()
