@@ -104,7 +104,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.Transfer,
+		Transfer:    vm.TobinTransfer,
 		Origin:      origin,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),

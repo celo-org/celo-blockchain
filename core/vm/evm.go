@@ -18,9 +18,7 @@ package vm
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
-	goerrors "errors"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -46,7 +44,7 @@ type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	TransferFunc func(*EVM, common.Address, common.Address, *big.Int)
 	// GetHashFunc returns the n'th block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
@@ -273,11 +271,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, gas, err
-	}
+
+	evm.Context.Transfer(evm, caller.Address(), to.Address(), value)
+
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -456,11 +452,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
 	}
-	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, address, gas, err
-	}
+	evm.Context.Transfer(evm, caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -532,61 +524,6 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-	// each of which is equivalent to 32 bytes
-	if binary.Size(ret) != 64 {
-		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
-	}
-	numerator = new(big.Int).SetBytes(ret[0:32])
-	denominator = new(big.Int).SetBytes(ret[32:64])
-	if denominator.Cmp(common.Big0) == 0 {
-		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
-	}
-	if numerator.Cmp(denominator) == 1 {
-		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
-	}
-	return numerator, denominator, reserveAddress, nil
-}
-
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-// NB: Gas is not charged or accounted for this calculation.
-func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
-		if err == nil {
-			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-			return gas, nil
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
-		}
-	}
-
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	evm.Context.Transfer(db, sender, recipient, amount)
-	return gas, nil
-}
-
 func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
 		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
@@ -609,7 +546,7 @@ var (
 
 func unpackError(result []byte) (string, error) {
 	if len(result) < 4 || !bytes.Equal(result[:4], errorSig) {
-		return "<tx result not Error(string)>", goerrors.New("TX result not of type Error(string)")
+		return "<tx result not Error(string)>", errors.New("TX result not of type Error(string)")
 	}
 	vs, err := abipkg.Arguments{{Type: abiString}}.UnpackValues(result[4:])
 	if err != nil {
