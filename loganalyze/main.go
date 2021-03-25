@@ -12,6 +12,11 @@ import (
 )
 
 var (
+
+	//	Mon Jan 2 15:04:05 -0700 MST 2006 - the go format ref time
+	// 03-25|14:07:31.066 - an example time from the logs
+	timeFormat = "[01-02|15:04:05.000]"
+
 	log = cli.StringFlag{
 		Name:  "log",
 		Usage: "Path to the log",
@@ -19,6 +24,13 @@ var (
 	filter = cli.StringFlag{
 		Name:  "filter",
 		Usage: "filter log lines to those containing this string",
+	}
+	timeRange = cli.StringFlag{
+		Name: "range",
+		Usage: `
+		filter log lines to those with timestamps within this range (inclusive).
+		Timestamps have the followng format 03-25|14:07:31.066 and the range flag
+		expects 2 timestamps separated by a comma and no spaces.`,
 	}
 	app = &cli.App{
 		Name:                 filepath.Base(os.Args[0]),
@@ -49,6 +61,21 @@ func analyze(c *cli.Context) error {
 	var prev time.Time
 	var durations []time.Duration
 	var totalDuration time.Duration
+
+	var start, end time.Time
+	rangeString := c.String(timeRange.Name)
+	if rangeString != "" {
+		fields := strings.Split(c.String(timeRange.Name), ",")
+		start, err = time.Parse(timeFormat, fields[0])
+		if err != nil {
+			return err
+		}
+		end, err = time.Parse(timeFormat, fields[1])
+		if err != nil {
+			return err
+		}
+	}
+
 	scanner := bufio.NewScanner(f)
 	filterString := c.String(filter.Name)
 	for scanner.Scan() {
@@ -56,12 +83,18 @@ func analyze(c *cli.Context) error {
 		if strings.Contains(line, filterString) {
 			fields := strings.Fields(line)
 			// second field is the time
-			// strings.Split(fields[1], "|")
-			//	Mon Jan 2 15:04:05 -0700 MST 2006
-			// 03-25|14:07:31.066
 			t, err := time.Parse("[01-02|15:04:05.000]", fields[1])
 			if err != nil {
 				return err
+			}
+			// Check bounds
+			if rangeString != "" {
+				if t.Sub(end) > 0 {
+					break
+				}
+				if t.Sub(start) < 0 {
+					continue
+				}
 			}
 			if prev.IsZero() {
 				prev = t
