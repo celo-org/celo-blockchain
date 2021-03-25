@@ -72,8 +72,13 @@ func Start(ctx context.Context, cfg *Config) error {
 				lg.Pending++
 				lg.PendingMu.Unlock()
 			}
+			// We evaluate these here to avoid concurrent access of the state
+			// contained in these closures.
+			sender := nextSender()
+			client := nextClient()
+			recipient := nextRecipient()
 			group.Go(func() error {
-				return runTransaction(ctx, lg, nextSender(), cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
+				return runTransaction(ctx, lg, sender, cfg.Verbose, client, recipient, cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
