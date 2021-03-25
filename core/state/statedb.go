@@ -867,7 +867,9 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	return root, err
 }
 
-func (s *StateDB) CleanStateRoot() (bool, common.Hash) {
+// StateRootIfClean returns true if the statedb is clean, false otherwise.
+// If the state db is clean, it also returns the state root.
+func (s *StateDB) StateRootIfClean() (bool, common.Hash) {
 	if s.txIndex > 0 {
 		return false, common.Hash{}
 	}

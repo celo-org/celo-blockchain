@@ -67,7 +67,7 @@ type StateDB interface {
 
 	Finalise(bool)
 
-	CleanStateRoot() (bool, common.Hash)
+	StateRootIfClean() (bool, common.Hash)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM
