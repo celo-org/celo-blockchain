@@ -32,31 +32,31 @@ import (
 // This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Election.json
 const electionABIString string = `[
   {"constant": true,
-              "inputs": [],
-        "name": "electValidatorSigners",
-        "outputs": [
+	      "inputs": [],
+	"name": "electValidatorSigners",
+	"outputs": [
        {
-            "name": "",
+	    "name": "",
       "type": "address[]"
        }
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
+	],
+	"payable": false,
+	"stateMutability": "view",
+	"type": "function"
        },
 			     {
       "constant": true,
       "inputs": [],
       "name": "getTotalVotesForEligibleValidatorGroups",
       "outputs": [
-        {
-          "name": "groups",
-          "type": "address[]"
-        },
-        {
-          "name": "values",
-          "type": "uint256[]"
-        }
+	{
+	  "name": "groups",
+	  "type": "address[]"
+	},
+	{
+	  "name": "values",
+	  "type": "uint256[]"
+	}
       ],
       "payable": false,
       "stateMutability": "view",
@@ -65,22 +65,22 @@ const electionABIString string = `[
 		    {
       "constant": false,
       "inputs": [
-        {
-          "name": "group",
-          "type": "address"
-        },
-        {
-          "name": "value",
-          "type": "uint256"
-        },
-        {
-          "name": "lesser",
-          "type": "address"
-        },
-        {
-          "name": "greater",
-          "type": "address"
-        }
+	{
+	  "name": "group",
+	  "type": "address"
+	},
+	{
+	  "name": "value",
+	  "type": "uint256"
+	},
+	{
+	  "name": "lesser",
+	  "type": "address"
+	},
+	{
+	  "name": "greater",
+	  "type": "address"
+	}
       ],
       "name": "distributeEpochRewards",
       "outputs": [],
@@ -91,25 +91,25 @@ const electionABIString string = `[
 		    {
       "constant": true,
       "inputs": [
-        {
-          "name": "group",
-          "type": "address"
-        },
-        {
-          "name": "maxTotalRewards",
-          "type": "uint256"
-        },
-        {
-          "name": "uptimes",
-          "type": "uint256[]"
-        }
+	{
+	  "name": "group",
+	  "type": "address"
+	},
+	{
+	  "name": "maxTotalRewards",
+	  "type": "uint256"
+	},
+	{
+	  "name": "uptimes",
+	  "type": "uint256[]"
+	}
       ],
       "name": "getGroupEpochRewards",
       "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        }
+	{
+	  "name": "",
+	  "type": "uint256"
+	}
       ],
       "payable": false,
       "stateMutability": "view",
@@ -118,21 +118,21 @@ const electionABIString string = `[
     {
       "constant": true,
       "inputs": [
-        {
-          "name": "minElectableValidators",
-          "type": "uint256"
-        },
-        {
-          "name": "maxElectableValidators",
-          "type": "uint256"
-        }
+	{
+	  "name": "minElectableValidators",
+	  "type": "uint256"
+	},
+	{
+	  "name": "maxElectableValidators",
+	  "type": "uint256"
+	}
       ],
       "name": "electNValidatorSigners",
       "outputs": [
-        {
-          "name": "",
-          "type": "address[]"
-        }
+	{
+	  "name": "",
+	  "type": "address[]"
+	}
       ],
       "payable": false,
       "stateMutability": "view",
@@ -143,14 +143,14 @@ const electionABIString string = `[
       "inputs": [],
       "name": "getElectableValidators",
       "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        }
+	{
+	  "name": "",
+	  "type": "uint256"
+	},
+	{
+	  "name": "",
+	  "type": "uint256"
+	}
       ],
       "payable": false,
       "stateMutability": "view",
@@ -163,8 +163,12 @@ var electionABI, _ = abi.JSON(strings.NewReader(electionABIString))
 func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	// Get the new epoch's validator set
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetElectedValidators", "err", err)
+		return nil, err
+	}
+	_, err = comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators)
 	if err != nil {
 		return nil, err
 	}
@@ -176,15 +180,23 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 	var maxElectableValidators *big.Int
 
 	// Get the electable min and max
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getElectableValidators", []interface{}{}, &[]interface{}{&minElectableValidators, &maxElectableValidators}, params.MaxGasForGetElectableValidators)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "ElectNValidatorSigners", "err", err)
+		return nil, err
+	}
+	_, err = comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getElectableValidators", []interface{}{}, &[]interface{}{&minElectableValidators, &maxElectableValidators}, params.MaxGasForGetElectableValidators)
 	if err != nil {
 		return nil, err
 	}
 
 	var electedValidators []common.Address
 	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroup
-	comm = caller.NewCaller(header, state)
+	comm, err = caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "ElectNValidatorSigners", "err", err)
+		return nil, err
+	}
 	_, err = comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners)
 	if err != nil {
 		return nil, err
@@ -202,8 +214,12 @@ type voteTotal struct {
 func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.StateDB) ([]voteTotal, error) {
 	var groups []common.Address
 	var values []*big.Int
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "getTotalVotesForEligibleValidatorGroups", "err", err)
+		return nil, err
+	}
+	_, err = comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals)
 	if err != nil {
 		return nil, err
 	}

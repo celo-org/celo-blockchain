@@ -31,7 +31,10 @@ import (
 )
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	cc := NewCaller(header, state)
+	cc, err := NewCaller(header, state)
+	if err != nil {
+		return &common.Address{}, err
+	}
 	return cc.GetRegisteredAddress(registryId)
 }
 

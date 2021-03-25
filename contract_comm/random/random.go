@@ -133,7 +133,11 @@ var (
 )
 
 func address() *common.Address {
-	comm := caller.NewCurrentStateCaller()
+	comm, err := caller.NewCurrentStateCaller()
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "address", "err", err)
+		return &common.ZeroAddress
+	}
 	randomAddress, err := comm.GetRegisteredAddress(params.RandomRegistryId)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
@@ -151,8 +155,13 @@ func IsRunning() bool {
 // GetLastCommitment returns up the last commitment in the smart contract
 func GetLastCommitment(validator common.Address, header *types.Header, state vm.StateDB) (common.Hash, error) {
 	lastCommitment := common.Hash{}
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{validator}, &lastCommitment, params.MaxGasForCommitments)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetLastCommitment", "err", err)
+		return common.Hash{}, err
+
+	}
+	_, err = comm.MakeStaticCall(params.RandomRegistryId, commitmentsFuncABI, "commitments", []interface{}{validator}, &lastCommitment, params.MaxGasForCommitments)
 	if err != nil {
 		log.Error("Failed to get last commitment", "err", err)
 		return lastCommitment, err
@@ -168,9 +177,13 @@ func GetLastCommitment(validator common.Address, header *types.Header, state vm.
 // ComputeCommitment calulcates the commitment for a given randomness.
 func ComputeCommitment(header *types.Header, state vm.StateDB, randomness common.Hash) (common.Hash, error) {
 	commitment := common.Hash{}
-	comm := caller.NewCaller(header, state)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "ComputeCommitment", "err", err)
+		return common.Hash{}, err
+	}
 	// TODO(asa): Make an issue to not have to do this via StaticCall
-	_, err := comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment)
+	_, err = comm.MakeStaticCall(params.RandomRegistryId, computeCommitmentFuncABI, "computeCommitment", []interface{}{randomness}, &commitment, params.MaxGasForComputeCommitment)
 	if err != nil {
 		log.Error("Failed to call computeCommitment()", "err", err)
 		return common.Hash{}, err
@@ -185,8 +198,12 @@ func ComputeCommitment(header *types.Header, state vm.StateDB, randomness common
 func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Address, header *types.Header, state vm.StateDB) error {
 	args := []interface{}{randomness, newCommitment, proposer}
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "RevealAndCommit", "err", err)
+		return err
+	}
+	_, err = comm.MakeCall(params.RandomRegistryId, revealAndCommitFuncABI, "revealAndCommit", args, nil, params.MaxGasForRevealAndCommit, zeroValue)
 	if err == nil {
 		state.Finalise(true)
 	}
@@ -196,14 +213,22 @@ func RevealAndCommit(randomness, newCommitment common.Hash, proposer common.Addr
 // Random performs an internal call to the EVM to retrieve the current randomness from the official Random contract.
 func Random(header *types.Header, state vm.StateDB) (common.Hash, error) {
 	randomness := common.Hash{}
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForBlockRandomness)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "Random", "err", err)
+		return common.Hash{}, err
+	}
+	_, err = comm.MakeStaticCall(params.RandomRegistryId, randomFuncABI, "random", []interface{}{}, &randomness, params.MaxGasForBlockRandomness)
 	return randomness, err
 }
 
 func BlockRandomness(header *types.Header, state vm.StateDB, blockNumber uint64) (common.Hash, error) {
 	randomness := common.Hash{}
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(params.RandomRegistryId, historicRandomFuncABI, "getBlockRandomness", []interface{}{big.NewInt(int64(blockNumber))}, &randomness, params.MaxGasForBlockRandomness)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "BlockRandomness", "err", err)
+		return common.Hash{}, err
+	}
+	_, err = comm.MakeStaticCall(params.RandomRegistryId, historicRandomFuncABI, "getBlockRandomness", []interface{}{big.NewInt(int64(blockNumber))}, &randomness, params.MaxGasForBlockRandomness)
 	return randomness, err
 }
