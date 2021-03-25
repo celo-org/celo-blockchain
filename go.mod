@@ -63,7 +63,7 @@ require (
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/mobile v0.0.0-20200801112145-973feb4309de // indirect
+	golang.org/x/mobile v0.0.0-20210220033013-bdb1ca9a1e08 // indirect
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
@@ -77,4 +77,4 @@ require (
 )
 
 // Use our fork which disables bitcode
-replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20201127114005-6a1221213dcf
+replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20210324213558-66ac87d7fb95
