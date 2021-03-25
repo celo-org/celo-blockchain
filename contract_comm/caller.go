@@ -31,7 +31,10 @@ import (
 )
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	cc := NewCaller(header, state)
+	cc, err := NewCaller(header, state)
+	if err != nil {
+		return &common.Address{}, err
+	}
 	return cc.GetRegisteredAddress(registryId)
 }
 
@@ -47,7 +50,7 @@ func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.A
 func (c contractCommunicator) MakeMemoizedStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	evm, err := c.builder.createEVM()
 	if err != nil {
-		return gas, err // TODO(Joshua): 0 or gas for gas left?
+		return 0, err
 	}
 	return evm.MemoizedStaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
 }
@@ -97,7 +100,7 @@ func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI
 func (c contractCommunicator) MakeMemoizedStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName, true)
 	if err != nil {
-		return 0, err // TODO(joshua): should this be gas instead of 0?
+		return 0, err
 	}
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)

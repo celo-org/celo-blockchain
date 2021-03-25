@@ -113,7 +113,11 @@ func init() {
 func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	var err error
-	comm := caller.NewCaller(header, state)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetMinimumVersion", "err", err)
+		return nil, err
+	}
 	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
@@ -131,7 +135,11 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
 	var gas *big.Int
 	var err error
-	comm := caller.NewCaller(header, state)
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetGasCost", "err", err)
+		return defaultGas
+	}
 	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
@@ -182,8 +190,12 @@ func SpawnCheck() {
 
 func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 	var gasLimit *big.Int
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetBlockGasLimit", "err", err)
+		return params.DefaultGasLimit, err
+	}
+	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"blockGasLimit",
@@ -204,8 +216,12 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 
 func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
 	var lookbackWindow *big.Int
-	comm := caller.NewCaller(header, state)
-	_, err := comm.MakeStaticCall(
+	comm, err := caller.NewCaller(header, state)
+	if err != nil {
+		log.Error("Failed to create current state caller", "func", "GetLookbackWindow", "err", err)
+		return params.MaxGasForReadBlockchainParameter, err
+	}
+	_, err = comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"getUptimeLookbackWindow",

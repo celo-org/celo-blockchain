@@ -58,6 +58,7 @@ type RegistryCaller interface {
 
 // Creates a new EVM on demand.
 type evmBuilder interface {
+	// createEVM creates an EVM. May fail due to `chain.State()`
 	createEVM() (*vm.EVM, error)
 }
 
@@ -66,7 +67,7 @@ type contractCommunicator struct {
 	builder evmBuilder
 }
 
-var emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
+var emptyMessage = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false, false)
 
 // specificStateCaller implements evmBuilder for a given state. This allows core contract calls against and arbitrary state
 type specificStateCaller struct {
@@ -106,9 +107,6 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 }
 
 func (c currentStateCaller) createEVM() (*vm.EVM, error) {
-	if internalEvmHandlerSingleton == nil {
-		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
-	}
 	header := internalEvmHandlerSingleton.chain.CurrentHeader()
 	var state vm.StateDB
 	state, err := internalEvmHandlerSingleton.chain.State()
@@ -125,22 +123,22 @@ func (c currentStateCaller) createEVM() (*vm.EVM, error) {
 
 // NewCaller creates a caller object that acts on the supplied statedb in the environment of the header, state
 // SetIEVMHandler must be called prior to using this (to maintain backwards compatibility)
-func NewCaller(header *types.Header, state vm.StateDB) SystemContractCaller {
+func NewCaller(header *types.Header, state vm.StateDB) (SystemContractCaller, error) {
 	if header == nil || state == nil || reflect.ValueOf(state).IsNil() {
 		return NewCurrentStateCaller()
 	}
-	var chain vm.ChainContext
-	if internalEvmHandlerSingleton != nil {
-		chain = internalEvmHandlerSingleton.chain
-	} else {
-		chain = nil
+	if internalEvmHandlerSingleton == nil {
+		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
 	}
-	evmBuilder := specificStateCaller{header: header, state: state, chain: chain}
-	return contractCommunicator{builder: evmBuilder}
+	evmBuilder := specificStateCaller{header: header, state: state, chain: internalEvmHandlerSingleton.chain}
+	return contractCommunicator{builder: evmBuilder}, nil
 }
 
 // NewCurrentStateCaller creates a caller object that uses the current chain state
 // SetIEVMHandler must be called before this method is able to be used
-func NewCurrentStateCaller() CachingSystemContractCaller {
-	return contractCommunicator{builder: currentStateCaller{}}
+func NewCurrentStateCaller() (SystemContractCaller, error) {
+	if internalEvmHandlerSingleton == nil {
+		return nil, ccerrors.ErrNoInternalEvmHandlerSingleton
+	}
+	return contractCommunicator{builder: currentStateCaller{}}, nil
 }
