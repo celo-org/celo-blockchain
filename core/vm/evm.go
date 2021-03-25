@@ -599,6 +599,7 @@ func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.
 
 type cacheKey struct {
 	StateRoot       common.Hash
+	contractAddress common.Address
 	TransactionData string
 }
 
@@ -622,6 +623,7 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 		if clean {
 			key := cacheKey{
 				TransactionData: string(transactionData),
+				contractAddress: contractAddress,
 				StateRoot:       stateRoot,
 			}
 			if result, ok := staticCallCache.Get(key); ok {
