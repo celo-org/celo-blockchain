@@ -256,6 +256,7 @@ type TxPool struct {
 	mu          sync.RWMutex
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicator for the Donut fork.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -480,10 +481,24 @@ func (pool *TxPool) SetGasLimit(gasLimit uint64) {
 	pool.demoteUnexecutables()
 
 	for _, list := range pool.queue {
-		rm, _ := list.Filter(nil, gasLimit)
+		rm, _ := list.FilterOnGasLimit(gasLimit)
 		for _, tx := range rm {
 			pool.removeTx(tx.Hash(), false)
 		}
+	}
+}
+
+// handleDonutActivation removes from the pool all transactions without EIP-155 replay protection
+func (pool *TxPool) handleDonutActivation() {
+	toRemove := make(map[common.Hash]struct{})
+	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+		if !tx.Protected() {
+			toRemove[hash] = struct{}{}
+		}
+		return true
+	})
+	for hash := range toRemove {
+		pool.removeTx(hash, true)
 	}
 }
 
@@ -577,6 +592,15 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
+	if pool.donut && !tx.Protected() {
+		return ErrUnprotectedTransaction
+	}
+	if tx.EthCompatible() && !pool.donut {
+		return ErrEthCompatibleTransactionsNotSupported
+	}
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return err
+	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -1272,6 +1296,11 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
+	wasDonut := pool.donut
+	pool.donut = pool.chainconfig.IsDonut(next)
+	if pool.donut && !wasDonut {
+		pool.handleDonutActivation()
+	}
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1280,6 +1309,14 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
+	// build gas price minimums
+	gasPriceMinimums := make(map[common.Address]*big.Int)
+	allCurrencies, _ := currency.CurrencyWhitelist(nil, nil)
+	for _, currency := range allCurrencies {
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(&currency, nil, nil)
+		gasPriceMinimums[currency] = gasPriceMinimum
+	}
+	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
 
 	// Iterate over all accounts and promote any executable transactions
 	for _, addr := range accounts {
@@ -1294,8 +1331,15 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			pool.all.Remove(hash)
 			log.Trace("Removed old queued transaction", "hash", hash)
 		}
+		// Get balances in each currency
+		balances := make(map[common.Address]*big.Int)
+		allCurrencies := list.FeeCurrencies()
+		for _, feeCurrency := range allCurrencies {
+			feeCurrencyBalance, _, _ := currency.GetBalanceOf(addr, feeCurrency, params.MaxGasToReadErc20Balance, nil, nil)
+			balances[feeCurrency] = feeCurrencyBalance
+		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), nativeGPM, balances, gasPriceMinimums, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
@@ -1476,6 +1520,15 @@ func (pool *TxPool) truncateQueue() {
 // executable/pending queue and any subsequent transactions that become unexecutable
 // are moved back into the future queue.
 func (pool *TxPool) demoteUnexecutables() {
+	// build gas price minimums
+	gasPriceMinimums := make(map[common.Address]*big.Int)
+	allCurrencies, _ := currency.CurrencyWhitelist(nil, nil)
+	for _, currency := range allCurrencies {
+		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(&currency, nil, nil)
+		gasPriceMinimums[currency] = gasPriceMinimum
+	}
+	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
+
 	// Iterate over all accounts and demote any non-executable transactions
 	for addr, list := range pool.pending {
 		nonce := pool.currentState.GetNonce(addr)
@@ -1487,8 +1540,15 @@ func (pool *TxPool) demoteUnexecutables() {
 			pool.all.Remove(hash)
 			log.Trace("Removed old pending transaction", "hash", hash)
 		}
+		// Get balances in each currency
+		balances := make(map[common.Address]*big.Int)
+		allCurrencies := list.FeeCurrencies()
+		for _, feeCurrency := range allCurrencies {
+			feeCurrencyBalance, _, _ := currency.GetBalanceOf(addr, feeCurrency, params.MaxGasToReadErc20Balance, nil, nil)
+			balances[feeCurrency] = feeCurrencyBalance
+		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), nativeGPM, balances, gasPriceMinimums, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
@@ -1539,8 +1599,10 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			return err
 		}
 
-		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
-		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
+		// To match the logic in canPayFee() state_transition.go, we require the balance to be strictly greater than the fee,
+		// which means we reject the transaction if balance <= fee
+		fee := tx.Fee()
+		if feeCurrencyBalance.Cmp(fee) <= 0 {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return ErrInsufficientFunds
 		}

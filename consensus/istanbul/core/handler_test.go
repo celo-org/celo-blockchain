@@ -173,7 +173,7 @@ func BenchmarkHandleMsg(b *testing.B) {
 }
 
 // newInitializedTestSystem creates a test system
-// It requires go >= 1.15 to optionally create a round state db in a temporary directory
+// It optionally creates a round state db in a temporary directory
 func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 	N := uint64(2)
 	F := uint64(1) // F does not affect tests
@@ -233,6 +233,7 @@ func BenchmarkE2EHandleCommitWithSave(b *testing.B) {
 }
 
 func bemchmarkE2EHandleCommit(b *testing.B, sys *testSystem) {
+
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
 	c := v0.engine.(*core)

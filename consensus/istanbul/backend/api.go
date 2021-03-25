@@ -42,6 +42,25 @@ type API struct {
 }
 
 // getHeaderByNumber retrieves the header requested block or current if unspecified.
+func (api *API) getHeaderByNumber(number *rpc.BlockNumber) (*types.Header, error) {
+	var header *types.Header
+	if number == nil || *number == rpc.LatestBlockNumber {
+		header = api.chain.CurrentHeader()
+	} else if *number == rpc.PendingBlockNumber {
+		return nil, fmt.Errorf("can't use pending block within istanbul")
+	} else if *number == rpc.EarliestBlockNumber {
+		header = api.chain.GetHeaderByNumber(0)
+	} else {
+		header = api.chain.GetHeaderByNumber(uint64(*number))
+	}
+
+	if header == nil {
+		return nil, errUnknownBlock
+	}
+	return header, nil
+}
+
+// getParentHeaderByNumber retrieves the parent header requested block or current if unspecified.
 func (api *API) getParentHeaderByNumber(number *rpc.BlockNumber) (*types.Header, error) {
 	var parent uint64
 	if number == nil || *number == rpc.LatestBlockNumber || *number == rpc.PendingBlockNumber {
@@ -248,10 +267,25 @@ func (api *API) IsValidating() bool {
 	return api.istanbul.IsValidating()
 }
 
-// GetCurrentRoundState retrieves the current replica state
+// GetCurrentReplicaState retrieves the current replica state
 func (api *API) GetCurrentReplicaState() (*replica.ReplicaStateSummary, error) {
 	if api.istanbul.replicaState != nil {
 		return api.istanbul.replicaState.Summary(), nil
 	}
 	return &replica.ReplicaStateSummary{State: "Not a validator"}, nil
+}
+
+// GetLookbackWindow retrieves the current replica state
+func (api *API) GetLookbackWindow(number *rpc.BlockNumber) (uint64, error) {
+	header, err := api.getHeaderByNumber(number)
+	if err != nil {
+		return 0, err
+	}
+
+	state, err := api.istanbul.stateAt(header.Hash())
+	if err != nil {
+		return 0, err
+	}
+
+	return api.istanbul.LookbackWindow(header, state), nil
 }

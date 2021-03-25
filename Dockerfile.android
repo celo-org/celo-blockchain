@@ -29,7 +29,7 @@ RUN rustup target add x86_64-linux-android
 # go and node installations command expect to run as root
 USER root
 
-RUN curl https://dl.google.com/go/go1.14.14.linux-amd64.tar.gz | tar -xz
+RUN curl https://dl.google.com/go/go1.16.2.linux-amd64.tar.gz | tar -xz
 ENV PATH=/go/bin:$PATH
 ENV GOROOT=/go
 ENV GOPATH=$HOME/go

@@ -71,15 +71,17 @@ func (cl *Cluster) ensureNodes() []*Node {
 
 	if cl.nodes == nil {
 		validators := cl.env.Accounts().ValidatorAccounts()
+		txFeeRecipients := cl.env.Accounts().TxFeeRecipientAccounts()
 		cl.nodes = make([]*Node, len(validators))
 		for i, validator := range validators {
 			nodeConfig := &NodeConfig{
-				GethPath:   cl.config.GethPath,
-				ExtraFlags: cl.config.ExtraFlags,
-				Number:     i,
-				Account:    validator,
-				Datadir:    cl.env.ValidatorDatadir(i),
-				ChainID:    cl.env.Config.ChainID,
+				GethPath:              cl.config.GethPath,
+				ExtraFlags:            cl.config.ExtraFlags,
+				Number:                i,
+				Account:               validator,
+				TxFeeRecipientAccount: txFeeRecipients[i],
+				Datadir:               cl.env.ValidatorDatadir(i),
+				ChainID:               cl.env.Config.ChainID,
 			}
 			cl.nodes[i] = NewNode(nodeConfig)
 		}
