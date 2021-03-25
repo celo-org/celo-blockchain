@@ -32,6 +32,7 @@ type Config struct {
 	Clients               []*ethclient.Client
 	Verbose               bool
 	MaxPending            uint64
+	SkipGasEstimation     bool
 }
 
 // Start will start loads bots
@@ -73,7 +74,7 @@ func Start(ctx context.Context, cfg *Config) error {
 				lg.PendingMu.Unlock()
 			}
 			group.Go(func() error {
-				return runTransaction(ctx, lg, nextSender(), cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
+				return runTransaction(ctx, lg, nextSender(), cfg.SkipGasEstimation, cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -81,7 +82,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
+func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, verbose, skipEstimation bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -98,7 +99,9 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, ver
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
-	transactor.GasLimit = 110000 // 110lk gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+	if skipEstimation {
+		transactor.GasLimit = 110000 // 110lk gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+	}
 
 	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
