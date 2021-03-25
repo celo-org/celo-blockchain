@@ -74,7 +74,7 @@ func Start(ctx context.Context, cfg *Config) error {
 				lg.PendingMu.Unlock()
 			}
 			group.Go(func() error {
-				return runTransaction(ctx, lg, nextSender(), cfg.SkipGasEstimation, cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
+				return runTransaction(ctx, lg, nextSender(), cfg.Verbose, cfg.SkipGasEstimation, nextClient(), nextRecipient(), cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
