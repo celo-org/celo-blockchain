@@ -38,7 +38,7 @@ var (
 		Writer:               os.Stdout,
 		HideVersion:          true,
 		EnableBashCompletion: true,
-		Flags:                []cli.Flag{log, filter},
+		Flags:                []cli.Flag{log, filter, timeRange},
 		Action:               analyze,
 	}
 )
@@ -83,7 +83,7 @@ func analyze(c *cli.Context) error {
 		if strings.Contains(line, filterString) {
 			fields := strings.Fields(line)
 			// second field is the time
-			t, err := time.Parse("[01-02|15:04:05.000]", fields[1])
+			t, err := time.Parse(timeFormat, fields[1])
 			if err != nil {
 				return err
 			}
