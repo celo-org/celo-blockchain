@@ -118,7 +118,7 @@ func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error)
 		return val, err
 	}
 
-	if currencyFrom == celoGoldAddress {
+	if *currencyFrom == celoGoldAddress {
 		// This function shouldn't really be called with the token's address, but if it is the value
 		// is correct, so return nil as the error
 		return val, nil

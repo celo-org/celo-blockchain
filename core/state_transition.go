@@ -276,7 +276,7 @@ func (st *StateTransition) creditGasFees(
 	from common.Address,
 	feeRecipient common.Address,
 	gatewayFeeRecipient *common.Address,
-	communityFund *common.Address,
+	communityFund common.Address,
 	refund *big.Int,
 	tipTxFee *big.Int,
 	gatewayFee *big.Int,
@@ -285,7 +285,7 @@ func (st *StateTransition) creditGasFees(
 	evm := st.evm
 	// Function is "creditGasFees(address,address,address,address,uint256,uint256,uint256,uint256)"
 	functionSelector := hexutil.MustDecode("0x6a30b253")
-	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(*communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
+	transactionData := common.GetEncodedAbi(functionSelector, [][]byte{common.AddressToAbi(from), common.AddressToAbi(feeRecipient), common.AddressToAbi(*gatewayFeeRecipient), common.AddressToAbi(communityFund), common.AmountToAbi(refund), common.AmountToAbi(tipTxFee), common.AmountToAbi(gatewayFee), common.AmountToAbi(baseTxFee)})
 
 	// Run only primary evm.Call() with tracer
 	if evm.GetDebug() {
@@ -452,12 +452,12 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
+	governanceAddress, err := vm.GetRegisteredAddress(st.evm, params.GovernanceRegistryId)
 	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 		return err
 	} else if err != nil {
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
-		governanceAddress = &common.ZeroAddress
+		governanceAddress = common.ZeroAddress
 		refund.Add(refund, baseTxFee)
 		baseTxFee = new(big.Int)
 	}
@@ -465,13 +465,13 @@ func (st *StateTransition) distributeTxFees() error {
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
-		"comunityFundRecipient", *governanceAddress, "communityFundFee", baseTxFee)
+		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
 		}
-		if governanceAddress != &common.ZeroAddress {
-			st.state.AddBalance(*governanceAddress, baseTxFee)
+		if governanceAddress != common.ZeroAddress {
+			st.state.AddBalance(governanceAddress, baseTxFee)
 		}
 		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)

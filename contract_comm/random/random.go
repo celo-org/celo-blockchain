@@ -132,7 +132,7 @@ var (
 	zeroValue                   = common.Big0
 )
 
-func address() *common.Address {
+func address() common.Address {
 	randomAddress, err := contract_comm.GetRegisteredAddress(params.RandomRegistryId, nil, nil)
 	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
 		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
@@ -144,7 +144,7 @@ func address() *common.Address {
 
 func IsRunning() bool {
 	randomAddress := address()
-	return randomAddress != nil && *randomAddress != common.ZeroAddress
+	return randomAddress != common.ZeroAddress
 }
 
 // GetLastCommitment returns up the last commitment in the smart contract

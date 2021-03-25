@@ -33,23 +33,17 @@ const (
 
 var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
-func GetRegisteredAddress(evm *EVM, registryId common.Hash) (common.Address, error) {
-	addr, err := GetRegisteredAddressWithEvm(registryId, evm)
-	if err != nil {
-		return common.ZeroAddress, nil
-	}
-	return *addr, nil
-}
-
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
+
+// GetRegisteredAddress returns the address on the registry for a given id
+func GetRegisteredAddress(evm *EVM, registryId common.Hash) (common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
 	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
-		return nil, errors.ErrRegistryContractNotDeployed
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
@@ -58,14 +52,14 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
 	if err == abi.ErrEmptyArguments || err == ErrExecutionReverted {
-		return nil, errors.ErrRegistryContractNotDeployed
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
-		return nil, err
+		return common.ZeroAddress, err
 	}
 
 	if contractAddress == common.ZeroAddress {
-		return nil, errors.ErrSmartContractNotDeployed
+		return common.ZeroAddress, errors.ErrSmartContractNotDeployed
 	}
 
-	return &contractAddress, nil
+	return contractAddress, nil
 }

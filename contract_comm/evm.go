@@ -57,12 +57,12 @@ func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName s
 	return makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, true)
 }
 
-func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
+func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
-		return nil, err
+		return common.ZeroAddress, err
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
+	return vm.GetRegisteredAddress(vmevm, registryId)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
@@ -147,7 +147,7 @@ func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, a
 		}
 	}
 
-	gasLeft, err := makeCallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
+	gasLeft, err := makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
 	if err != nil {
 		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
 	}
