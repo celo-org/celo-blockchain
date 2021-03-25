@@ -39,7 +39,7 @@ func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm
 func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	evm, err := c.builder.createEVM()
 	if err != nil {
-		return gas, err // TODO(Joshua): 0 or gas for gas left?
+		return 0, err
 	}
 	return evm.StaticCallFromSystem(contractAddress, abi, funcName, args, returnObj, gas)
 }
@@ -47,7 +47,7 @@ func (c contractCommunicator) MakeStaticCallWithAddress(contractAddress common.A
 func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	evm, err := c.builder.createEVM()
 	if err != nil {
-		return gas, err // TODO(Joshua): 0 or gas for gas left?
+		return 0, err
 	}
 	return evm.CallFromSystem(contractAddress, abi, funcName, args, returnObj, gas, value)
 }
@@ -55,7 +55,7 @@ func (c contractCommunicator) MakeCallWithAddress(contractAddress common.Address
 func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*common.Address, error) {
 	evm, err := c.builder.createEVM()
 	if err != nil {
-		return nil, err // TODO(Joshua): 0 or gas for gas left?
+		return nil, err
 	}
 	return vm.GetRegisteredAddressWithEvm(registryId, evm)
 }
@@ -63,7 +63,7 @@ func (c contractCommunicator) GetRegisteredAddress(registryId common.Hash) (*com
 func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {
-		return 0, err // TODO(joshua): should this be gas instead of 0?
+		return 0, err
 	}
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
@@ -81,7 +81,7 @@ func (c contractCommunicator) MakeStaticCall(registryId common.Hash, abi abi.ABI
 func (c contractCommunicator) MakeCall(registryId common.Hash, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	scAddress, err := c.getRegisteredAddress(registryId, funcName)
 	if err != nil {
-		return 0, err // TODO(joshua): should this be gas instead of 0?
+		return 0, err
 	}
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
