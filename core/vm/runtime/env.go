@@ -33,6 +33,8 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
+
+		GetRegisteredAddress: vm.GetRegisteredAddress,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

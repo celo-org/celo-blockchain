@@ -131,14 +131,15 @@ func (t *VMTest) newEVM(statedb *state.StateDB, vmconfig vm.Config) *vm.EVM {
 	}
 	transfer := func(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {}
 	context := vm.Context{
-		CanTransfer: canTransfer,
-		Transfer:    transfer,
-		GetHash:     vmTestBlockHash,
-		Origin:      t.json.Exec.Origin,
-		Coinbase:    t.json.Env.Coinbase,
-		BlockNumber: new(big.Int).SetUint64(t.json.Env.Number),
-		Time:        new(big.Int).SetUint64(t.json.Env.Timestamp),
-		GasPrice:    t.json.Exec.GasPrice,
+		CanTransfer:          canTransfer,
+		Transfer:             transfer,
+		GetHash:              vmTestBlockHash,
+		Origin:               t.json.Exec.Origin,
+		Coinbase:             t.json.Env.Coinbase,
+		BlockNumber:          new(big.Int).SetUint64(t.json.Env.Number),
+		Time:                 new(big.Int).SetUint64(t.json.Env.Timestamp),
+		GasPrice:             t.json.Exec.GasPrice,
+		GetRegisteredAddress: vm.GetRegisteredAddress,
 	}
 	vmconfig.NoRecursion = true
 	return vm.NewEVM(context, statedb, params.MainnetChainConfig, vmconfig)

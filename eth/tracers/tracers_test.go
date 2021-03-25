@@ -103,13 +103,14 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	*/
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
-		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.TobinTransfer,
-		Origin:      origin,
-		Coinbase:    common.Address{},
-		BlockNumber: new(big.Int).SetUint64(8000000),
-		Time:        new(big.Int).SetUint64(5),
-		GasPrice:    big.NewInt(1),
+		CanTransfer:          vm.CanTransfer,
+		Transfer:             vm.TobinTransfer,
+		Origin:               origin,
+		Coinbase:             common.Address{},
+		BlockNumber:          new(big.Int).SetUint64(8000000),
+		Time:                 new(big.Int).SetUint64(5),
+		GasPrice:             big.NewInt(1),
+		GetRegisteredAddress: vm.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -201,6 +202,7 @@ func TestCallTracer(t *testing.T) {
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				GasLimit:    uint64(test.Context.GasLimit),
 				GasPrice:    tx.GasPrice(),
+				GetRegisteredAddress: vm.GetRegisteredAddress,
 			}
 			statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 

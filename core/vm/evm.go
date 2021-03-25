@@ -56,6 +56,9 @@ type (
 
 	// GetValidatorsFunc is the signature for the GetValidators function
 	GetValidatorsFunc func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
+
+	// GetRegisteredAddressFunc returns the address for a registered contract
+	GetRegisteredAddressFunc func(evm *EVM, registryId common.Hash) (common.Address, error)
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -117,8 +120,9 @@ type Context struct {
 
 	Header *types.Header
 
-	EpochSize     uint64
-	GetValidators GetValidatorsFunc
+	EpochSize            uint64
+	GetValidators        GetValidatorsFunc
+	GetRegisteredAddress GetRegisteredAddressFunc
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

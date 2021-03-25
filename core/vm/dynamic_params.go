@@ -33,6 +33,14 @@ const (
 
 var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
+func GetRegisteredAddress(evm *EVM, registryId common.Hash) (common.Address, error) {
+	addr, err := GetRegisteredAddressWithEvm(registryId, evm)
+	if err != nil {
+		return common.ZeroAddress, nil
+	}
+	return *addr, nil
+}
+
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
