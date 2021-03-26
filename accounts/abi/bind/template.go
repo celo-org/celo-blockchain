@@ -306,7 +306,7 @@ var (
 	{{range .Calls}}
 		// {{.Normalized.Name}} is a free data retrieval call binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Caller) {{.Normalized.Name}}(opts *bind.CallOpts {{range .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
 			{{if .Structured}}ret := new(struct{
 				{{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}}
@@ -325,14 +325,14 @@ var (
 
 		// {{.Normalized.Name}} is a free data retrieval call binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Session) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} }, {{else}} {{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}} {{end}} error) {
 		  return _{{$contract.Type}}.Contract.{{.Normalized.Name}}(&_{{$contract.Type}}.CallOpts {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
 
 		// {{.Normalized.Name}} is a free data retrieval call binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}CallerSession) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} }, {{else}} {{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}} {{end}} error) {
 		  return _{{$contract.Type}}.Contract.{{.Normalized.Name}}(&_{{$contract.Type}}.CallOpts {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
@@ -341,21 +341,21 @@ var (
 	{{range .Transacts}}
 		// {{.Normalized.Name}} is a paid mutator transaction binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Transactor) {{.Normalized.Name}}(opts *bind.TransactOpts {{range .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) (*types.Transaction, error) {
 			return _{{$contract.Type}}.contract.Transact(opts, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
 
 		// {{.Normalized.Name}} is a paid mutator transaction binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Session) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.{{.Normalized.Name}}(&_{{$contract.Type}}.TransactOpts {{range $i, $_ := .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
 
 		// {{.Normalized.Name}} is a paid mutator transaction binding the contract method 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatmethod .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}TransactorSession) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.{{.Normalized.Name}}(&_{{$contract.Type}}.TransactOpts {{range $i, $_ := .Normalized.Inputs}}, {{.Name}}{{end}})
 		}
@@ -382,21 +382,21 @@ var (
 	{{if .Fallback}}
 		// Fallback is a paid mutator transaction binding the contract fallback function.
 		//
-		// Solidity: {{formatmethod .Fallback.Original $structs}}
+		// Solidity: {{.Fallback.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Transactor) Fallback(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
 			return _{{$contract.Type}}.contract.RawTransact(opts, calldata)
 		}
 
 		// Fallback is a paid mutator transaction binding the contract fallback function.
 		//
-		// Solidity: {{formatmethod .Fallback.Original $structs}}
+		// Solidity: {{.Fallback.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Session) Fallback(calldata []byte) (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.Fallback(&_{{$contract.Type}}.TransactOpts, calldata)
 		}
 
 		// Fallback is a paid mutator transaction binding the contract fallback function.
-		//
-		// Solidity: {{formatmethod .Fallback.Original $structs}}
+		// 
+		// Solidity: {{.Fallback.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}TransactorSession) Fallback(calldata []byte) (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.Fallback(&_{{$contract.Type}}.TransactOpts, calldata)
 		}
@@ -405,21 +405,21 @@ var (
 	{{if .Receive}}
 		// Receive is a paid mutator transaction binding the contract receive function.
 		//
-		// Solidity: {{formatmethod .Receive.Original $structs}}
+		// Solidity: {{.Receive.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Transactor) Receive(opts *bind.TransactOpts) (*types.Transaction, error) {
 			return _{{$contract.Type}}.contract.RawTransact(opts, nil) // calldata is disallowed for receive function
 		}
 
 		// Receive is a paid mutator transaction binding the contract receive function.
 		//
-		// Solidity: {{formatmethod .Receive.Original $structs}}
+		// Solidity: {{.Receive.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Session) Receive() (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.Receive(&_{{$contract.Type}}.TransactOpts)
 		}
 
 		// Receive is a paid mutator transaction binding the contract receive function.
-		//
-		// Solidity: {{formatmethod .Receive.Original $structs}}
+		// 
+		// Solidity: {{.Receive.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}TransactorSession) Receive() (*types.Transaction, error) {
 		  return _{{$contract.Type}}.Contract.Receive(&_{{$contract.Type}}.TransactOpts)
 		}
@@ -498,7 +498,7 @@ var (
 
 		// Filter{{.Normalized.Name}} is a free log retrieval operation binding the contract event 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatevent .Original $structs}}
+		// Solidity: {{.Original.String}}
  		func (_{{$contract.Type}} *{{$contract.Type}}Filterer) Filter{{.Normalized.Name}}(opts *bind.FilterOpts{{range .Normalized.Inputs}}{{if .Indexed}}, {{.Name}} []{{bindtype .Type $structs}}{{end}}{{end}}) (*{{$contract.Type}}{{.Normalized.Name}}Iterator, error) {
 			{{range .Normalized.Inputs}}
 			{{if .Indexed}}var {{.Name}}Rule []interface{}
@@ -515,7 +515,7 @@ var (
 
 		// Watch{{.Normalized.Name}} is a free log subscription operation binding the contract event 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatevent .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Filterer) Watch{{.Normalized.Name}}(opts *bind.WatchOpts, sink chan<- *{{$contract.Type}}{{.Normalized.Name}}{{range .Normalized.Inputs}}{{if .Indexed}}, {{.Name}} []{{bindtype .Type $structs}}{{end}}{{end}}) (event.Subscription, error) {
 			{{range .Normalized.Inputs}}
 			{{if .Indexed}}var {{.Name}}Rule []interface{}
@@ -557,7 +557,7 @@ var (
 
 		// Parse{{.Normalized.Name}} is a log parse operation binding the contract event 0x{{printf "%x" .Original.ID}}.
 		//
-		// Solidity: {{formatevent .Original $structs}}
+		// Solidity: {{.Original.String}}
 		func (_{{$contract.Type}} *{{$contract.Type}}Filterer) Parse{{.Normalized.Name}}(log types.Log) (*{{$contract.Type}}{{.Normalized.Name}}, error) {
 			event := new({{$contract.Type}}{{.Normalized.Name}})
 			if err := _{{$contract.Type}}.contract.UnpackLog(event, "{{.Original.Name}}", log); err != nil {
@@ -689,8 +689,8 @@ import java.util.*;
     {{if .Fallback}}
 	// Fallback is a paid mutator transaction binding the contract fallback function.
 	//
-	// Solidity: {{formatmethod .Fallback.Original $structs}}
-	public Transaction Fallback(TransactOpts opts, byte[] calldata) throws Exception {
+	// Solidity: {{.Fallback.Original.String}}
+	public Transaction Fallback(TransactOpts opts, byte[] calldata) throws Exception { 
 		return this.Contract.rawTransact(opts, calldata);
 	}
     {{end}}
@@ -698,8 +698,8 @@ import java.util.*;
     {{if .Receive}}
 	// Receive is a paid mutator transaction binding the contract receive function.
 	//
-	// Solidity: {{formatmethod .Receive.Original $structs}}
-	public Transaction Receive(TransactOpts opts) throws Exception {
+	// Solidity: {{.Receive.Original.String}}
+	public Transaction Receive(TransactOpts opts) throws Exception { 
 		return this.Contract.rawTransact(opts, null);
 	}
     {{end}}
