@@ -1552,9 +1552,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 				if err := bc.addFutureBlock(block); err != nil {
 					return it.index + skippableBlocks, err
 				}
-				stats.queued++
 				block, err = it.next()
 			}
+			stats.queued += it.processed()
 			stats.ignored += it.remaining()
 
 			// If there are any still remaining, mark as ignored
