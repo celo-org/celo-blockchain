@@ -158,6 +158,63 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
+type CurrencyComparator struct {
+	exchangeRates map[common.Address]*exchangeRate
+}
+
+func NewComparator() *CurrencyComparator {
+	return &CurrencyComparator{
+		exchangeRates: make(map[common.Address]*exchangeRate),
+	}
+}
+
+func (cc *CurrencyComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
+	val, ok := cc.exchangeRates[*currency]
+	if ok {
+		return val, nil
+	}
+
+	val, err := getExchangeRate(currency)
+	if err != nil {
+		return nil, err
+	}
+
+	cc.exchangeRates[*currency] = val
+
+	return val, nil
+}
+
+func (cc *CurrencyComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+	// Short circuit if the fee currency is the same. nil currency => native currency
+	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
+		return val1.Cmp(val2)
+	}
+
+	exchangeRate1, err1 := cc.getExchangeRate(currency1)
+	exchangeRate2, err2 := cc.getExchangeRate(currency2)
+
+	if err1 != nil || err2 != nil {
+		currency1Output := "nil"
+		if currency1 != nil {
+			currency1Output = currency1.Hex()
+		}
+		currency2Output := "nil"
+		if currency2 != nil {
+			currency2Output = currency2.Hex()
+		}
+		log.Warn("Error in retrieving exchange rate.  Will do comparison of two values without exchange rate conversion.", "currency1", currency1Output, "err1", err1, "currency2", currency2Output, "err2", err2)
+		return val1.Cmp(val2)
+	}
+
+	// Below code block is basically evaluating this comparison:
+	// val1 * exchangeRate1.Denominator/exchangeRate1.Numerator < val2 * exchangeRate2.Denominator/exchangeRate2.Numerator
+	// It will transform that comparison to this, to remove having to deal with fractional values.
+	// val1 * exchangeRate1.Denominator * exchangeRate2.Numerator < val2 * exchangeRate2.Denominator * exchangeRate1.Numerator
+	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Denominator, exchangeRate2.Numerator))
+	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Denominator, exchangeRate1.Numerator))
+	return leftSide.Cmp(rightSide)
+}
+
 func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
 	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
