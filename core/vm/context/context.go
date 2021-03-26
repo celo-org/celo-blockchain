@@ -1,8 +1,6 @@
 package context
 
 import (
-	"encoding/binary"
-	"errors"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -11,7 +9,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 // New creates a new context for use in the EVM.
@@ -118,33 +115,6 @@ func VerifySealFn(ref *types.Header, chain vm.ChainContext) func(*types.Header) 
 	}
 }
 
-func getTobinTax(evm *vm.EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress common.Address, err error) {
-	reserveAddress, err = evm.Context.GetRegisteredAddress(evm, params.ReserveRegistryId)
-	if err != nil {
-		return nil, nil, common.ZeroAddress, err
-	}
-
-	ret, _, err := evm.Call(vm.AccountRef(sender), reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-	if err != nil {
-		return nil, nil, common.ZeroAddress, err
-	}
-
-	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-	// each of which is equivalent to 32 bytes
-	if binary.Size(ret) != 64 {
-		return nil, nil, common.ZeroAddress, errors.New("Length of tobin tax not equal to 64 bytes")
-	}
-	numerator = new(big.Int).SetBytes(ret[0:32])
-	denominator = new(big.Int).SetBytes(ret[32:64])
-	if denominator.Cmp(common.Big0) == 0 {
-		return nil, nil, common.ZeroAddress, errors.New("Tobin tax denominator equal to zero")
-	}
-	if numerator.Cmp(denominator) == 1 {
-		return nil, nil, common.ZeroAddress, errors.New("Tobin tax numerator greater than denominator")
-	}
-	return numerator, denominator, reserveAddress, nil
-}
-
 // TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
 // If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
 // NB: Gas is not charged or accounted for this calculation.
@@ -156,11 +126,10 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
+		tax, taxCollector, err := contracts.ComputeTobinTax(evm, sender, amount)
 		if err == nil {
-			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			Transfer(evm.StateDB, sender, reserveAddress, tobinTax)
+			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
+			Transfer(evm.StateDB, sender, taxCollector, tax)
 			return
 		} else {
 			log.Error("Failed to get tobin tax", "error", err)
