@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -62,7 +63,7 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 	if err != nil {
 		return common.ZeroAddress, err
 	}
-	return vm.GetRegisteredAddress(vmevm, registryId)
+	return contracts.GetRegisteredAddress(vmevm, registryId)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
@@ -89,7 +90,7 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, contracts.Context, nil)
 	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil
@@ -109,9 +110,9 @@ func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, 
 	var gasLeft uint64
 
 	if static {
-		gasLeft, err = vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
+		gasLeft, err = contracts.StaticCallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas)
 	} else {
-		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
+		gasLeft, err = contracts.CallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas, value)
 	}
 	if err != nil {
 		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft, "value", value)

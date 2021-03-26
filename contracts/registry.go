@@ -1,4 +1,4 @@
-package vm
+package contracts
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -37,7 +38,7 @@ var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 
 // GetRegisteredAddress returns the address on the registry for a given id
-func GetRegisteredAddress(evm *EVM, registryId common.Hash) (common.Address, error) {
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
@@ -47,11 +48,11 @@ func GetRegisteredAddress(evm *EVM, registryId common.Hash) (common.Address, err
 	}
 
 	var contractAddress common.Address
-	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
+	_, err := StaticCallFromSystem(evm, params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments || err == ErrExecutionReverted {
+	if err == abi.ErrEmptyArguments || err == vm.ErrExecutionReverted {
 		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return common.ZeroAddress, err

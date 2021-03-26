@@ -17,6 +17,7 @@
 package runtime
 
 import (
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
@@ -34,7 +35,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
 
-		GetRegisteredAddress: vm.GetRegisteredAddress,
+		GetRegisteredAddress: contracts.GetRegisteredAddress,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

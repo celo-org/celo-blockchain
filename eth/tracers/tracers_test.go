@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -110,7 +111,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		BlockNumber:          new(big.Int).SetUint64(8000000),
 		Time:                 new(big.Int).SetUint64(5),
 		GasPrice:             big.NewInt(1),
-		GetRegisteredAddress: vm.GetRegisteredAddress,
+		GetRegisteredAddress: contracts.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -202,7 +203,7 @@ func TestCallTracer(t *testing.T) {
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				GasLimit:    uint64(test.Context.GasLimit),
 				GasPrice:    tx.GasPrice(),
-				GetRegisteredAddress: vm.GetRegisteredAddress,
+				GetRegisteredAddress: contracts.GetRegisteredAddress,
 			}
 			statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 

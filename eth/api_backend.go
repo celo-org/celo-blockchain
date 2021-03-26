@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -191,7 +192,7 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 func (b *EthAPIBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
 
-	context := vm.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
+	context := vm.NewEVMContext(msg, header, b.eth.BlockChain(), contracts.Context, nil)
 	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 

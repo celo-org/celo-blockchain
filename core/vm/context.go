@@ -87,8 +87,12 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
+type ContractsContext interface {
+	GetRegisteredAddressFunc(evm *EVM, registryId common.Hash) (common.Address, error)
+}
+
 // NewEVMContext creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, contractsCtx ContractsContext, txFeeRecipient *common.Address) Context {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
@@ -110,7 +114,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 		Time:        new(big.Int).SetUint64(header.Time),
 		GasPrice:    new(big.Int).Set(msg.GasPrice()),
 
-		GetRegisteredAddress: GetRegisteredAddress,
+		GetRegisteredAddress: contractsCtx.GetRegisteredAddressFunc,
 	}
 
 	if chain != nil {
@@ -192,7 +196,7 @@ func VerifySealFn(ref *types.Header, chain ChainContext) func(*types.Header) boo
 }
 
 func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddress(evm, params.ReserveRegistryId)
+	reserveAddress, err = evm.Context.GetRegisteredAddress(evm, params.ReserveRegistryId)
 	if err != nil {
 		return nil, nil, common.ZeroAddress, err
 	}

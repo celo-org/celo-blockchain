@@ -30,6 +30,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -206,7 +207,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer)
-					vmctx := vm.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, nil)
+					vmctx := vm.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, contracts.Context, nil)
 
 					res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 					if err != nil {
@@ -480,7 +481,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer)
-				vmctx := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
+				vmctx := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, contracts.Context, nil)
 
 				res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
 				if err != nil {
@@ -499,7 +500,7 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer)
-		vmctx := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
+		vmctx := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, contracts.Context, nil)
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vm.Config{})
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
@@ -568,7 +569,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		// Prepare the trasaction for un-traced execution
 		var (
 			msg, _ = tx.AsMessage(signer)
-			vmctx  = vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
+			vmctx  = vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, contracts.Context, nil)
 
 			vmConf vm.Config
 			dump   *os.File
@@ -806,7 +807,7 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := tx.AsMessage(signer)
-		context := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
+		context := vm.NewEVMContext(msg, block.Header(), api.eth.blockchain, contracts.Context, nil)
 		if idx == txIndex {
 			return msg, context, statedb, nil
 		}
