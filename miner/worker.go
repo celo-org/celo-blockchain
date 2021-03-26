@@ -321,8 +321,12 @@ func (w *worker) close() {
 	close(w.exitCh)
 }
 
-func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return currency.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+	currencyComparator := currency.NewComparator()
+
+	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+		return currencyComparator.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	}
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -482,7 +486,7 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
+				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.createTxCmp())
 				tcount := w.current.tcount
 				w.commitTransactions(txset, txFeeRecipient, nil)
 				// Only update the snapshot if any new transactons were added
@@ -955,14 +959,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			localTxs[account] = txs
 		}
 	}
+
+	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
