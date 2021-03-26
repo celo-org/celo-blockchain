@@ -187,6 +187,12 @@ func forTupleUnpack(t Type, output []byte) (interface{}, error) {
 	return retval.Interface(), nil
 }
 
+// ToGoType parses the output bytes and recursively assigns the value of these bytes
+// into a go type with accordance with the ABI spec.
+func ToGoType(index int, t Type, output []byte) (interface{}, error) {
+	return toGoType(index, t, output)
+}
+
 // toGoType parses the output bytes and recursively assigns the value of these bytes
 // into a go type with accordance with the ABI spec.
 func toGoType(index int, t Type, output []byte) (interface{}, error) {
