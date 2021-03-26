@@ -28,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/context"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 )
@@ -90,7 +91,7 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, contracts.Context, nil)
+	context := context.New(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
 	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil

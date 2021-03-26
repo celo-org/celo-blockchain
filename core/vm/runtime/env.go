@@ -19,13 +19,14 @@ package runtime
 import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/context"
 )
 
 func NewEnv(cfg *Config) *vm.EVM {
 
 	context := vm.Context{
-		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.TobinTransfer,
+		CanTransfer: context.CanTransfer,
+		Transfer:    context.TobinTransfer,
 
 		GetHash: cfg.GetHashFn,
 

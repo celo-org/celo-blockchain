@@ -28,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/context"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -302,7 +303,7 @@ func TestBlockhash(t *testing.T) {
 	input := common.Hex2Bytes("f8a8fd6d")
 	chain := &dummyChain{}
 	ret, _, err := Execute(data, input, &Config{
-		GetHashFn:   vm.GetHashFn(header, chain),
+		GetHashFn:   context.GetHashFn(header, chain),
 		BlockNumber: new(big.Int).Set(header.Number),
 	})
 	if err != nil {
