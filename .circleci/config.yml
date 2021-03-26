@@ -2,14 +2,14 @@ version: 2.1
 executors:
   golang:
     docker:
-      - image: circleci/golang:1.14
+      - image: circleci/golang:1.16
     working_directory: ~/repos/geth
   e2e:
     docker:
       - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
-      GO_VERSION: "1.14.14"
+      GO_VERSION: "1.16.2"
       CELO_MONOREPO_BRANCH_TO_TEST: master
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
@@ -116,11 +116,11 @@ jobs:
       - run:
           name: Setup Go language
           command: |
-            brew install go@1.14
-            brew link go@1.14
+            brew install go@1.16
+            brew link go@1.16
             # Check that homebrew installed the expected go version
-            if [[ "$(go version)" != "go version go1.14"* ]]; then
-              echo "go1.14 is required"
+            if [[ "$(go version)" != "go version go1.16"* ]]; then
+              echo "go1.16 is required"
               exit 1
             fi
       - run:
