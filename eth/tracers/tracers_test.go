@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/tests"
+	"github.com/celo-org/celo-blockchain/tobin"
 )
 
 // To generate a new callTracer test, copy paste the makeTest method below into
@@ -104,7 +105,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
 		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.TobinTransfer,
+		Transfer:    tobin.TobinTransfer,
 		Origin:      origin,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),

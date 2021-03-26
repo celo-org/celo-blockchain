@@ -37,6 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/tobin"
 )
 
 type LesApiBackend struct {
@@ -167,7 +168,7 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 }
 
 func (b *LesApiBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
-	context := vm.NewEVMContext(msg, header, b.eth.blockchain, nil)
+	context := tobin.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 

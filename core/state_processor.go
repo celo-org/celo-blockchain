@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/tobin"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -121,7 +122,7 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecip
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := vm.NewEVMContext(msg, header, bc, txFeeRecipient)
+	context := tobin.NewEVMContext(msg, header, bc, txFeeRecipient)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)

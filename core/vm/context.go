@@ -17,8 +17,6 @@
 package vm
 
 import (
-	"encoding/binary"
-	goerrors "errors"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -26,7 +24,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -101,7 +98,7 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeR
 
 	ctx := Context{
 		CanTransfer: CanTransfer,
-		Transfer:    TobinTransfer,
+		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
 		Origin:      msg.From(),
@@ -163,9 +160,9 @@ func CanTransfer(db StateDB, addr common.Address, amount *big.Int) bool {
 }
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db StateDB, sender, recipient common.Address, amount *big.Int) {
-	db.SubBalance(sender, amount)
-	db.AddBalance(recipient, amount)
+func Transfer(evm *EVM, sender, recipient common.Address, amount *big.Int) {
+	evm.StateDB.SubBalance(sender, amount)
+	evm.StateDB.AddBalance(recipient, amount)
 }
 
 // VerifySealFn returns a function which returns true when the given header has a verifiable seal.
@@ -187,58 +184,4 @@ func VerifySealFn(ref *types.Header, chain ChainContext) func(*types.Header) boo
 		// Submit the header to the engine's seal verification function.
 		return chain.Engine().VerifySeal(nil, header) == nil
 	}
-}
-
-func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-	// each of which is equivalent to 32 bytes
-	if binary.Size(ret) != 64 {
-		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
-	}
-	numerator = new(big.Int).SetBytes(ret[0:32])
-	denominator = new(big.Int).SetBytes(ret[32:64])
-	if denominator.Cmp(common.Big0) == 0 {
-		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
-	}
-	if numerator.Cmp(denominator) == 1 {
-		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
-	}
-	return numerator, denominator, reserveAddress, nil
-}
-
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-// NB: Gas is not charged or accounted for this calculation.
-func TobinTransfer(evm *EVM, sender, recipient common.Address, amount *big.Int) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
-		if err == nil {
-			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			Transfer(evm.StateDB, sender, *reserveAddress, tobinTax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
-		}
-	}
-
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/tobin"
 )
 
 // EthAPIBackend implements ethapi.Backend for full nodes
@@ -191,7 +192,7 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 func (b *EthAPIBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
 
-	context := vm.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
+	context := tobin.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
 	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *b.eth.blockchain.GetVMConfig()), vmError, nil
 }
 

@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/tobin"
 )
 
 // statePrefetcher is a basic Prefetcher, which blindly executes a block on top
@@ -86,7 +87,7 @@ func precacheTransaction(config *params.ChainConfig, bc vm.ChainContext, author 
 		return err
 	}
 	// Create the EVM and execute the transaction
-	context := vm.NewEVMContext(msg, header, bc, author)
+	context := tobin.NewEVMContext(msg, header, bc, author)
 	vm := vm.NewEVM(context, statedb, config, cfg)
 
 	_, err = ApplyMessage(vm, msg, gaspool)
