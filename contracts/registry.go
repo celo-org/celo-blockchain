@@ -32,7 +32,16 @@ const (
                              }]`
 )
 
-var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
+var registry *Contract
+
+func init() {
+	getAddressForFuncABI, err := abi.JSON(strings.NewReader(getAddressForABI))
+	if err != nil {
+		panic("can't parse registry abi " + err.Error())
+	}
+
+	registry = NewContract(&getAddressForFuncABI, params.RegistrySmartContractAddress, SystemCaller)
+}
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
@@ -48,7 +57,7 @@ func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, 
 	}
 
 	var contractAddress common.Address
-	_, err := StaticCallFromSystem(evm, params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
+	_, err := registry.Query(QueryOpts{MaxGas: params.MaxGasForGetAddressFor, Backend: evm}, &contractAddress, "getAddressFor", registryId)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
