@@ -19,7 +19,6 @@ package contract_comm
 import (
 	"math/big"
 	"reflect"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
@@ -30,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/context"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
 )
 
 var (
@@ -43,23 +41,83 @@ type InternalEVMHandler struct {
 	chain vm.ChainContext
 }
 
-func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, true)
+func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	return Query(registryId, &abi, method, args, returnObj, gas, header, state)
 }
 
-func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	gasLeft, err := makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, false)
+func Query(registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	backend, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	contractAddress, err := resolveAddressForCall(backend, registryId, method)
+	if err != nil {
+		return 0, err
+	}
+
+	contract := contracts.NewContract(abi, contractAddress, contracts.SystemCaller)
+	gasLeft, err := contract.Query(contracts.QueryOpts{MaxGas: gas, Backend: backend}, returnObj, method, args...)
+
+	if err != nil {
+		log.Error("Error when invoking evm function", "err", err, "function", method, "address", contractAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		return gasLeft, err
+	}
+
+	return gasLeft, nil
+}
+
+func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
+	return Execute(registryId, &abi, method, args, returnObj, gas, value, header, state, finaliseState)
+}
+
+func Execute(registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
+	backend, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	contractAddress, err := resolveAddressForCall(backend, registryId, method)
+	if err != nil {
+		return 0, err
+	}
+
+	contract := contracts.NewContract(abi, contractAddress, contracts.SystemCaller)
+	gasLeft, err := contract.Execute(contracts.ExecOpts{MaxGas: gas, Backend: backend, Value: value}, returnObj, method, args...)
+
+	if err != nil {
+		log.Error("Error when invoking evm function", "err", err, "function", method, "address", contractAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		return gasLeft, err
+	}
+
 	if err == nil && finaliseState {
 		state.Finalise(true)
 	}
 	return gasLeft, err
 }
 
-func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, true)
+func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	return QueryWithAddress(scAddress, &abi, method, args, returnObj, gas, header, state)
 }
 
-func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (common.Address, error) {
+func QueryWithAddress(scAddress common.Address, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	backend, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	contract := contracts.NewContract(abi, scAddress, contracts.SystemCaller)
+	gasLeft, err := contract.Query(contracts.QueryOpts{MaxGas: gas, Backend: backend}, returnObj, method, args...)
+
+	if err != nil {
+		log.Error("Error when invoking evm function", "err", err, "function", method, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		return gasLeft, err
+	}
+
+	return gasLeft, nil
+}
+
+func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
 		return common.ZeroAddress, err
@@ -97,32 +155,6 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 	return evm, nil
 }
 
-func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return 0, err
-	}
-
-	var gasLeft uint64
-
-	if static {
-		gasLeft, err = contracts.StaticCallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas)
-	} else {
-		gasLeft, err = contracts.CallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas, value)
-	}
-	if err != nil {
-		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft, "value", value)
-		return gasLeft, err
-	}
-
-	return gasLeft, nil
-}
-
 func SetInternalEVMHandler(chain vm.ChainContext) {
 	if internalEvmHandlerSingleton == nil {
 		log.Trace("Setting the InternalEVMHandler Singleton")
@@ -133,25 +165,18 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 	}
 }
 
-func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
-	scAddress, err := GetRegisteredAddress(registryId, header, state)
+func resolveAddressForCall(backend *vm.EVM, registryId common.Hash, method string) (common.Address, error) {
+	contractAddress, err := contracts.GetRegisteredAddress(backend, registryId)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
-			log.Debug("Contract not yet registered", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
-			return 0, err
+			log.Debug("Contract not yet registered", "function", method, "registryId", hexutil.Encode(registryId[:]))
 		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
-			return 0, err
+			log.Debug("Registry contract not yet deployed", "function", method, "registryId", hexutil.Encode(registryId[:]))
 		} else {
-			log.Error("Error in getting registered address", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
-			return 0, err
+			log.Error("Error in getting registered address", "function", method, "registryId", hexutil.Encode(registryId[:]), "err", err)
 		}
+		return common.ZeroAddress, err
 	}
-
-	gasLeft, err := makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
-	if err != nil {
-		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
-	}
-	return gasLeft, err
+	return contractAddress, nil
 }

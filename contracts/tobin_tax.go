@@ -21,7 +21,7 @@ func TobinTax(evm *vm.EVM, sender common.Address) (numerator *big.Int, denominat
 		return nil, nil, common.ZeroAddress, err
 	}
 
-	ret, _, err := evm.Call(systemCaller, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, _, err := evm.Call(vm.AccountRef(SystemCaller), reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return nil, nil, common.ZeroAddress, err
 	}
