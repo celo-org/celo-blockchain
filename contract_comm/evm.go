@@ -49,7 +49,7 @@ func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []i
 	return Query(backend, registryId, &abi, method, args, returnObj, gas)
 }
 
-func Query(backend *vm.EVM, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func Query(backend contracts.Backend, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 
 	contractAddress, err := resolveAddressForCall(backend, registryId, method)
 	if err != nil {
@@ -82,7 +82,7 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 	return gasLeft, err
 }
 
-func Execute(backend *vm.EVM, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
+func Execute(backend contracts.Backend, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	contractAddress, err := resolveAddressForCall(backend, registryId, method)
 	if err != nil {
 		return 0, err
@@ -108,7 +108,7 @@ func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, method str
 	return QueryWithAddress(backend, scAddress, &abi, method, args, returnObj, gas)
 }
 
-func QueryWithAddress(backend *vm.EVM, contractAddress common.Address, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+func QueryWithAddress(backend contracts.Backend, contractAddress common.Address, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	contract := contracts.NewContract(abi, contractAddress, contracts.SystemCaller)
 	gasLeft, err := contract.Query(contracts.QueryOpts{MaxGas: gas, Backend: backend}, returnObj, method, args...)
 
@@ -128,7 +128,7 @@ func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm
 	return contracts.GetRegisteredAddress(vmevm, registryId)
 }
 
-func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
+func createEVM(header *types.Header, state vm.StateDB) (contracts.Backend, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
@@ -168,7 +168,7 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 	}
 }
 
-func resolveAddressForCall(backend *vm.EVM, registryId common.Hash, method string) (common.Address, error) {
+func resolveAddressForCall(backend contracts.Backend, registryId common.Hash, method string) (common.Address, error) {
 	contractAddress, err := contracts.GetRegisteredAddress(backend, registryId)
 
 	if err != nil {
