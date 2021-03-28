@@ -16,10 +16,11 @@ var (
 )
 
 type cacheKey struct {
-	caller vm.ContractRef
-	addr   common.Address
-	input  []byte
-	gas    uint64
+	stateRoot common.Hash
+	caller    vm.ContractRef
+	addr      common.Address
+	input     []byte
+	gas       uint64
 }
 
 type cacheResult struct {
@@ -58,7 +59,16 @@ func (cb *cacheBackend) Call(caller vm.ContractRef, addr common.Address, input [
 
 // StaticCall implements Backend.StaticCall
 func (cb *cacheBackend) StaticCall(caller vm.ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	key := cacheKey{caller, addr, input, gas}
+	state := cb.source.GetStateDB()
+
+	// there's a race condition between state.IsDirty(), state.StateRoot() and the actual call: source.StaticCall()
+	// it is assumed that statedb is not being accessed outside the cache (and caller treats cache in a thread safe manner)
+	if state.IsDirty() {
+		cacheMisses.Mark(1)
+		return cb.source.StaticCall(caller, addr, input, gas)
+	}
+
+	key := cacheKey{state.StateRoot(), caller, addr, input, gas}
 
 	if result, ok := cb.cache.Get(key); ok {
 		if cachedResult, castOk := result.(cacheResult); castOk {

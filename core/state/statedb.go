@@ -866,3 +866,20 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	}
 	return root, err
 }
+
+// IsDirty returns true if the statedb is dirty
+// meaning  that there are pending state changes to be flushed
+func (s *StateDB) IsDirty() bool {
+	return s.txIndex > 0 ||
+		s.thash != (common.Hash{}) ||
+		s.bhash != (common.Hash{}) ||
+		len(s.stateObjectsDirty) > 0 ||
+		len(s.stateObjectsPending) > 0 ||
+		len(s.journal.dirties) > 0 ||
+		len(s.journal.entries) > 0
+}
+
+// StateRoot returns the state root used to create the statedb instance
+func (s *StateDB) StateRoot() common.Hash {
+	return s.trie.Hash()
+}
