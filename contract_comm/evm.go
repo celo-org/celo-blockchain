@@ -42,14 +42,15 @@ type InternalEVMHandler struct {
 }
 
 func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return Query(registryId, &abi, method, args, returnObj, gas, header, state)
-}
-
-func Query(registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	backend, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
+
+	return Query(backend, registryId, &abi, method, args, returnObj, gas)
+}
+
+func Query(backend *vm.EVM, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 
 	contractAddress, err := resolveAddressForCall(backend, registryId, method)
 	if err != nil {
@@ -68,15 +69,21 @@ func Query(registryId common.Hash, abi *abi.ABI, method string, args []interface
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	return Execute(registryId, &abi, method, args, returnObj, gas, value, header, state, finaliseState)
-}
-
-func Execute(registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
 	backend, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
 
+	gasLeft, err := Execute(backend, registryId, &abi, method, args, returnObj, gas, value)
+
+	if err == nil && finaliseState {
+		state.Finalise(true)
+	}
+
+	return gasLeft, err
+}
+
+func Execute(backend *vm.EVM, registryId common.Hash, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	contractAddress, err := resolveAddressForCall(backend, registryId, method)
 	if err != nil {
 		return 0, err
@@ -90,27 +97,24 @@ func Execute(registryId common.Hash, abi *abi.ABI, method string, args []interfa
 		return gasLeft, err
 	}
 
-	if err == nil && finaliseState {
-		state.Finalise(true)
-	}
 	return gasLeft, err
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return QueryWithAddress(scAddress, &abi, method, args, returnObj, gas, header, state)
-}
-
-func QueryWithAddress(scAddress common.Address, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	backend, err := createEVM(header, state)
 	if err != nil {
 		return 0, err
 	}
 
-	contract := contracts.NewContract(abi, scAddress, contracts.SystemCaller)
+	return QueryWithAddress(backend, scAddress, &abi, method, args, returnObj, gas)
+}
+
+func QueryWithAddress(backend *vm.EVM, contractAddress common.Address, abi *abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
+	contract := contracts.NewContract(abi, contractAddress, contracts.SystemCaller)
 	gasLeft, err := contract.Query(contracts.QueryOpts{MaxGas: gas, Backend: backend}, returnObj, method, args...)
 
 	if err != nil {
-		log.Error("Error when invoking evm function", "err", err, "function", method, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		log.Error("Error when invoking evm function", "err", err, "function", method, "address", contractAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
 		return gasLeft, err
 	}
 
