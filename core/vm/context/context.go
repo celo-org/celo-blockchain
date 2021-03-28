@@ -34,7 +34,7 @@ func New(msg vm.Message, header *types.Header, chain vm.ChainContext, txFeeRecip
 		Time:        new(big.Int).SetUint64(header.Time),
 		GasPrice:    new(big.Int).Set(msg.GasPrice()),
 
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
+		GetRegisteredAddress: GetRegisteredAddress,
 	}
 
 	if chain != nil {
@@ -46,6 +46,10 @@ func New(msg vm.Message, header *types.Header, chain vm.ChainContext, txFeeRecip
 		ctx.GetHeaderByNumber = func(uint64) *types.Header { panic("evm context without blockchain context") }
 	}
 	return ctx
+}
+
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+	return contracts.GetRegisteredAddress(evm, registryId)
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number

@@ -47,17 +47,17 @@ func init() {
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 
 // GetRegisteredAddress returns the address on the registry for a given id
-func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
-	evm.DontMeterGas = true
-	defer func() { evm.DontMeterGas = false }()
+func GetRegisteredAddress(backend Backend, registryId common.Hash) (common.Address, error) {
+	backend.StopGasMetering()
+	defer backend.StartGasMetering()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+	if backend.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
-	_, err := registry.Query(QueryOpts{MaxGas: params.MaxGasForGetAddressFor, Backend: evm}, &contractAddress, "getAddressFor", registryId)
+	_, err := registry.Query(QueryOpts{MaxGas: params.MaxGasForGetAddressFor, Backend: backend}, &contractAddress, "getAddressFor", registryId)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?

@@ -26,6 +26,9 @@ type Contract struct {
 type Backend interface {
 	Call(caller vm.ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
 	StaticCall(caller vm.ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	StopGasMetering()
+	StartGasMetering()
+	GetStateDB() vm.StateDB
 }
 
 func NewContract(contractAbi *abi.ABI, contractAddress, defaultCaller common.Address) *Contract {
