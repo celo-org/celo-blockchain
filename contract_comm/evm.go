@@ -42,7 +42,7 @@ type InternalEVMHandler struct {
 }
 
 func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	backend, err := createEVM(header, state)
+	backend, err := createBackend(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -69,7 +69,7 @@ func Query(backend contracts.Backend, registryId common.Hash, abi *abi.ABI, meth
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	backend, err := createEVM(header, state)
+	backend, err := createBackend(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -101,7 +101,7 @@ func Execute(backend contracts.Backend, registryId common.Hash, abi *abi.ABI, me
 }
 
 func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	backend, err := createEVM(header, state)
+	backend, err := createBackend(header, state)
 	if err != nil {
 		return 0, err
 	}
@@ -122,14 +122,14 @@ func QueryWithAddress(backend contracts.Backend, contractAddress common.Address,
 }
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
-	vmevm, err := createEVM(header, state)
+	vmevm, err := createBackend(header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
 	return contracts.GetRegisteredAddress(vmevm, registryId)
 }
 
-func createEVM(header *types.Header, state vm.StateDB) (contracts.Backend, error) {
+func createBackend(header *types.Header, state vm.StateDB) (contracts.Backend, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
@@ -154,7 +154,7 @@ func createEVM(header *types.Header, state vm.StateDB) (contracts.Backend, error
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	context := context.New(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
-	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
+	evm := contracts.NewEVMBackend(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil
 }
