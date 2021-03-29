@@ -464,46 +464,36 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
-	// Try to get most recent block
-	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
+	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 
-	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
-
-	if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
-		// Working on the block immediately after the last committed block.
-		if round.Cmp(c.current.Round()) == 0 {
-			logger.Trace("Already in the desired round.")
-			return nil
-		} else if round.Cmp(c.current.Round()) < 0 {
-			logger.Warn("New round should not be smaller than current round", "new_round", round)
-			return nil
-		}
+	if round.Cmp(c.current.Round()) == 0 {
+		logger.Trace("Already in the desired round.")
+		return nil
+	} else if round.Cmp(c.current.Round()) < 0 {
+		logger.Warn("New round should not be smaller than current round", "new_round", round)
+		return nil
 	}
 
 	// Generate next view and preprepare
-	var newView *istanbul.View
-	var roundChangeCertificate istanbul.RoundChangeCertificate
-	var request *istanbul.Request
-
-	valSet := c.current.ValidatorSet()
-	newView = &istanbul.View{
+	newView := &istanbul.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(round),
 	}
 
 	var err error
-	request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+	request, roundChangeCertificate, err := c.getPreprepareWithRoundChangeCertificate(round)
 	if err != nil {
 		logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
 		return nil
 	}
 
-	// Calculate new proposer
+	// Calculate new propose
+	valSet := c.current.ValidatorSet()
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
-	err = c.resetRoundState(newView, valSet, nextProposer, true)
-	if err != nil {
-		return err
-	}
+
+	// Update the roundstate db
+	c.current.StartNewRound(round, valSet, nextProposer)
 
 	// Process backlog
 	c.processPendingRequests()
@@ -515,7 +505,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer())
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
@@ -528,34 +518,28 @@ func (c *core) startNewSequence() error {
 	logger := c.newLogger("func", "startNewSequence", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
 
 	if headBlock.Number().Cmp(c.current.Sequence()) == 0 {
-		// Update metrics.
-		if !c.consensusTimestamp.IsZero() {
-			c.consensusTimer.UpdateSince(c.consensusTimestamp)
-			c.consensusTimestamp = time.Time{}
-		}
 		logger.Trace("Moving to the next block")
 	} else if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
-		// Update metrics.
-		if !c.consensusTimestamp.IsZero() {
-			c.consensusTimer.UpdateSince(c.consensusTimestamp)
-			c.consensusTimestamp = time.Time{}
-		}
+
 		logger.Trace("Catching up the the head block")
 	} else {
 		logger.Warn("New sequence should be larger than current sequence")
-		// TODO(Joshua): wait for the next block to be mined here
-		// Likely already in the DB b/c final commited should be called once we get the new chain head event.
+		// TODO(Joshua): figure out if we need to wait for the next block to be mined here
+		// This function is called on a final committed event which should occur once the block is inserted into the chain.
 		return nil
+	}
+	// Update metrics.
+	if !c.consensusTimestamp.IsZero() {
+		c.consensusTimer.UpdateSince(c.consensusTimestamp)
+		c.consensusTimestamp = time.Time{}
 	}
 
 	// Generate next view and preprepare
-	valSet := c.current.ValidatorSet()
-
 	newView := &istanbul.View{
 		Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
 		Round:    new(big.Int).Set(common.Big0),
 	}
-	valSet = c.backend.Validators(headBlock)
+	valSet := c.backend.Validators(headBlock)
 	c.roundChangeSet = newRoundChangeSet(valSet)
 
 	// Inform the backend that a new sequence has started & bail if the backed stopped the core
@@ -571,8 +555,9 @@ func (c *core) startNewSequence() error {
 
 	// Calculate new proposer
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
-	err := c.resetRoundState(newView, valSet, nextProposer, false)
 
+	// Update the roundstate
+	err := c.resetRoundState(newView, valSet, nextProposer)
 	if err != nil {
 		return err
 	}
@@ -659,15 +644,8 @@ func (c *core) createRoundState() (RoundState, error) {
 	return withSavingDecorator(c.rsdb, roundState), nil
 }
 
-// resetRoundState will modify the RoundState to either start a new round or a new sequence
-// based on the `roundChange` flag given
-func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator, roundChange bool) error {
-	// TODO(Joshua): Include desired round here.
-	if roundChange {
-		return c.current.StartNewRound(view.Round, validatorSet, nextProposer)
-	}
-
-	// sequence change
+// resetRoundState will modify the RoundState to either start a new sequence
+func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	// TODO remove this when we refactor startNewRound()
 	if view.Round.Cmp(common.Big0) != 0 {
 		c.logger.Crit("BUG: DevError: trying to start a new sequence with round != 0", "wanted_round", view.Round)
