@@ -2016,7 +2016,7 @@ func TestTransactionIndices(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := chain.InsertHeaderChain(headers, 0); err != nil {
+	if n, err := chain.InsertHeaderChain(headers, 0, false); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	if n, err := chain.InsertReceiptChain(blocks, receipts, 128); err != nil {
@@ -2143,7 +2143,7 @@ func TestSkipStaleTxIndicesInFastSync(t *testing.T) {
 	for i, block := range blocks {
 		headers[i] = block.Header()
 	}
-	if n, err := chain.InsertHeaderChain(headers, 0); err != nil {
+	if n, err := chain.InsertHeaderChain(headers, 0, false); err != nil {
 		t.Fatalf("failed to insert header %d: %v", n, err)
 	}
 	// The indices before ancient-N(32) should be ignored. After that all blocks should be indexed.
