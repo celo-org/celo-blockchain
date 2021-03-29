@@ -1181,6 +1181,8 @@ func TestInsertDifferentBlocksAfterReset(t *testing.T) {
 	testInsertDifferentChainDataAfterReset(t, "blocks", 32, 64)
 }
 
+// testInsertDifferentChainDataAfterReset checks that after rolling back the chain to a specific block
+// a new canonical chain can be imported.
 func testInsertDifferentChainDataAfterReset(t *testing.T, typ string, setHeadBlock int, chainsBlocksNumber int) {
 	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
@@ -1192,7 +1194,7 @@ func testInsertDifferentChainDataAfterReset(t *testing.T, typ string, setHeadBlo
 	originalBlocks, originalReceipts := GenerateChain(params.TestChainConfig, genesis, engine, db, chainsBlocksNumber, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
 	})
-	// Total difficulty is higher to create a different chain.
+	// Block offsetTime different to create a different chain.
 	newerBlocks, newerReceipts := GenerateChain(params.TestChainConfig, originalBlocks[setHeadBlock], engine, db, (chainsBlocksNumber - (setHeadBlock + 1)), func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
 		b.OffsetTime(-9)
