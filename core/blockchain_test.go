@@ -1954,7 +1954,7 @@ func TestTransactionIndices(t *testing.T) {
 	)
 	height := uint64(128)
 	blocks, receipts := GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), gendb, int(height), func(i int, block *BlockGen) {
-		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(address), common.Address{0x00}, big.NewInt(1000), params.TxGas, nil, nil), signer, key)
+		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(address), common.Address{0x00}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, key)
 		if err != nil {
 			panic(err)
 		}
@@ -2081,7 +2081,7 @@ func TestSkipStaleTxIndicesInFastSync(t *testing.T) {
 	)
 	height := uint64(128)
 	blocks, receipts := GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), gendb, int(height), func(i int, block *BlockGen) {
-		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(address), common.Address{0x00}, big.NewInt(1000), params.TxGas, nil, nil), signer, key)
+		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(address), common.Address{0x00}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, key)
 		if err != nil {
 			panic(err)
 		}
