@@ -462,22 +462,14 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	return request, roundChangeCertificate, nil
 }
 
-// startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
+// startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
-	roundChange := false
 	// Try to get most recent block
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
 
-	if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
-		// Update metrics.
-		if !c.consensusTimestamp.IsZero() {
-			c.consensusTimer.UpdateSince(c.consensusTimestamp)
-			c.consensusTimestamp = time.Time{}
-		}
-		logger.Trace("Catch up to the latest block.")
-	} else if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
+	if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		// Working on the block immediately after the last committed block.
 		if round.Cmp(c.current.Round()) == 0 {
 			logger.Trace("Already in the desired round.")
@@ -486,10 +478,6 @@ func (c *core) startNewRound(round *big.Int) error {
 			logger.Warn("New round should not be smaller than current round", "new_round", round)
 			return nil
 		}
-		roundChange = true
-	} else {
-		logger.Warn("New sequence should be larger than current sequence")
-		return nil
 	}
 
 	// Generate next view and preprepare
@@ -498,44 +486,92 @@ func (c *core) startNewRound(round *big.Int) error {
 	var request *istanbul.Request
 
 	valSet := c.current.ValidatorSet()
-	if roundChange {
-		newView = &istanbul.View{
-			Sequence: new(big.Int).Set(c.current.Sequence()),
-			Round:    new(big.Int).Set(round),
-		}
-
-		var err error
-		request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
-		if err != nil {
-			logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
-			return nil
-		}
-	} else {
-		request = c.current.PendingRequest()
-		newView = &istanbul.View{
-			Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
-			Round:    new(big.Int),
-		}
-		valSet = c.backend.Validators(headBlock)
-		c.roundChangeSet = newRoundChangeSet(valSet)
+	newView = &istanbul.View{
+		Sequence: new(big.Int).Set(c.current.Sequence()),
+		Round:    new(big.Int).Set(round),
 	}
 
-	// Inform the backend that a new sequence has started & bail if the backed stopped the core
-	if !roundChange {
-		if primary := c.backend.IsPrimaryForSeq(newView.Sequence); !primary {
-			// We need to run UpdateReplicaState outside of the core b/c when it stops the core
-			// it runs c.handlerWg.Wait(). To empty that wait group, we need to return from this
-			// function. We unsubscribe from events to stop the core from processing more events
-			// prior to being fully shut down.
-			c.unsubscribeEvents()
-			go c.backend.UpdateReplicaState(newView.Sequence)
-			return nil
-		}
+	var err error
+	request, roundChangeCertificate, err = c.getPreprepareWithRoundChangeCertificate(round)
+	if err != nil {
+		logger.Error("Unable to produce round change certificate", "err", err, "new_round", round)
+		return nil
 	}
 
 	// Calculate new proposer
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
-	err := c.resetRoundState(newView, valSet, nextProposer, roundChange)
+	err = c.resetRoundState(newView, valSet, nextProposer, true)
+	if err != nil {
+		return err
+	}
+
+	// Process backlog
+	c.processPendingRequests()
+	c.backlog.updateState(c.current.View(), c.current.State())
+
+	if c.isProposer() && request != nil {
+		c.sendPreprepare(request, roundChangeCertificate)
+	}
+	c.resetRoundChangeTimer()
+
+	// Some round info will have changed.
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	return nil
+}
+
+// startNewSequence starts a new sequence with round 0.
+func (c *core) startNewSequence() error {
+	// Try to get most recent block
+	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+
+	logger := c.newLogger("func", "startNewSequence", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
+
+	if headBlock.Number().Cmp(c.current.Sequence()) == 0 {
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusTimer.UpdateSince(c.consensusTimestamp)
+			c.consensusTimestamp = time.Time{}
+		}
+		logger.Trace("Moving to the next block")
+	} else if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusTimer.UpdateSince(c.consensusTimestamp)
+			c.consensusTimestamp = time.Time{}
+		}
+		logger.Trace("Catching up the the head block")
+	} else {
+		logger.Warn("New sequence should be larger than current sequence")
+		// TODO(Joshua): wait for the next block to be mined here
+		// Likely already in the DB b/c final commited should be called once we get the new chain head event.
+		return nil
+	}
+
+	// Generate next view and preprepare
+	valSet := c.current.ValidatorSet()
+
+	newView := &istanbul.View{
+		Sequence: new(big.Int).Add(headBlock.Number(), common.Big1),
+		Round:    new(big.Int).Set(common.Big0),
+	}
+	valSet = c.backend.Validators(headBlock)
+	c.roundChangeSet = newRoundChangeSet(valSet)
+
+	// Inform the backend that a new sequence has started & bail if the backed stopped the core
+	if primary := c.backend.IsPrimaryForSeq(newView.Sequence); !primary {
+		// We need to run UpdateReplicaState outside of the core b/c when it stops the core
+		// it runs c.handlerWg.Wait(). To empty that wait group, we need to return from this
+		// function. We unsubscribe from events to stop the core from processing more events
+		// prior to being fully shut down.
+		c.unsubscribeEvents()
+		go c.backend.UpdateReplicaState(newView.Sequence)
+		return nil
+	}
+
+	// Calculate new proposer
+	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
+	err := c.resetRoundState(newView, valSet, nextProposer, false)
 
 	if err != nil {
 		return err
@@ -545,14 +581,11 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.processPendingRequests()
 	c.backlog.updateState(c.current.View(), c.current.State())
 
-	if roundChange && c.isProposer() && request != nil {
-		c.sendPreprepare(request, roundChangeCertificate)
-	}
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	logger = c.newLogger("func", "startNewSequence", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
+	logger.Debug("New sequence", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
 
