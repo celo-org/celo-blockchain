@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/context"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -122,7 +122,7 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecip
 	}
 
 	// Create a new context to be used in the EVM environment
-	ctx := context.New(msg, header, bc, txFeeRecipient)
+	ctx := vmcontext.New(msg, header, bc, txFeeRecipient)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(ctx, statedb, config, cfg)

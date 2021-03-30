@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/context"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -87,7 +87,7 @@ func precacheTransaction(config *params.ChainConfig, bc vm.ChainContext, author 
 		return err
 	}
 	// Create the EVM and execute the transaction
-	ctx := context.New(msg, header, bc, author)
+	ctx := vmcontext.New(msg, header, bc, author)
 	vm := vm.NewEVM(ctx, statedb, config, cfg)
 
 	_, err = ApplyMessage(vm, msg, gaspool)

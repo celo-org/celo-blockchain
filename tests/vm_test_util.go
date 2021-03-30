@@ -30,7 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/context"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -129,7 +129,7 @@ func (t *VMTest) newEVM(statedb *state.StateDB, vmconfig vm.Config) *vm.EVM {
 			initialCall = false
 			return true
 		}
-		return context.CanTransfer(db, address, amount)
+		return vmcontext.CanTransfer(db, address, amount)
 	}
 	transfer := func(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {}
 	context := vm.Context{

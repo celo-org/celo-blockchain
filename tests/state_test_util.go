@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
-	"github.com/celo-org/celo-blockchain/core/vm/context"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -178,7 +178,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
-	context := context.New(msg, block.Header(), nil, &t.json.Env.Coinbase)
+	context := vmcontext.New(msg, block.Header(), nil, &t.json.Env.Coinbase)
 	context.GetHash = vmTestBlockHash
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 

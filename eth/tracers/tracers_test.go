@@ -29,7 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/context"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/tests"
@@ -105,8 +105,8 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	*/
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
-		CanTransfer:          context.CanTransfer,
-		Transfer:             context.TobinTransfer,
+		CanTransfer:          vmcontext.CanTransfer,
+		Transfer:             vmcontext.TobinTransfer,
 		Origin:               origin,
 		Coinbase:             common.Address{},
 		BlockNumber:          new(big.Int).SetUint64(8000000),

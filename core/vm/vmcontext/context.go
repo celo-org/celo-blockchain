@@ -1,4 +1,4 @@
-package context
+package vmcontext
 
 import (
 	"math/big"
