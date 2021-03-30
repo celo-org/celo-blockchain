@@ -454,9 +454,10 @@ func (st *StateTransition) distributeTxFees() error {
 	}
 
 	governanceAddress, err := contracts.GetRegisteredAddress(st.evm, params.GovernanceRegistryId)
-	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
-		return err
-	} else if err != nil {
+	if err != nil {
+		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+			return err
+		}
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)
 		governanceAddress = common.ZeroAddress
 		refund.Add(refund, baseTxFee)
