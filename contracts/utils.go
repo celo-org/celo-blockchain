@@ -12,12 +12,12 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 )
 
-// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
-var systemCaller = vm.AccountRef(common.HexToAddress("0x0"))
+// SystemCaller is the caller when the EVM is invoked from the within the blockchain system.
+var SystemCaller = vm.AccountRef(common.HexToAddress("0x0"))
 
 func StaticCallFromSystem(evm *vm.EVM, contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
+		return evm.StaticCall(SystemCaller, contractAddress, transactionData, gas)
 	}
 
 	return handleABICall(evm, abi, funcName, args, returnObj, staticCall)
@@ -25,7 +25,7 @@ func StaticCallFromSystem(evm *vm.EVM, contractAddress common.Address, abi abipk
 
 func CallFromSystem(evm *vm.EVM, contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
 	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
+		return evm.Call(SystemCaller, contractAddress, transactionData, gas, value)
 	}
 	return handleABICall(evm, abi, funcName, args, returnObj, call)
 }
