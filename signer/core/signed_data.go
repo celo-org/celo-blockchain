@@ -20,16 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"mime"
-	"reflect"
-	"strconv"
-	"strings"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/shared/signer"
 )
@@ -214,57 +209,6 @@ func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAd
 		return nil, err
 	}
 	return signature, nil
-}
-
-func parseInteger(encType string, encValue interface{}) (*big.Int, error) {
-	var (
-		length int
-		signed = strings.HasPrefix(encType, "int")
-		b      *big.Int
-	)
-	if encType == "int" || encType == "uint" {
-		length = 256
-	} else {
-		lengthStr := ""
-		if strings.HasPrefix(encType, "uint") {
-			lengthStr = strings.TrimPrefix(encType, "uint")
-		} else {
-			lengthStr = strings.TrimPrefix(encType, "int")
-		}
-		atoiSize, err := strconv.Atoi(lengthStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid size on integer: %v", lengthStr)
-		}
-		length = atoiSize
-	}
-	switch v := encValue.(type) {
-	case *math.HexOrDecimal256:
-		b = (*big.Int)(v)
-	case string:
-		var hexIntValue math.HexOrDecimal256
-		if err := hexIntValue.UnmarshalText([]byte(v)); err != nil {
-			return nil, err
-		}
-		b = (*big.Int)(&hexIntValue)
-	case float64:
-		// JSON parses non-strings as float64. Fail if we cannot
-		// convert it losslessly
-		if float64(int64(v)) == v {
-			b = big.NewInt(int64(v))
-		} else {
-			return nil, fmt.Errorf("invalid float value %v for type %v", v, encType)
-		}
-	}
-	if b == nil {
-		return nil, fmt.Errorf("invalid integer value %v/%v for type %v", encValue, reflect.TypeOf(encValue), encType)
-	}
-	if b.BitLen() > length {
-		return nil, fmt.Errorf("integer larger than '%v'", encType)
-	}
-	if !signed && b.Sign() == -1 {
-		return nil, fmt.Errorf("invalid negative value for unsigned type %v", encType)
-	}
-	return b, nil
 }
 
 // EcRecover recovers the address associated with the given sig.
