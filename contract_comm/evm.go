@@ -34,7 +34,6 @@ import (
 )
 
 var (
-	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
 )
 
@@ -91,7 +90,7 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vmcontext.New(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	context := vmcontext.New(common.ZeroAddress, common.Big0, header, internalEvmHandlerSingleton.chain, nil)
 	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil

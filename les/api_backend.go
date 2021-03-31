@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -167,8 +166,8 @@ func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg vm.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
-	context := vmcontext.New(msg, header, b.eth.blockchain, nil)
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
 

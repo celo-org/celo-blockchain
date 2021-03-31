@@ -31,7 +31,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/light"
@@ -133,7 +132,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 
 				msg := callmsg{types.NewMessage(from.Address(), &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, new(big.Int), data, false, false)}
 
-				context := vmcontext.New(msg, header, bc, nil)
+				context := core.NewEVMContext(msg, header, bc, nil)
 				vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 
 				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
@@ -146,7 +145,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			state := light.NewState(ctx, header, lc.Odr())
 			state.SetBalance(bankAddr, math.MaxBig256)
 			msg := callmsg{types.NewMessage(bankAddr, &testContractAddr, 0, new(big.Int), 100000, new(big.Int), nil, nil, new(big.Int), data, false, false)}
-			context := vmcontext.New(msg, header, lc, nil)
+			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
 			result, _ := core.ApplyMessage(vmenv, msg, gp)

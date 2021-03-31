@@ -52,7 +52,7 @@ The state transitioning model does all the necessary work to work out a valid ne
 */
 type StateTransition struct {
 	gp              *GasPool
-	msg             vm.Message
+	msg             Message
 	gas             uint64
 	gasPrice        *big.Int
 	initialGas      uint64
@@ -61,6 +61,37 @@ type StateTransition struct {
 	state           vm.StateDB
 	evm             *vm.EVM
 	gasPriceMinimum *big.Int
+}
+
+// Message represents a message sent to a contract.
+type Message interface {
+	From() common.Address
+	To() *common.Address
+
+	GasPrice() *big.Int
+	Gas() uint64
+
+	// FeeCurrency specifies the currency for gas and gateway fees.
+	// nil correspond to Celo Gold (native currency).
+	// All other values should correspond to ERC20 contract addresses extended to be compatible with gas payments.
+	FeeCurrency() *common.Address
+	GatewayFeeRecipient() *common.Address
+	GatewayFee() *big.Int
+	Value() *big.Int
+
+	Nonce() uint64
+	CheckNonce() bool
+	Data() []byte
+
+	// Whether this transaction omitted the 3 Celo-only fields (FeeCurrency & co.)
+	EthCompatible() bool
+}
+
+func CheckEthCompatibility(msg Message) error {
+	if msg.EthCompatible() && !(msg.FeeCurrency() == nil && msg.GatewayFeeRecipient() == nil && msg.GatewayFee().Sign() == 0) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -159,7 +190,7 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransition {
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), evm.GetHeader(), evm.GetStateDB())
 
 	return &StateTransition{
@@ -181,7 +212,7 @@ func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransiti
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
@@ -190,7 +221,7 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, e
 // set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
 	st := NewStateTransition(evm, msg, gp)
 	st.gasPriceMinimum = common.Big0
@@ -364,7 +395,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if st.msg.EthCompatible() && !st.evm.ChainConfig().IsDonut(st.evm.BlockNumber) {
 		return nil, ErrEthCompatibleTransactionsNotSupported
 	}
-	if err := vm.CheckEthCompatibility(st.msg); err != nil {
+	if err := CheckEthCompatibility(st.msg); err != nil {
 		return nil, err
 	}
 

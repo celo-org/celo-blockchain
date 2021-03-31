@@ -39,7 +39,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
@@ -654,7 +653,7 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 		for idx, tx := range block.Transactions() {
 			// Assemble the transaction call message and return if the requested offset
 			msg, _ := tx.AsMessage(signer)
-			context := vmcontext.New(msg, block.Header(), api.blockchain, nil)
+			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
 			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
@@ -764,7 +763,7 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 		for idx, tx := range block.Transactions() {
 			// Assemble the transaction call message and return if the requested offset
 			msg, _ := tx.AsMessage(signer)
-			context := vmcontext.New(msg, block.Header(), api.blockchain, nil)
+			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
 			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {

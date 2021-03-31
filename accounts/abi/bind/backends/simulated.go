@@ -37,7 +37,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
@@ -515,7 +514,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	// Execute the call.
 	msg := callmsg{call}
 
-	evmContext := vmcontext.New(msg, block.Header(), b.blockchain, nil)
+	evmContext := core.NewEVMContext(msg, block.Header(), b.blockchain, nil)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(evmContext, statedb, b.config, vm.Config{})
