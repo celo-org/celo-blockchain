@@ -465,7 +465,8 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
-	_, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
+	prevBlock := c.current.Sequence().Uint64() - 1
+	blockAuthor := c.backend.AuthorForBlock(prevBlock)
 
 	if round.Cmp(c.current.Round()) == 0 {
 		logger.Trace("Already in the desired round.")
@@ -490,7 +491,7 @@ func (c *core) startNewRound(round *big.Int) error {
 
 	// Calculate new propose
 	valSet := c.current.ValidatorSet()
-	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
+	nextProposer := c.selectProposer(valSet, blockAuthor, newView.Round.Uint64())
 
 	// Update the roundstate db
 	c.current.StartNewRound(round, valSet, nextProposer)
