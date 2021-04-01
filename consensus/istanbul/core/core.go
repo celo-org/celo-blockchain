@@ -645,7 +645,7 @@ func (c *core) createRoundState() (RoundState, error) {
 	return withSavingDecorator(c.rsdb, roundState), nil
 }
 
-// resetRoundState will modify the RoundState to either start a new sequence
+// resetRoundState will modify the RoundState to start a new sequence
 func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	// TODO remove this when we refactor startNewRound()
 	if view.Round.Cmp(common.Big0) != 0 {
