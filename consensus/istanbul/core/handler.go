@@ -18,6 +18,7 @@ package core
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -91,6 +92,8 @@ func (c *core) unsubscribeEvents() {
 	c.finalCommittedSub.Unsubscribe()
 }
 
+var handleStart time.Time
+
 func (c *core) handleEvents() {
 	// Clear state
 	defer func() {
@@ -100,6 +103,7 @@ func (c *core) handleEvents() {
 	c.handlerWg.Add(1)
 
 	for {
+		handleStart = time.Now()
 		logger := c.newLogger("func", "handleEvents")
 		select {
 		case event, ok := <-c.events.Chan():
