@@ -20,6 +20,7 @@ import (
 	"errors"
 	"math/big"
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -258,7 +259,10 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.sendCommit()
+		return nil
 	}
+	dur := time.Since(handleStart)
+	logger.Debug(fmt.Sprintf("handleCommit:%v\n", dur.Nanoseconds()))
 	return nil
 
 }
