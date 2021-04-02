@@ -617,7 +617,7 @@ type cacheResult struct {
 
 var staticCallCache, _ = lru.New(100)
 var (
-	cacheHits    = metrics.NewRegisteredMeter("contract_comm/caller/cache_hits", nil)
+	cacheHits    = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_hits", nil)
 	cacheMisses  = metrics.NewRegisteredMeter("contract_comm/caller/cache_misses", nil)
 	cacheSkipped = metrics.NewRegisteredMeter("contract_comm/caller/cache_skipped", nil)
 	cacheBadCast = metrics.NewRegisteredMeter("contract_comm/caller/cache_bad_cast", nil)
