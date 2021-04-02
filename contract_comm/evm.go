@@ -52,7 +52,7 @@ func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []in
 }
 
 // MakeMemoizedStaticCall performs a static (read-only) ABI call to the smart contract address given.
-// It will attempt to memoize the call based on the contract address, transaction name, and state root.
+// It will attempt to memoize the call based on the contract address, transaction name, gas allowance, and state root.
 func MakeMemoizedStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
@@ -139,7 +139,7 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 }
 
 // MemoizedGetRegisteredAddress looks up the smart contract address associated with the registry id.
-// It will attempt to memoize the call based on the contract address, transaction name, and state root.
+// It will attempt to memoize the call based on the contract address, transaction name, gas allowance, and state root.
 func MemoizedGetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {

@@ -608,6 +608,7 @@ type cacheKey struct {
 	StateRoot       common.Hash
 	ContractAddress common.Address
 	TransactionData string
+	Gas             uint64
 }
 
 type cacheResult struct {
@@ -636,6 +637,7 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 			TransactionData: string(transactionData),
 			ContractAddress: contractAddress,
 			StateRoot:       stateRoot,
+			Gas:             gas,
 		}
 		if result, ok := staticCallCache.Get(key); ok {
 			cachedResult, castOk := result.(cacheResult)
