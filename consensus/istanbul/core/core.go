@@ -465,8 +465,6 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
-	prevBlock := c.current.Sequence().Uint64() - 1
-	blockAuthor := c.backend.AuthorForBlock(prevBlock)
 
 	if round.Cmp(c.current.Round()) == 0 {
 		logger.Trace("Already in the desired round.")
@@ -489,7 +487,10 @@ func (c *core) startNewRound(round *big.Int) error {
 		return nil
 	}
 
-	// Calculate new propose
+	// Calculate new proposer
+	prevProposer := c.current.Proposer()
+	prevBlock := c.current.Sequence().Uint64() - 1
+	blockAuthor := c.backend.AuthorForBlock(prevBlock)
 	valSet := c.current.ValidatorSet()
 	nextProposer := c.selectProposer(valSet, blockAuthor, newView.Round.Uint64())
 
@@ -506,7 +507,7 @@ func (c *core) startNewRound(round *big.Int) error {
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", c.current.Proposer())
+	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", prevProposer)
 	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
@@ -521,7 +522,6 @@ func (c *core) startNewSequence() error {
 	if headBlock.Number().Cmp(c.current.Sequence()) == 0 {
 		logger.Trace("Moving to the next block")
 	} else if headBlock.Number().Cmp(c.current.Sequence()) > 0 {
-
 		logger.Trace("Catching up the the head block")
 	} else {
 		logger.Warn("New sequence should be larger than current sequence")
@@ -555,6 +555,7 @@ func (c *core) startNewSequence() error {
 	}
 
 	// Calculate new proposer
+	prevProposer := c.current.Proposer()
 	nextProposer := c.selectProposer(valSet, headAuthor, newView.Round.Uint64())
 
 	// Update the roundstate
@@ -570,8 +571,8 @@ func (c *core) startNewSequence() error {
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
-	logger = c.newLogger("func", "startNewSequence", "tag", "stateTransition", "old_proposer", c.current.Proposer(), "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
-	logger.Debug("New sequence", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	logger = c.newLogger("func", "startNewSequence", "tag", "stateTransition", "old_proposer", prevProposer, "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
+	logger.Debug("New sequence", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", nextProposer, "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
 	return nil
 }
 
