@@ -869,13 +869,14 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 
 // Clean returns true if the statedb does not have any pending modifications
 func (s *StateDB) Clean() bool {
-	return s.txIndex > 0 ||
+	// It is ditry is any single of the conditions holds
+	return !(s.txIndex > 0 ||
 		s.thash != (common.Hash{}) ||
 		s.bhash != (common.Hash{}) ||
 		len(s.stateObjectsDirty) > 0 ||
 		len(s.stateObjectsPending) > 0 ||
 		len(s.journal.dirties) > 0 ||
-		len(s.journal.entries) > 0
+		len(s.journal.entries) > 0)
 }
 
 // StateRoot returns the state root without finalizing state if the db is clean
