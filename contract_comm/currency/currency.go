@@ -190,25 +190,26 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 }
 
 func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
-	var (
-		returnArray [2]*big.Int
-		leftoverGas uint64
-	)
 
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil); err != nil {
-			if err == errors.ErrSmartContractNotDeployed {
-				log.Warn("Registry address lookup failed", "err", err)
-				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
-			} else {
-				log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
-				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
-			}
-		}
+		return medianRate(currencyAddress)
+	}
+}
+
+func medianRate(currencyAddress *common.Address) (*exchangeRate, error) {
+	var returnArray [2]*big.Int
+	leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
+	if err == errors.ErrSmartContractNotDeployed {
+		log.Warn("Registry address lookup failed", "err", err)
+		return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+	} else if err != nil {
+		log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
+		return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
 	}
 	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
+
 	return &exchangeRate{returnArray[0], returnArray[1]}, nil
 }
 
