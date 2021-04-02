@@ -868,8 +868,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 }
 
 // Clean returns true if the statedb does not have any pending modifications
-func (s *StateDB) Clean() bool {
-	// It is ditry is any single of the conditions holds
+func (s *StateDB) IsClean() bool {
+	// It is dirty is any single of the conditions holds
 	return !(s.txIndex > 0 ||
 		s.thash != (common.Hash{}) ||
 		s.bhash != (common.Hash{}) ||
@@ -881,7 +881,7 @@ func (s *StateDB) Clean() bool {
 
 // StateRoot returns the state root without finalizing state if the db is clean
 func (s *StateDB) StateRoot() common.Hash {
-	if !s.Clean() {
+	if !s.IsClean() {
 		return common.Hash{}
 
 	}

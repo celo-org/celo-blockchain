@@ -67,8 +67,8 @@ type StateDB interface {
 
 	Finalise(bool)
 
-	// Clean returns true if the statedb does not have any pending modifications
-	Clean() bool
+	// IClean returns true if the statedb does not have any pending modifications
+	IsClean() bool
 	// StateRoot returns the state root without finalizing state if the db is clean
 	StateRoot() common.Hash
 }

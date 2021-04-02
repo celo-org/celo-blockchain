@@ -626,7 +626,7 @@ var (
 
 func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
 	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		if !evm.StateDB.Clean() || staticCallCache == nil {
+		if !evm.StateDB.IsClean() || staticCallCache == nil {
 			cacheSkipped.Mark(1)
 			return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 		}
