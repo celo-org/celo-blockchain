@@ -212,7 +212,7 @@ func medianRate(currencyAddress *common.Address, memoize bool) (*exchangeRate, e
 		err         error
 	)
 	if memoize {
-		leftoverGas, err = contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
+		leftoverGas, err = contract_comm.MakeMemoizedStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
 	} else {
 		leftoverGas, err = contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
 
