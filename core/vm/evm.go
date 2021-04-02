@@ -618,10 +618,10 @@ type cacheResult struct {
 var staticCallCache, _ = lru.New(100)
 var (
 	cacheHits    = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_hits", nil)
-	cacheMisses  = metrics.NewRegisteredMeter("contract_comm/caller/cache_misses", nil)
-	cacheSkipped = metrics.NewRegisteredMeter("contract_comm/caller/cache_skipped", nil)
-	cacheBadCast = metrics.NewRegisteredMeter("contract_comm/caller/cache_bad_cast", nil)
-	cacheCheck   = metrics.NewRegisteredMeter("contract_comm/caller/cache_check", nil)
+	cacheMisses  = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_misses", nil)
+	cacheSkipped = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_skipped", nil)
+	cacheBadCast = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_bad_cast", nil)
+	cacheCheck   = metrics.NewRegisteredMeter("contract_comm/systemcall/cache_check", nil)
 )
 
 func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
