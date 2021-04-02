@@ -99,7 +99,7 @@ func MakeMemoizedStaticCall(registryId [32]byte, abi abi.ABI, funcName string, a
 	return gasLeft, nil
 }
 
-// MakeStaticCall performs a mutating ABI call against the contract specfied by the registry id.
+// MakeCall performs a mutating ABI call against the contract specfied by the registry id.
 func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
