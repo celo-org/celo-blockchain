@@ -128,4 +128,7 @@ type Config struct {
 
 	// Istanbul block override (TODO: remove after the fork)
 	OverrideIstanbul *big.Int `toml:",omitempty"`
+
+	// Checks the results of the static call cache. This is temporary and for validating the cache.
+	CheckStaticCallCache bool
 }

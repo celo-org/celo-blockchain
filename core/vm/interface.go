@@ -66,6 +66,11 @@ type StateDB interface {
 	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool) error
 
 	Finalise(bool)
+
+	// IClean returns true if the statedb does not have any pending modifications
+	IsClean() bool
+	// StateRoot returns the state root without finalizing state if the db is clean
+	StateRoot() common.Hash
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

@@ -160,6 +160,12 @@ func (t *SecureTrie) Hash() common.Hash {
 	return t.trie.Hash()
 }
 
+// HashIsReady returns false if any modifications (Update or Deletes) have been
+// performed on the SecureTrie since the last Hash operation
+func (t *SecureTrie) HashIsReady() bool {
+	return t.trie.HashIsReady()
+}
+
 // Copy returns a copy of SecureTrie.
 func (t *SecureTrie) Copy() *SecureTrie {
 	cpy := *t
