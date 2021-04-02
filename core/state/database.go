@@ -94,10 +94,6 @@ type Trie interface {
 	// nodes of the longest existing prefix of the key (at least the root), ending
 	// with the node that proves the absence of the key.
 	Prove(key []byte, fromLevel uint, proofDb ethdb.KeyValueWriter) error
-
-	// HashIsReady returns false if any modifications (Update or Deletes) have been
-	// performed since the last Hash operation
-	HashIsReady() bool
 }
 
 // NewDatabase creates a backing store for state. The returned database is safe for

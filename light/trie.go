@@ -133,10 +133,6 @@ func (t *odrTrie) Hash() common.Hash {
 	return t.trie.Hash()
 }
 
-func (t *odrTrie) HashIsReady() bool {
-	return t.trie.HashIsReady()
-}
-
 func (t *odrTrie) NodeIterator(startkey []byte) trie.NodeIterator {
 	return newNodeIterator(t, startkey)
 }
