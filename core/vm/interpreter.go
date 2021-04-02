@@ -39,7 +39,7 @@ type Config struct {
 
 	ExtraEips []int // Additional EIPS that are to be enabled
 
-	// Experimental
+	// Checks the results of the static call cache. This is temporary and for validating the cache.
 	CheckStaticCallCache bool
 }
 

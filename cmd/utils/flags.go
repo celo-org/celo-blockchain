@@ -752,7 +752,7 @@ var (
 	}
 	CheckStaticCallCacheFlag = cli.BoolFlag{
 		Name:  "vm.checkcache",
-		Usage: "If true, this checks the results of the static call cache. Note: this flag is experimental and will be removed",
+		Usage: "If true, this checks the results of the static call cache. Note: this flag is temporary and will be removed",
 	}
 
 	// Istanbul settings
