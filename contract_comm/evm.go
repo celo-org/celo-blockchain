@@ -41,27 +41,6 @@ type InternalEVMHandler struct {
 	chain vm.ChainContext
 }
 
-// MakeStaticCallToAddress performs a static (read-only) ABI call to the smart contract address given.
-func MakeStaticCallToAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return 0, err
-	}
-	gasLeft, err := vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-
-	if err != nil {
-		log.Error("Error when performing an evm static call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
-		return gasLeft, err
-	}
-
-	return gasLeft, nil
-}
-
 // MakeStaticCall performs a static (read-only) ABI call against the contract specfied by the registry id.
 func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	scAddress, err := resolveAddressForCall(registryId, funcName, header, state)
@@ -124,6 +103,27 @@ func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interfac
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
+	}
+
+	return gasLeft, nil
+}
+
+// MakeStaticCallToAddress performs a static (read-only) ABI call to the smart contract address given.
+func MakeStaticCallToAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
+	start := time.Now()
+	defer timer.UpdateSince(start)
+
+	vmevm, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+	gasLeft, err := vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
+
+	if err != nil {
+		log.Error("Error when performing an evm static call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		return gasLeft, err
 	}
 
 	return gasLeft, nil
