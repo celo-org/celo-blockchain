@@ -452,7 +452,7 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm, false)
+	governanceAddress, err := vm.GetRegisteredAddressWithEvm(params.GovernanceRegistryId, st.evm)
 	if err != nil && err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
 		return err
 	} else if err != nil {

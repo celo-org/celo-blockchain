@@ -135,7 +135,7 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 	if err != nil {
 		return nil, err
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm, false)
+	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
 }
 
 // MemoizedGetRegisteredAddress looks up the smart contract address associated with the registry id.
@@ -145,7 +145,7 @@ func MemoizedGetRegisteredAddress(registryId [32]byte, header *types.Header, sta
 	if err != nil {
 		return nil, err
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm, true)
+	return vm.MemoizedGetRegisteredAddressWithEvm(registryId, vmevm)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {

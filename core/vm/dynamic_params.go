@@ -35,7 +35,11 @@ var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*common.Address, error) {
+func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
+	return getRegisteredAddressWithEvm(registryId, evm, false)
+}
+
+func getRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
@@ -65,4 +69,8 @@ func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*
 	}
 
 	return &contractAddress, nil
+}
+
+func MemoizedGetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
+	return getRegisteredAddressWithEvm(registryId, evm, true)
 }
