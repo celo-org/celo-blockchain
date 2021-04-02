@@ -416,6 +416,12 @@ func (t *Trie) Hash() common.Hash {
 	return common.BytesToHash(hash.(hashNode))
 }
 
+// HashIsReady returns false if any modifications (Update or Deletes) have been
+// performed on the trie since the last Hash operation
+func (t *Trie) HashIsReady() bool {
+	return t.unhashed == 0
+}
+
 // Commit writes all nodes to the trie's memory database, tracking the internal
 // and external (for account tries) references.
 func (t *Trie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
