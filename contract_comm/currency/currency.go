@@ -164,8 +164,8 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := memoizedGetexchangeRate(currency1)
-	exchangeRate2, err2 := memoizedGetexchangeRate(currency2)
+	exchangeRate1, err1 := memoizedGetExchangeRate(currency1)
+	exchangeRate2, err2 := memoizedGetExchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -197,7 +197,7 @@ func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	}
 }
 
-func memoizedGetexchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
+func memoizedGetExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
