@@ -43,7 +43,7 @@ type InternalEVMHandler struct {
 
 // MakeStaticCall performs a static (read-only) ABI call against the contract specfied by the registry id.
 func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state)
+	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, false)
 	if err != nil {
 		return 0, err
 	}
@@ -59,7 +59,7 @@ func MakeMemoizedStaticCall(registryId [32]byte, abi abi.ABI, funcName string, a
 	start := time.Now()
 	defer timer.UpdateSince(start)
 
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state)
+	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, true)
 	if err != nil {
 		return 0, err
 	}
@@ -85,7 +85,7 @@ func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interfac
 	start := time.Now()
 	defer timer.UpdateSince(start)
 
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state)
+	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, false)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +135,17 @@ func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.St
 	if err != nil {
 		return nil, err
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
+	return vm.GetRegisteredAddressWithEvm(registryId, vmevm, false)
+}
+
+// MemoizedGetRegisteredAddress looks up the smart contract address associated with the registry id.
+// It will attempt to memoize the call based on the contract address, transaction name, and state root.
+func MemoizedGetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
+	vmevm, err := createEVM(header, state)
+	if err != nil {
+		return nil, err
+	}
+	return vm.GetRegisteredAddressWithEvm(registryId, vmevm, true)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
@@ -179,8 +189,15 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 }
 
 // resolveAddressForCall looks up the address of a core contract based on the the registry ID.
-func resolveAddressForCall(registryId [32]byte, funcName string, header *types.Header, state vm.StateDB) (common.Address, error) {
-	contractAddress, err := GetRegisteredAddress(registryId, header, state)
+func resolveAddressForCall(registryId [32]byte, funcName string, header *types.Header, state vm.StateDB, memoize bool) (common.Address, error) {
+	var contractAddress *common.Address
+	var err error
+	if memoize {
+		contractAddress, err = MemoizedGetRegisteredAddress(registryId, header, state)
+
+	} else {
+		contractAddress, err = GetRegisteredAddress(registryId, header, state)
+	}
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {

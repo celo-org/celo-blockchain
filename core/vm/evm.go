@@ -535,7 +535,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
+	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm, false)
 	if err != nil {
 		return nil, nil, nil, err
 	}

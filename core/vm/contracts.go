@@ -599,7 +599,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	if err != nil {
 		return nil, gas, err
 	}
-	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
+	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm, false)
 	if err != nil {
 		return nil, gas, err
 	}
