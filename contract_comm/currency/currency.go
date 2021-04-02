@@ -233,7 +233,7 @@ func medianRate(currencyAddress *common.Address, memoize bool) (*exchangeRate, e
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
-	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
+	leftoverGas, err := contract_comm.MakeStaticCallToAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)

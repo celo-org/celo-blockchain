@@ -41,8 +41,8 @@ type InternalEVMHandler struct {
 	chain vm.ChainContext
 }
 
-// MakeStaticCallWithAddress performs a static (read-only) ABI call to the smart contract address given.
-func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+// MakeStaticCallToAddress performs a static (read-only) ABI call to the smart contract address given.
+func MakeStaticCallToAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
 	// Record a metrics data point about execution time.
 	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
 	start := time.Now()
@@ -68,7 +68,7 @@ func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []in
 	if err != nil {
 		return 0, err
 	}
-	return MakeStaticCallWithAddress(scAddress, abi, funcName, args, returnObj, gas, header, state)
+	return MakeStaticCallToAddress(scAddress, abi, funcName, args, returnObj, gas, header, state)
 
 }
 
