@@ -652,17 +652,17 @@ func (evm *EVM) MemoizedStaticCallFromSystem(contractAddress common.Address, abi
 			if evm.vmConfig.CheckStaticCallCache {
 				actualRet, actualGasLeft, actualErr := evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
 				if actualErr != nil {
-					log.Error("non nil error when performing evm static call that wanted to use the cached result")
+					log.Error("non nil error when performing evm static call that wanted to use the cached result", "func", "MemoizedStaticCallFromSystem")
 				}
 				if len(ret) != len(actualRet) {
-					log.Error("length of cached result bytes not equal to length static call bytes")
+					log.Error("length of cached result bytes not equal to length static call bytes", "func", "MemoizedStaticCallFromSystem")
 				}
 				if string(ret) != string(actualRet) {
-					log.Error("cached result bytes not equal to static call bytes")
+					log.Error("cached result bytes not equal to static call bytes", "func", "MemoizedStaticCallFromSystem")
 				}
 
 				if cachedResult.gasLeft != actualGasLeft {
-					log.Error("cached result bytes not equal to static call bytes")
+					log.Error("cached result bytes not equal to static call bytes", "func", "MemoizedStaticCallFromSystem")
 				}
 				cacheCheck.Mark(1)
 			}
