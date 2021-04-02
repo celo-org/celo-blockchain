@@ -164,8 +164,8 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := getExchangeRate(currency1)
-	exchangeRate2, err2 := getExchangeRate(currency2)
+	exchangeRate1, err1 := memoizedGetexchangeRate(currency1)
+	exchangeRate2, err2 := memoizedGetexchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -190,17 +190,33 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 }
 
 func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
-
 	if currencyAddress == nil {
 		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
 	} else {
-		return medianRate(currencyAddress)
+		return medianRate(currencyAddress, false)
 	}
 }
 
-func medianRate(currencyAddress *common.Address) (*exchangeRate, error) {
-	var returnArray [2]*big.Int
-	leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
+func memoizedGetexchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
+	if currencyAddress == nil {
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
+	} else {
+		return medianRate(currencyAddress, true)
+	}
+}
+
+func medianRate(currencyAddress *common.Address, memoize bool) (*exchangeRate, error) {
+	var (
+		returnArray [2]*big.Int
+		leftoverGas uint64
+		err         error
+	)
+	if memoize {
+		leftoverGas, err = contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
+	} else {
+		leftoverGas, err = contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
+
+	}
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
