@@ -72,6 +72,33 @@ func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []in
 
 }
 
+// MakeMemoizedStaticCall performs a static (read-only) ABI call to the smart contract address given.
+// It will attempt to memoize the call based on the contract addres, transaction name, and state root.
+func MakeMemoizedStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
+	start := time.Now()
+	defer timer.UpdateSince(start)
+
+	scAddress, err := resolveAddressForCall(registryId, funcName, header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	vmevm, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+	gasLeft, err := vmevm.MemoizedStaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
+
+	if err != nil {
+		log.Error("Error when performing an evm static call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
+		return gasLeft, err
+	}
+
+	return gasLeft, nil
+}
+
 // MakeStaticCall performs a mutating ABI call against the contract specfied by the registry id.
 func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
 	// Record a metrics data point about execution time.
