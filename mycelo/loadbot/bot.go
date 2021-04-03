@@ -2,6 +2,7 @@ package loadbot
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -97,10 +98,15 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, ver
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx
 
-	stableTokenAddress := env.MustProxyAddressFor("StableToken")
-	transactor.FeeCurrency = &stableTokenAddress
 	if skipEstimation {
 		transactor.GasLimit = 110000 // 110lk gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+	}
+
+	stableTokenAddress := env.MustProxyAddressFor("StableToken")
+	if n, _ := rand.Int(rand.Reader, common.Big2); n.Cmp(common.Big0) == 0 {
+		transactor.FeeCurrency = &stableTokenAddress
+	} else {
+		transactor.FeeCurrency = nil
 	}
 
 	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
