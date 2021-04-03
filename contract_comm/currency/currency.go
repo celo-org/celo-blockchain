@@ -169,6 +169,10 @@ func NewComparator() *CurrencyComparator {
 }
 
 func (cc *CurrencyComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
+	if currency == nil {
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
+	}
+
 	val, ok := cc.exchangeRates[*currency]
 	if ok {
 		return val, nil
