@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
@@ -362,6 +363,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
+var sleepTimer = metrics.NewRegisteredTimer("consensus/istanbul/backend/sleep", nil)
+
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
@@ -389,6 +392,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
+	if delay < 0 {
+		sleepTimer.Update(0)
+	} else {
+		sleepTimer.Update(delay)
+	}
 
 	return sb.addParentSeal(chain, header)
 }
