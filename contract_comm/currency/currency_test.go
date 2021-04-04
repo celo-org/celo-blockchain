@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 	. "github.com/onsi/gomega"
 )
 
