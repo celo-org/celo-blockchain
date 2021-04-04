@@ -29,6 +29,8 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/metrics"
+
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	ethCore "github.com/celo-org/celo-blockchain/core"
@@ -367,6 +369,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	return sb.VerifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
+var sleepTimer = metrics.NewRegisteredTimer("consensus/istanbul/backend/sleep", nil)
+
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
@@ -392,6 +396,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
 	sb.logger.Debug(fmt.Sprintf("Sleeping till next block: %d", delay.Nanoseconds()))
+	if delay < 0 {
+		sleepTimer.Update(0)
+	} else {
+		sleepTimer.Update(delay)
+	}
 
 	return sb.addParentSeal(chain, header)
 }
