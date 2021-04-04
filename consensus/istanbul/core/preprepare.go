@@ -22,7 +22,10 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+var prePrepareTimer = metrics.NewRegisteredTimer("consensus/istanbul/core/handle_preprepare", nil)
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
 	logger := c.newLogger("func", "sendPreprepare")
@@ -50,6 +53,9 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 }
 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
+	start := time.Now()
+	defer func() { prePrepareTimer.UpdateSince(start) }()
+
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
 	logger.Trace("Got preprepare message", "m", msg)
 

@@ -36,6 +36,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
 	lru "github.com/hashicorp/golang-lru"
@@ -366,6 +367,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
+var sleepGauge = metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil)
+
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) error {
@@ -390,6 +393,11 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
+	if delay < 0 {
+		sleepGauge.Update(0)
+	} else {
+		sleepGauge.Update(int64(delay * time.Millisecond))
+	}
 
 	return sb.addParentSeal(chain, header)
 }

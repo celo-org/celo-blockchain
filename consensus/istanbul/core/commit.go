@@ -20,16 +20,20 @@ import (
 	"errors"
 	"math/big"
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/metrics"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
 // The prover code will then pad any proofs to this maximum to ensure consistent proof structure
 // TODO: Eventually make this governable
 const maxValidators = uint32(150)
+
+var commitTimer = metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil)
 
 func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
@@ -137,6 +141,8 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
+	start := time.Now()
+	defer func() { commitTimer.UpdateSince(start) }()
 	// Decode COMMIT message
 	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)

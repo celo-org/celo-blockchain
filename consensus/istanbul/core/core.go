@@ -135,7 +135,8 @@ type core struct {
 	consensusTimestamp time.Time
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimer metrics.Timer
+	consensusTimeGuage        metrics.Gauge
+	consensusPrepareTimeGuage metrics.Gauge
 }
 
 // New creates an Istanbul consensus core
@@ -146,17 +147,18 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	}
 
 	c := &core{
-		config:             config,
-		address:            backend.Address(),
-		logger:             log.New(),
-		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
-		handlerWg:          new(sync.WaitGroup),
-		backend:            backend,
-		pendingRequests:    prque.New(nil),
-		pendingRequestsMu:  new(sync.Mutex),
-		consensusTimestamp: time.Time{},
-		rsdb:               rsdb,
-		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		config:                    config,
+		address:                   backend.Address(),
+		logger:                    log.New(),
+		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:                 new(sync.WaitGroup),
+		backend:                   backend,
+		pendingRequests:           prque.New(nil),
+		pendingRequestsMu:         new(sync.Mutex),
+		consensusTimestamp:        time.Time{},
+		rsdb:                      rsdb,
+		consensusTimeGuage:        metrics.NewRegisteredGauge("consensus/istanbul/core/consensus", nil),
+		consensusPrepareTimeGuage: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -358,6 +360,12 @@ func (c *core) commit() error {
 		return err
 	}
 
+	// Update metrics.
+	if !c.consensusTimestamp.IsZero() {
+		c.consensusTimeGuage.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		c.consensusTimestamp = time.Time{}
+	}
+
 	// Process Backlog Messages
 	c.backlog.updateState(c.current.View(), c.current.State())
 
@@ -471,11 +479,6 @@ func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition", "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
 
 	if headBlock.Number().Cmp(c.current.Sequence()) >= 0 {
-		// Update metrics.
-		if !c.consensusTimestamp.IsZero() {
-			c.consensusTimer.UpdateSince(c.consensusTimestamp)
-			c.consensusTimestamp = time.Time{}
-		}
 		logger.Trace("Catch up to the latest block.")
 	} else if headBlock.Number().Cmp(big.NewInt(c.current.Sequence().Int64()-1)) == 0 {
 		// Working on the block immediately after the last committed block.
@@ -761,7 +764,12 @@ func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address,
 	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
 }
 
+var verifyGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/verify", nil)
+
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+	start := time.Now()
+	defer func() { verifyGauge.Update(time.Since(start).Nanoseconds()) }()
+
 	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
 	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
 		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)

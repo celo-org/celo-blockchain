@@ -18,10 +18,14 @@ package core
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+var prepareTimer = metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil)
 
 func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
@@ -173,6 +177,8 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
+	start := time.Now()
+	defer func() { prepareTimer.UpdateSince(start) }()
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
@@ -211,6 +217,10 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGuage.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		}
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())

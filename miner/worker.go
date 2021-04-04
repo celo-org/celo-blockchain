@@ -684,6 +684,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
+	var blockConstructGuage = metrics.NewRegisteredGauge("consensus/istanbul/core/block_construct", nil)
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -696,6 +697,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 	var coalescedLogs []*types.Log
 
 	blockCtx := core.NewBlockContext(w.current.header, w.current.state)
+
+	start := time.Now()
+	defer func() { blockConstructGuage.Update(time.Since(start).Nanoseconds()) }()
 
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
