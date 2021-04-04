@@ -111,6 +111,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
+		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
@@ -275,6 +276,9 @@ type Backend struct {
 
 	// Gauge counting the gas used in the last block
 	blocksFinalizedGasUsedGauge metrics.Gauge
+
+	// Gauge reporting how many nanoseconds were spent sleeping
+	sleepGauge metrics.Gauge
 
 	// Cache for the return values of the method RetrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
