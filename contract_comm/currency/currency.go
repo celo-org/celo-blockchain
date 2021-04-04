@@ -159,12 +159,18 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 }
 
 type CurrencyComparator struct {
-	exchangeRates map[common.Address]*exchangeRate
+	exchangeRates    map[common.Address]*exchangeRate
+	_getExchangeRate func(*common.Address) (*exchangeRate, error)
 }
 
 func NewComparator() *CurrencyComparator {
+	return newComparator(getExchangeRate)
+}
+
+func newComparator(_getExchangeRate func(*common.Address) (*exchangeRate, error)) *CurrencyComparator {
 	return &CurrencyComparator{
-		exchangeRates: make(map[common.Address]*exchangeRate),
+		exchangeRates:    make(map[common.Address]*exchangeRate),
+		_getExchangeRate: _getExchangeRate,
 	}
 }
 
@@ -178,7 +184,7 @@ func (cc *CurrencyComparator) getExchangeRate(currency *common.Address) (*exchan
 		return val, nil
 	}
 
-	val, err := getExchangeRate(currency)
+	val, err := cc._getExchangeRate(currency)
 	if err != nil {
 		return nil, err
 	}
