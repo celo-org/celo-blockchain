@@ -363,7 +363,7 @@ func (sb *Backend) VerifySeal(chain consensus.ChainReader, header *types.Header)
 	return sb.verifyAggregatedSeal(header.Hash(), valSet, extra.AggregatedSeal)
 }
 
-var sleepTimer = metrics.NewRegisteredTimer("consensus/istanbul/backend/sleep", nil)
+var sleepGauge = metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil)
 
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
@@ -393,9 +393,9 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
 	if delay < 0 {
-		sleepTimer.Update(0)
+		sleepGauge.Update(0)
 	} else {
-		sleepTimer.Update(delay)
+		sleepGauge.Update(int64(delay * time.Millisecond))
 	}
 
 	return sb.addParentSeal(chain, header)
