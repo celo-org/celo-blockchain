@@ -390,6 +390,7 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
+	sb.logger.Debug(fmt.Sprintf("Sleeping till next block: %d", delay.Nanoseconds()))
 
 	return sb.addParentSeal(chain, header)
 }
