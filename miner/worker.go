@@ -962,7 +962,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, txComparator)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
