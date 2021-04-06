@@ -17,6 +17,8 @@
 package core
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -96,10 +98,25 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.newLogger("func", "broadcastCommit")
 
-	committedSeal, err := c.generateCommittedSeal(sub)
+	r, err := rand.Int(rand.Reader, big.NewInt(8))
 	if err != nil {
-		logger.Error("Failed to commit seal", "err", err)
-		return
+		panic(err)
+	}
+
+	var committedSeal blscrypto.SerializedSignature
+	// Produce random seal in 1/8 of cases
+	if r.Uint64() < 1 {
+		_, err := rand.Read(committedSeal[:])
+		if err != nil {
+			panic(err)
+		}
+		logger.Info("Adding random committedseal", "seal", hex.EncodeToString(committedSeal[:]))
+	} else {
+		committedSeal, err = c.generateCommittedSeal(sub)
+		if err != nil {
+			logger.Error("Failed to commit seal", "err", err)
+			return
+		}
 	}
 
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
