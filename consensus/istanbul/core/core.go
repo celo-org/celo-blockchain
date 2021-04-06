@@ -128,7 +128,8 @@ type core struct {
 	consensusTimestamp time.Time
 
 	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimeGuage metrics.Gauge
+	consensusTimeGuage        metrics.Gauge
+	consensusPrepareTimeGuage metrics.Gauge
 }
 
 // New creates an Istanbul consensus core
@@ -139,17 +140,18 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	}
 
 	c := &core{
-		config:             config,
-		address:            backend.Address(),
-		logger:             log.New(),
-		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
-		handlerWg:          new(sync.WaitGroup),
-		backend:            backend,
-		pendingRequests:    prque.New(nil),
-		pendingRequestsMu:  new(sync.Mutex),
-		consensusTimestamp: time.Time{},
-		rsdb:               rsdb,
-		consensusTimeGuage: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus", nil),
+		config:                    config,
+		address:                   backend.Address(),
+		logger:                    log.New(),
+		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:                 new(sync.WaitGroup),
+		backend:                   backend,
+		pendingRequests:           prque.New(nil),
+		pendingRequestsMu:         new(sync.Mutex),
+		consensusTimestamp:        time.Time{},
+		rsdb:                      rsdb,
+		consensusTimeGuage:        metrics.NewRegisteredGauge("consensus/istanbul/core/consensus", nil),
+		consensusPrepareTimeGuage: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {

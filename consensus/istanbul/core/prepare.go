@@ -18,6 +18,7 @@ package core
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
@@ -211,6 +212,10 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGuage.Update(int64(time.Millisecond * time.Since(c.consensusTimestamp)))
+		}
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
