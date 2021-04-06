@@ -22,7 +22,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/metrics"
 )
+
+var prepareTimer = metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil)
 
 func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
@@ -174,6 +177,8 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
+	start := time.Now()
+	defer func() { prepareTimer.UpdateSince(start) }()
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)

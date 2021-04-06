@@ -18,11 +18,15 @@ package core
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/istanbul"
 	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/metrics"
 )
+
+var commitTimer = metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil)
 
 func (c *core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
@@ -104,6 +108,8 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
+	start := time.Now()
+	defer func() { commitTimer.UpdateSince(start) }()
 	// Decode COMMIT message
 	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)
