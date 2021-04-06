@@ -355,7 +355,7 @@ func (c *core) commit() error {
 
 	// Update metrics.
 	if !c.consensusTimestamp.IsZero() {
-		c.consensusTimeGuage.Update(int64(time.Millisecond * time.Since(c.consensusTimestamp)))
+		c.consensusTimeGuage.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		c.consensusTimestamp = time.Time{}
 	}
 
@@ -761,7 +761,7 @@ var verifyGauge = metrics.NewRegisteredGauge("consensus/istanbul/core/verify", n
 
 func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
 	start := time.Now()
-	defer func() { verifyGauge.Update(int64(time.Millisecond * time.Since(start))) }()
+	defer func() { verifyGauge.Update(time.Since(start).Nanoseconds()) }()
 
 	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
 	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {

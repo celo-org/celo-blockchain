@@ -219,7 +219,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
 		// Update metrics.
 		if !c.consensusTimestamp.IsZero() {
-			c.consensusPrepareTimeGuage.Update(int64(time.Millisecond * time.Since(c.consensusTimestamp)))
+			c.consensusPrepareTimeGuage.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		}
 
 		// Process Backlog Messages

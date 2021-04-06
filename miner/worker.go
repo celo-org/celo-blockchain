@@ -682,7 +682,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var coalescedLogs []*types.Log
 
 	start := time.Now()
-	defer func() { blockConstructGuage.Update(int64(time.Millisecond * time.Since(start))) }()
+	defer func() { blockConstructGuage.Update(time.Since(start).Nanoseconds()) }()
 
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
