@@ -106,14 +106,7 @@ This feature is still experimental and needs more work, but it's already usable.
 
 ## What's missing?
 
-Currently, there are few things that are missing on mycelo.
-
-  * Not all migration are being executed:
-    * Attestations
-    * Governance
-    * Validators Registration
-
-These are easy to do, but since it's already usable we don't want to delay the release of it
+You tell us!
 
 Happy Coding!!!!!
 

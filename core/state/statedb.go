@@ -869,3 +869,18 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	}
 	return root, err
 }
+
+// Clean returns true if the statedb does not have any pending modifications
+func (s *StateDB) IsClean() bool {
+	// Want to avoid having to re-calculate the hash. Clean == hash is ready
+	return s.trie.HashIsReady()
+}
+
+// StateRoot returns the state root without finalizing state if the db is clean
+func (s *StateDB) StateRoot() common.Hash {
+	if !s.IsClean() {
+		return common.Hash{}
+
+	}
+	return s.trie.Hash()
+}
