@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-	"github.com/celo-org/celo-blockchain/log"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
@@ -277,7 +276,18 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		}
 
 		// Generate aggregate seal
-		aggregatedSeal, err := c.generateAggregateCommittedSeal(logger)
+		aggregatedSeal, err := c.generateAggregateCommittedSeal()
+		if err != nil {
+			logger.Warn("Initial verificaction of aggregate commit signature failed", "err", err)
+			// Remove any bad committed seals and try again if sufficient commits remain
+			c.removeInvalidCommittedSeals()
+			if c.current.Commits().Size() < c.current.ValidatorSet().MinQuorumSize() {
+				// Wait for more commits
+				return nil
+			}
+			aggregatedSeal, err = c.generateAggregateCommittedSeal()
+		}
+		// If there is still an error then sit this round out, we can't continue.
 		if err != nil {
 			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to aggregate commit seals", "err", err, "desired_round", nextRound)
@@ -329,21 +339,12 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 }
 
 // generateAggregateCommittedSeal will generate the aggregate committed seal
-// verify it and return it. If verification fails it will individually verify
-// the commit signatures on all commit messages and discard the messages that
-// fail individual verification, then it will attempt to aggregate the
-// signatures on the remaining commit messages and verify it. If an
-// unrecoverable error is encountered it will be returned. Note that when
-// commit messages are discarded they are not removed from the round state
-// database, this should not pose a problem however because if this step is
-// reached again they will again be discarded.
-func (c *core) generateAggregateCommittedSeal(logger log.Logger) (types.IstanbulAggregatedSeal, error) {
+// verify it and return it.
+func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, error) {
 	commits := c.current.Commits()
-	secondAttempt := false
-
-	// We jump back here if the first verification fails.
-beginVerification:
-
+	if commits.Size() < c.current.ValidatorSet().MinQuorumSize() {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("insufficient commits to construct aggregate seal")
+	}
 	bitmap, aggregate, err := AggregateSeals(
 		commits,
 		func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
@@ -355,39 +356,29 @@ beginVerification:
 	aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
 	err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
 	if err != nil {
-		if secondAttempt {
-			return types.IstanbulAggregatedSeal{}, fmt.Errorf("could not verify aggregate committed seal: %v", err)
-		}
-		logger.Warn("Initial verificaction of aggregate commit signature failed", "err", err)
-
-		// Try to clear out commit messages with invalid signatures. We don't
-		// do this initially because it is costly, so we optimistically attempt
-		// the aggregate verification prior to doing this. Since signature
-		// aggregation only happens at commit time it is assumed that the
-		// current commits have passed all other verification.
-		prevSize := commits.Size()
-		for _, msg := range commits.Values() {
-			var commit *istanbul.CommittedSubject
-			msg.Decode(&commit)
-			err := c.verifyCommittedSeal(commit, c.current.GetValidatorByAddress(msg.Address))
-			if err != nil {
-				commits.Remove(msg.Address)
-			}
-		}
-
-		// If we didn't remove any commit messages then there must be something
-		// more fundamentally wrong.
-		if commits.Size() == prevSize {
-			return types.IstanbulAggregatedSeal{}, fmt.Errorf("could not verify aggregate committed seal: %v", err)
-		}
-
-		// If we still have enough commits to perform the aggregation then try again.
-		if commits.Size() >= c.current.ValidatorSet().MinQuorumSize() {
-			secondAttempt = true
-			goto beginVerification
-		}
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed verify aggregate seal: %v", err)
 	}
 	return aggregatedSeal, nil
+}
+
+// removeInvalidCommittedSeals individually verifies the committed seal on each
+// commit message and discards commits with invalid committed seals.
+//
+// Note that when commit messages are discarded they are not removed from the
+// round state database, this should not pose a problem however because if this
+// step is reached again they will again be discarded.
+func (c *core) removeInvalidCommittedSeals() {
+
+	commits := c.current.Commits()
+
+	for _, msg := range commits.Values() {
+		var commit *istanbul.CommittedSubject
+		msg.Decode(&commit)
+		err := c.verifyCommittedSeal(commit, c.current.GetValidatorByAddress(msg.Address))
+		if err != nil {
+			commits.Remove(msg.Address)
+		}
+	}
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
