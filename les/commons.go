@@ -78,7 +78,7 @@ type NodeInfo struct {
 }
 
 // makeProtocols creates protocol descriptors for the given LES versions.
-func (c *lesCommons) makeProtocols(versions []uint, runPeer func(version uint, p *p2p.Peer, rw p2p.MsgReadWriter) error, peerInfo func(id enode.ID) interface{}) []p2p.Protocol {
+func (c *lesCommons) makeProtocols(versions []uint, runPeer func(version uint, p *p2p.Peer, rw p2p.MsgReadWriter) error, peerInfo func(id enode.ID) interface{}, dialCandidates enode.Iterator) []p2p.Protocol {
 	protos := make([]p2p.Protocol, len(versions))
 	for i, version := range versions {
 		version := version
@@ -90,7 +90,8 @@ func (c *lesCommons) makeProtocols(versions []uint, runPeer func(version uint, p
 			Run: func(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 				return runPeer(version, peer, rw)
 			},
-			PeerInfo: peerInfo,
+			PeerInfo:       peerInfo,
+			DialCandidates: dialCandidates,
 		}
 	}
 	return protos

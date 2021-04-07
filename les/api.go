@@ -424,7 +424,3 @@ func (api *PrivateLightClientAPI) SuggestGatewayFee() (*GatewayFeeInformation, e
 	}
 	return bestGatewayFeeInfo, nil
 }
-
-func (api *PrivateLightClientAPI) ServerPoolEntries() ([]*poolEntryInfo, error) {
-	return api.le.serverPool.Info(), nil
-}
