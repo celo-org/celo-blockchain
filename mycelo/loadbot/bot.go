@@ -36,22 +36,22 @@ type Config struct {
 
 // Start will start loads bots
 func Start(ctx context.Context, cfg *Config) error {
-	// Set up round robin selectors that rollover
-	recvIdx := uint(len(cfg.Accounts) / 2)
-	nextRecipient := func() common.Address {
-		recvIdx++
-		return cfg.Accounts[recvIdx%uint(len(cfg.Accounts))].Address
+	// Set up nonces, we have to manage nonces because calling PendingNonceAt
+	// is racy and often results in using the same nonce more than once when
+	// applying heavy load.
+	nonces := make([]uint64, len(cfg.Accounts))
+	for i, a := range cfg.Accounts {
+		nonce, err := cfg.Clients[0].PendingNonceAt(ctx, a.Address)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve pending nonce for account %s: %v", a.Address.String(), err)
+		}
+		nonces[i] = nonce
 	}
-	sendIdx := uint(0)
-	nextSender := func() env.Account {
-		sendIdx++
-		return cfg.Accounts[sendIdx%uint(len(cfg.Accounts))]
-	}
-	clientIdx := uint(0)
-	nextClient := func() *ethclient.Client {
-		clientIdx++
-		return cfg.Clients[clientIdx%uint(len(cfg.Clients))]
-	}
+
+	// Offset the receiver from the sender so that they are different
+	recvIdx := len(cfg.Accounts) / 2
+	sendIdx := 0
+	clientIdx := 0
 
 	// Fire off transactions
 	period := 1 * time.Second / time.Duration(cfg.TransactionsPerSecond)
@@ -60,7 +60,6 @@ func Start(ctx context.Context, cfg *Config) error {
 	lg := &LoadGenerator{
 		MaxPending: cfg.MaxPending,
 	}
-
 	for {
 		select {
 		case <-ticker.C:
@@ -72,8 +71,19 @@ func Start(ctx context.Context, cfg *Config) error {
 				lg.Pending++
 				lg.PendingMu.Unlock()
 			}
+			// We use round robin selectors that rollover
+			recvIdx++
+			recipient := cfg.Accounts[recvIdx%len(cfg.Accounts)].Address
+
+			sendIdx++
+			sender := cfg.Accounts[sendIdx%len(cfg.Accounts)]
+			nonce := nonces[sendIdx%len(cfg.Accounts)]
+			nonces[sendIdx%len(cfg.Accounts)]++
+
+			clientIdx++
+			client := cfg.Clients[clientIdx%len(cfg.Clients)]
 			group.Go(func() error {
-				return runTransaction(ctx, lg, nextSender(), cfg.Verbose, nextClient(), nextRecipient(), cfg.Amount)
+				return runTransaction(ctx, lg, sender, nonce, cfg.Verbose, client, recipient, cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -81,7 +91,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
+func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, nonce uint64, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -95,6 +105,7 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, ver
 
 	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
 	transactor.Context = ctx
+	transactor.Nonce = new(big.Int).SetUint64(nonce)
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
