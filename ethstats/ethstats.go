@@ -286,6 +286,7 @@ func (s *Service) loop(ctx context.Context) {
 			for {
 				select {
 				case delegateSignMsg := <-signCh:
+					s.fillWithValidatorInfo(&delegateSignMsg.Payload)
 					if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
 						log.Warn("Delegate sign failed", "err", err)
 					}
@@ -515,6 +516,34 @@ func (s *Service) waitAndDelegateMessageWithTimeout(conn *connWrapper, sendCh ch
 			}
 		case <-time.After(delegateSignTimeout * time.Second):
 			return errors.New("delegation sign timeout")
+		}
+	}
+}
+
+var nodeNameRegex = regexp.MustCompile(`(.*)/(.*)/(.*)/(.*)`)
+
+func (s *Service) fillWithValidatorInfo(message *StatsPayload) {
+	if message.Action == actionHello {
+		msg, ok := message.Stats.(map[string]interface{})
+		if ok {
+			proxyInfo, ok := msg["info"].(map[string]interface{})
+			if ok {
+				infos := s.server.NodeInfo()
+				marta := proxyInfo["node"].(string)
+				proxyInfoParts := nodeNameRegex.FindStringSubmatch(marta)
+				validatorInfoParts := nodeNameRegex.FindStringSubmatch(infos.Name)
+				// if one of the regex failed, maintain the proxy node name
+				if proxyInfoParts != nil && validatorInfoParts != nil {
+					proxyInfo["node"] = fmt.Sprintf(
+						"%s/%s(val:%s)/%s/%s",
+						proxyInfoParts[1],
+						proxyInfoParts[2],
+						validatorInfoParts[2],
+						proxyInfoParts[3],
+						proxyInfoParts[4],
+					)
+				}
+			}
 		}
 	}
 }
