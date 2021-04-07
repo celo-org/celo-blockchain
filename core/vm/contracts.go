@@ -861,7 +861,7 @@ func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64)
 	if err != nil {
 		return nil, gas, err
 	}
-	// Make sure the input is valid (correct lenth and final flag)
+	// Make sure the input is valid (correct length and final flag)
 	if len(input) != blake2FInputLength {
 		return nil, gas, errBlake2FInvalidInputLength
 	}

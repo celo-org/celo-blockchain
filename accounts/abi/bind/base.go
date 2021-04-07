@@ -49,7 +49,7 @@ type TransactOpts struct {
 	Nonce  *big.Int       // Nonce to use for the transaction execution (nil = use pending state)
 	Signer SignerFn       // Method to use for signing the transaction (mandatory)
 
-	Value               *big.Int        // Funds to transfer along along the transaction (nil = 0 = no funds)
+	Value               *big.Int        // Funds to transfer along the transaction (nil = 0 = no funds)
 	GasPrice            *big.Int        // Gas price to use for the transaction execution (nil = gas price oracle)
 	FeeCurrency         *common.Address // Fee currency to be used for transaction (nil = default currency = Celo Gold)
 	GatewayFeeRecipient *common.Address // Address to which gateway fees should be paid (nil = no gateway fees are paid)
