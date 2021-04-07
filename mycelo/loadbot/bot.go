@@ -17,6 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// 110k gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+const GasForTransferWithComment = 110000
+
 // LoadGenerator keeps track of in-flight transactions
 type LoadGenerator struct {
 	MaxPending uint64
@@ -111,7 +114,7 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, non
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
 	if skipEstimation {
-		transactor.GasLimit = 110000 // 110lk gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+		transactor.GasLimit = GasForTransferWithComment
 	}
 
 	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
