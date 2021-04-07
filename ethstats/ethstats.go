@@ -529,18 +529,18 @@ func (s *Service) fillWithValidatorInfo(message *StatsPayload) {
 			proxyInfo, ok := msg["info"].(map[string]interface{})
 			if ok {
 				infos := s.server.NodeInfo()
-				marta := proxyInfo["node"].(string)
-				proxyInfoParts := nodeNameRegex.FindStringSubmatch(marta)
-				validatorInfoParts := nodeNameRegex.FindStringSubmatch(infos.Name)
+				proxyNode := proxyInfo["node"].(string)
+				proxyNodeParts := nodeNameRegex.FindStringSubmatch(proxyNode)
+				validatorNodeParts := nodeNameRegex.FindStringSubmatch(infos.Name)
 				// if one of the regex failed, maintain the proxy node name
-				if proxyInfoParts != nil && validatorInfoParts != nil {
+				if proxyNodeParts != nil && validatorNodeParts != nil {
 					proxyInfo["node"] = fmt.Sprintf(
 						"%s/%s(val:%s)/%s/%s",
-						proxyInfoParts[1],
-						proxyInfoParts[2],
-						validatorInfoParts[2],
-						proxyInfoParts[3],
-						proxyInfoParts[4],
+						proxyNodeParts[1],
+						proxyNodeParts[2],
+						validatorNodeParts[2],
+						proxyNodeParts[3],
+						proxyNodeParts[4],
 					)
 				}
 			}
