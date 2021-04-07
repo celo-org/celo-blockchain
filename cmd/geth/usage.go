@@ -208,6 +208,7 @@ var AppHelpFlagGroups = []flagGroup{
 			utils.VMEnableDebugFlag,
 			utils.EVMInterpreterFlag,
 			utils.EWASMInterpreterFlag,
+			utils.CheckStaticCallCacheFlag,
 		},
 	},
 	{
