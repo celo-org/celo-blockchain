@@ -36,10 +36,6 @@ var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
-	return getRegisteredAddressWithEvm(registryId, evm, false)
-}
-
-func getRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
@@ -49,12 +45,7 @@ func getRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*
 	}
 
 	var contractAddress common.Address
-	var err error
-	if memoize {
-		_, err = evm.MemoizedStaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
-	} else {
-		_, err = evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
-	}
+	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
@@ -69,8 +60,4 @@ func getRegisteredAddressWithEvm(registryId [32]byte, evm *EVM, memoize bool) (*
 	}
 
 	return &contractAddress, nil
-}
-
-func MemoizedGetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
-	return getRegisteredAddressWithEvm(registryId, evm, true)
 }
