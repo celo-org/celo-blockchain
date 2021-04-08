@@ -140,4 +140,7 @@ type Config struct {
 
 	// Donut block override (TODO: remove after the fork)
 	OverrideDonut *big.Int `toml:",omitempty"`
+
+	// Checks the results of the static call cache. This is temporary and for validating the cache.
+	CheckStaticCallCache bool
 }

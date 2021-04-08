@@ -140,6 +140,7 @@ var (
 		utils.NoCompactionFlag,
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,
+		utils.CheckStaticCallCacheFlag,
 		configFileFlag,
 		utils.LegacyIstanbulRequestTimeoutFlag,
 		utils.LegacyIstanbulBlockPeriodFlag,
