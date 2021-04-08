@@ -482,6 +482,9 @@ func (api *RetestethAPI) mineBlock() error {
 	var txs []*types.Transaction
 	var receipts []*types.Receipt
 	var blockFull = gasPool.Gas() < params.TxGas
+
+	blockCtx := core.NewBlockContext(header, statedb)
+
 	for address := range api.txSenders {
 		if blockFull {
 			break
@@ -500,7 +503,10 @@ func (api *RetestethAPI) mineBlock() error {
 					gasPool,
 					statedb,
 					header,
-					tx, &header.GasUsed, *api.blockchain.GetVMConfig(),
+					tx,
+					&header.GasUsed,
+					*api.blockchain.GetVMConfig(),
+					blockCtx,
 				)
 				if err != nil {
 					statedb.RevertToSnapshot(snap)
@@ -648,6 +654,9 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 		if err != nil {
 			return AccountRangeResult{}, err
 		}
+
+		blockCtx := core.NewBlockContext(block.Header(), statedb)
+
 		// Recompute transactions up to the target index.
 		signer := types.MakeSigner(api.blockchain.Config(), block.Number())
 		for idx, tx := range block.Transactions() {
@@ -656,7 +665,7 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 			context := vm.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), blockCtx); err != nil {
 				return AccountRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state
@@ -758,6 +767,9 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 		if err != nil {
 			return StorageRangeResult{}, err
 		}
+
+		blockCtx := core.NewBlockContext(block.Header(), statedb)
+
 		// Recompute transactions up to the target index.
 		signer := types.MakeSigner(api.blockchain.Config(), block.Number())
 		for idx, tx := range block.Transactions() {
@@ -766,7 +778,7 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 			context := vm.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), blockCtx); err != nil {
 				return StorageRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state

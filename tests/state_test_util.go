@@ -184,9 +184,11 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(core.CalcGasLimit(block, statedb))
 	snapshot := statedb.Snapshot()
-	if _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
+
+	if _, err := core.ApplyMessage(evm, msg, gaspool, core.NewBlockContext(block.Header(), statedb)); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
+
 	// Commit block
 	statedb.Commit(config.IsEIP158(block.Number()))
 	// Add 0-value mining reward. This only makes a difference in the cases

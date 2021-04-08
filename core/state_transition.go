@@ -32,6 +32,95 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
+type BlockContext interface {
+	GetGasPriceMinimum(feeCurrency *common.Address) *big.Int
+	IsWhitelisted(feeCurrency *common.Address) bool
+	GetIntrinsicGasForAlternativeFeeCurrency() uint64
+}
+
+type withZeroGasPrice struct {
+	BlockContext
+}
+
+func (bc *withZeroGasPrice) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
+	return common.Big0
+}
+
+type defaultBlockContext struct {
+	goldGasPriceMinimum *big.Int
+	gasPriceMinimum     map[common.Address]*big.Int
+
+	whitelistedCurrencies     []common.Address
+	noCurrencies              bool
+	gasForAlternativeCurrency uint64
+}
+
+func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
+	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+
+	var noCurrencies bool
+	whitelistedCurrencies, err := currency.CurrencyWhitelist(header, state)
+	if err != nil {
+		whitelistedCurrencies = []common.Address{}
+		noCurrencies = true
+	}
+
+	goldGasPriceMinimum, err := gpm.GetGasPriceMinimum(nil, header, state)
+	_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
+	// TODO clean this up
+
+	gasPriceMinimum := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
+	for _, currency := range whitelistedCurrencies {
+		gpm, err := gpm.GetGasPriceMinimum(&currency, header, state)
+		_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
+		// TODO clean this up
+		gasPriceMinimum[currency] = gpm
+	}
+
+	return &defaultBlockContext{
+		whitelistedCurrencies:     whitelistedCurrencies,
+		noCurrencies:              noCurrencies,
+		gasForAlternativeCurrency: gasForAlternativeCurrency,
+		gasPriceMinimum:           gasPriceMinimum,
+		goldGasPriceMinimum:       goldGasPriceMinimum,
+	}
+}
+
+func (bc *defaultBlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
+	return bc.gasForAlternativeCurrency
+}
+
+func (bc *defaultBlockContext) IsWhitelisted(feeCurrency *common.Address) bool {
+	if bc.noCurrencies {
+		return true
+	}
+
+	if feeCurrency == nil {
+		return true
+	}
+
+	for _, addr := range bc.whitelistedCurrencies {
+		if addr == *feeCurrency {
+			return true
+		}
+	}
+	return false
+}
+
+func (bc *defaultBlockContext) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
+	if feeCurrency == nil {
+		return bc.goldGasPriceMinimum
+	}
+
+	gpm, ok := bc.gasPriceMinimum[*feeCurrency]
+	if !ok {
+		// TODO what to do here?
+		return common.Big0
+	}
+
+	return gpm
+}
+
 /*
 The State Transitioning Model
 
@@ -50,16 +139,16 @@ The state transitioning model does all the necessary work to work out a valid ne
 6) Derive new state root
 */
 type StateTransition struct {
-	gp              *GasPool
-	msg             vm.Message
-	gas             uint64
-	gasPrice        *big.Int
-	initialGas      uint64
-	value           *big.Int
-	data            []byte
-	state           vm.StateDB
-	evm             *vm.EVM
-	gasPriceMinimum *big.Int
+	gp         *GasPool
+	msg        vm.Message
+	gas        uint64
+	gasPrice   *big.Int
+	initialGas uint64
+	value      *big.Int
+	data       []byte
+	state      vm.StateDB
+	evm        *vm.EVM
+	blockCtx   BlockContext
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -98,7 +187,7 @@ func (result *ExecutionResult) Revert() []byte {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address, isEIP2028 bool) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation bool, feeCurrency *common.Address, gasForAlternativeCurrency uint64, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation {
@@ -146,30 +235,28 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if feeCurrency != nil {
-		addition := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
-		if (math.MaxUint64 - gas) < addition {
+		if (math.MaxUint64 - gas) < gasForAlternativeCurrency {
 			log.Debug("IntrinsicGas", "gas uint overflow")
 			return 0, ErrGasUintOverflow
 		}
-		gas += addition
+		gas += gasForAlternativeCurrency
 	}
 
 	return gas, nil
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransition {
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), evm.GetHeader(), evm.GetStateDB())
+func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool, blockCtx BlockContext) *StateTransition {
 
 	return &StateTransition{
-		gp:              gp,
-		evm:             evm,
-		msg:             msg,
-		gasPrice:        msg.GasPrice(),
-		value:           msg.Value(),
-		data:            msg.Data(),
-		state:           evm.StateDB,
-		gasPriceMinimum: gasPriceMinimum,
+		gp:       gp,
+		evm:      evm,
+		msg:      msg,
+		gasPrice: msg.GasPrice(),
+		value:    msg.Value(),
+		data:     msg.Data(),
+		state:    evm.StateDB,
+		blockCtx: blockCtx,
 	}
 }
 
@@ -180,9 +267,9 @@ func NewStateTransition(evm *vm.EVM, msg vm.Message, gp *GasPool) *StateTransiti
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
+func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool, blockCtx BlockContext) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransition(evm, msg, gp).TransitionDb()
+	return NewStateTransition(evm, msg, gp, blockCtx).TransitionDb()
 }
 
 // ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
@@ -191,8 +278,9 @@ func ApplyMessage(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, e
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
 func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg vm.Message, gp *GasPool) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp)
-	st.gasPriceMinimum = common.Big0
+
+	blockCtx := &withZeroGasPrice{NewBlockContext(evm.Header, evm.StateDB)}
+	st := NewStateTransition(evm, msg, gp, blockCtx)
 	return st.TransitionDb()
 }
 
@@ -206,11 +294,6 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
-		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
-		return ErrNonWhitelistedFeeCurrency
-	}
-
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
@@ -323,9 +406,16 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
+	// Make sure this transaction's fee currency is whitelisted
+	if !st.blockCtx.IsWhitelisted(st.msg.FeeCurrency()) {
+		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
+		return ErrNonWhitelistedFeeCurrency
+	}
+
 	// Make sure this transaction's gas price is valid.
-	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
-		log.Error("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+	gpm := st.blockCtx.GetGasPriceMinimum(st.msg.FeeCurrency())
+	if st.gasPrice.Cmp(gpm) < 0 {
+		log.Error("Tx gas price is less than minimum", "minimum", gpm, "price", st.gasPrice)
 		return ErrGasPriceDoesNotExceedMinimum
 	}
 
@@ -352,7 +442,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 0. If the message is from an eth-compatible transaction, that we support those
 	//    and that none of the non-eth-compatible fields are present
 	// 1. the nonce of the message caller is correct
-	// 2. the gas price meets the minimum gas price
+	// 2. the fee currency is whitelisted & gas price meets the minimum gas price
 	// 3. caller has enough balance (in the right currency) to cover transaction fee
 	// 4. the amount of gas required is available in the block
 	// 5. the purchased gas is enough to cover intrinsic usage
@@ -377,7 +467,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
-	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.GetHeader(), st.state, msg.FeeCurrency(), istanbul)
+	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), st.blockCtx.GetIntrinsicGasForAlternativeFeeCurrency(), istanbul)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +533,8 @@ func (st *StateTransition) distributeTxFees() error {
 	from := st.msg.From()
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
-	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
+	gpm := st.blockCtx.GetGasPriceMinimum(st.msg.FeeCurrency())
+	baseTxFee := new(big.Int).Mul(gasUsed, gpm)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 	feeCurrency := st.msg.FeeCurrency()
 

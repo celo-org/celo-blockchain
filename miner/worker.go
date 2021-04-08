@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contract_comm/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -670,10 +669,10 @@ func (w *worker) updateSnapshot() {
 	w.snapshotState = w.current.state.Copy()
 }
 
-func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
+func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address, blockCtx core.BlockContext) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), blockCtx)
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -695,6 +694,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 	}
 
 	var coalescedLogs []*types.Log
+
+	blockCtx := core.NewBlockContext(w.current.header, w.current.state)
 
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
@@ -731,9 +732,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
 		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
 		// nonce that is non sequential to the last mined txn for the account.
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.FeeCurrency(), w.current.header, w.current.state)
-		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
+		if tx.GasPrice().Cmp(blockCtx.GetGasPriceMinimum(tx.FeeCurrency())) == -1 {
+			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", blockCtx.GetGasPriceMinimum(tx.FeeCurrency()))
 			break
 		}
 		// Error may be ignored here. The error has already been checked
@@ -752,7 +752,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		// Start executing the transaction
 		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
 
-		logs, err := w.commitTransaction(tx, txFeeRecipient)
+		logs, err := w.commitTransaction(tx, txFeeRecipient, blockCtx)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
