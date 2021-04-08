@@ -598,8 +598,11 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 				request, ok := msgEmit[1].(map[string]interface{})
 				if !ok {
 					log.Warn("Invalid stats history request", "msg", msgEmit[1])
-					s.histCh <- nil
-					continue // Ethstats sometime sends invalid history requests, ignore those
+					select {
+					case s.histCh <- nil: // Treat it as an no indexes request
+					default:
+					}
+					continue
 				}
 				list, ok := request["list"].([]interface{})
 				if !ok {
