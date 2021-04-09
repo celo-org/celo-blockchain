@@ -30,8 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -259,9 +257,10 @@ type TxPool struct {
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	donut    bool // Fork indicator for the Donut fork.
 
-	currentState  *state.StateDB // Current state in the blockchain head
-	pendingNonces *txNoncer      // Pending state tracking virtual nonces
-	currentMaxGas uint64         // Current gas limit for transaction caps
+	currentState    *state.StateDB // Current state in the blockchain head
+	pendingNonces   *txNoncer      // Pending state tracking virtual nonces
+	currentMaxGas   uint64         // Current gas limit for transaction caps
+	currentBlockCtx BlockContext   // Current block context
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
@@ -623,7 +622,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Ensure the fee currency is native or whitelisted.
-	if tx.FeeCurrency() != nil && !currency.IsWhitelisted(*tx.FeeCurrency(), nil, nil) {
+	if !pool.currentBlockCtx.IsWhitelisted(tx.FeeCurrency()) {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
@@ -642,9 +641,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return err
 	}
 
-	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(pool.chain.CurrentBlock().Header(), pool.currentState)
-
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), pool.currentBlockCtx.GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -654,11 +651,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrIntrinsicGas
 	}
 
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
-	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-		log.Debug("unable to fetch gas price minimum", "err", err)
-		return err
-	}
+	gasPriceMinimum := pool.currentBlockCtx.GetGasPriceMinimum(tx.FeeCurrency())
+	// gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
+	// if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
+	// 	log.Debug("unable to fetch gas price minimum", "err", err)
+	// 	return err
+	// }
 
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
@@ -1268,6 +1266,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
 	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
+	pool.currentBlockCtx = NewBlockContext(newHead, statedb)
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
@@ -1290,15 +1289,6 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
-	// build gas price minimums
-	gasPriceMinimums := make(map[common.Address]*big.Int)
-	allCurrencies, _ := currency.CurrencyWhitelist(nil, nil)
-	for _, currency := range allCurrencies {
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(&currency, nil, nil)
-		gasPriceMinimums[currency] = gasPriceMinimum
-	}
-	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
-	gasPriceMinimumGauge.Update(nativeGPM.Int64())
 
 	// Iterate over all accounts and promote any executable transactions
 	for _, addr := range accounts {
@@ -1321,7 +1311,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), nativeGPM, balances, gasPriceMinimums, pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), balances, pool.currentBlockCtx, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
@@ -1502,15 +1492,6 @@ func (pool *TxPool) truncateQueue() {
 // executable/pending queue and any subsequent transactions that become unexecutable
 // are moved back into the future queue.
 func (pool *TxPool) demoteUnexecutables() {
-	// build gas price minimums
-	gasPriceMinimums := make(map[common.Address]*big.Int)
-	allCurrencies, _ := currency.CurrencyWhitelist(nil, nil)
-	for _, currency := range allCurrencies {
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(&currency, nil, nil)
-		gasPriceMinimums[currency] = gasPriceMinimum
-	}
-	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
-
 	// Iterate over all accounts and demote any non-executable transactions
 	for addr, list := range pool.pending {
 		nonce := pool.currentState.GetNonce(addr)
@@ -1530,7 +1511,7 @@ func (pool *TxPool) demoteUnexecutables() {
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), nativeGPM, balances, gasPriceMinimums, pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), balances, pool.currentBlockCtx, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
