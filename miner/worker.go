@@ -728,6 +728,15 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		if tx == nil {
 			break
 		}
+		// Short-circuit if the transaction requires more gas than we have in the pool.
+		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
+		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
+		// anyway due to the block not having enough gas left.
+		if w.current.gasPool.Gas() < tx.Gas() {
+			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", w.current.gasPool.Gas(), "txgas", tx.Gas())
+			txs.Pop()
+			continue
+		}
 		// Check for valid fee currency and that the tx exceeds the gasPriceMinimum
 		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
 		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a

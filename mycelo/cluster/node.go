@@ -164,7 +164,7 @@ func (n *Node) Run(ctx context.Context) error {
 		"--rpc",
 		"--rpcaddr", "127.0.0.1",
 		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
-		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul",
+		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul,txpool",
 		// "--nodiscover", "--nousb ",
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
