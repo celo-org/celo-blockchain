@@ -1320,7 +1320,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		gasPriceMinimums[currency] = gasPriceMinimum
 	}
 	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
-	gasPriceMinimumGauge.Update(int64(nativeGPM.Int64()))
+	gasPriceMinimumGauge.Update(nativeGPM.Int64())
 
 	// Iterate over all accounts and promote any executable transactions
 	for _, addr := range accounts {
