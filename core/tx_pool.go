@@ -31,9 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
 	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	"github.com/celo-org/celo-blockchain/contract_comm/freezer"
 	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
-	"github.com/celo-org/celo-blockchain/contract_comm/transfer_whitelist"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -659,29 +657,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
 		return ErrGasPriceDoesNotExceedMinimum
-	}
-
-	// Ensure gold transfers are whitelisted if transfers are frozen.
-	if tx.Value().Sign() > 0 {
-		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
-			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
-		} else if isFrozen {
-			log.Info("Transfers are frozen")
-			if tx.To() == nil {
-				if !transfer_whitelist.IsWhitelisted(from, from, nil, nil) {
-					log.Debug("Attempt to transfer to new contract from non-whitelisted address", "hash", tx.Hash(), "from", from)
-					return ErrTransfersFrozen
-				}
-				log.Info("New contract transfer is whitelisted", "hash", tx.Hash(), "from", from)
-			} else {
-				to := *tx.To()
-				if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-					log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-					return ErrTransfersFrozen
-				}
-				log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
-			}
-		}
 	}
 
 	return nil
