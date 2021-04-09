@@ -123,6 +123,9 @@ var (
 	queuedGauge  = metrics.NewRegisteredGauge("txpool/queued", nil)
 	localGauge   = metrics.NewRegisteredGauge("txpool/local", nil)
 	slotsGauge   = metrics.NewRegisteredGauge("txpool/slots", nil)
+
+	// Celo specific metrics
+	gasPriceMinimumGauge = metrics.NewRegisteredGauge("txpool/gaspriceminimum", nil)
 )
 
 // TxStatus is the current status of a transaction as seen by the pool.
@@ -1317,6 +1320,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		gasPriceMinimums[currency] = gasPriceMinimum
 	}
 	nativeGPM, _ := gpm.GetGasPriceMinimum(nil, nil, nil)
+	gasPriceMinimumGauge.Update(nativeGPM.Int64())
 
 	// Iterate over all accounts and promote any executable transactions
 	for _, addr := range accounts {
