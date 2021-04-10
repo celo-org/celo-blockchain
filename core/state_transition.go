@@ -130,7 +130,7 @@ func (result *ExecutionResult) Revert() []byte {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address, isEIP2028 bool) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation bool, feeCurrency *common.Address, gasForAlternativeCurrency uint64, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation {
@@ -178,12 +178,11 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if feeCurrency != nil {
-		addition := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
-		if (math.MaxUint64 - gas) < addition {
+		if (math.MaxUint64 - gas) < gasForAlternativeCurrency {
 			log.Debug("IntrinsicGas", "gas uint overflow")
 			return 0, ErrGasUintOverflow
 		}
-		gas += addition
+		gas += gasForAlternativeCurrency
 	}
 
 	return gas, nil
@@ -409,7 +408,15 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
+<<<<<<< HEAD
 	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.Header, st.state, msg.FeeCurrency(), istanbul)
+=======
+	gasForAlternativeCurrency := uint64(0)
+	if msg.FeeCurrency() != nil {
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.GetHeader(), st.state)
+	}
+	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
+>>>>>>> 2ac899bcb (Adds BlockContext type)
 	if err != nil {
 		return nil, err
 	}
