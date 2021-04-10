@@ -237,7 +237,7 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB)) {
+	if !currency.IsWhitelisted(st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -408,15 +408,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
-<<<<<<< HEAD
-	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.Header, st.state, msg.FeeCurrency(), istanbul)
-=======
 	gasForAlternativeCurrency := uint64(0)
 	if msg.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.GetHeader(), st.state)
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.Header, st.state)
 	}
 	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
->>>>>>> 2ac899bcb (Adds BlockContext type)
 	if err != nil {
 		return nil, err
 	}

@@ -103,8 +103,10 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
+	currencyManager := currency.NewManager(nil, nil)
+
 	// Validator rewards were paid in cUSD, convert that amount to cGLD and add it to the Reserve
-	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, &stableTokenAddress, nil)
+	totalValidatorRewardsConvertedToGold, err := currencyManager.ToGold(totalValidatorRewards, &stableTokenAddress)
 	if err != nil {
 		return err
 	}
