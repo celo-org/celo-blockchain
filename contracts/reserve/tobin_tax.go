@@ -17,11 +17,11 @@ var (
 )
 
 type Ratio struct {
-	Numerator, Denominator *big.Int
+	numerator, denominator *big.Int
 }
 
 func (r *Ratio) Apply(value *big.Int) *big.Int {
-	return new(big.Int).Div(new(big.Int).Mul(r.Numerator, value), r.Denominator)
+	return new(big.Int).Div(new(big.Int).Mul(r.numerator, value), r.denominator)
 }
 
 func TobinTax(evm *vm.EVM, sender common.Address) (tax Ratio, reserveAddress common.Address, err error) {
