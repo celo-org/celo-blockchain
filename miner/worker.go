@@ -321,8 +321,12 @@ func (w *worker) close() {
 	close(w.exitCh)
 }
 
-func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return currency.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+	currencyComparator := currency.NewComparator()
+
+	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+		return currencyComparator.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	}
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -482,7 +486,7 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
+				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.createTxCmp())
 				tcount := w.current.tcount
 				w.commitTransactions(txset, txFeeRecipient, nil)
 				// Only update the snapshot if any new transactons were added
@@ -723,6 +727,15 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		if tx == nil {
 			break
 		}
+		// Short-circuit if the transaction requires more gas than we have in the pool.
+		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
+		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
+		// anyway due to the block not having enough gas left.
+		if w.current.gasPool.Gas() < tx.Gas() {
+			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", w.current.gasPool.Gas(), "txgas", tx.Gas())
+			txs.Pop()
+			continue
+		}
 		// Check for valid fee currency and that the tx exceeds the gasPriceMinimum
 		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
 		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
@@ -955,14 +968,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			localTxs[account] = txs
 		}
 	}
+
+	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}

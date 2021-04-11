@@ -91,6 +91,11 @@ var loadTestMaxPendingFlag = cli.UintFlag{
 	Value: 200,
 }
 
+var loadTestSkipGasEstimationFlag = cli.BoolFlag{
+	Name:  "skipgasestimation",
+	Usage: "Skips estimating gas if true and instead hardcodes a value for the cUSD transfer",
+}
+
 var initValidatorsCommand = cli.Command{
 	Name:      "validator-init",
 	Usage:     "Setup all validators nodes",
@@ -132,7 +137,7 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag},
+	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag, loadTestSkipGasEstimationFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -282,5 +287,6 @@ func loadBot(ctx *cli.Context) error {
 		Clients:               clients,
 		Verbose:               verbose,
 		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
+		SkipGasEstimation:     ctx.GlobalBool(loadTestSkipGasEstimationFlag.Name),
 	})
 }
