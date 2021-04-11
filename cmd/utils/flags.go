@@ -1767,6 +1767,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
+		if !ctx.GlobalIsSet(MinerValidatorFlag.Name) {
+			cfg.Miner.Validator = developer.Address
+			cfg.TxFeeRecipient = developer.Address
+		}
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
 			setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.MainnetGenesisHash])

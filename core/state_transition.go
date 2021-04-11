@@ -206,6 +206,16 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
+	// Simulated call
+	if st.msg.From() == (common.Address{}) {
+		if err := st.gp.SubGas(st.msg.Gas()); err != nil {
+			return err
+		}
+		st.initialGas = st.msg.Gas()
+		st.gas += st.msg.Gas()
+		return nil
+	}
+
 	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.GetHeader(), st.evm.GetStateDB())) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
