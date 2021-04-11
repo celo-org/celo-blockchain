@@ -127,10 +127,10 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		tax, taxCollector, err := reserve.ComputeTobinTax(evm, sender, amount)
+		tax, taxRecipient, err := reserve.ComputeTobinTax(evm, sender, amount)
 		if err == nil {
 			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxCollector, tax)
+			Transfer(evm.StateDB, sender, taxRecipient, tax)
 			return
 		} else {
 			log.Error("Failed to get tobin tax", "error", err)
