@@ -43,7 +43,7 @@ func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, 
 	defer func() { evm.DontMeterGas = false }()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+	if evm.StateDB.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
