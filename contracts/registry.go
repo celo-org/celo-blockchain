@@ -32,32 +32,35 @@ const (
                              }]`
 )
 
-var registry *Contract
+var getAddressForFuncABI abi.ABI
 
 func init() {
-	getAddressForFuncABI, err := abi.JSON(strings.NewReader(getAddressForABI))
+	var err error
+	getAddressForFuncABI, err = abi.JSON(strings.NewReader(getAddressForABI))
 	if err != nil {
 		panic("can't parse registry abi " + err.Error())
 	}
-
-	registry = NewContract(&getAddressForFuncABI, params.RegistrySmartContractAddress, SystemCaller)
 }
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 
 // GetRegisteredAddress returns the address on the registry for a given id
-func GetRegisteredAddress(backend Backend, registryId common.Hash) (common.Address, error) {
-	backend.StopGasMetering()
-	defer backend.StartGasMetering()
+func GetRegisteredAddress(caller vm.EVMCaller, registryId common.Hash) (common.Address, error) {
+	caller.StopGasMetering()
+	defer caller.StartGasMetering()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if backend.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+	if caller.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
-	_, err := registry.Query(QueryOpts{MaxGas: params.MaxGasForGetAddressFor, Backend: backend}, &contractAddress, "getAddressFor", registryId)
+	_, err := QueryCallFromVM(
+		params.RegistrySmartContractAddress,
+		params.MaxGasForGetAddressFor,
+		NewMessage(&getAddressForFuncABI, "getAddressFor", registryId),
+	).Run(caller, &contractAddress)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?

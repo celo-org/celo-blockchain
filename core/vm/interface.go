@@ -105,7 +105,21 @@ type ChainContext interface {
 	CurrentHeader() *types.Header
 
 	State() (*state.StateDB, error)
+	// StateAt(root common.Hash) (*state.StateDB, error)
 
 	// Config returns the blockchain's chain configuration
 	Config() *params.ChainConfig
+}
+
+type EVMCaller interface {
+	Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
+	StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+
+	StopGasMetering()
+	StartGasMetering()
+	GetStateDB() StateDB
+}
+
+type EVMCallerFactory interface {
+	NewEVMCaller(header *types.Header, state StateDB) (EVMCaller, error)
 }

@@ -30,7 +30,7 @@ func TobinTax(evm *vm.EVM, sender common.Address) (tax Ratio, reserveAddress com
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, _, err := evm.Call(vm.AccountRef(contracts.SystemCaller), reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, _, err := evm.Call(vm.AccountRef(contracts.VMAddress), reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}
