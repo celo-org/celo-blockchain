@@ -771,6 +771,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		case core.ErrGasPriceDoesNotExceedMinimum:
 			// We are below the GPM, so we can stop (the rest of the transactions will either have
 			// even lower gas price or won't be mineable yet due to their nonce)
+			log.Trace("Skipping remaining transaction below the gas price minimum")
 			break
 
 		case nil:
