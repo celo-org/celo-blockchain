@@ -384,10 +384,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
-		log.Error("Transaction failed provide intrinsic gas", "err", err,
-			"gas required", gas,
-			"gas provided", st.msg.Gas(),
-			"fee currency", st.msg.FeeCurrency())
 		return nil, ErrIntrinsicGas
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
