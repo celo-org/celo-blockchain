@@ -135,11 +135,11 @@ func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGener
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 
-	if n := rand.Intn(2); n == 0 {
-		transactor.FeeCurrency = &stableTokenAddress
+	if n := rand.Intn(2); cfg.MixFeeCurrency && n == 0 {
+		transactor.FeeCurrency = nil
 
 	} else {
-		transactor.FeeCurrency = nil
+		transactor.FeeCurrency = &stableTokenAddress
 	}
 	if cfg.SkipGasEstimation {
 		transactor.GasLimit = GasForTransferWithComment
