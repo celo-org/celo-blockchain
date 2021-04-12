@@ -28,6 +28,17 @@ type LoadGenerator struct {
 	PendingMu  sync.Mutex
 }
 
+// TxConfig contains the options for a transaction
+type txConfig struct {
+	Acc               env.Account
+	Nonce             uint64
+	Recipient         common.Address
+	Value             *big.Int
+	Verbose           bool
+	SkipGasEstimation bool
+	MixFeeCurrency    bool
+}
+
 // Config represent the load bot run configuration
 type Config struct {
 	Accounts              []env.Account
@@ -37,6 +48,7 @@ type Config struct {
 	Verbose               bool
 	MaxPending            uint64
 	SkipGasEstimation     bool
+	MixFeeCurrency        bool
 }
 
 // Start will start loads bots
@@ -88,7 +100,16 @@ func Start(ctx context.Context, cfg *Config) error {
 			clientIdx++
 			client := cfg.Clients[clientIdx%len(cfg.Clients)]
 			group.Go(func() error {
-				return runTransaction(ctx, lg, sender, nonce, cfg.Verbose, cfg.SkipGasEstimation, client, recipient, cfg.Amount)
+				cfg := txConfig{
+					Acc:               sender,
+					Nonce:             nonce,
+					Recipient:         recipient,
+					Value:             cfg.Amount,
+					Verbose:           cfg.Verbose,
+					SkipGasEstimation: cfg.SkipGasEstimation,
+					MixFeeCurrency:    cfg.MixFeeCurrency,
+				}
+				return runTransaction(ctx, client, lg, cfg)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -96,7 +117,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, nonce uint64, verbose, skipEstimation bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
+func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGenerator, cfg txConfig) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -108,12 +129,11 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, non
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
-	transactor := bind.NewKeyedTransactor(acc.PrivateKey)
+	transactor := bind.NewKeyedTransactor(cfg.Acc.PrivateKey)
 	transactor.Context = ctx
-	transactor.Nonce = new(big.Int).SetUint64(nonce)
+	transactor.Nonce = new(big.Int).SetUint64(cfg.Nonce)
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
-	transactor.FeeCurrency = &stableTokenAddress
 
 	if n := rand.Intn(2); n == 0 {
 		transactor.FeeCurrency = &stableTokenAddress
@@ -121,19 +141,19 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, non
 	} else {
 		transactor.FeeCurrency = nil
 	}
-	if skipEstimation {
+	if cfg.SkipGasEstimation {
 		transactor.GasLimit = GasForTransferWithComment
 	}
 
-	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
+	tx, err := stableToken.TxObj(transactor, "transferWithComment", cfg.Recipient, cfg.Value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
 		if err != context.Canceled {
 			fmt.Printf("Error sending transaction: %v\n", err)
 		}
 		return fmt.Errorf("Error sending transaction: %w", err)
 	}
-	if verbose {
-		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", acc.Address.Hex(), recipient.Hex(), value.String(), tx.Transaction.Hash().Hex())
+	if cfg.Verbose {
+		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", cfg.Acc.Address.Hex(), cfg.Recipient.Hex(), cfg.Value.String(), tx.Transaction.Hash().Hex())
 		printJSON(tx)
 	}
 
