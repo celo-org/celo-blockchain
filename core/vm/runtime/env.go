@@ -35,7 +35,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
 
-		GetRegisteredAddress: context.GetRegisteredAddress,
+		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

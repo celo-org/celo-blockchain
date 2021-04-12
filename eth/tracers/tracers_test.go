@@ -111,7 +111,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		BlockNumber:          new(big.Int).SetUint64(8000000),
 		Time:                 new(big.Int).SetUint64(5),
 		GasPrice:             big.NewInt(1),
-		GetRegisteredAddress: context.GetRegisteredAddress,
+		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 

@@ -209,6 +209,10 @@ func (evm *EVM) Interpreter() Interpreter {
 	return evm.interpreter
 }
 
+func (evm *EVM) GetStateDB() StateDB {
+	return evm.StateDB
+}
+
 func (evm *EVM) GetDebug() bool {
 	return evm.vmConfig.Debug
 }
