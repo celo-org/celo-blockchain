@@ -1276,6 +1276,9 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.currentCtx.BlockContext = NewBlockContext(newHead, statedb)
 	pool.currentCtx.CurrencyManager = currency.NewManager(newHead, statedb)
 
+	// update gasPriceMinimum metric
+	gasPriceMinimumGauge.Update(pool.currentCtx.GetGasPriceMinimum(nil).Int64())
+
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 	senderCacher.recover(pool.signer, reinject)
