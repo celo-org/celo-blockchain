@@ -539,6 +539,10 @@ func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 // sendEnodeCerts will send the appropriate enode certificate to the proxies.
 func (pv *proxiedValidatorEngine) sendEnodeCerts(ps *proxySet, enodeCerts map[enode.ID]*istanbul.EnodeCertMsg) {
 	logger := pv.logger.New("func", "sendEnodeCerts")
+	if !pv.backend.IsValidating() {
+		logger.Trace("Skipping sending EnodeCerts to proxies b/c not validating")
+		return
+	}
 
 	for proxyID, proxy := range ps.proxiesByID {
 		if proxy.peer != nil && enodeCerts[proxyID] != nil {
