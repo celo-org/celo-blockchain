@@ -67,6 +67,44 @@ const (
 
 var errServerStopped = errors.New("server stopped")
 
+// CFG is required to be defined in order to prevent a stack overflow from
+// ocurring when calling Unmarshal/MarshalTOML. If we did not define CFG
+// Config's Unmarshal/MarshalTOML would be called when marshaling
+// MarshalableConfig.
+type CFG Config
+
+// MarshalableConfig allows us to handle marshaling of Config.NAT which is an
+// instance of the interface nat.Interface and therefore cannot be unmarshalled
+// without extra work.
+type MarshalableConfig struct {
+	CFG
+	NAT string
+}
+
+func (c Config) MarshalTOML() (interface{}, error) {
+	var n string
+	var err error
+	if c.NAT != nil {
+		n, err = nat.MarshalNat(c.NAT)
+		if err != nil {
+			return nil, err
+		}
+	}
+	c.NAT = nil
+	mc := &MarshalableConfig{CFG(c), n}
+	return mc, nil
+}
+
+func (c Config) UnmarshalTOML(fn func(interface{}) error) error {
+	mc := &MarshalableConfig{CFG: CFG(c)}
+	err := fn(mc)
+	if err != nil {
+		return err
+	}
+	c.NAT, err = nat.UnmarshalNat(mc.NAT)
+	return err
+}
+
 // Config holds Server options.
 type Config struct {
 	// This field must be set to a valid secp256k1 private key.
