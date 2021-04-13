@@ -394,7 +394,7 @@ func (s *Service) loop(ctx context.Context) {
 								}
 							} else {
 								// As both discarded messages, if they were required should eventually close the connection
-								// we just warn the user to avoid possible unnecesary disconnections (for example, from
+								// we just warn the user to avoid possible unnecessary disconnections (for example, from
 								// another backup validator)
 								log.Warn("Signed message discarded", "Action", signedMessage.Action)
 							}
