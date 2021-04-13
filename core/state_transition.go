@@ -357,7 +357,7 @@ func (st *StateTransition) preCheck() error {
 
 	// Make sure this transaction's gas price is valid.
 	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
-		log.Error("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+		log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
 		return ErrGasPriceDoesNotExceedMinimum
 	}
 
