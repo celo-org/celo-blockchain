@@ -182,6 +182,15 @@ func TestCurrencyManager(t *testing.T) {
 
 }
 
+// MustNewExchangeRate creates an exchange rate, panic on error
+func MustNewExchangeRate(numerator *big.Int, denominator *big.Int) *ExchangeRate {
+	rate, err := NewExchangeRate(numerator, denominator)
+	if err != nil {
+		panic(err)
+	}
+	return rate
+}
+
 func EqualBigInt(n int64) OmegaMatcher {
 	return WithTransform(func(b *big.Int) int64 { return b.Int64() }, Equal(n))
 }
@@ -198,7 +207,7 @@ func TestExchangeRate(t *testing.T) {
 		g.Expect(err).Should((HaveOccurred()))
 	})
 
-	t.Run("can't create with denomniator <= 0", func(t *testing.T) {
+	t.Run("can't create with denominator <= 0", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		_, err := NewExchangeRate(common.Big1, common.Big0)

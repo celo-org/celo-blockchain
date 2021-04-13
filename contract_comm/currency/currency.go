@@ -110,15 +110,6 @@ type ExchangeRate struct {
 // which results in a 1:1 conversion
 func NoopExchangeRate() *ExchangeRate { return nil }
 
-// MustNewExchangeRate creates an exchange rate, panic on error
-func MustNewExchangeRate(numerator *big.Int, denominator *big.Int) *ExchangeRate {
-	rate, err := NewExchangeRate(numerator, denominator)
-	if err != nil {
-		panic(err)
-	}
-	return rate
-}
-
 // NewExchangeRate creates an exchange rate.
 // Requires numerator >=0 && denominator >= 0
 func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, error) {
@@ -152,7 +143,7 @@ func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
 }
 
 func (er *ExchangeRate) CmpValues(amount *big.Int, anotherTokenAmount *big.Int, anotherTokenRate *ExchangeRate) int {
-	// if both rates are noop rate (cGLD rate), compare values
+	// if both rates are noop rate (CELO rate), compare values
 	if er == nil && anotherTokenRate == nil {
 		return amount.Cmp(anotherTokenAmount)
 	}

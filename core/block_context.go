@@ -12,7 +12,7 @@ import (
 )
 
 // BlockContext represents contextual information about the blockchain state
-// for a give block
+// for a given block
 type BlockContext interface {
 	// GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
 	GetGoldGasPriceMinimum() *big.Int
@@ -28,8 +28,8 @@ type BlockContext interface {
 
 // defaultBlockContext is the default implementation of BlockContext
 type defaultBlockContext struct {
-	goldGasPriceMinimum *big.Int
-	nonGoldCurrencies   map[common.Address]*big.Int
+	goldGasPriceMinimum     *big.Int
+	nonGoldGasPriceMinimums map[common.Address]*big.Int
 
 	gasForAlternativeCurrency uint64
 }
@@ -48,18 +48,18 @@ func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 	goldGasPriceMinimum, err := gpm.GetGasPriceMinimum(nil, header, state)
 	_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
 
-	nonGoldCurrencies := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
+	nonGoldGasPriceMinimums := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
 	for _, currency := range whitelistedCurrencies {
 		gpm, err := gpm.GetGasPriceMinimum(&currency, header, state)
 		if err != nil {
 			// we ignore currencies from which we can't get GasPriceMinimum
 			continue
 		}
-		nonGoldCurrencies[currency] = gpm
+		nonGoldGasPriceMinimums[currency] = gpm
 	}
 
 	return &defaultBlockContext{
-		nonGoldCurrencies:         nonGoldCurrencies,
+		nonGoldGasPriceMinimums:   nonGoldGasPriceMinimums,
 		gasForAlternativeCurrency: gasForAlternativeCurrency,
 		goldGasPriceMinimum:       goldGasPriceMinimum,
 	}
@@ -82,6 +82,6 @@ func (bc *defaultBlockContext) GetGasPriceMinimum(feeCurrency *common.Address) (
 	if feeCurrency == nil {
 		return bc.goldGasPriceMinimum, true
 	}
-	gpm, ok := bc.nonGoldCurrencies[*feeCurrency]
+	gpm, ok := bc.nonGoldGasPriceMinimums[*feeCurrency]
 	return gpm, ok
 }
