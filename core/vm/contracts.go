@@ -599,7 +599,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 	if err != nil {
 		return nil, gas, err
 	}
-	celoGoldAddress, err := GetRegisteredAddressWithEvm(params.GoldTokenRegistryId, evm)
+	celoGoldAddress, err := evm.Context.GetRegisteredAddress(evm, params.GoldTokenRegistryId)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -613,7 +613,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 		return nil, gas, ErrInputLength
 	}
 
-	if caller != *celoGoldAddress {
+	if caller != celoGoldAddress {
 		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
 	}
 	from := common.BytesToAddress(input[0:32])
@@ -634,7 +634,7 @@ func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64
 			return nil, gas, ErrInsufficientBalance
 		}
 
-		gas, err = evm.TobinTransfer(evm.StateDB, from, to, gas, value)
+		evm.Context.Transfer(evm, from, to, value)
 	}
 
 	return input, gas, err

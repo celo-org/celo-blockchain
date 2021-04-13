@@ -20,7 +20,10 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -79,4 +82,30 @@ type CallContext interface {
 	DelegateCall(env *EVM, me ContractRef, addr common.Address, data []byte, gas *big.Int) ([]byte, error)
 	// Create a new contract
 	Create(env *EVM, me ContractRef, data []byte, gas, value *big.Int) ([]byte, common.Address, error)
+}
+
+// ChainContext supports retrieving chain data and consensus parameters
+// from the blockchain to be used during transaction processing.
+type ChainContext interface {
+	// Engine retrieves the blockchain's consensus engine.
+	Engine() consensus.Engine
+
+	// GetHeader returns the hash corresponding to the given hash and number.
+	GetHeader(common.Hash, uint64) *types.Header
+
+	// GetHeaderByNumber returns the hash corresponding number.
+	// FIXME: Use of this function, as implemented, in the EVM context produces undefined behavior
+	// in the pressence of forks. A new method needs to be created to retrieve a header by number
+	// in the correct fork.
+	GetHeaderByNumber(uint64) *types.Header
+
+	// GetVMConfig returns the node's vm configuration
+	GetVMConfig() *Config
+
+	CurrentHeader() *types.Header
+
+	State() (*state.StateDB, error)
+
+	// Config returns the blockchain's chain configuration
+	Config() *params.ChainConfig
 }

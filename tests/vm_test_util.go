@@ -25,10 +25,12 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -127,18 +129,19 @@ func (t *VMTest) newEVM(statedb *state.StateDB, vmconfig vm.Config) *vm.EVM {
 			initialCall = false
 			return true
 		}
-		return vm.CanTransfer(db, address, amount)
+		return vmcontext.CanTransfer(db, address, amount)
 	}
-	transfer := func(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {}
+	transfer := func(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {}
 	context := vm.Context{
-		CanTransfer: canTransfer,
-		Transfer:    transfer,
-		GetHash:     vmTestBlockHash,
-		Origin:      t.json.Exec.Origin,
-		Coinbase:    t.json.Env.Coinbase,
-		BlockNumber: new(big.Int).SetUint64(t.json.Env.Number),
-		Time:        new(big.Int).SetUint64(t.json.Env.Timestamp),
-		GasPrice:    t.json.Exec.GasPrice,
+		CanTransfer:          canTransfer,
+		Transfer:             transfer,
+		GetHash:              vmTestBlockHash,
+		Origin:               t.json.Exec.Origin,
+		Coinbase:             t.json.Env.Coinbase,
+		BlockNumber:          new(big.Int).SetUint64(t.json.Env.Number),
+		Time:                 new(big.Int).SetUint64(t.json.Env.Timestamp),
+		GasPrice:             t.json.Exec.GasPrice,
+		GetRegisteredAddress: contracts.GetRegisteredAddress,
 	}
 	vmconfig.NoRecursion = true
 	return vm.NewEVM(context, statedb, params.MainnetChainConfig, vmconfig)
