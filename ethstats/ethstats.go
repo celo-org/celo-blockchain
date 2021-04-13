@@ -433,7 +433,7 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
-			return errors.New("no less protocol found")
+			return errors.New("no LES protocol found")
 		}
 		lesInfo, ok := lesProtocol.(*les.NodeInfo)
 		if !ok {
