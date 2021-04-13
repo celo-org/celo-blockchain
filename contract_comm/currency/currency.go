@@ -106,9 +106,7 @@ type ExchangeRate struct {
 	denominator *big.Int
 }
 
-// NoopExchangeRate returns the noop rate
-// which results in a 1:1 conversion
-func NoopExchangeRate() *ExchangeRate { return nil }
+var NoopExchangeRate = ExchangeRate{common.Big1, common.Big1}
 
 // NewExchangeRate creates an exchange rate.
 // Requires numerator >=0 && denominator >= 0
@@ -124,21 +122,11 @@ func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, e
 
 // ToBase converts from token to base
 func (er *ExchangeRate) ToBase(tokenAmount *big.Int) *big.Int {
-	// check noop rate (cGLD rate)
-	if er == nil {
-		return new(big.Int).Set(tokenAmount)
-	}
-
 	return new(big.Int).Div(new(big.Int).Mul(tokenAmount, er.denominator), er.numerator)
 }
 
 // FromGold converts from base to token
 func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
-	// check noop rate (cGLD rate)
-	if er == nil {
-		return new(big.Int).Set(goldAmount)
-	}
-
 	return new(big.Int).Div(new(big.Int).Mul(goldAmount, er.numerator), er.denominator)
 }
 
@@ -157,19 +145,8 @@ func (er *ExchangeRate) CmpValues(amount *big.Int, anotherTokenAmount *big.Int, 
 	// amount * er.denominator / er.numerator < anotherTokenAmount * anotherTokenRate.denominator / anotherTokenRate.numerator
 	// It will transform that comparison to this, to remove having to deal with fractional values.
 	// amount * er.denominator * anotherTokenRate.numerator < anotherTokenAmount * anotherTokenRate.denominator * er.numerator
-
-	// when either er or anotherTokenRate are nil, we assume rate = 1/1 (as in cGLD)
-	var leftSide, rightSide *big.Int
-	if er == nil {
-		leftSide = new(big.Int).Mul(amount, anotherTokenRate.numerator)
-		rightSide = new(big.Int).Mul(anotherTokenAmount, anotherTokenRate.denominator)
-	} else if anotherTokenRate == nil {
-		leftSide = new(big.Int).Mul(amount, er.denominator)
-		rightSide = new(big.Int).Mul(anotherTokenAmount, er.numerator)
-	} else {
-		leftSide = new(big.Int).Mul(amount, new(big.Int).Mul(er.denominator, anotherTokenRate.numerator))
-		rightSide = new(big.Int).Mul(anotherTokenAmount, new(big.Int).Mul(anotherTokenRate.denominator, er.numerator))
-	}
+	leftSide := new(big.Int).Mul(amount, new(big.Int).Mul(er.denominator, anotherTokenRate.numerator))
+	rightSide := new(big.Int).Mul(anotherTokenAmount, new(big.Int).Mul(anotherTokenRate.denominator, er.numerator))
 
 	return leftSide.Cmp(rightSide)
 }
@@ -178,7 +155,7 @@ type CurrencyManager struct {
 	header *types.Header
 	state  vm.StateDB
 
-	exchangeRates    map[common.Address]*ExchangeRate                                        // map of exchange rates of the form (cGLD, token)
+	exchangeRates    map[common.Address]*ExchangeRate                                        // map of exchange rates of the form (CELO, token)
 	_getExchangeRate func(*common.Address, *types.Header, vm.StateDB) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
@@ -197,7 +174,7 @@ func newManager(_getExchangeRate func(*common.Address, *types.Header, vm.StateDB
 
 func (cc *CurrencyManager) GetExchangeRate(currency *common.Address) (*ExchangeRate, error) {
 	if currency == nil {
-		return NoopExchangeRate(), nil
+		return &NoopExchangeRate, nil
 	}
 
 	val, ok := cc.exchangeRates[*currency]
@@ -250,7 +227,7 @@ func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*b
 
 func GetExchangeRate(currencyAddress *common.Address, header *types.Header, state vm.StateDB) (*ExchangeRate, error) {
 	if currencyAddress == nil {
-		return NoopExchangeRate(), nil
+		return &NoopExchangeRate, nil
 	}
 
 	celoGoldAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, nil, nil)
@@ -261,7 +238,7 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 	if *currencyAddress == celoGoldAddress {
 		// This function shouldn't really be called with the token's address, but if it is the value
 		// is correct, so return nil as the error
-		return NoopExchangeRate(), nil
+		return &NoopExchangeRate, nil
 	} else if err != nil {
 		log.Error(err.Error())
 		return nil, err
@@ -272,10 +249,10 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
-		return NoopExchangeRate(), nil
+		return &NoopExchangeRate, nil
 	} else if err != nil {
 		log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
-		return NoopExchangeRate(), nil
+		return &NoopExchangeRate, nil
 	}
 
 	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
