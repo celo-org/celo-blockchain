@@ -130,6 +130,7 @@ func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
 	return new(big.Int).Div(new(big.Int).Mul(goldAmount, er.numerator), er.denominator)
 }
 
+// CmpValues compares two values with potentially different exchange rates
 func (er *ExchangeRate) CmpValues(amount *big.Int, anotherTokenAmount *big.Int, anotherTokenRate *ExchangeRate) int {
 	// if both rates are noop rate (CELO rate), compare values
 	if er == nil && anotherTokenRate == nil {
@@ -159,6 +160,7 @@ type CurrencyManager struct {
 	_getExchangeRate func(*common.Address, *types.Header, vm.StateDB) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
+// NewManager creates a new CurrencyManager
 func NewManager(header *types.Header, state vm.StateDB) *CurrencyManager {
 	return newManager(GetExchangeRate, header, state)
 }
@@ -192,7 +194,8 @@ func (cc *CurrencyManager) GetExchangeRate(currency *common.Address) (*ExchangeR
 	return val, nil
 }
 
-func (cc *CurrencyManager) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+// CmpValues compares values of potentially differeny currencies
+func (cc *CurrencyManager) CmpValues(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
 	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
 		return val1.Cmp(val2)
@@ -217,6 +220,7 @@ func (cc *CurrencyManager) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	return exchangeRate1.CmpValues(val1, val2, exchangeRate2)
 }
 
+// ToCelo converts an amount on a given currency to CELO token
 func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*big.Int, error) {
 	rate, err := cc.GetExchangeRate(currency)
 	if err != nil {
@@ -225,6 +229,7 @@ func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*b
 	return rate.ToBase(amount), nil
 }
 
+// GetExchangeRate retrieves the exchange rate from the blockchain state
 func GetExchangeRate(currencyAddress *common.Address, header *types.Header, state vm.StateDB) (*ExchangeRate, error) {
 	if currencyAddress == nil {
 		return &NoopExchangeRate, nil
