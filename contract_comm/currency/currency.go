@@ -240,7 +240,7 @@ func (cc *CurrencyManager) Cmp(val1 *big.Int, currency1 *common.Address, val2 *b
 	return exchangeRate1.CmpValues(val1, val2, exchangeRate2)
 }
 
-func (cc *CurrencyManager) ToGold(amount *big.Int, currency *common.Address) (*big.Int, error) {
+func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*big.Int, error) {
 	rate, err := cc.GetExchangeRate(currency)
 	if err != nil {
 		return nil, err

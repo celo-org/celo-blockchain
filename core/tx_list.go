@@ -278,14 +278,14 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			newPrice = tx.GasPrice()
 		} else {
 			if fc := old.FeeCurrency(); fc != nil {
-				if oldPrice, err = l.ctx.ToGold(old.GasPrice(), fc); err != nil {
+				if oldPrice, err = l.ctx.ToCelo(old.GasPrice(), fc); err != nil {
 					return false, nil
 				}
 			} else {
 				oldPrice = old.GasPrice()
 			}
 			if fc := tx.FeeCurrency(); fc != nil {
-				if newPrice, err = l.ctx.ToGold(tx.GasPrice(), fc); err != nil {
+				if newPrice, err = l.ctx.ToCelo(tx.GasPrice(), fc); err != nil {
 					return false, nil
 				}
 			} else {
