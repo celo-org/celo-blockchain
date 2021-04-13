@@ -91,7 +91,7 @@ func GetGasPriceSuggestion(currency *common.Address, header *types.Header, state
 }
 
 func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm.StateDB) (*big.Int, error) {
-	var currencyAddress *common.Address
+	var currencyAddress common.Address
 	var err error
 
 	if currency == nil {
@@ -107,7 +107,7 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 			return FallbackGasPriceMinimum, err
 		}
 	} else {
-		currencyAddress = currency
+		currencyAddress = *currency
 	}
 
 	var gasPriceMinimum *big.Int

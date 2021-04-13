@@ -1,4 +1,4 @@
-package vm
+package contracts
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -35,29 +36,31 @@ var getAddressForFuncABI, _ = abi.JSON(strings.NewReader(getAddressForABI))
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
-func GetRegisteredAddressWithEvm(registryId [32]byte, evm *EVM) (*common.Address, error) {
+
+// GetRegisteredAddress returns the address on the registry for a given id
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
 	evm.DontMeterGas = true
 	defer func() { evm.DontMeterGas = false }()
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if evm.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
-		return nil, errors.ErrRegistryContractNotDeployed
+	if evm.StateDB.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
-	_, err := evm.StaticCallFromSystem(params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
+	_, err := StaticCallFromSystem(evm, params.RegistrySmartContractAddress, getAddressForFuncABI, "getAddressFor", []interface{}{registryId}, &contractAddress, params.MaxGasForGetAddressFor)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
-	if err == abi.ErrEmptyArguments || err == ErrExecutionReverted {
-		return nil, errors.ErrRegistryContractNotDeployed
+	if err == abi.ErrEmptyArguments || err == vm.ErrExecutionReverted {
+		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
 	} else if err != nil {
-		return nil, err
+		return common.ZeroAddress, err
 	}
 
 	if contractAddress == common.ZeroAddress {
-		return nil, errors.ErrSmartContractNotDeployed
+		return common.ZeroAddress, errors.ErrSmartContractNotDeployed
 	}
 
-	return &contractAddress, nil
+	return contractAddress, nil
 }
