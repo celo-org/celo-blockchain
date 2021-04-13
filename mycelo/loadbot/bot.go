@@ -100,7 +100,7 @@ func Start(ctx context.Context, cfg *Config) error {
 			clientIdx++
 			client := cfg.Clients[clientIdx%len(cfg.Clients)]
 			group.Go(func() error {
-				cfg := txConfig{
+				txCfg := txConfig{
 					Acc:               sender,
 					Nonce:             nonce,
 					Recipient:         recipient,
@@ -109,7 +109,7 @@ func Start(ctx context.Context, cfg *Config) error {
 					SkipGasEstimation: cfg.SkipGasEstimation,
 					MixFeeCurrency:    cfg.MixFeeCurrency,
 				}
-				return runTransaction(ctx, client, lg, cfg)
+				return runTransaction(ctx, client, lg, txCfg)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -117,7 +117,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGenerator, cfg txConfig) error {
+func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGenerator, txCfg txConfig) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -129,31 +129,31 @@ func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGener
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, client)
 
-	transactor := bind.NewKeyedTransactor(cfg.Acc.PrivateKey)
+	transactor := bind.NewKeyedTransactor(txCfg.Acc.PrivateKey)
 	transactor.Context = ctx
-	transactor.Nonce = new(big.Int).SetUint64(cfg.Nonce)
+	transactor.Nonce = new(big.Int).SetUint64(txCfg.Nonce)
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 
-	if n := rand.Intn(2); cfg.MixFeeCurrency && n == 0 {
+	if n := rand.Intn(2); txCfg.MixFeeCurrency && n == 0 {
 		transactor.FeeCurrency = nil
 
 	} else {
 		transactor.FeeCurrency = &stableTokenAddress
 	}
-	if cfg.SkipGasEstimation {
+	if txCfg.SkipGasEstimation {
 		transactor.GasLimit = GasForTransferWithComment
 	}
 
-	tx, err := stableToken.TxObj(transactor, "transferWithComment", cfg.Recipient, cfg.Value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
+	tx, err := stableToken.TxObj(transactor, "transferWithComment", txCfg.Recipient, txCfg.Value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
 		if err != context.Canceled {
 			fmt.Printf("Error sending transaction: %v\n", err)
 		}
 		return fmt.Errorf("Error sending transaction: %w", err)
 	}
-	if cfg.Verbose {
-		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", cfg.Acc.Address.Hex(), cfg.Recipient.Hex(), cfg.Value.String(), tx.Transaction.Hash().Hex())
+	if txCfg.Verbose {
+		fmt.Printf("cusd transfer generated: from: %s to: %s amount: %s\ttxhash: %s\n", txCfg.Acc.Address.Hex(), txCfg.Recipient.Hex(), txCfg.Value.String(), tx.Transaction.Hash().Hex())
 		printJSON(tx)
 	}
 
