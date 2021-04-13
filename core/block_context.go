@@ -11,83 +11,77 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
+// BlockContext represents contextual information about the blockchain state
+// for a give block
 type BlockContext interface {
-	GetGasPriceMinimum(feeCurrency *common.Address) *big.Int
-	IsWhitelisted(feeCurrency *common.Address) bool
+	// GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
+	GetGoldGasPriceMinimum() *big.Int
+
+	// GetGasPriceMinimum retrieves the gas price minimum for any currency
+	// Also indicates if the currency is not whitelisted
+	GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool)
+
+	// GetIntrinsicGasForAlternativeFeeCurrency retrieves intrisic gas to be paid for
+	// any tx with a non native fee currency
 	GetIntrinsicGasForAlternativeFeeCurrency() uint64
 }
 
+// defaultBlockContext is the default implementation of BlockContext
 type defaultBlockContext struct {
 	goldGasPriceMinimum *big.Int
-	gasPriceMinimum     map[common.Address]*big.Int
+	nonGoldCurrencies   map[common.Address]*big.Int
 
-	whitelistedCurrencies     []common.Address
-	noCurrencies              bool
 	gasForAlternativeCurrency uint64
 }
 
+// NewBlockContext creates a block context for a given block (represented by the
+// header & state).
+// state MUST be pointing to header's stateRoot
 func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
 
-	var noCurrencies bool
 	whitelistedCurrencies, err := currency.CurrencyWhitelist(header, state)
 	if err != nil {
 		whitelistedCurrencies = []common.Address{}
-		noCurrencies = true
 	}
 
 	goldGasPriceMinimum, err := gpm.GetGasPriceMinimum(nil, header, state)
 	_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
-	// TODO clean this up
 
-	gasPriceMinimum := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
+	nonGoldCurrencies := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
 	for _, currency := range whitelistedCurrencies {
 		gpm, err := gpm.GetGasPriceMinimum(&currency, header, state)
-		_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
-		// TODO clean this up
-		gasPriceMinimum[currency] = gpm
+		if err != nil {
+			// we ignore currencies from which we can't get GasPriceMinimum
+			continue
+		}
+		nonGoldCurrencies[currency] = gpm
 	}
 
 	return &defaultBlockContext{
-		whitelistedCurrencies:     whitelistedCurrencies,
-		noCurrencies:              noCurrencies,
+		nonGoldCurrencies:         nonGoldCurrencies,
 		gasForAlternativeCurrency: gasForAlternativeCurrency,
-		gasPriceMinimum:           gasPriceMinimum,
 		goldGasPriceMinimum:       goldGasPriceMinimum,
 	}
 }
 
+// GetIntrinsicGasForAlternativeFeeCurrency retrieves intrisic gas to be paid for
+// any tx with a non native fee currency
 func (bc *defaultBlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
 	return bc.gasForAlternativeCurrency
 }
 
-func (bc *defaultBlockContext) IsWhitelisted(feeCurrency *common.Address) bool {
-	if bc.noCurrencies {
-		return true
-	}
-
-	if feeCurrency == nil {
-		return true
-	}
-
-	for _, addr := range bc.whitelistedCurrencies {
-		if addr == *feeCurrency {
-			return true
-		}
-	}
-	return false
+// GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
+func (bc *defaultBlockContext) GetGoldGasPriceMinimum() *big.Int {
+	return bc.goldGasPriceMinimum
 }
 
-func (bc *defaultBlockContext) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
+// GetGasPriceMinimum retrieves the gas price minimum for any currency
+// Also indicates if the currency is not whitelisted
+func (bc *defaultBlockContext) GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool) {
 	if feeCurrency == nil {
-		return bc.goldGasPriceMinimum
+		return bc.goldGasPriceMinimum, true
 	}
-
-	gpm, ok := bc.gasPriceMinimum[*feeCurrency]
-	if !ok {
-		// TODO what to do here?
-		return common.Big0
-	}
-
-	return gpm
+	gpm, ok := bc.nonGoldCurrencies[*feeCurrency]
+	return gpm, ok
 }

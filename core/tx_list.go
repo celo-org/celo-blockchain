@@ -344,10 +344,10 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, blockCtx BlockContext, gasLimit uint64) (types.Transactions, types.Transactions) {
-	nativeGasPriceMinimum := blockCtx.GetGasPriceMinimum(nil)
+	nativeGasPriceMinimum := blockCtx.GetGoldGasPriceMinimum()
 	// native gas price floor is not necessarily set in txList.Add unlike the rest of caps/floors
 	if l.nativegaspricefloor == nil {
-		l.nativegaspricefloor = new(big.Int).Set(blockCtx.GetGasPriceMinimum(nil))
+		l.nativegaspricefloor = new(big.Int).Set(nativeGasPriceMinimum)
 	}
 	// check if we can bail & lower caps & raise floors at the same time
 	canBail := true
@@ -375,7 +375,8 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 	}
 	// Ensure that each gas price floor >= the gas price minimum.
 	for feeCurrency, gasPriceFloor := range l.gaspricefloors {
-		if gasPriceMinimum := blockCtx.GetGasPriceMinimum(&feeCurrency); gasPriceFloor.Cmp(gasPriceMinimum) < 0 {
+		gasPriceMinimum, isWhitelisted := blockCtx.GetGasPriceMinimum(&feeCurrency)
+		if isWhitelisted && gasPriceFloor.Cmp(gasPriceMinimum) < 0 {
 			canBail = false
 			l.gaspricefloors[feeCurrency] = new(big.Int).Set(gasPriceMinimum)
 		}
@@ -393,13 +394,17 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 			feeLimit := feeLimits[*feeCurrency]
 			fee := tx.Fee()
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Value", tx.Value(), "Cost Limit", feeLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
+
+			gpm, isWhitelisted := blockCtx.GetGasPriceMinimum(feeCurrency)
 			// If any of the following is true, the transaction is invalid
 			// The fees are greater than or equal to the balance in the currency
 			return fee.Cmp(feeLimit) >= 0 ||
 				// The value of the tx is greater than the native balance of the account
 				tx.Value().Cmp(nativeCostLimit) > 0 ||
+				// The fee currency is not white listed
+				!isWhitelisted ||
 				// The gas price is less than the gas price minimum
-				tx.GasPrice().Cmp(blockCtx.GetGasPriceMinimum(feeCurrency)) < 0 ||
+				tx.GasPrice().Cmp(gpm) < 0 ||
 				// The gas used is greater than the gas limit
 				tx.Gas() > gasLimit
 		}

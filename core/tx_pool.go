@@ -626,8 +626,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	// Ensure the fee currency is native or whitelisted.
-	if !pool.currentCtx.IsWhitelisted(tx.FeeCurrency()) {
+	gasPriceMinimum, isWhitelisted := pool.currentCtx.GetGasPriceMinimum(tx.FeeCurrency())
+	if !isWhitelisted {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
@@ -655,13 +655,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
 	}
-
-	gasPriceMinimum := pool.currentCtx.GetGasPriceMinimum(tx.FeeCurrency())
-	// gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
-	// if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-	// 	log.Debug("unable to fetch gas price minimum", "err", err)
-	// 	return err
-	// }
 
 	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
 		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
@@ -1277,7 +1270,8 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.currentCtx.CurrencyManager = currency.NewManager(newHead, statedb)
 
 	// update gasPriceMinimum metric
-	gasPriceMinimumGauge.Update(pool.currentCtx.GetGasPriceMinimum(nil).Int64())
+	goldGPM, _ := pool.currentCtx.GetGasPriceMinimum(nil)
+	gasPriceMinimumGauge.Update(goldGPM.Int64())
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
