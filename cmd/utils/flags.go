@@ -628,7 +628,7 @@ var (
 		Usage: "Specifies whether to use an in memory discovery table",
 	}
 
-	VersionCheckFlag = cli.BoolFlag{
+	DisableVersionCheckFlag = cli.BoolFlag{
 		Name:  "disable-version-check",
 		Usage: "Disable version check. Use if the parameter is set erroneously",
 	}

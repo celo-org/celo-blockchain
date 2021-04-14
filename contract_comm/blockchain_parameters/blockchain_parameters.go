@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -110,23 +111,23 @@ func init() {
 	}
 }
 
-func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
+func GetMinimumVersion(caller vm.EVMCaller) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-	var err error
-	_, err = contract_comm.MakeStaticCall(
+
+	_, err := contracts.QueryCallOnRegisteredContract(
 		params.BlockchainParametersRegistryId,
-		blockchainParametersABI,
-		"getMinimumClientVersion",
-		[]interface{}{},
-		&version,
 		params.MaxGasForReadBlockchainParameter,
-		header,
-		state,
-	)
+		contracts.NewMessage(&blockchainParametersABI, "intrinsicGasForAlternativeFeeCurrency"),
+	).Run(caller, &version)
+
 	if err != nil {
 		return nil, err
 	}
-	return &params.VersionInfo{Major: version[0].Uint64(), Minor: version[1].Uint64(), Patch: version[2].Uint64()}, nil
+	return &params.VersionInfo{
+		Major: version[0].Uint64(),
+		Minor: version[1].Uint64(),
+		Patch: version[2].Uint64(),
+	}, nil
 }
 
 func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.StateDB) uint64 {
@@ -150,8 +151,8 @@ func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.Sta
 	return gas.Uint64()
 }
 
-func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
-	version, err := GetMinimumVersion(header, state)
+func CheckMinimumVersion(caller vm.EVMCaller) {
+	version, err := GetMinimumVersion(caller)
 
 	if err != nil {
 		if err == errors.ErrRegistryContractNotDeployed {
@@ -169,11 +170,16 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 
 }
 
-func SpawnCheck() {
+func SpawnCheck(callerFactory vm.EVMCallerFactory) {
 	go func() {
 		for {
 			time.Sleep(60 * time.Second)
-			CheckMinimumVersion(nil, nil)
+
+			caller, err := callerFactory.NewEVMCaller(nil, nil)
+			if err != nil {
+				continue
+			}
+			CheckMinimumVersion(caller)
 		}
 	}()
 }

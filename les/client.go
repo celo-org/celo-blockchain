@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -68,11 +69,12 @@ type LightEthereum struct {
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
 
-	ApiBackend     *LesApiBackend
-	eventMux       *event.TypeMux
-	engine         consensus.Engine
-	accountManager *accounts.Manager
-	netRPCService  *ethapi.PublicNetAPI
+	ApiBackend       *LesApiBackend
+	eventMux         *event.TypeMux
+	engine           consensus.Engine
+	accountManager   *accounts.Manager
+	netRPCService    *ethapi.PublicNetAPI
+	evmCallerFactory vm.EVMCallerFactory
 
 	networkId uint64
 }
@@ -149,9 +151,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		return nil, err
 	}
 
+	leth.evmCallerFactory = vmcontext.NewEVMCallerFactory(leth.blockchain)
+
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetEVMCallerFactory(vmcontext.NewEVMCallerFactory(leth.blockchain))
+	contract_comm.SetEVMCallerFactory(leth.evmCallerFactory)
 
 	leth.chainReader = leth.blockchain
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
@@ -288,13 +292,14 @@ func (s *LightEthereum) ResetWithGenesisBlock(gb *types.Block) {
 	s.blockchain.ResetWithGenesisBlock(gb)
 }
 
-func (s *LightEthereum) BlockChain() *light.LightChain      { return s.blockchain }
-func (s *LightEthereum) TxPool() *light.TxPool              { return s.txPool }
-func (s *LightEthereum) Engine() consensus.Engine           { return s.engine }
-func (s *LightEthereum) LesVersion() int                    { return int(ClientProtocolVersions[0]) }
-func (s *LightEthereum) Downloader() *downloader.Downloader { return s.handler.downloader }
-func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux }
-func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPool }
+func (s *LightEthereum) EVMCallerFactory() vm.EVMCallerFactory { return s.evmCallerFactory }
+func (s *LightEthereum) BlockChain() *light.LightChain         { return s.blockchain }
+func (s *LightEthereum) TxPool() *light.TxPool                 { return s.txPool }
+func (s *LightEthereum) Engine() consensus.Engine              { return s.engine }
+func (s *LightEthereum) LesVersion() int                       { return int(ClientProtocolVersions[0]) }
+func (s *LightEthereum) Downloader() *downloader.Downloader    { return s.handler.downloader }
+func (s *LightEthereum) EventMux() *event.TypeMux              { return s.eventMux }
+func (s *LightEthereum) ServerPool() *serverPool               { return s.serverPool }
 
 // Protocols implements node.Service, returning all the currently configured
 // network protocols to start.

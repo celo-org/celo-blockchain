@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
@@ -150,7 +151,7 @@ var (
 		utils.AnnounceAggressiveQueryEnodeGossipOnEnablementFlag,
 		utils.PingIPFromPacketFlag,
 		utils.UseInMemoryDiscoverTableFlag,
-		utils.VersionCheckFlag,
+		utils.DisableVersionCheckFlag,
 		utils.ProxyFlag,
 		utils.ProxyInternalFacingEndpointFlag,
 		utils.ProxiedValidatorAddressFlag,
@@ -489,8 +490,27 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
 	}
-	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
-		blockchain_parameters.SpawnCheck()
+
+	if !ctx.GlobalBool(utils.DisableVersionCheckFlag.Name) {
+		var evmCallerFactory vm.EVMCallerFactory
+		if ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast" {
+			var ethService *eth.Ethereum
+			if err := stack.Service(&ethService); err != nil {
+				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
+			}
+			evmCallerFactory = ethService.EVMCallerFactory()
+		} else {
+			// Set contract backend for les service if local node is
+			// running as a light client.
+			var lesService *les.LightEthereum
+			if err := stack.Service(&lesService); err != nil {
+				utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
+			}
+
+			evmCallerFactory = lesService.EVMCallerFactory()
+		}
+
+		blockchain_parameters.SpawnCheck(evmCallerFactory)
 	}
 }
 

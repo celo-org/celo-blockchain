@@ -88,7 +88,8 @@ type Ethereum struct {
 	bloomIndexer      *core.ChainIndexer             // Bloom indexer operating during block imports
 	closeBloomHandler chan struct{}
 
-	APIBackend *EthAPIBackend
+	APIBackend    *EthAPIBackend
+	callerFactory vm.EVMCallerFactory
 
 	miner          *miner.Miner
 	gasPrice       *big.Int
@@ -207,6 +208,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -219,9 +221,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		config.TxPool.Journal = ctx.ResolvePath(config.TxPool.Journal)
 	}
 
+	eth.callerFactory = vmcontext.NewEVMCallerFactory(eth.blockchain)
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetEVMCallerFactory(vmcontext.NewEVMCallerFactory(eth.blockchain))
+	contract_comm.SetEVMCallerFactory(eth.callerFactory)
 
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 
@@ -391,6 +394,10 @@ func (s *Ethereum) BLSbase() (eb common.Address, err error) {
 	}
 
 	return s.Validator()
+}
+
+func (s *Ethereum) EVMCallerFactory() vm.EVMCallerFactory {
+	return s.callerFactory
 }
 
 // isLocalBlock checks whether the specified block is mined
