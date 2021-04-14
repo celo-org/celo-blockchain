@@ -121,10 +121,10 @@ func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecip
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := vm.NewEVMContext(msg, header, bc, txFeeRecipient)
+	ctx := NewEVMContext(msg, header, bc, txFeeRecipient)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, statedb, config, cfg)
+	vmenv := vm.NewEVM(ctx, statedb, config, cfg)
 
 	// Apply the transaction to the current state (included in the env)
 	result, err := ApplyMessage(vmenv, msg, gp)

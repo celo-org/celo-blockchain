@@ -118,7 +118,7 @@ func ConvertToGold(val *big.Int, currencyFrom *common.Address) (*big.Int, error)
 		return val, err
 	}
 
-	if currencyFrom == celoGoldAddress {
+	if *currencyFrom == celoGoldAddress {
 		// This function shouldn't really be called with the token's address, but if it is the value
 		// is correct, so return nil as the error
 		return val, nil
@@ -158,14 +158,81 @@ func Convert(val *big.Int, currencyFrom *common.Address, currencyTo *common.Addr
 	return new(big.Int).Div(numerator, denominator), nil
 }
 
+type CurrencyComparator struct {
+	exchangeRates    map[common.Address]*exchangeRate
+	_getExchangeRate func(*common.Address) (*exchangeRate, error)
+}
+
+func NewComparator() *CurrencyComparator {
+	return newComparator(getExchangeRate)
+}
+
+func newComparator(_getExchangeRate func(*common.Address) (*exchangeRate, error)) *CurrencyComparator {
+	return &CurrencyComparator{
+		exchangeRates:    make(map[common.Address]*exchangeRate),
+		_getExchangeRate: _getExchangeRate,
+	}
+}
+
+func (cc *CurrencyComparator) getExchangeRate(currency *common.Address) (*exchangeRate, error) {
+	if currency == nil {
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
+	}
+
+	val, ok := cc.exchangeRates[*currency]
+	if ok {
+		return val, nil
+	}
+
+	val, err := cc._getExchangeRate(currency)
+	if err != nil {
+		return nil, err
+	}
+
+	cc.exchangeRates[*currency] = val
+
+	return val, nil
+}
+
+func (cc *CurrencyComparator) Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+	// Short circuit if the fee currency is the same. nil currency => native currency
+	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
+		return val1.Cmp(val2)
+	}
+
+	exchangeRate1, err1 := cc.getExchangeRate(currency1)
+	exchangeRate2, err2 := cc.getExchangeRate(currency2)
+
+	if err1 != nil || err2 != nil {
+		currency1Output := "nil"
+		if currency1 != nil {
+			currency1Output = currency1.Hex()
+		}
+		currency2Output := "nil"
+		if currency2 != nil {
+			currency2Output = currency2.Hex()
+		}
+		log.Warn("Error in retrieving exchange rate.  Will do comparison of two values without exchange rate conversion.", "currency1", currency1Output, "err1", err1, "currency2", currency2Output, "err2", err2)
+		return val1.Cmp(val2)
+	}
+
+	// Below code block is basically evaluating this comparison:
+	// val1 * exchangeRate1.Denominator/exchangeRate1.Numerator < val2 * exchangeRate2.Denominator/exchangeRate2.Numerator
+	// It will transform that comparison to this, to remove having to deal with fractional values.
+	// val1 * exchangeRate1.Denominator * exchangeRate2.Numerator < val2 * exchangeRate2.Denominator * exchangeRate1.Numerator
+	leftSide := new(big.Int).Mul(val1, new(big.Int).Mul(exchangeRate1.Denominator, exchangeRate2.Numerator))
+	rightSide := new(big.Int).Mul(val2, new(big.Int).Mul(exchangeRate2.Denominator, exchangeRate1.Numerator))
+	return leftSide.Cmp(rightSide)
+}
+
 func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
 	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := memoizedGetExchangeRate(currency1)
-	exchangeRate2, err2 := memoizedGetExchangeRate(currency2)
+	exchangeRate1, err1 := getExchangeRate(currency1)
+	exchangeRate2, err2 := getExchangeRate(currency2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
@@ -190,42 +257,25 @@ func Cmp(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *com
 }
 
 func getExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
-	if currencyAddress == nil {
-		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
-	} else {
-		return medianRate(currencyAddress, false)
-	}
-}
-
-func memoizedGetExchangeRate(currencyAddress *common.Address) (*exchangeRate, error) {
-	if currencyAddress == nil {
-		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
-	} else {
-		return medianRate(currencyAddress, true)
-	}
-}
-
-func medianRate(currencyAddress *common.Address, memoize bool) (*exchangeRate, error) {
 	var (
 		returnArray [2]*big.Int
 		leftoverGas uint64
-		err         error
 	)
-	if memoize {
-		leftoverGas, err = contract_comm.MakeMemoizedStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
-	} else {
-		leftoverGas, err = contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil)
 
-	}
-	if err == errors.ErrSmartContractNotDeployed {
-		log.Warn("Registry address lookup failed", "err", err)
-		return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
-	} else if err != nil {
-		log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
-		return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+	if currencyAddress == nil {
+		return &exchangeRate{cgExchangeRateNum, cgExchangeRateDen}, nil
+	} else {
+		if leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, nil, nil); err != nil {
+			if err == errors.ErrSmartContractNotDeployed {
+				log.Warn("Registry address lookup failed", "err", err)
+				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+			} else {
+				log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
+				return &exchangeRate{big.NewInt(1), big.NewInt(1)}, err
+			}
+		}
 	}
 	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
-
 	return &exchangeRate{returnArray[0], returnArray[1]}, nil
 }
 
@@ -233,7 +283,7 @@ func medianRate(currencyAddress *common.Address, memoize bool) (*exchangeRate, e
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
-	leftoverGas, err := contract_comm.MakeStaticCallToAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
+	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)

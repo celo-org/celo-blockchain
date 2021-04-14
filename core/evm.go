@@ -1,4 +1,4 @@
-// Copyright 2015 The go-ethereum Authors
+// Copyright 2016 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -14,34 +14,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package runtime
+package core
 
 import (
-	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 )
 
-func NewEnv(cfg *Config) *vm.EVM {
-
-	context := vm.Context{
-		CanTransfer: vmcontext.CanTransfer,
-		Transfer:    vmcontext.TobinTransfer,
-
-		GetHash: cfg.GetHashFn,
-
-		Origin:      cfg.Origin,
-		Coinbase:    cfg.Coinbase,
-		BlockNumber: cfg.BlockNumber,
-		Time:        cfg.Time,
-		GasPrice:    cfg.GasPrice,
-
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
-	}
-
-	if cfg.ChainConfig.Istanbul != nil {
-		context.EpochSize = cfg.ChainConfig.Istanbul.Epoch
-	}
-
-	return vm.NewEVM(context, cfg.State, cfg.ChainConfig, cfg.EVMConfig)
+// New creates a new context for use in the EVM.
+func NewEVMContext(msg Message, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
+	return vmcontext.New(msg.From(), msg.GasPrice(), header, chain, txFeeRecipient)
 }

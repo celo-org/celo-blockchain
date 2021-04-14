@@ -25,14 +25,15 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 )
 
 var (
-	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false, false)
 	internalEvmHandlerSingleton *InternalEVMHandler
 )
 
@@ -41,111 +42,28 @@ type InternalEVMHandler struct {
 	chain vm.ChainContext
 }
 
-// MakeStaticCall performs a static (read-only) ABI call against the contract specfied by the registry id.
 func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, false)
-	if err != nil {
-		return 0, err
-	}
-	return MakeStaticCallToAddress(scAddress, abi, funcName, args, returnObj, gas, header, state)
-
+	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, true)
 }
 
-// MakeMemoizedStaticCall performs a static (read-only) ABI call to the smart contract address given.
-// It will attempt to memoize the call based on the contract address, transaction name, gas allowance, and state root.
-func MakeMemoizedStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, true)
-	if err != nil {
-		return 0, err
-	}
-
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return 0, err
-	}
-	gasLeft, err := vmevm.MemoizedStaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-
-	if err != nil {
-		log.Error("Error when performing an evm static call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
-		return gasLeft, err
-	}
-
-	return gasLeft, nil
-}
-
-// MakeCall performs a mutating ABI call against the contract specfied by the registry id.
 func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	scAddress, err := resolveAddressForCall(registryId, funcName, header, state, false)
-	if err != nil {
-		return 0, err
-	}
-
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return 0, err
-	}
-	gasLeft, err := vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
-
-	if err != nil {
-		log.Error("Error when performing an evm call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
-		return gasLeft, err
-	}
-
+	gasLeft, err := makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, false)
 	if err == nil && finaliseState {
 		state.Finalise(true)
 	}
-
-	return gasLeft, nil
+	return gasLeft, err
 }
 
-// MakeStaticCallToAddress performs a static (read-only) ABI call to the smart contract address given.
-func MakeStaticCallToAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return 0, err
-	}
-	gasLeft, err := vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-
-	if err != nil {
-		log.Error("Error when performing an evm static call", "err", err, "funcName", funcName, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft)
-		return gasLeft, err
-	}
-
-	return gasLeft, nil
+func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+	return makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, true)
 }
 
-// GetRegisteredAddress looks up the smart contract address associated with the registry id
-func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
+func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (common.Address, error) {
 	vmevm, err := createEVM(header, state)
 	if err != nil {
-		return nil, err
+		return common.ZeroAddress, err
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
-}
-
-// MemoizedGetRegisteredAddress looks up the smart contract address associated with the registry id.
-// It will attempt to memoize the call based on the contract address, transaction name, gas allowance, and state root.
-func MemoizedGetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	vmevm, err := createEVM(header, state)
-	if err != nil {
-		return nil, err
-	}
-	return vm.MemoizedGetRegisteredAddressWithEvm(registryId, vmevm)
+	return contracts.GetRegisteredAddress(vmevm, registryId)
 }
 
 func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
@@ -172,10 +90,36 @@ func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
 
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
+	context := vmcontext.New(common.ZeroAddress, common.Big0, header, internalEvmHandlerSingleton.chain, nil)
 	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
 
 	return evm, nil
+}
+
+func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
+	// Record a metrics data point about execution time.
+	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
+	start := time.Now()
+	defer timer.UpdateSince(start)
+
+	vmevm, err := createEVM(header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	var gasLeft uint64
+
+	if static {
+		gasLeft, err = contracts.StaticCallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas)
+	} else {
+		gasLeft, err = contracts.CallFromSystem(vmevm, scAddress, abi, funcName, args, returnObj, gas, value)
+	}
+	if err != nil {
+		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft, "value", value)
+		return gasLeft, err
+	}
+
+	return gasLeft, nil
 }
 
 func SetInternalEVMHandler(chain vm.ChainContext) {
@@ -188,26 +132,25 @@ func SetInternalEVMHandler(chain vm.ChainContext) {
 	}
 }
 
-// resolveAddressForCall looks up the address of a core contract based on the the registry ID.
-func resolveAddressForCall(registryId [32]byte, funcName string, header *types.Header, state vm.StateDB, memoize bool) (common.Address, error) {
-	var contractAddress *common.Address
-	var err error
-	if memoize {
-		contractAddress, err = MemoizedGetRegisteredAddress(registryId, header, state)
-
-	} else {
-		contractAddress, err = GetRegisteredAddress(registryId, header, state)
-	}
+func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
+	scAddress, err := GetRegisteredAddress(registryId, header, state)
 
 	if err != nil {
 		if err == errors.ErrSmartContractNotDeployed {
 			log.Debug("Contract not yet registered", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
+			return 0, err
 		} else if err == errors.ErrRegistryContractNotDeployed {
 			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
+			return 0, err
 		} else {
 			log.Error("Error in getting registered address", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
+			return 0, err
 		}
-		return common.ZeroAddress, err
 	}
-	return *contractAddress, nil
+
+	gasLeft, err := makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
+	if err != nil {
+		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
+	}
+	return gasLeft, err
 }

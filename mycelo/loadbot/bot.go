@@ -17,6 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// 110k gas for stable token transfer is pretty reasonable. It's just under 100k in practice
+const GasForTransferWithComment = 110000
+
 // LoadGenerator keeps track of in-flight transactions
 type LoadGenerator struct {
 	MaxPending uint64
@@ -32,6 +35,7 @@ type Config struct {
 	Clients               []*ethclient.Client
 	Verbose               bool
 	MaxPending            uint64
+	SkipGasEstimation     bool
 }
 
 // Start will start loads bots
@@ -83,7 +87,7 @@ func Start(ctx context.Context, cfg *Config) error {
 			clientIdx++
 			client := cfg.Clients[clientIdx%len(cfg.Clients)]
 			group.Go(func() error {
-				return runTransaction(ctx, lg, sender, nonce, cfg.Verbose, client, recipient, cfg.Amount)
+				return runTransaction(ctx, lg, sender, nonce, cfg.Verbose, cfg.SkipGasEstimation, client, recipient, cfg.Amount)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -91,7 +95,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, nonce uint64, verbose bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
+func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, nonce uint64, verbose, skipEstimation bool, client *ethclient.Client, recipient common.Address, value *big.Int) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -109,6 +113,9 @@ func runTransaction(ctx context.Context, lg *LoadGenerator, acc env.Account, non
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	transactor.FeeCurrency = &stableTokenAddress
+	if skipEstimation {
+		transactor.GasLimit = GasForTransferWithComment
+	}
 
 	tx, err := stableToken.TxObj(transactor, "transferWithComment", recipient, value, "need to proivde some long comment to make it similar to an encrypted comment").Send()
 	if err != nil {
