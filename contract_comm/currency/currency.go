@@ -235,20 +235,6 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 		return &NoopExchangeRate, nil
 	}
 
-	celoGoldAddress, err := contract_comm.GetRegisteredAddress(params.GoldTokenRegistryId, nil, nil)
-	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
-		return nil, err
-	}
-
-	if *currencyAddress == celoGoldAddress {
-		// This function shouldn't really be called with the token's address, but if it is the value
-		// is correct, so return nil as the error
-		return &NoopExchangeRate, nil
-	} else if err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-
 	var returnArray [2]*big.Int
 	leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, header, state)
 
