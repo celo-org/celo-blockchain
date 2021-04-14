@@ -40,6 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enr"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -81,28 +82,30 @@ type MarshalableConfig struct {
 	NAT string
 }
 
-func (c Config) MarshalTOML() (interface{}, error) {
-	var n string
-	var err error
-	if c.NAT != nil {
-		n, err = nat.MarshalNat(c.NAT)
-		if err != nil {
-			return nil, err
-		}
-	}
-	c.NAT = nil
-	mc := &MarshalableConfig{CFG(c), n}
-	return mc, nil
-}
+// func (c Config) MarshalTOML() (interface{}, error) {
+// 	var n string
+// 	var err error
+// 	if c.NAT != nil {
+// 		n, err = nat.MarshalNat(c.NAT)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+// 	c.NAT = nil
+// 	mc := &MarshalableConfig{CFG(c), n}
+// 	return mc, nil
+// }
 
-func (c Config) UnmarshalTOML(fn func(interface{}) error) error {
-	mc := &MarshalableConfig{CFG: CFG(c)}
-	err := fn(mc)
-	if err != nil {
-		return err
-	}
-	c.NAT, err = nat.UnmarshalNat(mc.NAT)
-	return err
+func (c Config) UnmarshalTOML(data interface{}) error {
+	spew.Dump(data)
+	return nil
+	// mc := &MarshalableConfig{CFG: CFG(c)}
+	// err := fn(mc)
+	// if err != nil {
+	// 	return err
+	// }
+	// c.NAT, err = nat.UnmarshalNat(mc.NAT)
+	// return err
 }
 
 // Config holds Server options.

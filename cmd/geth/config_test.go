@@ -1,74 +1,65 @@
 package main
 
-import (
-	"bytes"
-	"testing"
+// // testConfigMarshal will test the process of marshal/unmarshal.
+// func testConfigMarshal(t *testing.T, cfg gethConfig) {
+// 	// 1. Marshal cfg, get cfgMarshal
+// 	cfgMarshal, err := tomlSettings.Marshal(&cfg)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
-)
+// 	// 2. Unmarshal cfgMarshal, get outCfg. Then marshal outCfg, get outCfgMarshal.
+// 	var outCfg gethConfig
+// 	err = tomlSettings.NewDecoder(bytes.NewReader(cfgMarshal)).Decode(&outCfg)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	outCfgMarshal, err := tomlSettings.Marshal(&outCfg)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-// testConfigMarshal will test the process of marshal/unmarshal.
-func testConfigMarshal(t *testing.T, cfg gethConfig) {
-	// 1. Marshal cfg, get cfgMarshal
-	cfgMarshal, err := tomlSettings.Marshal(&cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	// 3. Compare cfgMarshal & outCfgMarshal
+// 	if string(cfgMarshal) != string(outCfgMarshal) {
+// 		t.Fatal("Not equal")
+// 	}
+// }
 
-	// 2. Unmarshal cfgMarshal, get outCfg. Then marshal outCfg, get outCfgMarshal.
-	var outCfg gethConfig
-	err = tomlSettings.NewDecoder(bytes.NewReader(cfgMarshal)).Decode(&outCfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	outCfgMarshal, err := tomlSettings.Marshal(&outCfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+// func Test(t *testing.T) {
+// 	testCases := []struct {
+// 		name   string
+// 		config func() gethConfig
+// 	}{
+// 		{
+// 			name: "defaultConfig",
+// 			config: func() gethConfig {
+// 				return gethConfig{
+// 					Eth:  eth.DefaultConfig,
+// 					Shh:  whisper.DefaultConfig,
+// 					Node: defaultNodeConfig(),
+// 				}
+// 			},
+// 		},
+// 		{
+// 			name: "NAT.extip",
+// 			config: func() gethConfig {
+// 				cfg := gethConfig{
+// 					Eth:  eth.DefaultConfig,
+// 					Shh:  whisper.DefaultConfig,
+// 					Node: defaultNodeConfig(),
+// 				}
+// 				cfg.Node.P2P.NAT, _ = nat.Parse("extip:190.168.10.15")
+// 				return cfg
+// 			},
+// 		},
+// 	}
 
-	// 3. Compare cfgMarshal & outCfgMarshal
-	if string(cfgMarshal) != string(outCfgMarshal) {
-		t.Fatal("Not equal")
-	}
-}
-
-func Test(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config func() gethConfig
-	}{
-		{
-			name: "defaultConfig",
-			config: func() gethConfig {
-				return gethConfig{
-					Eth:  eth.DefaultConfig,
-					Shh:  whisper.DefaultConfig,
-					Node: defaultNodeConfig(),
-				}
-			},
-		},
-		{
-			name: "NAT.extip",
-			config: func() gethConfig {
-				cfg := gethConfig{
-					Eth:  eth.DefaultConfig,
-					Shh:  whisper.DefaultConfig,
-					Node: defaultNodeConfig(),
-				}
-				cfg.Node.P2P.NAT, _ = nat.Parse("extip:190.168.10.15")
-				return cfg
-			},
-		},
-	}
-
-	for _, c := range testCases {
-		t.Run(c.name, func(t *testing.T) {
-			testConfigMarshal(t, c.config())
-		})
-	}
-}
+// 	for _, c := range testCases {
+// 		t.Run(c.name, func(t *testing.T) {
+// 			testConfigMarshal(t, c.config())
+// 		})
+// 	}
+// }
 
 //// TestDumpDefaultConfig checks en/decode on default config
 //func TestDumpDefaultConfig(t *testing.T) {

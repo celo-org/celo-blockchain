@@ -17,20 +17,15 @@
 package main
 
 import (
-	"bufio"
-	"errors"
-	"fmt"
 	"math/big"
 	"os"
-	"reflect"
-	"unicode"
 
+	"github.com/BurntSushi/toml"
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/params"
 	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
-	"github.com/naoina/toml"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -52,21 +47,21 @@ var (
 )
 
 // These settings ensure that TOML keys use the same names as Go struct fields.
-var tomlSettings = toml.Config{
-	NormFieldName: func(rt reflect.Type, key string) string {
-		return key
-	},
-	FieldToKey: func(rt reflect.Type, field string) string {
-		return field
-	},
-	MissingField: func(rt reflect.Type, field string) error {
-		link := ""
-		if unicode.IsUpper(rune(rt.Name()[0])) && rt.PkgPath() != "main" {
-			link = fmt.Sprintf(", see https://godoc.org/%s#%s for available fields", rt.PkgPath(), rt.Name())
-		}
-		return fmt.Errorf("field '%s' is not defined in %s%s", field, rt.String(), link)
-	},
-}
+// var tomlSettings = toml.Config{
+// 	NormFieldName: func(rt reflect.Type, key string) string {
+// 		return key
+// 	},
+// 	FieldToKey: func(rt reflect.Type, field string) string {
+// 		return field
+// 	},
+// 	MissingField: func(rt reflect.Type, field string) error {
+// 		link := ""
+// 		if unicode.IsUpper(rune(rt.Name()[0])) && rt.PkgPath() != "main" {
+// 			link = fmt.Sprintf(", see https://godoc.org/%s#%s for available fields", rt.PkgPath(), rt.Name())
+// 		}
+// 		return fmt.Errorf("field '%s' is not defined in %s%s", field, rt.String(), link)
+// 	},
+// }
 
 type ethstatsConfig struct {
 	URL string `toml:",omitempty"`
@@ -80,17 +75,19 @@ type gethConfig struct {
 }
 
 func loadConfig(file string, cfg *gethConfig) error {
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+	// f, err := os.Open(file)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer f.Close()
 
-	err = tomlSettings.NewDecoder(bufio.NewReader(f)).Decode(cfg)
+	_, err := toml.DecodeFile(file, cfg)
+	// err = tomlSettings.NewDecoder(bufio.NewReader(f)).Decode(cfg)
 	// Add file name to errors that have a line number.
-	if _, ok := err.(*toml.LineError); ok {
-		err = errors.New(file + ", " + err.Error())
-	}
+
+	// if _, ok := err.(*toml.LineError); ok {
+	// 	err = errors.New(file + ", " + err.Error())
+	// }
 	return err
 }
 
@@ -186,11 +183,12 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 // dumpConfig encodes config, overwrite it with ctx and then write it to a file.
 func dumpConfig(ctx *cli.Context) error {
 	_, cfg := makeConfigNode(ctx)
-	out, err := tomlSettings.Marshal(&cfg)
-	if err != nil {
-		return err
-	}
+	// out, err := tomlSettings.Marshal(&cfg)
+	// if err != nil {
+	// 	return err
+	// }
 
+	var err error
 	// Use stdout as default
 	dump := os.Stdout
 	// Or use datadir if present
@@ -206,7 +204,8 @@ func dumpConfig(ctx *cli.Context) error {
 		cfg.Eth.Genesis = nil
 		dump.WriteString("# Note: this config doesn't contain the genesis block.\n\n")
 	}
-	dump.Write(out)
+	// dump.Write(out)
+	err = toml.NewEncoder(dump).Encode(cfg)
 
-	return nil
+	return err
 }
