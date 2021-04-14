@@ -268,7 +268,7 @@ func (s *Service) loop(ctx context.Context) {
 		txpool = s.les.TxPool()
 	}
 
-	// Start a goroutine that exhausts the subsciptions to avoid events piling up
+	// Start a goroutine that exhausts the subscriptions to avoid events piling up
 	var (
 		headCh = make(chan *types.Block, 1)
 		txCh   = make(chan struct{}, 1)
@@ -364,6 +364,7 @@ func (s *Service) loop(ctx context.Context) {
 						select {
 						case <-ctxGroup.Done():
 							fullReport.Stop()
+							// Make sure the connection is closed
 							conn.Close()
 							return ctxGroup.Err()
 

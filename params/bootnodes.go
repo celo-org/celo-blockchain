@@ -41,10 +41,6 @@ var AlfajoresBootnodes = []string{
 	"enode://703cf979becdc501c4221090296fe75299cb9520f19a344098154c14c7133ebf6b649dad7f3f42947ad96312930bea5380a8ff86faa5a3795b0b6cc483adcfc8@35.230.23.131:30303",
 }
 
-// DiscoveryV5Bootnodes are the enode URLs of the P2P bootstrap nodes for the
-// experimental RLPx v5 topic-discovery network.
-var DiscoveryV5Bootnodes = []string{}
-
 // These DNS names provide bootstrap connectivity for public testnets and the mainnet.
 // See https://github.com/ethereum/discv4-dns-lists for more information.
 // For now, Celo doesn't use DNS discovery, so urls are blank

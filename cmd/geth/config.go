@@ -27,6 +27,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/params"
 	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
@@ -129,8 +130,9 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	utils.SetEthConfig(ctx, stack, &cfg.Eth)
 	if ctx.GlobalIsSet(utils.CeloStatsURLFlag.Name) {
 		cfg.Ethstats.URL = ctx.GlobalString(utils.CeloStatsURLFlag.Name)
-	} else if ctx.GlobalIsSet(utils.EthStatsLegacyURLFlag.Name) {
-		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsLegacyURLFlag.Name)
+	} else if ctx.GlobalIsSet(utils.LegacyEthStatsURLFlag.Name) {
+		cfg.Ethstats.URL = ctx.GlobalString(utils.LegacyEthStatsURLFlag.Name)
+		log.Warn("The flag --ethstats is deprecated and will be removed in the future, please use --celostats")
 	}
 	utils.SetShhConfig(ctx, stack, &cfg.Shh)
 

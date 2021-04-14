@@ -1196,7 +1196,7 @@ func testRepair(t *testing.T, tt *rewindTest) {
 		genesis = new(Genesis).MustCommit(db)
 		engine  = mockEngine.NewFaker()
 	)
-	chain, err := NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
+	chain, err := NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -1243,7 +1243,7 @@ func testRepair(t *testing.T, tt *rewindTest) {
 		t.Fatalf("Failed to reopen persistent database: %v", err)
 	}
 	defer db.Close()
-	chain, err = NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
+	chain, err = NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
