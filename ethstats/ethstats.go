@@ -286,9 +286,11 @@ func (s *Service) loop(ctx context.Context) {
 			for {
 				select {
 				case delegateSignMsg := <-signCh:
-					s.fillWithValidatorInfo(&delegateSignMsg.Payload)
-					if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
-						log.Warn("Delegate sign failed", "err", err)
+					if s.backend.IsValidating() {
+						s.fillWithValidatorInfo(&delegateSignMsg.Payload)
+						if err := s.handleDelegateSign(&delegateSignMsg.Payload, delegateSignMsg.PeerID); err != nil {
+							log.Warn("Delegate sign failed", "err", err)
+						}
 					}
 				case <-ctxGroup.Done():
 					return ctxGroup.Err()
@@ -391,9 +393,10 @@ func (s *Service) loop(ctx context.Context) {
 									log.Warn("Delegate send failed", "err", err)
 								}
 							} else {
-								errMessage := fmt.Sprintf("Signed message with action %s discarded", signedMessage.Action)
+								// As both discarded messages, if they were required should eventually close the connection
+								// we just warn the user to avoid possible unnecessary disconnections (for example, from
+								// another backup validator)
 								log.Warn("Signed message discarded", "Action", signedMessage.Action)
-								err = errors.New(errMessage)
 							}
 						}
 					}
@@ -423,18 +426,18 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
 		ethInfo, ok := info.(*eth.NodeInfo)
 		if !ok {
-			return errors.New("Could not resolve NodeInfo")
+			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
 		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
-			return errors.New("No less protocol found")
+			return errors.New("no LES protocol found")
 		}
 		lesInfo, ok := lesProtocol.(*les.NodeInfo)
 		if !ok {
-			return errors.New("Could not resolve NodeInfo")
+			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", lesInfo.Network)
 		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
