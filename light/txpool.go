@@ -398,7 +398,11 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	// Should supply enough intrinsic gas
 	header := pool.chain.GetHeaderByHash(pool.head)
 
-	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, currentState)
+	gasForAlternativeCurrency := uint64(0)
+	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
+	if tx.FeeCurrency() != nil {
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, currentState)
+	}
 	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
