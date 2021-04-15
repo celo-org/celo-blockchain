@@ -13,21 +13,7 @@ import (
 
 // BlockContext represents contextual information about the blockchain state
 // for a given block
-type BlockContext interface {
-	// GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
-	GetGoldGasPriceMinimum() *big.Int
-
-	// GetGasPriceMinimum retrieves the gas price minimum for any currency
-	// Also indicates if the currency is not whitelisted
-	GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool)
-
-	// GetIntrinsicGasForAlternativeFeeCurrency retrieves intrisic gas to be paid for
-	// any tx with a non native fee currency
-	GetIntrinsicGasForAlternativeFeeCurrency() uint64
-}
-
-// defaultBlockContext is the default implementation of BlockContext
-type defaultBlockContext struct {
+type BlockContext struct {
 	goldGasPriceMinimum     *big.Int
 	nonGoldGasPriceMinimums map[common.Address]*big.Int
 
@@ -58,7 +44,7 @@ func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 		nonGoldGasPriceMinimums[currency] = gpm
 	}
 
-	return &defaultBlockContext{
+	return BlockContext{
 		nonGoldGasPriceMinimums:   nonGoldGasPriceMinimums,
 		gasForAlternativeCurrency: gasForAlternativeCurrency,
 		goldGasPriceMinimum:       goldGasPriceMinimum,
@@ -67,18 +53,18 @@ func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 
 // GetIntrinsicGasForAlternativeFeeCurrency retrieves intrisic gas to be paid for
 // any tx with a non native fee currency
-func (bc *defaultBlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
+func (bc *BlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
 	return bc.gasForAlternativeCurrency
 }
 
 // GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
-func (bc *defaultBlockContext) GetGoldGasPriceMinimum() *big.Int {
+func (bc *BlockContext) GetGoldGasPriceMinimum() *big.Int {
 	return bc.goldGasPriceMinimum
 }
 
 // GetGasPriceMinimum retrieves the gas price minimum for any currency
 // Also indicates if the currency is not whitelisted
-func (bc *defaultBlockContext) GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool) {
+func (bc *BlockContext) GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool) {
 	if feeCurrency == nil {
 		return bc.goldGasPriceMinimum, true
 	}
