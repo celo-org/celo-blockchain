@@ -409,6 +409,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// Calculate intrinsic gas, check clauses 5-6
 	gasForAlternativeCurrency := uint64(0)
+	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
 		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.Header, st.state)
 	}
