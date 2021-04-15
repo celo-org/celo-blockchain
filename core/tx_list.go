@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -229,12 +230,12 @@ type txList struct {
 	gaspricefloors      map[common.Address]*big.Int // Lowest gas price minimum per currency (reset only if it is below the gpm)
 	gascap              uint64                      // Gas limit of the highest spending transaction (reset only if exceeds block limit)
 
-	ctx *txPoolContext // transaction pool context
+	ctx *atomic.Value // transaction pool context
 }
 
 // newTxList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
-func newTxList(strict bool, ctx *txPoolContext) *txList {
+func newTxList(strict bool, ctx *atomic.Value) *txList {
 	return &txList{
 		ctx:                 ctx,
 		strict:              strict,
@@ -277,15 +278,16 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			oldPrice = old.GasPrice()
 			newPrice = tx.GasPrice()
 		} else {
+			ctx := l.ctx.Load().(txPoolContext)
 			if fc := old.FeeCurrency(); fc != nil {
-				if oldPrice, err = l.ctx.ToCelo(old.GasPrice(), fc); err != nil {
+				if oldPrice, err = ctx.ToCelo(old.GasPrice(), fc); err != nil {
 					return false, nil
 				}
 			} else {
 				oldPrice = old.GasPrice()
 			}
 			if fc := tx.FeeCurrency(); fc != nil {
-				if newPrice, err = l.ctx.ToCelo(tx.GasPrice(), fc); err != nil {
+				if newPrice, err = ctx.ToCelo(tx.GasPrice(), fc); err != nil {
 					return false, nil
 				}
 			} else {
@@ -543,7 +545,7 @@ func (h *priceHeap) Pop() interface{} {
 // txPricedList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way.
 type txPricedList struct {
-	ctx                 *txPoolContext
+	ctx                 *atomic.Value
 	all                 *txLookup                     // Pointer to the map of all transactions
 	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
 	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
@@ -551,7 +553,7 @@ type txPricedList struct {
 }
 
 // newTxPricedList creates a new price-sorted transaction heap.
-func newTxPricedList(all *txLookup, ctx *txPoolContext) *txPricedList {
+func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 	return &txPricedList{
 		ctx:                 ctx,
 		all:                 all,
@@ -625,7 +627,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 			continue
 		}
 
-		if l.ctx.CmpValues(tx.GasPrice(), tx.FeeCurrency(), cgThreshold, nil) >= 0 {
+		if ctx := l.ctx.Load().(txPoolContext); ctx.CmpValues(tx.GasPrice(), tx.FeeCurrency(), cgThreshold, nil) >= 0 {
 			save = append(save, tx)
 			break
 		}
@@ -667,7 +669,8 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	}
 
 	cheapest := l.getMinPricedTx()
-	return l.ctx.CmpValues(cheapest.GasPrice(), cheapest.FeeCurrency(), tx.GasPrice(), tx.FeeCurrency()) >= 0
+	ctx := l.ctx.Load().(txPoolContext)
+	return ctx.CmpValues(cheapest.GasPrice(), cheapest.FeeCurrency(), tx.GasPrice(), tx.FeeCurrency()) >= 0
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
@@ -708,6 +711,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 		cheapestTxn = []*types.Transaction(*l.nilCurrencyHeap)[0]
 	}
 
+	ctx := l.ctx.Load().(txPoolContext)
 	for _, priceHeap := range l.nonNilCurrencyHeaps {
 		if len(*priceHeap) > 0 {
 			if cheapestHeap == nil {
@@ -715,7 +719,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
 			} else {
 				txn := []*types.Transaction(*priceHeap)[0]
-				if l.ctx.CmpValues(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
+				if ctx.CmpValues(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
 					cheapestHeap = priceHeap
 				}
 			}
