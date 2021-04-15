@@ -62,14 +62,6 @@ var (
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]operation
 
-func newYoloV1InstructionSet() JumpTable {
-	instructionSet := newIstanbulInstructionSet()
-
-	enable2315(&instructionSet) // Subroutines - https://eips.ethereum.org/EIPS/eip-2315
-
-	return instructionSet
-}
-
 // newIstanbulInstructionSet returns the frontier, homestead
 // byzantium, contantinople and petersburg instructions.
 func newIstanbulInstructionSet() JumpTable {

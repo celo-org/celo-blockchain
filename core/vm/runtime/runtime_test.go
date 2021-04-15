@@ -17,7 +17,6 @@
 package runtime
 
 import (
-	"fmt"
 	"math/big"
 	"os"
 	"strings"
@@ -27,7 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core/asm"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -455,154 +453,5 @@ func TestReturnSubShallow(t *testing.T) {
 	}
 	if exp, got := 4, tracer.steps; exp != got {
 		t.Fatalf("expected %d steps, got %d", exp, got)
-	}
-}
-
-// disabled -- only used for generating markdown
-func DisabledTestReturnCases(t *testing.T) {
-	cfg := &Config{
-		EVMConfig: vm.Config{
-			Debug:     true,
-			Tracer:    vm.NewMarkdownLogger(nil, os.Stdout),
-			ExtraEips: []int{2315},
-		},
-	}
-	// This should fail at first opcode
-	Execute([]byte{
-		byte(vm.RETURNSUB),
-		byte(vm.PC),
-		byte(vm.PC),
-	}, nil, cfg)
-
-	// Should also fail
-	Execute([]byte{
-		byte(vm.PUSH1), 5,
-		byte(vm.JUMPSUB),
-		byte(vm.RETURNSUB),
-		byte(vm.PC),
-		byte(vm.BEGINSUB),
-		byte(vm.RETURNSUB),
-		byte(vm.PC),
-	}, nil, cfg)
-
-	// This should complete
-	Execute([]byte{
-		byte(vm.PUSH1), 0x4,
-		byte(vm.JUMPSUB),
-		byte(vm.STOP),
-		byte(vm.BEGINSUB),
-		byte(vm.PUSH1), 0x9,
-		byte(vm.JUMPSUB),
-		byte(vm.RETURNSUB),
-		byte(vm.BEGINSUB),
-		byte(vm.RETURNSUB),
-	}, nil, cfg)
-}
-
-// DisabledTestEipExampleCases contains various testcases that are used for the
-// EIP examples
-// This test is disabled, as it's only used for generating markdown
-func DisabledTestEipExampleCases(t *testing.T) {
-	cfg := &Config{
-		EVMConfig: vm.Config{
-			Debug:     true,
-			Tracer:    vm.NewMarkdownLogger(nil, os.Stdout),
-			ExtraEips: []int{2315},
-		},
-	}
-	prettyPrint := func(comment string, code []byte) {
-		instrs := make([]string, 0)
-		it := asm.NewInstructionIterator(code)
-		for it.Next() {
-			if it.Arg() != nil && 0 < len(it.Arg()) {
-				instrs = append(instrs, fmt.Sprintf("%v 0x%x", it.Op(), it.Arg()))
-			} else {
-				instrs = append(instrs, fmt.Sprintf("%v", it.Op()))
-			}
-		}
-		ops := strings.Join(instrs, ", ")
-
-		fmt.Printf("%v\nBytecode: `0x%x` (`%v`)\n",
-			comment,
-			code, ops)
-		Execute(code, nil, cfg)
-	}
-
-	{ // First eip testcase
-		code := []byte{
-			byte(vm.PUSH1), 4,
-			byte(vm.JUMPSUB),
-			byte(vm.STOP),
-			byte(vm.BEGINSUB),
-			byte(vm.RETURNSUB),
-		}
-		prettyPrint("This should jump into a subroutine, back out and stop.", code)
-	}
-
-	{
-		code := []byte{
-			byte(vm.PUSH9), 0x00, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00, 0x00, (4 + 8),
-			byte(vm.JUMPSUB),
-			byte(vm.STOP),
-			byte(vm.BEGINSUB),
-			byte(vm.PUSH1), 8 + 9,
-			byte(vm.JUMPSUB),
-			byte(vm.RETURNSUB),
-			byte(vm.BEGINSUB),
-			byte(vm.RETURNSUB),
-		}
-		prettyPrint("This should execute fine, going into one two depths of subroutines", code)
-	}
-	// TODO(@holiman) move this test into an actual test, which not only prints
-	// out the trace.
-	{
-		code := []byte{
-			byte(vm.PUSH9), 0x01, 0x00, 0x00, 0x00, 0x0, 0x00, 0x00, 0x00, (4 + 8),
-			byte(vm.JUMPSUB),
-			byte(vm.STOP),
-			byte(vm.BEGINSUB),
-			byte(vm.PUSH1), 8 + 9,
-			byte(vm.JUMPSUB),
-			byte(vm.RETURNSUB),
-			byte(vm.BEGINSUB),
-			byte(vm.RETURNSUB),
-		}
-		prettyPrint("This should fail, since the given location is outside of the "+
-			"code-range. The code is the same as previous example, except that the "+
-			"pushed location is `0x01000000000000000c` instead of `0x0c`.", code)
-	}
-	{
-		// This should fail at first opcode
-		code := []byte{
-			byte(vm.RETURNSUB),
-			byte(vm.PC),
-			byte(vm.PC),
-		}
-		prettyPrint("This should fail at first opcode, due to shallow `return_stack`", code)
-
-	}
-	{
-		code := []byte{
-			byte(vm.PUSH1), 5, // Jump past the subroutine
-			byte(vm.JUMP),
-			byte(vm.BEGINSUB),
-			byte(vm.RETURNSUB),
-			byte(vm.JUMPDEST),
-			byte(vm.PUSH1), 3, // Now invoke the subroutine
-			byte(vm.JUMPSUB),
-		}
-		prettyPrint("In this example. the JUMPSUB is on the last byte of code. When the "+
-			"subroutine returns, it should hit the 'virtual stop' _after_ the bytecode, "+
-			"and not exit with error", code)
-	}
-
-	{
-		code := []byte{
-			byte(vm.BEGINSUB),
-			byte(vm.RETURNSUB),
-			byte(vm.STOP),
-		}
-		prettyPrint("In this example, the code 'walks' into a subroutine, which is not "+
-			"allowed, and causes an error", code)
 	}
 }
