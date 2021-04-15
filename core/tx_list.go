@@ -346,11 +346,7 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, blockCtx BlockContext, gasLimit uint64) (types.Transactions, types.Transactions) {
-	nativeGasPriceMinimum := blockCtx.GetGoldGasPriceMinimum()
-	// native gas price floor is not necessarily set in txList.Add unlike the rest of caps/floors
-	if l.nativegaspricefloor == nil {
-		l.nativegaspricefloor = new(big.Int).Set(nativeGasPriceMinimum)
-	}
+
 	// check if we can bail & lower caps & raise floors at the same time
 	canBail := true
 	// Ensure that the cost cap <= the cost limit
@@ -358,11 +354,7 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 		canBail = false
 		l.nativecostcap = new(big.Int).Set(nativeCostLimit)
 	}
-	// Ensure that native gas price floor >= the native gas price minimum
-	if l.nativegaspricefloor.Cmp(nativeGasPriceMinimum) < 0 {
-		canBail = false
-		l.nativegaspricefloor = new(big.Int).Set(nativeGasPriceMinimum)
-	}
+
 	// Ensure that the gas cap <= the gas limit
 	if l.gascap > gasLimit {
 		canBail = false
@@ -375,14 +367,7 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 			l.feecaps[feeCurrency] = new(big.Int).Set(feeLimit)
 		}
 	}
-	// Ensure that each gas price floor >= the gas price minimum.
-	for feeCurrency, gasPriceFloor := range l.gaspricefloors {
-		gasPriceMinimum, isWhitelisted := blockCtx.GetGasPriceMinimum(&feeCurrency)
-		if isWhitelisted && gasPriceFloor.Cmp(gasPriceMinimum) < 0 {
-			canBail = false
-			l.gaspricefloors[feeCurrency] = new(big.Int).Set(gasPriceMinimum)
-		}
-	}
+
 	if canBail {
 		return nil, nil
 	}
@@ -391,22 +376,17 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
 		if feeCurrency := tx.FeeCurrency(); feeCurrency == nil {
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Cost", tx.Cost(), "Cost Limit", nativeCostLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
-			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit || tx.GasPrice().Cmp(nativeGasPriceMinimum) < 0
+			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit
 		} else {
 			feeLimit := feeLimits[*feeCurrency]
 			fee := tx.Fee()
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Value", tx.Value(), "Cost Limit", feeLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
 
-			gpm, isWhitelisted := blockCtx.GetGasPriceMinimum(feeCurrency)
 			// If any of the following is true, the transaction is invalid
 			// The fees are greater than or equal to the balance in the currency
 			return fee.Cmp(feeLimit) >= 0 ||
 				// The value of the tx is greater than the native balance of the account
 				tx.Value().Cmp(nativeCostLimit) > 0 ||
-				// The fee currency is not white listed
-				!isWhitelisted ||
-				// The gas price is less than the gas price minimum
-				tx.GasPrice().Cmp(gpm) < 0 ||
 				// The gas used is greater than the gas limit
 				tx.Gas() > gasLimit
 		}

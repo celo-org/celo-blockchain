@@ -1,12 +1,9 @@
 package core
 
 import (
-	"math/big"
-
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
@@ -14,9 +11,7 @@ import (
 // BlockContext represents contextual information about the blockchain state
 // for a given block
 type BlockContext struct {
-	goldGasPriceMinimum     *big.Int
-	nonGoldGasPriceMinimums map[common.Address]*big.Int
-
+	whitelistedCurrencies     map[common.Address]struct{}
 	gasForAlternativeCurrency uint64
 }
 
@@ -26,28 +21,19 @@ type BlockContext struct {
 func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
 
-	whitelistedCurrencies, err := currency.CurrencyWhitelist(header, state)
+	whitelistedCurrenciesArr, err := currency.CurrencyWhitelist(header, state)
 	if err != nil {
-		whitelistedCurrencies = []common.Address{}
+		whitelistedCurrenciesArr = []common.Address{}
 	}
 
-	// Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
-	goldGasPriceMinimum, _ := gpm.GetGasPriceMinimum(nil, header, state)
-
-	nonGoldGasPriceMinimums := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
-	for _, currency := range whitelistedCurrencies {
-		gpm, err := gpm.GetGasPriceMinimum(&currency, header, state)
-		if err != nil {
-			// we ignore currencies from which we can't get GasPriceMinimum
-			continue
-		}
-		nonGoldGasPriceMinimums[currency] = gpm
+	whitelistedCurrencies := make(map[common.Address]struct{}, len(whitelistedCurrenciesArr))
+	for _, currency := range whitelistedCurrenciesArr {
+		whitelistedCurrencies[currency] = struct{}{}
 	}
 
 	return BlockContext{
-		nonGoldGasPriceMinimums:   nonGoldGasPriceMinimums,
+		whitelistedCurrencies:     whitelistedCurrencies,
 		gasForAlternativeCurrency: gasForAlternativeCurrency,
-		goldGasPriceMinimum:       goldGasPriceMinimum,
 	}
 }
 
@@ -57,17 +43,13 @@ func (bc *BlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
 	return bc.gasForAlternativeCurrency
 }
 
-// GetGoldGasPriceMinimum retrieves the gas price minimum for the CELO token
-func (bc *BlockContext) GetGoldGasPriceMinimum() *big.Int {
-	return bc.goldGasPriceMinimum
-}
-
 // GetGasPriceMinimum retrieves the gas price minimum for any currency
 // Also indicates if the currency is not whitelisted
-func (bc *BlockContext) GetGasPriceMinimum(feeCurrency *common.Address) (gpm *big.Int, isWhitelisted bool) {
+func (bc *BlockContext) IsWhitelisted(feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
-		return bc.goldGasPriceMinimum, true
+		return true
 	}
-	gpm, ok := bc.nonGoldGasPriceMinimums[*feeCurrency]
-	return gpm, ok
+
+	_, ok := bc.whitelistedCurrencies[*feeCurrency]
+	return ok
 }

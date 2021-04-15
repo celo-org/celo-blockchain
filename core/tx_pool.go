@@ -120,9 +120,6 @@ var (
 	queuedGauge  = metrics.NewRegisteredGauge("txpool/queued", nil)
 	localGauge   = metrics.NewRegisteredGauge("txpool/local", nil)
 	slotsGauge   = metrics.NewRegisteredGauge("txpool/slots", nil)
-
-	// Celo specific metrics
-	gasPriceMinimumGauge = metrics.NewRegisteredGauge("txpool/gaspriceminimum", nil)
 )
 
 // TxStatus is the current status of a transaction as seen by the pool.
@@ -632,7 +629,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	gasPriceMinimum, isWhitelisted := pool.ctx().GetGasPriceMinimum(tx.FeeCurrency())
+	isWhitelisted := pool.ctx().IsWhitelisted(tx.FeeCurrency())
 	if !isWhitelisted {
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -660,11 +657,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Gas() < intrGas {
 		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
-	}
-
-	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
-		return ErrGasPriceDoesNotExceedMinimum
 	}
 
 	return nil
@@ -1277,10 +1269,6 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 		currency.NewManager(newHead, statedb),
 	}
 	pool.currentCtx.Store(newCtx)
-
-	// update gasPriceMinimum metric
-	goldGPM, _ := pool.ctx().GetGasPriceMinimum(nil)
-	gasPriceMinimumGauge.Update(goldGPM.Int64())
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
