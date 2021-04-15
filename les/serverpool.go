@@ -157,6 +157,7 @@ func newServerPool(db ethdb.KeyValueStore, dbKey []byte, vt *lpc.ValueTracker, d
 		iter = s.addPreNegFilter(iter, query)
 	}
 	s.dialIterator = enode.Filter(iter, func(node *enode.Node) bool {
+		clientDiscoveredNodesCounter.Inc(1)
 		s.ns.SetState(node, sfDialing, sfCanDial, 0)
 		s.ns.SetState(node, sfWaitDialTimeout, nodestate.Flags{}, time.Second*10)
 		return true
