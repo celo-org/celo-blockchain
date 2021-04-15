@@ -706,6 +706,10 @@ var (
 		Usage: "Comma-separated InfluxDB tags (key/values) attached to all measurements",
 		Value: "host=localhost",
 	}
+	MetricsLoadTestCSVFlag = cli.BoolFlag{
+		Name:  "metrics.loadtestcsvrecorder",
+		Usage: "Write a csv with information about the block production cycle to stdout",
+	}
 
 	EWASMInterpreterFlag = cli.StringFlag{
 		Name:  "vm.ewasm",

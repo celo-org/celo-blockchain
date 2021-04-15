@@ -495,7 +495,9 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
-	// TODO: Do record CSV metrics here
+	if metrics.EnabledLoadTest {
+		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), uint64(len(block.Transactions())), block.GasUsed(), aggregatedSeal.Round.Uint64())
+	}
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
