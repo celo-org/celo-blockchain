@@ -194,7 +194,7 @@ func (cc *CurrencyManager) GetExchangeRate(currency *common.Address) (*ExchangeR
 	return val, nil
 }
 
-// CmpValues compares values of potentially differeny currencies
+// CmpValues compares values of potentially different currencies
 func (cc *CurrencyManager) CmpValues(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
 	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
