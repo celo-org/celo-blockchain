@@ -113,6 +113,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
+	backend.csvRecorder = metrics.NewStdoutCSVRecorder("blockNumber", "txCount", "gasUsed", "round",
+		"cycle", "sleep", "consensus", "block_verify", "block_construct",
+		"sysload", "syswait", "procload")
 
 	backend.core = istanbulCore.New(backend, backend.config)
 
@@ -279,6 +282,11 @@ type Backend struct {
 
 	// Gauge reporting how many nanoseconds were spent sleeping
 	sleepGauge metrics.Gauge
+	// Start of the previous block cycle.
+	cycleStart time.Time
+
+	// Consensus csv recorded for load testing
+	csvRecorder *metrics.CSVRecorder
 
 	// Cache for the return values of the method RetrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
@@ -487,6 +495,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
+	// TODO: Do record CSV metrics here
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
@@ -1016,4 +1025,21 @@ func (sb *Backend) UpdateReplicaState(seq *big.Int) {
 	if sb.replicaState != nil {
 		sb.replicaState.NewChainHead(seq)
 	}
+}
+
+// recordBlockProductionTimes records information about the block production cycle and reports it through the CSVRecorder
+func (sb *Backend) recordBlockProductionTimes(blockNumber, txCount, gasUsed, round uint64) {
+	cycle := time.Since(sb.cycleStart)
+	sb.cycleStart = time.Now()
+	sleepGauge := sb.sleepGauge
+	consensusGauge := metrics.Get("consensus/istanbul/core/consensus_commit").(metrics.Gauge)
+	verifyGauge := metrics.Get("consensus/istanbul/core/verify").(metrics.Gauge)
+	blockConstructGuage := metrics.Get("miner/worker/block_construct").(metrics.Gauge)
+	cpuSysLoadGauge := metrics.Get("system/cpu/sysload").(metrics.Gauge)
+	cpuSysWaitGauge := metrics.Get("system/cpu/syswait").(metrics.Gauge)
+	cpuProcLoadGauge := metrics.Get("system/cpu/procload").(metrics.Gauge)
+
+	sb.csvRecorder.WriteRow(blockNumber, txCount, gasUsed, round,
+		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGuage.Value(),
+		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 }
