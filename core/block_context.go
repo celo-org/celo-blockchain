@@ -45,8 +45,8 @@ func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
 		whitelistedCurrencies = []common.Address{}
 	}
 
-	goldGasPriceMinimum, err := gpm.GetGasPriceMinimum(nil, header, state)
-	_ = err // Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
+	// Ignore the error since gpm.GetGasPriceMinimum returns the Fallback value on error
+	goldGasPriceMinimum, _ := gpm.GetGasPriceMinimum(nil, header, state)
 
 	nonGoldGasPriceMinimums := make(map[common.Address]*big.Int, len(whitelistedCurrencies))
 	for _, currency := range whitelistedCurrencies {
