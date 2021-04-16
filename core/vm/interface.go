@@ -111,15 +111,10 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
-type EVMCaller interface {
-	Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
-	StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
-
-	StopGasMetering()
-	StartGasMetering()
-	GetStateDB() StateDB
+type EVMProvider interface {
+	EVM() *EVM
 }
 
-type EVMCallerFactory interface {
-	NewEVMCaller(header *types.Header, state StateDB) (EVMCaller, error)
+type EVMFactory interface {
+	EVM(header *types.Header, state StateDB) *EVM
 }

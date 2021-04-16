@@ -14,7 +14,7 @@ import (
 type Call interface {
 	// Run will execute the call using the caller.
 	// Execution result will be populated into result
-	Run(caller vm.EVMCaller, result interface{}) (leftoverGas uint64, err error)
+	Run(evm *vm.EVM, result interface{}) (leftoverGas uint64, err error)
 }
 
 // QueryCallFromVM creates a contract Call that peforms a Query using the VMAddress as from
@@ -37,33 +37,6 @@ func WriteCallFromVM(to common.Address, maxGas uint64, value *big.Int, msg Messa
 		maxGas:   maxGas,
 		msg:      msg,
 		value:    value,
-	}
-}
-
-// QueryCallOnRegisteredContract creates a contract Call that performs a Query on a contract from the registry
-func QueryCallOnRegisteredContract(to common.Hash, maxGas uint64, msg Message) Call {
-	return &registeredContractCall{
-		registryId: to,
-		callTemplate: contractCall{
-			readOnly: true,
-			from:     VMAddress,
-			maxGas:   maxGas,
-			msg:      msg,
-		},
-	}
-}
-
-// WriteCallOnRegisteredContract creates a contract Call that performs a Write operation on a contract from the registry
-func WriteCallOnRegisteredContract(to common.Hash, maxGas uint64, value *big.Int, msg Message) Call {
-	return &registeredContractCall{
-		registryId: to,
-		callTemplate: contractCall{
-			readOnly: false,
-			from:     VMAddress,
-			maxGas:   maxGas,
-			value:    value,
-			msg:      msg,
-		},
 	}
 }
 
@@ -94,27 +67,6 @@ func (am Message) decodeResult(result interface{}, output []byte) error {
 	return am.abi.Unpack(result, am.method, output)
 }
 
-// registeredContractCall represents a Call to a contract in the registry
-type registeredContractCall struct {
-	registryId   common.Hash
-	callTemplate contractCall
-}
-
-// Run will execute the call using the caller.
-// Execution result will be populated into result
-func (rc *registeredContractCall) Run(caller vm.EVMCaller, result interface{}) (uint64, error) {
-	contractAddress, err := resolveAddressForCall(caller, rc.registryId, rc.callTemplate.msg.method)
-	if err != nil {
-		return 0, err
-	}
-
-	// copy call template
-	call := rc.callTemplate
-	call.to = contractAddress
-
-	return call.Run(caller, result)
-}
-
 // contractCall represents a Call to a contract
 type contractCall struct {
 	readOnly bool
@@ -127,7 +79,7 @@ type contractCall struct {
 
 // Run will execute the call using the caller.
 // Execution result will be populated into result
-func (call *contractCall) Run(caller vm.EVMCaller, result interface{}) (uint64, error) {
+func (call *contractCall) Run(evm *vm.EVM, result interface{}) (uint64, error) {
 
 	defer meterExecutionTime(call.msg.method)()
 	logger := log.New("to", call.to, "method", call.msg.method, "args", call.msg.args, "maxgas", call.maxGas)
@@ -141,9 +93,9 @@ func (call *contractCall) Run(caller vm.EVMCaller, result interface{}) (uint64, 
 	var output []byte
 	var leftoverGas uint64
 	if call.readOnly {
-		output, leftoverGas, err = caller.StaticCall(vm.AccountRef(call.from), call.to, input, call.maxGas)
+		output, leftoverGas, err = evm.StaticCall(vm.AccountRef(call.from), call.to, input, call.maxGas)
 	} else {
-		output, leftoverGas, err = caller.Call(vm.AccountRef(call.from), call.to, input, call.maxGas, call.value)
+		output, leftoverGas, err = evm.Call(vm.AccountRef(call.from), call.to, input, call.maxGas, call.value)
 	}
 
 	if err != nil {

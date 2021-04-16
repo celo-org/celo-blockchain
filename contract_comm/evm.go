@@ -21,60 +21,60 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
 var (
-	evmCallerFactory vm.EVMCallerFactory
+	evmFactory vm.EVMFactory
 )
 
-func SetEVMCallerFactory(_evmCallerFactory vm.EVMCallerFactory) {
-	if evmCallerFactory == nil {
-		log.Trace("Setting the evmCallerFactory Singleton")
-		evmCallerFactory = _evmCallerFactory
+func SetEVMFactory(factory vm.EVMFactory) {
+	if evmFactory == nil {
+		log.Trace("Setting the evmFactory Singleton")
+		evmFactory = factory
 	}
 }
 
-func getCaller(header *types.Header, state vm.StateDB) (vm.EVMCaller, error) {
-	// Normally, when making an evm call, we should use the current block's state.  However,
-	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
-	// to call the evm using the currently mined block.  In that case, the header and state params
-	// will be non nil.
-	if evmCallerFactory == nil {
-		return nil, errors.ErrNoInternalEvmHandlerSingleton
-	}
-
-	return evmCallerFactory.NewEVMCaller(header, state)
+func getProvider(header *types.Header, state vm.StateDB) (vm.EVMProvider, error) {
+	return vmcontext.NewEVMProvider(evmFactory, header, state), nil
 }
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
-	caller, err := getCaller(header, state)
+	provider, err := getProvider(header, state)
 	if err != nil {
-		return common.ZeroAddress, err
+		return common.Address{}, err
 	}
-	return contracts.GetRegisteredAddress(caller, registryId)
+	return contracts.GetRegisteredAddress(provider.EVM(), registryId)
 }
 
 func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	caller, err := getCaller(header, state)
+	provider, err := getProvider(header, state)
 	if err != nil {
 		return 0, err
 	}
 
-	return contracts.QueryCallOnRegisteredContract(registryId, gas, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	contractAddress, err := contracts.ResolveAddressForCall(provider.EVM(), registryId, method)
+	if err != nil {
+		return 0, err
+	}
+	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	caller, err := getCaller(header, state)
+	provider, err := getProvider(header, state)
 	if err != nil {
 		return 0, err
 	}
 
-	gasLeft, err := contracts.WriteCallOnRegisteredContract(registryId, gas, value, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	contractAddress, err := contracts.ResolveAddressForCall(provider.EVM(), registryId, method)
+	if err != nil {
+		return 0, err
+	}
+	gasLeft, err := contracts.WriteCallFromVM(contractAddress, gas, value, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
@@ -84,10 +84,10 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 }
 
 func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	caller, err := getCaller(header, state)
+	provider, err := getProvider(header, state)
 	if err != nil {
 		return 0, err
 	}
 
-	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
 }

@@ -41,8 +41,8 @@ func unpackError(result []byte) (string, error) {
 	return vs[0].(string), nil
 }
 
-func resolveAddressForCall(caller vm.EVMCaller, registryId common.Hash, method string) (common.Address, error) {
-	contractAddress, err := GetRegisteredAddress(caller, registryId)
+func ResolveAddressForCall(evm *vm.EVM, registryId common.Hash, method string) (common.Address, error) {
+	contractAddress, err := GetRegisteredAddress(evm, registryId)
 
 	if err != nil {
 		hexRegistryId := hexutil.Encode(registryId[:])

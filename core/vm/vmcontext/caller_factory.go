@@ -1,21 +1,43 @@
 package vmcontext
 
 import (
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-type defaultEVMCallerFactory struct {
+type defaultEVMFactory struct {
 	chain vm.ChainContext
 }
 
-func NewEVMCallerFactory(chain vm.ChainContext) vm.EVMCallerFactory {
-	return &defaultEVMCallerFactory{chain}
+func NewEVMFactory(chain vm.ChainContext) vm.EVMFactory {
+	return &defaultEVMFactory{chain}
 }
 
-func (factory *defaultEVMCallerFactory) NewEVMCaller(header *types.Header, state vm.StateDB) (vm.EVMCaller, error) {
-	if header == nil {
-		return NewEVMCallerForCurrentBlock(factory.chain)
+func (f *defaultEVMFactory) EVM(header *types.Header, state vm.StateDB) *vm.EVM {
+	// TODO look at changing the params to include origin and gasPrice this would make this a much more useful component.
+	// func (f *defaultEVMFactory) EVM(origin common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) *vm.EVM {
+
+	// Zero address because this is for system calls only
+	// And hence the gas price of 0
+	context := New(common.ZeroAddress, common.Big0, header, f.chain, nil)
+	return vm.NewEVM(context, state, f.chain.Config(), *f.chain.GetVMConfig())
+}
+
+type defaultEVMProvider struct {
+	factory vm.EVMFactory
+	header  *types.Header
+	state   vm.StateDB
+}
+
+func NewEVMProvider(factory vm.EVMFactory, header *types.Header, state vm.StateDB) *defaultEVMProvider {
+	return &defaultEVMProvider{
+		factory: factory,
+		header:  header,
+		state:   state,
 	}
-	return NewEVMCaller(factory.chain, header, state), nil
+}
+
+func (p *defaultEVMProvider) EVM() *vm.EVM {
+	return p.factory.EVM(p.header, p.state)
 }
