@@ -191,7 +191,7 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), evm.Header, evm.StateDB)
+	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), nil, evm.StateDB)
 
 	return &StateTransition{
 		gp:              gp,
@@ -238,7 +238,7 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB)) {
+	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), nil, st.evm.StateDB)) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -268,7 +268,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
-	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.Header, st.evm.StateDB)
+	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, nil, st.evm.StateDB)
 	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
 
 	if err != nil {
@@ -409,7 +409,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
-	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.Header, st.state, msg.FeeCurrency(), istanbul)
+	gas, err := IntrinsicGas(st.data, contractCreation, nil, st.state, msg.FeeCurrency(), istanbul)
 	if err != nil {
 		return nil, err
 	}
