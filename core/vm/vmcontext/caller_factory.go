@@ -15,7 +15,9 @@ func NewEVMFactory(chain vm.ChainContext) vm.EVMFactory {
 }
 
 func (f *defaultEVMFactory) EVM(header *types.Header, state vm.StateDB) *vm.EVM {
-	// TODO look at changing the params to include origin and gasPrice this would make this a much more useful component.
+	// TODO look at changing the params to include origin and gasPrice this
+	// would allow this component to be used for user contract calls as well as
+	// system contract calls.
 	// func (f *defaultEVMFactory) EVM(origin common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) *vm.EVM {
 
 	// Zero address because this is for system calls only
