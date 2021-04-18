@@ -1,15 +1,29 @@
 package vmcontext
 
 import (
+	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-type defaultEVMCallerFactory struct {
-	chain vm.ChainContext
+// ChainContext supports retrieving chain data and consensus parameters
+// from the blockchain to be used during transaction processing.
+type ExtendedChainContext interface {
+	vm.ChainContext
+
+	// GetVMConfig returns the node's vm configuration
+	GetVMConfig() *vm.Config
+
+	CurrentHeader() *types.Header
+
+	State() (*state.StateDB, error)
 }
 
-func NewEVMCallerFactory(chain vm.ChainContext) vm.EVMCallerFactory {
+type defaultEVMCallerFactory struct {
+	chain ExtendedChainContext
+}
+
+func NewEVMCallerFactory(chain ExtendedChainContext) vm.EVMCallerFactory {
 	return &defaultEVMCallerFactory{chain}
 }
 

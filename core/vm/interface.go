@@ -21,7 +21,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -98,14 +97,6 @@ type ChainContext interface {
 	// in the pressence of forks. A new method needs to be created to retrieve a header by number
 	// in the correct fork.
 	GetHeaderByNumber(uint64) *types.Header
-
-	// GetVMConfig returns the node's vm configuration
-	GetVMConfig() *Config
-
-	CurrentHeader() *types.Header
-
-	State() (*state.StateDB, error)
-	// StateAt(root common.Hash) (*state.StateDB, error)
 
 	// Config returns the blockchain's chain configuration
 	Config() *params.ChainConfig

@@ -18,7 +18,7 @@ type evmCaller struct {
 	dontMeterGas bool
 }
 
-func NewEVMCallerForCurrentBlock(chain vm.ChainContext) (vm.EVMCaller, error) {
+func NewEVMCallerForCurrentBlock(chain ExtendedChainContext) (vm.EVMCaller, error) {
 	header := chain.CurrentHeader()
 	// FIXME small race condition here (Head changes between get header & get state)
 	state, err := chain.State()
@@ -28,7 +28,7 @@ func NewEVMCallerForCurrentBlock(chain vm.ChainContext) (vm.EVMCaller, error) {
 	return NewEVMCaller(chain, header, state), nil
 }
 
-func NewEVMCaller(chain vm.ChainContext, header *types.Header, state vm.StateDB) vm.EVMCaller {
+func NewEVMCaller(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.EVMCaller {
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	context := New(common.ZeroAddress, common.Big0, header, chain, nil)
