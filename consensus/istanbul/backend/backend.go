@@ -113,9 +113,11 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-	backend.csvRecorder = metrics.NewStdoutCSVRecorder("blockNumber", "txCount", "gasUsed", "round",
-		"cycle", "sleep", "consensus", "block_verify", "block_construct",
-		"sysload", "syswait", "procload")
+	if metrics.EnabledLoadTest {
+		backend.csvRecorder = metrics.NewStdoutCSVRecorder("blockNumber", "txCount", "gasUsed", "round",
+			"cycle", "sleep", "consensus", "block_verify", "block_construct",
+			"sysload", "syswait", "procload")
+	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
 
