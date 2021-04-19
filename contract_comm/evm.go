@@ -21,6 +21,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -40,6 +41,12 @@ func SetEVMFactory(factory vm.EVMFactory) {
 }
 
 func getProvider(header *types.Header, state vm.StateDB) (vm.EVMProvider, error) {
+
+	// This check and returned error allows the TestGolangBindings test to
+	// pass. It would be nicer if the test actually set the provider.
+	if evmFactory == nil {
+		return nil, errors.ErrNoInternalEvmHandlerSingleton
+	}
 	return vmcontext.NewEVMProvider(evmFactory, header, state), nil
 }
 
