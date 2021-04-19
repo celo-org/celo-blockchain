@@ -41,20 +41,20 @@ func NewEVMCaller(chain ExtendedChainContext, header *types.Header, state vm.Sta
 	}
 }
 
-func (ev *evmCaller) Call(caller vm.ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (ev *evmCaller) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.Call(caller, addr, input, gas, value)
+	return evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
 }
 
-func (ev *evmCaller) StaticCall(caller vm.ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (ev *evmCaller) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.StaticCall(caller, addr, input, gas)
+	return evm.StaticCall(vm.AccountRef(sender), recipient, input, gas)
 }
 
 func (ev *evmCaller) StopGasMetering() {
@@ -68,4 +68,17 @@ func (ev *evmCaller) StartGasMetering() {
 // GetStateDB implements Backend.GetStateDB
 func (ev *evmCaller) GetStateDB() vm.StateDB {
 	return ev.state
+}
+
+// SharedEVMCaller is an evm caller that REUSES an evm
+// This MUST NOT BE USED, but it's here for backward compatibility
+// purposes
+type SharedEVMCaller struct{ *vm.EVM }
+
+func (sev *SharedEVMCaller) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+	return sev.Call(vm.AccountRef(sender), recipient, input, gas, value)
+}
+
+func (sev *SharedEVMCaller) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+	return sev.StaticCall(vm.AccountRef(sender), recipient, input, gas)
 }

@@ -141,9 +141,9 @@ func (call *contractCall) Run(caller vm.EVMCaller, result interface{}) (uint64, 
 	var output []byte
 	var leftoverGas uint64
 	if call.readOnly {
-		output, leftoverGas, err = caller.StaticCall(vm.AccountRef(call.from), call.to, input, call.maxGas)
+		output, leftoverGas, err = caller.Query(call.from, call.to, input, call.maxGas)
 	} else {
-		output, leftoverGas, err = caller.Call(vm.AccountRef(call.from), call.to, input, call.maxGas, call.value)
+		output, leftoverGas, err = caller.Execute(call.from, call.to, input, call.maxGas, call.value)
 	}
 
 	if err != nil {

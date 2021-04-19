@@ -103,11 +103,23 @@ type ChainContext interface {
 }
 
 type EVMCaller interface {
-	Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
-	StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	// Execute performs a potentially write operation over the caller's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
 
+	// Query performs a read operation over the caller's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+
+	// StopGasMetering backward compatibility method to stop gas metering
+	// Deprecated. DO NOT USE
 	StopGasMetering()
+
+	// StartGasMeterin backward compatibility method to start gas metering
+	// Deprecated. DO NOT USE
 	StartGasMetering()
+
+	// GetStateDB retrieves current stateDB within the caller
 	GetStateDB() StateDB
 }
 
