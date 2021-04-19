@@ -47,6 +47,14 @@ func getProvider(header *types.Header, state vm.StateDB) (vm.EVMProvider, error)
 	if evmFactory == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
+	if header == nil {
+		header = evmFactory.Chain().CurrentHeader()
+		var err error
+		state, err = evmFactory.Chain().State()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return vmcontext.NewEVMProvider(evmFactory, header, state), nil
 }
 

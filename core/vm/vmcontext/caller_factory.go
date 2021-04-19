@@ -26,6 +26,10 @@ func (f *defaultEVMFactory) EVM(header *types.Header, state vm.StateDB) *vm.EVM 
 	return vm.NewEVM(context, state, f.chain.Config(), *f.chain.GetVMConfig())
 }
 
+func (f *defaultEVMFactory) Chain() vm.ChainContext {
+	return f.chain
+}
+
 type defaultEVMProvider struct {
 	factory vm.EVMFactory
 	header  *types.Header

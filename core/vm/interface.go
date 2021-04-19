@@ -117,4 +117,5 @@ type EVMProvider interface {
 
 type EVMFactory interface {
 	EVM(header *types.Header, state StateDB) *EVM
+	Chain() ChainContext
 }
