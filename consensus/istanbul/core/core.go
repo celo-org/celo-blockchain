@@ -794,8 +794,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		return 0, verificationStatus
 	} else {
 		logger.Trace("verification status cache miss")
-		start := time.Now()
-		defer func() { c.verifyGauge.Update(time.Since(start).Nanoseconds()) }()
+		defer func(start time.Time) { c.verifyGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 
 		duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)

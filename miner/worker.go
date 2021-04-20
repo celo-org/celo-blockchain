@@ -877,8 +877,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 	// Start record block construction time after `engine.Prepare` to exclude the sleep time
-	start := time.Now()
-	defer func() { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }()
+	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {
