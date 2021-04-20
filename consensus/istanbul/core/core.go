@@ -135,8 +135,8 @@ type core struct {
 	consensusTimestamp time.Time
 
 	// Time from accepting a pre-prepare (after block verifcation) to preparing or committing
-	consensusPrepareTimeGuage metrics.Gauge
-	consensusCommitTimeGuage  metrics.Gauge
+	consensusPrepareTimeGauge metrics.Gauge
+	consensusCommitTimeGauge  metrics.Gauge
 	// Time to verify blocks. Only records cache misses.
 	verifyGauge metrics.Gauge
 	// Historgram of the time to handle each message type
@@ -163,8 +163,8 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		pendingRequestsMu:         new(sync.Mutex),
 		consensusTimestamp:        time.Time{},
 		rsdb:                      rsdb,
-		consensusPrepareTimeGuage: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
-		consensusCommitTimeGuage:  metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_commit", nil),
+		consensusPrepareTimeGauge: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
+		consensusCommitTimeGauge:  metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_commit", nil),
 		verifyGauge:               metrics.NewRegisteredGauge("consensus/istanbul/core/verify", nil),
 		handlePrePrepareTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/handle_preprepare", nil),
 		handlePrepareTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil),
@@ -372,7 +372,7 @@ func (c *core) commit() error {
 
 	// Update metrics.
 	if !c.consensusTimestamp.IsZero() {
-		c.consensusCommitTimeGuage.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		c.consensusCommitTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		c.consensusTimestamp = time.Time{}
 	}
 
