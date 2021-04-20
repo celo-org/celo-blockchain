@@ -194,7 +194,7 @@ type worker struct {
 	// Needed for randomness
 	db ethdb.Database
 
-	blockConstructGuage metrics.Gauge
+	blockConstructGauge metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
@@ -219,7 +219,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		resubmitIntervalCh:  make(chan time.Duration),
 		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 		db:                  db,
-		blockConstructGuage: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
+		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -878,7 +878,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	// Start record block construction time after `engine.Prepare` to exclude the sleep time
 	start := time.Now()
-	defer func() { w.blockConstructGuage.Update(time.Since(start).Nanoseconds()) }()
+	defer func() { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }()
 
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {

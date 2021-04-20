@@ -1038,12 +1038,12 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber, txCount, gasUsed, rou
 	sleepGauge := sb.sleepGauge
 	consensusGauge := metrics.Get("consensus/istanbul/core/consensus_commit").(metrics.Gauge)
 	verifyGauge := metrics.Get("consensus/istanbul/core/verify").(metrics.Gauge)
-	blockConstructGuage := metrics.Get("miner/worker/block_construct").(metrics.Gauge)
+	blockConstructGauge := metrics.Get("miner/worker/block_construct").(metrics.Gauge)
 	cpuSysLoadGauge := metrics.Get("system/cpu/sysload").(metrics.Gauge)
 	cpuSysWaitGauge := metrics.Get("system/cpu/syswait").(metrics.Gauge)
 	cpuProcLoadGauge := metrics.Get("system/cpu/procload").(metrics.Gauge)
 
 	sb.csvRecorder.WriteRow(blockNumber, txCount, gasUsed, round,
-		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGuage.Value(),
+		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
 		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 }
