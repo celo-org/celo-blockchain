@@ -51,7 +51,7 @@ func NewCSVRecorder(w io.Writer, fields ...string) *CSVRecorder {
 }
 
 // WriteRow writes out as csv row. Will convert the values to a string.
-func (c *CSVRecorder) Write(values ...string) {
+func (c *CSVRecorder) Write(values []string) {
 	if c == nil {
 		return
 	}

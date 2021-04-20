@@ -1057,5 +1057,6 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber, txCount, gasUsed, rou
 	for _, v := range vals {
 		strs = append(strs, fmt.Sprintf("%v", v))
 	}
+	sb.csvRecorder.Write(strs)
 
 }
