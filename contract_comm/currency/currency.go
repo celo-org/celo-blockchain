@@ -99,15 +99,66 @@ var (
 	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
 )
 
-// ExchangeRate represent the exchangeRate for the pair (base, token)
+// NoopExchangeRate represents an exchange rate of 1 to 1
+var NoopExchangeRate = ExchangeRate{common.Big1, common.Big1}
+
+var CELOCurrency = Currency{
+	Address:    common.ZeroAddress,
+	toCELORate: NoopExchangeRate,
+}
+
+// Currency represent a system currency
+// than can be converted to CELO
+// Two currencies are deemed equal if they have the same address
+type Currency struct {
+	Address    common.Address
+	toCELORate ExchangeRate
+}
+
+// ToCELO converts an currency's token amount to a CELO amount
+func (c *Currency) ToCELO(tokenAmount *big.Int) *big.Int {
+	return c.toCELORate.ToBase(tokenAmount)
+}
+
+// FromCELO converts an CELO amount to a currency tokens amount
+func (c *Currency) FromCELO(celoAmount *big.Int) *big.Int {
+	return c.toCELORate.FromBase(celoAmount)
+}
+
+// CmpToCurrency compares a currency amount to an amount in a different currency
+func (c *Currency) CmpToCurrency(currencyAmount *big.Int, sndCurrencyAmount *big.Int, sndCurrency *Currency) int {
+	if c == sndCurrency || c.Address == sndCurrency.Address {
+		return currencyAmount.Cmp(sndCurrencyAmount)
+	}
+
+	// Below code block is basically evaluating this comparison:
+	// currencyAmount * c.toCELORate.denominator / c.toCELORate.numerator < sndCurrencyAmount * sndCurrency.toCELORate.denominator / sndCurrency.toCELORate.numerator
+	// It will transform that comparison to this, to remove having to deal with fractional values.
+	// currencyAmount * c.toCELORate.denominator * sndCurrency.toCELORate.numerator < sndCurrencyAmount * sndCurrency.toCELORate.denominator * c.toCELORate.numerator
+	leftSide := new(big.Int).Mul(
+		currencyAmount,
+		new(big.Int).Mul(
+			c.toCELORate.denominator,
+			sndCurrency.toCELORate.numerator,
+		),
+	)
+	rightSide := new(big.Int).Mul(
+		sndCurrencyAmount,
+		new(big.Int).Mul(
+			sndCurrency.toCELORate.denominator,
+			c.toCELORate.numerator,
+		),
+	)
+
+	return leftSide.Cmp(rightSide)
+}
+
+// ExchangeRate represent the exchangeRate [Base -> Token]
 // Follows the equation: 1 base * ExchangeRate = X token
 type ExchangeRate struct {
 	numerator   *big.Int
 	denominator *big.Int
 }
-
-// NoopExchangeRate represents an exchange rate of 1 to 1
-var NoopExchangeRate = ExchangeRate{common.Big1, common.Big1}
 
 // NewExchangeRate creates an exchange rate.
 // Requires numerator >=0 && denominator >= 0
@@ -131,28 +182,6 @@ func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
 	return new(big.Int).Div(new(big.Int).Mul(goldAmount, er.numerator), er.denominator)
 }
 
-// CmpValues compares two values with potentially different exchange rates
-func (er *ExchangeRate) CmpValues(amount *big.Int, anotherTokenAmount *big.Int, anotherTokenRate *ExchangeRate) int {
-	// if both rates are noop rate (CELO rate), compare values
-	if er == nil && anotherTokenRate == nil {
-		return amount.Cmp(anotherTokenAmount)
-	}
-
-	// if both exchangeRate are the same
-	if er != nil && anotherTokenRate != nil && *er == *anotherTokenRate {
-		return amount.Cmp(anotherTokenAmount)
-	}
-
-	// Below code block is basically evaluating this comparison:
-	// amount * er.denominator / er.numerator < anotherTokenAmount * anotherTokenRate.denominator / anotherTokenRate.numerator
-	// It will transform that comparison to this, to remove having to deal with fractional values.
-	// amount * er.denominator * anotherTokenRate.numerator < anotherTokenAmount * anotherTokenRate.denominator * er.numerator
-	leftSide := new(big.Int).Mul(amount, new(big.Int).Mul(er.denominator, anotherTokenRate.numerator))
-	rightSide := new(big.Int).Mul(anotherTokenAmount, new(big.Int).Mul(anotherTokenRate.denominator, er.numerator))
-
-	return leftSide.Cmp(rightSide)
-}
-
 // CurrencyManager provides an interface to access different fee currencies on a given point in time (header,state)
 // and doing comparison or fetching exchange rates
 //
@@ -161,7 +190,7 @@ type CurrencyManager struct {
 	header *types.Header
 	state  vm.StateDB
 
-	exchangeRates    map[common.Address]*ExchangeRate                                        // map of exchange rates of the form (CELO, token)
+	currencyCache    map[common.Address]*Currency                                            // map of exchange rates of the form (CELO, token)
 	_getExchangeRate func(*common.Address, *types.Header, vm.StateDB) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
@@ -174,65 +203,61 @@ func newManager(_getExchangeRate func(*common.Address, *types.Header, vm.StateDB
 	return &CurrencyManager{
 		header:           header,
 		state:            state,
-		exchangeRates:    make(map[common.Address]*ExchangeRate),
+		currencyCache:    make(map[common.Address]*Currency),
 		_getExchangeRate: _getExchangeRate,
 	}
 }
 
-// GetExchangeRate retrieves currency-to-CELO exchange rate
-func (cc *CurrencyManager) GetExchangeRate(currency *common.Address) (*ExchangeRate, error) {
-	if currency == nil {
-		return &NoopExchangeRate, nil
+// GetCurrency retrieves fee currency
+func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Currency, error) {
+	if currencyAddress == nil {
+		return &CELOCurrency, nil
 	}
 
-	val, ok := cc.exchangeRates[*currency]
+	val, ok := cc.currencyCache[*currencyAddress]
 	if ok {
 		return val, nil
 	}
 
-	val, err := cc._getExchangeRate(currency, cc.header, cc.state)
+	currencyExchangeRate, err := cc._getExchangeRate(currencyAddress, cc.header, cc.state)
 	if err != nil {
 		return nil, err
 	}
 
-	cc.exchangeRates[*currency] = val
+	val = &Currency{
+		Address:    *currencyAddress,
+		toCELORate: *currencyExchangeRate,
+	}
+
+	cc.currencyCache[*currencyAddress] = val
 
 	return val, nil
 }
 
 // CmpValues compares values of potentially different currencies
-func (cc *CurrencyManager) CmpValues(val1 *big.Int, currency1 *common.Address, val2 *big.Int, currency2 *common.Address) int {
+func (cc *CurrencyManager) CmpValues(val1 *big.Int, currencyAddr1 *common.Address, val2 *big.Int, currencyAddr2 *common.Address) int {
 	// Short circuit if the fee currency is the same. nil currency => native currency
-	if (currency1 == nil && currency2 == nil) || (currency1 != nil && currency2 != nil && *currency1 == *currency2) {
+	if (currencyAddr1 == nil && currencyAddr2 == nil) || (currencyAddr1 != nil && currencyAddr2 != nil && *currencyAddr1 == *currencyAddr2) {
 		return val1.Cmp(val2)
 	}
 
-	exchangeRate1, err1 := cc.GetExchangeRate(currency1)
-	exchangeRate2, err2 := cc.GetExchangeRate(currency2)
+	currency1, err1 := cc.GetCurrency(currencyAddr1)
+	currency2, err2 := cc.GetCurrency(currencyAddr2)
 
 	if err1 != nil || err2 != nil {
 		currency1Output := "nil"
-		if currency1 != nil {
-			currency1Output = currency1.Hex()
+		if currencyAddr1 != nil {
+			currency1Output = currencyAddr1.Hex()
 		}
 		currency2Output := "nil"
-		if currency2 != nil {
-			currency2Output = currency2.Hex()
+		if currencyAddr2 != nil {
+			currency2Output = currencyAddr2.Hex()
 		}
 		log.Warn("Error in retrieving exchange rate.  Will do comparison of two values without exchange rate conversion.", "currency1", currency1Output, "err1", err1, "currency2", currency2Output, "err2", err2)
 		return val1.Cmp(val2)
 	}
 
-	return exchangeRate1.CmpValues(val1, val2, exchangeRate2)
-}
-
-// ToCelo converts an amount on a given currency to CELO token
-func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*big.Int, error) {
-	rate, err := cc.GetExchangeRate(currency)
-	if err != nil {
-		return nil, err
-	}
-	return rate.ToBase(amount), nil
+	return currency1.CmpToCurrency(val1, val2, currency2)
 }
 
 // GetExchangeRate retrieves currency-to-CELO exchange rate

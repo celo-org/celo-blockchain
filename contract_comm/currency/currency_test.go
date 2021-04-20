@@ -225,7 +225,11 @@ func TestExchangeRate(t *testing.T) {
 		g.Expect(twoToOne.ToBase(common.Big2)).Should(EqualBigInt(1))
 	})
 
-	t.Run("should compare two token values", func(t *testing.T) {
+}
+
+func TestCurrency(t *testing.T) {
+
+	t.Run("should compare with another currency values", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		// 1 gold => 2 expensiveToken
@@ -233,7 +237,15 @@ func TestExchangeRate(t *testing.T) {
 		// 1 gold => 5 cheapToken
 		cheapToken := MustNewExchangeRate(big.NewInt(5), common.Big1)
 
-		g.Expect(expensiveToken.CmpValues(big.NewInt(10), big.NewInt(10), cheapToken)).Should(Equal(1))
-	})
+		expensiveCurrency := Currency{
+			Address:    common.HexToAddress("0x1"),
+			toCELORate: *expensiveToken,
+		}
+		cheapCurrency := Currency{
+			Address:    common.HexToAddress("0x2"),
+			toCELORate: *cheapToken,
+		}
 
+		g.Expect(expensiveCurrency.CmpToCurrency(big.NewInt(10), big.NewInt(10), &cheapCurrency)).Should(Equal(1))
+	})
 }

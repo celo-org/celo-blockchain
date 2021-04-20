@@ -270,7 +270,6 @@ func (l *txList) FeeCurrencies() []common.Address {
 func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transaction) {
 	// If there's an older better transaction, abort
 	old := l.txs.Get(tx.Nonce())
-	var err error
 	if old != nil {
 		var oldPrice, newPrice *big.Int
 		// Short circuit conversion if both are the same currency
@@ -280,16 +279,20 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		} else {
 			ctx := l.ctx.Load().(txPoolContext)
 			if fc := old.FeeCurrency(); fc != nil {
-				if oldPrice, err = ctx.ToCelo(old.GasPrice(), fc); err != nil {
+				currency, err := ctx.GetCurrency(fc)
+				if err != nil {
 					return false, nil
 				}
+				oldPrice = currency.ToCELO(old.GasPrice())
 			} else {
 				oldPrice = old.GasPrice()
 			}
 			if fc := tx.FeeCurrency(); fc != nil {
-				if newPrice, err = ctx.ToCelo(tx.GasPrice(), fc); err != nil {
+				currency, err := ctx.GetCurrency(fc)
+				if err != nil {
 					return false, nil
 				}
+				newPrice = currency.ToCELO(tx.GasPrice())
 			} else {
 				newPrice = tx.GasPrice()
 			}
