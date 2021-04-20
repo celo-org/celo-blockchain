@@ -39,6 +39,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -353,6 +354,21 @@ func (bc *BlockChain) getProcInterrupt() bool {
 // GetVMConfig returns the block chain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
+}
+
+// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
+func (bc *BlockChain) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewSystemEVMRunner(bc, header, state)
+}
+
+// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (bc *BlockChain) NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	header := bc.CurrentHeader()
+	state, err := bc.StateAt(header.Root)
+	if err != nil {
+		return nil, err
+	}
+	return vmcontext.NewSystemEVMRunner(bc, header, state), nil
 }
 
 // empty returns an indicator whether the blockchain is empty.
