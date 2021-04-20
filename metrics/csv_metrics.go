@@ -17,20 +17,18 @@
 package metrics
 
 import (
-	"fmt"
+	"encoding/csv"
 	"io"
 	"os"
-	"strings"
 	"sync"
 )
 
 // A CSVRecorder enables easy writing of CSV data a specified writer.
 // The header is written on creation. Writing is thread safe.
 type CSVRecorder struct {
-	header  []string
-	writer  io.Writer
-	format  string
-	writeMu sync.Mutex
+	writer        csv.Writer
+	backingWriter io.Writer
+	writeMu       sync.Mutex
 }
 
 // NewStdoutCSVRecorder creates a CSV recorder to standard out
@@ -40,49 +38,37 @@ func NewStdoutCSVRecorder(fields ...string) *CSVRecorder {
 }
 
 // NewStdoutCSVRecorder creates a CSV recorder that writes to the supplied writer.
-// The writer is aborbed into the recorder and the user is responsible for calling CSVRecorder.Close()
+// The writer is aborbed into the recorder and the user is responsible for calling
+// CSVRecorder.Close() if the writer should be closed.
 // The header is immediately written upon construction.
 func NewCSVRecorder(w io.Writer, fields ...string) *CSVRecorder {
-	fmt.Fprintln(w, strings.Join(fields, ","))
-	return &CSVRecorder{
-		header: fields,
-		writer: w,
-		format: rowFormatString(len(fields))}
-}
-
-// rowFormatString creates the string "%v,%v[,%v]...\n" where "%v" is repeated fieldCount times.
-func rowFormatString(fieldCount int) string {
-	var b strings.Builder
-	b.WriteString("%v")
-	for i := 1; i < fieldCount; i++ {
-		b.WriteString(",%v")
+	c := &CSVRecorder{
+		writer:        *csv.NewWriter(w),
+		backingWriter: w,
 	}
-	b.WriteString("\n")
-	return b.String()
+	c.writer.Write(fields)
+	return c
 }
 
-// WriteRow writes out as csv row. Each value is printed with "%v"
-// The length of the values must match the length of the header.
-func (c *CSVRecorder) WriteRow(values ...interface{}) {
-	if len(values) != len(c.header) {
-		panic("Dev error: Value length does not match the header length")
+// WriteRow writes out as csv row. Will convert the values to a string.
+func (c *CSVRecorder) Write(values ...string) {
+	if c == nil {
+		return
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	fmt.Fprintf(c.writer, c.format, values...)
+	c.writer.Write(values)
 }
 
 // Close closes the writer iff it is an io.WriterCloser
 // This is a no-op for non Closers or a nil receiver.
 func (c *CSVRecorder) Close() error {
-	fmt.Println("closing csv reader")
-	defer fmt.Println("close complete")
 	if c == nil {
 		return nil
 	}
-	if wc, ok := c.writer.(io.WriteCloser); ok {
+	c.writer.Flush()
+	if wc, ok := c.backingWriter.(io.WriteCloser); ok {
 		err := wc.Close()
-		fmt.Println("closed writer")
 		return err
 	}
 	return nil
