@@ -338,10 +338,11 @@ func (w *worker) close() {
 }
 
 func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	currencyComparator := currency.NewComparator()
+	// TODO specify header & state
+	currencyManager := currency.NewManager(nil, nil)
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-		return currencyComparator.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
 	}
 }
 

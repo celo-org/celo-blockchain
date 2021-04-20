@@ -96,6 +96,11 @@ var loadTestSkipGasEstimationFlag = cli.BoolFlag{
 	Usage: "Skips estimating gas if true and instead hardcodes a value for the cUSD transfer",
 }
 
+var loadTestMixFeeCurrencyFlag = cli.BoolFlag{
+	Name:  "mixfeecurrency",
+	Usage: "Switches between paying for gas in cUSD and CELO",
+}
+
 var initValidatorsCommand = cli.Command{
 	Name:      "validator-init",
 	Usage:     "Setup all validators nodes",
@@ -137,7 +142,11 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag, loadTestSkipGasEstimationFlag},
+	Flags: []cli.Flag{
+		loadTestTPSFlag,
+		loadTestMaxPendingFlag,
+		loadTestSkipGasEstimationFlag,
+		loadTestMixFeeCurrencyFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -288,5 +297,6 @@ func loadBot(ctx *cli.Context) error {
 		Verbose:               verbose,
 		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
 		SkipGasEstimation:     ctx.GlobalBool(loadTestSkipGasEstimationFlag.Name),
+		MixFeeCurrency:        ctx.GlobalBool(loadTestMixFeeCurrencyFlag.Name),
 	})
 }
