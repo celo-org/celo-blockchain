@@ -113,7 +113,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-	if metrics.EnabledLoadTest {
+	if config.LoadTestCSVFile != "" {
 		backend.csvRecorder = metrics.NewStdoutCSVRecorder("blockNumber", "txCount", "gasUsed", "round",
 			"cycle", "sleep", "consensus", "block_verify", "block_construct",
 			"sysload", "syswait", "procload")
@@ -497,7 +497,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
-	if metrics.EnabledLoadTest {
+	if sb.csvRecorder != nil {
 		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), uint64(len(block.Transactions())), block.GasUsed(), aggregatedSeal.Round.Uint64())
 	}
 

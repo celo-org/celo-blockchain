@@ -34,19 +34,11 @@ var Enabled = false
 // for health monitoring and debug metrics that might impact runtime performance.
 var EnabledExpensive = false
 
-// EnabledLoadTest is a soft-flag meant for external packages to check if load
-// test metrics gathering is allowed or not. This currently writes a CSV to
-// stdout.
-var EnabledLoadTest = false
-
 // enablerFlags is the CLI flag names to use to enable metrics collections.
 var enablerFlags = []string{"metrics"}
 
 // expensiveEnablerFlags is the CLI flag names to use to enable metrics collections.
 var expensiveEnablerFlags = []string{"metrics.expensive"}
-
-// loadtestEnablerFlags is the CLI flag names to use to enable metrics collections.
-var loadtestEnablerFlags = []string{"metrics.loadtestcsvrecorder"}
 
 // Init enables or disables the metrics system. Since we need this to run before
 // any other code gets to create meters and timers, we'll actually do an ugly hack
@@ -70,13 +62,6 @@ func init() {
 			if !EnabledExpensive && flag == enabler {
 				log.Info("Enabling expensive metrics collection")
 				EnabledExpensive = true
-			}
-		}
-
-		for _, enabler := range loadtestEnablerFlags {
-			if !EnabledLoadTest && flag == enabler {
-				log.Info("Enabling load test metrics collection")
-				EnabledLoadTest = true
 			}
 		}
 	}
