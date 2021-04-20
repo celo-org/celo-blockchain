@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -114,9 +115,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
 	if config.LoadTestCSVFile != "" {
-		backend.csvRecorder = metrics.NewStdoutCSVRecorder("blockNumber", "txCount", "gasUsed", "round",
-			"cycle", "sleep", "consensus", "block_verify", "block_construct",
-			"sysload", "syswait", "procload")
+		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
+			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
+				"cycle", "sleep", "consensus", "block_verify", "block_construct",
+				"sysload", "syswait", "procload")
+		}
+
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
@@ -417,6 +421,9 @@ func (sb *Backend) Close() error {
 		if err := sb.replicaState.Close(); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if err := sb.csvRecorder.Close(); err != nil {
+		errs = append(errs, err)
 	}
 	var concatenatedErrs error
 	for i, err := range errs {

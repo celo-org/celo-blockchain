@@ -40,6 +40,7 @@ func NewStdoutCSVRecorder(fields ...string) *CSVRecorder {
 }
 
 // NewStdoutCSVRecorder creates a CSV recorder that writes to the supplied writer.
+// The writer is aborbed into the recorder and the user is responsible for calling CSVRecorder.Close()
 // The header is immediately written upon construction.
 func NewCSVRecorder(w io.Writer, fields ...string) *CSVRecorder {
 	fmt.Fprintln(w, strings.Join(fields, ","))
@@ -69,4 +70,20 @@ func (c *CSVRecorder) WriteRow(values ...interface{}) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	fmt.Fprintf(c.writer, c.format, values...)
+}
+
+// Close closes the writer iff it is an io.WriterCloser
+// This is a no-op for non Closers or a nil receiver.
+func (c *CSVRecorder) Close() error {
+	fmt.Println("closing csv reader")
+	defer fmt.Println("close complete")
+	if c == nil {
+		return nil
+	}
+	if wc, ok := c.writer.(io.WriteCloser); ok {
+		err := wc.Close()
+		fmt.Println("closed writer")
+		return err
+	}
+	return nil
 }
