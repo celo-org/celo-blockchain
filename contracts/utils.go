@@ -57,3 +57,8 @@ func resolveAddressForCall(caller vm.EVMCaller, registryId common.Hash, method s
 	}
 	return contractAddress, nil
 }
+
+// noopResolver returns a address resolver function that always resolve to the same address
+func noopResolver(addr common.Address) func(vm.EVMCaller) (common.Address, error) {
+	return func(e vm.EVMCaller) (common.Address, error) { return addr, nil }
+}

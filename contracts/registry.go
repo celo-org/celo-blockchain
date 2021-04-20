@@ -32,14 +32,16 @@ const (
                              }]`
 )
 
-var getAddressForFuncABI abi.ABI
+var getAddressMethod *BoundMethod
 
 func init() {
 	var err error
-	getAddressForFuncABI, err = abi.JSON(strings.NewReader(getAddressForABI))
+	getAddressForFuncABI, err := abi.JSON(strings.NewReader(getAddressForABI))
 	if err != nil {
 		panic("can't parse registry abi " + err.Error())
 	}
+
+	getAddressMethod = NewBoundMethod(params.RegistrySmartContractAddress, &getAddressForFuncABI, "getAddressFor", params.MaxGasForGetAddressFor)
 }
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
@@ -56,11 +58,7 @@ func GetRegisteredAddress(caller vm.EVMCaller, registryId common.Hash) (common.A
 	}
 
 	var contractAddress common.Address
-	_, err := QueryCallFromVM(
-		params.RegistrySmartContractAddress,
-		params.MaxGasForGetAddressFor,
-		NewMessage(&getAddressForFuncABI, "getAddressFor", registryId),
-	).Run(caller, &contractAddress)
+	_, err := getAddressMethod.VMQuery(caller, &contractAddress, registryId)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?

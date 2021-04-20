@@ -39,6 +39,14 @@ func SetEVMCallerFactory(_evmCallerFactory vm.EVMCallerFactory) {
 	}
 }
 
+func MustGetCaller(header *types.Header, state vm.StateDB) vm.EVMCaller {
+	caller, err := getCaller(header, state)
+	if err != nil {
+		panic("failed to get caller")
+	}
+	return caller
+}
+
 func getCaller(header *types.Header, state vm.StateDB) (vm.EVMCaller, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
@@ -65,7 +73,9 @@ func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []i
 		return 0, err
 	}
 
-	return contracts.QueryCallOnRegisteredContract(registryId, gas, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
+	return m.VMQuery(caller, returnObj, args...)
+
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
@@ -74,7 +84,8 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 		return 0, err
 	}
 
-	gasLeft, err := contracts.WriteCallOnRegisteredContract(registryId, gas, value, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
+	gasLeft, err := m.VMExecute(caller, returnObj, value, args...)
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
@@ -89,5 +100,6 @@ func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, meth
 		return 0, err
 	}
 
-	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(caller, returnObj)
+	m := contracts.NewBoundMethod(contractAddress, &abi, method, gas)
+	return m.VMQuery(caller, returnObj, args...)
 }
