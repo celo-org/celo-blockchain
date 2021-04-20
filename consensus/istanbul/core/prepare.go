@@ -174,8 +174,7 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
-	start := time.Now()
-	defer func() { c.handlePrepareTimer.UpdateSince(start) }()
+	defer func(start time.Time) { c.handlePrepareTimer.UpdateSince(start) }(time.Now())
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)

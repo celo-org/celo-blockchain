@@ -138,8 +138,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
-	start := time.Now()
-	defer func() { c.handleCommitTimer.UpdateSince(start) }()
+	defer func(start time.Time) { c.handleCommitTimer.UpdateSince(start) }(time.Now())
 	// Decode COMMIT message
 	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)
