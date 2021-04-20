@@ -106,6 +106,7 @@ type ExchangeRate struct {
 	denominator *big.Int
 }
 
+// NoopExchangeRate represents an exchange rate of 1 to 1
 var NoopExchangeRate = ExchangeRate{common.Big1, common.Big1}
 
 // NewExchangeRate creates an exchange rate.
@@ -152,6 +153,10 @@ func (er *ExchangeRate) CmpValues(amount *big.Int, anotherTokenAmount *big.Int, 
 	return leftSide.Cmp(rightSide)
 }
 
+// CurrencyManager provides an interface to access different fee currencies on a given point in time (header,state)
+// and doing comparison or fetching exchange rates
+//
+// It's implements an internal cache to avoid perfoming duplicated EVM calls
 type CurrencyManager struct {
 	header *types.Header
 	state  vm.StateDB
@@ -174,6 +179,7 @@ func newManager(_getExchangeRate func(*common.Address, *types.Header, vm.StateDB
 	}
 }
 
+// GetExchangeRate retrieves currency-to-CELO exchange rate
 func (cc *CurrencyManager) GetExchangeRate(currency *common.Address) (*ExchangeRate, error) {
 	if currency == nil {
 		return &NoopExchangeRate, nil
@@ -229,7 +235,7 @@ func (cc *CurrencyManager) ToCelo(amount *big.Int, currency *common.Address) (*b
 	return rate.ToBase(amount), nil
 }
 
-// GetExchangeRate retrieves the exchange rate from the blockchain state
+// GetExchangeRate retrieves currency-to-CELO exchange rate
 func GetExchangeRate(currencyAddress *common.Address, header *types.Header, state vm.StateDB) (*ExchangeRate, error) {
 	if currencyAddress == nil {
 		return &NoopExchangeRate, nil
@@ -250,7 +256,7 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 	return NewExchangeRate(returnArray[0], returnArray[1])
 }
 
-// This function will retrieve the balance of an ERC20 token.
+// GetBalanceOf returns an account's balance on a given ERC20 currency
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
 
@@ -266,9 +272,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, g
 	return result, gasUsed, err
 }
 
-// ------------------------------
-// FeeCurrencyWhiteList Functions
-//-------------------------------
+// CurrencyWhitelist retrieves the list of currencies that can be used to pay transaction fees
 func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
 
@@ -285,6 +289,7 @@ func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 	return returnList, err
 }
 
+// IsWhitelisted indicates if a currency is whitelisted for transaction fee payments
 func IsWhitelisted(feeCurrency *common.Address, header *types.Header, state vm.StateDB) bool {
 	if feeCurrency == nil {
 		return true
