@@ -282,19 +282,18 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 }
 
 // GetBalanceOf returns an account's balance on a given ERC20 currency
-func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, gas uint64, header *types.Header, state vm.StateDB) (result *big.Int, gasUsed uint64, err error) {
-	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress, "gas", gas)
+func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, header *types.Header, state vm.StateDB) (result *big.Int, err error) {
+	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress)
 
-	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, gas, header, state)
-	gasUsed = gas - leftoverGas
+	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, params.MaxGasToReadErc20Balance, header, state)
 
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
 	} else {
-		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "gas used", gasUsed)
+		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "leftoverGas", leftoverGas)
 	}
 
-	return result, gasUsed, err
+	return result, err
 }
 
 // CurrencyWhitelist retrieves the list of currencies that can be used to pay transaction fees
