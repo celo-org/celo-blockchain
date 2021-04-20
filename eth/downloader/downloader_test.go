@@ -1507,8 +1507,8 @@ func (ftp *floodingTestPeer) RequestNodeData(hashes []common.Hash) error {
 func (ftp *floodingTestPeer) RequestPlumoProofInventory() error {
 	return ftp.peer.RequestPlumoProofInventory()
 }
-func (ftp *floodingTestPeer) RequestPlumoProofsAndHeaders(from uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
-	return ftp.peer.RequestPlumoProofsAndHeaders(from, skip, maxPlumoProofFetch, maxEpochHeaderFetch)
+func (ftp *floodingTestPeer) RequestPlumoProofsAndHeaders(from uint64, epoch uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+	return ftp.peer.RequestPlumoProofsAndHeaders(from, epoch, skip, maxPlumoProofFetch, maxEpochHeaderFetch)
 }
 
 func (ftp *floodingTestPeer) RequestHeadersByNumber(from uint64, count, skip int, reverse bool) error {

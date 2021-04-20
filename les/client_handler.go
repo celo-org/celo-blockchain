@@ -163,6 +163,7 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 	defer peer.close()
 	peer.poolEntry = h.backend.serverPool.connect(peer, peer.Node())
 	if peer.poolEntry == nil {
+		p.Log().Error("pool entry nil")
 		return p2p.DiscRequested
 	}
 	h.wg.Add(1)
@@ -553,6 +554,7 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)
 	if !ok {
+		log.Error("Returning no peers from request headers by hash")
 		return light.ErrNoPeers
 	}
 	return nil
@@ -577,6 +579,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)
 	if !ok {
+		log.Error("Returning no peers from request headers by number")
 		return light.ErrNoPeers
 	}
 	return nil
@@ -602,12 +605,13 @@ func (pc *peerConnection) RequestPlumoProofInventory() error {
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)
 	if !ok {
+		log.Error("Returning no peers from request proof inventory")
 		return light.ErrNoPeers
 	}
 	return nil
 }
 
-func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
 	// Greedy alg for grabbing proofs
 	// TODO version number
 	// TODO limit based on max fetch
@@ -619,6 +623,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 	var headerGaps []headerGap
 	knownPlumoProofs := pc.peer.knownPlumoProofs
 	var currFrom uint = uint(from)
+	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch))
 	// Outer loop finding the path
 	for {
 		// Inner loop adding the next proof
@@ -626,8 +631,8 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		var maxRange uint = 0
 		var chosenProofMetadata types.PlumoProofMetadata
 		for _, proofMetadata := range knownPlumoProofs {
-			log.Error("iterating proofs", "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
-			if proofMetadata.FirstEpoch >= currFrom {
+			log.Error("iterating proofs", "currFrom", currFrom, "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
+			if proofMetadata.FirstEpoch >= currEpoch {
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
 					log.Error("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
@@ -638,25 +643,25 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 			}
 		}
 		// No more proofs to add, break
-		if maxRange == 0 && currFrom < earliestMatch {
+		if maxRange == 0 && currEpoch < earliestMatch {
 			// TODO check height
 			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
-			amount := int(earliestMatch - currFrom)
+			amount := int(earliestMatch - currEpoch)
 			if amount > maxEpochHeaderFetch {
 				amount = maxEpochHeaderFetch
 			}
 			gap := headerGap{
-				FirstEpoch: currFrom,
+				FirstEpoch: currEpoch,
 				Amount:     amount,
 			}
 			headerGaps = append(headerGaps, gap)
 			break
 		}
-		if currFrom < earliestMatch {
-			log.Error("Need to add header gap", "currFrom", currFrom, "earliestMatch", earliestMatch)
+		if currEpoch < earliestMatch {
+			log.Error("Need to add header gap", "currEpoch", currEpoch, "earliestMatch", earliestMatch)
 			gap := headerGap{
-				FirstEpoch: currFrom,
-				Amount:     int(earliestMatch - currFrom),
+				FirstEpoch: currEpoch,
+				Amount:     int(earliestMatch - currEpoch),
 			}
 			headerGaps = append(headerGaps, gap)
 		}
@@ -664,7 +669,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		if len(proofsToRequest) >= maxPlumoProofFetch {
 			break
 		}
-		currFrom = chosenProofMetadata.LastEpoch
+		currEpoch = chosenProofMetadata.LastEpoch
 	}
 
 	if len(proofsToRequest) > 0 {
@@ -687,12 +692,24 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		}
 		_, ok := <-pc.handler.backend.reqDist.queue(proofReq)
 		if !ok {
+			log.Error("Returning no peers from request proofs and headers")
 			return light.ErrNoPeers
 		}
 	}
 	// This does seem to work in some ways, testing proofs now
 	for _, headerGap := range headerGaps {
 		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
+
+		if int(headerGap.FirstEpoch) > 440 {
+			break
+		}
+		if int(headerGap.FirstEpoch)+headerGap.Amount >= 440 {
+			if int(headerGap.FirstEpoch) == 440 {
+				headerGap.Amount = 1
+			} else {
+				headerGap.Amount = 440 - int(headerGap.FirstEpoch)
+			}
+		}
 		headerReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*serverPeer)
@@ -713,6 +730,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, skip int, ma
 		}
 		_, ok := <-pc.handler.backend.reqDist.queue(headerReq)
 		if !ok {
+			log.Error("Returning no peers from request proofs and headers 2")
 			return light.ErrNoPeers
 		}
 	}

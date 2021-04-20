@@ -1019,7 +1019,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		skip := int(epoch - 1)
 		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
 		p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
-		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, epoch, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
 		// go p.peer.RequestProofs()
 		// go p.peer.RequestPlumoProofInventory()
 	}

@@ -270,6 +270,10 @@ func (api *PrivateAdminAPI) DiscoverTableInfo() (*discover.TableInfo, error) {
 	return server.DiscoverTableInfo(), nil
 }
 
+func (api *PrivateAdminAPI) Proofs() ([][]byte, error) {
+	return [][]byte{}, nil
+}
+
 // PublicAdminAPI is the collection of administrative API methods exposed over
 // both secure and unsecure RPC channels.
 type PublicAdminAPI struct {

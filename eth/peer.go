@@ -624,7 +624,7 @@ func (p *peer) RequestPlumoProofInventory() error {
 	panic("RequestPlumoProofInventory not supported unless in lightest sync mode")
 }
 
-func (p *peer) RequestPlumoProofsAndHeaders(uint64, int, int, int) error {
+func (p *peer) RequestPlumoProofsAndHeaders(uint64, uint64, int, int, int) error {
 	panic("RequestPlumoProofsAndHeaders not supported unless in lightest sync mode")
 }
 
