@@ -10,92 +10,56 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 )
 
-// Call represent a runnable call on the EVM
-type Call interface {
-	// Run will execute the call using the caller.
-	// Execution result will be populated into result
-	Run(evm *vm.EVM, result interface{}) (leftoverGas uint64, err error)
+type ContractMethod struct {
+	address common.Address
+	method  string
+	abi     *abi.ABI
+	maxGas  uint64
 }
 
-// QueryCallFromVM creates a contract Call that peforms a Query using the VMAddress as from
-func QueryCallFromVM(to common.Address, maxGas uint64, msg Message) Call {
-	return &contractCall{
-		readOnly: true,
-		from:     VMAddress,
-		to:       to,
-		maxGas:   maxGas,
-		msg:      msg,
+func NewContractMethod(address common.Address, abi *abi.ABI, method string, maxGas uint64) *ContractMethod {
+	return &ContractMethod{
+		address: address,
+		abi:     abi,
+		method:  method,
+		maxGas:  maxGas,
 	}
 }
 
-// WriteCallFromVM creates a contract Call that perfoms a Write operation using the VMAddress as from
-func WriteCallFromVM(to common.Address, maxGas uint64, value *big.Int, msg Message) Call {
-	return &contractCall{
-		readOnly: false,
-		from:     VMAddress,
-		to:       to,
-		maxGas:   maxGas,
-		msg:      msg,
-		value:    value,
-	}
+func (cm *ContractMethod) Query(evm *vm.EVM, args []interface{}, result interface{}) (leftoverGas uint64, err error) {
+	return call(evm, true, nil, cm.address, cm.maxGas, cm.abi, cm.method, args, result)
 }
 
-// Message represents a msg to a contract
-type Message struct {
-	abi    *abi.ABI
-	method string
-	args   []interface{}
+func (cm *ContractMethod) Write(evm *vm.EVM, args []interface{}, value *big.Int, result interface{}) (leftoverGas uint64, err error) {
+	return call(evm, false, value, cm.address, cm.maxGas, cm.abi, cm.method, args, result)
 }
 
-// NewMessage creates a new contract message
-func NewMessage(abi *abi.ABI, method string, args ...interface{}) Message {
-	return Message{
-		abi:    abi,
-		method: method,
-		args:   args,
-	}
-}
+func call(
+	evm *vm.EVM,
+	isQuery bool,
+	value *big.Int,
+	to common.Address,
+	maxGas uint64,
+	abi *abi.ABI,
+	method string,
+	args []interface{},
+	result interface{},
+) (leftoverGas uint64, err error) {
 
-// encodeCall will encodes the msg into []byte format for EVM consumption
-func (am Message) encodeCall() ([]byte, error) { return am.abi.Pack(am.method, am.args...) }
+	defer meterExecutionTime(method)()
+	logger := log.New("to", to, "method", method, "args", args, "maxgas", maxGas)
 
-// decodeResult will decode the result of msg execution into the result parameter
-func (am Message) decodeResult(result interface{}, output []byte) error {
-	if result == nil {
-		return nil
-	}
-	return am.abi.Unpack(result, am.method, output)
-}
-
-// contractCall represents a Call to a contract
-type contractCall struct {
-	readOnly bool
-	from     common.Address
-	to       common.Address
-	msg      Message
-	value    *big.Int
-	maxGas   uint64
-}
-
-// Run will execute the call using the caller.
-// Execution result will be populated into result
-func (call *contractCall) Run(evm *vm.EVM, result interface{}) (uint64, error) {
-
-	defer meterExecutionTime(call.msg.method)()
-	logger := log.New("to", call.to, "method", call.msg.method, "args", call.msg.args, "maxgas", call.maxGas)
-
-	input, err := call.msg.encodeCall()
+	input, err := abi.Pack(method, args...)
 	if err != nil {
 		logger.Error("Error invoking evm function: can't encode method arguments", "err", err)
 		return 0, err
 	}
 
 	var output []byte
-	var leftoverGas uint64
-	if call.readOnly {
-		output, leftoverGas, err = evm.StaticCall(vm.AccountRef(call.from), call.to, input, call.maxGas)
+	if isQuery {
+		output, leftoverGas, err = evm.StaticCall(vm.AccountRef(VMAddress), to, input, maxGas)
 	} else {
-		output, leftoverGas, err = evm.Call(vm.AccountRef(call.from), call.to, input, call.maxGas, call.value)
+		output, leftoverGas, err = evm.Call(vm.AccountRef(VMAddress), to, input, maxGas, value)
 	}
 
 	if err != nil {
@@ -104,9 +68,11 @@ func (call *contractCall) Run(evm *vm.EVM, result interface{}) (uint64, error) {
 		return leftoverGas, err
 	}
 
-	if err := call.msg.decodeResult(result, output); err != nil {
-		logger.Error("Error invoking evm function: can't unpack result", "err", err, "gasLeft", leftoverGas)
-		return leftoverGas, err
+	if result != nil {
+		if err := abi.Unpack(result, method, output); err != nil {
+			logger.Error("Error invoking evm function: can't unpack result", "err", err, "gasLeft", leftoverGas)
+			return leftoverGas, err
+		}
 	}
 
 	logger.Trace("EVM call successful", "input", hexutil.Encode(input), "output", hexutil.Encode(output))

@@ -58,11 +58,12 @@ func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, 
 	}
 
 	var contractAddress common.Address
-	_, err := QueryCallFromVM(
+	_, err := NewContractMethod(
 		params.RegistrySmartContractAddress,
+		&getAddressForFuncABI,
+		"getAddressFor",
 		params.MaxGasForGetAddressFor,
-		NewMessage(&getAddressForFuncABI, "getAddressFor", registryId),
-	).Run(evm, &contractAddress)
+	).Query(evm, []interface{}{registryId}, &contractAddress)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?

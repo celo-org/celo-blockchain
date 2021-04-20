@@ -76,7 +76,7 @@ func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []i
 	if err != nil {
 		return 0, err
 	}
-	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
+	return contracts.NewContractMethod(contractAddress, &abi, method, gas).Query(provider.EVM(), args, returnObj)
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
@@ -89,7 +89,7 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 	if err != nil {
 		return 0, err
 	}
-	gasLeft, err := contracts.WriteCallFromVM(contractAddress, gas, value, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
+	gasLeft, err := contracts.NewContractMethod(contractAddress, &abi, method, gas).Write(provider.EVM(), args, value, returnObj)
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
@@ -104,5 +104,5 @@ func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, meth
 		return 0, err
 	}
 
-	return contracts.QueryCallFromVM(contractAddress, gas, contracts.NewMessage(&abi, method, args...)).Run(provider.EVM(), returnObj)
+	return contracts.NewContractMethod(contractAddress, &abi, method, gas).Query(provider.EVM(), args, returnObj)
 }
