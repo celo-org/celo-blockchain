@@ -708,7 +708,7 @@ var (
 	}
 	MetricsLoadTestCSVFlag = cli.StringFlag{
 		Name:  "metrics.loadtestcsvfile",
-		Usage: "Write a csv with information about the block production cycle to the given file name. If passed an empty string or non-existant, do not output csv metrics.",
+		Usage: "Write a csv with information about the block production cycle to the given file name. If passed an empty string or non-existent, do not output csv metrics.",
 		Value: "",
 	}
 
