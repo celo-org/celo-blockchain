@@ -23,7 +23,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -35,6 +36,7 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -243,15 +245,25 @@ func (b *LesApiBackend) ProtocolVersion() int {
 }
 
 func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(nil, nil, nil)
+	vmRunner, err := b.eth.BlockChain().NewSystemEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceSuggestion(vmRunner, nil)
 }
 
 func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(currencyAddress, header, state)
+	vmRunner := b.eth.BlockChain().NewSystemEVMRunner(header, state)
+	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
 }
 
-func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
+	vmRunner, err := b.eth.BlockChain().NewSystemEVMRunnerForCurrentBlock()
+	if err != nil {
+		log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
+		return params.IntrinsicGasForAlternativeFeeCurrency
+	}
+	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
