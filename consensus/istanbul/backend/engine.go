@@ -29,8 +29,8 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -433,11 +433,12 @@ func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) ui
 	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
 	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
 
+	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
 	return uptime.ComputeLookbackWindow(
 		sb.config.Epoch,
 		sb.config.DefaultLookbackWindow,
 		cip21Activated,
-		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(header, state) },
+		func() (uint64, error) { return blockchain_parameters.GetLookbackWindow(vmRunner) },
 	)
 }
 
@@ -454,14 +455,15 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	logger.Trace("Finalizing")
 
 	snapshot := state.Snapshot()
-	err := sb.setInitialGoldTokenTotalSupplyIfUnset(header, state)
+	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(header, state)
+	_, err = gpm.UpdateGasPriceMinimum(header.GasUsed, vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
@@ -596,12 +598,6 @@ func (sb *Backend) SetChain(chain consensus.ChainContext, currentBlock func() *t
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.stateAt = stateAt
-
-	// if caller, ok := chain.(vm.SystemEVMFactory); ok {
-	// 	sb.evmCallerFactory = caller
-	// } else {
-	// 	log.Error("Can't assign evmCallerFactory to istanbul backend!")
-	// }
 
 	if bc, ok := chain.(*ethCore.BlockChain); ok {
 		go sb.newChainHeadLoop(bc)
