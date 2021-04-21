@@ -29,6 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -1255,9 +1256,9 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
-	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
 	pool.currentVMRunner = pool.chain.NewSystemEVMRunner(newHead, statedb)
+	pool.currentMaxGas = blockchain_parameters.GetBlockGasLimitOrDefault(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
 		NewBlockContext(pool.currentVMRunner),

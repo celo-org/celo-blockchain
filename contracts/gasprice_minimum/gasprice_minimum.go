@@ -141,8 +141,8 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 func UpdateGasPriceMinimum(lastUsedGas uint64, vmRunner vm.EVMRunner) (*big.Int, error) {
 	var updatedGasPriceMinimum *big.Int
 
-	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by contract_comm
-	gasLimit, _ := blockchain_parameters.GetBlockGasLimit(vmRunner)
+	// If an error occurs, the default block gas limit will be returned and a log statement will be produced by GetBlockGasLimitOrDefault
+	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 
 	err := updateGasPriceMinimumMethod.Execute(vmRunner, &updatedGasPriceMinimum, common.Big0, big.NewInt(int64(lastUsedGas)), big.NewInt(int64(gasLimit)))
 

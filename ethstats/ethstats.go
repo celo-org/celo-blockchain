@@ -38,6 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -975,11 +976,12 @@ func (s *Service) reportBlock(conn *connWrapper, block *types.Block) error {
 func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header  *types.Header
-		stateDB *state.StateDB
-		td      *big.Int
-		txs     []txStats
-		valSet  validatorSet
+		header   *types.Header
+		stateDB  *state.StateDB
+		vmRunner vm.EVMRunner
+		td       *big.Int
+		txs      []txStats
+		valSet   validatorSet
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -990,6 +992,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		stateDB, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
+		vmRunner = s.eth.BlockChain().NewSystemEVMRunner(header, stateDB)
 		txs = make([]txStats, len(block.Transactions()))
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
@@ -1002,6 +1005,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			header = s.les.BlockChain().CurrentHeader()
 		}
 		stateDB, _ = s.les.BlockChain().State()
+		vmRunner = s.les.BlockChain().NewSystemEVMRunner(header, stateDB)
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -1017,7 +1021,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		valSet = s.assembleValidatorSet(block, stateDB)
 	}
 
-	gasLimit := core.CalcGasLimit(block, stateDB)
+	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 
 	return &blockStats{
 		Number:      header.Number,
@@ -1228,7 +1232,7 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		sync := s.eth.Downloader().Progress()
 		syncing = s.eth.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := s.eth.APIBackend.SuggestPrice(context.Background())
+		price, _ := s.eth.APIBackend.SuggestPrice(context.Background(), nil)
 		gasprice = int(price.Uint64())
 	} else {
 		sync := s.les.Downloader().Progress()

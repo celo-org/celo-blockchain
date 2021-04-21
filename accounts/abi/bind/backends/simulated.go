@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -438,7 +439,8 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	if call.Gas >= params.TxGas {
 		hi = call.Gas
 	} else {
-		hi = core.CalcGasLimit(b.pendingBlock, b.pendingState)
+		vmRunner := b.blockchain.NewSystemEVMRunner(b.pendingBlock.Header(), b.pendingState)
+		hi = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	}
 	cap = hi
 
