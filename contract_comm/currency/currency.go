@@ -267,17 +267,17 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 	}
 
 	var returnArray [2]*big.Int
-	leftoverGas, err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, header, state)
+	err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, header, state)
 
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &NoopExchangeRate, nil
 	} else if err != nil {
-		log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "leftoverGas", leftoverGas, "err", err)
+		log.Error("medianRate invocation error", "feeCurrencyAddress", currencyAddress.Hex(), "err", err)
 		return &NoopExchangeRate, nil
 	}
 
-	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray, "leftoverGas", leftoverGas)
+	log.Trace("medianRate invocation success", "feeCurrencyAddress", currencyAddress, "returnArray", returnArray)
 	return NewExchangeRate(returnArray[0], returnArray[1])
 }
 
@@ -285,12 +285,11 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, header *types.Header, state vm.StateDB) (result *big.Int, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress)
 
-	leftoverGas, err := contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, params.MaxGasToReadErc20Balance, header, state)
-
+	err = contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, params.MaxGasToReadErc20Balance, header, state)
 	if err != nil {
-		log.Error("GetBalanceOf evm invocation error", "leftoverGas", leftoverGas, "err", err)
+		log.Error("GetBalanceOf evm invocation error", "err", err)
 	} else {
-		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String(), "leftoverGas", leftoverGas)
+		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String())
 	}
 
 	return result, err
@@ -300,7 +299,7 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, h
 func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	returnList := []common.Address{}
 
-	_, err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
+	err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
 
 	if err == errors.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)

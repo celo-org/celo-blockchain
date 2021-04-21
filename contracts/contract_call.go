@@ -64,28 +64,28 @@ type BoundMethod struct {
 	resolveAddress func(vm.EVMCaller) (common.Address, error)
 }
 
-func (bm *BoundMethod) VMQuery(caller vm.EVMCaller, result interface{}, args ...interface{}) (uint64, error) {
+func (bm *BoundMethod) VMQuery(caller vm.EVMCaller, result interface{}, args ...interface{}) error {
 	return bm.Query(caller, result, VMAddress, args...)
 }
 
-func (bm *BoundMethod) Query(caller vm.EVMCaller, result interface{}, sender common.Address, args ...interface{}) (uint64, error) {
+func (bm *BoundMethod) Query(caller vm.EVMCaller, result interface{}, sender common.Address, args ...interface{}) error {
 	return bm.run(caller, result, true, sender, nil, args...)
 }
 
-func (bm *BoundMethod) VMExecute(caller vm.EVMCaller, result interface{}, value *big.Int, args ...interface{}) (uint64, error) {
+func (bm *BoundMethod) VMExecute(caller vm.EVMCaller, result interface{}, value *big.Int, args ...interface{}) error {
 	return bm.run(caller, result, false, VMAddress, value, args...)
 }
 
-func (bm *BoundMethod) Execute(caller vm.EVMCaller, result interface{}, sender common.Address, value *big.Int, args ...interface{}) (uint64, error) {
+func (bm *BoundMethod) Execute(caller vm.EVMCaller, result interface{}, sender common.Address, value *big.Int, args ...interface{}) error {
 	return bm.run(caller, result, false, sender, value, args...)
 }
 
-func (bm *BoundMethod) run(caller vm.EVMCaller, result interface{}, readOnly bool, sender common.Address, value *big.Int, args ...interface{}) (uint64, error) {
+func (bm *BoundMethod) run(caller vm.EVMCaller, result interface{}, readOnly bool, sender common.Address, value *big.Int, args ...interface{}) error {
 	defer meterExecutionTime(bm.method)()
 
 	contractAddress, err := bm.resolveAddress(caller)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	logger := log.New("to", contractAddress, "method", bm.method, "args", args, "maxgas", bm.maxGas)
@@ -93,7 +93,7 @@ func (bm *BoundMethod) run(caller vm.EVMCaller, result interface{}, readOnly boo
 	input, err := bm.encodeCall(args...)
 	if err != nil {
 		logger.Error("Error invoking evm function: can't encode method arguments", "err", err)
-		return 0, err
+		return err
 	}
 
 	var output []byte
@@ -107,14 +107,14 @@ func (bm *BoundMethod) run(caller vm.EVMCaller, result interface{}, readOnly boo
 	if err != nil {
 		message, _ := unpackError(output)
 		logger.Error("Error invoking evm function: EVM call failure", "input", hexutil.Encode(input), "err", err, "message", message)
-		return leftoverGas, err
+		return err
 	}
 
 	if err := bm.decodeResult(result, output); err != nil {
 		logger.Error("Error invoking evm function: can't unpack result", "err", err, "gasLeft", leftoverGas)
-		return leftoverGas, err
+		return err
 	}
 
 	logger.Trace("EVM call successful", "input", hexutil.Encode(input), "output", hexutil.Encode(output))
-	return leftoverGas, nil
+	return nil
 }

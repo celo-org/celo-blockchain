@@ -163,7 +163,7 @@ var electionABI, _ = abi.JSON(strings.NewReader(electionABIString))
 func GetElectedValidators(header *types.Header, state vm.StateDB) ([]common.Address, error) {
 	var newValSet []common.Address
 	// Get the new epoch's validator set
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
+	err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electValidatorSigners", []interface{}{}, &newValSet, params.MaxGasForElectValidators, header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -175,14 +175,14 @@ func ElectNValidatorSigners(header *types.Header, state vm.StateDB, additionalAb
 	var maxElectableValidators *big.Int
 
 	// Get the electable min and max
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getElectableValidators", []interface{}{}, &[]interface{}{&minElectableValidators, &maxElectableValidators}, params.MaxGasForGetElectableValidators, header, state)
+	err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getElectableValidators", []interface{}{}, &[]interface{}{&minElectableValidators, &maxElectableValidators}, params.MaxGasForGetElectableValidators, header, state)
 	if err != nil {
 		return nil, err
 	}
 
 	var electedValidators []common.Address
 	// Run the validator election for up to maxElectable + getTotalVotesForEligibleValidatorGroup
-	_, err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners, header, state)
+	err = contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "electNValidatorSigners", []interface{}{minElectableValidators, maxElectableValidators.Add(maxElectableValidators, big.NewInt(additionalAboveMaxElectable))}, &electedValidators, params.MaxGasForElectNValidatorSigners, header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ type voteTotal struct {
 func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.StateDB) ([]voteTotal, error) {
 	var groups []common.Address
 	var values []*big.Int
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
+	err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getTotalVotesForEligibleValidatorGroups", []interface{}{}, &[]interface{}{&groups, &values}, params.MaxGasForGetEligibleValidatorGroupsVoteTotals, header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func getTotalVotesForEligibleValidatorGroups(header *types.Header, state vm.Stat
 
 func getGroupEpochRewards(header *types.Header, state vm.StateDB, group common.Address, maxRewards *big.Int, uptimes []*big.Int) (*big.Int, error) {
 	var groupEpochRewards *big.Int
-	_, err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, maxRewards, uptimes}, &groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
+	err := contract_comm.MakeStaticCall(params.ElectionRegistryId, electionABI, "getGroupEpochRewards", []interface{}{group, maxRewards, uptimes}, &groupEpochRewards, params.MaxGasForGetGroupEpochRewards, header, state)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func DistributeEpochRewards(header *types.Header, state vm.StateDB, groups []com
 				break
 			}
 		}
-		_, err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state, false)
+		err := contract_comm.MakeCall(params.ElectionRegistryId, electionABI, "distributeEpochRewards", []interface{}{group, reward, lesser, greater}, nil, params.MaxGasForDistributeEpochRewards, common.Big0, header, state, false)
 		if err != nil {
 			return totalRewards, err
 		}

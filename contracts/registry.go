@@ -58,7 +58,7 @@ func GetRegisteredAddress(caller vm.EVMCaller, registryId common.Hash) (common.A
 	}
 
 	var contractAddress common.Address
-	_, err := getAddressMethod.VMQuery(caller, &contractAddress, registryId)
+	err := getAddressMethod.VMQuery(caller, &contractAddress, registryId)
 
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?

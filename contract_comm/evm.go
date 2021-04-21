@@ -67,10 +67,10 @@ func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm
 	return contracts.GetRegisteredAddress(caller, registryId)
 }
 
-func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
 	caller, err := getCaller(header, state)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
@@ -78,26 +78,26 @@ func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []i
 
 }
 
-func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
+func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) error {
 	caller, err := getCaller(header, state)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
-	gasLeft, err := m.VMExecute(caller, returnObj, value, args...)
+	err = m.VMExecute(caller, returnObj, value, args...)
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
 	}
 
-	return gasLeft, err
+	return err
 }
 
-func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
+func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
 	caller, err := getCaller(header, state)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	m := contracts.NewBoundMethod(contractAddress, &abi, method, gas)

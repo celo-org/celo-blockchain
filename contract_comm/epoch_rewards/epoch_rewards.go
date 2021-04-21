@@ -112,7 +112,7 @@ const epochRewardsABIString string = `[
 var epochRewardsABI, _ = abi.JSON(strings.NewReader(epochRewardsABIString))
 
 func UpdateTargetVotingYield(header *types.Header, state vm.StateDB) error {
-	_, err := contract_comm.MakeCall(params.EpochRewardsRegistryId, epochRewardsABI, "updateTargetVotingYield", []interface{}{}, nil, params.MaxGasForUpdateTargetVotingYield, common.Big0, header, state, false)
+	err := contract_comm.MakeCall(params.EpochRewardsRegistryId, epochRewardsABI, "updateTargetVotingYield", []interface{}{}, nil, params.MaxGasForUpdateTargetVotingYield, common.Big0, header, state, false)
 	return err
 }
 
@@ -123,7 +123,7 @@ func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.I
 	var totalVoterRewards *big.Int
 	var totalCommunityReward *big.Int
 	var totalCarbonOffsettingPartnerReward *big.Int
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards, &totalCommunityReward, &totalCarbonOffsettingPartnerReward}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
+	err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "calculateTargetEpochRewards", []interface{}{}, &[]interface{}{&validatorEpochReward, &totalVoterRewards, &totalCommunityReward, &totalCarbonOffsettingPartnerReward}, params.MaxGasForCalculateTargetEpochPaymentAndRewards, header, state)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -133,7 +133,7 @@ func CalculateTargetEpochRewards(header *types.Header, state vm.StateDB) (*big.I
 // Determines if the reserve is below it's critical threshold
 func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
 	var isLow bool
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "isReserveLow", []interface{}{}, &isLow, params.MaxGasForIsReserveLow, header, state)
+	err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "isReserveLow", []interface{}{}, &isLow, params.MaxGasForIsReserveLow, header, state)
 	if err != nil {
 		return false, err
 	}
@@ -143,7 +143,7 @@ func IsReserveLow(header *types.Header, state vm.StateDB) (bool, error) {
 // Returns the address of the carbon offsetting partner
 func GetCarbonOffsettingPartnerAddress(header *types.Header, state vm.StateDB) (common.Address, error) {
 	var carbonOffsettingPartner common.Address
-	_, err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "carbonOffsettingPartner", []interface{}{}, &carbonOffsettingPartner, params.MaxGasForGetCarbonOffsettingPartner, header, state)
+	err := contract_comm.MakeStaticCall(params.EpochRewardsRegistryId, epochRewardsABI, "carbonOffsettingPartner", []interface{}{}, &carbonOffsettingPartner, params.MaxGasForGetCarbonOffsettingPartner, header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}

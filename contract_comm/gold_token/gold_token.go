@@ -91,7 +91,7 @@ func init() {
 
 func GetTotalSupply(header *types.Header, state vm.StateDB) (*big.Int, error) {
 	var totalSupply *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	err := contract_comm.MakeStaticCall(
 		params.GoldTokenRegistryId,
 		totalSupplyFuncABI,
 		"totalSupply",
@@ -105,7 +105,7 @@ func GetTotalSupply(header *types.Header, state vm.StateDB) (*big.Int, error) {
 }
 
 func IncreaseSupply(header *types.Header, state vm.StateDB, value *big.Int) error {
-	_, err := contract_comm.MakeCall(
+	err := contract_comm.MakeCall(
 		params.GoldTokenRegistryId,
 		increaseSupplyFuncABI,
 		"increaseSupply",
@@ -125,7 +125,7 @@ func Mint(header *types.Header, state vm.StateDB, benficiary common.Address, val
 		return nil
 	}
 
-	_, err := contract_comm.MakeCall(
+	err := contract_comm.MakeCall(
 		params.GoldTokenRegistryId,
 		mintFuncABI,
 		"mint",
