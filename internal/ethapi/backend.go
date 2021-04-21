@@ -88,6 +88,7 @@ type Backend interface {
 
 	GatewayFeeRecipient() common.Address
 	GatewayFee() *big.Int
+	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {
