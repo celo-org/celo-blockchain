@@ -81,9 +81,15 @@ func (bc *testBlockChain) GetHeader(common.Hash, uint64) *types.Header {
 	return nil
 }
 
+func (bc *testBlockChain) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return nil
+}
+
 func (bc *testBlockChain) GetVMConfig() *vm.Config {
 	return nil
 }
+
+// func (bc *testBlockChain) Config() *params.ChainConfig { return nil }
 
 func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
 	return pricedTransaction(nonce, gaslimit, big.NewInt(1), key)
@@ -579,7 +585,7 @@ func TestTransactionDropping(t *testing.T) {
 		t.Errorf("total transaction mismatch: have %d, want %d", pool.all.Count(), 4)
 	}
 	// Reduce the block gas limit, check that invalidated transactions are dropped
-	pool.SetGasLimit(100)
+	pool.setGasLimit(100)
 	<-pool.requestReset(nil, nil)
 
 	if _, ok := pool.pending[account].txs.items[tx0.Nonce()]; !ok {

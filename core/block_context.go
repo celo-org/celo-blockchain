@@ -2,9 +2,8 @@ package core
 
 import (
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
@@ -18,10 +17,10 @@ type BlockContext struct {
 // NewBlockContext creates a block context for a given block (represented by the
 // header & state).
 // state MUST be pointing to header's stateRoot
-func NewBlockContext(header *types.Header, state vm.StateDB) BlockContext {
-	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
+func NewBlockContext(vmRunner vm.EVMRunner) BlockContext {
+	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
 
-	whitelistedCurrenciesArr, err := currency.CurrencyWhitelist(header, state)
+	whitelistedCurrenciesArr, err := currency.CurrencyWhitelist(vmRunner)
 	if err != nil {
 		whitelistedCurrenciesArr = []common.Address{}
 	}
