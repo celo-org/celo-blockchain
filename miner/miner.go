@@ -27,7 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -126,8 +126,10 @@ func (miner *Miner) update() {
 					}
 
 					if currentHeader.Number.Uint64() > 0 {
+						vmRunner := miner.eth.BlockChain().NewSystemEVMRunner(currentHeader, currentState)
+
 						// Check to see if we already have the commitment cache
-						lastCommitment, err := random.GetLastCommitment(miner.validator, currentHeader, currentState)
+						lastCommitment, err := random.GetLastCommitment(vmRunner, miner.validator)
 						if err != nil {
 							log.Error("Error in retrieving last commitment", "error", err)
 							return
