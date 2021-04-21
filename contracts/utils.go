@@ -21,7 +21,7 @@ var (
 // meterExecutionTime tracks contract execution time for a given contract method identifier
 func meterExecutionTime(method string) func() {
 	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+method, nil)
+	timer := metrics.GetOrRegisterTimer("contracts/systemcall/"+method, nil)
 	start := time.Now()
 	return func() { timer.UpdateSince(start) }
 }

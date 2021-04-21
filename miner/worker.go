@@ -916,6 +916,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.updateSnapshot()
 
 	if w.isRunning() {
+		// TODO use caller instead of parentCaller (HF required)
 		randomIsActive := false
 		header := w.chain.CurrentHeader()
 		state, err := w.chain.StateAt(header.Root)
