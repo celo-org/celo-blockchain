@@ -175,6 +175,13 @@ type worker struct {
 	running int32 // The indicator whether the consensus engine is running or not.
 	newTxs  int32 // New arrival transaction count since last sealing work submitting.
 
+	// noempty is the flag used to control whether the feature of pre-seal empty
+	// block is enabled. The default value is false(pre-seal is enabled by default).
+	// But in some special scenario the consensus engine will seal blocks instantaneously,
+	// in this case this feature will add all empty blocks into canonical chain
+	// non-stop and no real transaction will be included.
+	noempty uint32
+
 	// External functions
 	isLocalBlock func(block *types.Block) bool // Function used to determine whether the specified block is mined by local miner.
 
@@ -262,6 +269,16 @@ func (w *worker) setRecommitInterval(interval time.Duration) {
 	w.resubmitIntervalCh <- interval
 }
 
+// disablePreseal disables pre-sealing mining feature
+func (w *worker) disablePreseal() {
+	atomic.StoreUint32(&w.noempty, 1)
+}
+
+// enablePreseal enables pre-sealing mining feature
+func (w *worker) enablePreseal() {
+	atomic.StoreUint32(&w.noempty, 0)
+}
+
 // pending returns the pending state and corresponding block.
 func (w *worker) pending() (*types.Block, *state.StateDB) {
 	// return a snapshot to avoid contention on currentMu mutex
@@ -321,10 +338,11 @@ func (w *worker) close() {
 }
 
 func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	currencyComparator := currency.NewComparator()
+	// TODO specify header & state
+	currencyManager := currency.NewManager(nil, nil)
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-		return currencyComparator.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
 	}
 }
 
@@ -881,7 +899,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		misc.ApplyDAOHardFork(env.state)
 	}
 
-	if !noempty && !w.isIstanbulEngine() {
+	if !noempty && !w.isIstanbulEngine() && atomic.LoadUint32(&w.noempty) == 0 {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
 		w.commit(nil, false, tstart)
@@ -952,7 +970,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	// Short circuit if there is no available pending transactions
+	// Short circuit if there is no available pending transactions.
 	if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return

@@ -218,6 +218,11 @@ var (
 		Name:  "snapshot",
 		Usage: `Enables snapshot-database mode -- experimental work in progress feature`,
 	}
+	TxLookupLimitFlag = cli.Int64Flag{
+		Name:  "txlookuplimit",
+		Usage: "Number of recent blocks to maintain transactions index by-hash for (default = index all blocks)",
+		Value: 0,
+	}
 	LightKDFFlag = cli.BoolFlag{
 		Name:  "lightkdf",
 		Usage: "Reduce key-derivation RAM & CPU usage at some expense of KDF strength",
@@ -398,11 +403,6 @@ var (
 		Usage: "Number of CPU threads to use for mining",
 		Value: 0,
 	}
-	MinerLegacyThreadsFlag = cli.IntFlag{
-		Name:  "minerthreads",
-		Usage: "Number of CPU threads to use for mining (deprecated, use --miner.threads)",
-		Value: 0,
-	}
 	MinerNotifyFlag = cli.StringFlag{
 		Name:  "miner.notify",
 		Usage: "Comma separated HTTP URL list to notify of new work packages",
@@ -410,11 +410,6 @@ var (
 	MinerGasTargetFlag = cli.Uint64Flag{
 		Name:  "miner.gastarget",
 		Usage: "Target gas floor for mined blocks",
-		Value: eth.DefaultConfig.Miner.GasFloor,
-	}
-	MinerLegacyGasTargetFlag = cli.Uint64Flag{
-		Name:  "targetgaslimit",
-		Usage: "Target gas floor for mined blocks (deprecated, use --miner.gastarget)",
 		Value: eth.DefaultConfig.Miner.GasFloor,
 	}
 	MinerGasLimitFlag = cli.Uint64Flag{
@@ -427,23 +422,9 @@ var (
 		Usage: "Minimum gas price for mining a transaction",
 		Value: eth.DefaultConfig.Miner.GasPrice,
 	}
-	MinerLegacyGasPriceFlag = BigFlag{
-		Name:  "gasprice",
-		Usage: "Minimum gas price for mining a transaction (deprecated, use --miner.gasprice)",
-		Value: eth.DefaultConfig.Miner.GasPrice,
-	}
-	MinerEtherbaseFlag = cli.StringFlag{
-		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (deprecated, use --tx-fee-recipient and --miner.validator)",
-		Value: "0",
-	}
 	MinerExtraDataFlag = cli.StringFlag{
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
-	}
-	MinerLegacyExtraDataFlag = cli.StringFlag{
-		Name:  "extradata",
-		Usage: "Block extra data set by the miner (default = client version, deprecated, use --miner.extradata)",
 	}
 	MinerRecommitIntervalFlag = cli.DurationFlag{
 		Name:  "miner.recommit",
@@ -487,10 +468,6 @@ var (
 
 	// Logging and debug settings
 
-	EthStatsLegacyURLFlag = cli.StringFlag{
-		Name:  "ethstats",
-		Usage: "Reporting URL of a celostats service (nodename:secret@host:port) (deprecated, Use --celostats)",
-	}
 	CeloStatsURLFlag = cli.StringFlag{
 		Name:  "celostats",
 		Usage: "Reporting URL of a celostats service (nodename:secret@host:port)",
@@ -509,32 +486,32 @@ var (
 		Name:  "ipcpath",
 		Usage: "Filename for IPC socket/pipe within the datadir (explicit paths escape it)",
 	}
-	RPCEnabledFlag = cli.BoolFlag{
-		Name:  "rpc",
+	HTTPEnabledFlag = cli.BoolFlag{
+		Name:  "http",
 		Usage: "Enable the HTTP-RPC server",
 	}
-	RPCListenAddrFlag = cli.StringFlag{
-		Name:  "rpcaddr",
+	HTTPListenAddrFlag = cli.StringFlag{
+		Name:  "http.addr",
 		Usage: "HTTP-RPC server listening interface",
 		Value: node.DefaultHTTPHost,
 	}
-	RPCPortFlag = cli.IntFlag{
-		Name:  "rpcport",
+	HTTPPortFlag = cli.IntFlag{
+		Name:  "http.port",
 		Usage: "HTTP-RPC server listening port",
 		Value: node.DefaultHTTPPort,
 	}
-	RPCCORSDomainFlag = cli.StringFlag{
-		Name:  "rpccorsdomain",
+	HTTPCORSDomainFlag = cli.StringFlag{
+		Name:  "http.corsdomain",
 		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced)",
 		Value: "",
 	}
-	RPCVirtualHostsFlag = cli.StringFlag{
-		Name:  "rpcvhosts",
+	HTTPVirtualHostsFlag = cli.StringFlag{
+		Name:  "http.vhosts",
 		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard.",
 		Value: strings.Join(node.DefaultConfig.HTTPVirtualHosts, ","),
 	}
-	RPCApiFlag = cli.StringFlag{
-		Name:  "rpcapi",
+	HTTPApiFlag = cli.StringFlag{
+		Name:  "http.api",
 		Usage: "API's offered over the HTTP-RPC interface",
 		Value: "",
 	}
@@ -543,22 +520,22 @@ var (
 		Usage: "Enable the WS-RPC server",
 	}
 	WSListenAddrFlag = cli.StringFlag{
-		Name:  "wsaddr",
+		Name:  "ws.addr",
 		Usage: "WS-RPC server listening interface",
 		Value: node.DefaultWSHost,
 	}
 	WSPortFlag = cli.IntFlag{
-		Name:  "wsport",
+		Name:  "ws.port",
 		Usage: "WS-RPC server listening port",
 		Value: node.DefaultWSPort,
 	}
 	WSApiFlag = cli.StringFlag{
-		Name:  "wsapi",
+		Name:  "ws.api",
 		Usage: "API's offered over the WS-RPC interface",
 		Value: "",
 	}
 	WSAllowedOriginsFlag = cli.StringFlag{
-		Name:  "wsorigins",
+		Name:  "ws.origins",
 		Usage: "Origins from which to accept websockets requests",
 		Value: "",
 	}
@@ -614,17 +591,7 @@ var (
 	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
-		Usage: "Comma separated enode URLs for P2P discovery bootstrap (set v4+v5 instead for light servers)",
-		Value: "",
-	}
-	BootnodesV4Flag = cli.StringFlag{
-		Name:  "bootnodesv4",
-		Usage: "Comma separated enode URLs for P2P v4 discovery bootstrap (light server, full nodes)",
-		Value: "",
-	}
-	BootnodesV5Flag = cli.StringFlag{
-		Name:  "bootnodesv5",
-		Usage: "Comma separated enode URLs for P2P v5 discovery bootstrap (light server, light nodes)",
+		Usage: "Comma separated enode URLs for P2P discovery bootstrap",
 		Value: "",
 	}
 	NodeKeyFileFlag = cli.StringFlag{
@@ -753,26 +720,6 @@ var (
 
 	// Istanbul settings
 
-	IstanbulRequestTimeoutFlag = cli.Uint64Flag{
-		Name:  "istanbul.requesttimeout",
-		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulBlockPeriodFlag = cli.Uint64Flag{
-		Name:  "istanbul.blockperiod",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds  (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulProposerPolicyFlag = cli.Uint64Flag{
-		Name:  "istanbul.proposerpolicy",
-		Usage: "Default minimum difference between two consecutive block's timestamps in seconds (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
-	IstanbulLookbackWindowFlag = cli.Uint64Flag{
-		Name:  "istanbul.lookbackwindow",
-		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
-		Value: 0,
-	}
 	IstanbulReplicaFlag = cli.BoolFlag{
 		Name:  "istanbul.replica",
 		Usage: "Run this node as a validator replica. Must be paired with --mine. Use the RPCs to enable participation in consensus.",
@@ -816,12 +763,6 @@ var (
 		Name:  "proxy.proxyenodeurlpairs",
 		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\"",
 	}
-
-	ProxyEnodeURLPairsLegacyFlag = cli.StringFlag{
-		Name:  "proxy.proxyenodeurlpair",
-		Usage: "Each enode URL in a pair is separated by a semicolon. Enode URL pairs are separated by a space. The format should be \"<proxy 0 internal facing enode URL>;<proxy 0 external facing enode URL>,<proxy 1 internal facing enode URL>;<proxy 1 external facing enode URL>,...\" (deprecated, use --proxy.proxyenodeurlpairs)",
-	}
-
 	ProxyAllowPrivateIPFlag = cli.BoolFlag{
 		Name:  "proxy.allowprivateip",
 		Usage: "Specifies whether private IP is allowed for external facing proxy enodeURL",
@@ -880,9 +821,9 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 func GetBootstrapNodes(ctx *cli.Context) []string {
 	urls := params.MainnetBootnodes
 	switch {
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV4Flag.Name):
-		if ctx.GlobalIsSet(BootnodesV4Flag.Name) {
-			urls = splitAndTrim(ctx.GlobalString(BootnodesV4Flag.Name))
+	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name):
+		if ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name) {
+			urls = splitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
 		} else {
 			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
@@ -918,11 +859,11 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 // setBootstrapNodesV5 creates a list of bootstrap nodes from the command line
 // flags, reverting to pre-configured ones if none have been specified.
 func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
-	urls := params.DiscoveryV5Bootnodes
+	urls := params.MainnetBootnodes
 	switch {
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(BootnodesV5Flag.Name):
-		if ctx.GlobalIsSet(BootnodesV5Flag.Name) {
-			urls = splitAndTrim(ctx.GlobalString(BootnodesV5Flag.Name))
+	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
+		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
+			urls = splitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
 		} else {
 			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
@@ -979,23 +920,51 @@ func splitAndTrim(input string) []string {
 // setHTTP creates the HTTP RPC listener interface string from the set
 // command line flags, returning empty if the HTTP endpoint is disabled.
 func setHTTP(ctx *cli.Context, cfg *node.Config) {
-	if ctx.GlobalBool(RPCEnabledFlag.Name) && cfg.HTTPHost == "" {
+	if ctx.GlobalBool(LegacyRPCEnabledFlag.Name) && cfg.HTTPHost == "" {
+		log.Warn("The flag --rpc is deprecated and will be removed in the future, please use --http")
 		cfg.HTTPHost = "127.0.0.1"
-		if ctx.GlobalIsSet(RPCListenAddrFlag.Name) {
-			cfg.HTTPHost = ctx.GlobalString(RPCListenAddrFlag.Name)
+		if ctx.GlobalIsSet(LegacyRPCListenAddrFlag.Name) {
+			cfg.HTTPHost = ctx.GlobalString(LegacyRPCListenAddrFlag.Name)
+			log.Warn("The flag --rpcaddr is deprecated and will be removed in the future, please use --http.addr")
 		}
 	}
-	if ctx.GlobalIsSet(RPCPortFlag.Name) {
-		cfg.HTTPPort = ctx.GlobalInt(RPCPortFlag.Name)
+	if ctx.GlobalBool(HTTPEnabledFlag.Name) && cfg.HTTPHost == "" {
+		cfg.HTTPHost = "127.0.0.1"
+		if ctx.GlobalIsSet(HTTPListenAddrFlag.Name) {
+			cfg.HTTPHost = ctx.GlobalString(HTTPListenAddrFlag.Name)
+		}
 	}
-	if ctx.GlobalIsSet(RPCCORSDomainFlag.Name) {
-		cfg.HTTPCors = splitAndTrim(ctx.GlobalString(RPCCORSDomainFlag.Name))
+
+	if ctx.GlobalIsSet(LegacyRPCPortFlag.Name) {
+		cfg.HTTPPort = ctx.GlobalInt(LegacyRPCPortFlag.Name)
+		log.Warn("The flag --rpcport is deprecated and will be removed in the future, please use --http.port")
 	}
-	if ctx.GlobalIsSet(RPCApiFlag.Name) {
-		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(RPCApiFlag.Name))
+	if ctx.GlobalIsSet(HTTPPortFlag.Name) {
+		cfg.HTTPPort = ctx.GlobalInt(HTTPPortFlag.Name)
 	}
-	if ctx.GlobalIsSet(RPCVirtualHostsFlag.Name) {
-		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(RPCVirtualHostsFlag.Name))
+
+	if ctx.GlobalIsSet(LegacyRPCCORSDomainFlag.Name) {
+		cfg.HTTPCors = splitAndTrim(ctx.GlobalString(LegacyRPCCORSDomainFlag.Name))
+		log.Warn("The flag --rpccorsdomain is deprecated and will be removed in the future, please use --http.corsdomain")
+	}
+	if ctx.GlobalIsSet(HTTPCORSDomainFlag.Name) {
+		cfg.HTTPCors = splitAndTrim(ctx.GlobalString(HTTPCORSDomainFlag.Name))
+	}
+
+	if ctx.GlobalIsSet(LegacyRPCApiFlag.Name) {
+		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(LegacyRPCApiFlag.Name))
+		log.Warn("The flag --rpcapi is deprecated and will be removed in the future, please use --http.api")
+	}
+	if ctx.GlobalIsSet(HTTPApiFlag.Name) {
+		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(HTTPApiFlag.Name))
+	}
+
+	if ctx.GlobalIsSet(LegacyRPCVirtualHostsFlag.Name) {
+		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(LegacyRPCVirtualHostsFlag.Name))
+		log.Warn("The flag --rpcvhosts is deprecated and will be removed in the future, please use --http.vhosts")
+	}
+	if ctx.GlobalIsSet(HTTPVirtualHostsFlag.Name) {
+		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(HTTPVirtualHostsFlag.Name))
 	}
 }
 
@@ -1022,15 +991,33 @@ func setGraphQL(ctx *cli.Context, cfg *node.Config) {
 func setWS(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalBool(WSEnabledFlag.Name) && cfg.WSHost == "" {
 		cfg.WSHost = "127.0.0.1"
+		if ctx.GlobalIsSet(LegacyWSListenAddrFlag.Name) {
+			cfg.WSHost = ctx.GlobalString(LegacyWSListenAddrFlag.Name)
+			log.Warn("The flag --wsaddr is deprecated and will be removed in the future, please use --ws.addr")
+		}
 		if ctx.GlobalIsSet(WSListenAddrFlag.Name) {
 			cfg.WSHost = ctx.GlobalString(WSListenAddrFlag.Name)
 		}
 	}
+	if ctx.GlobalIsSet(LegacyWSPortFlag.Name) {
+		cfg.WSPort = ctx.GlobalInt(LegacyWSPortFlag.Name)
+		log.Warn("The flag --wsport is deprecated and will be removed in the future, please use --ws.port")
+	}
 	if ctx.GlobalIsSet(WSPortFlag.Name) {
 		cfg.WSPort = ctx.GlobalInt(WSPortFlag.Name)
 	}
+
+	if ctx.GlobalIsSet(LegacyWSAllowedOriginsFlag.Name) {
+		cfg.WSOrigins = splitAndTrim(ctx.GlobalString(LegacyWSAllowedOriginsFlag.Name))
+		log.Warn("The flag --wsorigins is deprecated and will be removed in the future, please use --ws.origins")
+	}
 	if ctx.GlobalIsSet(WSAllowedOriginsFlag.Name) {
 		cfg.WSOrigins = splitAndTrim(ctx.GlobalString(WSAllowedOriginsFlag.Name))
+	}
+
+	if ctx.GlobalIsSet(LegacyWSApiFlag.Name) {
+		cfg.WSModules = splitAndTrim(ctx.GlobalString(LegacyWSApiFlag.Name))
+		log.Warn("The flag --wsapi is deprecated and will be removed in the future, please use --ws.api")
 	}
 	if ctx.GlobalIsSet(WSApiFlag.Name) {
 		cfg.WSModules = splitAndTrim(ctx.GlobalString(WSApiFlag.Name))
@@ -1138,8 +1125,8 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	if ctx.GlobalIsSet(EtherbaseFlag.Name) {
 		validator = ctx.GlobalString(EtherbaseFlag.Name)
 	}
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		validator = ctx.GlobalString(MinerEtherbaseFlag.Name)
+	if ctx.GlobalIsSet(LegacyMinerEtherbaseFlag.Name) {
+		validator = ctx.GlobalString(LegacyMinerEtherbaseFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerValidatorFlag.Name) {
 		if validator != "" {
@@ -1392,14 +1379,16 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.GlobalIsSet(MinerNotifyFlag.Name) {
 		cfg.Notify = strings.Split(ctx.GlobalString(MinerNotifyFlag.Name), ",")
 	}
-	if ctx.GlobalIsSet(MinerLegacyExtraDataFlag.Name) {
-		cfg.ExtraData = []byte(ctx.GlobalString(MinerLegacyExtraDataFlag.Name))
+	if ctx.GlobalIsSet(LegacyMinerExtraDataFlag.Name) {
+		cfg.ExtraData = []byte(ctx.GlobalString(LegacyMinerExtraDataFlag.Name))
+		log.Warn("The flag --extradata is deprecated and will be removed in the future, please use --miner.extradata")
 	}
 	if ctx.GlobalIsSet(MinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(MinerExtraDataFlag.Name))
 	}
-	if ctx.GlobalIsSet(MinerLegacyGasTargetFlag.Name) {
-		cfg.GasFloor = ctx.GlobalUint64(MinerLegacyGasTargetFlag.Name)
+	if ctx.GlobalIsSet(LegacyMinerGasTargetFlag.Name) {
+		cfg.GasFloor = ctx.GlobalUint64(LegacyMinerGasTargetFlag.Name)
+		log.Warn("The flag --targetgaslimit is deprecated and will be removed in the future, please use --miner.gastarget")
 	}
 	if ctx.GlobalIsSet(MinerGasTargetFlag.Name) {
 		cfg.GasFloor = ctx.GlobalUint64(MinerGasTargetFlag.Name)
@@ -1407,8 +1396,9 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.GlobalIsSet(MinerGasLimitFlag.Name) {
 		cfg.GasCeil = ctx.GlobalUint64(MinerGasLimitFlag.Name)
 	}
-	if ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
-		cfg.GasPrice = GlobalBig(ctx, MinerLegacyGasPriceFlag.Name)
+	if ctx.GlobalIsSet(LegacyMinerGasPriceFlag.Name) {
+		cfg.GasPrice = GlobalBig(ctx, LegacyMinerGasPriceFlag.Name)
+		log.Warn("The flag --gasprice is deprecated and will be removed in the future, please use --miner.gasprice")
 	}
 	if ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
 		cfg.GasPrice = GlobalBig(ctx, MinerGasPriceFlag.Name)
@@ -1445,17 +1435,17 @@ func setWhitelist(ctx *cli.Context, cfg *eth.Config) {
 }
 
 func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
-	if ctx.GlobalIsSet(IstanbulRequestTimeoutFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulRequestTimeoutFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulRequestTimeoutFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulRequestTimeoutFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulBlockPeriodFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulBlockPeriodFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulBlockPeriodFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulBlockPeriodFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulLookbackWindowFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulLookbackWindowFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulLookbackWindowFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulLookbackWindowFlag.Name)
 	}
-	if ctx.GlobalIsSet(IstanbulProposerPolicyFlag.Name) {
-		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", IstanbulProposerPolicyFlag.Name)
+	if ctx.GlobalIsSet(LegacyIstanbulProposerPolicyFlag.Name) {
+		log.Warn("Flag value is ignored, and obtained from genesis config", "flag", LegacyIstanbulProposerPolicyFlag.Name)
 	}
 	cfg.Istanbul.ReplicaStateDBPath = stack.ResolvePath(cfg.Istanbul.ReplicaStateDBPath)
 	cfg.Istanbul.ValidatorEnodeDBPath = stack.ResolvePath(cfg.Istanbul.ValidatorEnodeDBPath)
@@ -1518,15 +1508,12 @@ func SetProxyConfig(ctx *cli.Context, nodeCfg *node.Config, ethCfg *eth.Config) 
 			Fatalf("Option --%s must be used if option --%s is used", MiningEnabledFlag.Name, ProxiedFlag.Name)
 		}
 
-		if !ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) && !ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
-			Fatalf("Option --%s must be used if option --%s is used", ProxyEnodeURLPairsFlag.Name, ProxiedFlag.Name)
-		}
-
 		// Extract the proxy enode url pairs, new flag overriding legacy one
 		var proxyEnodeURLPairs []string
 
-		if ctx.GlobalIsSet(ProxyEnodeURLPairsLegacyFlag.Name) {
-			proxyEnodeURLPairs = strings.Split(ctx.String(ProxyEnodeURLPairsLegacyFlag.Name), ",")
+		if ctx.GlobalIsSet(LegacyProxyEnodeURLPairsFlag.Name) {
+			proxyEnodeURLPairs = strings.Split(ctx.String(LegacyProxyEnodeURLPairsFlag.Name), ",")
+			log.Warn("The flag --proxy.proxyenodeurlpair is deprecated and will be removed in the future, please use --proxy.proxyenodeurlpairs")
 		}
 
 		if ctx.GlobalIsSet(ProxyEnodeURLPairsFlag.Name) {
@@ -1645,7 +1632,11 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	CheckExclusive(ctx, DeveloperFlag, BaklavaFlag, AlfajoresFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
-
+	CheckExclusive(ctx, GCModeFlag, "archive", TxLookupLimitFlag)
+	// todo(rjl493456442) make it available for les server
+	// Ancient tx indices pruning is not available for les server now
+	// since light client relies on the server for transaction status query.
+	CheckExclusive(ctx, LegacyLightServFlag, LightServeFlag, TxLookupLimitFlag)
 	var ks *keystore.KeyStore
 	if keystores := stack.AccountManager().Backends(keystore.KeyStoreType); len(keystores) > 0 {
 		ks = keystores[0].(*keystore.KeyStore)
@@ -1683,6 +1674,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	if ctx.GlobalIsSet(CacheNoPrefetchFlag.Name) {
 		cfg.NoPrefetch = ctx.GlobalBool(CacheNoPrefetchFlag.Name)
+	}
+	if ctx.GlobalIsSet(TxLookupLimitFlag.Name) {
+		cfg.TxLookupLimit = ctx.GlobalUint64(TxLookupLimitFlag.Name)
 	}
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheTrieFlag.Name) {
 		cfg.TrieCleanCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheTrieFlag.Name) / 100
@@ -1764,7 +1758,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		log.Info("Using developer account", "address", developer.Address)
 
 		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
-		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
+		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(LegacyMinerGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
 	default:
@@ -1923,7 +1917,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 }
 
 // MakeChain creates a chain manager from set command line flags.
-func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chainDb ethdb.Database) {
+func MakeChain(ctx *cli.Context, stack *node.Node, readOnly bool) (chain *core.BlockChain, chainDb ethdb.Database) {
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack)
 	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
@@ -1954,7 +1948,12 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		cache.TrieDirtyLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheGCFlag.Name) / 100
 	}
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.GlobalBool(VMEnableDebugFlag.Name)}
-	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil)
+	var limit *uint64
+	if ctx.GlobalIsSet(TxLookupLimitFlag.Name) && !readOnly {
+		l := ctx.GlobalUint64(TxLookupLimitFlag.Name)
+		limit = &l
+	}
+	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil, limit)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}
