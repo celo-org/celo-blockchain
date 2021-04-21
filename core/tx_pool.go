@@ -1309,7 +1309,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _, _ := currency.GetBalanceOf(addr, feeCurrency, params.MaxGasToReadErc20Balance, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
@@ -1509,7 +1509,7 @@ func (pool *TxPool) demoteUnexecutables() {
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _, _ := currency.GetBalanceOf(addr, feeCurrency, params.MaxGasToReadErc20Balance, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
@@ -1557,7 +1557,7 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
 		return ErrInsufficientFunds
 	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+		feeCurrencyBalance, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), nil, nil)
 
 		if err != nil {
 			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)

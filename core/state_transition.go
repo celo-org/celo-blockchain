@@ -267,8 +267,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
-	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.Header, st.evm.StateDB)
-	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	balanceOf, err := currency.GetBalanceOf(accountOwner, *feeCurrency, st.evm.Header, st.evm.StateDB)
 
 	if err != nil {
 		return false
