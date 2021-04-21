@@ -22,7 +22,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -110,10 +109,10 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	if currency == nil {
 		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
 
-		if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+		if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 			return FallbackGasPriceMinimum, nil
 		}
-		if err == errors.ErrNoInternalEvmHandlerSingleton {
+		if err == contracts.ErrNoInternalEvmHandlerSingleton {
 			return FallbackGasPriceMinimum, nil
 		}
 		if err != nil {
@@ -126,10 +125,10 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	var gasPriceMinimum *big.Int
 	err = getGasPriceMinimumMethod.Query(vmRunner, &gasPriceMinimum, currencyAddress)
 
-	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 		return FallbackGasPriceMinimum, nil
 	}
-	if err == errors.ErrNoInternalEvmHandlerSingleton {
+	if err == contracts.ErrNoInternalEvmHandlerSingleton {
 		return FallbackGasPriceMinimum, nil
 	}
 	if err != nil {

@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -152,7 +152,7 @@ func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
 	version, err := GetMinimumVersion(header, state)
 
 	if err != nil {
-		if err == errors.ErrRegistryContractNotDeployed {
+		if err == contracts.ErrRegistryContractNotDeployed {
 			log.Debug("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
 		} else {
 			log.Warn("Error checking client version", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
@@ -189,7 +189,7 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 		state,
 	)
 	if err != nil {
-		if err == errors.ErrRegistryContractNotDeployed {
+		if err == contracts.ErrRegistryContractNotDeployed {
 			log.Debug("Error obtaining block gas limit", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
 		} else {
 			log.Warn("Error obtaining block gas limit", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
@@ -212,7 +212,7 @@ func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
 		state,
 	)
 	if err != nil {
-		if err == errors.ErrRegistryContractNotDeployed {
+		if err == contracts.ErrRegistryContractNotDeployed {
 			log.Debug("Error obtaining lookback window", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
 		} else {
 			log.Warn("Error obtaining lookback window", "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
