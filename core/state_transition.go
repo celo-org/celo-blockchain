@@ -24,7 +24,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	commerrs "github.com/celo-org/celo-blockchain/contract_comm/errors"
 	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -487,7 +486,7 @@ func (st *StateTransition) distributeTxFees() error {
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
 	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 	if err != nil {
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return err
 		}
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)

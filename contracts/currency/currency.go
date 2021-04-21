@@ -22,7 +22,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -182,10 +181,10 @@ type ExchangeRate struct {
 // Requires numerator >=0 && denominator >= 0
 func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, error) {
 	if numerator == nil || common.Big0.Cmp(numerator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	if denominator == nil || common.Big0.Cmp(denominator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	return &ExchangeRate{numerator, denominator}, nil
 }
@@ -286,7 +285,7 @@ func GetExchangeRate(vmRunner vm.EVMRunner, currencyAddress *common.Address) (*E
 
 	err := medianRateMethod.Query(vmRunner, &returnArray, currencyAddress)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &NoopExchangeRate, nil
 	} else if err != nil {
@@ -319,7 +318,7 @@ func CurrencyWhitelist(vmRunner vm.EVMRunner) ([]common.Address, error) {
 
 	err := getWhitelistMethod.Query(vmRunner, &returnList)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error("getWhitelist invocation failed", "err", err)

@@ -21,7 +21,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -55,7 +54,7 @@ func newEVMRunner(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) 
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
 	if _newEvmRunner == nil {
-		return nil, errors.ErrNoInternalEvmHandlerSingleton
+		return nil, contracts.ErrNoInternalEvmHandlerSingleton
 	}
 
 	return _newEvmRunner(header, state)

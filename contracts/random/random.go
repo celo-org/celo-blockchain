@@ -7,7 +7,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -137,7 +136,7 @@ func init() {
 func IsRunning(vmRunner vm.EVMRunner) bool {
 	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, params.RandomRegistryId)
 
-	if err == errors.ErrSmartContractNotDeployed || err == errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 		log.Debug("Registry address lookup failed", "err", err, "contract", hexutil.Encode(params.RandomRegistryId[:]))
 	} else if err != nil {
 		log.Error(err.Error())

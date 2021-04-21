@@ -23,7 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contract_comm"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -164,10 +164,10 @@ type ExchangeRate struct {
 // Requires numerator >=0 && denominator >= 0
 func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, error) {
 	if numerator == nil || common.Big0.Cmp(numerator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	if denominator == nil || common.Big0.Cmp(denominator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	return &ExchangeRate{numerator, denominator}, nil
 }
@@ -269,7 +269,7 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 	var returnArray [2]*big.Int
 	err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, header, state)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &NoopExchangeRate, nil
 	} else if err != nil {
@@ -301,7 +301,7 @@ func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 
 	err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error("getWhitelist invocation failed", "err", err)

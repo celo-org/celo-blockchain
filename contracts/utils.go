@@ -8,7 +8,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	cerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
@@ -43,9 +42,9 @@ func resolveAddressForCall(caller vm.EVMRunner, registryId common.Hash, method s
 
 	if err != nil {
 		hexRegistryId := hexutil.Encode(registryId[:])
-		if err == cerrors.ErrSmartContractNotDeployed {
+		if err == ErrSmartContractNotDeployed {
 			log.Debug("Contract not yet registered", "function", method, "registryId", hexRegistryId)
-		} else if err == cerrors.ErrRegistryContractNotDeployed {
+		} else if err == ErrRegistryContractNotDeployed {
 			log.Debug("Registry contract not yet deployed", "function", method, "registryId", hexRegistryId)
 		} else {
 			log.Error("Error in getting registered address", "function", method, "registryId", hexRegistryId, "err", err)

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/contracts"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -36,7 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contract_comm/election"
-	comm_errors "github.com/celo-org/celo-blockchain/contract_comm/errors"
+
 	"github.com/celo-org/celo-blockchain/contract_comm/random"
 	"github.com/celo-org/celo-blockchain/contract_comm/validators"
 	"github.com/celo-org/celo-blockchain/core"
@@ -730,7 +731,7 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
-			if err == comm_errors.ErrRegistryContractNotDeployed {
+			if err == contracts.ErrRegistryContractNotDeployed {
 				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
 			} else {
 				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
@@ -930,7 +931,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
 		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)

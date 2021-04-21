@@ -23,7 +23,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
@@ -181,7 +180,7 @@ func CheckMinimumVersion(vmRunner vm.EVMRunner) {
 }
 
 func logError(method string, err error) {
-	if err == errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrRegistryContractNotDeployed {
 		log.Debug("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))
 	} else {
 		log.Warn("Error calling "+method, "err", err, "contract", hexutil.Encode(params.BlockchainParametersRegistryId[:]))

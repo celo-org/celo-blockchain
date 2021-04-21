@@ -5,7 +5,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -54,7 +53,7 @@ func GetRegisteredAddress(vmRunner vm.EVMRunner, registryId common.Hash) (common
 
 	// TODO(mcortesi) remove registrypoxy deployed at genesis
 	if vmRunner.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
-		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
+		return common.ZeroAddress, ErrRegistryContractNotDeployed
 	}
 
 	var contractAddress common.Address
@@ -63,13 +62,13 @@ func GetRegisteredAddress(vmRunner vm.EVMRunner, registryId common.Hash) (common
 	// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
 	// TODO(asa): Why was this change necessary?
 	if err == abi.ErrEmptyArguments || err == vm.ErrExecutionReverted {
-		return common.ZeroAddress, errors.ErrRegistryContractNotDeployed
+		return common.ZeroAddress, ErrRegistryContractNotDeployed
 	} else if err != nil {
 		return common.ZeroAddress, err
 	}
 
 	if contractAddress == common.ZeroAddress {
-		return common.ZeroAddress, errors.ErrSmartContractNotDeployed
+		return common.ZeroAddress, ErrSmartContractNotDeployed
 	}
 
 	return contractAddress, nil
