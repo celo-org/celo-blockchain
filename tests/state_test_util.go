@@ -182,7 +182,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
 	gaspool := new(core.GasPool)
-	gaspool.AddGas(core.CalcGasLimit(block, statedb))
+	gaspool.AddGas(params.DefaultGasLimit)
 	snapshot := statedb.Snapshot()
 	if _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
 		statedb.RevertToSnapshot(snapshot)

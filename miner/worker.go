@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
@@ -652,12 +653,13 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 		return err
 	}
 
+	vmRunner := w.chain.NewSystemEVMRunner(header, state)
 	env := &environment{
 		signer:    types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:     state,
 		ancestors: mapset.NewSet(),
 		header:    header,
-		gasLimit:  core.CalcGasLimit(parent, state),
+		gasLimit:  blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 	}
 
 	// when 08 is processed ancestors contain 07 (quick block)

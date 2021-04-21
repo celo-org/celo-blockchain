@@ -56,16 +56,7 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 
 // GasPrice returns a suggestion for a gas price.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context, feeCurrency *common.Address) (*hexutil.Big, error) {
-	if feeCurrency == nil {
-		price, err := s.b.SuggestPrice(ctx)
-		return (*hexutil.Big)(price), err
-	}
-
-	state, header, err := s.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
-	if err != nil {
-		return nil, err
-	}
-	price, err := s.b.SuggestPriceInCurrency(ctx, feeCurrency, header, state)
+	price, err := s.b.SuggestPrice(ctx, feeCurrency)
 	return (*hexutil.Big)(price), err
 }
 
@@ -881,18 +872,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
-		// Retrieve the block to act as the gas ceiling
-		block, err := b.BlockByNumberOrHash(ctx, blockNrOrHash)
-		if err != nil {
-			return 0, err
-		}
-
-		statedb, _, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
-		if err != nil {
-			return 0, err
-		}
-
-		hi = core.CalcGasLimit(block, statedb)
+		hi = b.GetBlockGasLimit(ctx, blockNrOrHash)
 	}
 	if gasCap != nil && hi > gasCap.Uint64() {
 		log.Warn("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
@@ -1420,11 +1400,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
-		if err != nil {
-			return err
-		}
-		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		price, err := b.SuggestPrice(ctx, args.FeeCurrency)
 		if err != nil {
 			return err
 		}

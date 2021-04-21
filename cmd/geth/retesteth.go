@@ -34,6 +34,7 @@ import (
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -447,7 +448,8 @@ func (api *RetestethAPI) mineBlock() error {
 	}
 	statedb, err := api.blockchain.StateAt(parent.Root())
 
-	gasLimit := core.CalcGasLimit(parent, statedb)
+	vmRunner := api.blockchain.NewSystemEVMRunner(parent.Header(), statedb)
+	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     big.NewInt(int64(number + 1)),

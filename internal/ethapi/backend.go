@@ -41,8 +41,7 @@ type Backend interface {
 	// General Ethereum API
 	Downloader() *downloader.Downloader
 	ProtocolVersion() int
-	SuggestPrice(ctx context.Context) (*big.Int, error)
-	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error)
+	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool
@@ -89,6 +88,7 @@ type Backend interface {
 	GatewayFeeRecipient() common.Address
 	GatewayFee() *big.Int
 	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
+	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {
