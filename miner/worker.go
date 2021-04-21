@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contract_comm/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -176,6 +175,13 @@ type worker struct {
 	running int32 // The indicator whether the consensus engine is running or not.
 	newTxs  int32 // New arrival transaction count since last sealing work submitting.
 
+	// noempty is the flag used to control whether the feature of pre-seal empty
+	// block is enabled. The default value is false(pre-seal is enabled by default).
+	// But in some special scenario the consensus engine will seal blocks instantaneously,
+	// in this case this feature will add all empty blocks into canonical chain
+	// non-stop and no real transaction will be included.
+	noempty uint32
+
 	// External functions
 	isLocalBlock func(block *types.Block) bool // Function used to determine whether the specified block is mined by local miner.
 
@@ -263,6 +269,16 @@ func (w *worker) setRecommitInterval(interval time.Duration) {
 	w.resubmitIntervalCh <- interval
 }
 
+// disablePreseal disables pre-sealing mining feature
+func (w *worker) disablePreseal() {
+	atomic.StoreUint32(&w.noempty, 1)
+}
+
+// enablePreseal enables pre-sealing mining feature
+func (w *worker) enablePreseal() {
+	atomic.StoreUint32(&w.noempty, 0)
+}
+
 // pending returns the pending state and corresponding block.
 func (w *worker) pending() (*types.Block, *state.StateDB) {
 	// return a snapshot to avoid contention on currentMu mutex
@@ -334,8 +350,13 @@ func (w *worker) close() {
 	close(w.exitCh)
 }
 
-func (w *worker) txCmp(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	return currency.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+	// TODO specify header & state
+	currencyManager := currency.NewManager(nil, nil)
+
+	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	}
 }
 
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
@@ -495,7 +516,7 @@ func (w *worker) mainLoop() {
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.txCmp)
+				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.createTxCmp())
 				tcount := w.current.tcount
 				w.commitTransactions(txset, txFeeRecipient, nil)
 				// Only update the snapshot if any new transactons were added
@@ -708,6 +729,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 
 	var coalescedLogs []*types.Log
 
+loop:
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
 		// (1) new head block event arrival, the interrupt signal is 1
@@ -739,14 +761,14 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 		if tx == nil {
 			break
 		}
-		// Check for valid fee currency and that the tx exceeds the gasPriceMinimum
-		// We will not add any more txns from the `txns` parameter if `tx`'s gasPrice is below the gas price minimum.
-		// All the other transactions after this `tx` will either also be below the gas price minimum or will have a
-		// nonce that is non sequential to the last mined txn for the account.
-		gasPriceMinimum, _ := gpm.GetGasPriceMinimum(tx.FeeCurrency(), w.current.header, w.current.state)
-		if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-			log.Info("Excluding transaction from block due to failure to exceed gasPriceMinimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
-			break
+		// Short-circuit if the transaction requires more gas than we have in the pool.
+		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
+		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
+		// anyway due to the block not having enough gas left.
+		if w.current.gasPool.Gas() < tx.Gas() {
+			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", w.current.gasPool.Gas(), "txgas", tx.Gas())
+			txs.Pop()
+			continue
 		}
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -780,6 +802,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFe
 			// Reorg notification data race between the transaction pool and miner, skip account =
 			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
+
+		case core.ErrGasPriceDoesNotExceedMinimum:
+			// We are below the GPM, so we can stop (the rest of the transactions will either have
+			// even lower gas price or won't be mineable yet due to their nonce)
+			log.Trace("Skipping remaining transaction below the gas price minimum")
+			break loop
 
 		case nil:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
@@ -887,7 +915,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		misc.ApplyDAOHardFork(env.state)
 	}
 
-	if !noempty && !w.isIstanbulEngine() {
+	if !noempty && !w.isIstanbulEngine() && atomic.LoadUint32(&w.noempty) == 0 {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
 		w.commit(nil, false, tstart)
@@ -958,7 +986,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	// Short circuit if there is no available pending transactions
+	// Short circuit if there is no available pending transactions.
 	if len(pending) == 0 {
 		istanbulEmptyBlockCommit()
 		return
@@ -971,14 +999,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			localTxs[account] = txs
 		}
 	}
+
+	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, w.txCmp)
+		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, txComparator)
 		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
 			return
 		}

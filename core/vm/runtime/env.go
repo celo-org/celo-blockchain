@@ -17,14 +17,16 @@
 package runtime
 
 import (
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 )
 
 func NewEnv(cfg *Config) *vm.EVM {
 
 	context := vm.Context{
-		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.Transfer,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
 
 		GetHash: cfg.GetHashFn,
 
@@ -33,6 +35,8 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
+
+		GetRegisteredAddress: contracts.GetRegisteredAddress,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

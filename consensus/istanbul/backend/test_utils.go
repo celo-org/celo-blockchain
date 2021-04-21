@@ -69,7 +69,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 
 	genesis.MustCommit(memDB)
 
-	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil)
+	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil, nil)
 	if err != nil {
 		panic(err)
 	}

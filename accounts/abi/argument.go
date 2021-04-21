@@ -59,18 +59,6 @@ func (argument *Argument) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// LengthNonIndexed returns the number of arguments when not counting 'indexed' ones. Only events
-// can ever have 'indexed' arguments, it should always be false on arguments for method input/output
-func (arguments Arguments) LengthNonIndexed() int {
-	out := 0
-	for _, arg := range arguments {
-		if !arg.Indexed {
-			out++
-		}
-	}
-	return out
-}
-
 // NonIndexed returns the arguments with indexed arguments filtered out
 func (arguments Arguments) NonIndexed() Arguments {
 	var ret []Argument
@@ -205,10 +193,11 @@ func unpack(t *Type, dst interface{}, src interface{}) error {
 
 // unpackAtomic unpacks ( hexdata -> go ) a single value
 func (arguments Arguments) unpackAtomic(v interface{}, marshalledValues interface{}) error {
-	if arguments.LengthNonIndexed() == 0 {
+	nonIndexedArgs := arguments.NonIndexed()
+	if len(nonIndexedArgs) == 0 {
 		return nil
 	}
-	argument := arguments.NonIndexed()[0]
+	argument := nonIndexedArgs[0]
 	elem := reflect.ValueOf(v).Elem()
 
 	if elem.Kind() == reflect.Struct && argument.Type.T != TupleTy {
@@ -282,10 +271,11 @@ func (arguments Arguments) unpackTuple(v interface{}, marshalledValues []interfa
 // without supplying a struct to unpack into. Instead, this method returns a list containing the
 // values. An atomic argument will be a list with one element.
 func (arguments Arguments) UnpackValues(data []byte) ([]interface{}, error) {
-	retval := make([]interface{}, 0, arguments.LengthNonIndexed())
+	nonIndexedArgs := arguments.NonIndexed()
+	retval := make([]interface{}, 0, len(nonIndexedArgs))
 	virtualArgs := 0
-	for index, arg := range arguments.NonIndexed() {
-		marshalledValue, err := ToGoType((index+virtualArgs)*32, arg.Type, data)
+	for index, arg := range nonIndexedArgs {
+		marshalledValue, err := toGoType((index+virtualArgs)*32, arg.Type, data)
 		if arg.Type.T == ArrayTy && !isDynamicType(arg.Type) {
 			// If we have a static array, like [3]uint256, these are coded as
 			// just like uint256,uint256,uint256.
@@ -322,7 +312,7 @@ func (arguments Arguments) Pack(args ...interface{}) ([]byte, error) {
 	// Make sure arguments match up and pack them
 	abiArgs := arguments
 	if len(args) != len(abiArgs) {
-		return nil, fmt.Errorf("argument count mismatch: %d for %d", len(args), len(abiArgs))
+		return nil, fmt.Errorf("argument count mismatch: got %d for %d", len(args), len(abiArgs))
 	}
 	// variable input is the output appended at the end of packed
 	// output. This is used for strings and bytes types input.

@@ -120,14 +120,50 @@ func (c mockChainContext) Engine() consensus.Engine {
 	return mockEngine{}
 }
 
+var testHeader = makeTestHeader(big.NewInt(10000))
+
+var chainCtx = mockChainContext{}
+var vmctx = Context{
+	CanTransfer: func(db StateDB, addr common.Address, amount *big.Int) bool {
+		return db.GetBalance(addr).Cmp(amount) >= 0
+	},
+	Transfer: func(e *EVM, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
+	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
+	VerifySeal: func(header *types.Header) bool {
+		// If the block is later than the unsealed reference block, return false.
+		if header.Number.Cmp(testHeader.Number) > 0 {
+			return false
+		}
+
+		// FIXME: Implementation currently relies on the Istanbul engine's internal view of the
+		// chain, so return false if this is not an Istanbul chain. As a consequence of this the
+		// seal is always verified against the canonical chain, which makes behavior undefined if
+		// this function is evaluated on a chain which does not have the highest total difficulty.
+		if chainCtx.Config().Istanbul == nil {
+			return false
+		}
+
+		// Submit the header to the engine's seal verification function.
+		return chainCtx.Engine().VerifySeal(nil, header) == nil
+	},
+	Origin:      common.HexToAddress("a11ce"),
+	Coinbase:    common.Address{},
+	BlockNumber: new(big.Int).Set(testHeader.Number),
+	Time:        new(big.Int).SetUint64(testHeader.Time),
+	GasPrice:    common.Big1,
+
+	GetRegisteredAddress: func(evm *EVM, registryId common.Hash) (common.Address, error) {
+		return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
+	},
+
+	EpochSize:         chainCtx.Engine().EpochSize(),
+	GetValidators:     chainCtx.Engine().GetValidators,
+	GetHeaderByNumber: chainCtx.GetHeaderByNumber,
+}
+
 // Create a global mock EVM for use in the following tests.
 var mockEVM = &EVM{
-	Context: NewEVMContext(
-		types.NewMessage(common.HexToAddress("a11ce"), nil, 0, common.Big0, 0, common.Big1, nil, nil, common.Big0, nil, false),
-		makeTestHeader(big.NewInt(10000)),
-		mockChainContext{},
-		&common.Address{},
-	),
+	Context: vmctx,
 }
 
 func loadJSON(name string) ([]precompiledTest, error) {

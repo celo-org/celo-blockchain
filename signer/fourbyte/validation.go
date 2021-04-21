@@ -32,6 +32,10 @@ import (
 func (db *Database) ValidateTransaction(selector *string, tx *core.SendTxArgs) (*core.ValidationMessages, error) {
 	messages := new(core.ValidationMessages)
 
+	// Reject if EthCompatible is true but the transaction has non-nil-or-0 values for the non-eth-compatible fields
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return nil, err
+	}
 	// Prevent accidental erroneous usage of both 'input' and 'data' (show stopper)
 	if tx.Data != nil && tx.Input != nil && !bytes.Equal(*tx.Data, *tx.Input) {
 		return nil, errors.New(`ambiguous request: both "data" and "input" are set and are not identical`)
@@ -98,7 +102,7 @@ func (db *Database) ValidateCallData(selector *string, data []byte, messages *co
 		if info, err := verifySelector(*selector, data); err != nil {
 			messages.Warn(fmt.Sprintf("Transaction contains data, but provided ABI signature could not be matched: %v", err))
 		} else {
-			messages.Info(info.String())
+			messages.Info(fmt.Sprintf("Transaction invokes the following method: %q", info.String()))
 			db.AddSelector(*selector, data[:4])
 		}
 		return
@@ -112,6 +116,6 @@ func (db *Database) ValidateCallData(selector *string, data []byte, messages *co
 	if info, err := verifySelector(embedded, data); err != nil {
 		messages.Warn(fmt.Sprintf("Transaction contains data, but provided ABI signature could not be verified: %v", err))
 	} else {
-		messages.Info(info.String())
+		messages.Info(fmt.Sprintf("Transaction invokes the following method: %q", info.String()))
 	}
 }

@@ -242,8 +242,8 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, new(big.Int), data, false)}
-		context := vm.NewEVMContext(msg, header, chain, nil)
+		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, new(big.Int), data, false, false)}
+		context := core.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
 		result, _ := core.ApplyMessage(vmenv, msg, gp)
@@ -294,7 +294,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	)
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil, nil)
 	gchain, _ := core.GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)
@@ -362,7 +362,7 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 	)
 	gspec.MustCommit(ldb)
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil)
+	blockchain, _ := core.NewBlockChain(sdb, nil, params.IstanbulTestChainConfig, mockEngine.NewFullFaker(), vm.Config{}, nil, nil)
 	gchain, _ := core.GenerateChain(params.IstanbulTestChainConfig, genesis, mockEngine.NewFaker(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)

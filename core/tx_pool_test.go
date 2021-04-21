@@ -38,9 +38,13 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// testTxPoolConfig is a transaction pool configuration without stateful disk
-// sideeffects used during testing.
-var testTxPoolConfig TxPoolConfig
+var (
+	// testTxPoolConfig is a transaction pool configuration without stateful disk
+	// sideeffects used during testing.
+	testTxPoolConfig TxPoolConfig
+	// eip155Signer to use for generating replay-protected transactions
+	eip155Signer = types.NewEIP155Signer(params.TestChainConfig.ChainID)
+)
 
 func init() {
 	testTxPoolConfig = DefaultTxPoolConfig
@@ -103,6 +107,11 @@ func pricedDataTransaction(nonce uint64, gaslimit uint64, gasprice *big.Int, key
 	return tx
 }
 
+func protectedTransaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
+	tx, _ := types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(100), gaslimit, big.NewInt(1), nil, nil, nil, nil), eip155Signer, key)
+	return tx
+}
+
 func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
@@ -136,7 +145,7 @@ func validateTxPoolInternals(pool *TxPool) error {
 				last = nonce
 			}
 		}
-		if nonce := pool.Nonce(addr); nonce != last+1 {
+		if nonce := pool.pendingNonces.get(addr); nonce != last+1 {
 			return fmt.Errorf("pending nonce mismatch: have %v, want %v", nonce, last+1)
 		}
 	}
@@ -754,6 +763,54 @@ func TestTransactionGapFilling(t *testing.T) {
 	if err := validateEvents(events, 2); err != nil {
 		t.Fatalf("gap-filling event firing failed: %v", err)
 	}
+	if err := validateTxPoolInternals(pool); err != nil {
+		t.Fatalf("pool internal state corrupted: %v", err)
+	}
+}
+
+// Tests that pool.handleDonutActivation() removes transactions without replay protection
+// When we change TestChangeConfig to enable Donut this test will need:
+// (a) to set pool.donut = false at its start (so we can add unprotected transactions)
+// (b) different functions to generate protected vs unprotected transactions, since we will
+//     need to update transaction() and the others to use replay protection
+func TestHandleDonutActivation(t *testing.T) {
+	t.Parallel()
+
+	// Create a test account and fund it
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	account := crypto.PubkeyToAddress(key.PublicKey)
+	pool.currentState.AddBalance(account, big.NewInt(1000000))
+
+	pool.AddRemotesSync([]*types.Transaction{
+		protectedTransaction(0, 100000, key),
+		transaction(1, 100000, key),
+		protectedTransaction(2, 100000, key),
+		transaction(7, 100000, key),
+		protectedTransaction(8, 100000, key),
+		transaction(9, 100000, key),
+		transaction(10, 100000, key),
+	})
+
+	pending, queued := pool.Stats()
+	if pending != 3 {
+		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 3)
+	}
+	if queued != 4 {
+		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 4)
+	}
+
+	pool.handleDonutActivation()
+
+	pending, queued = pool.Stats()
+	if pending != 1 {
+		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 1)
+	}
+	if queued != 2 {
+		t.Fatalf("queued transactions mismatched: have %d, want %d", queued, 2)
+	}
+
 	if err := validateTxPoolInternals(pool); err != nil {
 		t.Fatalf("pool internal state corrupted: %v", err)
 	}

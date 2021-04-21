@@ -1,4 +1,4 @@
-// Copyright 2019 The go-ethereum Authors
+// Copyright 2016 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -17,35 +17,13 @@
 package core
 
 import (
-	"math/big"
-	"testing"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 )
 
-func TestParseInteger(t *testing.T) {
-	for i, tt := range []struct {
-		t   string
-		v   interface{}
-		exp *big.Int
-	}{
-		{"uint32", "-123", nil},
-		{"int32", "-123", big.NewInt(-123)},
-		{"uint32", "0xff", big.NewInt(0xff)},
-		{"int8", "0xffff", nil},
-	} {
-		res, err := parseInteger(tt.t, tt.v)
-		if tt.exp == nil && res == nil {
-			continue
-		}
-		if tt.exp == nil && res != nil {
-			t.Errorf("test %d, got %v, expected nil", i, res)
-			continue
-		}
-		if tt.exp != nil && res == nil {
-			t.Errorf("test %d, got '%v', expected %v", i, err, tt.exp)
-			continue
-		}
-		if tt.exp.Cmp(res) != 0 {
-			t.Errorf("test %d, got %v expected %v", i, res, tt.exp)
-		}
-	}
+// New creates a new context for use in the EVM.
+func NewEVMContext(msg Message, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
+	return vmcontext.New(msg.From(), msg.GasPrice(), header, chain, txFeeRecipient)
 }

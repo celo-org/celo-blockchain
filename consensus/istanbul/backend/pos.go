@@ -103,13 +103,16 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	// Validator rewards were paid in cUSD, convert that amount to cGLD and add it to the Reserve
-	totalValidatorRewardsConvertedToGold, err := currency.Convert(totalValidatorRewards, stableTokenAddress, nil)
+	currencyManager := currency.NewManager(nil, nil)
+
+	// Validator rewards were paid in cUSD, convert that amount to CELO and add it to the Reserve
+	stableTokenCurrency, err := currencyManager.GetCurrency(&stableTokenAddress)
 	if err != nil {
 		return err
 	}
+	totalValidatorRewardsConvertedToCelo := stableTokenCurrency.ToCELO(totalValidatorRewards)
 
-	if err = gold_token.Mint(header, state, *reserveAddress, totalValidatorRewardsConvertedToGold); err != nil {
+	if err = gold_token.Mint(header, state, reserveAddress, totalValidatorRewardsConvertedToCelo); err != nil {
 		return err
 	}
 
@@ -187,11 +190,11 @@ func (sb *Backend) distributeCommunityRewards(header *types.Header, state *state
 		return err
 	}
 
-	if lowReserve && reserveAddress != nil {
-		return gold_token.Mint(header, state, *reserveAddress, communityReward)
-	} else if governanceAddress != nil {
+	if lowReserve && reserveAddress != common.ZeroAddress {
+		return gold_token.Mint(header, state, reserveAddress, communityReward)
+	} else if governanceAddress != common.ZeroAddress {
 		// TODO: How to split eco fund here
-		return gold_token.Mint(header, state, *governanceAddress, communityReward)
+		return gold_token.Mint(header, state, governanceAddress, communityReward)
 	}
 	return nil
 }
@@ -201,7 +204,7 @@ func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.Sta
 	lockedGoldAddress, err := contract_comm.GetRegisteredAddress(params.LockedGoldRegistryId, header, state)
 	if err != nil {
 		return err
-	} else if lockedGoldAddress == nil {
+	} else if lockedGoldAddress == common.ZeroAddress {
 		return errors.New("Unable to fetch locked gold address for epoch rewards distribution")
 	}
 
@@ -227,7 +230,7 @@ func (sb *Backend) distributeVoterRewards(header *types.Header, state *state.Sta
 		return err
 	}
 
-	return gold_token.Mint(header, state, *lockedGoldAddress, electionRewards)
+	return gold_token.Mint(header, state, lockedGoldAddress, electionRewards)
 }
 
 func (sb *Backend) setInitialGoldTokenTotalSupplyIfUnset(header *types.Header, state *state.StateDB) error {

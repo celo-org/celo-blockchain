@@ -24,10 +24,12 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/tests"
@@ -103,13 +105,14 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	*/
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
-		CanTransfer: vm.CanTransfer,
-		Transfer:    vm.Transfer,
-		Origin:      origin,
-		Coinbase:    common.Address{},
-		BlockNumber: new(big.Int).SetUint64(8000000),
-		Time:        new(big.Int).SetUint64(5),
-		GasPrice:    big.NewInt(1),
+		CanTransfer:          vmcontext.CanTransfer,
+		Transfer:             vmcontext.TobinTransfer,
+		Origin:               origin,
+		Coinbase:             common.Address{},
+		BlockNumber:          new(big.Int).SetUint64(8000000),
+		Time:                 new(big.Int).SetUint64(5),
+		GasPrice:             big.NewInt(1),
+		GetRegisteredAddress: contracts.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
@@ -125,7 +128,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		Code:    []byte{},
 		Balance: big.NewInt(500000000000000),
 	}
-	statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
+	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
 
 	// Create the tracer, the EVM environment and run it
 	tracer, err := New("prestateTracer")
@@ -201,8 +204,9 @@ func TestCallTracer(t *testing.T) {
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				GasLimit:    uint64(test.Context.GasLimit),
 				GasPrice:    tx.GasPrice(),
+				GetRegisteredAddress: contracts.GetRegisteredAddress,
 			}
-			statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
+			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
 			// Create the tracer, the EVM environment and run it
 			tracer, err := New("callTracer")

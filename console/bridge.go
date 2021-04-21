@@ -178,6 +178,9 @@ func (b *bridge) readPinAndReopenWallet(call jsre.Call) (goja.Value, error) {
 // original RPC method (saved in jeth.unlockAccount) with it to actually execute
 // the RPC call.
 func (b *bridge) UnlockAccount(call jsre.Call) (goja.Value, error) {
+	if nArgs := len(call.Arguments); nArgs < 2 {
+		return nil, fmt.Errorf("usage: unlockAccount(account, [ password, duration ])")
+	}
 	// Make sure we have an account specified to unlock.
 	if call.Argument(0).ExportType().Kind() != reflect.String {
 		return nil, fmt.Errorf("first argument must be the account to unlock")
@@ -221,6 +224,9 @@ func (b *bridge) UnlockAccount(call jsre.Call) (goja.Value, error) {
 // prompt to acquire the passphrase and executes the original RPC method (saved in
 // jeth.sign) with it to actually execute the RPC call.
 func (b *bridge) Sign(call jsre.Call) (goja.Value, error) {
+	if nArgs := len(call.Arguments); nArgs < 2 {
+		return nil, fmt.Errorf("usage: sign(message, account, [ password ])")
+	}
 	var (
 		message = call.Argument(0)
 		account = call.Argument(1)
@@ -256,6 +262,9 @@ func (b *bridge) Sign(call jsre.Call) (goja.Value, error) {
 
 // Sleep will block the console for the specified number of seconds.
 func (b *bridge) Sleep(call jsre.Call) (goja.Value, error) {
+	if nArgs := len(call.Arguments); nArgs < 1 {
+		return nil, fmt.Errorf("usage: sleep(<number of seconds>)")
+	}
 	if !isNumber(call.Argument(0)) {
 		return nil, fmt.Errorf("usage: sleep(<number of seconds>)")
 	}
@@ -283,7 +292,7 @@ func (b *bridge) SleepBlocks(call jsre.Call) (goja.Value, error) {
 		blocks = call.Argument(0).ToInteger()
 	}
 	if nArgs >= 2 {
-		if isNumber(call.Argument(1)) {
+		if !isNumber(call.Argument(1)) {
 			return nil, fmt.Errorf("expected number as second argument")
 		}
 		sleep = call.Argument(1).ToInteger()
@@ -350,9 +359,7 @@ func (b *bridge) Send(call jsre.Call) (goja.Value, error) {
 		resp.Set("id", req.ID)
 
 		var result json.RawMessage
-		err = b.client.Call(&result, req.Method, req.Params...)
-		switch err := err.(type) {
-		case nil:
+		if err = b.client.Call(&result, req.Method, req.Params...); err == nil {
 			if result == nil {
 				// Special case null because it is decoded as an empty
 				// raw message for some reason.
@@ -365,19 +372,24 @@ func (b *bridge) Send(call jsre.Call) (goja.Value, error) {
 				}
 				resultVal, err := parse(goja.Null(), call.VM.ToValue(string(result)))
 				if err != nil {
-					setError(resp, -32603, err.Error())
+					setError(resp, -32603, err.Error(), nil)
 				} else {
 					resp.Set("result", resultVal)
 				}
 			}
-		case rpc.Error:
-			setError(resp, err.ErrorCode(), err.Error())
-		default:
-			setError(resp, -32603, err.Error())
+		} else {
+			code := -32603
+			var data interface{}
+			if err, ok := err.(rpc.Error); ok {
+				code = err.ErrorCode()
+			}
+			if err, ok := err.(rpc.DataError); ok {
+				data = err.ErrorData()
+			}
+			setError(resp, code, err.Error(), data)
 		}
 		resps = append(resps, resp)
 	}
-
 	// Return the responses either to the callback (if supplied)
 	// or directly as the return value.
 	var result goja.Value
@@ -393,8 +405,14 @@ func (b *bridge) Send(call jsre.Call) (goja.Value, error) {
 	return result, nil
 }
 
-func setError(resp *goja.Object, code int, msg string) {
-	resp.Set("error", map[string]interface{}{"code": code, "message": msg})
+func setError(resp *goja.Object, code int, msg string, data interface{}) {
+	err := make(map[string]interface{})
+	err["code"] = code
+	err["message"] = msg
+	if data != nil {
+		err["data"] = data
+	}
+	resp.Set("error", err)
 }
 
 // isNumber returns true if input value is a JS number.

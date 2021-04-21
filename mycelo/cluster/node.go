@@ -25,13 +25,14 @@ import (
 
 // NodeConfig represents the configuration of a celo-blockchain node runner
 type NodeConfig struct {
-	GethPath      string
-	ExtraFlags    string
-	ChainID       *big.Int
-	Number        int
-	Account       env.Account
-	OtherAccounts []env.Account
-	Datadir       string
+	GethPath              string
+	ExtraFlags            string
+	ChainID               *big.Int
+	Number                int
+	Account               env.Account
+	TxFeeRecipientAccount env.Account
+	OtherAccounts         []env.Account
+	Datadir               string
 }
 
 // RPCPort is the rpc port this node will use
@@ -163,12 +164,27 @@ func (n *Node) Run(ctx context.Context) error {
 		"--rpc",
 		"--rpcaddr", "127.0.0.1",
 		"--rpcport", strconv.FormatInt(n.RPCPort(), 10),
-		"--rpcapi", "eth,net,web3,debug,admin,personal",
+		"--rpcapi", "eth,net,web3,debug,admin,personal,istanbul,txpool",
 		// "--nodiscover", "--nousb ",
-		"--etherbase", n.Account.Address.Hex(),
 		"--unlock", addressToUnlock,
 		"--password", n.pwdFile(),
 	}
+
+	// Once we're sure we won't run v1.2.x and older, can get rid of this check
+	// and just use the new options
+	helpBytes, _ := exec.Command(n.GethPath, "--help").Output() // #nosec G204
+	useTxFeeRecipient := strings.Contains(string(helpBytes), "miner.validator")
+	if useTxFeeRecipient {
+		args = append(args,
+			"--miner.validator", n.Account.Address.Hex(),
+			"--tx-fee-recipient", n.TxFeeRecipientAccount.Address.Hex(),
+		)
+	} else {
+		args = append(args,
+			"--etherbase", n.Account.Address.Hex(),
+		)
+	}
+
 	if n.ExtraFlags != "" {
 		args = append(args, strings.Fields(n.ExtraFlags)...)
 	}

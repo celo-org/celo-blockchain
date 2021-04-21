@@ -112,16 +112,19 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc vm.ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
+	if config.IsDonut(header.Number) && !tx.Protected() {
+		return nil, ErrUnprotectedTransaction
+	}
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new context to be used in the EVM environment
-	context := vm.NewEVMContext(msg, header, bc, txFeeRecipient)
+	ctx := NewEVMContext(msg, header, bc, txFeeRecipient)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, statedb, config, cfg)
+	vmenv := vm.NewEVM(ctx, statedb, config, cfg)
 
 	// Apply the transaction to the current state (included in the env)
 	result, err := ApplyMessage(vmenv, msg, gp)

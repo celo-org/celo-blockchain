@@ -486,13 +486,28 @@ func benchMarkHandleRoundChange(n int, b *testing.B) {
 	}
 }
 
-func BenchmarkHandleRoundChange_10(b *testing.B)  { benchMarkHandleRoundChange(10, b) }
-func BenchmarkHandleRoundChange_50(b *testing.B)  { benchMarkHandleRoundChange(50, b) }
-func BenchmarkHandleRoundChange_90(b *testing.B)  { benchMarkHandleRoundChange(90, b) }
-func BenchmarkHandleRoundChange_100(b *testing.B) { benchMarkHandleRoundChange(100, b) }
-func BenchmarkHandleRoundChange_120(b *testing.B) { benchMarkHandleRoundChange(120, b) }
-func BenchmarkHandleRoundChange_150(b *testing.B) { benchMarkHandleRoundChange(150, b) }
-func BenchmarkHandleRoundChange_200(b *testing.B) { benchMarkHandleRoundChange(200, b) }
+func BenchmarkHandleRoundChange_10(b *testing.B) { benchMarkHandleRoundChange(10, b) }
+func BenchmarkHandleRoundChange_50(b *testing.B) { benchMarkHandleRoundChange(50, b) }
+func BenchmarkHandleRoundChange_90(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandleRoundChange(90, b)
+}
+func BenchmarkHandleRoundChange_100(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandleRoundChange(100, b)
+}
+func BenchmarkHandleRoundChange_120(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandleRoundChange(120, b)
+}
+func BenchmarkHandleRoundChange_150(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandleRoundChange(150, b)
+}
+func BenchmarkHandleRoundChange_200(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandleRoundChange(200, b)
+}
 
 // benchMarkHandlePreprepare benchmarks handling a preprepare with a round change certificate that has
 // filled round change messages (i.e. the round change messages have prepared certificates that are not empty)
@@ -537,10 +552,28 @@ func benchMarkHandlePreprepare(n int, b *testing.B) {
 	}
 }
 
-func BenchmarkHandlePreprepare_10(b *testing.B)  { benchMarkHandlePreprepare(10, b) }
-func BenchmarkHandlePreprepare_50(b *testing.B)  { benchMarkHandlePreprepare(50, b) }
-func BenchmarkHandlePreprepare_90(b *testing.B)  { benchMarkHandlePreprepare(90, b) }
-func BenchmarkHandlePreprepare_100(b *testing.B) { benchMarkHandlePreprepare(100, b) }
-func BenchmarkHandlePreprepare_120(b *testing.B) { benchMarkHandlePreprepare(120, b) }
-func BenchmarkHandlePreprepare_150(b *testing.B) { benchMarkHandlePreprepare(150, b) }
-func BenchmarkHandlePreprepare_200(b *testing.B) { benchMarkHandlePreprepare(200, b) }
+func BenchmarkHandlePreprepare_10(b *testing.B) { benchMarkHandlePreprepare(10, b) }
+func BenchmarkHandlePreprepare_50(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(50, b)
+}
+func BenchmarkHandlePreprepare_90(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(90, b)
+}
+func BenchmarkHandlePreprepare_100(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(100, b)
+}
+func BenchmarkHandlePreprepare_120(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(120, b)
+}
+func BenchmarkHandlePreprepare_150(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(150, b)
+}
+func BenchmarkHandlePreprepare_200(b *testing.B) {
+	b.Skip("Skipping slow benchmark")
+	benchMarkHandlePreprepare(200, b)
+}
