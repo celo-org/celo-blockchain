@@ -20,8 +20,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -68,13 +68,20 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	if random.IsRunning() {
+	// TODO(HF) use vmRunner instead of parentVMRunner (HF required)
+	isRandomRunning := false
+	parentVMRunner, err := p.bc.NewSystemEVMRunnerForCurrentBlock()
+	if err == nil {
+		isRandomRunning = random.IsRunning(parentVMRunner)
+	}
+
+	if isRandomRunning {
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
 			return nil, nil, 0, err
 		}
 
-		err = random.RevealAndCommit(block.Randomness().Revealed, block.Randomness().Committed, author, header, statedb)
+		err = random.RevealAndCommit(vmRunner, block.Randomness().Revealed, block.Randomness().Committed, author)
 		if err != nil {
 			return nil, nil, 0, err
 		}
