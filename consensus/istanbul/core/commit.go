@@ -170,10 +170,10 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 // handleCheckedCommitForPreviousSequence adds messages for the previous
-// sequence to the parent commit set, if the subject digest of msg does not
-// match that of the previous block or it was not sent by one of the previous
-// block's validators an error is returned. If this is the last block of the
-// epoch then the epoch seal will also be validated.
+// sequence to the parent commit set. 
+// If the subject digest of msg does not match that of the previous block or it
+// was not sent by one of the previous block's validators, an error is returned.
+// If this is the last block of the epoch then the epoch seal will also be validated.
 //
 // The parent commit set is maintained for the sole purpose of tracking uptime,
 // allowing commits that did not arrive in time to be part of their intended
