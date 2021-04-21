@@ -36,10 +36,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -128,7 +126,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil, nil)
-	contract_comm.SetEVMRunnerFactory(vmcontext.SystemEVMRunnerBuilder(chain))
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 

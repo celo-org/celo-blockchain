@@ -24,24 +24,6 @@ type evmRunnerContext interface {
 	State() (*state.StateDB, error)
 }
 
-// SystemEVMRunnerBuilder returns a builder factory for a System's EVMRunner
-// DO NOT USE, only for backwards compatibility
-func SystemEVMRunnerBuilder(ctx evmRunnerContext) func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
-	return func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
-		if header == nil {
-			header := ctx.CurrentHeader()
-			// FIXME small race condition here (Head changes between get header & get state)
-			state, err := ctx.State()
-			if err != nil {
-				return nil, err
-			}
-			return newEVMRunner(ctx, VMAddress, common.Big0, header, state), nil
-		}
-
-		return NewSystemEVMRunner(ctx, header, state), nil
-	}
-}
-
 type evmRunner struct {
 	newEVM func() *vm.EVM
 	state  vm.StateDB
