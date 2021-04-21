@@ -505,7 +505,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
 	if sb.csvRecorder != nil {
-		sb.recordBlockProductionTimes(block.Header().Number.Int64(), int64(len(block.Transactions())), int64(block.GasUsed()), aggregatedSeal.Round.Int64())
+		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), aggregatedSeal.Round.Uint64())
 	}
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
@@ -1039,7 +1039,7 @@ func (sb *Backend) UpdateReplicaState(seq *big.Int) {
 }
 
 // recordBlockProductionTimes records information about the block production cycle and reports it through the CSVRecorder
-func (sb *Backend) recordBlockProductionTimes(blockNumber, txCount, gasUsed, round int64) {
+func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, gasUsed, round uint64) {
 	cycle := time.Since(sb.cycleStart)
 	sb.cycleStart = time.Now()
 	sleepGauge := sb.sleepGauge
@@ -1050,13 +1050,8 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber, txCount, gasUsed, rou
 	cpuSysWaitGauge := metrics.Get("system/cpu/syswait").(metrics.Gauge)
 	cpuProcLoadGauge := metrics.Get("system/cpu/procload").(metrics.Gauge)
 
-	vals := [...]int64{blockNumber, txCount, gasUsed, round,
+	sb.csvRecorder.Write(blockNumber, txCount, gasUsed, round,
 		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
-		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value()}
-	var strs []string
-	for _, v := range vals {
-		strs = append(strs, fmt.Sprintf("%v", v))
-	}
-	sb.csvRecorder.Write(strs)
+		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 
 }

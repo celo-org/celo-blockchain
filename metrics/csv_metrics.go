@@ -18,58 +18,56 @@ package metrics
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
-	"os"
 	"sync"
 )
+
+type WriterCloser interface {
+	io.Writer
+	io.Closer
+}
 
 // A CSVRecorder enables easy writing of CSV data a specified writer.
 // The header is written on creation. Writing is thread safe.
 type CSVRecorder struct {
-	writer        csv.Writer
-	backingWriter io.Writer
-	writeMu       sync.Mutex
+	writer    csv.Writer
+	backingWC WriterCloser
+	writeMu   sync.Mutex
 }
 
-// NewStdoutCSVRecorder creates a CSV recorder to standard out
+// NewCSVRecorder creates a CSV recorder that writes to the supplied writer.
+// The writer is retained and can be closed by calling CSVRecorder.Close()
 // The header is immediately written upon construction.
-func NewStdoutCSVRecorder(fields ...string) *CSVRecorder {
-	return NewCSVRecorder(os.Stdout, fields...)
-}
-
-// NewStdoutCSVRecorder creates a CSV recorder that writes to the supplied writer.
-// The writer is aborbed into the recorder and the user is responsible for calling
-// CSVRecorder.Close() if the writer should be closed.
-// The header is immediately written upon construction.
-func NewCSVRecorder(w io.Writer, fields ...string) *CSVRecorder {
+func NewCSVRecorder(wc WriterCloser, fields ...string) *CSVRecorder {
 	c := &CSVRecorder{
-		writer:        *csv.NewWriter(w),
-		backingWriter: w,
+		writer:    *csv.NewWriter(wc),
+		backingWC: wc,
 	}
 	c.writer.Write(fields)
 	return c
 }
 
-// WriteRow writes out as csv row. Will convert the values to a string.
-func (c *CSVRecorder) Write(values []string) {
+// WriteRow writes out as csv row. Will convert the values to a string using "%v".
+func (c *CSVRecorder) Write(values ...interface{}) {
 	if c == nil {
 		return
 	}
+	strs := make([]string, 0, len(values))
+	for _, v := range values {
+		strs = append(strs, fmt.Sprintf("%v", v))
+	}
+
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	c.writer.Write(values)
+	c.writer.Write(strs)
 }
 
-// Close closes the writer iff it is an io.WriterCloser
-// This is a no-op for non Closers or a nil receiver.
+// Close closes the writer. This is a no-op for a nil receiver.
 func (c *CSVRecorder) Close() error {
 	if c == nil {
 		return nil
 	}
 	c.writer.Flush()
-	if wc, ok := c.backingWriter.(io.WriteCloser); ok {
-		err := wc.Close()
-		return err
-	}
-	return nil
+	return c.backingWC.Close()
 }
