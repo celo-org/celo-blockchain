@@ -38,7 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -1058,11 +1058,13 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 		valsElected    []common.Address
 	)
 
+	vmRunner := s.eth.BlockChain().NewSystemEVMRunner(block.Header(), state)
+
 	// Add set of registered validators
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(s.eth.BlockChain().CurrentHeader(), state)
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(vmRunner)
 	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
 	for _, address := range valsRegisteredMap {
-		valData, err := validators.GetValidator(s.eth.BlockChain().CurrentHeader(), state, address)
+		valData, err := validators.GetValidator(vmRunner, address)
 
 		if err != nil {
 			log.Warn("Validator data not found", "address", address.Hex(), "err", err)
