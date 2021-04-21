@@ -27,7 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -913,50 +913,63 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	w.updateSnapshot()
 
-	// Play our part in generating the random beacon.
-	if w.isRunning() && random.IsRunning() {
-		istanbul, ok := w.engine.(consensus.Istanbul)
-		if !ok {
-			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
+	if w.isRunning() {
+		randomIsActive := false
+		header := w.chain.CurrentHeader()
+		state, err := w.chain.StateAt(header.Root)
+		// TODO(HF) make this check use w.current.header instead of blockchain's current
+		if err == nil {
+			parentVMRunner := w.chain.NewSystemEVMRunner(parent.Header(), state)
+			randomIsActive = random.IsRunning(parentVMRunner)
 		}
 
-		lastCommitment, err := random.GetLastCommitment(w.validator, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to get last commitment", "err", err)
-			return
-		}
-
-		lastRandomness := common.Hash{}
-		if (lastCommitment != common.Hash{}) {
-			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
-			if (lastRandomnessParentHash == common.Hash{}) {
-				log.Error("Failed to get last randomness cache entry")
-				return
+		if randomIsActive {
+			vmRunner := w.chain.NewSystemEVMRunner(w.current.header, w.current.state)
+			istanbul, ok := w.engine.(consensus.Istanbul)
+			if !ok {
+				log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
 			}
 
-			var err error
-			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
+			lastCommitment, err := random.GetLastCommitment(vmRunner, w.validator)
 			if err != nil {
-				log.Error("Failed to generate last randomness", "err", err)
+				log.Error("Failed to get last commitment", "err", err)
 				return
 			}
-		}
 
-		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash)
-		if err != nil {
-			log.Error("Failed to generate new randomness", "err", err)
-			return
-		}
+			lastRandomness := common.Hash{}
+			if (lastCommitment != common.Hash{}) {
+				lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
+				if (lastRandomnessParentHash == common.Hash{}) {
+					log.Error("Failed to get last randomness cache entry")
+					return
+				}
 
-		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, w.current.header, w.current.state)
-		if err != nil {
-			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
-			return
-		}
-		// always true (EIP158)
-		w.current.state.IntermediateRoot(true)
+				var err error
+				lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
+				if err != nil {
+					log.Error("Failed to generate last randomness", "err", err)
+					return
+				}
+			}
 
-		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
+			_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash)
+			if err != nil {
+				log.Error("Failed to generate new randomness", "err", err)
+				return
+			}
+
+			err = random.RevealAndCommit(vmRunner, lastRandomness, newCommitment, w.validator)
+			if err != nil {
+				log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
+				return
+			}
+			// always true (EIP158)
+			w.current.state.IntermediateRoot(true)
+
+			w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
+		} else {
+			w.current.randomness = &types.EmptyRandomness
+		}
 	} else {
 		w.current.randomness = &types.EmptyRandomness
 	}
