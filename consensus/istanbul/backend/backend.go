@@ -36,10 +36,10 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm/election"
+	"github.com/celo-org/celo-blockchain/contracts/election"
 
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts/random"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -588,11 +588,12 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
-	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	newValSetAddresses, err := election.GetElectedValidators(vmRunner)
 	if err != nil {
 		return nil, err
 	}
-	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
+	newValSet, err := validators.GetValidatorData(vmRunner, newValSetAddresses)
 	return newValSet, err
 }
 
@@ -711,15 +712,11 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.CurrentHeader()
-	if header == nil {
-		return common.Hash{}, errNoBlockHeader
-	}
-	state, err := sb.stateAt(header.Hash())
+	vmRunner, err := sb.chain.NewSystemEVMRunnerForCurrentBlock()
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.BlockRandomness(header, state, lastBlockInPreviousEpoch)
+	return random.BlockRandomness(vmRunner, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
@@ -927,7 +924,8 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	if err != nil {
 		return nil, 0, time.Time{}, err
 	}
-	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
+	vmRunner := sb.chain.NewSystemEVMRunner(currentBlock.Header(), currentState)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
