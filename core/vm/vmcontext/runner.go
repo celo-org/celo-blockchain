@@ -54,6 +54,15 @@ func NewSystemEVMRunner(ctx evmRunnerContext, header *types.Header, state vm.Sta
 	return newEVMRunner(ctx, VMAddress, common.Big0, header, state)
 }
 
+// NewTestingEVMRunner creates an EVMRunner based on a newEVM function.
+// USE ONLY FOR TESTING
+func NewTestingEVMRunner(newEVM func() *vm.EVM, state vm.StateDB) vm.EVMRunner {
+	return &evmRunner{
+		newEVM: newEVM,
+		state:  state,
+	}
+}
+
 func newEVMRunner(ctx evmRunnerContext, sender common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
 	return &evmRunner{

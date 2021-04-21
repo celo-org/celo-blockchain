@@ -134,13 +134,19 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create call tracer: %v", err)
 	}
-	evm := vm.NewEVM(context, statedb, params.MainnetChainConfig, vm.Config{Debug: true, Tracer: tracer})
+	vmConfig := vm.Config{Debug: true, Tracer: tracer}
+	evm := vm.NewEVM(context, statedb, params.MainnetChainConfig, vmConfig)
 
 	msg, err := tx.AsMessage(signer)
 	if err != nil {
 		t.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+
+	provider := func() *vm.EVM {
+		return vm.NewEVM(context, statedb, evm.ChainConfig(), vmConfig)
+	}
+	vmRunner := vmcontext.NewTestingEVMRunner(provider, statedb)
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner)
 	if _, err = st.TransitionDb(); err != nil {
 		t.Fatalf("failed to execute transaction: %v", err)
 	}

@@ -489,21 +489,21 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
-		var callerFactory vm.EVMCallerFactory
+		var callerFactory func() (vm.EVMRunner, error)
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast" {
 
 			var ethService *eth.Ethereum
 			if err := stack.Service(&ethService); err != nil {
 				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
 			}
-			callerFactory = ethService.BlockChain()
+			callerFactory = ethService.BlockChain().NewSystemEVMRunnerForCurrentBlock
 
 		} else {
 			var lesService *les.LightEthereum
 			if err := stack.Service(&lesService); err != nil {
 				utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
 			}
-			callerFactory = lesService.BlockChain()
+			callerFactory = lesService.BlockChain().NewSystemEVMRunnerForCurrentBlock
 		}
 		blockchain_parameters.SpawnCheck(callerFactory)
 	}
