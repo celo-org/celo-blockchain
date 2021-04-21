@@ -26,7 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -338,8 +338,8 @@ func (w *worker) close() {
 }
 
 func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	// TODO specify header & state
-	currencyManager := currency.NewManager(nil, nil)
+	vmRunner := w.chain.NewSystemEVMRunner(w.current.header, w.current.state)
+	currencyManager := currency.NewManager(vmRunner)
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
 		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
