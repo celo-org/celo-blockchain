@@ -33,7 +33,8 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
@@ -488,7 +489,23 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
-		blockchain_parameters.SpawnCheck()
+		var callerFactory vm.EVMCallerFactory
+		if ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast" {
+
+			var ethService *eth.Ethereum
+			if err := stack.Service(&ethService); err != nil {
+				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
+			}
+			callerFactory = ethService.BlockChain()
+
+		} else {
+			var lesService *les.LightEthereum
+			if err := stack.Service(&lesService); err != nil {
+				utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
+			}
+			callerFactory = lesService.BlockChain()
+		}
+		blockchain_parameters.SpawnCheck(callerFactory)
 	}
 }
 
