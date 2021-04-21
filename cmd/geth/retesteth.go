@@ -495,6 +495,7 @@ func (api *RetestethAPI) mineBlock() error {
 				statedb.Prepare(tx.Hash(), common.Hash{}, txCount)
 				snap := statedb.Snapshot()
 
+				vmRunner := api.blockchain.NewSystemEVMRunner(header, statedb)
 				receipt, err := core.ApplyTransaction(
 					api.chainConfig,
 					api.blockchain,
@@ -502,7 +503,10 @@ func (api *RetestethAPI) mineBlock() error {
 					gasPool,
 					statedb,
 					header,
-					tx, &header.GasUsed, *api.blockchain.GetVMConfig(),
+					tx,
+					&header.GasUsed,
+					*api.blockchain.GetVMConfig(),
+					vmRunner,
 				)
 				if err != nil {
 					statedb.RevertToSnapshot(snap)
@@ -658,7 +662,8 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			vmRunner := api.blockchain.NewSystemEVMRunner(block.Header(), statedb)
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return AccountRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state
@@ -768,7 +773,8 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			vmRunner := api.blockchain.NewSystemEVMRunner(block.Header(), statedb)
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return StorageRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state

@@ -226,18 +226,21 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		data[35] = byte(i)
 
 		var (
-			st     *state.StateDB
-			header *types.Header
-			chain  core.ChainContext
+			st       *state.StateDB
+			header   *types.Header
+			chain    core.ChainContext
+			vmRunner vm.EVMRunner
 		)
 		if bc == nil {
 			chain = lc
 			header = lc.GetHeaderByHash(bhash)
 			st = NewState(ctx, header, lc.Odr())
+			vmRunner = lc.NewSystemEVMRunner(header, st)
 		} else {
 			chain = bc
 			header = bc.GetHeaderByHash(bhash)
 			st, _ = state.New(header.Root, state.NewDatabase(db), nil)
+			vmRunner = lc.NewSystemEVMRunner(header, st)
 		}
 
 		// Perform read-only call.
@@ -246,7 +249,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		context := core.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
-		result, _ := core.ApplyMessage(vmenv, msg, gp)
+		result, _ := core.ApplyMessage(vmenv, msg, gp, vmRunner)
 		res = append(res, result.Return()...)
 		if st.Error() != nil {
 			return res, st.Error()

@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -94,7 +95,9 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{})
+
+	caller := &fakeEVMRunner{b.statedb}
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, caller)
 	if err != nil {
 		panic(err)
 	}
@@ -276,3 +279,23 @@ func (cr *fakeChainReader) GetHeaderByHash(hash common.Hash) *types.Header      
 func (cr *fakeChainReader) GetHeader(hash common.Hash, number uint64) *types.Header { return nil }
 func (cr *fakeChainReader) GetBlock(hash common.Hash, number uint64) *types.Block   { return nil }
 func (cr *fakeChainReader) StateAt(root common.Hash) (*state.StateDB, error)        { return nil, nil }
+
+type fakeEVMRunner struct {
+	statedb *state.StateDB
+}
+
+func (ec *fakeEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+	return nil, 0, errors.New("not implemented")
+}
+func (ec *fakeEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+	return nil, 0, errors.New("not implemented")
+}
+func (ec *fakeEVMRunner) StopGasMetering() {
+
+}
+func (ec *fakeEVMRunner) StartGasMetering() {
+
+}
+func (ec *fakeEVMRunner) GetStateDB() vm.StateDB {
+	return ec.statedb
+}

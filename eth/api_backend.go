@@ -289,6 +289,10 @@ func (b *EthAPIBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 	return blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 }
 
+func (b *EthAPIBackend) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return b.eth.BlockChain().NewSystemEVMRunner(header, state)
+}
+
 func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
 	vmRunner, err := b.eth.BlockChain().NewSystemEVMRunnerForCurrentBlock()
 	if err != nil {

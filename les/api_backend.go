@@ -272,6 +272,10 @@ func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 	return blockchain_parameters.GetBlockGasLimitOrDefault(caller)
 }
 
+func (b *LesApiBackend) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return b.eth.BlockChain().NewSystemEVMRunner(header, state)
+}
+
 func (b *LesApiBackend) ChainDb() ethdb.Database {
 	return b.eth.chainDb
 }

@@ -91,7 +91,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
+		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg, vmRunner)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -120,7 +120,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner) (*types.Receipt, error) {
 	if config.IsDonut(header.Number) && !tx.Protected() {
 		return nil, ErrUnprotectedTransaction
 	}
@@ -136,7 +136,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	vmenv := vm.NewEVM(ctx, statedb, config, cfg)
 
 	// Apply the transaction to the current state (included in the env)
-	result, err := ApplyMessage(vmenv, msg, gp)
+	result, err := ApplyMessage(vmenv, msg, gp, vmRunner)
 	if err != nil {
 		return nil, err
 	}

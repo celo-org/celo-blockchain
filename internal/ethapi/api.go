@@ -799,7 +799,8 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 
 	// Setup the gas pool (also for unmetered requests) and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp)
+
+	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewSystemEVMRunner(header, state))
 	if err := vmError(); err != nil {
 		return nil, err
 	}
