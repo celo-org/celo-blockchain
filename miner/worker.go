@@ -193,30 +193,33 @@ type worker struct {
 
 	// Needed for randomness
 	db ethdb.Database
+
+	blockConstructGauge metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
 	worker := &worker{
-		config:             config,
-		chainConfig:        chainConfig,
-		engine:             engine,
-		eth:                eth,
-		mux:                mux,
-		chain:              eth.BlockChain(),
-		isLocalBlock:       isLocalBlock,
-		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:       make(map[common.Hash]*task),
-		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:          make(chan *newWorkReq),
-		taskCh:             make(chan *task),
-		resultCh:           make(chan *types.Block, resultQueueSize),
-		exitCh:             make(chan struct{}),
-		startCh:            make(chan struct{}, 1),
-		resubmitIntervalCh: make(chan time.Duration),
-		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
-		db:                 db,
+		config:              config,
+		chainConfig:         chainConfig,
+		engine:              engine,
+		eth:                 eth,
+		mux:                 mux,
+		chain:               eth.BlockChain(),
+		isLocalBlock:        isLocalBlock,
+		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:           make(chan *newWorkReq),
+		taskCh:              make(chan *task),
+		resultCh:            make(chan *types.Block, resultQueueSize),
+		exitCh:              make(chan struct{}),
+		startCh:             make(chan struct{}, 1),
+		resubmitIntervalCh:  make(chan time.Duration),
+		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
+		db:                  db,
+		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -338,10 +341,11 @@ func (w *worker) close() {
 }
 
 func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	currencyComparator := currency.NewComparator()
+	// TODO specify header & state
+	currencyManager := currency.NewManager(nil, nil)
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-		return currencyComparator.Cmp(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
 	}
 }
 
@@ -873,6 +877,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
+	// Start record block construction time after `engine.Prepare` to exclude the sleep time
+	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
+
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {
 		// Check whether the block is among the fork extra-override range

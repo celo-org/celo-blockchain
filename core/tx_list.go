@@ -21,9 +21,9 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -229,12 +229,15 @@ type txList struct {
 	nativegaspricefloor *big.Int                    // Lowest gas price minimum in the native currency
 	gaspricefloors      map[common.Address]*big.Int // Lowest gas price minimum per currency (reset only if it is below the gpm)
 	gascap              uint64                      // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+
+	ctx *atomic.Value // transaction pool context
 }
 
 // newTxList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
-func newTxList(strict bool) *txList {
+func newTxList(strict bool, ctx *atomic.Value) *txList {
 	return &txList{
+		ctx:                 ctx,
 		strict:              strict,
 		txs:                 newTxSortedMap(),
 		nativecostcap:       new(big.Int),
@@ -267,7 +270,6 @@ func (l *txList) FeeCurrencies() []common.Address {
 func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transaction) {
 	// If there's an older better transaction, abort
 	old := l.txs.Get(tx.Nonce())
-	var err error
 	if old != nil {
 		var oldPrice, newPrice *big.Int
 		// Short circuit conversion if both are the same currency
@@ -275,17 +277,22 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			oldPrice = old.GasPrice()
 			newPrice = tx.GasPrice()
 		} else {
+			ctx := l.ctx.Load().(txPoolContext)
 			if fc := old.FeeCurrency(); fc != nil {
-				if oldPrice, err = currency.ConvertToGold(old.GasPrice(), fc); err != nil {
+				currency, err := ctx.GetCurrency(fc)
+				if err != nil {
 					return false, nil
 				}
+				oldPrice = currency.ToCELO(old.GasPrice())
 			} else {
 				oldPrice = old.GasPrice()
 			}
 			if fc := tx.FeeCurrency(); fc != nil {
-				if newPrice, err = currency.ConvertToGold(tx.GasPrice(), fc); err != nil {
+				currency, err := ctx.GetCurrency(fc)
+				if err != nil {
 					return false, nil
 				}
+				newPrice = currency.ToCELO(tx.GasPrice())
 			} else {
 				newPrice = tx.GasPrice()
 			}
@@ -341,11 +348,8 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // This method uses the cached costcap and gascap to quickly decide if there's even
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
-func (l *txList) Filter(nativeCostLimit, nativeGasPriceMinimum *big.Int, feeLimits, gasPriceMinimums map[common.Address]*big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
-	// native gas price floor is not necessarily set in txList.Add unlike the rest of caps/floors
-	if l.nativegaspricefloor == nil {
-		l.nativegaspricefloor = new(big.Int).Set(nativeGasPriceMinimum)
-	}
+func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, blockCtx BlockContext, gasLimit uint64) (types.Transactions, types.Transactions) {
+
 	// check if we can bail & lower caps & raise floors at the same time
 	canBail := true
 	// Ensure that the cost cap <= the cost limit
@@ -353,11 +357,7 @@ func (l *txList) Filter(nativeCostLimit, nativeGasPriceMinimum *big.Int, feeLimi
 		canBail = false
 		l.nativecostcap = new(big.Int).Set(nativeCostLimit)
 	}
-	// Ensure that native gas price floor >= the native gas price minimum
-	if l.nativegaspricefloor.Cmp(nativeGasPriceMinimum) < 0 {
-		canBail = false
-		l.nativegaspricefloor = new(big.Int).Set(nativeGasPriceMinimum)
-	}
+
 	// Ensure that the gas cap <= the gas limit
 	if l.gascap > gasLimit {
 		canBail = false
@@ -370,13 +370,7 @@ func (l *txList) Filter(nativeCostLimit, nativeGasPriceMinimum *big.Int, feeLimi
 			l.feecaps[feeCurrency] = new(big.Int).Set(feeLimit)
 		}
 	}
-	// Ensure that each gas price floor >= the gas price minimum.
-	for feeCurrency, gasPriceFloor := range l.gaspricefloors {
-		if gasPriceMinimum := gasPriceMinimums[feeCurrency]; gasPriceFloor.Cmp(gasPriceMinimum) < 0 {
-			canBail = false
-			l.gaspricefloors[feeCurrency] = new(big.Int).Set(gasPriceMinimum)
-		}
-	}
+
 	if canBail {
 		return nil, nil
 	}
@@ -385,18 +379,17 @@ func (l *txList) Filter(nativeCostLimit, nativeGasPriceMinimum *big.Int, feeLimi
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
 		if feeCurrency := tx.FeeCurrency(); feeCurrency == nil {
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Cost", tx.Cost(), "Cost Limit", nativeCostLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
-			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit || tx.GasPrice().Cmp(nativeGasPriceMinimum) < 0
+			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit
 		} else {
 			feeLimit := feeLimits[*feeCurrency]
 			fee := tx.Fee()
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Value", tx.Value(), "Cost Limit", feeLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
+
 			// If any of the following is true, the transaction is invalid
 			// The fees are greater than or equal to the balance in the currency
 			return fee.Cmp(feeLimit) >= 0 ||
 				// The value of the tx is greater than the native balance of the account
 				tx.Value().Cmp(nativeCostLimit) > 0 ||
-				// The gas price is less than the gas price minimum
-				tx.GasPrice().Cmp(gasPriceMinimums[*feeCurrency]) < 0 ||
 				// The gas used is greater than the gas limit
 				tx.Gas() > gasLimit
 		}
@@ -535,6 +528,7 @@ func (h *priceHeap) Pop() interface{} {
 // txPricedList is a price-sorted heap to allow operating on transactions pool
 // contents in a price-incrementing way.
 type txPricedList struct {
+	ctx                 *atomic.Value
 	all                 *txLookup                     // Pointer to the map of all transactions
 	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
 	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
@@ -542,8 +536,9 @@ type txPricedList struct {
 }
 
 // newTxPricedList creates a new price-sorted transaction heap.
-func newTxPricedList(all *txLookup) *txPricedList {
+func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 	return &txPricedList{
+		ctx:                 ctx,
 		all:                 all,
 		nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 		nilCurrencyHeap:     new(priceHeap),
@@ -615,7 +610,7 @@ func (l *txPricedList) Cap(cgThreshold *big.Int, local *accountSet) types.Transa
 			continue
 		}
 
-		if currency.Cmp(tx.GasPrice(), tx.FeeCurrency(), cgThreshold, nil) >= 0 {
+		if ctx := l.ctx.Load().(txPoolContext); ctx.CmpValues(tx.GasPrice(), tx.FeeCurrency(), cgThreshold, nil) >= 0 {
 			save = append(save, tx)
 			break
 		}
@@ -657,7 +652,8 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	}
 
 	cheapest := l.getMinPricedTx()
-	return currency.Cmp(cheapest.GasPrice(), cheapest.FeeCurrency(), tx.GasPrice(), tx.FeeCurrency()) >= 0
+	ctx := l.ctx.Load().(txPoolContext)
+	return ctx.CmpValues(cheapest.GasPrice(), cheapest.FeeCurrency(), tx.GasPrice(), tx.FeeCurrency()) >= 0
 }
 
 // Discard finds a number of most underpriced transactions, removes them from the
@@ -698,6 +694,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 		cheapestTxn = []*types.Transaction(*l.nilCurrencyHeap)[0]
 	}
 
+	ctx := l.ctx.Load().(txPoolContext)
 	for _, priceHeap := range l.nonNilCurrencyHeaps {
 		if len(*priceHeap) > 0 {
 			if cheapestHeap == nil {
@@ -705,7 +702,7 @@ func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
 			} else {
 				txn := []*types.Transaction(*priceHeap)[0]
-				if currency.Cmp(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
+				if ctx.CmpValues(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
 					cheapestHeap = priceHeap
 				}
 			}

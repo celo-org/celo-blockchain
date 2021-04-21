@@ -18,6 +18,7 @@ package core
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -173,6 +174,7 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
+	defer c.handlePrepareTimer.UpdateSince(time.Now())
 	// Decode PREPARE message
 	var prepare *istanbul.Subject
 	err := msg.Decode(&prepare)
@@ -211,6 +213,10 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 			return err
 		}
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		}
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())

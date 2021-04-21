@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -396,7 +397,13 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 
 	// Should supply enough intrinsic gas
 	header := pool.chain.GetHeaderByHash(pool.head)
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, header, currentState, tx.FeeCurrency(), pool.istanbul)
+
+	gasForAlternativeCurrency := uint64(0)
+	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
+	if tx.FeeCurrency() != nil {
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, currentState)
+	}
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
 	}

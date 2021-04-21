@@ -20,6 +20,7 @@ import (
 	"errors"
 	"math/big"
 	"reflect"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -137,6 +138,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
+	defer c.handleCommitTimer.UpdateSince(time.Now())
 	// Decode COMMIT message
 	var commit *istanbul.CommittedSubject
 	err := msg.Decode(&commit)

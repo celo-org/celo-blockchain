@@ -130,7 +130,7 @@ func (result *ExecutionResult) Revert() []byte {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
-func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, state vm.StateDB, feeCurrency *common.Address, isEIP2028 bool) (uint64, error) {
+func IntrinsicGas(data []byte, contractCreation bool, feeCurrency *common.Address, gasForAlternativeCurrency uint64, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
 	if contractCreation {
@@ -178,12 +178,11 @@ func IntrinsicGas(data []byte, contractCreation bool, header *types.Header, stat
 	// In this case, however, the user always ends up paying maxGasForDebitAndCreditTransactions
 	// keeping it consistent.
 	if feeCurrency != nil {
-		addition := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
-		if (math.MaxUint64 - gas) < addition {
+		if (math.MaxUint64 - gas) < gasForAlternativeCurrency {
 			log.Debug("IntrinsicGas", "gas uint overflow")
 			return 0, ErrGasUintOverflow
 		}
-		gas += addition
+		gas += gasForAlternativeCurrency
 	}
 
 	return gas, nil
@@ -238,7 +237,7 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
-	if st.msg.FeeCurrency() != nil && (!currency.IsWhitelisted(*st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB)) {
+	if !currency.IsWhitelisted(st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -268,8 +267,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
-	balanceOf, gasUsed, err := currency.GetBalanceOf(accountOwner, *feeCurrency, params.MaxGasToReadErc20Balance, st.evm.Header, st.evm.StateDB)
-	log.Debug("balanceOf called", "feeCurrency", *feeCurrency, "gasUsed", gasUsed)
+	balanceOf, err := currency.GetBalanceOf(accountOwner, *feeCurrency, st.evm.Header, st.evm.StateDB)
 
 	if err != nil {
 		return false
@@ -409,7 +407,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
-	gas, err := IntrinsicGas(st.data, contractCreation, st.evm.Header, st.state, msg.FeeCurrency(), istanbul)
+	gasForAlternativeCurrency := uint64(0)
+	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
+	if msg.FeeCurrency() != nil {
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.Header, st.state)
+	}
+	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
 	if err != nil {
 		return nil, err
 	}
