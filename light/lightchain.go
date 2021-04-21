@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -495,8 +496,24 @@ func (lc *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (
 	return GetHeaderByNumber(ctx, lc.odr, number)
 }
 
-func (self *LightChain) GetVMConfig() *vm.Config {
+func (lc *LightChain) GetVMConfig() *vm.Config {
 	return &vm.Config{}
+}
+
+// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
+func (lc *LightChain) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewSystemEVMRunner(lc, header, state)
+}
+
+// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lc *LightChain) NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	header := lc.CurrentHeader()
+	// FIXME small race condition here. Need to make sure state matches header
+	state, err := lc.State()
+	if err != nil {
+		return nil, err
+	}
+	return vmcontext.NewSystemEVMRunner(lc, header, state), nil
 }
 
 // Config retrieves the header chain's chain configuration.
