@@ -136,8 +136,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 				vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				vmRunner := bc.NewSystemEVMRunner(header, statedb)
-				result, _ := core.ApplyMessage(vmenv, msg, gp, vmRunner)
+				result, _ := core.ApplyMessage(vmenv, msg, gp, nil)
 				res = append(res, result.Return()...)
 			}
 		} else {
@@ -148,8 +147,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
-			vmRunner := bc.NewSystemEVMRunner(header, state)
-			result, _ := core.ApplyMessage(vmenv, msg, gp, vmRunner)
+			result, _ := core.ApplyMessage(vmenv, msg, gp, nil)
 			if state.Error() == nil {
 				res = append(res, result.Return()...)
 			}

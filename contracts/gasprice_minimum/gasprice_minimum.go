@@ -106,13 +106,15 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	var currencyAddress common.Address
 	var err error
 
+	// TODO this is not ideal, we fail on vmRunner == nil
+	if vmRunner == nil {
+		return FallbackGasPriceMinimum, nil
+	}
+
 	if currency == nil {
 		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
 
 		if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
-			return FallbackGasPriceMinimum, nil
-		}
-		if err == contracts.ErrNoInternalEvmHandlerSingleton {
 			return FallbackGasPriceMinimum, nil
 		}
 		if err != nil {
@@ -126,9 +128,6 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	err = getGasPriceMinimumMethod.Query(vmRunner, &gasPriceMinimum, currencyAddress)
 
 	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
-		return FallbackGasPriceMinimum, nil
-	}
-	if err == contracts.ErrNoInternalEvmHandlerSingleton {
 		return FallbackGasPriceMinimum, nil
 	}
 	if err != nil {
