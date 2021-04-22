@@ -1,4 +1,4 @@
-package main
+package genesis
 
 import (
 	"math/big"
@@ -9,42 +9,41 @@ import (
 	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
 	"github.com/celo-org/celo-blockchain/common/decimal/token"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
-	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
 type template interface {
-	createEnv(workdir string) (*env.Environment, error)
-	createGenesisConfig(*env.Environment) (*genesis.Config, error)
+	CreateConfig() (*env.Config, error)
+	CreateGenesisConfig(*env.Config) (*Config, error)
 }
 
-func templateFromString(templateStr string) template {
+func TemplateFromString(templateStr string) template {
 	switch templateStr {
 	case "local":
-		return localEnv{}
+		return LocalEnv{}
 	case "loadtest":
-		return loadtestEnv{}
+		return LoadtestEnv{}
 	case "monorepo":
-		return monorepoEnv{}
+		return MonorepoEnv{}
 	}
-	return localEnv{}
+	return LocalEnv{}
 }
 
 // createCommonGenesisConfig generates a config starting point which templates can then customize further
-func createCommonGenesisConfig(env *env.Environment, istanbulConfig params.IstanbulConfig) *genesis.Config {
-	genesisConfig := genesis.BaseConfig()
-	genesisConfig.ChainID = env.Config.ChainID
+func createCommonGenesisConfig(env *env.Config, istanbulConfig params.IstanbulConfig) *Config {
+	genesisConfig := BaseConfig()
+	genesisConfig.ChainID = env.ChainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
-	genesisConfig.Hardforks = genesis.HardforkConfig{
+	genesisConfig.Hardforks = HardforkConfig{
 		ChurritoBlock: common.Big0,
 		DonutBlock:    common.Big0,
 	}
 	genesisConfig.Blockchain.UptimeLookbackWindow = genesisConfig.Istanbul.LookbackWindow
 
 	// Make admin account manager of Governance & Reserve
-	adminMultisig := genesis.MultiSigParameters{
-		Signatories:                      []common.Address{env.Accounts().AdminAccount().Address},
+	adminMultisig := MultiSigParameters{
+		Signatories:                      []common.Address{env.Accounts.AdminAccount().Address},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
@@ -62,24 +61,24 @@ func createCommonGenesisConfig(env *env.Environment, istanbulConfig params.Istan
 	return genesisConfig
 }
 
-func fundAccounts(genesisConfig *genesis.Config, accounts []env.Account) {
-	cusdBalances := make([]genesis.Balance, len(accounts))
-	ceurBalances := make([]genesis.Balance, len(accounts))
-	goldBalances := make([]genesis.Balance, len(accounts))
+func fundAccounts(genesisConfig *Config, accounts []env.Account) {
+	cusdBalances := make([]Balance, len(accounts))
+	ceurBalances := make([]Balance, len(accounts))
+	goldBalances := make([]Balance, len(accounts))
 	for i, acc := range accounts {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
-		ceurBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
+		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
+		goldBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances
 	genesisConfig.StableToken.InitialBalances = cusdBalances
 	genesisConfig.GoldToken.InitialBalances = goldBalances
 }
 
-type localEnv struct{}
+type LocalEnv struct{}
 
-func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
-	envCfg := &env.Config{
+func (e LocalEnv) CreateConfig() (*env.Config, error) {
+	return &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             env.MustNewMnemonic(),
 			NumValidators:        3,
@@ -87,16 +86,10 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumDeveloperAccounts: 10,
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
-	}
-	env, err := env.New(workdir, envCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return env, nil
+	}, nil
 }
 
-func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e LocalEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          10,
@@ -107,15 +100,15 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	})
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	fundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
 
 	return genesisConfig, nil
 }
 
-type loadtestEnv struct{}
+type LoadtestEnv struct{}
 
-func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
-	envCfg := &env.Config{
+func (e LoadtestEnv) CreateConfig() (*env.Config, error) {
+	return &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             "miss fire behind decide egg buyer honey seven advance uniform profit renew",
 			NumValidators:        1,
@@ -123,17 +116,10 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 			NumDeveloperAccounts: 10000,
 		},
 		ChainID: big.NewInt(9099000),
-	}
-
-	env, err := env.New(workdir, envCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return env, nil
+	}, nil
 }
 
-func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e LoadtestEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
@@ -146,9 +132,9 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	fundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
 
-	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * genesis.Year
+	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * Year
 
 	// Disable gas price min being updated
 	genesisConfig.GasPriceMinimum.TargetDensity = fixed.MustNew("0.9999")
@@ -157,10 +143,10 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	return genesisConfig, nil
 }
 
-type monorepoEnv struct{}
+type MonorepoEnv struct{}
 
-func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
-	envCfg := &env.Config{
+func (e MonorepoEnv) CreateConfig() (*env.Config, error) {
+	return &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             env.MustNewMnemonic(),
 			NumValidators:        3,
@@ -169,16 +155,10 @@ func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
 			UseValidatorAsAdmin:  true, // monorepo doesn't use the admin account type, uses first validator instead
 		},
 		ChainID: big.NewInt(1000 * (1 + rand.Int63n(9999))),
-	}
-	env, err := env.New(workdir, envCfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return env, nil
+	}, nil
 }
 
-func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e MonorepoEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
@@ -188,7 +168,7 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	})
 
 	// Add balances to validator accounts instead of developer accounts
-	fundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
+	fundAccounts(genesisConfig, env.Accounts.ValidatorAccounts())
 
 	return genesisConfig, nil
 }
