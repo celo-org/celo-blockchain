@@ -94,24 +94,24 @@ func readBuildPath(ctx *cli.Context) (string, error) {
 
 func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genesis.Config, error) {
 	templateString := ctx.String("template")
-	template := templateFromString(templateString)
-	env, err := template.createEnv(workdir)
+	template := genesis.TemplateFromString(templateString)
+	config, err := template.CreateConfig()
 	if err != nil {
 		return nil, nil, err
 	}
 	// Env overrides
 	if ctx.IsSet("validators") {
-		env.Accounts().NumValidators = ctx.Int("validators")
+		config.Accounts.NumValidators = ctx.Int("validators")
 	}
 	if ctx.IsSet("dev.accounts") {
-		env.Accounts().NumDeveloperAccounts = ctx.Int("dev.accounts")
+		config.Accounts.NumDeveloperAccounts = ctx.Int("dev.accounts")
 	}
 	if ctx.IsSet("mnemonic") {
-		env.Accounts().Mnemonic = ctx.String("mnemonic")
+		config.Accounts.Mnemonic = ctx.String("mnemonic")
 	}
 
 	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env)
+	genesisConfig, err := template.CreateGenesisConfig(config)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -126,8 +126,8 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	if ctx.IsSet("blockgaslimit") {
 		genesisConfig.Blockchain.BlockGasLimit = ctx.Uint64("blockgaslimit")
 	}
-
-	return env, genesisConfig, nil
+	e, err := env.New(workdir, config)
+	return e, genesisConfig, err
 }
 
 func createGenesis(ctx *cli.Context) error {
