@@ -29,23 +29,13 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		curView := c.current.View()
-		preprepare, err := Encode(&istanbul.Preprepare{
-			View:                   curView,
+		m := istanbul.NewMessage(&istanbul.Preprepare{
+			View:                   c.current.View(),
 			Proposal:               request.Proposal,
 			RoundChangeCertificate: roundChangeCertificate,
-		})
-		if err != nil {
-			logger.Error("Failed to prepare message")
-			return
-		}
-
-		msg := &istanbul.Message{
-			Code: istanbul.MsgPreprepare,
-			Msg:  preprepare,
-		}
-		logger.Debug("Sending preprepare", "m", msg)
-		c.broadcast(msg)
+		}, c.address)
+		logger.Debug("Sending preprepare", "m", m)
+		c.broadcast(m)
 	}
 }
 
@@ -55,13 +45,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
 	logger.Trace("Got preprepare message", "m", msg)
 
-	// Decode PREPREPARE
-	var preprepare *istanbul.Preprepare
-	err := msg.Decode(&preprepare)
-	if err != nil || preprepare.Proposal == nil || preprepare.View == nil {
-		return errFailedDecodePreprepare
-	}
-
+	preprepare := msg.Preprepare()
 	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// Verify that the proposal is for the sequence number of the view we verified.

@@ -20,7 +20,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
@@ -33,18 +32,11 @@ func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []c
 		if proxy.IsPeered() {
 
 			// Convert the message to a fwdMessage
-			fwdMessage := &istanbul.ForwardMessage{
+			msg := istanbul.NewMessage(&istanbul.ForwardMessage{
 				Code:          ethMsgCode,
 				DestAddresses: destAddresses,
 				Msg:           payload,
-			}
-			fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-			if err != nil {
-				logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-				return err
-			}
-
-			msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: pv.backend.Address()}
+			}, pv.backend.Address())
 
 			// Sign the message
 			if err := msg.Sign(pv.backend.Sign); err != nil {
@@ -90,13 +82,7 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
-	var fwdMsg *istanbul.ForwardMessage
-	err := istMsg.Decode(&fwdMsg)
-	if err != nil {
-		logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
-		return true, err
-	}
-
+	fwdMsg := istMsg.ForwardMessage()
 	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
 	if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
 		logger.Error("Error in multicasting a forwarded message", "error", err)

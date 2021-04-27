@@ -329,6 +329,74 @@ type ForwardMessage struct {
 	DestAddresses []common.Address
 }
 
+// ===============================================================
+//
+// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+
+type EncryptedEnodeURL struct {
+	DestAddress       common.Address
+	EncryptedEnodeURL []byte
+}
+
+func (ee *EncryptedEnodeURL) String() string {
+	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
+}
+
+type QueryEnodeData struct {
+	EncryptedEnodeURLs []*EncryptedEnodeURL
+	Version            uint
+	// The timestamp of the node when the message is generated.
+	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
+	Timestamp uint
+}
+
+func (qed *QueryEnodeData) String() string {
+	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
+}
+
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
+
+// EncodeRLP serializes ar into the Ethereum RLP format.
+func (ee *EncryptedEnodeURL) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
+func (ee *EncryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		DestAddress       common.Address
+		EncryptedEnodeURL []byte
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
+	return nil
+}
+
+// EncodeRLP serializes ad into the Ethereum RLP format.
+func (qed *QueryEnodeData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
+func (qed *QueryEnodeData) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EncryptedEnodeURLs []*EncryptedEnodeURL
+		Version            uint
+		Timestamp          uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
+	return nil
+}
+
 // ## Consensus Message codes ##########################################################
 
 const (
@@ -343,6 +411,65 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
+
+	// The below fields are not serializable since they are private, they are
+	// set when calling Message.FromPayload, only one will be set in any
+	// instance, which is set depends on the Message.Code.
+	committedSubject    *CommittedSubject
+	prePrepare          *Preprepare
+	prepare             *Subject
+	roundChange         *RoundChange
+	queryEnode          *QueryEnodeData
+	forwardMessage      *ForwardMessage
+	enodeCertificate    *EnodeCertificate
+	versionCertificates []*VersionCertificate
+	valEnodeShareData   *ValEnodesShareData
+}
+
+// NewMessage constructs a message with the innerMessage instance and the
+// sender address, it will panic if innerMessage is not a recognised inner
+// message type.
+func NewMessage(innerMessage interface{}, sender common.Address) *Message {
+	message := &Message{
+		Address: sender,
+	}
+	switch t := innerMessage.(type) {
+	case *Preprepare:
+		message.Code = MsgPreprepare
+		message.prePrepare = t
+	case *Subject:
+		message.Code = MsgPrepare
+		message.prepare = t
+	case *CommittedSubject:
+		message.Code = MsgCommit
+		message.committedSubject = t
+	case *RoundChange:
+		message.Code = MsgRoundChange
+		message.roundChange = t
+	case *QueryEnodeData:
+		message.Code = QueryEnodeMsg
+		message.queryEnode = t
+	case *ForwardMessage:
+		message.Code = FwdMsg
+		message.forwardMessage = t
+	case *EnodeCertificate:
+		message.Code = EnodeCertificateMsg
+		message.enodeCertificate = t
+	case []*VersionCertificate:
+		message.Code = VersionCertificatesMsg
+		message.versionCertificates = t
+	case *ValEnodesShareData:
+		message.Code = ValEnodesShareMsg
+		message.valEnodeShareData = t
+	default:
+		panic(fmt.Sprintf("attempt to construct Message unrecognised inner message type %T", t))
+	}
+	bytes, err := rlp.EncodeToBytes(innerMessage)
+	if err != nil {
+		panic(fmt.Sprintf("attempt to serialise inner messgae of type %T failed", innerMessage))
+	}
+	message.Msg = bytes
+	return message
 }
 
 // define the functions that needs to be provided for core.
@@ -357,6 +484,73 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	return err
 }
 
+func (m *Message) DecodeRLP(stream *rlp.Stream) error {
+	type decodable Message
+	var d decodable
+	err := stream.Decode(&d)
+	if err != nil {
+		return err
+	}
+	*m = Message(d)
+
+	if len(m.Msg) == 0 && len(m.Signature) == 0 {
+		// Empty validator handshake message
+		return nil
+	}
+
+	switch m.Code {
+	case MsgPreprepare:
+		var p *Preprepare
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.prePrepare = p
+	case MsgPrepare:
+		var p *Subject
+		err = m.decode(&p)
+		m.prepare = p
+	case MsgCommit:
+		var cs *CommittedSubject
+		err = m.decode(&cs)
+		m.committedSubject = cs
+	case MsgRoundChange:
+		var p *RoundChange
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.roundChange = p
+	case QueryEnodeMsg:
+		var q *QueryEnodeData
+		err = m.decode(&q)
+		m.queryEnode = q
+	case FwdMsg:
+		var f *ForwardMessage
+		err = m.decode(&f)
+		m.forwardMessage = f
+	case EnodeCertificateMsg:
+		var e *EnodeCertificate
+		err = m.decode(&e)
+		m.enodeCertificate = e
+	case VersionCertificatesMsg:
+		var v []*VersionCertificate
+		err = m.decode(&v)
+		m.versionCertificates = v
+	case ValEnodesShareMsg:
+		var v *ValEnodesShareData
+		err = m.decode(&v)
+		m.valEnodeShareData = v
+	default:
+		err = fmt.Errorf("unrecognised message code %d", m.Code)
+	}
+	return err
+
+}
+
+// FromPayload decodes b into a Message instance it will set one of the private
+// fields committedSubject, prePrepare, prepare or roundChange depending on the
+// type of the message.
 func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
 	// Decode Message
 	err := rlp.DecodeBytes(b, &m)
@@ -396,12 +590,59 @@ func (m *Message) PayloadNoSig() ([]byte, error) {
 	})
 }
 
-func (m *Message) Decode(val interface{}) error {
+func (m *Message) decode(val interface{}) error {
 	return rlp.DecodeBytes(m.Msg, val)
 }
 
 func (m *Message) String() string {
 	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
+}
+
+// Commit returns the committed subject if this is a commit message.
+func (m *Message) Commit() *CommittedSubject {
+	return m.committedSubject
+}
+
+// Preprepare returns preprepare if this is a preprepare message.
+func (m *Message) Preprepare() *Preprepare {
+	return m.prePrepare
+}
+
+// Prepare returns prepare if this is a prepare message.
+func (m *Message) Prepare() *Subject {
+	return m.prepare
+}
+
+// Prepare returns round change if this is a round change message.
+func (m *Message) RoundChange() *RoundChange {
+	return m.roundChange
+}
+
+// QueryEnode returns query enode data if this is a query enode message.
+func (m *Message) QueryEnodeMsg() *QueryEnodeData {
+	return m.queryEnode
+}
+
+// ForwardMessage returns forward message if this is a forward message.
+func (m *Message) ForwardMessage() *ForwardMessage {
+	return m.forwardMessage
+}
+
+// EnodeCertificate returns the enode certificate if this is an enode
+// certificate message
+func (m *Message) EnodeCertificate() *EnodeCertificate {
+	return m.enodeCertificate
+}
+
+// VersionCertificates returns the version certificate entries if this is a
+// version certificates message.
+func (m *Message) VersionCertificates() []*VersionCertificate {
+	return m.versionCertificates
+}
+
+// ValEnodesShareData returns val enode share data if this is a val enodes share message.
+func (m *Message) ValEnodesShareData() *ValEnodesShareData {
+	return m.valEnodeShareData
 }
 
 func (m *Message) Copy() *Message {
@@ -566,4 +807,121 @@ func (ae *AddressEntry) GetVersion() uint {
 // GetAddess returns the addess entry's address
 func (ae *AddressEntry) GetAddress() common.Address {
 	return ae.Address
+}
+
+// ## VersionCertificate ######################################################################
+
+// VersionCertificate is an entry in the VersionCertificateDB.
+// It's a signed message from a registered or active validator indicating
+// the most recent version of its enode.
+type VersionCertificate struct {
+	Version   uint
+	Signature []byte
+	address   common.Address
+	pubKey    *ecdsa.PublicKey
+}
+
+func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error)) (*VersionCertificate, error) {
+	vc := &VersionCertificate{Version: version}
+	payloadToSign, err := vc.signaturePayload()
+	if err != nil {
+		return nil, err
+	}
+	vc.Signature, err = signingFn(payloadToSign)
+	if err != nil {
+		return nil, err
+	}
+	return vc, vc.recoverAddressAndPubKey()
+}
+
+// Used as a salt when signing versionCertificate. This is to account for
+// the unlikely case where a different signed struct with the same field types
+// is used elsewhere and shared with other nodes. If that were to happen, a
+// malicious node could try sending the other struct where this struct is used,
+// or vice versa. This ensures that the signature is only valid for this struct.
+var versionCertificateSalt = []byte("versionCertificate")
+
+func (vc *VersionCertificate) signaturePayload() ([]byte, error) {
+	return rlp.EncodeToBytes([]interface{}{versionCertificateSalt, vc.Version})
+}
+
+func (vc *VersionCertificate) Address() common.Address {
+	return vc.address
+}
+
+func (vc *VersionCertificate) PublicKey() *ecdsa.PublicKey {
+	return vc.pubKey
+}
+
+func (vc *VersionCertificate) String() string {
+	return fmt.Sprintf("%d", vc.Version)
+}
+
+func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
+	// Create separate type to avoid stack overflow when calling Decode
+	type decodable VersionCertificate
+	var d decodable
+	if err := s.Decode(&d); err != nil {
+		return err
+	}
+	// copy struct data
+	*vc = VersionCertificate(d)
+
+	return vc.recoverAddressAndPubKey()
+}
+
+func (vc *VersionCertificate) recoverAddressAndPubKey() error {
+	payloadToSign, err := vc.signaturePayload()
+	if err != nil {
+		return err
+	}
+	payloadHash := crypto.Keccak256(payloadToSign)
+	vc.pubKey, err = crypto.SigToPub(payloadHash, vc.Signature)
+	if err != nil {
+		return err
+	}
+	vc.address = crypto.PubkeyToAddress(*vc.pubKey)
+	return nil
+}
+
+// ## SharedValidatorEnode ######################################################################
+
+type SharedValidatorEnode struct {
+	Address  common.Address
+	EnodeURL string
+	Version  uint
+}
+
+type ValEnodesShareData struct {
+	ValEnodes []SharedValidatorEnode
+}
+
+func (sve *SharedValidatorEnode) String() string {
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Version: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Version)
+}
+
+func (sd *ValEnodesShareData) String() string {
+	outputStr := "{ValEnodes:"
+	for _, valEnode := range sd.ValEnodes {
+		outputStr = fmt.Sprintf("%s %s", outputStr, valEnode.String())
+	}
+	return fmt.Sprintf("%s}", outputStr)
+}
+
+// EncodeRLP serializes sd into the Ethereum RLP format.
+func (sd *ValEnodesShareData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sd.ValEnodes})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the sd fields from a RLP stream.
+func (sd *ValEnodesShareData) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		ValEnodes []SharedValidatorEnode
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	sd.ValEnodes = msg.ValEnodes
+	return nil
 }

@@ -39,17 +39,11 @@ func TestRoundChangeSet(t *testing.T) {
 		View:   view,
 		Digest: common.Hash{},
 	}
-	m, _ := Encode(r)
 
 	// Test Add()
 	// Add message from all validators
 	for i, v := range vset.List() {
-		msg := &istanbul.Message{
-			Code:    istanbul.MsgRoundChange,
-			Msg:     m,
-			Address: v.Address(),
-		}
-		rc.Add(view.Round, msg)
+		rc.Add(view.Round, istanbul.NewMessage(r, v.Address()))
 		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
 		}
@@ -57,12 +51,7 @@ func TestRoundChangeSet(t *testing.T) {
 
 	// Add message again from all validators, but the size should be the same
 	for _, v := range vset.List() {
-		msg := &istanbul.Message{
-			Code:    istanbul.MsgRoundChange,
-			Msg:     m,
-			Address: v.Address(),
-		}
-		rc.Add(view.Round, msg)
+		rc.Add(view.Round, istanbul.NewMessage(r, v.Address()))
 		if rc.msgsForRound[view.Round.Uint64()].Size() != vset.Size() {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), vset.Size())
 		}
@@ -95,12 +84,7 @@ func TestRoundChangeSet(t *testing.T) {
 	// Test Add()
 	// Add message from all validators
 	for i, v := range vset.List() {
-		msg := &istanbul.Message{
-			Code:    istanbul.MsgRoundChange,
-			Msg:     m,
-			Address: v.Address(),
-		}
-		rc.Add(view.Round, msg)
+		rc.Add(view.Round, istanbul.NewMessage(r, v.Address()))
 		if rc.msgsForRound[view.Round.Uint64()].Size() != i+1 {
 			t.Errorf("the size of round change messages mismatch: have %v, want %v", rc.msgsForRound[view.Round.Uint64()].Size(), i+1)
 		}
@@ -336,10 +320,10 @@ func TestHandleRoundChange(t *testing.T) {
 				Sequence: curView.Sequence,
 			}
 
-			roundChange := &istanbul.RoundChange{
+			msg := istanbul.NewMessage(&istanbul.RoundChange{
 				View:                nextView,
 				PreparedCertificate: test.getCert(t, sys),
-			}
+			}, v0.Address())
 
 			for i, v := range sys.backends {
 				// i == 0 is primary backend, it is responsible for send ROUND CHANGE messages to others.
@@ -349,14 +333,8 @@ func TestHandleRoundChange(t *testing.T) {
 
 				c := v.engine.(*core)
 
-				m, _ := Encode(roundChange)
-
 				// run each backends and verify handlePreprepare function.
-				err := c.handleRoundChange(&istanbul.Message{
-					Code:    istanbul.MsgRoundChange,
-					Msg:     m,
-					Address: v0.Address(),
-				})
+				err := c.handleRoundChange(msg)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

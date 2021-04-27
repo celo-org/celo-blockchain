@@ -22,6 +22,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // notice: the normal case have been tested in integration tests.
@@ -36,90 +38,77 @@ func TestHandleMsg(t *testing.T) {
 	v0 := sys.backends[0]
 	r0 := v0.engine.(*core)
 
-	m, _ := Encode(&istanbul.Subject{
+	m := istanbul.NewMessage(&istanbul.Subject{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
-	})
+	}, v0.Address())
+
 	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
-	msg := &istanbul.Message{
-		Code:      istanbul.MsgPreprepare,
-		Msg:       m,
-		Address:   v0.Address(),
-		Signature: []byte{},
-	}
+	m.Code = istanbul.MsgPreprepare
 
-	_, val := v0.Validators(nil).GetByAddress(v0.Address())
-	if err := r0.handleCheckedMsg(msg, val); err != errFailedDecodePreprepare {
-		t.Errorf("error mismatch: have %v, want %v", err, errFailedDecodePreprepare)
-	}
+	payload, err := m.Payload()
+	require.NoError(t, err)
 
-	m, _ = Encode(&istanbul.Preprepare{
+	err = r0.handleMsg(payload)
+	assert.Error(t, err)
+
+	m = istanbul.NewMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Proposal: makeBlock(1),
-	})
+	}, v0.Address())
+
 	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
-	msg = &istanbul.Message{
-		Code:      istanbul.MsgPrepare,
-		Msg:       m,
-		Address:   v0.Address(),
-		Signature: []byte{},
-	}
+	m.Code = istanbul.MsgPrepare
 
-	_, val = v0.Validators(nil).GetByAddress(v0.Address())
-	if err := r0.handleCheckedMsg(msg, val); err != errFailedDecodePrepare {
-		t.Errorf("error mismatch: have %v, want %v", err, errFailedDecodePreprepare)
-	}
+	payload, err = m.Payload()
+	require.NoError(t, err)
 
-	m, _ = Encode(&istanbul.Preprepare{
+	err = r0.handleMsg(payload)
+	assert.Error(t, err)
+
+	m = istanbul.NewMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Proposal: makeBlock(2),
-	})
+	}, v0.Address())
+
 	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
-	msg = &istanbul.Message{
-		Code:      istanbul.MsgCommit,
-		Msg:       m,
-		Address:   v0.Address(),
-		Signature: []byte{},
-	}
+	m.Code = istanbul.MsgCommit
 
-	_, val = v0.Validators(nil).GetByAddress(v0.Address())
-	if err := r0.handleCheckedMsg(msg, val); err != errFailedDecodeCommit {
-		t.Errorf("error mismatch: have %v, want %v", err, errFailedDecodeCommit)
-	}
+	payload, err = m.Payload()
+	require.NoError(t, err)
 
-	m, _ = Encode(&istanbul.Preprepare{
+	err = r0.handleMsg(payload)
+	assert.Error(t, err)
+
+	m = istanbul.NewMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
 		},
 		Proposal: makeBlock(3),
-	})
-	// invalid message code. message code is not exists in list
-	msg = &istanbul.Message{
-		Code:      uint64(99),
-		Msg:       m,
-		Address:   v0.Address(),
-		Signature: []byte{},
-	}
+	}, v0.Address())
 
-	_, val = v0.Validators(nil).GetByAddress(v0.Address())
-	if err := r0.handleCheckedMsg(msg, val); err == nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	// invalid message code. message code is not exists in list
+	m.Code = uint64(99)
+
+	payload, err = m.Payload()
+	require.NoError(t, err)
+
+	err = r0.handleMsg(payload)
+	assert.Error(t, err)
 
 	// with malicious payload
-	if err := r0.handleMsg([]byte{1}); err == nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	err = r0.handleMsg([]byte{1})
+	assert.Error(t, err)
 }
 
 func BenchmarkHandleMsg(b *testing.B) {

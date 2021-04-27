@@ -101,13 +101,13 @@ func dummyBlock(number int64) *types.Block {
 	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
 }
 func dummyMessage(code uint64) *Message {
-	return &Message{
-		Code:      code,
-		Address:   common.HexToAddress("AABB"),
-		Msg:       []byte{10, 20, 42},
-		Signature: []byte{30, 40, 52},
-	}
+	msg := NewMessage(dummySubject(), common.HexToAddress("AABB"))
+	// Set empty rather than nil signature since this is how rlp decodes non
+	// existent slices.
+	msg.Signature = []byte{}
+	return msg
 }
+
 func dummyRoundChangeCertificate() *RoundChangeCertificate {
 	return &RoundChangeCertificate{
 		RoundChangeMessages: []Message{*dummyMessage(42), *dummyMessage(32), *dummyMessage(15)},

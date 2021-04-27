@@ -275,41 +275,20 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 }
 
 func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
-	preprepare := &istanbul.Preprepare{
+	msg := istanbul.NewMessage(&istanbul.Preprepare{
 		View:                   &view,
 		RoundChangeCertificate: roundChangeCertificate,
 		Proposal:               proposal,
-	}
-
-	payload, err := Encode(preprepare)
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-
-	msg := &istanbul.Message{
-		Code: istanbul.MsgPreprepare,
-		Msg:  payload,
-	}
+	}, self.address)
 
 	return self.finalizeAndReturnMessage(msg)
 }
 
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
-	prepare := &istanbul.Subject{
+	msg := istanbul.NewMessage(&istanbul.Subject{
 		View:   &view,
 		Digest: digest,
-	}
-
-	payload, err := Encode(prepare)
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-
-	msg := &istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  payload,
-	}
-
+	}, self.address)
 	return self.finalizeAndReturnMessage(msg)
 }
 
@@ -324,20 +303,10 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
-	committedSubject := &istanbul.CommittedSubject{
+	msg := istanbul.NewMessage(&istanbul.CommittedSubject{
 		Subject:       subject,
 		CommittedSeal: committedSeal[:],
-	}
-
-	payload, err := Encode(committedSubject)
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-
-	msg := &istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  payload,
-	}
+	}, self.address)
 
 	// // We swap in the provided proposal so that the message is finalized for the provided proposal
 	// // and not for the current preprepare.
@@ -353,20 +322,10 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 }
 
 func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
-	rc := &istanbul.RoundChange{
+	msg := istanbul.NewMessage(&istanbul.RoundChange{
 		View:                &view,
 		PreparedCertificate: preparedCert,
-	}
-
-	payload, err := Encode(rc)
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-
-	msg := &istanbul.Message{
-		Code: istanbul.MsgRoundChange,
-		Msg:  payload,
-	}
+	}, common.Address{})
 
 	return self.finalizeAndReturnMessage(msg)
 }
