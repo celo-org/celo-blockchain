@@ -700,16 +700,16 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	for _, headerGap := range headerGaps {
 		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
 
-		if int(headerGap.FirstEpoch) > 440 {
-			break
-		}
-		if int(headerGap.FirstEpoch)+headerGap.Amount >= 440 {
-			if int(headerGap.FirstEpoch) == 440 {
-				headerGap.Amount = 1
-			} else {
-				headerGap.Amount = 440 - int(headerGap.FirstEpoch)
-			}
-		}
+		// if int(headerGap.FirstEpoch) > 440 {
+		// 	break
+		// }
+		// if int(headerGap.FirstEpoch)+headerGap.Amount >= 440 {
+		// 	if int(headerGap.FirstEpoch) == 440 {
+		// 		headerGap.Amount = 1
+		// 	} else {
+		// 		headerGap.Amount = 440 - int(headerGap.FirstEpoch)
+		// 	}
+		// }
 		headerReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*serverPeer)
@@ -724,7 +724,9 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 				cost := peer.getRequestCost(GetBlockHeadersMsg, headerGap.Amount)
 				peer.fcServer.QueuedRequest(reqID, cost)
 				return func() {
-					peer.requestHeadersByNumber(reqID, uint64(headerGap.FirstEpoch), headerGap.Amount, skip, false)
+					blockNumber := uint64(headerGap.FirstEpoch) * epoch
+					log.Error("Requesting headers by number", "blockNumber", blockNumber, "amount", headerGap.Amount)
+					peer.requestHeadersByNumber(reqID, blockNumber, headerGap.Amount, skip, false)
 				}
 			},
 		}
