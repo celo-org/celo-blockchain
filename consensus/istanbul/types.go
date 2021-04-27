@@ -343,6 +343,14 @@ type Message struct {
 	Msg       []byte
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
+
+	// The below fields are not serializable since they are private, they are
+	// set when calling Message.FromPayload, only one will be set in any
+	// instance, which is set depends on the Message.Code.
+	committedSubject *CommittedSubject
+	prePrepare       *Preprepare
+	prepare          *Subject
+	roundChange      *RoundChange
 }
 
 // define the functions that needs to be provided for core.
@@ -357,9 +365,34 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	return err
 }
 
+// FromPayload decodes b into a Message instance it will set one of the private
+// fields committedSubject, prePrepare, prepare or roundChange depending on the
+// type of the message.
 func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.Address, error)) error {
 	// Decode Message
 	err := rlp.DecodeBytes(b, &m)
+	if err != nil {
+		return err
+	}
+
+	switch m.Code {
+	case MsgPreprepare:
+		var p *Preprepare
+		err = m.Decode(&p)
+		m.prePrepare = p
+	case MsgPrepare:
+		var p *Subject
+		err = m.Decode(&p)
+		m.prepare = p
+	case MsgCommit:
+		var cs *CommittedSubject
+		err = m.Decode(&cs)
+		m.committedSubject = cs
+	case MsgRoundChange:
+		var p *RoundChange
+		err = m.Decode(&p)
+		m.roundChange = p
+	}
 	if err != nil {
 		return err
 	}
@@ -402,6 +435,26 @@ func (m *Message) Decode(val interface{}) error {
 
 func (m *Message) String() string {
 	return fmt.Sprintf("{Code: %v, Address: %v}", m.Code, m.Address.String())
+}
+
+// Commit returns the committed subject if this is a commit message.
+func (m *Message) Commit() *CommittedSubject {
+	return m.committedSubject
+}
+
+// Preprepare returns preprepare if this is a preprepare message.
+func (m *Message) Preprepare() *Preprepare {
+	return m.prePrepare
+}
+
+// Prepare returns prepare if this is a prepare message.
+func (m *Message) Prepare() *Subject {
+	return m.prepare
+}
+
+// Prepare returns round change if this is a round change message.
+func (m *Message) RoundChange() *RoundChange {
+	return m.roundChange
 }
 
 func (m *Message) Copy() *Message {
