@@ -623,7 +623,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	var headerGaps []headerGap
 	knownPlumoProofs := pc.peer.knownPlumoProofs
 	var currFrom uint = uint(from)
-	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch))
+	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch)) - 1
 	// Outer loop finding the path
 	for {
 		// Inner loop adding the next proof
@@ -700,16 +700,16 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	for _, headerGap := range headerGaps {
 		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount)
 
-		// if int(headerGap.FirstEpoch) > 440 {
-		// 	break
-		// }
-		// if int(headerGap.FirstEpoch)+headerGap.Amount >= 440 {
-		// 	if int(headerGap.FirstEpoch) == 440 {
-		// 		headerGap.Amount = 1
-		// 	} else {
-		// 		headerGap.Amount = 440 - int(headerGap.FirstEpoch)
-		// 	}
-		// }
+		if int(headerGap.FirstEpoch) > 44 {
+			break
+		}
+		if int(headerGap.FirstEpoch)+headerGap.Amount >= 44 {
+			if int(headerGap.FirstEpoch) == 44 {
+				headerGap.Amount = 1
+			} else {
+				headerGap.Amount = 440 - (int(headerGap.FirstEpoch) * int(epoch))
+			}
+		}
 		headerReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*serverPeer)

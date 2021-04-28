@@ -296,6 +296,15 @@ func (api *PrivateAdminAPI) AddProof(proof string, firstEpoch uint, lastEpoch ui
 	return true, nil
 }
 
+func (api *PrivateAdminAPI) RemoveProof(firstEpoch uint, lastEpoch uint, versionNumber uint) {
+	plumoProofMetadata := types.PlumoProofMetadata{
+		FirstEpoch:    firstEpoch,
+		LastEpoch:     lastEpoch,
+		VersionNumber: versionNumber,
+	}
+	rawdb.DeletePlumoProof(api.eth.proofDb, plumoProofMetadata)
+}
+
 func (api *PrivateAdminAPI) Proofs() ([][]byte, error) {
 	return rawdb.ReadPlumoProofs(api.eth.proofDb), nil
 }

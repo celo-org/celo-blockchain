@@ -132,6 +132,12 @@ web3._extend({
 			params: 4,
 			inputFormatter: [null, null, null, null]
 		}),
+		new web3._extend.Method({
+			name: 'removeProof',
+			call: 'admin_removeProof',
+			params: 3,
+			inputFormatter: [null, null, null]
+		}),
 	],
 	properties: [
 		new web3._extend.Property({

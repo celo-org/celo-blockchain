@@ -344,6 +344,12 @@ func WritePlumoProof(db ethdb.KeyValueWriter, plumoProof *types.PlumoProof) {
 	}
 }
 
+func DeletePlumoProof(db ethdb.KeyValueWriter, plumoProofMetadata types.PlumoProofMetadata) {
+	if err := db.Delete(plumoProofKey(plumoProofMetadata)); err != nil {
+		log.Crit("Failed to delete plumo proof", "err", err)
+	}
+}
+
 // HasPlumoProof verifies the existence of a plumo proof from `firstEpoch` to `lastEpoch`
 // TODO(lucas): handle proofs in between epochs, likely here
 func HasPlumoProof(db ethdb.Reader, metadata types.PlumoProofMetadata) bool {
