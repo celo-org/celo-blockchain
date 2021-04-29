@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"time"
@@ -346,74 +345,6 @@ func (sb *Backend) pruneAnnounceDataStructures() error {
 	return nil
 }
 
-// ===============================================================
-//
-// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
-
-type encryptedEnodeURL struct {
-	DestAddress       common.Address
-	EncryptedEnodeURL []byte
-}
-
-func (ee *encryptedEnodeURL) String() string {
-	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
-}
-
-type queryEnodeData struct {
-	EncryptedEnodeURLs []*encryptedEnodeURL
-	Version            uint
-	// The timestamp of the node when the message is generated.
-	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
-	Timestamp uint
-}
-
-func (qed *queryEnodeData) String() string {
-	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes ar into the Ethereum RLP format.
-func (ee *encryptedEnodeURL) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (ee *encryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		DestAddress       common.Address
-		EncryptedEnodeURL []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
-	return nil
-}
-
-// EncodeRLP serializes ad into the Ethereum RLP format.
-func (qed *queryEnodeData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		EncryptedEnodeURLs []*encryptedEnodeURL
-		Version            uint
-		Timestamp          uint
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
-	return nil
-}
-
 // getValProxyAssignments returns the remote validator -> external node assignments.
 // If this is a standalone validator, it will set the external node to itself.
 // If this is a proxied validator, it will set external node to the proxy's external node.
@@ -580,32 +511,19 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
 		return nil, nil
 	}
-	queryEnodeData := &queryEnodeData{
+
+	msg := istanbul.NewMessage(&istanbul.QueryEnodeData{
 		EncryptedEnodeURLs: encryptedEnodeURLs,
 		Version:            version,
 		Timestamp:          getTimestamp(),
-	}
-
-	queryEnodeBytes, err := rlp.EncodeToBytes(queryEnodeData)
-	if err != nil {
-		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
-		return nil, err
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbul.QueryEnodeMsg,
-		Msg:       queryEnodeBytes,
-		Address:   sb.Address(),
-		Signature: []byte{},
-	}
-
+	}, sb.Address())
 	// Sign the announce message
 	if err := msg.Sign(sb.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
 
-	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", queryEnodeData.String())
+	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", msg.QueryEnodeMsg().String())
 
 	return msg, nil
 }
@@ -617,10 +535,10 @@ type enodeQuery struct {
 }
 
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
-func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*encryptedEnodeURL, error) {
+func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*istanbul.EncryptedEnodeURL, error) {
 	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
 
-	var encryptedEnodeURLs []*encryptedEnodeURL
+	var encryptedEnodeURLs []*istanbul.EncryptedEnodeURL
 	for _, param := range enodeQueries {
 		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
 		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
@@ -630,7 +548,7 @@ func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*en
 			return nil, err
 		}
 
-		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
+		encryptedEnodeURLs = append(encryptedEnodeURLs, &istanbul.EncryptedEnodeURL{
 			DestAddress:       param.recipientAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
@@ -672,7 +590,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var qeData queryEnodeData
+	var qeData istanbul.QueryEnodeData
 	err = rlp.DecodeBytes(msg.Msg, &qeData)
 	if err != nil {
 		logger.Warn("Error in decoding received Istanbul QueryEnode message content", "err", err, "IstanbulMsg", msg.String())
@@ -681,7 +599,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
-	// Do some validation checks on the queryEnodeData
+	// Do some validation checks on the istanbul.QueryEnodeData
 	if isValid, err := sb.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
@@ -776,7 +694,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
+func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
 	logger := sb.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
@@ -1267,19 +1185,10 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	}
 
 	for _, externalNode := range externalEnodes {
-		enodeCertificate := &istanbul.EnodeCertificate{
-			EnodeURL: externalNode.URLv4(),
-			Version:  version,
-		}
-		enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
-		if err != nil {
-			return nil, err
-		}
-		msg := &istanbul.Message{
-			Code:    istanbul.EnodeCertificateMsg,
-			Address: sb.Address(),
-			Msg:     enodeCertificateBytes,
-		}
+		msg := istanbul.NewMessage(
+			&istanbul.EnodeCertificate{EnodeURL: externalNode.URLv4(), Version: version},
+			sb.Address(),
+		)
 		// Sign the message
 		if err := msg.Sign(sb.Sign); err != nil {
 			return nil, err

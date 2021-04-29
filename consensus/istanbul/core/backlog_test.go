@@ -49,7 +49,6 @@ func TestCheckMessage(t *testing.T) {
 	t.Run("invalid view format", func(t *testing.T) {
 		err := c.checkMessage(istanbul.MsgPreprepare, nil)
 		if err != errInvalidMessage {
-			t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
 		}
 	})
 
@@ -231,19 +230,10 @@ func TestStoreBacklog(t *testing.T) {
 	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
 	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), blscrypto.SerializedPublicKey{})
 
-	// push messages
-	preprepare := &istanbul.Preprepare{
-		View:     v10,
-		Proposal: makeBlock(10),
-	}
-
-	prepreparePayload, _ := Encode(preprepare)
-	mPreprepare := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     prepreparePayload,
-		Address: p1.Address(),
-	}
-
+	mPreprepare := istanbul.NewMessage(
+		&istanbul.Preprepare{View: v10, Proposal: makeBlock(10)},
+		p1.Address(),
+	)
 	backlog.store(mPreprepare)
 
 	msg := backlog.backlogBySeq[v10.Sequence.Uint64()].PopItem()
@@ -251,27 +241,14 @@ func TestStoreBacklog(t *testing.T) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare)
 	}
 
-	subject := &istanbul.Subject{
-		View:   v10,
-		Digest: common.BytesToHash([]byte("1234567890")),
-	}
-	subjectPayload, _ := Encode(subject)
-	mPrepare := &istanbul.Message{
-		Code:    istanbul.MsgPrepare,
-		Msg:     subjectPayload,
-		Address: p1.Address(),
-	}
-
-	preprepare2 := &istanbul.Preprepare{
-		View:     v11,
-		Proposal: makeBlock(11),
-	}
-	preprepare2Payload, _ := Encode(preprepare2)
-	mPreprepare2 := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     preprepare2Payload,
-		Address: p2.Address(),
-	}
+	mPrepare := istanbul.NewMessage(
+		&istanbul.Subject{View: v10, Digest: common.BytesToHash([]byte("1234567890"))},
+		p1.Address(),
+	)
+	mPreprepare2 := istanbul.NewMessage(
+		&istanbul.Preprepare{View: v11, Proposal: makeBlock(11)},
+		p2.Address(),
+	)
 
 	backlog.store(mPreprepare)
 	backlog.store(mPrepare)
@@ -280,19 +257,11 @@ func TestStoreBacklog(t *testing.T) {
 	if backlog.msgCountBySrc[p1.Address()] != 3 {
 		t.Errorf("msgCountBySrc mismatch: have %v, want 3", backlog.msgCountBySrc[p1.Address()])
 	}
-	// push commit msg
-	committedSubject := &istanbul.CommittedSubject{
-		Subject:       subject,
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}, // celo in hex!
-	}
 
-	committedSubjectPayload, _ := Encode(committedSubject)
-
-	mCommit := &istanbul.Message{
-		Code:    istanbul.MsgCommit,
-		Msg:     committedSubjectPayload,
-		Address: p1.Address(),
-	}
+	mCommit := istanbul.NewMessage(
+		&istanbul.CommittedSubject{Subject: mPrepare.Prepare(), CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}}, // celo in hex!},
+		p1.Address(),
+	)
 
 	backlog.store(mCommit)
 	if backlog.msgCountBySrc[p2.Address()] != 1 {
@@ -328,21 +297,16 @@ func TestClearBacklogForSequence(t *testing.T) {
 	).(*msgBacklogImpl)
 
 	// The backlog's state is sequence number 1, round 0.  Store future messages with sequence number 2
-	v := &istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(2),
-	}
 	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
-	preprepare := &istanbul.Preprepare{
-		View:     v,
-		Proposal: makeBlock(2),
-	}
-	prepreparePayload, _ := Encode(preprepare)
-	mPreprepare := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     prepreparePayload,
-		Address: p1.Address(),
-	}
+
+	mPreprepare := istanbul.NewMessage(
+		&istanbul.Preprepare{
+			View:     &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(2)},
+			Proposal: makeBlock(2),
+		},
+		p1.Address(),
+	)
+
 	numMsgs := 20
 	for i := 0; i < numMsgs; i++ {
 		backlog.store(mPreprepare)
@@ -377,49 +341,41 @@ func TestProcessFutureBacklog(t *testing.T) {
 	).(*msgBacklogImpl)
 	defer backlog.clearBacklogForSeq(12)
 
-	// push a future msg
-	v := &istanbul.View{
-		Round:    big.NewInt(10),
-		Sequence: big.NewInt(10),
-	}
+	futureSequence := big.NewInt(10)
+	oldSequence := big.NewInt(0)
 
-	committedSubject := &istanbul.CommittedSubject{
-		Subject: &istanbul.Subject{
-			View:   v,
-			Digest: common.BytesToHash([]byte("1234567890")),
-		},
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
-	}
-
-	committedSubjectPayload, _ := Encode(committedSubject)
 	// push a future msg
 	valSet := newTestValidatorSet(4)
-	mFuture := &istanbul.Message{
-		Code:    istanbul.MsgCommit,
-		Msg:     committedSubjectPayload,
-		Address: valSet.GetByIndex(0).Address(),
-	}
+	mFuture := istanbul.NewMessage(
+		&istanbul.CommittedSubject{
+			Subject: &istanbul.Subject{
+				View:   &istanbul.View{Round: big.NewInt(10), Sequence: futureSequence},
+				Digest: common.BytesToHash([]byte("1234567890")),
+			},
+			CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
+		},
+		valSet.GetByIndex(0).Address())
+
 	backlog.store(mFuture)
 
 	// push a message from the past and check we expire it
-	v0 := &istanbul.View{
-		Round:    big.NewInt(0),
-		Sequence: big.NewInt(0),
-	}
-	subject0 := &istanbul.Subject{
-		View:   v0,
-		Digest: common.BytesToHash([]byte("1234567890")),
-	}
-	subjectPayload0, _ := Encode(subject0)
-	mPast := &istanbul.Message{
-		Code:    istanbul.MsgRoundChange,
-		Msg:     subjectPayload0,
-		Address: valSet.GetByIndex(1).Address(),
-	}
+	mPast := istanbul.NewMessage(&istanbul.RoundChange{
+		View: &istanbul.View{
+			Round:    big.NewInt(0),
+			Sequence: oldSequence,
+		},
+		PreparedCertificate: istanbul.PreparedCertificate{
+			Proposal: makeBlock(0),
+		},
+	}, valSet.GetByIndex(1).Address())
+
 	backlog.store(mPast)
 
+	// Should prune old messages
+	backlog.processBacklog()
+
 	backlogSeqs := backlog.getSortedBacklogSeqs()
-	if len(backlogSeqs) != 1 || backlogSeqs[0] != v.Sequence.Uint64() {
+	if len(backlogSeqs) != 1 || backlogSeqs[0] != futureSequence.Uint64() {
 		t.Errorf("getSortedBacklogSeqs mismatch: have %v", backlogSeqs)
 	}
 
@@ -439,53 +395,27 @@ func TestProcessBacklog(t *testing.T) {
 		Round:    big.NewInt(0),
 		Sequence: big.NewInt(1),
 	}
-	preprepare := &istanbul.Preprepare{
-		View:     v,
-		Proposal: makeBlock(1),
-	}
-	prepreparePayload, _ := Encode(preprepare)
 
 	subject := &istanbul.Subject{
 		View:   v,
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
-	subjectPayload, _ := Encode(subject)
-
-	committedSubject := &istanbul.CommittedSubject{
-		Subject:       subject,
-		CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F},
-	}
-	committedSubjectPayload, _ := Encode(committedSubject)
-
-	rc := &istanbul.RoundChange{
-		View:                v,
-		PreparedCertificate: istanbul.EmptyPreparedCertificate(),
-	}
-	rcPayload, _ := Encode(rc)
-
 	address := common.BytesToAddress([]byte("0xce10ce10"))
 
 	msgs := []*istanbul.Message{
-		{
-			Code:    istanbul.MsgPreprepare,
-			Msg:     prepreparePayload,
-			Address: address,
-		},
-		{
-			Code:    istanbul.MsgPrepare,
-			Msg:     subjectPayload,
-			Address: address,
-		},
-		{
-			Code:    istanbul.MsgCommit,
-			Msg:     committedSubjectPayload,
-			Address: address,
-		},
-		{
-			Code:    istanbul.MsgRoundChange,
-			Msg:     rcPayload,
-			Address: address,
-		},
+		istanbul.NewMessage(
+			&istanbul.Preprepare{View: v, Proposal: makeBlock(1)},
+			address,
+		),
+		istanbul.NewMessage(subject, address),
+		istanbul.NewMessage(
+			&istanbul.CommittedSubject{Subject: subject, CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}},
+			address,
+		),
+		istanbul.NewMessage(
+			&istanbul.RoundChange{View: v, PreparedCertificate: istanbul.EmptyPreparedCertificate()},
+			address,
+		),
 	}
 	for i := 0; i < len(msgs); i++ {
 		t.Run(fmt.Sprintf("Msg with code %d", msgs[i].Code), func(t *testing.T) {

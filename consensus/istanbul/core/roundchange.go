@@ -117,11 +117,8 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 			return errInvalidRoundChangeCertificateMsgCode
 		}
 
-		var roundChange *istanbul.RoundChange
-		if err := message.Decode(&roundChange); err != nil {
-			logger.Warn("Failed to decode ROUND CHANGE in certificate", "err", err)
-			return err
-		} else if roundChange.View == nil || roundChange.View.Sequence == nil || roundChange.View.Round == nil {
+		roundChange := message.RoundChange()
+		if roundChange.View == nil || roundChange.View.Sequence == nil || roundChange.View.Round == nil {
 			return errInvalidRoundChangeCertificateMsgView
 		}
 
@@ -175,12 +172,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
-	// Decode ROUND CHANGE message
-	var rc *istanbul.RoundChange
-	if err := msg.Decode(&rc); err != nil {
-		logger.Info("Failed to decode ROUND CHANGE", "err", err)
-		return errInvalidMessage
-	}
+	rc := msg.RoundChange()
 	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
 
 	// Must be same sequence and future round.

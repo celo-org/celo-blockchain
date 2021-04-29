@@ -353,20 +353,10 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 }
 
 func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
-	rc := &istanbul.RoundChange{
+	msg := istanbul.NewMessage(&istanbul.RoundChange{
 		View:                &view,
 		PreparedCertificate: preparedCert,
-	}
-
-	payload, err := Encode(rc)
-	if err != nil {
-		return istanbul.Message{}, err
-	}
-
-	msg := &istanbul.Message{
-		Code: istanbul.MsgRoundChange,
-		Msg:  payload,
-	}
+	}, common.Address{})
 
 	return self.finalizeAndReturnMessage(msg)
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestHandleValEnodeShare(t *testing.T) {
@@ -109,6 +110,9 @@ func TestHandleValEnodeShare(t *testing.T) {
 	}
 
 	expectedVetEntry := istanbul.AddressEntry{Address: val1BE.Address(), Node: val1BE.SelfNode()}
+	spew.Dump(expectedVetEntry)
+	spew.Dump(vetEntries)
+	spew.Dump(val1BE.Address())
 	if vetEntries[val1BE.Address()].Address != expectedVetEntry.Address || vetEntries[val1BE.Address()].Node.URLv4() != expectedVetEntry.Node.URLv4() {
 		t.Errorf("Proxy has incorrect val enode table entry.  Want: %v, Have: %v", expectedVetEntry, vetEntries[val1BE.Address()])
 	}
@@ -290,23 +294,25 @@ func TestHandleConsensusMsg(t *testing.T) {
 	// Sleep for 5 seconds so that val1BE will generate it's enode certificate.
 	time.Sleep(5 * time.Second)
 
+	subject := &istanbul.Subject{
+		View: &istanbul.View{
+			Round:    common.Big0,
+			Sequence: common.Big0,
+		},
+		Digest: common.Hash{},
+	}
+
 	// Test that the node will forward a consensus message from val within val connection set
-	testConsensusMsgFromRemoteVal(t, val1BE, nodeKeys[1], val1Peer, proxyBEi)
+	testConsensusMsgFromRemoteVal(t, istanbul.NewMessage(subject, val1BE.Address()), val1BE, nodeKeys[1], val1Peer, proxyBEi)
 
 	// Test that the node will not forward a consensus message not within val connetion set
-	testConsensusMsgFromUnelectedRemoteVal(t, unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
+	testConsensusMsgFromUnelectedRemoteVal(t, istanbul.NewMessage(subject, unelectedValBE.Address()), unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
 
 	// Test that the proxy will not handle a consensus message from the proxied validator
-	testConsensusMsgFromProxiedVal(t, val0BE, nodeKeys[0], val0Peer, proxyBEi)
+	testConsensusMsgFromProxiedVal(t, istanbul.NewMessage(subject, val0BE.Address()), val0BE, nodeKeys[0], val0Peer, proxyBEi)
 }
 
-func testConsensusMsgFromRemoteVal(t *testing.T, valBE BackendForProxiedValidatorEngine, valKey *ecdsa.PrivateKey, valPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
-	consMsg := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Address: valBE.Address(),
-		Msg:     []byte{},
-	}
-	// Sign the message
+func testConsensusMsgFromRemoteVal(t *testing.T, consMsg *istanbul.Message, valBE BackendForProxiedValidatorEngine, valKey *ecdsa.PrivateKey, valPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
 	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
 		return crypto.Sign(crypto.Keccak256(data), valKey)
 	}); err != nil {
@@ -327,12 +333,7 @@ func testConsensusMsgFromRemoteVal(t *testing.T, valBE BackendForProxiedValidato
 	}
 }
 
-func testConsensusMsgFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
-	consMsg := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Address: unelectedValBE.Address(),
-		Msg:     []byte{},
-	}
+func testConsensusMsgFromUnelectedRemoteVal(t *testing.T, consMsg *istanbul.Message, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
 	// Sign the message
 	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
 		return crypto.Sign(crypto.Keccak256(data), unelectedValKey)
@@ -354,12 +355,7 @@ func testConsensusMsgFromUnelectedRemoteVal(t *testing.T, unelectedValBE Backend
 	}
 }
 
-func testConsensusMsgFromProxiedVal(t *testing.T, proxiedValBE BackendForProxiedValidatorEngine, proxiedValKey *ecdsa.PrivateKey, proxiedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
-	consMsg := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Address: proxiedValBE.Address(),
-		Msg:     []byte{},
-	}
+func testConsensusMsgFromProxiedVal(t *testing.T, consMsg *istanbul.Message, proxiedValBE BackendForProxiedValidatorEngine, proxiedValKey *ecdsa.PrivateKey, proxiedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
 	// Sign the message
 	if err := consMsg.Sign(func(data []byte) ([]byte, error) {
 		return crypto.Sign(crypto.Keccak256(data), proxiedValKey)

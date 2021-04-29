@@ -90,13 +90,7 @@ func (p *proxyEngine) handleForwardMsg(peer consensus.Peer, payload []byte) (boo
 		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
-	var fwdMsg *istanbul.ForwardMessage
-	err := istMsg.Decode(&fwdMsg)
-	if err != nil {
-		logger.Error("Failed to decode a ForwardMessage", "from", peer.Node().ID(), "err", err)
-		return true, err
-	}
-
+	fwdMsg := istMsg.ForwardMessage()
 	logger.Trace("Forwarding a message", "msg code", fwdMsg.Code)
 	if err := p.backend.Multicast(fwdMsg.DestAddresses, fwdMsg.Msg, fwdMsg.Code, false); err != nil {
 		logger.Error("Error in multicasting a forwarded message", "error", err)

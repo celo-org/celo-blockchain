@@ -329,6 +329,74 @@ type ForwardMessage struct {
 	DestAddresses []common.Address
 }
 
+// ===============================================================
+//
+// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+
+type EncryptedEnodeURL struct {
+	DestAddress       common.Address
+	EncryptedEnodeURL []byte
+}
+
+func (ee *EncryptedEnodeURL) String() string {
+	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
+}
+
+type QueryEnodeData struct {
+	EncryptedEnodeURLs []*EncryptedEnodeURL
+	Version            uint
+	// The timestamp of the node when the message is generated.
+	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
+	Timestamp uint
+}
+
+func (qed *QueryEnodeData) String() string {
+	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
+}
+
+// ==============================================
+//
+// define the functions that needs to be provided for rlp Encoder/Decoder.
+
+// EncodeRLP serializes ar into the Ethereum RLP format.
+func (ee *EncryptedEnodeURL) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
+func (ee *EncryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		DestAddress       common.Address
+		EncryptedEnodeURL []byte
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
+	return nil
+}
+
+// EncodeRLP serializes ad into the Ethereum RLP format.
+func (qed *QueryEnodeData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
+func (qed *QueryEnodeData) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		EncryptedEnodeURLs []*EncryptedEnodeURL
+		Version            uint
+		Timestamp          uint
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
+	return nil
+}
+
 // ## Consensus Message codes ##########################################################
 
 const (
@@ -351,6 +419,49 @@ type Message struct {
 	prePrepare       *Preprepare
 	prepare          *Subject
 	roundChange      *RoundChange
+	queryEnode       *QueryEnodeData
+	forwardMessage   *ForwardMessage
+	enodeCertificate *EnodeCertificate
+}
+
+// NewMessage constructs a message with the innerMessage instance and the
+// sender address, it will panic if innerMessage is not a recognised inner
+// message type.
+func NewMessage(innerMessage interface{}, sender common.Address) *Message {
+	message := &Message{
+		Address: sender,
+	}
+	switch t := innerMessage.(type) {
+	case *Preprepare:
+		message.Code = MsgPreprepare
+		message.prePrepare = t
+	case *Subject:
+		message.Code = MsgPrepare
+		message.prepare = t
+	case *CommittedSubject:
+		message.Code = MsgCommit
+		message.committedSubject = t
+	case *RoundChange:
+		message.Code = MsgRoundChange
+		message.roundChange = t
+	case *QueryEnodeData:
+		message.Code = QueryEnodeMsg
+		message.queryEnode = t
+	case *ForwardMessage:
+		message.Code = FwdMsg
+		message.forwardMessage = t
+	case *EnodeCertificate:
+		message.Code = EnodeCertificateMsg
+		message.enodeCertificate = t
+	default:
+		panic(fmt.Sprintf("attempt to construct Message unrecognised inner message type %T", t))
+	}
+	bytes, err := rlp.EncodeToBytes(innerMessage)
+	if err != nil {
+		panic(fmt.Sprintf("attempt to serialise inner messgae of type %T failed", innerMessage))
+	}
+	message.Msg = bytes
+	return message
 }
 
 // define the functions that needs to be provided for core.
@@ -378,20 +489,59 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 	switch m.Code {
 	case MsgPreprepare:
 		var p *Preprepare
-		err = m.Decode(&p)
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
 		m.prePrepare = p
+		msgs := p.RoundChangeCertificate.RoundChangeMessages
+		for i, m := range msgs {
+			msg := &m
+			bytes, err := rlp.EncodeToBytes(msg)
+			if err != nil {
+				return err
+			}
+			msg.FromPayload(bytes, nil)
+			msgs[i] = *msg
+		}
 	case MsgPrepare:
 		var p *Subject
-		err = m.Decode(&p)
+		err = m.decode(&p)
 		m.prepare = p
 	case MsgCommit:
 		var cs *CommittedSubject
-		err = m.Decode(&cs)
+		err = m.decode(&cs)
 		m.committedSubject = cs
 	case MsgRoundChange:
 		var p *RoundChange
-		err = m.Decode(&p)
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
 		m.roundChange = p
+		msgs := p.PreparedCertificate.PrepareOrCommitMessages
+		for i, m := range msgs {
+			msg := &m
+			bytes, err := rlp.EncodeToBytes(msg)
+			if err != nil {
+				return err
+			}
+			msg.FromPayload(bytes, nil)
+			msgs[i] = *msg
+		}
+	case QueryEnodeMsg:
+		var q *QueryEnodeData
+		err = m.decode(&q)
+		m.queryEnode = q
+	case FwdMsg:
+		var f *ForwardMessage
+		err = m.decode(&f)
+		m.forwardMessage = f
+	case EnodeCertificateMsg:
+		var e *EnodeCertificate
+		m.enodeCertificate = e
+	default:
+		err = fmt.Errorf("unrecognised message code %q", m.Code)
 	}
 	if err != nil {
 		return err
@@ -429,7 +579,7 @@ func (m *Message) PayloadNoSig() ([]byte, error) {
 	})
 }
 
-func (m *Message) Decode(val interface{}) error {
+func (m *Message) decode(val interface{}) error {
 	return rlp.DecodeBytes(m.Msg, val)
 }
 
@@ -455,6 +605,16 @@ func (m *Message) Prepare() *Subject {
 // Prepare returns round change if this is a round change message.
 func (m *Message) RoundChange() *RoundChange {
 	return m.roundChange
+}
+
+// QueryEnode returns query enode data if this is a query enode message.
+func (m *Message) QueryEnodeMsg() *QueryEnodeData {
+	return m.queryEnode
+}
+
+// QueryEnode returns forward message if this is a forward message.
+func (m *Message) ForwardMessage() *ForwardMessage {
+	return m.forwardMessage
 }
 
 func (m *Message) Copy() *Message {

@@ -52,12 +52,7 @@ func testPreprepare(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	var decodedPP *istanbul.Preprepare
-	err = decodedMsg.Decode(&decodedPP)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-
+	decodedPP := decodedMsg.Preprepare()
 	// if block is encoded/decoded by rlp, we cannot to compare interface data type using reflect.DeepEqual. (like istanbul.Proposal)
 	// so individual comparison here.
 	if !reflect.DeepEqual(pp.Proposal.Hash(), decodedPP.Proposal.Hash()) {
@@ -101,14 +96,8 @@ func testSubject(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	var decodedSub *istanbul.Subject
-	err = decodedMsg.Decode(&decodedSub)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-
-	if !reflect.DeepEqual(s, decodedSub) {
-		t.Errorf("subject mismatch: have %v, want %v", decodedSub, s)
+	if !reflect.DeepEqual(s, decodedMsg.Prepare()) {
+		t.Errorf("subject mismatch: have %v, want %v", decodedMsg.Prepare(), s)
 	}
 }
 

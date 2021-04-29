@@ -336,10 +336,10 @@ func TestHandleRoundChange(t *testing.T) {
 				Sequence: curView.Sequence,
 			}
 
-			roundChange := &istanbul.RoundChange{
+			msg := istanbul.NewMessage(&istanbul.RoundChange{
 				View:                nextView,
 				PreparedCertificate: test.getCert(t, sys),
-			}
+			}, v0.Address())
 
 			for i, v := range sys.backends {
 				// i == 0 is primary backend, it is responsible for send ROUND CHANGE messages to others.
@@ -349,14 +349,8 @@ func TestHandleRoundChange(t *testing.T) {
 
 				c := v.engine.(*core)
 
-				m, _ := Encode(roundChange)
-
 				// run each backends and verify handlePreprepare function.
-				err := c.handleRoundChange(&istanbul.Message{
-					Code:    istanbul.MsgRoundChange,
-					Msg:     m,
-					Address: v0.Address(),
-				})
+				err := c.handleRoundChange(msg)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

@@ -53,13 +53,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
 	logger.Trace("Got preprepare message", "m", msg)
 
-	// Decode PREPREPARE
-	var preprepare *istanbul.Preprepare
-	err := msg.Decode(&preprepare)
-	if err != nil || preprepare.Proposal == nil || preprepare.View == nil {
-		return errFailedDecodePreprepare
-	}
-
+	preprepare := msg.Preprepare()
 	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// Verify that the proposal is for the sequence number of the view we verified.

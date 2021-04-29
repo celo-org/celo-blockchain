@@ -374,12 +374,8 @@ func TestHandlePrepare(t *testing.T) {
 
 			for i, v := range test.system.backends {
 				validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-				m, _ := Encode(v.engine.(*core).current.Subject())
-				err := r0.handlePrepare(&istanbul.Message{
-					Code:    istanbul.MsgPrepare,
-					Msg:     m,
-					Address: validator.Address(),
-				})
+				msg := istanbul.NewMessage(v.engine.(*core).current.Subject(), validator.Address())
+				err := r0.handlePrepare(msg)
 				if err != nil {
 					if err != test.expectedErr {
 						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
@@ -421,13 +417,9 @@ func TestHandlePrepare(t *testing.T) {
 			if decodedMsg.Code != istanbul.MsgCommit {
 				t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgCommit)
 			}
-			var m *istanbul.CommittedSubject
-			err = decodedMsg.Decode(&m)
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-			}
-			if !reflect.DeepEqual(m.Subject, expectedSubject) {
-				t.Errorf("subject mismatch: have %v, want %v", m, expectedSubject)
+			subject := decodedMsg.Commit().Subject
+			if !reflect.DeepEqual(subject, expectedSubject) {
+				t.Errorf("subject mismatch: have %v, want %v", subject, expectedSubject)
 			}
 		})
 	}

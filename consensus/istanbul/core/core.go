@@ -233,11 +233,7 @@ func AggregateSeals(mset MessageSet, sealExtractor func(*istanbul.CommittedSubje
 	for i, v := range mset.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
 
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decode commit message for seal aggregation: %v", err)
-		}
+		commit := v.Commit()
 		copy(committedSeals[i][:], sealExtractor(commit))
 
 		j, err := mset.GetAddressIndex(v.Address)
@@ -277,17 +273,11 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 			return types.IstanbulAggregatedSeal{}, err
 		}
 
-		var commit *istanbul.CommittedSubject
-		err = v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
-
 		// if the bit was not set, this means we should add this signature to
 		// the batch
 		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, commit.CommittedSeal)
+			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
 		}
 	}
 
@@ -408,17 +398,12 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
 	maxRound := big.NewInt(-1)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
-		var roundChangeMsg *istanbul.RoundChange
-		if err := message.Decode(&roundChangeMsg); err != nil {
-			logger.Error("Unexpected: could not decode a previously received RoundChange message")
-			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
-		}
-
-		if !roundChangeMsg.HasPreparedCertificate() {
+		roundChange := message.RoundChange()
+		if !roundChange.HasPreparedCertificate() {
 			continue
 		}
 
-		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChangeMsg.PreparedCertificate)
+		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChange.PreparedCertificate)
 		if err != nil {
 			logger.Error("Unexpected: could not verify a previously received PreparedCertificate message", "src_m", message)
 			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
@@ -427,7 +412,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 		if preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
 			maxRound = preparedCertificateView.Round
 			request = &istanbul.Request{
-				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+				Proposal: roundChange.PreparedCertificate.Proposal,
 			}
 		}
 	}

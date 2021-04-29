@@ -139,15 +139,8 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
-	// Decode COMMIT message
-	var commit *istanbul.CommittedSubject
-	err := msg.Decode(&commit)
-	if err != nil {
-		return errFailedDecodeCommit
-	}
-
-	err = c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
-
+	commit := msg.Commit()
+	err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
 	if err == errOldMessage {
 		// Discard messages from previous views, unless they are commits from the previous sequence,
 		// with the same round as what we wound up finalizing, as we would be able to include those
@@ -170,7 +163,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 // handleCheckedCommitForPreviousSequence adds messages for the previous
-// sequence to the parent commit set. 
+// sequence to the parent commit set.
 // If the subject digest of msg does not match that of the previous block or it
 // was not sent by one of the previous block's validators, an error is returned.
 // If this is the last block of the epoch then the epoch seal will also be validated.
@@ -334,13 +327,9 @@ func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, e
 // round state database, this should not pose a problem however because if this
 // step is reached again they will again be discarded.
 func (c *core) removeInvalidCommittedSeals() {
-
 	commits := c.current.Commits()
-
 	for _, msg := range commits.Values() {
-		var commit *istanbul.CommittedSubject
-		msg.Decode(&commit)
-		err := c.verifyCommittedSeal(commit, c.current.GetValidatorByAddress(msg.Address))
+		err := c.verifyCommittedSeal(msg.Commit(), c.current.GetValidatorByAddress(msg.Address))
 		if err != nil {
 			commits.Remove(msg.Address)
 		}

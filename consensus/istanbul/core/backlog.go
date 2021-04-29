@@ -144,11 +144,7 @@ func newMsgBacklog(msgProcessor func(*istanbul.Message), checkMessage func(msgCo
 func (c *msgBacklogImpl) store(msg *istanbul.Message) {
 	logger := c.logger.New("func", "store", "from", msg.Address, "cur_seq", c.currentView.Sequence, "cur_round", c.currentView.Round)
 
-	view, err := extractMessageView(msg)
-
-	if err != nil {
-		return
-	}
+	view := extractMessageView(msg)
 
 	c.backlogsMu.Lock()
 	defer c.backlogsMu.Unlock()
@@ -284,20 +280,11 @@ func (c *msgBacklogImpl) processBacklog() {
 			c.processBacklogForSeq(seq, func(msg *istanbul.Message) bool {
 				processedMsgsConsidered++
 
-				view, err := extractMessageView(msg)
-
-				if err != nil {
-					logger.Warn("Error decoding msg", "err", err)
-					return false
-				}
-				if view == nil {
-					logger.Warn("Nil view")
-					return false
-				}
+				view := extractMessageView(msg)
 
 				logger := logger.New("m", msg, "msg_view", view)
 
-				err = c.checkMessage(msg.Code, view)
+				err := c.checkMessage(msg.Code, view)
 
 				if err == errFutureMessage {
 					logger.Debug("Future message in backlog for seq, pushing back to the backlog")
@@ -337,37 +324,17 @@ func toPriority(msgCode uint64, view *istanbul.View) int64 {
 	return -int64(view.Round.Uint64()*10 + uint64(msgPriority[msgCode]))
 }
 
-func extractMessageView(msg *istanbul.Message) (*istanbul.View, error) {
-	var v *istanbul.View
+func extractMessageView(msg *istanbul.Message) *istanbul.View {
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
-		var p *istanbul.Preprepare
-		err := msg.Decode(&p)
-		if err != nil {
-			return nil, err
-		}
-		v = p.View
+		return msg.Preprepare().View
 	case istanbul.MsgPrepare:
-		var p *istanbul.Subject
-		err := msg.Decode(&p)
-		if err != nil {
-			return nil, err
-		}
-		v = p.View
+		return msg.Prepare().View
 	case istanbul.MsgCommit:
-		var cs *istanbul.CommittedSubject
-		err := msg.Decode(&cs)
-		if err != nil {
-			return nil, err
-		}
-		v = cs.Subject.View
+		return msg.Commit().Subject.View
 	case istanbul.MsgRoundChange:
-		var p *istanbul.RoundChange
-		err := msg.Decode(&p)
-		if err != nil {
-			return nil, err
-		}
-		v = p.View
+		return msg.RoundChange().View
+	default:
+		panic(fmt.Sprintf("unknown message code %q", msg.Code))
 	}
-	return v, nil
 }
