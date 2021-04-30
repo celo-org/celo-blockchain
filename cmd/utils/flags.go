@@ -68,8 +68,8 @@ var (
 {{if .cmd.Description}}{{.cmd.Description}}
 {{end}}{{if .cmd.Subcommands}}
 SUBCOMMANDS:
-	{{range .cmd.Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
-	{{end}}{{end}}{{if .categorizedFlags}}
+  {{range .cmd.Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
+  {{end}}{{end}}{{if .categorizedFlags}}
 {{range $idx, $categorized := .categorizedFlags}}{{$categorized.Name}} OPTIONS:
 {{range $categorized.Flags}}{{"\t"}}{{.}}
 {{end}}
@@ -79,10 +79,10 @@ SUBCOMMANDS:
 {{if .Description}}{{.Description}}
 {{end}}{{if .Subcommands}}
 SUBCOMMANDS:
-	{{range .Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
-	{{end}}{{end}}{{if .Flags}}
+  {{range .Subcommands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
+  {{end}}{{end}}{{if .Flags}}
 OPTIONS:
-{{range $.Flags}}{{"\t"}}{{.}}
+{{range $.Flags}}   {{.}}
 {{end}}
 {{end}}`
 )
