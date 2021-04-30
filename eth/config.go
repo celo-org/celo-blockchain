@@ -35,7 +35,7 @@ var DefaultConfig = Config{
 	LightPeers:         100,
 	LightServ:          0,
 	UltraLightFraction: 75,
-	DatabaseCache:      768,
+	DatabaseCache:      512,
 	TrieCleanCache:     154,
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
