@@ -115,7 +115,7 @@ type SystemEVM interface {
 	// Deprecated. DO NOT USE
 	StopGasMetering()
 
-	// StartGasMeterin backward compatibility method to start gas metering
+	// StartGasMetering backward compatibility method to start gas metering
 	// Deprecated. DO NOT USE
 	StartGasMetering()
 
