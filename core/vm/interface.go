@@ -124,5 +124,10 @@ type SystemEVM interface {
 }
 
 type SystemEVMFactory interface {
-	NewSystemEVM(header *types.Header, state StateDB) (SystemEVM, error)
+
+	// NewSystemEVM creates a new SystemEVM pointing at (header,state)
+	NewSystemEVM(header *types.Header, state StateDB) SystemEVM
+
+	// NewCurrentHeadSystemEVM creates a new SystemEVM pointing a current's blockchain Head
+	NewCurrentHeadSystemEVM() (SystemEVM, error)
 }

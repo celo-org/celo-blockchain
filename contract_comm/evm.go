@@ -56,7 +56,11 @@ func getCaller(header *types.Header, state vm.StateDB) (vm.SystemEVM, error) {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
 
-	return systemEVMFactory.NewSystemEVM(header, state)
+	if header == nil {
+		return systemEVMFactory.NewCurrentHeadSystemEVM()
+	}
+
+	return systemEVMFactory.NewSystemEVM(header, state), nil
 }
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
