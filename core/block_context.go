@@ -42,8 +42,7 @@ func (bc *BlockContext) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
 	return bc.gasForAlternativeCurrency
 }
 
-// GetGasPriceMinimum retrieves the gas price minimum for any currency
-// Also indicates if the currency is not whitelisted
+// IsWhitelisted indicates if the currency is whitelisted as a fee currency
 func (bc *BlockContext) IsWhitelisted(feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
 		return true
