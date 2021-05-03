@@ -41,7 +41,7 @@ func unpackError(result []byte) (string, error) {
 	return vs[0].(string), nil
 }
 
-func resolveAddressForCall(caller vm.EVMCaller, registryId common.Hash, method string) (common.Address, error) {
+func resolveAddressForCall(caller vm.SystemEVM, registryId common.Hash, method string) (common.Address, error) {
 	contractAddress, err := GetRegisteredAddress(caller, registryId)
 
 	if err != nil {
@@ -59,6 +59,6 @@ func resolveAddressForCall(caller vm.EVMCaller, registryId common.Hash, method s
 }
 
 // noopResolver returns a address resolver function that always resolve to the same address
-func noopResolver(addr common.Address) func(vm.EVMCaller) (common.Address, error) {
-	return func(e vm.EVMCaller) (common.Address, error) { return addr, nil }
+func noopResolver(addr common.Address) func(vm.SystemEVM) (common.Address, error) {
+	return func(e vm.SystemEVM) (common.Address, error) { return addr, nil }
 }

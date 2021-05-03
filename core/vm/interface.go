@@ -102,7 +102,7 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
-type EVMCaller interface {
+type SystemEVM interface {
 	// Execute performs a potentially write operation over the caller's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
 	Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
@@ -123,6 +123,6 @@ type EVMCaller interface {
 	GetStateDB() StateDB
 }
 
-type EVMCallerFactory interface {
-	NewEVMCaller(header *types.Header, state StateDB) (EVMCaller, error)
+type SystemEVMFactory interface {
+	NewSystemEVM(header *types.Header, state StateDB) (SystemEVM, error)
 }

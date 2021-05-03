@@ -484,7 +484,7 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	caller := &vmcontext.SharedEVMCaller{EVM: st.evm}
+	caller := &vmcontext.SharedSystemEVM{EVM: st.evm}
 	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 	if err != nil {
 		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {

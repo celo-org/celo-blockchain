@@ -100,7 +100,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		b.StartValidating()
 	}
 
-	contract_comm.SetEVMCallerFactory(vmcontext.NewEVMCallerFactory(blockchain))
+	contract_comm.SetSystemEVMFactory(vmcontext.NewSystemEVMFactory(blockchain))
 
 	return blockchain, b, &config
 }

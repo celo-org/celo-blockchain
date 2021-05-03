@@ -19,17 +19,17 @@ type ExtendedChainContext interface {
 	State() (*state.StateDB, error)
 }
 
-type defaultEVMCallerFactory struct {
+type defaultSystemEVMFactory struct {
 	chain ExtendedChainContext
 }
 
-func NewEVMCallerFactory(chain ExtendedChainContext) vm.EVMCallerFactory {
-	return &defaultEVMCallerFactory{chain}
+func NewSystemEVMFactory(chain ExtendedChainContext) vm.SystemEVMFactory {
+	return &defaultSystemEVMFactory{chain}
 }
 
-func (factory *defaultEVMCallerFactory) NewEVMCaller(header *types.Header, state vm.StateDB) (vm.EVMCaller, error) {
+func (factory *defaultSystemEVMFactory) NewSystemEVM(header *types.Header, state vm.StateDB) (vm.SystemEVM, error) {
 	if header == nil {
-		return NewEVMCallerForCurrentBlock(factory.chain)
+		return NewSystemEVMForCurrentBlock(factory.chain)
 	}
-	return NewEVMCaller(factory.chain, header, state), nil
+	return NewSystemEVM(factory.chain, header, state), nil
 }

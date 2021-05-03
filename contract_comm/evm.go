@@ -29,17 +29,17 @@ import (
 )
 
 var (
-	evmCallerFactory vm.EVMCallerFactory
+	systemEVMFactory vm.SystemEVMFactory
 )
 
-func SetEVMCallerFactory(_evmCallerFactory vm.EVMCallerFactory) {
-	if evmCallerFactory == nil {
-		log.Trace("Setting the evmCallerFactory Singleton")
-		evmCallerFactory = _evmCallerFactory
+func SetSystemEVMFactory(_systemEVMFactory vm.SystemEVMFactory) {
+	if systemEVMFactory == nil {
+		log.Trace("Setting the systemEVMFactory Singleton")
+		systemEVMFactory = _systemEVMFactory
 	}
 }
 
-func MustGetCaller(header *types.Header, state vm.StateDB) vm.EVMCaller {
+func MustGetCaller(header *types.Header, state vm.StateDB) vm.SystemEVM {
 	caller, err := getCaller(header, state)
 	if err != nil {
 		panic("failed to get caller")
@@ -47,16 +47,16 @@ func MustGetCaller(header *types.Header, state vm.StateDB) vm.EVMCaller {
 	return caller
 }
 
-func getCaller(header *types.Header, state vm.StateDB) (vm.EVMCaller, error) {
+func getCaller(header *types.Header, state vm.StateDB) (vm.SystemEVM, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	if evmCallerFactory == nil {
+	if systemEVMFactory == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
 
-	return evmCallerFactory.NewEVMCaller(header, state)
+	return systemEVMFactory.NewSystemEVM(header, state)
 }
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {

@@ -48,7 +48,7 @@ func init() {
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.
 
 // GetRegisteredAddress returns the address on the registry for a given id
-func GetRegisteredAddress(caller vm.EVMCaller, registryId common.Hash) (common.Address, error) {
+func GetRegisteredAddress(caller vm.SystemEVM, registryId common.Hash) (common.Address, error) {
 	caller.StopGasMetering()
 	defer caller.StartGasMetering()
 

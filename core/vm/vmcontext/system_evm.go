@@ -9,7 +9,7 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-type evmCaller struct {
+type systemEVM struct {
 	vmConfig    vm.Config
 	vmContext   vm.Context
 	chainConfig *params.ChainConfig
@@ -18,22 +18,22 @@ type evmCaller struct {
 	dontMeterGas bool
 }
 
-func NewEVMCallerForCurrentBlock(chain ExtendedChainContext) (vm.EVMCaller, error) {
+func NewSystemEVMForCurrentBlock(chain ExtendedChainContext) (vm.SystemEVM, error) {
 	header := chain.CurrentHeader()
 	// FIXME small race condition here (Head changes between get header & get state)
 	state, err := chain.State()
 	if err != nil {
 		return nil, err
 	}
-	return NewEVMCaller(chain, header, state), nil
+	return NewSystemEVM(chain, header, state), nil
 }
 
-func NewEVMCaller(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.EVMCaller {
+func NewSystemEVM(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.SystemEVM {
 	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 	// Putting in zero values.
 	context := New(common.ZeroAddress, common.Big0, header, chain, nil)
 
-	return &evmCaller{
+	return &systemEVM{
 		vmConfig:    *chain.GetVMConfig(),
 		vmContext:   context,
 		chainConfig: chain.Config(),
@@ -41,7 +41,7 @@ func NewEVMCaller(chain ExtendedChainContext, header *types.Header, state vm.Sta
 	}
 }
 
-func (ev *evmCaller) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (ev *systemEVM) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
@@ -49,7 +49,7 @@ func (ev *evmCaller) Execute(sender, recipient common.Address, input []byte, gas
 	return evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
 }
 
-func (ev *evmCaller) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (ev *systemEVM) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
@@ -57,28 +57,28 @@ func (ev *evmCaller) Query(sender, recipient common.Address, input []byte, gas u
 	return evm.StaticCall(vm.AccountRef(sender), recipient, input, gas)
 }
 
-func (ev *evmCaller) StopGasMetering() {
+func (ev *systemEVM) StopGasMetering() {
 	ev.dontMeterGas = true
 }
 
-func (ev *evmCaller) StartGasMetering() {
+func (ev *systemEVM) StartGasMetering() {
 	ev.dontMeterGas = false
 }
 
 // GetStateDB implements Backend.GetStateDB
-func (ev *evmCaller) GetStateDB() vm.StateDB {
+func (ev *systemEVM) GetStateDB() vm.StateDB {
 	return ev.state
 }
 
-// SharedEVMCaller is an evm caller that REUSES an evm
+// SharedSystemEVM is an evm caller that REUSES an evm
 // This MUST NOT BE USED, but it's here for backward compatibility
 // purposes
-type SharedEVMCaller struct{ *vm.EVM }
+type SharedSystemEVM struct{ *vm.EVM }
 
-func (sev *SharedEVMCaller) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (sev *SharedSystemEVM) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	return sev.Call(vm.AccountRef(sender), recipient, input, gas, value)
 }
 
-func (sev *SharedEVMCaller) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (sev *SharedSystemEVM) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
 	return sev.StaticCall(vm.AccountRef(sender), recipient, input, gas)
 }

@@ -53,7 +53,7 @@ func NewBoundMethod(contractAddress common.Address, abi *abi.ABI, methodName str
 func NewRegistryContractMethod(registryId common.Hash, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
 	return &BoundMethod{
 		Method: NewMethod(abi, methodName, maxGas),
-		resolveAddress: func(caller vm.EVMCaller) (common.Address, error) {
+		resolveAddress: func(caller vm.SystemEVM) (common.Address, error) {
 			return resolveAddressForCall(caller, registryId, methodName)
 		},
 	}
@@ -61,26 +61,26 @@ func NewRegistryContractMethod(registryId common.Hash, abi *abi.ABI, methodName 
 
 type BoundMethod struct {
 	Method
-	resolveAddress func(vm.EVMCaller) (common.Address, error)
+	resolveAddress func(vm.SystemEVM) (common.Address, error)
 }
 
-func (bm *BoundMethod) VMQuery(caller vm.EVMCaller, result interface{}, args ...interface{}) error {
+func (bm *BoundMethod) VMQuery(caller vm.SystemEVM, result interface{}, args ...interface{}) error {
 	return bm.Query(caller, result, VMAddress, args...)
 }
 
-func (bm *BoundMethod) Query(caller vm.EVMCaller, result interface{}, sender common.Address, args ...interface{}) error {
+func (bm *BoundMethod) Query(caller vm.SystemEVM, result interface{}, sender common.Address, args ...interface{}) error {
 	return bm.run(caller, result, true, sender, nil, args...)
 }
 
-func (bm *BoundMethod) VMExecute(caller vm.EVMCaller, result interface{}, value *big.Int, args ...interface{}) error {
+func (bm *BoundMethod) VMExecute(caller vm.SystemEVM, result interface{}, value *big.Int, args ...interface{}) error {
 	return bm.run(caller, result, false, VMAddress, value, args...)
 }
 
-func (bm *BoundMethod) Execute(caller vm.EVMCaller, result interface{}, sender common.Address, value *big.Int, args ...interface{}) error {
+func (bm *BoundMethod) Execute(caller vm.SystemEVM, result interface{}, sender common.Address, value *big.Int, args ...interface{}) error {
 	return bm.run(caller, result, false, sender, value, args...)
 }
 
-func (bm *BoundMethod) run(caller vm.EVMCaller, result interface{}, readOnly bool, sender common.Address, value *big.Int, args ...interface{}) error {
+func (bm *BoundMethod) run(caller vm.SystemEVM, result interface{}, readOnly bool, sender common.Address, value *big.Int, args ...interface{}) error {
 	defer meterExecutionTime(bm.method)()
 
 	contractAddress, err := bm.resolveAddress(caller)

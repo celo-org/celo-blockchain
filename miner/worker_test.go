@@ -128,7 +128,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil, nil)
-	contract_comm.SetEVMCallerFactory(vmcontext.NewEVMCallerFactory(chain))
+	contract_comm.SetSystemEVMFactory(vmcontext.NewSystemEVMFactory(chain))
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
