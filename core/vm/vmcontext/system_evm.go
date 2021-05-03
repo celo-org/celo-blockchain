@@ -4,16 +4,57 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
+// ChainContext supports retrieving chain data and consensus parameters
+// from the blockchain to be used during transaction processing.
+type ExtendedChainContext interface {
+	vm.ChainContext
+
+	// GetVMConfig returns the node's vm configuration
+	GetVMConfig() *vm.Config
+
+	CurrentHeader() *types.Header
+
+	State() (*state.StateDB, error)
+}
+
+type defaultSystemEVMFactory struct {
+	chain ExtendedChainContext
+}
+
+func NewSystemEVMFactory(chain ExtendedChainContext) vm.SystemEVMFactory {
+	return &defaultSystemEVMFactory{chain}
+}
+
+// NewSystemEVM creates a new SystemEVM pointing at (header,state)
+func (factory *defaultSystemEVMFactory) NewSystemEVM(header *types.Header, state vm.StateDB) vm.SystemEVM {
+	return NewSystemEVM(factory.chain, header, state)
+}
+
+// NewCurrentHeadSystemEVM creates a new SystemEVM pointing a current's blockchain Head
+func (factory *defaultSystemEVMFactory) NewCurrentHeadSystemEVM() (vm.SystemEVM, error) {
+	return NewSystemEVMForCurrentBlock(factory.chain)
+}
+
+type SystemEVMProvider func(sender common.Address) *vm.EVM
+
+func newEVMProvider(chain vm.ChainContext, vmConfig vm.Config, header *types.Header, state vm.StateDB) SystemEVMProvider {
+	return func(sender common.Address) *vm.EVM {
+		// The EVM Context requires a msg, but the actual field values don't really matter for this case.
+		// Putting in zero values.
+		context := New(sender, common.Big0, header, chain, nil)
+		return vm.NewEVM(context, state, chain.Config(), vmConfig)
+	}
+
+}
+
 type systemEVM struct {
-	vmConfig    vm.Config
-	vmContext   vm.Context
-	chainConfig *params.ChainConfig
-	state       vm.StateDB
+	provider SystemEVMProvider
+	state    vm.StateDB
 
 	dontMeterGas bool
 }
@@ -29,20 +70,15 @@ func NewSystemEVMForCurrentBlock(chain ExtendedChainContext) (vm.SystemEVM, erro
 }
 
 func NewSystemEVM(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.SystemEVM {
-	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-	// Putting in zero values.
-	context := New(common.ZeroAddress, common.Big0, header, chain, nil)
 
 	return &systemEVM{
-		vmConfig:    *chain.GetVMConfig(),
-		vmContext:   context,
-		chainConfig: chain.Config(),
-		state:       state,
+		provider: newEVMProvider(chain, *chain.GetVMConfig(), header, state),
+		state:    state,
 	}
 }
 
 func (ev *systemEVM) Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
+	evm := ev.provider(sender)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -50,7 +86,7 @@ func (ev *systemEVM) Execute(sender, recipient common.Address, input []byte, gas
 }
 
 func (ev *systemEVM) Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	evm := vm.NewEVM(ev.vmContext, ev.state, ev.chainConfig, ev.vmConfig)
+	evm := ev.provider(sender)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
