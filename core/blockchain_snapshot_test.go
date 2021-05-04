@@ -168,7 +168,7 @@ func (basic *snapshotTestBasic) verify(t *testing.T, chain *BlockChain, blocks [
 	}
 }
 
-func (basic *snapshotTestBasic) dump() string {
+func (basic *snapshotTestBasic) Dump() string {
 	buffer := new(strings.Builder)
 
 	fmt.Fprint(buffer, "Chain:\n  G")
@@ -454,11 +454,6 @@ func (snaptest *wipeCrashSnapshotTest) test(t *testing.T) {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	// Simulate the blockchain crash.
-
-	newchain, err = NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
-	if err != nil {
-		t.Fatalf("Failed to recreate chain: %v", err)
-	}
 	snaptest.verify(t, newchain, blocks)
 }
 
