@@ -706,6 +706,11 @@ var (
 		Usage: "Comma-separated InfluxDB tags (key/values) attached to all measurements",
 		Value: "host=localhost",
 	}
+	MetricsLoadTestCSVFlag = cli.StringFlag{
+		Name:  "metrics.loadtestcsvfile",
+		Usage: "Write a csv with information about the block production cycle to the given file name. If passed an empty string or non-existent, do not output csv metrics.",
+		Value: "",
+	}
 
 	EWASMInterpreterFlag = cli.StringFlag{
 		Name:  "vm.ewasm",
@@ -1453,6 +1458,9 @@ func setIstanbul(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.Istanbul.RoundStateDBPath = stack.ResolvePath(cfg.Istanbul.RoundStateDBPath)
 	cfg.Istanbul.Validator = ctx.GlobalIsSet(MiningEnabledFlag.Name) || ctx.GlobalIsSet(DeveloperFlag.Name)
 	cfg.Istanbul.Replica = ctx.GlobalIsSet(IstanbulReplicaFlag.Name)
+	if ctx.GlobalIsSet(MetricsLoadTestCSVFlag.Name) {
+		cfg.Istanbul.LoadTestCSVFile = ctx.GlobalString(MetricsLoadTestCSVFlag.Name)
+	}
 }
 
 func setProxyP2PConfig(ctx *cli.Context, proxyCfg *p2p.Config) {
