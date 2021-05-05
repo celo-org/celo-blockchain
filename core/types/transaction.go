@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -290,6 +291,7 @@ func (tx *Transaction) FeeCurrency() *common.Address         { return tx.data.Fe
 func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.data.GatewayFeeRecipient }
 func (tx *Transaction) GatewayFee() *big.Int                 { return tx.data.GatewayFee }
 func (tx *Transaction) Value() *big.Int                      { return new(big.Int).Set(tx.data.Amount) }
+func (tx *Transaction) ValueU64() uint64                     { return tx.data.Amount.Uint64() }
 func (tx *Transaction) Nonce() uint64                        { return tx.data.AccountNonce }
 func (tx *Transaction) CheckNonce() bool                     { return true }
 func (tx *Transaction) EthCompatible() bool                  { return tx.data.EthCompatible }
@@ -382,6 +384,15 @@ func (tx *Transaction) Cost() *big.Int {
 	total.Add(total, tx.data.Amount)
 	total.Add(total, tx.data.GatewayFee)
 	return total
+}
+
+func (tx *Transaction) CostU64() (uint64, bool) {
+	if tx.data.Price.BitLen() > 63 || tx.data.Amount.BitLen() > 63 {
+		return 0, false
+	}
+	cost, overflowMul := math.SafeMul(tx.data.Price.Uint64(), tx.data.GasLimit)
+	total, overflowAdd := math.SafeAdd(cost, tx.data.Amount.Uint64())
+	return total, overflowMul || overflowAdd
 }
 
 // RawSignatureValues returns the V, R, S signature values of the transaction.
