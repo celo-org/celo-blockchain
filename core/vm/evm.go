@@ -112,9 +112,8 @@ type Context struct {
 
 	Header *types.Header
 
-	EpochSize            uint64
-	GetValidators        GetValidatorsFunc
-	GetRegisteredAddress GetRegisteredAddressFunc
+	EpochSize     uint64
+	GetValidators GetValidatorsFunc
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

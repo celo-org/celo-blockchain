@@ -45,6 +45,7 @@ type Config struct {
 
 	State     *state.StateDB
 	GetHashFn func(n uint64) common.Hash
+	Transfer  vm.TransferFunc
 }
 
 // sets defaults on the config

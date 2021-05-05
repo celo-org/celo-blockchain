@@ -25,7 +25,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 
 	context := vm.Context{
 		CanTransfer: vmcontext.CanTransfer,
-		Transfer:    vmcontext.TobinTransfer,
+		Transfer:    vmcontext.Transfer,
 
 		GetHash: cfg.GetHashFn,
 
@@ -34,8 +34,6 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber: cfg.BlockNumber,
 		Time:        cfg.Time,
 		GasPrice:    cfg.GasPrice,
-
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {

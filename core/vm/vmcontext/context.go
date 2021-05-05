@@ -5,12 +5,15 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/contracts"
-	"github.com/celo-org/celo-blockchain/contracts/reserve"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
 )
+
+// Transfer subtracts amount from sender and adds amount to recipient using the given Db
+var Transfer = func(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {
+	evm.StateDB.SubBalance(sender, amount)
+	evm.StateDB.AddBalance(recipient, amount)
+}
 
 // New creates a new context for use in the EVM.
 func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
@@ -26,7 +29,7 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 
 	ctx := vm.Context{
 		CanTransfer: CanTransfer,
-		Transfer:    TobinTransfer,
+		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
 		VerifySeal:  VerifySealFn(header, chain),
 		Origin:      from,
@@ -34,8 +37,6 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
 		GasPrice:    new(big.Int).Set(gasPrice),
-
-		GetRegisteredAddress: GetRegisteredAddress,
 	}
 
 	if chain != nil {
@@ -47,11 +48,6 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 		ctx.GetHeaderByNumber = func(uint64) *types.Header { panic("evm context without blockchain context") }
 	}
 	return ctx
-}
-
-func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
-	caller := &SharedSystemEVM{evm}
-	return contracts.GetRegisteredAddress(caller, registryId)
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
@@ -94,12 +90,6 @@ func CanTransfer(db vm.StateDB, addr common.Address, amount *big.Int) bool {
 	return db.GetBalance(addr).Cmp(amount) >= 0
 }
 
-// Transfer subtracts amount from sender and adds amount to recipient using the given Db
-func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-	db.SubBalance(sender, amount)
-	db.AddBalance(recipient, amount)
-}
-
 // VerifySealFn returns a function which returns true when the given header has a verifiable seal.
 func VerifySealFn(ref *types.Header, chain vm.ChainContext) func(*types.Header) bool {
 	return func(header *types.Header) bool {
@@ -119,31 +109,4 @@ func VerifySealFn(ref *types.Header, chain vm.ChainContext) func(*types.Header) 
 		// Submit the header to the engine's seal verification function.
 		return chain.Engine().VerifySeal(nil, header) == nil
 	}
-}
-
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-// NB: Gas is not charged or accounted for this calculation.
-func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := &SharedSystemEVM{evm}
-		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
-		if err == nil {
-			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
-			Transfer(evm.StateDB, sender, taxRecipient, tax)
-			return
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
-		}
-	}
-
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	Transfer(evm.StateDB, sender, recipient, amount)
 }

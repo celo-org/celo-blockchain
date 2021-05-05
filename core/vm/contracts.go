@@ -68,7 +68,7 @@ func celoPrecompileAddress(index byte) common.Address {
 var (
 	celoPrecompiledContractsAddressOffset = byte(0xff)
 
-	transferAddress              = celoPrecompileAddress(2)
+	TransferAddress              = celoPrecompileAddress(2)
 	fractionMulExpAddress        = celoPrecompileAddress(3)
 	proofOfPossessionAddress     = celoPrecompileAddress(4)
 	getValidatorAddress          = celoPrecompileAddress(5)
@@ -114,7 +114,6 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -140,7 +139,6 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -166,7 +164,6 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 
 	// Celo Precompiled Contracts
-	transferAddress:              &transfer{},
 	fractionMulExpAddress:        &fractionMulExp{},
 	proofOfPossessionAddress:     &proofOfPossession{},
 	getValidatorAddress:          &getValidator{},
@@ -208,7 +205,7 @@ func RunPrecompiledContract(p PrecompiledContract, input []byte, contract *Contr
 	return ret, err
 }
 
-func debitRequiredGas(p PrecompiledContract, input []byte, gas uint64) (uint64, error) {
+func DebitRequiredGas(p PrecompiledContract, input []byte, gas uint64) (uint64, error) {
 	requiredGas := p.RequiredGas(input)
 	if requiredGas > gas {
 		return gas, ErrOutOfGas
@@ -224,7 +221,7 @@ func (c *ecrecover) RequiredGas(input []byte) uint64 {
 }
 
 func (c *ecrecover) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -270,7 +267,7 @@ func (c *sha256hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Sha256PerWordGas + params.Sha256BaseGas
 }
 func (c *sha256hash) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -290,7 +287,7 @@ func (c *ripemd160hash) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.Ripemd160PerWordGas + params.Ripemd160BaseGas
 }
 func (c *ripemd160hash) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -311,7 +308,7 @@ func (c *dataCopy) RequiredGas(input []byte) uint64 {
 	return uint64(len(input)+31)/32*params.IdentityPerWordGas + params.IdentityBaseGas
 }
 func (c *dataCopy) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -397,7 +394,7 @@ func (c *bigModExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bigModExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -475,7 +472,7 @@ func (c *bn256AddIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256AddIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -492,7 +489,7 @@ func (c *bn256AddByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256AddByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -521,7 +518,7 @@ func (c *bn256ScalarMulIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256ScalarMulIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -538,7 +535,7 @@ func (c *bn256ScalarMulByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256ScalarMulByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -587,59 +584,6 @@ func runBn256Pairing(input []byte, caller common.Address, evm *EVM, gas uint64) 
 	return false32Byte, gas, nil
 }
 
-// Native transfer contract to make Celo Gold ERC20 compatible.
-type transfer struct{}
-
-func (c *transfer) RequiredGas(input []byte) uint64 {
-	return params.CallValueTransferGas
-}
-
-func (c *transfer) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
-	if err != nil {
-		return nil, gas, err
-	}
-	celoGoldAddress, err := evm.Context.GetRegisteredAddress(evm, params.GoldTokenRegistryId)
-	if err != nil {
-		return nil, gas, err
-	}
-
-	// input is comprised of 3 arguments:
-	//   from:  32 bytes representing the address of the sender
-	//   to:    32 bytes representing the address of the recipient
-	//   value: 32 bytes, a 256 bit integer representing the amount of Celo Gold to transfer
-	// 3 arguments x 32 bytes each = 96 bytes total input
-	if len(input) < 96 {
-		return nil, gas, ErrInputLength
-	}
-
-	if caller != celoGoldAddress {
-		return nil, gas, fmt.Errorf("Unable to call transfer from unpermissioned address")
-	}
-	from := common.BytesToAddress(input[0:32])
-	to := common.BytesToAddress(input[32:64])
-
-	var parsed bool
-	value, parsed := math.ParseBig256(hexutil.Encode(input[64:96]))
-	if !parsed {
-		return nil, gas, fmt.Errorf("Error parsing transfer: unable to parse value from " + hexutil.Encode(input[64:96]))
-	}
-
-	if from == common.ZeroAddress {
-		// Mint case: Create cGLD out of thin air
-		evm.StateDB.AddBalance(to, value)
-	} else {
-		// Fail if we're trying to transfer more than the available balance
-		if !evm.Context.CanTransfer(evm.StateDB, from, value) {
-			return nil, gas, ErrInsufficientBalance
-		}
-
-		evm.Context.Transfer(evm, from, to, value)
-	}
-
-	return input, gas, err
-}
-
 // computes a * (b ^ exponent) to `decimals` places of precision, where a and b are fractions
 type fractionMulExp struct{}
 
@@ -683,7 +627,7 @@ func (c *fractionMulExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *fractionMulExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -763,7 +707,7 @@ func (c *proofOfPossession) RequiredGas(input []byte) uint64 {
 }
 
 func (c *proofOfPossession) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -810,7 +754,7 @@ func (c *bn256PairingIstanbul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256PairingIstanbul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -827,7 +771,7 @@ func (c *bn256PairingByzantium) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bn256PairingByzantium) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -857,7 +801,7 @@ var (
 )
 
 func (c *blake2F) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -913,7 +857,7 @@ func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
 }
 
 func (c *ed25519Verify) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -950,7 +894,7 @@ func (c *getValidator) RequiredGas(input []byte) uint64 {
 // WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
 // if the engine is aware of a chain with higher total difficulty.
 func (c *getValidator) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1001,7 +945,7 @@ func copyBLSNumber(result []byte, offset int, uncompressedBytes []byte, offset2 
 
 // Return the validator BLS public key for the validator at given index. The public key is given in uncompressed format, 4*48 bytes.
 func (c *getValidatorBLS) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1063,7 +1007,7 @@ func (c *numberValidators) RequiredGas(input []byte) uint64 {
 // WARNING: Validator set is always constructed from the canonical chain, therefore this precompile is undefined
 // if the engine is aware of a chain with higher total difficulty.
 func (c *numberValidators) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1098,7 +1042,7 @@ func (c *epochSize) RequiredGas(input []byte) uint64 {
 }
 
 func (c *epochSize) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil || len(input) != 0 {
 		return nil, gas, err
 	}
@@ -1115,7 +1059,7 @@ func (c *blockNumberFromHeader) RequiredGas(input []byte) uint64 {
 }
 
 func (c *blockNumberFromHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1139,7 +1083,7 @@ func (c *hashHeader) RequiredGas(input []byte) uint64 {
 }
 
 func (c *hashHeader) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1164,7 +1108,7 @@ func (c *getParentSealBitmap) RequiredGas(input []byte) uint64 {
 // Return the signer bitmap from the parent seal of a past block in the chain.
 // Requested parent seal must have occurred within 4 epochs of the current block number.
 func (c *getParentSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1211,7 +1155,7 @@ func (c *getVerifiedSealBitmap) RequiredGas(input []byte) uint64 {
 }
 
 func (c *getVerifiedSealBitmap) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1258,7 +1202,7 @@ func (c *cip20HashFunctions) RequiredGas(input []byte) uint64 {
 }
 
 func (c *cip20HashFunctions) Run(input []byte, _ common.Address, _ *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 
 	if err != nil {
 		return nil, gas, err
@@ -1296,7 +1240,7 @@ func (c *bls12381G1Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1338,7 +1282,7 @@ func (c *bls12381G1Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1392,7 +1336,7 @@ func (c *bls12381G1MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1439,7 +1383,7 @@ func (c *bls12381G2Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1481,7 +1425,7 @@ func (c *bls12381G2Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1535,7 +1479,7 @@ func (c *bls12381G2MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1582,7 +1526,7 @@ func (c *bls12381Pairing) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381Pairing) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1666,7 +1610,7 @@ func (c *bls12381MapG1) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381MapG1) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1706,7 +1650,7 @@ func (c *bls12381MapG2) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12381MapG2) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1759,7 +1703,7 @@ func (c *bls12377G1Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G1Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1801,7 +1745,7 @@ func (c *bls12377G1Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G1Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1855,7 +1799,7 @@ func (c *bls12377G1MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G1MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1902,7 +1846,7 @@ func (c *bls12377G2Add) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G2Add) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1944,7 +1888,7 @@ func (c *bls12377G2Mul) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G2Mul) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -1998,7 +1942,7 @@ func (c *bls12377G2MultiExp) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377G2MultiExp) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}
@@ -2045,7 +1989,7 @@ func (c *bls12377Pairing) RequiredGas(input []byte) uint64 {
 }
 
 func (c *bls12377Pairing) Run(input []byte, caller common.Address, evm *EVM, gas uint64) ([]byte, uint64, error) {
-	gas, err := debitRequiredGas(c, input, gas)
+	gas, err := DebitRequiredGas(c, input, gas)
 	if err != nil {
 		return nil, gas, err
 	}

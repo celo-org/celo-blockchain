@@ -152,10 +152,6 @@ var vmctx = Context{
 	Time:        new(big.Int).SetUint64(testHeader.Time),
 	GasPrice:    common.Big1,
 
-	GetRegisteredAddress: func(evm *EVM, registryId common.Hash) (common.Address, error) {
-		return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
-	},
-
 	EpochSize:         chainCtx.Engine().EpochSize(),
 	GetValidators:     chainCtx.Engine().GetValidators,
 	GetHeaderByNumber: chainCtx.GetHeaderByNumber,

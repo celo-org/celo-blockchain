@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -104,14 +105,13 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	*/
 	origin, _ := signer.Sender(tx)
 	context := vm.Context{
-		CanTransfer:          vmcontext.CanTransfer,
-		Transfer:             vmcontext.TobinTransfer,
-		Origin:               origin,
-		Coinbase:             common.Address{},
-		BlockNumber:          new(big.Int).SetUint64(8000000),
-		Time:                 new(big.Int).SetUint64(5),
-		GasPrice:             big.NewInt(1),
-		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    contracts.TobinTransfer,
+		Origin:      origin,
+		Coinbase:    common.Address{},
+		BlockNumber: new(big.Int).SetUint64(8000000),
+		Time:        new(big.Int).SetUint64(5),
+		GasPrice:    big.NewInt(1),
 	}
 	alloc := core.GenesisAlloc{}
 

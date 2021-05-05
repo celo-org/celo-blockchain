@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -57,6 +58,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestEVM(t *testing.T) {
+	contracts.Init()
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("crashed with: %v", r)
@@ -73,6 +75,7 @@ func TestEVM(t *testing.T) {
 }
 
 func TestExecute(t *testing.T) {
+	contracts.Init()
 	ret, _, err := Execute([]byte{
 		byte(vm.PUSH1), 10,
 		byte(vm.PUSH1), 0,

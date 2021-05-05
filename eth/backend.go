@@ -34,13 +34,13 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/contract_comm"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -221,7 +221,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetSystemEVMFactory(vmcontext.NewSystemEVMFactory(eth.blockchain))
+	contract_comm.SetSystemEVMFactory(contracts.NewSystemEVMFactory(eth.blockchain))
 
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 

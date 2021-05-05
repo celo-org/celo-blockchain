@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -484,7 +483,7 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	caller := &vmcontext.SharedSystemEVM{EVM: st.evm}
+	caller := &contracts.SharedSystemEVM{EVM: st.evm}
 	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 	if err != nil {
 		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {

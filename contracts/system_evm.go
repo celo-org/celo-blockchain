@@ -1,4 +1,4 @@
-package vmcontext
+package contracts
 
 import (
 	"math/big"
@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 )
 
 // ChainContext supports retrieving chain data and consensus parameters
@@ -46,7 +47,7 @@ func newEVMProvider(chain vm.ChainContext, vmConfig vm.Config, header *types.Hea
 	return func(sender common.Address) *vm.EVM {
 		// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 		// Putting in zero values.
-		context := New(sender, common.Big0, header, chain, nil)
+		context := vmcontext.New(sender, common.Big0, header, chain, nil)
 		return vm.NewEVM(context, state, chain.Config(), vmConfig)
 	}
 

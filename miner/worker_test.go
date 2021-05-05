@@ -31,12 +31,12 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
 	"github.com/celo-org/celo-blockchain/contract_comm"
@@ -128,7 +128,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil, nil)
-	contract_comm.SetSystemEVMFactory(vmcontext.NewSystemEVMFactory(chain))
+	contract_comm.SetSystemEVMFactory(contracts.NewSystemEVMFactory(chain))
 
 	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
