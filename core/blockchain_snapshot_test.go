@@ -449,11 +449,16 @@ func (snaptest *wipeCrashSnapshotTest) test(t *testing.T) {
 		SnapshotLimit:  256,
 		SnapshotWait:   false, // Don't wait rebuild
 	}
-	newchain, err = NewBlockChain(snaptest.db, config, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil)
+	_, err = NewBlockChain(snaptest.db, config, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	// Simulate the blockchain crash.
+
+	newchain, err = NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil)
+	if err != nil {
+		t.Fatalf("Failed to recreate chain: %v", err)
+	}
 	snaptest.verify(t, newchain, blocks)
 }
 
