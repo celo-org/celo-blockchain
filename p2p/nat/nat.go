@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/log"
+	log2 "github.com/celo-org/celo-blockchain/log"
 	natpmp "github.com/jackpal/go-nat-pmp"
 )
 
@@ -98,7 +98,7 @@ const (
 // Map adds a port mapping on m and keeps it alive until c is closed.
 // This function is typically invoked in its own goroutine.
 func Map(m Interface, c chan struct{}, protocol string, extport, intport int, name string) {
-	log := log.New("proto", protocol, "extport", extport, "intport", intport, "interface", m)
+	log := log2.New("proto", protocol, "extport", extport, "intport", intport, "interface", m)
 	refresh := time.NewTimer(mapUpdateInterval)
 	defer func() {
 		refresh.Stop()
@@ -134,10 +134,26 @@ type ExtIP net.IP
 func (n ExtIP) ExternalIP() (net.IP, error) { return net.IP(n), nil }
 func (n ExtIP) String() string              { return fmt.Sprintf("ExtIP(%v)", net.IP(n)) }
 
-// These do nothing.
-
+// AddMapping does nothing
 func (ExtIP) AddMapping(string, int, int, string, time.Duration) error { return nil }
-func (ExtIP) DeleteMapping(string, int, int) error                     { return nil }
+
+// DeleteMapping does nothing
+func (ExtIP) DeleteMapping(string, int, int) error { return nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler
+func (n *ExtIP) UnmarshalText(text []byte) error {
+	nat, err := Parse(string(text))
+	fmt.Println("string", string(text))
+	if err == nil {
+		*n, _ = nat.(ExtIP)
+	}
+	return err
+}
+
+// MarshalText implements encoding.TextMarshaler
+func (n ExtIP) MarshalText() (text []byte, err error) {
+	return []byte(fmt.Sprintf("extip:%v", net.IP(n))), nil
+}
 
 // Any returns a port mapper that tries to discover any supported
 // mechanism on the local network.
