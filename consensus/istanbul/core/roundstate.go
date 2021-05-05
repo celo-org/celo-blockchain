@@ -53,7 +53,6 @@ type RoundState interface {
 	// view functions
 	DesiredRound() *big.Int
 	State() State
-	GetPrepareOrCommitSize() int
 	GetValidatorByAddress(address common.Address) istanbul.Validator
 	ValidatorSet() istanbul.ValidatorSet
 	Proposer() istanbul.Validator
@@ -174,21 +173,6 @@ func (rs *roundStateImpl) View() *istanbul.View {
 		Sequence: new(big.Int).Set(rs.sequence),
 		Round:    new(big.Int).Set(rs.round),
 	}
-}
-
-func (rs *roundStateImpl) GetPrepareOrCommitSize() int {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
-
-	result := rs.prepares.Size() + rs.commits.Size()
-
-	// find duplicate one
-	for _, m := range rs.prepares.Values() {
-		if rs.commits.Get(m.Address) != nil {
-			result--
-		}
-	}
-	return result
 }
 
 func (rs *roundStateImpl) Subject() *istanbul.Subject {
@@ -358,32 +342,19 @@ func (rs *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	messages := make([]istanbul.Message, quorumSize)
-	i := 0
-	for _, message := range rs.prepares.Values() {
-		if i == quorumSize {
-			break
-		}
-		messages[i] = *message
-		i++
-	}
-	for _, message := range rs.commits.Values() {
-		if i == quorumSize {
-			break
-		}
-		if rs.prepares.Get(message.Address) == nil {
-			messages[i] = *message
-			i++
-		}
-	}
-	if i != quorumSize {
+	if rs.prepares.Size() < quorumSize {
 		return errFailedCreatePreparedCertificate
 	}
+
+	messages := make([]istanbul.Message, quorumSize)
+	for i, message := range rs.prepares.Values()[:quorumSize] {
+		messages[i] = *message
+	}
+
 	rs.preparedCertificate = istanbul.PreparedCertificate{
 		Proposal:                rs.preprepare.Proposal,
 		PrepareOrCommitMessages: messages,
 	}
-
 	rs.state = StatePrepared
 	return nil
 }

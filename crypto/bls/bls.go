@@ -176,7 +176,7 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 	for _, signature := range signatures {
 		signatureObj, err := bls.DeserializeSignature(signature)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to deserialize signature: %v", err)
 		}
 		defer signatureObj.Destroy()
 		signatureObjs = append(signatureObjs, signatureObj)
@@ -184,13 +184,13 @@ func AggregateSignatures(signatures [][]byte) ([]byte, error) {
 
 	asig, err := bls.AggregateSignatures(signatureObjs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to aggregate signatures: %v", err)
 	}
 	defer asig.Destroy()
 
 	asigBytes, err := asig.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize aggregate signature: %v", err)
 	}
 
 	return asigBytes, nil

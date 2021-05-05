@@ -18,12 +18,14 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
@@ -169,6 +171,16 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	return c.handleCheckedCommitForCurrentSequence(msg, commit)
 }
 
+// handleCheckedCommitForPreviousSequence adds messages for the previous
+// sequence to the parent commit set. 
+// If the subject digest of msg does not match that of the previous block or it
+// was not sent by one of the previous block's validators, an error is returned.
+// If this is the last block of the epoch then the epoch seal will also be validated.
+//
+// The parent commit set is maintained for the sole purpose of tracking uptime,
+// allowing commits that did not arrive in time to be part of their intended
+// block to be collected during the subsequent block and to count towards the
+// uptime of the sender.
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
@@ -179,10 +191,9 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
 	if headBlock.Number().Uint64() > 0 {
+		// Verifies the individual seal for this commit message for the epoch
+		// block, no-op unless this is the last block of an epoch.
 		if err := c.verifyEpochValidatorSetSeal(commit, headBlock.Number().Uint64(), c.current.ValidatorSet(), validator); err != nil {
 			return errInvalidEpochValidatorSetSeal
 		}
@@ -209,8 +220,9 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return errInvalidValidatorAddress
 	}
 
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
-		return errInvalidCommittedSeal
+	// ensure that the commit is for the current proposal
+	if err := c.verifyCommit(commit); err != nil {
+		return err
 	}
 
 	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
@@ -218,13 +230,10 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		return err
 	}
 
+	// Verifies the individual seal for this commit message for the epoch
+	// block, no-op unless this is the last block of an epoch.
 	if err := c.verifyEpochValidatorSetSeal(commit, c.current.Proposal().Number().Uint64(), newValSet, validator); err != nil {
 		return errInvalidEpochValidatorSetSeal
-	}
-
-	// ensure that the commit is in the current proposal
-	if err := c.verifyCommit(commit); err != nil {
-		return err
 	}
 
 	// Add the COMMIT message to current round state
@@ -232,37 +241,112 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		logger.Error("Failed to record commit message", "m", msg, "err", err)
 		return err
 	}
-	numberOfCommits := c.current.Commits().Size()
+
+	commits := c.current.Commits()
+	numberOfCommits := commits.Size()
 	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
 
 	// Commit the proposal once we have enough COMMIT messages and we are not in the Committed state.
 	//
-	// If we already have a proposal, we may have chance to speed up the consensus process
-	// by committing the proposal without PREPARE messages.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
-		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
-		err := c.commit()
+		proposal := c.current.Proposal()
+		// TODO understand how proposal can be nil.
+		if proposal == nil {
+			return nil
+		}
+
+		// Generate aggregate seal
+		aggregatedSeal, err := c.generateAggregateCommittedSeal()
+		if err != nil {
+			logger.Warn("Initial verificaction of aggregate commit signature failed", "err", err)
+			// Remove any bad committed seals and try again if sufficient commits remain
+			c.removeInvalidCommittedSeals()
+			if c.current.Commits().Size() < c.current.ValidatorSet().MinQuorumSize() {
+				// Wait for more commits
+				return nil
+			}
+			aggregatedSeal, err = c.generateAggregateCommittedSeal()
+		}
+		// If there is still an error then sit this round out, we can't continue.
+		if err != nil {
+			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to aggregate commit seals", "err", err, "desired_round", nextRound)
+			c.waitForDesiredRound(nextRound)
+			return nil
+		}
+
+		// Set the epoch aggregate seal if this is the last block of the epoch
+		aggregatedEpochValidatorSetSeal := types.IstanbulEpochValidatorSetSeal{}
+		if istanbul.IsLastBlockOfEpoch(proposal.Number().Uint64(), c.config.Epoch) {
+			epochBitmap, epochAggregate, err := AggregateSeals(
+				c.current.Commits(),
+				func(c *istanbul.CommittedSubject) []byte { return c.EpochValidatorSetSeal },
+			)
+			if err != nil {
+				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+				logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+				c.waitForDesiredRound(nextRound)
+				return nil
+			}
+
+			aggregatedEpochValidatorSetSeal.Bitmap = epochBitmap
+			aggregatedEpochValidatorSetSeal.Signature = epochAggregate
+		}
+
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", commits)
+		err = c.commit(aggregatedSeal, aggregatedEpochValidatorSetSeal)
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)
 			return err
 		}
-
-	} else if c.current.GetPrepareOrCommitSize() >= minQuorumSize && c.current.State().Cmp(StatePrepared) < 0 {
-		err := c.current.TransitionToPrepared(minQuorumSize)
-		if err != nil {
-			logger.Error("Failed to create and set prepared certificate", "err", err)
-			return err
-		}
-		// Process Backlog Messages
-		c.backlog.updateState(c.current.View(), c.current.State())
-
-		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.sendCommit()
 	}
 	return nil
 
+}
+
+// generateAggregateCommittedSeal will generate the aggregate committed seal
+// verify it and return it.
+func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, error) {
+	commits := c.current.Commits()
+	if commits.Size() < c.current.ValidatorSet().MinQuorumSize() {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("insufficient commits to construct aggregate seal")
+	}
+	bitmap, aggregate, err := AggregateSeals(
+		commits,
+		func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
+	)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed to aggregate seals: %v", err)
+	}
+
+	aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
+	err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
+	if err != nil {
+		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed verify aggregate seal: %v", err)
+	}
+	return aggregatedSeal, nil
+}
+
+// removeInvalidCommittedSeals individually verifies the committed seal on each
+// commit message and discards commits with invalid committed seals.
+//
+// Note that when commit messages are discarded they are not removed from the
+// round state database, this should not pose a problem however because if this
+// step is reached again they will again be discarded.
+func (c *core) removeInvalidCommittedSeals() {
+
+	commits := c.current.Commits()
+
+	for _, msg := range commits.Values() {
+		var commit *istanbul.CommittedSubject
+		msg.Decode(&commit)
+		err := c.verifyCommittedSeal(commit, c.current.GetValidatorByAddress(msg.Address))
+		if err != nil {
+			commits.Remove(msg.Address)
+		}
+	}
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject

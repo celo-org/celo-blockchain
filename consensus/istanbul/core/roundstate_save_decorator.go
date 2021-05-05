@@ -123,9 +123,6 @@ func (rsp *rsSaveDecorator) PendingRequest() *istanbul.Request { return rsp.rs.P
 // ValidatorSet implements RoundState.ValidatorSet
 func (rsp *rsSaveDecorator) ValidatorSet() istanbul.ValidatorSet { return rsp.rs.ValidatorSet() }
 
-// GetPrepareOrCommitSize implements RoundState.GetPrepareOrCommitSize
-func (rsp *rsSaveDecorator) GetPrepareOrCommitSize() int { return rsp.rs.GetPrepareOrCommitSize() }
-
 // GetValidatorByAddress implements RoundState.GetValidatorByAddress
 func (rsp *rsSaveDecorator) GetValidatorByAddress(address common.Address) istanbul.Validator {
 	return rsp.rs.GetValidatorByAddress(address)

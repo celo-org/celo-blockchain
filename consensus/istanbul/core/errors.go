@@ -69,8 +69,6 @@ var (
 	// errInvalidRoundChangeCertificateMsgView is returned when the ROUND CHANGE certificate contains a message for the wrong view
 	errInvalidRoundChangeCertificateMsgView = errors.New("message in ROUND CHANGE certificate for wrong view")
 
-	// errInvalidCommittedSeal is returned when a COMMIT message has an invalid committed seal.
-	errInvalidCommittedSeal = errors.New("invalid committed seal in COMMIT message")
 	// errInvalidEpochValidatorSetSeal is returned when a COMMIT message has an invalid epoch validator seal.
 	errInvalidEpochValidatorSetSeal = errors.New("invalid epoch validator set seal in COMMIT message")
 	// errNotLastBlockInEpoch is returned when the block number was not the last block in the epoch

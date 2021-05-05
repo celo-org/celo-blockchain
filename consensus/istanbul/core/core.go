@@ -102,6 +102,9 @@ type CoreBackend interface {
 
 	IsPrimaryForSeq(seq *big.Int) bool
 	UpdateReplicaState(seq *big.Int)
+
+	// VerifyAggregatedSeal verifies the aggregate bls signature given the header hash and validator set.
+	VerifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error
 }
 
 type core struct {
@@ -227,33 +230,46 @@ func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	return buf.Bytes()
 }
 
-// GetAggregatedSeal aggregates all the given seals for a given message set to a bls aggregated
-// signature and bitmap
-func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregatedSeal, error) {
-	bitmap := big.NewInt(0)
-	committedSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
+func (c *core) PrepareEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, newValSet istanbul.ValidatorSet) (seal, sealExtraData []byte, cip22 bool, err error) {
+	return c.generateEpochValidatorSetData(comSub.Subject.View.Sequence.Uint64(), uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
+}
+
+// AggregateSeals returns the bls aggregation of the committed seals for the
+// messgages in mset. It returns a big.Int that represents a bitmap where each
+// set bit corresponds to the position of a validator in the list of validators
+// for this epoch that contributed a seal to the returned aggregate. It is
+// assumed that mset contains only commit messages.
+func AggregateSeals(mset MessageSet, sealExtractor func(*istanbul.CommittedSubject) []byte) (bitmap *big.Int, aggregateSeal []byte, err error) {
+	bitmap = big.NewInt(0)
+	committedSeals := make([][]byte, mset.Size())
+	for i, v := range mset.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
 
 		var commit *istanbul.CommittedSubject
 		err := v.Decode(&commit)
 		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
+			return nil, nil, fmt.Errorf("failed to decode commit message for seal aggregation: %v", err)
 		}
-		copy(committedSeals[i][:], commit.CommittedSeal[:])
+		copy(committedSeals[i][:], sealExtractor(commit))
 
-		j, err := seals.GetAddressIndex(v.Address)
+		j, err := mset.GetAddressIndex(v.Address)
 		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
+			return nil, nil, fmt.Errorf(
+				"missing validator %q for committed seal at %s: %v",
+				v.Address.String(),
+				commit.Subject.View.String(),
+				err,
+			)
 		}
 		bitmap.SetBit(bitmap, int(j), 1)
 	}
 
-	asig, err := blscrypto.AggregateSignatures(committedSeals)
+	aggregateSeal, err = blscrypto.AggregateSignatures(committedSeals)
 	if err != nil {
-		return types.IstanbulAggregatedSeal{}, err
+		return nil, nil, fmt.Errorf("aggregating signatures failed: %v", err)
 	}
-	return types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: asig, Round: round}, nil
+
+	return bitmap, aggregateSeal, nil
 }
 
 // UnionOfSeals combines a BLS aggregated signature with an array of signatures. Accounts for
@@ -363,7 +379,7 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
 	}
 }
 
-func (c *core) commit() error {
+func (c *core) commit(aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
 	logger := c.newLogger("func", "commit", "proposal", c.current.Proposal())
 	err := c.current.TransitionToCommitted()
 	if err != nil {
@@ -380,63 +396,19 @@ func (c *core) commit() error {
 	c.backlog.updateState(c.current.View(), c.current.State())
 
 	proposal := c.current.Proposal()
-	if proposal != nil {
-		aggregatedSeal, err := GetAggregatedSeal(c.current.Commits(), c.current.Round())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		aggregatedEpochValidatorSetSeal, err := GetAggregatedEpochValidatorSetSeal(proposal.Number().Uint64(), c.config.Epoch, c.current.Commits())
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			c.logger.Warn("Error on commit, waiting for desired round", "reason", "GetAggregatedEpochValidatorSetSeal", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
-		if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
-			c.waitForDesiredRound(nextRound)
-			return nil
-		}
+	if proposal == nil {
+		return nil
+	}
+
+	if err := c.backend.Commit(proposal, aggregatedSeal, aggregatedEpochValidatorSetSeal); err != nil {
+		nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+		logger.Warn("Error on commit, waiting for desired round", "reason", "backend.Commit", "err", err, "desired_round", nextRound)
+		c.waitForDesiredRound(nextRound)
+		return nil
 	}
 
 	logger.Info("Committed")
 	return nil
-}
-
-// GetAggregatedEpochValidatorSetSeal aggregates all the given seals for the SNARK-friendly epoch encoding
-// to a bls aggregated signature. Returns an empty signature on a non-epoch block.
-func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals MessageSet) (types.IstanbulEpochValidatorSetSeal, error) {
-	if !istanbul.IsLastBlockOfEpoch(blockNumber, epoch) {
-		return types.IstanbulEpochValidatorSetSeal{}, nil
-	}
-	bitmap := big.NewInt(0)
-	epochSeals := make([][]byte, seals.Size())
-	for i, v := range seals.Values() {
-		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
-
-		j, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		bitmap.SetBit(bitmap, int(j), 1)
-	}
-
-	asig, err := blscrypto.AggregateSignatures(epochSeals)
-	if err != nil {
-		return types.IstanbulEpochValidatorSetSeal{}, err
-	}
-	return types.IstanbulEpochValidatorSetSeal{Bitmap: bitmap, Signature: asig}, nil
 }
 
 // Generates the next preprepare request and associated round change certificate
