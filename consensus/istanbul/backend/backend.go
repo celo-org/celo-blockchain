@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/contracts"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -66,6 +67,9 @@ var (
 
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
+	// Init custom evm logic
+	contracts.Init()
+
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
