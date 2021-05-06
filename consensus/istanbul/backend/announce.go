@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
@@ -767,9 +766,9 @@ var versionCertificateSalt = []byte("versionCertificate")
 
 // versionCertificate is a signed message from a validator indicating the most
 // recent version of its enode.
-type versionCertificate vet.VersionCertificateEntry
+type versionCertificate istanbul.VersionCertificateEntry
 
-func newVersionCertificateFromEntry(entry *vet.VersionCertificateEntry) *versionCertificate {
+func newVersionCertificateFromEntry(entry *istanbul.VersionCertificateEntry) *versionCertificate {
 	return &versionCertificate{
 		Address:   entry.Address,
 		PublicKey: entry.PublicKey,
@@ -834,8 +833,8 @@ func (vc *versionCertificate) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (vc *versionCertificate) Entry() *vet.VersionCertificateEntry {
-	return &vet.VersionCertificateEntry{
+func (vc *versionCertificate) Entry() *istanbul.VersionCertificateEntry {
+	return &istanbul.VersionCertificateEntry{
 		Address:   vc.Address,
 		PublicKey: vc.PublicKey,
 		Version:   vc.Version,
@@ -953,7 +952,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		return err
 	}
 
-	var validEntries []*vet.VersionCertificateEntry
+	var validEntries []*istanbul.VersionCertificateEntry
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, versionCertificate := range versionCertificates {
@@ -981,7 +980,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	return nil
 }
 
-func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
+func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.VersionCertificateEntry) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 	shouldProcess, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
@@ -1121,7 +1120,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	return sb.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
+	return sb.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificateEntry{
 		newVersionCertificate.Entry(),
 	})
 }

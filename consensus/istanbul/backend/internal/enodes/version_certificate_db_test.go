@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -16,12 +17,12 @@ func TestVersionCertificateDBUpsert(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to open DB")
 	}
-	entryA := &VersionCertificateEntry{
+	entryA := &istanbul.VersionCertificateEntry{
 		Address:   addressA,
 		Version:   1,
 		PublicKey: nodeA.Pubkey(),
 	}
-	entriesToUpsert := []*VersionCertificateEntry{entryA}
+	entriesToUpsert := []*istanbul.VersionCertificateEntry{entryA}
 	newEntries, err := table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
@@ -38,13 +39,13 @@ func TestVersionCertificateDBUpsert(t *testing.T) {
 		t.Error("The upserted entry is not deep equal to the original")
 	}
 
-	entryAOld := &VersionCertificateEntry{
+	entryAOld := &istanbul.VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   0,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert = []*VersionCertificateEntry{entryAOld}
+	entriesToUpsert = []*istanbul.VersionCertificateEntry{entryAOld}
 	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
@@ -61,13 +62,13 @@ func TestVersionCertificateDBUpsert(t *testing.T) {
 		t.Error("Upserting an old version gave a new entry")
 	}
 
-	entryANew := &VersionCertificateEntry{
+	entryANew := &istanbul.VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   2,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert = []*VersionCertificateEntry{entryANew}
+	entriesToUpsert = []*istanbul.VersionCertificateEntry{entryANew}
 	newEntries, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert old entry")
@@ -91,13 +92,13 @@ func TestVersionCertificateDBRemove(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	entryA := &VersionCertificateEntry{
+	entryA := &istanbul.VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   1,
 		Signature: []byte("foo"),
 	}
-	entriesToUpsert := []*VersionCertificateEntry{entryA}
+	entriesToUpsert := []*istanbul.VersionCertificateEntry{entryA}
 	_, err = table.Upsert(entriesToUpsert)
 	if err != nil {
 		t.Fatal("Failed to upsert entry")
@@ -123,7 +124,7 @@ func TestVersionCertificateDBPrune(t *testing.T) {
 		t.Fatal("Failed to open DB")
 	}
 
-	batch := []*VersionCertificateEntry{
+	batch := []*istanbul.VersionCertificateEntry{
 		{
 			Address:   addressA,
 			PublicKey: nodeA.Pubkey(),
@@ -160,7 +161,7 @@ func TestVersionCertificateDBPrune(t *testing.T) {
 }
 
 func TestVersionCertificateEntryRLP(t *testing.T) {
-	original := &VersionCertificateEntry{
+	original := &istanbul.VersionCertificateEntry{
 		Address:   addressA,
 		PublicKey: nodeA.Pubkey(),
 		Version:   1,
@@ -172,7 +173,7 @@ func TestVersionCertificateEntryRLP(t *testing.T) {
 		t.Errorf("Error %v", err)
 	}
 
-	var result VersionCertificateEntry
+	var result istanbul.VersionCertificateEntry
 	if err = rlp.DecodeBytes(rawEntry, &result); err != nil {
 		t.Errorf("Error %v", err)
 	}
@@ -189,7 +190,7 @@ func TestVersionCertificateEntryRLP(t *testing.T) {
 }
 
 // Compares the field values of two VersionCertificateEntrys
-func versionCertificateEntriesEqual(a, b *VersionCertificateEntry) bool {
+func versionCertificateEntriesEqual(a, b *istanbul.VersionCertificateEntry) bool {
 	return a.Address == b.Address &&
 		bytes.Equal(crypto.FromECDSAPub(a.PublicKey), crypto.FromECDSAPub(b.PublicKey)) &&
 		a.Version == b.Version &&

@@ -39,25 +39,25 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		return nil, err
 	}
 
-	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
+	sharedValidatorEnodes := make([]istanbul.SharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
 		if vetEntry.GetNode() == nil {
 			continue
 		}
-		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
+		sharedValidatorEnodes = append(sharedValidatorEnodes, istanbul.SharedValidatorEnode{
 			Address:  address,
 			EnodeURL: vetEntry.GetNode().String(),
 			Version:  vetEntry.GetVersion(),
 		})
 	}
 
-	valEnodesShareData := &valEnodesShareData{
+	valEnodesShareData := &istanbul.ValEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
 	}
 
 	valEnodesShareBytes, err := rlp.EncodeToBytes(valEnodesShareData)
 	if err != nil {
-		logger.Error("Error encoding Istanbul Validator Enodes Share message content", "ValEnodesShareData", valEnodesShareData.String(), "err", err)
+		logger.Error("Error encoding Istanbul Validator Enodes Share message content", "istanbul.ValEnodesShareData", valEnodesShareData.String(), "err", err)
 		return nil, err
 	}
 
@@ -74,7 +74,7 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		return nil, err
 	}
 
-	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
+	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "istanbul.ValEnodesShareData", valEnodesShareData.String())
 
 	return msg, nil
 }
@@ -138,7 +138,7 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
-	var valEnodesShareData valEnodesShareData
+	var valEnodesShareData istanbul.ValEnodesShareData
 	err = rlp.DecodeBytes(msg.Msg, &valEnodesShareData)
 	if err != nil {
 		logger.Error("Error in decoding received Istanbul Validator Enodes Share message content", "err", err, "IstanbulMsg", msg.String())

@@ -18,6 +18,7 @@ package istanbul
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -415,13 +416,15 @@ type Message struct {
 	// The below fields are not serializable since they are private, they are
 	// set when calling Message.FromPayload, only one will be set in any
 	// instance, which is set depends on the Message.Code.
-	committedSubject *CommittedSubject
-	prePrepare       *Preprepare
-	prepare          *Subject
-	roundChange      *RoundChange
-	queryEnode       *QueryEnodeData
-	forwardMessage   *ForwardMessage
-	enodeCertificate *EnodeCertificate
+	committedSubject    *CommittedSubject
+	prePrepare          *Preprepare
+	prepare             *Subject
+	roundChange         *RoundChange
+	queryEnode          *QueryEnodeData
+	forwardMessage      *ForwardMessage
+	enodeCertificate    *EnodeCertificate
+	versionCertificates []*VersionCertificateEntry
+	valEnodeShareData   *ValEnodesShareData
 }
 
 // NewMessage constructs a message with the innerMessage instance and the
@@ -453,6 +456,12 @@ func NewMessage(innerMessage interface{}, sender common.Address) *Message {
 	case *EnodeCertificate:
 		message.Code = EnodeCertificateMsg
 		message.enodeCertificate = t
+	case []*VersionCertificateEntry:
+		message.Code = VersionCertificatesMsg
+		message.versionCertificates = t
+	case *ValEnodesShareData:
+		message.Code = ValEnodesShareMsg
+		message.valEnodeShareData = t
 	default:
 		panic(fmt.Sprintf("attempt to construct Message unrecognised inner message type %T", t))
 	}
@@ -539,7 +548,16 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 		m.forwardMessage = f
 	case EnodeCertificateMsg:
 		var e *EnodeCertificate
+		err = m.decode(&e)
 		m.enodeCertificate = e
+	case VersionCertificatesMsg:
+		var v []*VersionCertificateEntry
+		err = m.decode(&v)
+		m.versionCertificates = v
+	case ValEnodesShareMsg:
+		var v *ValEnodesShareData
+		err = m.decode(&v)
+		m.valEnodeShareData = v
 	default:
 		err = fmt.Errorf("unrecognised message code %q", m.Code)
 	}
@@ -779,4 +797,89 @@ func (ae *AddressEntry) GetVersion() uint {
 // GetAddess returns the addess entry's address
 func (ae *AddressEntry) GetAddress() common.Address {
 	return ae.Address
+}
+
+// ## VersionCertificateEntry ######################################################################
+
+// VersionCertificateEntry is an entry in the VersionCertificateDB.
+// It's a signed message from a registered or active validator indicating
+// the most recent version of its enode.
+type VersionCertificateEntry struct {
+	Address   common.Address
+	PublicKey *ecdsa.PublicKey
+	Version   uint
+	Signature []byte
+}
+
+// EncodeRLP serializes VersionCertificateEntry into the Ethereum RLP format.
+func (entry *VersionCertificateEntry) EncodeRLP(w io.Writer) error {
+	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
+	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the VersionCertificateEntry fields from a RLP stream.
+func (entry *VersionCertificateEntry) DecodeRLP(s *rlp.Stream) error {
+	var content struct {
+		Address   common.Address
+		PublicKey []byte
+		Version   uint
+		Signature []byte
+	}
+
+	if err := s.Decode(&content); err != nil {
+		return err
+	}
+	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
+	if err != nil {
+		return err
+	}
+	entry.Address, entry.PublicKey, entry.Version, entry.Signature = content.Address, decodedPublicKey, content.Version, content.Signature
+	return nil
+}
+
+// String gives a string representation of VersionCertificateEntry
+func (entry *VersionCertificateEntry) String() string {
+	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
+}
+
+// ## SharedValidatorEnode ######################################################################
+
+type SharedValidatorEnode struct {
+	Address  common.Address
+	EnodeURL string
+	Version  uint
+}
+
+type ValEnodesShareData struct {
+	ValEnodes []SharedValidatorEnode
+}
+
+func (sve *SharedValidatorEnode) String() string {
+	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Version: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Version)
+}
+
+func (sd *ValEnodesShareData) String() string {
+	outputStr := "{ValEnodes:"
+	for _, valEnode := range sd.ValEnodes {
+		outputStr = fmt.Sprintf("%s %s", outputStr, valEnode.String())
+	}
+	return fmt.Sprintf("%s}", outputStr)
+}
+
+// EncodeRLP serializes sd into the Ethereum RLP format.
+func (sd *ValEnodesShareData) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{sd.ValEnodes})
+}
+
+// DecodeRLP implements rlp.Decoder, and load the sd fields from a RLP stream.
+func (sd *ValEnodesShareData) DecodeRLP(s *rlp.Stream) error {
+	var msg struct {
+		ValEnodes []SharedValidatorEnode
+	}
+
+	if err := s.Decode(&msg); err != nil {
+		return err
+	}
+	sd.ValEnodes = msg.ValEnodes
+	return nil
 }
