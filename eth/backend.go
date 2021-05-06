@@ -118,6 +118,7 @@ func (s *Ethereum) SetContractBackend(backend bind.ContractBackend) {
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
 func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
+	contracts.Init()
 	// Ensure configuration values are compatible and sane
 	if !config.SyncMode.SyncFullBlockChain() {
 		return nil, errors.New("can't run eth.Ethereum in light sync mode or lightest sync mode, use les.LightEthereum")
