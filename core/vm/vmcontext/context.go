@@ -9,11 +9,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
-// Transfer subtracts amount from sender and adds amount to recipient using the given Db
-var Transfer = func(evm *vm.EVM, sender, recipient common.Address, amount *big.Int) {
-	evm.StateDB.SubBalance(sender, amount)
-	evm.StateDB.AddBalance(recipient, amount)
-}
+var Transfer vm.TransferFunc
 
 // New creates a new context for use in the EVM.
 func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
