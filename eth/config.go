@@ -49,6 +49,7 @@ var DefaultConfig = Config{
 	GatewayFee: big.NewInt(0),
 
 	TxPool:      core.DefaultTxPoolConfig,
+	RPCGasCap:   25000000,
 	RPCTxFeeCap: 1, // 1 celo
 
 	Istanbul: *istanbul.DefaultConfig,
@@ -128,7 +129,7 @@ type Config struct {
 	EVMInterpreter string
 
 	// RPCGasCap is the global gas cap for eth-call variants.
-	RPCGasCap *big.Int `toml:",omitempty"`
+	RPCGasCap uint64 `toml:",omitempty"`
 
 	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
 	// send-transction variants. The unit is ether.

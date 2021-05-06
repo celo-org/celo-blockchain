@@ -51,7 +51,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DocRoot                 string `toml:"-"`
 		EWASMInterpreter        string
 		EVMInterpreter          string
-		RPCGasCap               *big.Int                       `toml:",omitempty"`
+		RPCGasCap               uint64                         `toml:",omitempty"`
 		RPCTxFeeCap             float64                        `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
@@ -139,7 +139,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DocRoot                 *string `toml:"-"`
 		EWASMInterpreter        *string
 		EVMInterpreter          *string
-		RPCGasCap               *big.Int                       `toml:",omitempty"`
+		RPCGasCap               *uint64                        `toml:",omitempty"`
 		RPCTxFeeCap             *float64                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
@@ -253,7 +253,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		c.EVMInterpreter = *dec.EVMInterpreter
 	}
 	if dec.RPCGasCap != nil {
-		c.RPCGasCap = dec.RPCGasCap
+		c.RPCGasCap = *dec.RPCGasCap
 	}
 	if dec.RPCTxFeeCap != nil {
 		c.RPCTxFeeCap = *dec.RPCTxFeeCap
