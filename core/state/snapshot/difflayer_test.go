@@ -109,7 +109,8 @@ func TestMergeBasics(t *testing.T) {
 			if have, want := len(merged.storageList), i; have != want {
 				t.Errorf("[1] storageList wrong: have %v, want %v", have, want)
 			}
-			if have, want := len(merged.StorageList(aHash)), len(sMap); have != want {
+			list, _ := merged.StorageList(aHash)
+			if have, want := len(list), len(sMap); have != want {
 				t.Errorf("[2] StorageList() wrong: have %v, want %v", have, want)
 			}
 			if have, want := len(merged.storageList[aHash]), len(sMap); have != want {
@@ -313,7 +314,7 @@ func BenchmarkSearchSlot(b *testing.B) {
 // With accountList and sorting
 // BenchmarkFlatten-6   	      50	  29890856 ns/op
 //
-// Without sorting and tracking accountlist
+// Without sorting and tracking accountList
 // BenchmarkFlatten-6   	     300	   5511511 ns/op
 func BenchmarkFlatten(b *testing.B) {
 	fill := func(parent snapshot) *diffLayer {
