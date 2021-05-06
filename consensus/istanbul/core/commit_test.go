@@ -430,17 +430,10 @@ func BenchmarkHandleCommit(b *testing.B) {
 		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 		defer signature.Destroy()
 		signatureBytes, _ := signature.Serialize()
-		committedSubject := &istanbul.CommittedSubject{
+		im = istanbul.NewMessage(&istanbul.CommittedSubject{
 			Subject:       v.engine.(*core).current.Subject(),
 			CommittedSeal: signatureBytes,
-		}
-		m, _ := Encode(committedSubject)
-		im = &istanbul.Message{
-			Code:      istanbul.MsgCommit,
-			Msg:       m,
-			Address:   validator.Address(),
-			Signature: []byte{},
-		}
+		}, validator.Address())
 	}
 	// benchmarked portion
 	b.ResetTimer()

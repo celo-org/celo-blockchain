@@ -20,7 +20,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []common.Address, ethMsgCode uint64, payload []byte) error {
@@ -33,18 +32,11 @@ func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []c
 		if proxy.IsPeered() {
 
 			// Convert the message to a fwdMessage
-			fwdMessage := &istanbul.ForwardMessage{
+			msg := istanbul.NewMessage(&istanbul.ForwardMessage{
 				Code:          ethMsgCode,
 				DestAddresses: destAddresses,
 				Msg:           payload,
-			}
-			fwdMsgBytes, err := rlp.EncodeToBytes(fwdMessage)
-			if err != nil {
-				logger.Error("Failed to encode", "fwdMessage", fwdMessage)
-				return err
-			}
-
-			msg := istanbul.Message{Code: istanbul.FwdMsg, Msg: fwdMsgBytes, Address: pv.backend.Address()}
+			}, pv.backend.Address())
 
 			// Sign the message
 			if err := msg.Sign(pv.backend.Sign); err != nil {

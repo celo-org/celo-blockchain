@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -188,19 +187,10 @@ func testEnodeCertFromRemoteVal(t *testing.T, valBE BackendForProxiedValidatorEn
 }
 
 func testEnodeCertFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
-	unelectedValEC := &istanbul.EnodeCertificate{
+	ecMsg := istanbul.NewMessage(&istanbul.EnodeCertificate{
 		EnodeURL: unelectedValBE.SelfNode().URLv4(),
 		Version:  1,
-	}
-	ecBytes, err := rlp.EncodeToBytes(unelectedValEC)
-	if err != nil {
-		t.Errorf("Error in encoding enode certificate.  Error: %v", err)
-	}
-	ecMsg := &istanbul.Message{
-		Code:    istanbul.EnodeCertificateMsg,
-		Address: unelectedValBE.Address(),
-		Msg:     ecBytes,
-	}
+	}, unelectedValBE.Address())
 	// Sign the message
 	if err := ecMsg.Sign(func(data []byte) ([]byte, error) {
 		return crypto.Sign(crypto.Keccak256(data), unelectedValKey)

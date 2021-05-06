@@ -864,26 +864,10 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 	return vc, nil
 }
 
-func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCertificate) ([]byte, error) {
-	payload, err := rlp.EncodeToBytes(versionCertificates)
-	if err != nil {
-		return nil, err
-	}
-	msg := &istanbul.Message{
-		Code: istanbul.VersionCertificatesMsg,
-		Msg:  payload,
-	}
-	msgPayload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-	return msgPayload, nil
-}
-
 func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
 	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := sb.encodeVersionCertificatesMsg(versionCertificates)
+	payload, err := istanbul.NewMessage(versionCertificates, sb.address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -912,7 +896,7 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := sb.encodeVersionCertificatesMsg(allVersionCertificates)
+	payload, err := istanbul.NewMessage(allVersionCertificates, sb.address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err

@@ -120,22 +120,12 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 			return
 		}
 	}
-
-	committedSub := &istanbul.CommittedSubject{
+	istMsg := istanbul.NewMessage(&istanbul.CommittedSubject{
 		Subject:               sub,
 		CommittedSeal:         committedSeal[:],
 		EpochValidatorSetSeal: epochValidatorSetSeal[:],
-	}
-	encodedCommittedSubject, err := Encode(committedSub)
-	if err != nil {
-		logger.Error("Failed to encode committedSubject", committedSub)
-	}
-
-	istMsg := istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  encodedCommittedSubject,
-	}
-	c.broadcast(&istMsg)
+	}, c.address)
+	c.broadcast(istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {

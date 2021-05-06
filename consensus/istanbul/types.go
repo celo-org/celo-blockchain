@@ -630,9 +630,26 @@ func (m *Message) QueryEnodeMsg() *QueryEnodeData {
 	return m.queryEnode
 }
 
-// QueryEnode returns forward message if this is a forward message.
+// ForwardMessage returns forward message if this is a forward message.
 func (m *Message) ForwardMessage() *ForwardMessage {
 	return m.forwardMessage
+}
+
+// EnodeCertificate returns the enode certificate if this is an enode
+// certificate message
+func (m *Message) EnodeCertificate() *EnodeCertificate {
+	return m.enodeCertificate
+}
+
+// VersionCertificates returns the version certificate entries if this is a
+// version certificates message.
+func (m *Message) VersionCertificates() []*VersionCertificateEntry {
+	return m.versionCertificates
+}
+
+// ValEnodesShareData returns val enode share data if this is a val enodes share message.
+func (m *Message) ValEnodesShareData() *ValEnodesShareData {
+	return m.valEnodeShareData
 }
 
 func (m *Message) Copy() *Message {

@@ -51,22 +51,9 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		})
 	}
 
-	valEnodesShareData := &istanbul.ValEnodesShareData{
+	msg := istanbul.NewMessage(&istanbul.ValEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
-	}
-
-	valEnodesShareBytes, err := rlp.EncodeToBytes(valEnodesShareData)
-	if err != nil {
-		logger.Error("Error encoding Istanbul Validator Enodes Share message content", "istanbul.ValEnodesShareData", valEnodesShareData.String(), "err", err)
-		return nil, err
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbul.ValEnodesShareMsg,
-		Msg:       valEnodesShareBytes,
-		Address:   pv.backend.Address(),
-		Signature: []byte{},
-	}
+	}, pv.backend.Address())
 
 	// Sign the validator enode share message
 	if err := msg.Sign(pv.backend.Sign); err != nil {
@@ -74,7 +61,7 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		return nil, err
 	}
 
-	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "istanbul.ValEnodesShareData", valEnodesShareData.String())
+	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "istanbul.ValEnodesShareData", msg.ValEnodesShareData().String())
 
 	return msg, nil
 }

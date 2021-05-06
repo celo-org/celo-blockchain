@@ -29,51 +29,24 @@ import (
 
 // sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
 func (c *core) sendRoundChange() {
-	logger := c.newLogger("func", "sendRoundChange")
-
-	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
-	if err != nil {
-		logger.Error("Could not build round change message", "err", msg)
-		return
-	}
-
-	c.broadcast(msg)
+	c.broadcast(c.buildRoundChangeMsg(c.current.DesiredRound()))
 }
 
 // sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
 func (c *core) sendRoundChangeAgain(addr common.Address) {
-	logger := c.newLogger("func", "sendRoundChangeAgain", "to", addr)
-
-	msg, err := c.buildRoundChangeMsg(c.current.DesiredRound())
-	if err != nil {
-		logger.Error("Could not build round change message", "err", err)
-		return
-	}
-
-	c.unicast(msg, addr)
+	c.unicast(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
 }
 
 // buildRoundChangeMsg creates a round change msg for the given round
-func (c *core) buildRoundChangeMsg(round *big.Int) (*istanbul.Message, error) {
+func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	nextView := &istanbul.View{
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(c.current.View().Sequence),
 	}
-
-	rc := &istanbul.RoundChange{
+	return istanbul.NewMessage(&istanbul.RoundChange{
 		View:                nextView,
 		PreparedCertificate: c.current.PreparedCertificate(),
-	}
-
-	payload, err := Encode(rc)
-	if err != nil {
-		return nil, err
-	}
-
-	return &istanbul.Message{
-		Code: istanbul.MsgRoundChange,
-		Msg:  payload,
-	}, nil
+	}, c.address)
 }
 
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
