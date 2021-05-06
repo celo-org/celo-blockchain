@@ -25,7 +25,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -384,15 +383,6 @@ func (tx *Transaction) Cost() *big.Int {
 	total.Add(total, tx.data.Amount)
 	total.Add(total, tx.data.GatewayFee)
 	return total
-}
-
-func (tx *Transaction) CostU64() (uint64, bool) {
-	if tx.data.Price.BitLen() > 63 || tx.data.Amount.BitLen() > 63 {
-		return 0, false
-	}
-	cost, overflowMul := math.SafeMul(tx.data.Price.Uint64(), tx.data.GasLimit)
-	total, overflowAdd := math.SafeAdd(cost, tx.data.Amount.Uint64())
-	return total, overflowMul || overflowAdd
 }
 
 // RawSignatureValues returns the V, R, S signature values of the transaction.

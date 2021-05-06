@@ -49,23 +49,3 @@ func TestStrictTxListAdd(t *testing.T) {
 		}
 	}
 }
-
-func BenchmarkTxListAdd(b *testing.B) {
-	// Generate a list of transactions to insert
-	key, _ := crypto.GenerateKey()
-
-	txs := make(types.Transactions, 2000)
-	for i := 0; i < len(txs); i++ {
-		txs[i] = transaction(uint64(i), 0, key)
-	}
-	// Insert the transactions in a random order
-	b.ResetTimer()
-	priceLimit := DefaultTxPoolConfig.PriceLimit
-	for i := 0; i < b.N; i++ {
-		list := newTxList(true, nil)
-		for _, v := range rand.Perm(len(txs)) {
-			list.Add(txs[v], DefaultTxPoolConfig.PriceBump)
-			list.Filter(priceLimit, nil, DefaultTxPoolConfig.PriceBump)
-		}
-	}
-}
