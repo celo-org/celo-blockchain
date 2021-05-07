@@ -766,9 +766,9 @@ var versionCertificateSalt = []byte("versionCertificate")
 
 // versionCertificate is a signed message from a validator indicating the most
 // recent version of its enode.
-type versionCertificate istanbul.VersionCertificateEntry
+type versionCertificate istanbul.VersionCertificate
 
-func newVersionCertificateFromEntry(entry *istanbul.VersionCertificateEntry) *versionCertificate {
+func newVersionCertificateFromEntry(entry *istanbul.VersionCertificate) *versionCertificate {
 	return &versionCertificate{
 		Address:   entry.Address,
 		PublicKey: entry.PublicKey,
@@ -791,7 +791,7 @@ func (vc *versionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) 
 
 // RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
 // address from the Signature
-func (vc *versionCertificate) RecoverPublicKeyAndAddress() error {
+func RecoverPublicKeyAndAddress(vc istanbul.VersionCertificate) error {
 	payloadToSign, err := vc.payloadToSign()
 	if err != nil {
 		return err
@@ -833,8 +833,8 @@ func (vc *versionCertificate) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (vc *versionCertificate) Entry() *istanbul.VersionCertificateEntry {
-	return &istanbul.VersionCertificateEntry{
+func (vc *versionCertificate) Entry() *istanbul.VersionCertificate {
+	return &istanbul.VersionCertificate{
 		Address:   vc.Address,
 		PublicKey: vc.PublicKey,
 		Version:   vc.Version,
@@ -842,7 +842,7 @@ func (vc *versionCertificate) Entry() *istanbul.VersionCertificateEntry {
 	}
 }
 
-func (vc *versionCertificate) payloadToSign() ([]byte, error) {
+func signPayload(vc *istanbul.VersionCertificate) ([]byte, error) {
 	signedContent := []interface{}{versionCertificateSalt, vc.Version}
 	payload, err := rlp.EncodeToBytes(signedContent)
 	if err != nil {
@@ -916,18 +916,14 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	}
 	defer sb.markMessageProcessedBySelf(payload)
 
-	var msg istanbul.Message
+	msg := &istanbul.Message{}
 	if err := msg.FromPayload(payload, nil); err != nil {
 		logger.Error("Error in decoding version certificates message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
 	logger = logger.New("msg address", msg.Address)
 
-	var versionCertificates []*versionCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &versionCertificates); err != nil {
-		logger.Warn("Error in decoding received version certificates msg", "err", err)
-		return err
-	}
+	versionCertificates := msg.VersionCertificates()
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
@@ -936,7 +932,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		return err
 	}
 
-	var validEntries []*istanbul.VersionCertificateEntry
+	var validEntries []*istanbul.VersionCertificate
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, versionCertificate := range versionCertificates {
@@ -964,7 +960,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	return nil
 }
 
-func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.VersionCertificateEntry) error {
+func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.VersionCertificate) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 	shouldProcess, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
@@ -1104,7 +1100,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	return sb.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificateEntry{
+	return sb.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificate{
 		newVersionCertificate.Entry(),
 	})
 }

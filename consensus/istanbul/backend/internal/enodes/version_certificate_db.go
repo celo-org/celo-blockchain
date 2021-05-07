@@ -40,8 +40,8 @@ type VersionCertificateDB struct {
 	logger log.Logger
 }
 
-func versionCertificateEntryFromGenericEntry(entry db.GenericEntry) (*istanbul.VersionCertificateEntry, error) {
-	signedAnnVersionEntry, ok := entry.(*istanbul.VersionCertificateEntry)
+func versionCertificateEntryFromGenericEntry(entry db.GenericEntry) (*istanbul.VersionCertificate, error) {
+	signedAnnVersionEntry, ok := entry.(*istanbul.VersionCertificate)
 	if !ok {
 		return nil, errIncorrectEntryType
 	}
@@ -75,7 +75,7 @@ func (svdb *VersionCertificateDB) String() string {
 	var b strings.Builder
 	b.WriteString("VersionCertificateDB:")
 
-	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificateEntry) error {
+	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificate) error {
 		fmt.Fprintf(&b, " [%s => %s]", address.String(), entry.String())
 		return nil
 	})
@@ -89,10 +89,10 @@ func (svdb *VersionCertificateDB) String() string {
 
 // Upsert inserts any new entries or entries with a Version higher than the
 // existing version. Returns any new or updated entries
-func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertificateEntry) ([]*istanbul.VersionCertificateEntry, error) {
+func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertificate) ([]*istanbul.VersionCertificate, error) {
 	logger := svdb.logger.New("func", "Upsert")
 
-	var newEntries []*istanbul.VersionCertificateEntry
+	var newEntries []*istanbul.VersionCertificate
 
 	getExistingEntry := func(entry db.GenericEntry) (db.GenericEntry, error) {
 		savEntry, err := versionCertificateEntryFromGenericEntry(entry)
@@ -148,8 +148,8 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 
 // Get gets the istanbul.VersionCertificateEntry entry with address `address`.
 // Returns an error if no entry exists.
-func (svdb *VersionCertificateDB) Get(address common.Address) (*istanbul.VersionCertificateEntry, error) {
-	var entry istanbul.VersionCertificateEntry
+func (svdb *VersionCertificateDB) Get(address common.Address) (*istanbul.VersionCertificate, error) {
+	var entry istanbul.VersionCertificate
 	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
@@ -171,9 +171,9 @@ func (svdb *VersionCertificateDB) GetVersion(address common.Address) (uint, erro
 }
 
 // GetAll gets each istanbul.VersionCertificateEntry in the db
-func (svdb *VersionCertificateDB) GetAll() ([]*istanbul.VersionCertificateEntry, error) {
-	var entries []*istanbul.VersionCertificateEntry
-	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificateEntry) error {
+func (svdb *VersionCertificateDB) GetAll() ([]*istanbul.VersionCertificate, error) {
+	var entries []*istanbul.VersionCertificate
+	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificate) error {
 		entries = append(entries, entry)
 		return nil
 	})
@@ -193,7 +193,7 @@ func (svdb *VersionCertificateDB) Remove(address common.Address) error {
 // Prune will remove entries for all addresses not present in addressesToKeep
 func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool) error {
 	batch := new(leveldb.Batch)
-	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificateEntry) error {
+	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificate) error {
 		if !addressesToKeep[address] {
 			svdb.logger.Trace("Deleting entry", "address", address)
 			batch.Delete(addressKey(address))
@@ -207,13 +207,13 @@ func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool)
 }
 
 // iterate will call `onEntry` for each entry in the db
-func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul.VersionCertificateEntry) error) error {
+func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul.VersionCertificate) error) error {
 	logger := svdb.logger.New("func", "iterate")
 	// Only target address keys
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-		var entry istanbul.VersionCertificateEntry
+		var entry istanbul.VersionCertificate
 		if err := rlp.DecodeBytes(value, &entry); err != nil {
 			return err
 		}
@@ -241,7 +241,7 @@ type VersionCertificateEntryInfo struct {
 // Intended for RPC use
 func (svdb *VersionCertificateDB) Info() (map[string]*VersionCertificateEntryInfo, error) {
 	dbInfo := make(map[string]*VersionCertificateEntryInfo)
-	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificateEntry) error {
+	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificate) error {
 		dbInfo[address.Hex()] = &VersionCertificateEntryInfo{
 			Address: entry.Address.Hex(),
 			Version: entry.Version,

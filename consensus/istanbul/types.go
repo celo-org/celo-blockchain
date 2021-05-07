@@ -18,7 +18,6 @@ package istanbul
 
 import (
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -423,7 +422,7 @@ type Message struct {
 	queryEnode          *QueryEnodeData
 	forwardMessage      *ForwardMessage
 	enodeCertificate    *EnodeCertificate
-	versionCertificates []*VersionCertificateEntry
+	versionCertificates []*VersionCertificate
 	valEnodeShareData   *ValEnodesShareData
 }
 
@@ -456,7 +455,7 @@ func NewMessage(innerMessage interface{}, sender common.Address) *Message {
 	case *EnodeCertificate:
 		message.Code = EnodeCertificateMsg
 		message.enodeCertificate = t
-	case []*VersionCertificateEntry:
+	case []*VersionCertificate:
 		message.Code = VersionCertificatesMsg
 		message.versionCertificates = t
 	case *ValEnodesShareData:
@@ -551,7 +550,7 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 		err = m.decode(&e)
 		m.enodeCertificate = e
 	case VersionCertificatesMsg:
-		var v []*VersionCertificateEntry
+		var v []*VersionCertificate
 		err = m.decode(&v)
 		m.versionCertificates = v
 	case ValEnodesShareMsg:
@@ -643,7 +642,7 @@ func (m *Message) EnodeCertificate() *EnodeCertificate {
 
 // VersionCertificates returns the version certificate entries if this is a
 // version certificates message.
-func (m *Message) VersionCertificates() []*VersionCertificateEntry {
+func (m *Message) VersionCertificates() []*VersionCertificate {
 	return m.versionCertificates
 }
 
@@ -818,46 +817,77 @@ func (ae *AddressEntry) GetAddress() common.Address {
 
 // ## VersionCertificateEntry ######################################################################
 
-// VersionCertificateEntry is an entry in the VersionCertificateDB.
+// // VersionCertificateEntry is an entry in the VersionCertificateDB.
+// // It's a signed message from a registered or active validator indicating
+// // the most recent version of its enode.
+// type VersionCertificateEntry struct {
+// 	Address   common.Address
+// 	PublicKey *ecdsa.PublicKey
+// 	Version   uint
+// 	Signature []byte
+// }
+
+// VersionCertificate is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
-type VersionCertificateEntry struct {
-	Address   common.Address
-	PublicKey *ecdsa.PublicKey
+type VersionCertificate struct {
 	Version   uint
 	Signature []byte
 }
 
-// EncodeRLP serializes VersionCertificateEntry into the Ethereum RLP format.
-func (entry *VersionCertificateEntry) EncodeRLP(w io.Writer) error {
-	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
-	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
-}
+// // EncodeRLP serializes versionCertificate into the Ethereum RLP format.
+// // Only the Version and Signature are encoded, as the public key and address
+// // can be recovered from the Signature using RecoverPublicKeyAndAddress
+// func (vc *VersionCertificate) EncodeRLP(w io.Writer) error {
+// 	return rlp.Encode(w, []interface{}{vc.Version, vc.Signature})
+// }
 
-// DecodeRLP implements rlp.Decoder, and load the VersionCertificateEntry fields from a RLP stream.
-func (entry *VersionCertificateEntry) DecodeRLP(s *rlp.Stream) error {
-	var content struct {
-		Address   common.Address
-		PublicKey []byte
-		Version   uint
-		Signature []byte
-	}
+// // DecodeRLP implements rlp.Decoder, and load the versionCertificate fields from a RLP stream.
+// // Only the Version and Signature are encoded/decoded, as the public key and address
+// // can be recovered from the Signature using RecoverPublicKeyAndAddress
+// func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
+// 	var msg struct {
+// 		Version   uint
+// 		Signature []byte
+// 	}
 
-	if err := s.Decode(&content); err != nil {
-		return err
-	}
-	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
-	if err != nil {
-		return err
-	}
-	entry.Address, entry.PublicKey, entry.Version, entry.Signature = content.Address, decodedPublicKey, content.Version, content.Signature
-	return nil
-}
+// 	if err := s.Decode(&msg); err != nil {
+// 		return err
+// 	}
+// 	vc.Version, vc.Signature = msg.Version, msg.Signature
+// 	return nil
+// }
+
+// // EncodeRLP serializes VersionCertificateEntry into the Ethereum RLP format.
+// func (entry *VersionCertificateEntry) EncodeRLP(w io.Writer) error {
+// 	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
+// 	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
+// }
+
+// // DecodeRLP implements rlp.Decoder, and load the VersionCertificateEntry fields from a RLP stream.
+// func (entry *VersionCertificateEntry) DecodeRLP(s *rlp.Stream) error {
+// 	var content struct {
+// 		Address   common.Address
+// 		PublicKey []byte
+// 		Version   uint
+// 		Signature []byte
+// 	}
+
+// 	if err := s.Decode(&content); err != nil {
+// 		return err
+// 	}
+// 	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	entry.Address, entry.PublicKey, entry.Version, entry.Signature = content.Address, decodedPublicKey, content.Version, content.Signature
+// 	return nil
+// }
 
 // String gives a string representation of VersionCertificateEntry
-func (entry *VersionCertificateEntry) String() string {
-	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
-}
+// func (entry *VersionCertificate) String() string {
+// 	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
+// }
 
 // ## SharedValidatorEnode ######################################################################
 
