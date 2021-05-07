@@ -1560,8 +1560,9 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 		if err != nil {
 			return common.Hash{}, err
 		}
-		if currencyManager.CmpValues(tx.Fee(), tx.FeeCurrency(), big.NewInt(int64(b.RPCTxFeeCap())), nil) > 0 {
-			return common.Hash{}, fmt.Errorf("tx fee (%d wei) exceeds the configured cap (%d wei)", tx.Fee().Uint64(), int64(b.RPCTxFeeCap()))
+		feeCap := GetWei(b.RPCTxFeeCap())
+		if currencyManager.CmpValues(tx.Fee(), tx.FeeCurrency(), feeCap, nil) > 0 {
+			return common.Hash{}, fmt.Errorf("tx fee (%d celo) exceeds the configured cap (%d celo)", tx.Fee().Uint64(), int64(b.RPCTxFeeCap()))
 		}
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
