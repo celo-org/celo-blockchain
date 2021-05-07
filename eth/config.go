@@ -50,7 +50,7 @@ var DefaultConfig = Config{
 
 	TxPool:      core.DefaultTxPoolConfig,
 	RPCGasCap:   25000000,
-	RPCTxFeeCap: 1, // 1 celo
+	RPCTxFeeCap: 100 * params.Ether, // 100 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }

@@ -1555,10 +1555,14 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
 	// If the transaction fee cap is already specified, ensure the
 	// fee of the given transaction is _reasonable_.
-	feeEth := new(big.Float).Quo(new(big.Float).SetInt(new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))), new(big.Float).SetInt(big.NewInt(params.Ether)))
-	feeFloat, _ := feeEth.Float64()
-	if b.RPCTxFeeCap() != 0 && feeFloat > b.RPCTxFeeCap() {
-		return common.Hash{}, fmt.Errorf("tx fee (%.2f celo) exceeds the configured cap (%.2f ether)", feeFloat, b.RPCTxFeeCap())
+	if b.RPCTxFeeCap() != 0 {
+		currencyManager, err := NewCurrencyManager(ctx, b)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		if currencyManager.CmpValues(tx.Fee(), tx.FeeCurrency(), big.NewInt(int64(b.RPCTxFeeCap())), nil) > 0 {
+			return common.Hash{}, fmt.Errorf("tx fee (%d wei) exceeds the configured cap (%d wei)", tx.Fee().Uint64(), int64(b.RPCTxFeeCap()))
+		}
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
