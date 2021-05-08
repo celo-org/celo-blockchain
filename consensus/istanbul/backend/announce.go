@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"io"
 	"math"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
-	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -757,105 +755,9 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	return nil
 }
 
-// Used as a salt when signing versionCertificate. This is to account for
-// the unlikely case where a different signed struct with the same field types
-// is used elsewhere and shared with other nodes. If that were to happen, a
-// malicious node could try sending the other struct where this struct is used,
-// or vice versa. This ensures that the signature is only valid for this struct.
-var versionCertificateSalt = []byte("versionCertificate")
-
-// versionCertificate is a signed message from a validator indicating the most
-// recent version of its enode.
-type versionCertificate istanbul.VersionCertificate
-
-func newVersionCertificateFromEntry(entry *istanbul.VersionCertificate) *versionCertificate {
-	return &versionCertificate{
-		Address:   entry.Address,
-		PublicKey: entry.PublicKey,
-		Version:   entry.Version,
-		Signature: entry.Signature,
-	}
-}
-
-func (vc *versionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadToSign, err := vc.payloadToSign()
-	if err != nil {
-		return err
-	}
-	vc.Signature, err = signingFn(payloadToSign)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
-// address from the Signature
-func RecoverPublicKeyAndAddress(vc istanbul.VersionCertificate) error {
-	payloadToSign, err := vc.payloadToSign()
-	if err != nil {
-		return err
-	}
-	payloadHash := crypto.Keccak256(payloadToSign)
-	publicKey, err := crypto.SigToPub(payloadHash, vc.Signature)
-	if err != nil {
-		return err
-	}
-	address, err := crypto.PubkeyToAddress(*publicKey), nil
-	if err != nil {
-		return err
-	}
-	vc.PublicKey = publicKey
-	vc.Address = address
-	return nil
-}
-
-// EncodeRLP serializes versionCertificate into the Ethereum RLP format.
-// Only the Version and Signature are encoded, as the public key and address
-// can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (vc *versionCertificate) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{vc.Version, vc.Signature})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the versionCertificate fields from a RLP stream.
-// Only the Version and Signature are encoded/decoded, as the public key and address
-// can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (vc *versionCertificate) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Version   uint
-		Signature []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	vc.Version, vc.Signature = msg.Version, msg.Signature
-	return nil
-}
-
-func (vc *versionCertificate) Entry() *istanbul.VersionCertificate {
-	return &istanbul.VersionCertificate{
-		Address:   vc.Address,
-		PublicKey: vc.PublicKey,
-		Version:   vc.Version,
-		Signature: vc.Signature,
-	}
-}
-
-func signPayload(vc *istanbul.VersionCertificate) ([]byte, error) {
-	signedContent := []interface{}{versionCertificateSalt, vc.Version}
-	payload, err := rlp.EncodeToBytes(signedContent)
-	if err != nil {
-		return nil, err
-	}
-	return payload, nil
-}
-
-func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
-	vc := &versionCertificate{
-		Address:   sb.Address(),
-		PublicKey: sb.publicKey,
-		Version:   version,
+func (sb *Backend) generateVersionCertificate(version uint) (*istanbul.VersionCertificate, error) {
+	vc := &istanbul.VersionCertificate{
+		Version: version,
 	}
 	err := vc.Sign(sb.Sign)
 	if err != nil {
@@ -864,7 +766,7 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 	return vc, nil
 }
 
-func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
+func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*istanbul.VersionCertificate) error {
 	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
 	payload, err := istanbul.NewMessage(versionCertificates, sb.address).Payload()
@@ -875,16 +777,8 @@ func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCe
 	return sb.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
-func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
-	allEntries, err := sb.versionCertificateTable.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	allVersionCertificates := make([]*versionCertificate, len(allEntries))
-	for i, entry := range allEntries {
-		allVersionCertificates[i] = newVersionCertificateFromEntry(entry)
-	}
-	return allVersionCertificates, nil
+func (sb *Backend) getAllVersionCertificates() ([]*istanbul.VersionCertificate, error) {
+	return sb.versionCertificateTable.GetAll()
 }
 
 // sendVersionCertificateTable sends all VersionCertificates this node
@@ -936,22 +830,17 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, versionCertificate := range versionCertificates {
-		// The public key and address are not RLP encoded/decoded and must be
-		// explicitly recovered.
-		if err := versionCertificate.RecoverPublicKeyAndAddress(); err != nil {
-			logger.Warn("Error recovering version certificates public key and address from signature", "err", err)
+		address := versionCertificate.Address()
+		if !validatorConnSet[address] {
+			logger.Debug("Found version certificate from an address not in the validator conn set", "address", address)
 			continue
 		}
-		if !validatorConnSet[versionCertificate.Address] {
-			logger.Debug("Found version certificate from an address not in the validator conn set", "address", versionCertificate.Address)
+		if _, ok := validAddresses[address]; ok {
+			logger.Debug("Found duplicate version certificate in message", "address", address)
 			continue
 		}
-		if _, ok := validAddresses[versionCertificate.Address]; ok {
-			logger.Debug("Found duplicate version certificate in message", "address", versionCertificate.Address)
-			continue
-		}
-		validAddresses[versionCertificate.Address] = true
-		validEntries = append(validEntries, versionCertificate.Entry())
+		validAddresses[address] = true
+		validEntries = append(validEntries, versionCertificate)
 	}
 	if err := sb.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
@@ -960,7 +849,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	return nil
 }
 
-func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.VersionCertificate) error {
+func (sb *Backend) upsertAndGossipVersionCertificateEntries(versionCertificates []*istanbul.VersionCertificate) error {
 	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 	shouldProcess, err := sb.shouldParticipateInAnnounce()
 	if err != nil {
@@ -970,9 +859,9 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.
 	if shouldProcess {
 		// Update entries in val enode db
 		var valEnodeEntries []*istanbul.AddressEntry
-		for _, entry := range entries {
+		for _, entry := range versionCertificates {
 			// Don't add ourselves into the val enode table
-			if entry.Address == sb.Address() {
+			if entry.Address() == sb.Address() {
 				continue
 			}
 			// Update the HighestKnownVersion for this address. Upsert will
@@ -980,8 +869,8 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.
 			// than the existing one.
 			// Also store the PublicKey for future encryption in queryEnode msgs
 			valEnodeEntries = append(valEnodeEntries, &istanbul.AddressEntry{
-				Address:             entry.Address,
-				PublicKey:           entry.PublicKey,
+				Address:             entry.Address(),
+				PublicKey:           entry.PublicKey(),
 				HighestKnownVersion: entry.Version,
 			})
 		}
@@ -990,7 +879,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.
 		}
 	}
 
-	newEntries, err := sb.versionCertificateTable.Upsert(entries)
+	newVersionCertificates, err := sb.versionCertificateTable.Upsert(versionCertificates)
 	if err != nil {
 		logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
@@ -998,15 +887,15 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*istanbul.
 	// Only regossip entries that do not originate from an address that we have
 	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
-	var versionCertificatesToRegossip []*versionCertificate
+	var versionCertificatesToRegossip []*istanbul.VersionCertificate
 	sb.lastVersionCertificatesGossipedMu.Lock()
-	for _, entry := range newEntries {
-		lastGossipTime, ok := sb.lastVersionCertificatesGossiped[entry.Address]
-		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
+	for _, entry := range newVersionCertificates {
+		lastGossipTime, ok := sb.lastVersionCertificatesGossiped[entry.Address()]
+		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address() != sb.ValidatorAddress() {
 			continue
 		}
-		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
-		sb.lastVersionCertificatesGossiped[entry.Address] = time.Now()
+		versionCertificatesToRegossip = append(versionCertificatesToRegossip, entry)
+		sb.lastVersionCertificatesGossiped[entry.Address()] = time.Now()
 	}
 	sb.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
@@ -1101,7 +990,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		return err
 	}
 	return sb.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificate{
-		newVersionCertificate.Entry(),
+		newVersionCertificate,
 	})
 }
 

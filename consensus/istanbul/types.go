@@ -815,17 +815,7 @@ func (ae *AddressEntry) GetAddress() common.Address {
 	return ae.Address
 }
 
-// ## VersionCertificateEntry ######################################################################
-
-// // VersionCertificateEntry is an entry in the VersionCertificateDB.
-// // It's a signed message from a registered or active validator indicating
-// // the most recent version of its enode.
-// type VersionCertificateEntry struct {
-// 	Address   common.Address
-// 	PublicKey *ecdsa.PublicKey
-// 	Version   uint
-// 	Signature []byte
-// }
+// ## VersionCertificate ######################################################################
 
 // VersionCertificate is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
@@ -833,61 +823,59 @@ func (ae *AddressEntry) GetAddress() common.Address {
 type VersionCertificate struct {
 	Version   uint
 	Signature []byte
+	address   common.Address
+	pubKey    *ecdsa.PublicKey
 }
 
-// // EncodeRLP serializes versionCertificate into the Ethereum RLP format.
-// // Only the Version and Signature are encoded, as the public key and address
-// // can be recovered from the Signature using RecoverPublicKeyAndAddress
-// func (vc *VersionCertificate) EncodeRLP(w io.Writer) error {
-// 	return rlp.Encode(w, []interface{}{vc.Version, vc.Signature})
-// }
+// Used as a salt when signing versionCertificate. This is to account for
+// the unlikely case where a different signed struct with the same field types
+// is used elsewhere and shared with other nodes. If that were to happen, a
+// malicious node could try sending the other struct where this struct is used,
+// or vice versa. This ensures that the signature is only valid for this struct.
+var versionCertificateSalt = []byte("versionCertificate")
 
-// // DecodeRLP implements rlp.Decoder, and load the versionCertificate fields from a RLP stream.
-// // Only the Version and Signature are encoded/decoded, as the public key and address
-// // can be recovered from the Signature using RecoverPublicKeyAndAddress
-// func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
-// 	var msg struct {
-// 		Version   uint
-// 		Signature []byte
-// 	}
+func (vc *VersionCertificate) SignaturePayload() ([]byte, error) {
+	return rlp.EncodeToBytes([]interface{}{versionCertificateSalt, vc.Version})
+}
 
-// 	if err := s.Decode(&msg); err != nil {
-// 		return err
-// 	}
-// 	vc.Version, vc.Signature = msg.Version, msg.Signature
-// 	return nil
-// }
+func (vc *VersionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) error {
+	payloadToSign, err := vc.SignaturePayload()
+	if err != nil {
+		return err
+	}
+	vc.Signature, err = signingFn(payloadToSign)
+	return err
+}
 
-// // EncodeRLP serializes VersionCertificateEntry into the Ethereum RLP format.
-// func (entry *VersionCertificateEntry) EncodeRLP(w io.Writer) error {
-// 	encodedPublicKey := crypto.FromECDSAPub(entry.PublicKey)
-// 	return rlp.Encode(w, []interface{}{entry.Address, encodedPublicKey, entry.Version, entry.Signature})
-// }
+func (vc *VersionCertificate) Address() common.Address {
+	return vc.address
+}
 
-// // DecodeRLP implements rlp.Decoder, and load the VersionCertificateEntry fields from a RLP stream.
-// func (entry *VersionCertificateEntry) DecodeRLP(s *rlp.Stream) error {
-// 	var content struct {
-// 		Address   common.Address
-// 		PublicKey []byte
-// 		Version   uint
-// 		Signature []byte
-// 	}
+func (vc *VersionCertificate) PublicKey() *ecdsa.PublicKey {
+	return vc.pubKey
+}
 
-// 	if err := s.Decode(&content); err != nil {
-// 		return err
-// 	}
-// 	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	entry.Address, entry.PublicKey, entry.Version, entry.Signature = content.Address, decodedPublicKey, content.Version, content.Signature
-// 	return nil
-// }
+func (vc *VersionCertificate) String() string {
+	return fmt.Sprintf("%d", vc.Version)
+}
 
-// String gives a string representation of VersionCertificateEntry
-// func (entry *VersionCertificate) String() string {
-// 	return fmt.Sprintf("{Address: %v, Version: %v, Signature: %v}", entry.Address, entry.Version, hex.EncodeToString(entry.Signature))
-// }
+func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
+	if err := s.Decode(&vc); err != nil {
+		return err
+	}
+
+	payloadToSign, err := vc.SignaturePayload()
+	if err != nil {
+		return err
+	}
+	payloadHash := crypto.Keccak256(payloadToSign)
+	vc.pubKey, err = crypto.SigToPub(payloadHash, vc.Signature)
+	if err != nil {
+		return err
+	}
+	vc.address = crypto.PubkeyToAddress(*vc.pubKey)
+	return nil
+}
 
 // ## SharedValidatorEnode ######################################################################
 

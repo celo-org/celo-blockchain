@@ -99,7 +99,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 		if err != nil {
 			return entry, err
 		}
-		return svdb.Get(savEntry.Address)
+		return svdb.Get(savEntry.Address())
 	}
 
 	onNewEntry := func(batch *leveldb.Batch, entry db.GenericEntry) error {
@@ -111,7 +111,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 		if err != nil {
 			return err
 		}
-		batch.Put(addressKey(savEntry.Address), savEntryBytes)
+		batch.Put(addressKey(savEntry.Address()), savEntryBytes)
 		newEntries = append(newEntries, savEntry)
 		logger.Trace("Updating with new entry",
 			"address", savEntry.Address, "new version", savEntry.Version)
@@ -243,7 +243,7 @@ func (svdb *VersionCertificateDB) Info() (map[string]*VersionCertificateEntryInf
 	dbInfo := make(map[string]*VersionCertificateEntryInfo)
 	err := svdb.iterate(func(address common.Address, entry *istanbul.VersionCertificate) error {
 		dbInfo[address.Hex()] = &VersionCertificateEntryInfo{
-			Address: entry.Address.Hex(),
+			Address: entry.Address().Hex(),
 			Version: entry.Version,
 		}
 		return nil
