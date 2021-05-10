@@ -748,7 +748,7 @@ func (db *Database) Commit(node common.Hash, report bool) error {
 	batch.Replay(uncacher)
 	batch.Reset()
 
-	// Reset the storage counters and bumpd metrics
+	// Reset the storage counters and bumped metrics
 	db.preimages = make(map[common.Hash][]byte)
 	db.preimagesSize = 0
 

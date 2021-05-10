@@ -691,6 +691,31 @@ func (s *StateDB) Copy() *StateDB {
 	for hash, preimage := range s.preimages {
 		state.preimages[hash] = preimage
 	}
+	if s.snaps != nil {
+		// In order for the miner to be able to use and make additions
+		// to the snapshot tree, we need to copy that aswell.
+		// Otherwise, any block mined by ourselves will cause gaps in the tree,
+		// and force the miner to operate trie-backed only
+		state.snaps = s.snaps
+		state.snap = s.snap
+		// deep copy needed
+		state.snapDestructs = make(map[common.Hash]struct{})
+		for k, v := range s.snapDestructs {
+			state.snapDestructs[k] = v
+		}
+		state.snapAccounts = make(map[common.Hash][]byte)
+		for k, v := range s.snapAccounts {
+			state.snapAccounts[k] = v
+		}
+		state.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
+		for k, v := range s.snapStorage {
+			temp := make(map[common.Hash][]byte)
+			for kk, vv := range v {
+				temp[kk] = vv
+			}
+			state.snapStorage[k] = temp
+		}
+	}
 	return state
 }
 
@@ -861,8 +886,12 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 			if err := s.snaps.Update(root, parent, s.snapDestructs, s.snapAccounts, s.snapStorage); err != nil {
 				log.Warn("Failed to update snapshot tree", "from", parent, "to", root, "err", err)
 			}
-			if err := s.snaps.Cap(root, 127); err != nil { // Persistent layer is 128th, the last available trie
-				log.Warn("Failed to cap snapshot tree", "root", root, "layers", 127, "err", err)
+			// Keep 128 diff layers in the memory, persistent layer is 129th.
+			// - head layer is paired with HEAD state
+			// - head-1 layer is paired with HEAD-1 state
+			// - head-127 layer(bottom-most diff layer) is paired with HEAD-127 state
+			if err := s.snaps.Cap(root, 128); err != nil {
+				log.Warn("Failed to cap snapshot tree", "root", root, "layers", 128, "err", err)
 			}
 		}
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
