@@ -41,7 +41,7 @@ type txConfig struct {
 
 // Config represent the load bot run configuration
 type Config struct {
-	ChainID *big.Int
+	ChainID               *big.Int
 	Accounts              []env.Account
 	Amount                *big.Int
 	TransactionsPerSecond int
