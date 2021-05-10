@@ -26,7 +26,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -64,11 +63,6 @@ func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
 // Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
 	return api.TxFeeRecipient()
-}
-
-// Hashrate returns the POW hashrate
-func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
-	return hexutil.Uint64(api.e.Miner().HashRate())
 }
 
 // ChainId is the EIP-155 replay-protection chain id for the current ethereum chain config.
@@ -152,16 +146,6 @@ func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
 	api.e.SetValidator(etherbase)
 	api.e.SetTxFeeRecipient(etherbase)
 	return true
-}
-
-// SetRecommitInterval updates the interval for miner sealing work recommitting.
-func (api *PrivateMinerAPI) SetRecommitInterval(interval int) {
-	api.e.Miner().SetRecommitInterval(time.Duration(interval) * time.Millisecond)
-}
-
-// GetHashrate returns the current hashrate of the miner.
-func (api *PrivateMinerAPI) GetHashrate() uint64 {
-	return api.e.miner.HashRate()
 }
 
 // PrivateAdminAPI is the collection of Ethereum full node-related APIs
