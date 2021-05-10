@@ -49,6 +49,7 @@ func TestCheckMessage(t *testing.T) {
 	t.Run("invalid view format", func(t *testing.T) {
 		err := c.checkMessage(istanbul.MsgPreprepare, nil)
 		if err != errInvalidMessage {
+			t.Errorf("error mismatch: have %v, want %v", err, errInvalidMessage)
 		}
 	})
 
