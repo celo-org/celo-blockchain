@@ -23,6 +23,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func testPreprepare(t *testing.T) {
@@ -33,14 +35,7 @@ func testPreprepare(t *testing.T) {
 		},
 		Proposal: makeBlock(1),
 	}
-	prepreparePayload, _ := Encode(pp)
-
-	m := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     prepreparePayload,
-		Address: common.HexToAddress("0x1234567890"),
-	}
-
+	m := istanbul.NewMessage(pp, common.HexToAddress("0x1234567890"))
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -77,13 +72,7 @@ func testSubject(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 
-	subjectPayload, _ := Encode(s)
-
-	m := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     subjectPayload,
-		Address: common.HexToAddress("0x1234567890"),
-	}
+	m := istanbul.NewMessage(s, common.HexToAddress("0x1234567890"))
 
 	msgPayload, err := m.Payload()
 	if err != nil {
@@ -109,20 +98,20 @@ func testSubjectWithSignature(t *testing.T) {
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
-	expectedSig := []byte{0x01}
-
-	correctAddress := common.HexToAddress("0x1")
-	spooferAddress := common.HexToAddress("0x2")
-
-	subjectPayload, _ := Encode(s)
-	// 1. Encode test
-	m := &istanbul.Message{
-		Code:      istanbul.MsgPreprepare,
-		Msg:       subjectPayload,
-		Address:   correctAddress,
-		Signature: expectedSig,
+	correctKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	correctAddress := crypto.PubkeyToAddress(correctKey.PublicKey)
+	signCorrect := func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), correctKey)
 	}
 
+	spooferAddress := common.HexToAddress("0x2")
+
+	// 1. Encode test
+	m := istanbul.NewMessage(s, correctAddress)
+
+	err = m.Sign(signCorrect)
+	require.NoError(t, err)
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
