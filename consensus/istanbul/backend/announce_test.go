@@ -34,12 +34,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	engine0Enode := engine0.SelfNode()
 
 	// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
-	vCert1, err := engine1.generateVersionCertificate(engine1AnnounceVersion)
+	vCert1, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine1.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine1.  Error: %v", err)
 	}
 
-	vCert2, err := engine2.generateVersionCertificate(engine2AnnounceVersion)
+	vCert2, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine2.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine2.  Error: %v", err)
 	}

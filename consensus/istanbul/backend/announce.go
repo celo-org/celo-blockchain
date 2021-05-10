@@ -32,7 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // ==============================================
@@ -587,17 +586,11 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var qeData istanbul.QueryEnodeData
-	err = rlp.DecodeBytes(msg.Msg, &qeData)
-	if err != nil {
-		logger.Warn("Error in decoding received Istanbul QueryEnode message content", "err", err, "IstanbulMsg", msg.String())
-		return err
-	}
-
+	qeData := msg.QueryEnodeMsg()
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
 	// Do some validation checks on the istanbul.QueryEnodeData
-	if isValid, err := sb.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
+	if isValid, err := sb.validateQueryEnode(msg.Address, msg.QueryEnodeMsg()); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -753,17 +746,6 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	sb.lastQueryEnodeGossiped[msg.Address] = time.Now()
 
 	return nil
-}
-
-func (sb *Backend) generateVersionCertificate(version uint) (*istanbul.VersionCertificate, error) {
-	vc := &istanbul.VersionCertificate{
-		Version: version,
-	}
-	err := vc.Sign(sb.Sign)
-	if err != nil {
-		return nil, err
-	}
-	return vc, nil
 }
 
 func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*istanbul.VersionCertificate) error {
@@ -985,7 +967,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	}
 
 	// Generate and gossip a new version certificate
-	newVersionCertificate, err := sb.generateVersionCertificate(version)
+	newVersionCertificate, err := istanbul.NewVersionCertificate(version, sb.Sign)
 	if err != nil {
 		return err
 	}
@@ -1082,11 +1064,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 	logger = logger.New("msg address", msg.Address)
 
-	var enodeCertificate istanbul.EnodeCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
-		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
-		return err
-	}
+	enodeCertificate := msg.EnodeCertificate()
 	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
@@ -1137,10 +1115,7 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 
 	// Verify that all of the certificates have the same version
 	for _, enodeCertMsg := range enodeCertMsgMap {
-		var enodeCert istanbul.EnodeCertificate
-		if err := rlp.DecodeBytes(enodeCertMsg.Msg.Msg, &enodeCert); err != nil {
-			return err
-		}
+		enodeCert := enodeCertMsg.Msg.EnodeCertificate()
 
 		if enodeCertVersion == nil {
 			enodeCertVersion = &enodeCert.Version

@@ -494,6 +494,11 @@ func (m *Message) FromPayload(b []byte, validateFn func([]byte, []byte) (common.
 		return err
 	}
 
+	if len(m.Msg) == 0 && len(m.Signature) == 0 {
+		// Empty validator handshake message
+		return nil
+	}
+
 	switch m.Code {
 	case MsgPreprepare:
 		var p *Preprepare
@@ -827,6 +832,19 @@ type VersionCertificate struct {
 	pubKey    *ecdsa.PublicKey
 }
 
+func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error)) (*VersionCertificate, error) {
+	vc := &VersionCertificate{Version: version}
+	payloadToSign, err := vc.signaturePayload()
+	if err != nil {
+		return nil, err
+	}
+	vc.Signature, err = signingFn(payloadToSign)
+	if err != nil {
+		return nil, err
+	}
+	return vc, vc.recoverAddressAndPubKey()
+}
+
 // Used as a salt when signing versionCertificate. This is to account for
 // the unlikely case where a different signed struct with the same field types
 // is used elsewhere and shared with other nodes. If that were to happen, a
@@ -834,17 +852,8 @@ type VersionCertificate struct {
 // or vice versa. This ensures that the signature is only valid for this struct.
 var versionCertificateSalt = []byte("versionCertificate")
 
-func (vc *VersionCertificate) SignaturePayload() ([]byte, error) {
+func (vc *VersionCertificate) signaturePayload() ([]byte, error) {
 	return rlp.EncodeToBytes([]interface{}{versionCertificateSalt, vc.Version})
-}
-
-func (vc *VersionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadToSign, err := vc.SignaturePayload()
-	if err != nil {
-		return err
-	}
-	vc.Signature, err = signingFn(payloadToSign)
-	return err
 }
 
 func (vc *VersionCertificate) Address() common.Address {
@@ -860,11 +869,22 @@ func (vc *VersionCertificate) String() string {
 }
 
 func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
-	if err := s.Decode(&vc); err != nil {
+	msg := struct {
+		Version   uint
+		Signature []byte
+	}{}
+	if err := s.Decode(&msg); err != nil {
 		return err
 	}
 
-	payloadToSign, err := vc.SignaturePayload()
+	vc.Version = msg.Version
+	vc.Signature = msg.Signature
+
+	return vc.recoverAddressAndPubKey()
+}
+
+func (vc *VersionCertificate) recoverAddressAndPubKey() error {
+	payloadToSign, err := vc.signaturePayload()
 	if err != nil {
 		return err
 	}
