@@ -25,18 +25,8 @@ import (
 
 func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
-
-	sub := c.current.Subject()
-	encodedSubject, err := Encode(sub)
-	if err != nil {
-		logger.Error("Failed to encode", "subject", sub)
-		return
-	}
 	logger.Debug("Sending prepare")
-	c.broadcast(&istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  encodedSubject,
-	})
+	c.broadcast(istanbul.NewMessage(c.current.Subject(), c.address))
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.

@@ -29,23 +29,13 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		curView := c.current.View()
-		preprepare, err := Encode(&istanbul.Preprepare{
-			View:                   curView,
+		m := istanbul.NewMessage(&istanbul.Preprepare{
+			View:                   c.current.View(),
 			Proposal:               request.Proposal,
 			RoundChangeCertificate: roundChangeCertificate,
-		})
-		if err != nil {
-			logger.Error("Failed to prepare message")
-			return
-		}
-
-		msg := &istanbul.Message{
-			Code: istanbul.MsgPreprepare,
-			Msg:  preprepare,
-		}
-		logger.Debug("Sending preprepare", "m", msg)
-		c.broadcast(msg)
+		}, c.address)
+		logger.Debug("Sending preprepare", "m", m)
+		c.broadcast(m)
 	}
 }
 
