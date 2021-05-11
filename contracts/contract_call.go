@@ -50,7 +50,7 @@ func NewBoundMethod(contractAddress common.Address, abi *abi.ABI, methodName str
 	return NewMethod(abi, methodName, maxGas).Bind(contractAddress)
 }
 
-func NewRegistryContractMethod(registryId common.Hash, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
+func NewRegisteredContractMethod(registryId common.Hash, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
 	return &BoundMethod{
 		Method: NewMethod(abi, methodName, maxGas),
 		resolveAddress: func(caller vm.SystemEVM) (common.Address, error) {

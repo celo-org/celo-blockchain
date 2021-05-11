@@ -77,7 +77,7 @@ func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []i
 		return err
 	}
 
-	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
+	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
 	return m.VMQuery(caller, returnObj, args...)
 
 }
@@ -88,7 +88,7 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 		return err
 	}
 
-	m := contracts.NewRegistryContractMethod(registryId, &abi, method, gas)
+	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
 	err = m.VMExecute(caller, returnObj, value, args...)
 
 	if err == nil && finaliseState {
