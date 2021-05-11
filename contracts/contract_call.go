@@ -17,7 +17,7 @@ type Method struct {
 	maxGas uint64
 }
 
-// NewMethod creates a new contract message
+// NewMethod creates a new Method
 func NewMethod(abi *abi.ABI, method string, maxGas uint64) Method {
 	return Method{
 		abi:    abi,
