@@ -48,6 +48,7 @@ func (am Method) decodeResult(result interface{}, output []byte) error {
 	return am.abi.Unpack(result, am.method, output)
 }
 
+// NewBoundMethod constructs a new bound method instance bound to the given address.
 func NewBoundMethod(contractAddress common.Address, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
 	return NewMethod(abi, methodName, maxGas).Bind(contractAddress)
 }
