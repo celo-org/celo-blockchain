@@ -74,8 +74,6 @@ const (
 
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
-	interrupt *int32
-	noempty   bool
 	timestamp int64
 }
 
@@ -276,7 +274,7 @@ func (w *worker) newWorkLoop() {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp}
+		w.newWorkCh <- &newWorkReq{timestamp: timestamp}
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
 
@@ -320,7 +318,7 @@ func (w *worker) mainLoop() {
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
+			w.commitNewWork(req.timestamp)
 
 		// System stopped
 		case <-w.exitCh:

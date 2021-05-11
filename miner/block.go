@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"math/big"
-	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -187,7 +186,7 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
+func (w *worker) commitNewWork(timestamp int64) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -253,14 +252,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 
-	if !noempty && !w.isIstanbulEngine() && atomic.LoadUint32(&w.noempty) == 0 {
-		// Create an empty block based on temporary copied state for sealing in advance without waiting block
-		// execution finished.
-		b.commit(w, false, tstart)
-	}
-
 	istanbulEmptyBlockCommit := func() {
-		if !noempty && w.isIstanbulEngine() {
+		if w.isIstanbulEngine() {
 			b.commit(w, false, tstart)
 		}
 	}
