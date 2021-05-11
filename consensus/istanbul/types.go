@@ -506,16 +506,6 @@ func (m *Message) DecodeRLP(stream *rlp.Stream) error {
 			return err
 		}
 		m.prePrepare = p
-		// msgs := p.RoundChangeCertificate.RoundChangeMessages
-		// for i, m := range msgs {
-		// 	msg := &m
-		// 	bytes, err := rlp.EncodeToBytes(msg)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	msg.FromPayload(bytes, nil)
-		// 	msgs[i] = *msg
-		// }
 	case MsgPrepare:
 		var p *Subject
 		err = m.decode(&p)
@@ -531,16 +521,6 @@ func (m *Message) DecodeRLP(stream *rlp.Stream) error {
 			return err
 		}
 		m.roundChange = p
-		// msgs := p.PreparedCertificate.PrepareOrCommitMessages
-		// for i, m := range msgs {
-		// 	msg := &m
-		// 	bytes, err := rlp.EncodeToBytes(msg)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	msg.FromPayload(bytes, nil)
-		// 	msgs[i] = *msg
-		// }
 	case QueryEnodeMsg:
 		var q *QueryEnodeData
 		err = m.decode(&q)
