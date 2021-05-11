@@ -212,6 +212,7 @@ func (w *worker) start() {
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
+	w.interruptSealingTask()
 	atomic.StoreInt32(&w.running, 0)
 }
 
@@ -223,6 +224,7 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
+	w.interruptSealingTask()
 	close(w.exitCh)
 }
 
@@ -276,14 +278,15 @@ func (w *worker) mainLoop() {
 	}
 }
 
-func (w *worker) handleTask(task *task) {
-	// interrupt aborts the in-flight sealing task.
-	interrupt := func() {
-		if w.prevTaskStopCh != nil {
-			close(w.prevTaskStopCh)
-			w.prevTaskStopCh = nil
-		}
+// interrupt aborts the in-flight sealing task.
+func (w *worker) interruptSealingTask() {
+	if w.prevTaskStopCh != nil {
+		close(w.prevTaskStopCh)
+		w.prevTaskStopCh = nil
 	}
+}
+
+func (w *worker) handleTask(task *task) {
 
 	// Reject duplicate sealing work due to resubmitting.
 	sealHash := w.engine.SealHash(task.block.Header())
@@ -291,7 +294,7 @@ func (w *worker) handleTask(task *task) {
 		return
 	}
 	// Interrupt previous sealing operation
-	interrupt()
+	w.interruptSealingTask()
 	// TODO: do this on miner exit.
 	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
 
