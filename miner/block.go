@@ -384,13 +384,8 @@ func (b *blockState) commit(w *worker, update bool, start time.Time) error {
 	}
 	if w.isRunning() {
 		w.handleTask(&task{receipts: receipts, state: s, block: block, createdAt: time.Now()})
-		// Print out fees
-		feesWei := new(big.Int)
-		for i, tx := range block.Transactions() {
-			feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
-		}
-		feesEth := new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 
+		feesEth := totalFees(block, receipts)
 		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 
@@ -399,4 +394,13 @@ func (b *blockState) commit(w *worker, update bool, start time.Time) error {
 		w.updateSnapshot(b)
 	}
 	return nil
+}
+
+// totalFees computes total consumed fees in ETH. Block transactions and receipts have to have the same order.
+func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
+	feesWei := new(big.Int)
+	for i, tx := range block.Transactions() {
+		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
+	}
+	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 }
