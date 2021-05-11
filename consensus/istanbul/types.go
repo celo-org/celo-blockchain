@@ -319,6 +319,20 @@ type CommittedSubject struct {
 	Subject               *Subject
 	CommittedSeal         []byte
 	EpochValidatorSetSeal []byte
+	// Cahed result of validating the committed seal
+	committedSealValid bool
+}
+
+// CommittedSealValid returns true if the committed seal is valid, and false if
+// the committed seal has not yet been validated.
+func (c *CommittedSubject) CommittedSealValid() bool {
+	return c.committedSealValid
+}
+
+// SetCommittedSealValid marks this committed subject as having a valid
+// committed seal.
+func (c *CommittedSubject) SetCommittedSealValid() {
+	c.committedSealValid = true
 }
 
 // ## ForwardMessage #################################################################

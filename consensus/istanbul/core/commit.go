@@ -319,9 +319,16 @@ func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, e
 func (c *core) removeInvalidCommittedSeals() {
 	commits := c.current.Commits()
 	for _, msg := range commits.Values() {
+		// Continue if this commit has already been validated.
+		if msg.Commit().CommittedSealValid() {
+			continue
+		}
 		err := c.verifyCommittedSeal(msg.Commit(), c.current.GetValidatorByAddress(msg.Address))
 		if err != nil {
 			commits.Remove(msg.Address)
+		} else {
+			// Mark this committed seal as valid
+			msg.Commit().SetCommittedSealValid()
 		}
 	}
 }
