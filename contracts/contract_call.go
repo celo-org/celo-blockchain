@@ -67,6 +67,8 @@ type BoundMethod struct {
 	resolveAddress func(vm.EVMRunner) (common.Address, error)
 }
 
+// Query executes the method with the given EVMRunner as a read only action, the returned
+// value is unpacked into result.
 func (bm *BoundMethod) Query(vmRunner vm.EVMRunner, result interface{}, args ...interface{}) error {
 	return bm.run(vmRunner, result, true, nil, args...)
 }
