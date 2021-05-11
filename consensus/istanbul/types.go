@@ -484,36 +484,89 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	return err
 }
 
-// func (s *Message) DecodeRLP(stream *rlp.Stream) error {
-// 	var data struct {
-// 		SerializedValSet []byte
-// 		MessageKeys      []common.Address
-// 		MessageValues    []*istanbul.Message
-// 	}
+func (m *Message) DecodeRLP(stream *rlp.Stream) error {
+	type decodable Message
+	var d decodable
+	err := stream.Decode(&d)
+	if err != nil {
+		return err
+	}
+	*m = Message(d)
 
-// 	err := stream.Decode(&data)
-// 	if err != nil {
-// 		return err
-// 	}
+	if len(m.Msg) == 0 && len(m.Signature) == 0 {
+		// Empty validator handshake message
+		return nil
+	}
 
-// 	valSet, err := validator.DeserializeValidatorSet(data.SerializedValSet)
-// 	if err != nil {
-// 		return err
-// 	}
+	switch m.Code {
+	case MsgPreprepare:
+		var p *Preprepare
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.prePrepare = p
+		// msgs := p.RoundChangeCertificate.RoundChangeMessages
+		// for i, m := range msgs {
+		// 	msg := &m
+		// 	bytes, err := rlp.EncodeToBytes(msg)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	msg.FromPayload(bytes, nil)
+		// 	msgs[i] = *msg
+		// }
+	case MsgPrepare:
+		var p *Subject
+		err = m.decode(&p)
+		m.prepare = p
+	case MsgCommit:
+		var cs *CommittedSubject
+		err = m.decode(&cs)
+		m.committedSubject = cs
+	case MsgRoundChange:
+		var p *RoundChange
+		err = m.decode(&p)
+		if err != nil {
+			return err
+		}
+		m.roundChange = p
+		// msgs := p.PreparedCertificate.PrepareOrCommitMessages
+		// for i, m := range msgs {
+		// 	msg := &m
+		// 	bytes, err := rlp.EncodeToBytes(msg)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	msg.FromPayload(bytes, nil)
+		// 	msgs[i] = *msg
+		// }
+	case QueryEnodeMsg:
+		var q *QueryEnodeData
+		err = m.decode(&q)
+		m.queryEnode = q
+	case FwdMsg:
+		var f *ForwardMessage
+		err = m.decode(&f)
+		m.forwardMessage = f
+	case EnodeCertificateMsg:
+		var e *EnodeCertificate
+		err = m.decode(&e)
+		m.enodeCertificate = e
+	case VersionCertificatesMsg:
+		var v []*VersionCertificate
+		err = m.decode(&v)
+		m.versionCertificates = v
+	case ValEnodesShareMsg:
+		var v *ValEnodesShareData
+		err = m.decode(&v)
+		m.valEnodeShareData = v
+	default:
+		err = fmt.Errorf("unrecognised message code %q", m.Code)
+	}
+	return err
 
-// 	messages := make(map[common.Address]*istanbul.Message)
-// 	for i, addr := range data.MessageKeys {
-// 		messages[addr] = data.MessageValues[i]
-// 	}
-
-// 	*s = messageSetImpl{
-// 		valSet:     valSet,
-// 		messages:   messages,
-// 		messagesMu: new(sync.Mutex),
-// 	}
-
-// 	return nil
-// }
+}
 
 // FromPayload decodes b into a Message instance it will set one of the private
 // fields committedSubject, prePrepare, prepare or roundChange depending on the
