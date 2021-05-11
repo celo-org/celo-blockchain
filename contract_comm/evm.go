@@ -17,6 +17,7 @@
 package contract_comm
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
@@ -44,7 +45,7 @@ func SetEVMRunnerFactory(factory evmRunnerFactory) {
 func MustNewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
 	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
-		panic("failed to get vmRunner")
+		panic(fmt.Sprintf("failed to get vmRunner: %s", err))
 	}
 	return vmRunner
 }
