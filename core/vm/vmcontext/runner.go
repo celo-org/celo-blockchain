@@ -12,10 +12,9 @@ import (
 // VMAddress is the address the VM uses to make internal calls to contracts
 var VMAddress = common.ZeroAddress
 
-// ExtendedChainContext extends ChainContext providing relevant methods
-// for EVMRunner creation
-type ExtendedChainContext interface {
-	ChainContext
+// evmRunnerContext defines methods required to create an EVMRunner
+type evmRunnerContext interface {
+	chainContext
 
 	// GetVMConfig returns the node's vm configuration
 	GetVMConfig() *vm.Config
@@ -27,13 +26,19 @@ type ExtendedChainContext interface {
 
 // SystemEVMRunnerBuilder returns a builder factory for a System's EVMRunner
 // DO NOT USE, only for backwards compatibility
-func SystemEVMRunnerBuilder(chain ExtendedChainContext) func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
+func SystemEVMRunnerBuilder(ctx evmRunnerContext) func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
 	return func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
 		if header == nil {
-			return NewSystemEVMRunnerForCurrentBlock(chain)
+			header := ctx.CurrentHeader()
+			// FIXME small race condition here (Head changes between get header & get state)
+			state, err := ctx.State()
+			if err != nil {
+				return nil, err
+			}
+			return newEVMRunner(ctx, VMAddress, common.Big0, header, state), nil
 		}
 
-		return NewSystemEVMRunner(chain, header, state), nil
+		return NewSystemEVMRunner(ctx, header, state), nil
 	}
 }
 
@@ -44,35 +49,20 @@ type evmRunner struct {
 	dontMeterGas bool
 }
 
-// NewSystemEVMRunnerForCurrentBlock creates an EVMRunner where calls are originated by the VMAddress (uses chain's current block)
-func NewSystemEVMRunnerForCurrentBlock(chain ExtendedChainContext) (vm.EVMRunner, error) {
-	return newEVMRunnerForCurrentBlock(chain, VMAddress, common.Big0)
-}
-
 // NewSystemEVMRunner creates an EVMRunner where calls are originated by the VMAddress
-func NewSystemEVMRunner(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
-	return newEVMRunner(chain, VMAddress, common.Big0, header, state)
+func NewSystemEVMRunner(ctx evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return newEVMRunner(ctx, VMAddress, common.Big0, header, state)
 }
 
-func newEVMRunnerForCurrentBlock(chain ExtendedChainContext, sender common.Address, gasPrice *big.Int) (vm.EVMRunner, error) {
-	header := chain.CurrentHeader()
-	// FIXME small race condition here (Head changes between get header & get state)
-	state, err := chain.State()
-	if err != nil {
-		return nil, err
-	}
-	return newEVMRunner(chain, sender, gasPrice, header, state), nil
-}
-
-func newEVMRunner(chain ExtendedChainContext, sender common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) vm.EVMRunner {
+func newEVMRunner(ctx evmRunnerContext, sender common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
 	return &evmRunner{
 		state: state,
 		newEVM: func() *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 			// Putting in zero values.
-			context := New(sender, gasPrice, header, chain, nil)
-			return vm.NewEVM(context, state, chain.Config(), *chain.GetVMConfig())
+			context := New(sender, gasPrice, header, ctx, nil)
+			return vm.NewEVM(context, state, ctx.Config(), *ctx.GetVMConfig())
 		},
 	}
 }

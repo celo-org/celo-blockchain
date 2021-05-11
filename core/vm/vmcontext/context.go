@@ -14,9 +14,9 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// ChainContext supports retrieving chain data and consensus parameters
-// from the blockchain to be used during transaction processing.
-type ChainContext interface {
+// chainContext defines methods required to build a context
+// a copy of this exist on core.ChainContext (needed to break dependency)
+type chainContext interface {
 	// Engine retrieves the blockchain's consensus engine.
 	Engine() consensus.Engine
 
@@ -34,7 +34,7 @@ type ChainContext interface {
 }
 
 // New creates a new context for use in the EVM.
-func New(from common.Address, gasPrice *big.Int, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.Context {
+func New(from common.Address, gasPrice *big.Int, header *types.Header, chain chainContext, txFeeRecipient *common.Address) vm.Context {
 	// If we don't have an explicit txFeeRecipient (i.e. not mining), extract from the header
 	// The only call that fills the txFeeRecipient, is the ApplyTransaction from the state processor
 	// All the other calls, assume that will be retrieved from the header
@@ -76,7 +76,7 @@ func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, 
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
-func GetHashFn(ref *types.Header, chain ChainContext) func(uint64) common.Hash {
+func GetHashFn(ref *types.Header, chain chainContext) func(uint64) common.Hash {
 	// Cache will initially contain [refHash.parent],
 	// Then fill up with [refHash.p, refHash.pp, refHash.ppp, ...]
 	var cache []common.Hash
@@ -122,7 +122,7 @@ func Transfer(db vm.StateDB, sender, recipient common.Address, amount *big.Int) 
 }
 
 // VerifySealFn returns a function which returns true when the given header has a verifiable seal.
-func VerifySealFn(ref *types.Header, chain ChainContext) func(*types.Header) bool {
+func VerifySealFn(ref *types.Header, chain chainContext) func(*types.Header) bool {
 	return func(header *types.Header) bool {
 		// If the block is later than the unsealed reference block, return false.
 		if header.Number.Cmp(ref.Number) > 0 {
