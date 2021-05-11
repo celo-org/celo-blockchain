@@ -313,8 +313,8 @@ func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, e
 // removeInvalidCommittedSeals individually verifies the committed seal on each
 // commit message and discards commits with invalid committed seals.
 //
-// Note that when commit messages are discarded they are not removed from the
-// round state database, this should not pose a problem however because if this
+// Note that commit messages are discarded from memory but the removal is not
+// persisted to disk, this should not pose a problem however because if this
 // step is reached again they will again be discarded.
 func (c *core) removeInvalidCommittedSeals() {
 	commits := c.current.Commits()
