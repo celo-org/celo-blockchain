@@ -108,8 +108,6 @@ type worker struct {
 
 	// Subscriptions
 	mux          *event.TypeMux
-	txsCh        chan core.NewTxsEvent
-	txsSub       event.Subscription
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
 
@@ -170,7 +168,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chain:               eth.BlockChain(),
 		isLocalBlock:        isLocalBlock,
 		pendingTasks:        make(map[common.Hash]*task),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		newWorkCh:           make(chan *newWorkReq),
 		taskCh:              make(chan *task),
@@ -180,8 +177,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		db:                  db,
 		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
-	// Subscribe NewTxsEvent for tx pool
-	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
@@ -334,7 +329,6 @@ func (w *worker) newWorkLoop() {
 
 // mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
 func (w *worker) mainLoop() {
-	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
 
 	for {
@@ -345,46 +339,8 @@ func (w *worker) mainLoop() {
 			}
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
-		case ev := <-w.txsCh:
-			// Apply transactions to the pending state if we're not mining.
-			//
-			// Note all transactions received may not be continuous with transactions
-			// already included in the current mining block. These transactions will
-			// be automatically eliminated.
-			if !w.isRunning() && w.current != nil {
-				// If block is already full, abort
-				if gp := w.current.gasPool; gp != nil && gp.Gas() < params.TxGas {
-					continue
-				}
-				w.mu.RLock()
-				txFeeRecipient := w.txFeeRecipient
-				if !w.chainConfig.IsDonut(w.current.header.Number) && w.txFeeRecipient != w.validator {
-					txFeeRecipient = w.validator
-					log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
-				}
-				w.mu.RUnlock()
-
-				txs := make(map[common.Address]types.Transactions)
-				for _, tx := range ev.Txs {
-					acc, _ := types.Sender(w.current.signer, tx)
-					txs[acc] = append(txs[acc], tx)
-				}
-
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.createTxCmp())
-				tcount := w.current.tcount
-				w.commitTransactions(txset, txFeeRecipient, nil)
-				// Only update the snapshot if any new transactons were added
-				// to the pending block
-				if tcount != w.current.tcount {
-					w.updateSnapshot()
-				}
-			}
-			atomic.AddInt32(&w.newTxs, int32(len(ev.Txs)))
-
 		// System stopped
 		case <-w.exitCh:
-			return
-		case <-w.txsSub.Err():
 			return
 		case <-w.chainHeadSub.Err():
 			return
