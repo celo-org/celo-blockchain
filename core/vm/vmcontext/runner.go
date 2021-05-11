@@ -15,7 +15,7 @@ var VMAddress = common.ZeroAddress
 // ExtendedChainContext extends ChainContext providing relevant methods
 // for EVMRunner creation
 type ExtendedChainContext interface {
-	vm.ChainContext
+	ChainContext
 
 	// GetVMConfig returns the node's vm configuration
 	GetVMConfig() *vm.Config

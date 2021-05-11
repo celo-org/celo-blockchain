@@ -182,7 +182,7 @@ type Backend struct {
 	core         istanbulCore.Engine
 	logger       log.Logger
 	db           ethdb.Database
-	chain        consensus.ChainReader
+	chain        consensus.ChainContext
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)

@@ -37,7 +37,7 @@ import (
 
 // API is a user facing RPC API to dump Istanbul state
 type API struct {
-	chain    consensus.ChainReader
+	chain    consensus.ChainHeaderReader
 	istanbul *Backend
 }
 

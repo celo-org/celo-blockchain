@@ -228,7 +228,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		var (
 			st     *state.StateDB
 			header *types.Header
-			chain  vm.ChainContext
+			chain  core.ChainContext
 		)
 		if bc == nil {
 			chain = lc
