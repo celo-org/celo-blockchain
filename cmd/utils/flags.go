@@ -403,10 +403,6 @@ var (
 		Usage: "Number of CPU threads to use for mining",
 		Value: 0,
 	}
-	MinerNotifyFlag = cli.StringFlag{
-		Name:  "miner.notify",
-		Usage: "Comma separated HTTP URL list to notify of new work packages",
-	}
 	MinerGasTargetFlag = cli.Uint64Flag{
 		Name:  "miner.gastarget",
 		Usage: "Target gas floor for mined blocks",
@@ -430,10 +426,6 @@ var (
 		Name:  "miner.recommit",
 		Usage: "Time interval to recreate the block being mined",
 		Value: eth.DefaultConfig.Miner.Recommit,
-	}
-	MinerNoVerfiyFlag = cli.BoolFlag{
-		Name:  "miner.noverify",
-		Usage: "Disable remote sealing verification",
 	}
 
 	// Account settings
@@ -1376,9 +1368,6 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 }
 
 func setMiner(ctx *cli.Context, cfg *miner.Config) {
-	if ctx.GlobalIsSet(MinerNotifyFlag.Name) {
-		cfg.Notify = strings.Split(ctx.GlobalString(MinerNotifyFlag.Name), ",")
-	}
 	if ctx.GlobalIsSet(LegacyMinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(LegacyMinerExtraDataFlag.Name))
 		log.Warn("The flag --extradata is deprecated and will be removed in the future, please use --miner.extradata")
@@ -1405,9 +1394,6 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	}
 	if ctx.GlobalIsSet(MinerRecommitIntervalFlag.Name) {
 		cfg.Recommit = ctx.Duration(MinerRecommitIntervalFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
-		cfg.Noverify = ctx.Bool(MinerNoVerfiyFlag.Name)
 	}
 }
 
