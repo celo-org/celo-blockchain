@@ -203,21 +203,21 @@ func TestVerifySeal(t *testing.T) {
 	genesis := chain.Genesis()
 
 	// cannot verify genesis
-	err := engine.VerifySeal(chain, genesis.Header())
+	err := engine.VerifySeal(genesis.Header())
 	if err != errUnknownBlock {
 		t.Errorf("error mismatch: have %v, want %v", err, errUnknownBlock)
 	}
 
 	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
 	header := block.Header()
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
 	// change header content and expect to invalidate signature
 	header.Number = big.NewInt(4)
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	if err != errInvalidSignature {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
 	}
@@ -225,7 +225,7 @@ func TestVerifySeal(t *testing.T) {
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	if err != errInvalidExtraDataFormat {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
 	}
@@ -242,13 +242,13 @@ func TestVerifySeal(t *testing.T) {
 		t.Fatalf("failed to encode istanbul data: %v", err)
 	}
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	if err != errInsufficientSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
 	}
 
 	// verifiy the seal on the unmodified block.
-	err = engine.VerifySeal(chain, block.Header())
+	err = engine.VerifySeal(block.Header())
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}

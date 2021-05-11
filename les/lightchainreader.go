@@ -3,6 +3,7 @@ package les
 import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -31,4 +32,14 @@ func (lcr *LightChainReader) GetHeader(hash common.Hash, number uint64) *types.H
 }
 func (lcr *LightChainReader) GetBlock(hash common.Hash, number uint64) *types.Block {
 	panic("GetBlock cannot be called on LightChainReader")
+}
+
+// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
+func (lcr *LightChainReader) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return lcr.blockchain.NewSystemEVMRunner(header, state)
+}
+
+// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lcr *LightChainReader) NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	return lcr.blockchain.NewSystemEVMRunnerForCurrentBlock()
 }
