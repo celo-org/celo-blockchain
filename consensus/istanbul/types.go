@@ -484,6 +484,37 @@ func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	return err
 }
 
+// func (s *Message) DecodeRLP(stream *rlp.Stream) error {
+// 	var data struct {
+// 		SerializedValSet []byte
+// 		MessageKeys      []common.Address
+// 		MessageValues    []*istanbul.Message
+// 	}
+
+// 	err := stream.Decode(&data)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	valSet, err := validator.DeserializeValidatorSet(data.SerializedValSet)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	messages := make(map[common.Address]*istanbul.Message)
+// 	for i, addr := range data.MessageKeys {
+// 		messages[addr] = data.MessageValues[i]
+// 	}
+
+// 	*s = messageSetImpl{
+// 		valSet:     valSet,
+// 		messages:   messages,
+// 		messagesMu: new(sync.Mutex),
+// 	}
+
+// 	return nil
+// }
+
 // FromPayload decodes b into a Message instance it will set one of the private
 // fields committedSubject, prePrepare, prepare or roundChange depending on the
 // type of the message.
@@ -869,16 +900,14 @@ func (vc *VersionCertificate) String() string {
 }
 
 func (vc *VersionCertificate) DecodeRLP(s *rlp.Stream) error {
-	msg := struct {
-		Version   uint
-		Signature []byte
-	}{}
-	if err := s.Decode(&msg); err != nil {
+	// Create separate type to avoid stack overflow when calling Decode
+	type decodable VersionCertificate
+	var d decodable
+	if err := s.Decode(&d); err != nil {
 		return err
 	}
-
-	vc.Version = msg.Version
-	vc.Signature = msg.Signature
+	// copy struct data
+	*vc = VersionCertificate(d)
 
 	return vc.recoverAddressAndPubKey()
 }
