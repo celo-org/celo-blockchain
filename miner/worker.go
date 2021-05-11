@@ -96,10 +96,13 @@ type worker struct {
 
 	// Channels
 	newWorkCh chan *newWorkReq
-	taskCh    chan *task
 	resultCh  chan *types.Block
 	startCh   chan struct{}
 	exitCh    chan struct{}
+
+	// Previous sent task
+	prevTaskStopCh chan struct{}
+	prevSealHash   common.Hash
 
 	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
 	validator      common.Address
@@ -151,7 +154,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		pendingTasks:        make(map[common.Hash]*task),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		newWorkCh:           make(chan *newWorkReq),
-		taskCh:              make(chan *task),
 		resultCh:            make(chan *types.Block, resultQueueSize),
 		exitCh:              make(chan struct{}),
 		startCh:             make(chan struct{}, 1),
@@ -164,7 +166,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	go worker.mainLoop()
 	go worker.newWorkLoop()
 	go worker.resultLoop()
-	go worker.taskLoop()
 
 	// Submit first work to initialize pending state.
 	if init {
@@ -329,50 +330,30 @@ func (w *worker) mainLoop() {
 	}
 }
 
-// taskLoop is a standalone goroutine to fetch sealing task from the generator and
-// push them to consensus engine.
-func (w *worker) taskLoop() {
-	var (
-		stopCh chan struct{}
-		prev   common.Hash
-	)
-
+func (w *worker) handleTask(task *task) {
 	// interrupt aborts the in-flight sealing task.
 	interrupt := func() {
-		if stopCh != nil {
-			close(stopCh)
-			stopCh = nil
+		if w.prevTaskStopCh != nil {
+			close(w.prevTaskStopCh)
+			w.prevTaskStopCh = nil
 		}
 	}
-	for {
-		select {
-		case task := <-w.taskCh:
-			if w.newTaskHook != nil {
-				w.newTaskHook(task)
-			}
-			// Reject duplicate sealing work due to resubmitting.
-			sealHash := w.engine.SealHash(task.block.Header())
-			if sealHash == prev {
-				continue
-			}
-			// Interrupt previous sealing operation
-			interrupt()
-			stopCh, prev = make(chan struct{}), sealHash
 
-			if w.skipSealHook != nil && w.skipSealHook(task) {
-				continue
-			}
-			w.pendingMu.Lock()
-			w.pendingTasks[w.engine.SealHash(task.block.Header())] = task
-			w.pendingMu.Unlock()
+	// Reject duplicate sealing work due to resubmitting.
+	sealHash := w.engine.SealHash(task.block.Header())
+	if sealHash == w.prevSealHash {
+		return
+	}
+	// Interrupt previous sealing operation
+	interrupt()
+	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
 
-			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
-				log.Warn("Block sealing failed", "err", err)
-			}
-		case <-w.exitCh:
-			interrupt()
-			return
-		}
+	w.pendingMu.Lock()
+	w.pendingTasks[w.engine.SealHash(task.block.Header())] = task
+	w.pendingMu.Unlock()
+
+	if err := w.engine.Seal(w.chain, task.block, w.resultCh, w.prevTaskStopCh); err != nil {
+		log.Warn("Block sealing failed", "err", err)
 	}
 }
 
