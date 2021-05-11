@@ -1,4 +1,4 @@
-package main
+package templates
 
 import (
 	"math/big"
@@ -13,12 +13,12 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-type template interface {
-	createEnv(workdir string) (*env.Environment, error)
-	createGenesisConfig(*env.Environment) (*genesis.Config, error)
+type Template interface {
+	CreateEnv(workdir string) (*env.Environment, error)
+	CreateGenesisConfig(*env.Environment) (*genesis.Config, error)
 }
 
-func templateFromString(templateStr string) template {
+func TemplateFromString(templateStr string) Template {
 	switch templateStr {
 	case "local":
 		return localEnv{}
@@ -78,7 +78,7 @@ func fundAccounts(genesisConfig *genesis.Config, accounts []env.Account) {
 
 type localEnv struct{}
 
-func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
+func (e localEnv) CreateEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             env.MustNewMnemonic(),
@@ -96,7 +96,7 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e localEnv) CreateGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          10,
@@ -114,7 +114,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 
 type loadtestEnv struct{}
 
-func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
+func (e loadtestEnv) CreateEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             "miss fire behind decide egg buyer honey seven advance uniform profit renew",
@@ -133,7 +133,7 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e loadtestEnv) CreateGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
@@ -159,7 +159,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 
 type monorepoEnv struct{}
 
-func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
+func (e monorepoEnv) CreateEnv(workdir string) (*env.Environment, error) {
 	envCfg := &env.Config{
 		Accounts: env.AccountsConfig{
 			Mnemonic:             env.MustNewMnemonic(),
@@ -178,7 +178,7 @@ func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
 	return env, nil
 }
 
-func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
+func (e monorepoEnv) CreateGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
