@@ -19,6 +19,7 @@ package celotest
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"os"
 	"path"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
+	"github.com/celo-org/celo-blockchain/mycelo/loadbot"
 	"github.com/celo-org/celo-blockchain/mycelo/templates"
 	"golang.org/x/sync/errgroup"
 )
@@ -141,4 +143,43 @@ func (n *network) Clients(ctx context.Context) ([]*ethclient.Client, error) {
 		}
 	}
 	return clients, nil
+}
+
+func (n *network) SendAndWaitForNTransactions(ctx context.Context, N int, clients []*ethclient.Client) error {
+	lg := &loadbot.LoadGenerator{}
+	accounts := n.env.Accounts().DeveloperAccounts()
+	// Offset the receiver from the sender so that they are different
+	recvIdx := len(accounts) / 2
+	sendIdx := 0
+	clientIdx := 0
+	nonces := make([]uint64, len(accounts))
+
+	group, ctx := errgroup.WithContext(ctx)
+	for i := 0; i < N; i++ {
+		// We use round robin selectors that rollover
+		recvIdx++
+		recipient := accounts[recvIdx%len(accounts)].Address
+
+		sendIdx++
+		sender := accounts[sendIdx%len(accounts)]
+		nonce := nonces[sendIdx%len(accounts)]
+		nonces[sendIdx%len(accounts)]++
+
+		clientIdx++
+		client := clients[clientIdx%len(clients)]
+		group.Go(func() error {
+			txCfg := loadbot.TxConfig{
+				Acc:               sender,
+				Nonce:             nonce,
+				Recipient:         recipient,
+				Value:             big.NewInt(10000000),
+				Verbose:           false,
+				SkipGasEstimation: false,
+				MixFeeCurrency:    true,
+			}
+			return loadbot.RunTransaction(ctx, client, lg, txCfg)
+		})
+	}
+
+	return group.Wait()
 }
