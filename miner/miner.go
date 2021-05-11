@@ -71,7 +71,7 @@ type Miner struct {
 	stopCh  chan struct{}
 }
 
-func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, isLocalBlock func(block *types.Block) bool, db ethdb.Database) *Miner {
+func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, db ethdb.Database) *Miner {
 	miner := &Miner{
 		eth:     eth,
 		mux:     mux,
@@ -79,7 +79,7 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 		exitCh:  make(chan struct{}),
 		startCh: make(chan struct{}),
 		stopCh:  make(chan struct{}),
-		worker:  newWorker(config, chainConfig, engine, eth, mux, isLocalBlock, db, true),
+		worker:  newWorker(config, chainConfig, engine, eth, mux, db, true),
 		db:      db,
 	}
 	go miner.update()

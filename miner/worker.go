@@ -121,9 +121,6 @@ type worker struct {
 	// non-stop and no real transaction will be included.
 	noempty uint32
 
-	// External functions
-	isLocalBlock func(block *types.Block) bool // Function used to determine whether the specified block is mined by local miner.
-
 	// Test hooks
 	newTaskHook  func(*task)                        // Method to call upon receiving a new sealing task.
 	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
@@ -136,7 +133,7 @@ type worker struct {
 	blockConstructGauge metrics.Gauge
 }
 
-func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
+func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, db ethdb.Database, init bool) *worker {
 	worker := &worker{
 		config:              config,
 		chainConfig:         chainConfig,
@@ -144,7 +141,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		eth:                 eth,
 		mux:                 mux,
 		chain:               eth.BlockChain(),
-		isLocalBlock:        isLocalBlock,
 		pendingTasks:        make(map[common.Hash]*task),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		newWorkCh:           make(chan *newWorkReq),
