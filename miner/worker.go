@@ -156,8 +156,7 @@ type worker struct {
 	resubmitIntervalCh chan time.Duration
 	resubmitAdjustCh   chan *intervalAdjust
 
-	current     *environment       // An environment for current running cycle.
-	unconfirmed *unconfirmedBlocks // A set of locally mined blocks pending canonicalness confirmations.
+	current *environment // An environment for current running cycle.
 
 	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
 	validator      common.Address
@@ -206,7 +205,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		mux:                 mux,
 		chain:               eth.BlockChain(),
 		isLocalBlock:        isLocalBlock,
-		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
 		pendingTasks:        make(map[common.Hash]*task),
 		txsCh:               make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
@@ -639,9 +637,6 @@ func (w *worker) resultLoop() {
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})
 
-			// Insert the block into the set of pending ones to resultLoop for confirmations
-			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
-
 		case <-w.exitCh:
 			return
 		}
@@ -1047,8 +1042,6 @@ func (w *worker) commit(interval func(), update bool, start time.Time) error {
 		}
 		select {
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
-			w.unconfirmed.Shift(block.NumberU64() - 1)
-
 			feesWei := new(big.Int)
 			for i, tx := range block.Transactions() {
 				feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
