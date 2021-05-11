@@ -218,10 +218,6 @@ func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
 	return buf.Bytes()
 }
 
-func (c *core) PrepareEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, newValSet istanbul.ValidatorSet) (seal, sealExtraData []byte, cip22 bool, err error) {
-	return c.generateEpochValidatorSetData(comSub.Subject.View.Sequence.Uint64(), uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
-}
-
 // AggregateSeals returns the bls aggregation of the committed seals for the
 // messgages in mset. It returns a big.Int that represents a bitmap where each
 // set bit corresponds to the position of a validator in the list of validators
