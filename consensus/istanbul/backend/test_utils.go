@@ -100,7 +100,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		b.StartValidating()
 	}
 
-	contract_comm.SetEVMRunnerFactory(vmcontext.SystemEVMRunnerBuilder(blockchain))
+	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(blockchain))
 
 	return blockchain, b, &config
 }

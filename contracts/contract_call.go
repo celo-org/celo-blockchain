@@ -62,6 +62,9 @@ func NewRegisteredContractMethod(registryId common.Hash, abi *abi.ABI, methodNam
 	}
 }
 
+// BoundMethod represents a Method that is bounded to an address
+// In particular, instead of address we use an address resolver to cope the fact
+// that addresses need to be obtained from the Registry before making a call
 type BoundMethod struct {
 	Method
 	resolveAddress func(vm.EVMRunner) (common.Address, error)
