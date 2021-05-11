@@ -102,14 +102,17 @@ type ChainContext interface {
 	Config() *params.ChainConfig
 }
 
-type SystemEVM interface {
-	// Execute performs a potentially write operation over the caller's state
+// EVMRunner provides a simplified API to run EVM calls
+// EVM's sender, gasPrice, txFeeRecipient and state are set by the runne on each call
+// This object can be reutilized many times in constract to EVM single use behaviour
+type EVMRunner interface {
+	// Execute performs a potentially write operation over the runner's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
-	Execute(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
+	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
 
-	// Query performs a read operation over the caller's state
+	// Query performs a read operation over the runner's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
-	Query(sender, recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
 
 	// StopGasMetering backward compatibility method to stop gas metering
 	// Deprecated. DO NOT USE
@@ -119,15 +122,6 @@ type SystemEVM interface {
 	// Deprecated. DO NOT USE
 	StartGasMetering()
 
-	// GetStateDB retrieves current stateDB within the caller
+	// GetStateDB retrieves current stateDB within the runner
 	GetStateDB() StateDB
-}
-
-type SystemEVMFactory interface {
-
-	// NewSystemEVM creates a new SystemEVM pointing at (header,state)
-	NewSystemEVM(header *types.Header, state StateDB) SystemEVM
-
-	// NewCurrentHeadSystemEVM creates a new SystemEVM pointing a current's blockchain Head
-	NewCurrentHeadSystemEVM() (SystemEVM, error)
 }

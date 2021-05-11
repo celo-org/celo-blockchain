@@ -31,7 +31,7 @@ func main() {
 	exitOnError(err, "can't create statedb")
 
 	_ = statedb
-	// caller := vmcontext.NewSystemEVM()
+	// caller := vmcontext.NewEVMRunner()
 }
 
 func exitOnError(err error, msg string) {

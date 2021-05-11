@@ -28,68 +28,66 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 )
 
+type evmRunnerFactory func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error)
+
 var (
-	systemEVMFactory vm.SystemEVMFactory
+	_newEvmRunner evmRunnerFactory
 )
 
-func SetSystemEVMFactory(_systemEVMFactory vm.SystemEVMFactory) {
-	if systemEVMFactory == nil {
-		log.Trace("Setting the systemEVMFactory Singleton")
-		systemEVMFactory = _systemEVMFactory
+func SetEVMRunnerFactory(factory evmRunnerFactory) {
+	if _newEvmRunner == nil {
+		log.Trace("Setting the evmRunnerFactory Singleton")
+		_newEvmRunner = factory
 	}
 }
 
-func MustGetCaller(header *types.Header, state vm.StateDB) vm.SystemEVM {
-	caller, err := getCaller(header, state)
+func MustNewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
-		panic("failed to get caller")
+		panic("failed to get vmRunner")
 	}
-	return caller
+	return vmRunner
 }
 
-func getCaller(header *types.Header, state vm.StateDB) (vm.SystemEVM, error) {
+func newEVMRunner(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	if systemEVMFactory == nil {
+	if _newEvmRunner == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
 
-	if header == nil {
-		return systemEVMFactory.NewCurrentHeadSystemEVM()
-	}
-
-	return systemEVMFactory.NewSystemEVM(header, state), nil
+	return _newEvmRunner(header, state)
 }
 
 func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
-	caller, err := getCaller(header, state)
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
 		return common.ZeroAddress, err
 	}
-	return contracts.GetRegisteredAddress(caller, registryId)
+	return contracts.GetRegisteredAddress(vmRunner, registryId)
 }
 
 func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
-	caller, err := getCaller(header, state)
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
 		return err
 	}
 
 	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
-	return m.VMQuery(caller, returnObj, args...)
+	return m.Query(vmRunner, returnObj, args...)
 
 }
 
 func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) error {
-	caller, err := getCaller(header, state)
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
 		return err
 	}
 
 	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
-	err = m.VMExecute(caller, returnObj, value, args...)
+	err = m.Execute(vmRunner, returnObj, value, args...)
 
 	if err == nil && finaliseState {
 		state.Finalise(true)
@@ -99,11 +97,11 @@ func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interfa
 }
 
 func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
-	caller, err := getCaller(header, state)
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
 		return err
 	}
 
 	m := contracts.NewBoundMethod(contractAddress, &abi, method, gas)
-	return m.VMQuery(caller, returnObj, args...)
+	return m.Query(vmRunner, returnObj, args...)
 }

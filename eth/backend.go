@@ -221,7 +221,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetSystemEVMFactory(vmcontext.NewSystemEVMFactory(eth.blockchain))
+	contract_comm.SetEVMRunnerFactory(vmcontext.SystemEVMRunnerBuilder(eth.blockchain))
 
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 

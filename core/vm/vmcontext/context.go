@@ -50,7 +50,7 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 }
 
 func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
-	caller := &SharedSystemEVM{evm}
+	caller := &SharedEVMRunner{evm}
 	return contracts.GetRegisteredAddress(caller, registryId)
 }
 
@@ -132,7 +132,7 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		caller := &SharedSystemEVM{evm}
+		caller := &SharedEVMRunner{evm}
 		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
 		if err == nil {
 			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))

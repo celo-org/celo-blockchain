@@ -14,9 +14,6 @@ import (
 	"github.com/celo-org/celo-blockchain/metrics"
 )
 
-// VMAddress is the address the VM uses to make internal calls to contracts
-var VMAddress = common.ZeroAddress
-
 var (
 	errorSig     = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
 	abiString, _ = abi.NewType("string", "", nil)
@@ -41,7 +38,7 @@ func unpackError(result []byte) (string, error) {
 	return vs[0].(string), nil
 }
 
-func resolveAddressForCall(caller vm.SystemEVM, registryId common.Hash, method string) (common.Address, error) {
+func resolveAddressForCall(caller vm.EVMRunner, registryId common.Hash, method string) (common.Address, error) {
 	contractAddress, err := GetRegisteredAddress(caller, registryId)
 
 	if err != nil {
@@ -59,6 +56,6 @@ func resolveAddressForCall(caller vm.SystemEVM, registryId common.Hash, method s
 }
 
 // noopResolver returns a address resolver function that always resolve to the same address
-func noopResolver(addr common.Address) func(vm.SystemEVM) (common.Address, error) {
-	return func(e vm.SystemEVM) (common.Address, error) { return addr, nil }
+func noopResolver(addr common.Address) func(vm.EVMRunner) (common.Address, error) {
+	return func(e vm.EVMRunner) (common.Address, error) { return addr, nil }
 }

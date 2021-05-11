@@ -53,37 +53,29 @@ func NewBoundMethod(contractAddress common.Address, abi *abi.ABI, methodName str
 func NewRegisteredContractMethod(registryId common.Hash, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
 	return &BoundMethod{
 		Method: NewMethod(abi, methodName, maxGas),
-		resolveAddress: func(caller vm.SystemEVM) (common.Address, error) {
-			return resolveAddressForCall(caller, registryId, methodName)
+		resolveAddress: func(vmRunner vm.EVMRunner) (common.Address, error) {
+			return resolveAddressForCall(vmRunner, registryId, methodName)
 		},
 	}
 }
 
 type BoundMethod struct {
 	Method
-	resolveAddress func(vm.SystemEVM) (common.Address, error)
+	resolveAddress func(vm.EVMRunner) (common.Address, error)
 }
 
-func (bm *BoundMethod) VMQuery(caller vm.SystemEVM, result interface{}, args ...interface{}) error {
-	return bm.Query(caller, result, VMAddress, args...)
+func (bm *BoundMethod) Query(vmRunner vm.EVMRunner, result interface{}, args ...interface{}) error {
+	return bm.run(vmRunner, result, true, nil, args...)
 }
 
-func (bm *BoundMethod) Query(caller vm.SystemEVM, result interface{}, sender common.Address, args ...interface{}) error {
-	return bm.run(caller, result, true, sender, nil, args...)
+func (bm *BoundMethod) Execute(vmRunner vm.EVMRunner, result interface{}, value *big.Int, args ...interface{}) error {
+	return bm.run(vmRunner, result, false, value, args...)
 }
 
-func (bm *BoundMethod) VMExecute(caller vm.SystemEVM, result interface{}, value *big.Int, args ...interface{}) error {
-	return bm.run(caller, result, false, VMAddress, value, args...)
-}
-
-func (bm *BoundMethod) Execute(caller vm.SystemEVM, result interface{}, sender common.Address, value *big.Int, args ...interface{}) error {
-	return bm.run(caller, result, false, sender, value, args...)
-}
-
-func (bm *BoundMethod) run(caller vm.SystemEVM, result interface{}, readOnly bool, sender common.Address, value *big.Int, args ...interface{}) error {
+func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly bool, value *big.Int, args ...interface{}) error {
 	defer meterExecutionTime(bm.method)()
 
-	contractAddress, err := bm.resolveAddress(caller)
+	contractAddress, err := bm.resolveAddress(vmRunner)
 	if err != nil {
 		return err
 	}
@@ -99,9 +91,9 @@ func (bm *BoundMethod) run(caller vm.SystemEVM, result interface{}, readOnly boo
 	var output []byte
 	var leftoverGas uint64
 	if readOnly {
-		output, leftoverGas, err = caller.Query(sender, contractAddress, input, bm.maxGas)
+		output, leftoverGas, err = vmRunner.Query(contractAddress, input, bm.maxGas)
 	} else {
-		output, leftoverGas, err = caller.Execute(sender, contractAddress, input, bm.maxGas, value)
+		output, leftoverGas, err = vmRunner.Execute(contractAddress, input, bm.maxGas, value)
 	}
 
 	if err != nil {
