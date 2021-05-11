@@ -71,6 +71,8 @@ func (bm *BoundMethod) Query(vmRunner vm.EVMRunner, result interface{}, args ...
 	return bm.run(vmRunner, result, true, nil, args...)
 }
 
+// Execute executes the method with the given EVMRunner and unpacks the return value into result.
+// If the method does not return a value then result should be nil.
 func (bm *BoundMethod) Execute(vmRunner vm.EVMRunner, result interface{}, value *big.Int, args ...interface{}) error {
 	return bm.run(vmRunner, result, false, value, args...)
 }
