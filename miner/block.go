@@ -24,37 +24,70 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/contract_comm/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
-	snap := w.current.state.Snapshot()
+type blockState struct {
+	signer types.Signer
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	state    *state.StateDB // apply state changes here
+	tcount   int            // tx count in cycle
+	gasPool  *core.GasPool  // available gas used to pack transactions
+	gasLimit uint64
+
+	header     *types.Header
+	txs        []*types.Transaction
+	receipts   []*types.Receipt
+	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
+}
+
+// newBlockState creates a new environment for the current cycle.
+func (w *worker) newBlockState(parent *types.Block, header *types.Header) (*blockState, error) {
+	state, err := w.chain.StateAt(parent.Root())
 	if err != nil {
-		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
-	w.current.txs = append(w.current.txs, tx)
-	w.current.receipts = append(w.current.receipts, receipt)
+
+	env := &blockState{
+		signer:   types.NewEIP155Signer(w.chainConfig.ChainID),
+		state:    state,
+		header:   header,
+		gasLimit: core.CalcGasLimit(parent, state),
+	}
+
+	// Keep track of transactions which return errors so they can be removed
+	env.tcount = 0
+	return env, nil
+}
+
+func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
+	snap := b.state.Snapshot()
+
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig())
+	if err != nil {
+		b.state.RevertToSnapshot(snap)
+		return nil, err
+	}
+	b.txs = append(b.txs, tx)
+	b.receipts = append(b.receipts, receipt)
 
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
+func (b *blockState) commitTransactions(w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
-	if w.current == nil {
+	if b == nil {
 		return true
 	}
 
-	if w.current.gasPool == nil {
-		w.current.gasPool = new(core.GasPool).AddGas(w.current.gasLimit)
+	if b.gasPool == nil {
+		b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 	}
 
 	var coalescedLogs []*types.Log
@@ -71,8 +104,8 @@ loop:
 			return atomic.LoadInt32(interrupt) == commitInterruptNewHead
 		}
 		// If we don't have enough gas for any further transactions then we're done
-		if w.current.gasPool.Gas() < params.TxGas {
-			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
+		if b.gasPool.Gas() < params.TxGas {
+			log.Trace("Not enough gas for further transactions", "have", b.gasPool, "want", params.TxGas)
 			break
 		}
 		// Retrieve the next transaction and abort if all done
@@ -84,8 +117,8 @@ loop:
 		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
 		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
 		// anyway due to the block not having enough gas left.
-		if w.current.gasPool.Gas() < tx.Gas() {
-			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", w.current.gasPool.Gas(), "txgas", tx.Gas())
+		if b.gasPool.Gas() < tx.Gas() {
+			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", b.gasPool.Gas(), "txgas", tx.Gas())
 			txs.Pop()
 			continue
 		}
@@ -93,19 +126,19 @@ loop:
 		// during transaction acceptance is the transaction pool.
 		//
 		// We use the eip155 signer regardless of the current hf.
-		from, _ := types.Sender(w.current.signer, tx)
+		from, _ := types.Sender(b.signer, tx)
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
 		// phase, start ignoring the sender until we do.
-		if tx.Protected() && !w.chainConfig.IsEIP155(w.current.header.Number) {
+		if tx.Protected() && !w.chainConfig.IsEIP155(b.header.Number) {
 			log.Trace("Ignoring reply protected transaction", "hash", tx.Hash(), "eip155", w.chainConfig.EIP155Block)
 
 			txs.Pop()
 			continue
 		}
 		// Start executing the transaction
-		w.current.state.Prepare(tx.Hash(), common.Hash{}, w.current.tcount)
+		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
 
-		logs, err := w.commitTransaction(tx, txFeeRecipient)
+		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
@@ -131,7 +164,7 @@ loop:
 		case nil:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
-			w.current.tcount++
+			b.tcount++
 			txs.Shift()
 
 		default:
@@ -221,30 +254,25 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 	// Could potentially happen if starting to mine in an odd state.
-	err := w.makeCurrent(parent, header)
+	b, err := w.newBlockState(parent, header)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
-	}
-	// Create the current work task and check any fork transitions needed
-	env := w.current
-	if w.chainConfig.DAOForkSupport && w.chainConfig.DAOForkBlock != nil && w.chainConfig.DAOForkBlock.Cmp(header.Number) == 0 {
-		misc.ApplyDAOHardFork(env.state)
 	}
 
 	if !noempty && !w.isIstanbulEngine() && atomic.LoadUint32(&w.noempty) == 0 {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
-		w.commit(false, tstart)
+		b.commit(w, false, tstart)
 	}
 
 	istanbulEmptyBlockCommit := func() {
 		if !noempty && w.isIstanbulEngine() {
-			w.commit(false, tstart)
+			b.commit(w, false, tstart)
 		}
 	}
 
-	w.updateSnapshot()
+	w.updateSnapshot(b)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
@@ -253,7 +281,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
 		}
 
-		lastCommitment, err := random.GetLastCommitment(w.validator, w.current.header, w.current.state)
+		lastCommitment, err := random.GetLastCommitment(w.validator, b.header, b.state)
 		if err != nil {
 			log.Error("Failed to get last commitment", "err", err)
 			return
@@ -275,23 +303,23 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			}
 		}
 
-		_, newCommitment, err := istanbul.GenerateRandomness(w.current.header.ParentHash)
+		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
 		if err != nil {
 			log.Error("Failed to generate new randomness", "err", err)
 			return
 		}
 
-		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, w.current.header, w.current.state)
+		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, b.header, b.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
 			return
 		}
 		// always true (EIP158)
-		w.current.state.IntermediateRoot(true)
+		b.state.IntermediateRoot(true)
 
-		w.current.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
+		b.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
 	} else {
-		w.current.randomness = &types.EmptyRandomness
+		b.randomness = &types.EmptyRandomness
 	}
 
 	// Fill the block with all available pending transactions.
@@ -319,32 +347,32 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, txComparator)
-		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
+		if b.commitTransactions(w, txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, txComparator)
-		if w.commitTransactions(txs, txFeeRecipient, interrupt) {
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
+		if b.commitTransactions(w, txs, txFeeRecipient, interrupt) {
 			return
 		}
 	}
-	w.commit(true, tstart)
+	b.commit(w, true, tstart)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (w *worker) commit(update bool, start time.Time) error {
+func (b *blockState) commit(w *worker, update bool, start time.Time) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
-	receipts := make([]*types.Receipt, len(w.current.receipts))
-	for i, l := range w.current.receipts {
+	receipts := make([]*types.Receipt, len(b.receipts))
+	for i, l := range b.receipts {
 		receipts[i] = new(types.Receipt)
 		*receipts[i] = *l
 	}
-	s := w.current.state.Copy()
+	s := b.state.Copy()
 
-	block, err := w.engine.FinalizeAndAssemble(w.chain, w.current.header, s, w.current.txs, w.current.receipts, w.current.randomness)
+	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, s, b.txs, b.receipts, b.randomness)
 
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
@@ -378,13 +406,13 @@ func (w *worker) commit(update bool, start time.Time) error {
 			feesEth := new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
-				"txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+				"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 		case <-w.exitCh:
 			log.Info("Worker has exited")
 		}
 	}
 	if update {
-		w.updateSnapshot()
+		w.updateSnapshot(b)
 	}
 	return nil
 }

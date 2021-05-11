@@ -58,21 +58,6 @@ const (
 // Gauge used to measure block finalization time from created to after written to chain.
 var blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
 
-// environment is the worker's current environment and holds all of the current state information.
-type environment struct {
-	signer types.Signer
-
-	state    *state.StateDB // apply state changes here
-	tcount   int            // tx count in cycle
-	gasPool  *core.GasPool  // available gas used to pack transactions
-	gasLimit uint64
-
-	header     *types.Header
-	txs        []*types.Transaction
-	receipts   []*types.Receipt
-	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
-}
-
 // task contains all information for consensus engine sealing and result submitting.
 type task struct {
 	receipts  []*types.Receipt
@@ -117,8 +102,6 @@ type worker struct {
 	resultCh  chan *types.Block
 	startCh   chan struct{}
 	exitCh    chan struct{}
-
-	current *environment // An environment for current running cycle.
 
 	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
 	validator      common.Address
@@ -463,40 +446,20 @@ func (w *worker) resultLoop() {
 	}
 }
 
-// makeCurrent creates a new environment for the current cycle.
-func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
-	state, err := w.chain.StateAt(parent.Root())
-	if err != nil {
-		return err
-	}
-
-	env := &environment{
-		signer:   types.NewEIP155Signer(w.chainConfig.ChainID),
-		state:    state,
-		header:   header,
-		gasLimit: core.CalcGasLimit(parent, state),
-	}
-
-	// Keep track of transactions which return errors so they can be removed
-	env.tcount = 0
-	w.current = env
-	return nil
-}
-
 // updateSnapshot updates pending snapshot block and state.
 // Note this function assumes the current variable is thread safe.
-func (w *worker) updateSnapshot() {
+func (w *worker) updateSnapshot(b *blockState) {
 	w.snapshotMu.Lock()
 	defer w.snapshotMu.Unlock()
 
 	w.snapshotBlock = types.NewBlock(
-		w.current.header,
-		w.current.txs,
-		w.current.receipts,
-		w.current.randomness,
+		b.header,
+		b.txs,
+		b.receipts,
+		b.randomness,
 	)
 
-	w.snapshotState = w.current.state.Copy()
+	w.snapshotState = b.state.Copy()
 }
 
 func (w *worker) isIstanbulEngine() bool {
