@@ -66,12 +66,6 @@ type task struct {
 	createdAt time.Time
 }
 
-const (
-	commitInterruptNone int32 = iota
-	commitInterruptNewHead
-	commitInterruptResubmit
-)
-
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
 	timestamp int64
@@ -265,16 +259,11 @@ func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transacti
 // newWorkLoop is a standalone goroutine to submit new mining work upon received events.
 func (w *worker) newWorkLoop() {
 	var (
-		interrupt *int32
 		timestamp int64 // timestamp for each round of mining.
 	)
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32) {
-		if interrupt != nil {
-			atomic.StoreInt32(interrupt, s)
-		}
-		interrupt = new(int32)
+	commit := func() {
 		w.newWorkCh <- &newWorkReq{timestamp: timestamp}
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -295,13 +284,13 @@ func (w *worker) newWorkLoop() {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			commit()
 
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			commit()
 
 		case <-w.exitCh:
 			return
