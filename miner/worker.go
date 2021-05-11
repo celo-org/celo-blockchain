@@ -295,7 +295,6 @@ func (w *worker) handleTask(task *task) {
 	}
 	// Interrupt previous sealing operation
 	w.interruptSealingTask()
-	// TODO: do this on miner exit.
 	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
 
 	w.pendingMu.Lock()
