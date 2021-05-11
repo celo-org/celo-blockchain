@@ -37,7 +37,6 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
-	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -68,11 +67,10 @@ var blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finaliz
 type environment struct {
 	signer types.Signer
 
-	state     *state.StateDB // apply state changes here
-	ancestors mapset.Set     // ancestor set (used for checking parent validity)
-	tcount    int            // tx count in cycle
-	gasPool   *core.GasPool  // available gas used to pack transactions
-	gasLimit  uint64
+	state    *state.StateDB // apply state changes here
+	tcount   int            // tx count in cycle
+	gasPool  *core.GasPool  // available gas used to pack transactions
+	gasLimit uint64
 
 	header     *types.Header
 	txs        []*types.Transaction
@@ -522,16 +520,10 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	}
 
 	env := &environment{
-		signer:    types.NewEIP155Signer(w.chainConfig.ChainID),
-		state:     state,
-		ancestors: mapset.NewSet(),
-		header:    header,
-		gasLimit:  core.CalcGasLimit(parent, state),
-	}
-
-	// when 08 is processed ancestors contain 07 (quick block)
-	for _, ancestor := range w.chain.GetBlocksFromHash(parent.Hash(), 7) {
-		env.ancestors.Add(ancestor.Hash())
+		signer:   types.NewEIP155Signer(w.chainConfig.ChainID),
+		state:    state,
+		header:   header,
+		gasLimit: core.CalcGasLimit(parent, state),
 	}
 
 	// Keep track of transactions which return errors so they can be removed
@@ -758,12 +750,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if !noempty && !w.isIstanbulEngine() && atomic.LoadUint32(&w.noempty) == 0 {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
-		w.commit(nil, false, tstart)
+		w.commit(false, tstart)
 	}
 
 	istanbulEmptyBlockCommit := func() {
 		if !noempty && w.isIstanbulEngine() {
-			w.commit(nil, false, tstart)
+			w.commit(false, tstart)
 		}
 	}
 
@@ -853,12 +845,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
-	w.commit(w.fullTaskHook, true, tstart)
+	w.commit(true, tstart)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (w *worker) commit(interval func(), update bool, start time.Time) error {
+func (w *worker) commit(update bool, start time.Time) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
 	receipts := make([]*types.Receipt, len(w.current.receipts))
 	for i, l := range w.current.receipts {
@@ -892,9 +884,6 @@ func (w *worker) commit(interval func(), update bool, start time.Time) error {
 		return err
 	}
 	if w.isRunning() {
-		if interval != nil {
-			interval()
-		}
 		select {
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
 			feesWei := new(big.Int)
