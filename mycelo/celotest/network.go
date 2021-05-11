@@ -42,13 +42,18 @@ func gethPath() string {
 	return geth
 }
 
+func contractsPath() string {
+	contracts := path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build/contracts")
+	return contracts
+}
+
 func NewMyceloNetwork(tempDir string) (*network, error) {
 	// 1. Create genesis & environment
 	template := templates.TemplateFromString("loadtest")
 	env, _ := template.CreateEnv(tempDir)
 	genesisConfig, _ := template.CreateGenesisConfig(env)
 
-	generatedGenesis, _ := genesis.GenerateGenesis(env.Accounts(), genesisConfig, gethPath())
+	generatedGenesis, _ := genesis.GenerateGenesis(env.Accounts(), genesisConfig, contractsPath())
 
 	env.SaveGenesis(generatedGenesis)
 	env.Save()
