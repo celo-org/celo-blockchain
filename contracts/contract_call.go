@@ -26,6 +26,8 @@ func NewMethod(abi *abi.ABI, method string, maxGas uint64) Method {
 	}
 }
 
+// Bind returns a BoundMethod instance which can be used to call the contract method represented by am
+// and residing at contracAddress.
 func (am Method) Bind(contractAddress common.Address) *BoundMethod {
 	return &BoundMethod{
 		Method:         am,
