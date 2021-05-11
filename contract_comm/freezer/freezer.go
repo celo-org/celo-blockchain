@@ -59,7 +59,7 @@ func IsFrozen(registryId [32]byte, header *types.Header, state vm.StateDB) (bool
 		return false, err
 	}
 	var isFrozen bool
-	if _, err := contract_comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{address}, &isFrozen, params.MaxGasForIsFrozen, header, state); err != nil {
+	if err := contract_comm.MakeStaticCall(params.FreezerRegistryId, isFrozenFuncABI, "isFrozen", []interface{}{address}, &isFrozen, params.MaxGasForIsFrozen, header, state); err != nil {
 		return false, err
 	}
 

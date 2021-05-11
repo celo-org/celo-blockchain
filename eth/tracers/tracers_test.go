@@ -24,7 +24,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -112,7 +111,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		BlockNumber:          new(big.Int).SetUint64(8000000),
 		Time:                 new(big.Int).SetUint64(5),
 		GasPrice:             big.NewInt(1),
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
+		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
 
