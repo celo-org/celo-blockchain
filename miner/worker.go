@@ -212,27 +212,11 @@ func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
 
-	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.SetBlockProcessors(w.chain.HasBadBlock,
-			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
-				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
-			},
-			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-				return w.chain.Validator().ValidateState(block, state, receipts, usedGas)
-			})
-		if istanbul.IsPrimary() {
-			istanbul.StartValidating()
-		}
-	}
 }
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
 	atomic.StoreInt32(&w.running, 0)
-
-	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.StopValidating()
-	}
 }
 
 // isRunning returns an indicator whether worker is running or not.

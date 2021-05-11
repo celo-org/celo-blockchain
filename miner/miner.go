@@ -188,10 +188,25 @@ func (miner *Miner) update() {
 func (miner *Miner) Start(validator common.Address, txFeeRecipient common.Address) {
 	miner.SetValidator(validator)
 	miner.SetTxFeeRecipient(txFeeRecipient)
+	if istanbul, ok := miner.engine.(consensus.Istanbul); ok {
+		istanbul.SetBlockProcessors(miner.worker.chain.HasBadBlock,
+			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
+				return miner.worker.chain.Processor().Process(block, state, *miner.worker.chain.GetVMConfig())
+			},
+			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+				return miner.worker.chain.Validator().ValidateState(block, state, receipts, usedGas)
+			})
+		if istanbul.IsPrimary() {
+			istanbul.StartValidating()
+		}
+	}
 	miner.startCh <- struct{}{}
 }
 
 func (miner *Miner) Stop() {
+	if istanbul, ok := miner.engine.(consensus.Istanbul); ok {
+		istanbul.StopValidating()
+	}
 	miner.stopCh <- struct{}{}
 }
 
