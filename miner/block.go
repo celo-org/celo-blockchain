@@ -18,6 +18,7 @@ package miner
 
 import (
 	"bytes"
+	"context"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -80,38 +81,46 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 	return receipt.Logs, nil
 }
 
-func (b *blockState) commitTransactions(w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address, interrupt *int32) bool {
-	// Short circuit if current is nil
-	if b == nil {
-		return true
-	}
-
+func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address) error {
 	if b.gasPool == nil {
 		b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 	}
 
 	var coalescedLogs []*types.Log
+	defer func() {
+		if !w.isRunning() && len(coalescedLogs) > 0 {
+			// We don't push the pendingLogsEvent while we are mining. The reason is that
+			// when we are mining, the worker will regenerate a mining block every 3 seconds.
+			// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
 
-loop:
+			// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
+			// logs by filling in the block hash when the block was mined by the local miner. This can
+			// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
+			cpy := make([]*types.Log, len(coalescedLogs))
+			for i, l := range coalescedLogs {
+				cpy[i] = new(types.Log)
+				*cpy[i] = *l
+			}
+			w.pendingLogsFeed.Send(cpy)
+		}
+	}()
+
 	for {
-		// In the following three cases, we will interrupt the execution of the transaction.
-		// (1) new head block event arrival, the interrupt signal is 1
-		// (2) worker start or restart, the interrupt signal is 1
-		// (3) worker recreate the mining block with any newly arrived transactions, the interrupt signal is 2.
-		// For the first two cases, the semi-finished work will be discarded.
-		// For the third case, the semi-finished work will be submitted to the consensus engine.
-		if interrupt != nil && atomic.LoadInt32(interrupt) != commitInterruptNone {
-			return atomic.LoadInt32(interrupt) == commitInterruptNewHead
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// pass
 		}
 		// If we don't have enough gas for any further transactions then we're done
 		if b.gasPool.Gas() < params.TxGas {
 			log.Trace("Not enough gas for further transactions", "have", b.gasPool, "want", params.TxGas)
-			break
+			return nil
 		}
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
-			break
+			return nil
 		}
 		// Short-circuit if the transaction requires more gas than we have in the pool.
 		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
@@ -159,7 +168,7 @@ loop:
 			// We are below the GPM, so we can stop (the rest of the transactions will either have
 			// even lower gas price or won't be mineable yet due to their nonce)
 			log.Trace("Skipping remaining transaction below the gas price minimum")
-			break loop
+			return nil
 
 		case nil:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
@@ -175,22 +184,6 @@ loop:
 		}
 	}
 
-	if !w.isRunning() && len(coalescedLogs) > 0 {
-		// We don't push the pendingLogsEvent while we are mining. The reason is that
-		// when we are mining, the worker will regenerate a mining block every 3 seconds.
-		// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
-
-		// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
-		// logs by filling in the block hash when the block was mined by the local miner. This can
-		// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
-		cpy := make([]*types.Log, len(coalescedLogs))
-		for i, l := range coalescedLogs {
-			cpy[i] = new(types.Log)
-			*cpy[i] = *l
-		}
-		w.pendingLogsFeed.Send(cpy)
-	}
-	return false
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
@@ -348,13 +341,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
-		if b.commitTransactions(w, txs, txFeeRecipient, interrupt) {
+		if err := b.commitTransactions(context.TODO(), w, txs, txFeeRecipient); err != nil {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
-		if b.commitTransactions(w, txs, txFeeRecipient, interrupt) {
+		if err := b.commitTransactions(context.TODO(), w, txs, txFeeRecipient); err != nil {
 			return
 		}
 	}
