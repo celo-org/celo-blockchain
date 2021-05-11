@@ -158,7 +158,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
 	go worker.mainLoop()
-	go worker.newWorkLoop()
 	go worker.resultLoop()
 
 	// Submit first work to initialize pending state.
@@ -256,17 +255,9 @@ func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transacti
 	}
 }
 
-// newWorkLoop is a standalone goroutine to submit new mining work upon received events.
-func (w *worker) newWorkLoop() {
-	var (
-		timestamp int64 // timestamp for each round of mining.
-	)
-
-	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func() {
-		w.newWorkCh <- &newWorkReq{timestamp: timestamp}
-		atomic.StoreInt32(&w.newTxs, 0)
-	}
+// mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
+func (w *worker) mainLoop() {
+	defer w.chainHeadSub.Unsubscribe()
 
 	// clearPending cleans the stale pending tasks.
 	clearPending := func(number uint64) {
@@ -283,32 +274,18 @@ func (w *worker) newWorkLoop() {
 		select {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
-			timestamp = time.Now().Unix()
-			commit()
+			if h, ok := w.engine.(consensus.Handler); ok {
+				h.NewWork()
+			}
+			w.commitNewWork(time.Now().Unix())
 
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
-			timestamp = time.Now().Unix()
-			commit()
-
-		case <-w.exitCh:
-			return
-		}
-	}
-}
-
-// mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
-func (w *worker) mainLoop() {
-	defer w.chainHeadSub.Unsubscribe()
-
-	for {
-		select {
-		case req := <-w.newWorkCh:
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			w.commitNewWork(req.timestamp)
+			w.commitNewWork(time.Now().Unix())
 
 		// System stopped
 		case <-w.exitCh:
