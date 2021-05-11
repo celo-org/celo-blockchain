@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
@@ -63,10 +64,12 @@ func NewMyceloNetwork(tempDir string) (*network, error) {
 	}
 
 	cluster := cluster.New(env, clusterCfg)
+	fmt.Println("created new cluster")
 
 	if err := cluster.Init(); err != nil {
 		return nil, fmt.Errorf("error running init: %w", err)
 	}
+	fmt.Println("initialized cluster")
 
 	ret := &network{
 		env:   env,
@@ -93,14 +96,47 @@ func (n *network) Wait() error {
 	return (*n.group).Wait()
 }
 
-func (n *network) Clients() []*ethclient.Client {
+func (n *network) WaitForIPCToBeAvailable(ctx context.Context) error {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			done := true
+			for i := 0; i < n.env.Accounts().NumValidators; i++ {
+				path := n.env.ValidatorIPC(i)
+				if _, err := os.Stat(path); err != nil {
+					done = false
+				}
+				if done {
+					return nil
+				}
+			}
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// Dials each client on ws. WARNING: hardcodes the port
+// Note: will hang until it can connect or the context is cancelled.
+func (n *network) Clients(ctx context.Context) ([]*ethclient.Client, error) {
+	ticker := time.NewTicker(50 * time.Millisecond)
 	var clients []*ethclient.Client
 	for i := 0; i < n.env.Accounts().NumValidators; i++ {
-		client, err := ethclient.Dial(n.env.ValidatorIPC(i))
-		if err != nil {
-			panic(fmt.Sprintf("Failed to dial the node: %v", err))
+	retryLoop:
+		for {
+			select {
+			case <-ticker.C:
+				client, err := ethclient.Dial(fmt.Sprintf("ws://localhost:%v", 8546+i))
+				if err == nil {
+					clients = append(clients, client)
+					break retryLoop
+				}
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-		clients = append(clients, client)
 	}
-	return clients
+	return clients, nil
 }
