@@ -338,21 +338,21 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 // and commits new work if consensus engine is running.
 func (b *blockState) commit(w *worker, start time.Time) error {
 	// Need to copy the state here otherwise block production stalls. Not sure why.
-	s := b.state.Copy()
+	b.state = b.state.Copy()
 
-	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, s, b.txs, b.receipts, b.randomness)
+	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts, b.randomness)
 
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), s); err != nil {
+		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), b.state); err != nil {
 			log.Error("Unable to update Validator Set Diff", "err", err)
 			return err
 		}
 	}
 
-	if len(s.GetLogs(common.Hash{})) > 0 {
+	if len(b.state.GetLogs(common.Hash{})) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = s.GetLogs(common.Hash{})
+		receipt.Logs = b.state.GetLogs(common.Hash{})
 		for i := range receipt.Logs {
 			receipt.Logs[i].TxIndex = uint(len(b.receipts))
 		}
@@ -365,7 +365,7 @@ func (b *blockState) commit(w *worker, start time.Time) error {
 		return err
 	}
 	if w.isRunning() {
-		w.handleTask(&task{receipts: b.receipts, state: s, block: block, createdAt: time.Now()})
+		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 
 		feesEth := totalFees(block, b.receipts)
 		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
