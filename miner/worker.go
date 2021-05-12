@@ -256,6 +256,7 @@ func (w *worker) mainLoop() {
 	// Context and cancel function for the currently executing block construction
 	var ctx context.Context
 	var cancel context.CancelFunc
+	var wg sync.WaitGroup
 
 	for {
 		select {
@@ -268,7 +269,11 @@ func (w *worker) mainLoop() {
 				h.NewWork()
 			}
 			ctx, cancel = context.WithCancel(context.Background())
-			w.constructAndSubmitNewBlock(ctx)
+			wg.Add(1)
+			go func() {
+				w.constructAndSubmitNewBlock(ctx)
+				wg.Done()
+			}()
 
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
@@ -280,7 +285,11 @@ func (w *worker) mainLoop() {
 				h.NewWork()
 			}
 			ctx, cancel = context.WithCancel(context.Background())
-			w.constructAndSubmitNewBlock(ctx)
+			wg.Add(1)
+			go func() {
+				w.constructAndSubmitNewBlock(ctx)
+				wg.Done()
+			}()
 
 		// System stopped
 		case <-w.exitCh:
