@@ -52,9 +52,7 @@ func NewMyceloNetwork(tempDir string) (*network, error) {
 	// 1. Create genesis & environment
 	template := templates.TemplateFromString("loadtest")
 	env, _ := template.CreateEnv(tempDir)
-	env.Config.Accounts.NumDeveloperAccounts = 100
 	genesisConfig, _ := template.CreateGenesisConfig(env)
-	genesisConfig.Istanbul.BlockPeriod = 1
 
 	generatedGenesis, _ := genesis.GenerateGenesis(env.Accounts(), genesisConfig, contractsPath())
 
