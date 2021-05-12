@@ -177,7 +177,7 @@ func (n *network) SendAndWaitForNTransactions(ctx context.Context, N int, client
 				SkipGasEstimation: false,
 				MixFeeCurrency:    true,
 			}
-			return loadbot.RunTransaction(ctx, client, n.env.Config.ChainID, lg, txCfg)
+			return loadbot.RunTransaction(ctx, client, lg, txCfg)
 		})
 	}
 
