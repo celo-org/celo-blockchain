@@ -334,9 +334,7 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 	return nil
 }
 
-// commit runs any post-transaction state modifications, assembles the final block
-// and commits new work if consensus engine is running.
-func (b *blockState) commit(w *worker, start time.Time) error {
+func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 	// Need to copy the state here otherwise block production stalls. Not sure why.
 	b.state = b.state.Copy()
 
@@ -346,7 +344,7 @@ func (b *blockState) commit(w *worker, start time.Time) error {
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), b.state); err != nil {
 			log.Error("Unable to update Validator Set Diff", "err", err)
-			return err
+			return nil, err
 		}
 	}
 
@@ -362,6 +360,17 @@ func (b *blockState) commit(w *worker, start time.Time) error {
 
 	if err != nil {
 		log.Error("Unable to finalize block", "err", err)
+		return nil, err
+	}
+
+	return block, nil
+}
+
+// commit runs any post-transaction state modifications, assembles the final block
+// and commits new work if consensus engine is running.
+func (b *blockState) commit(w *worker, start time.Time) error {
+	block, err := b.finalizeAndAssemble(w)
+	if err != nil {
 		return err
 	}
 	if w.isRunning() {
