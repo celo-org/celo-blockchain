@@ -1434,11 +1434,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
-	if err := bc.validator.ValidateState(block, state, receipts, block.GasUsed()); err != nil {
-		fmt.Println("error validating block: ", err)
-		return NonStatTy, err
-	}
-
 	randomCommitment := common.Hash{}
 	if istEngine, isIstanbul := bc.engine.(consensus.Istanbul); isIstanbul {
 
