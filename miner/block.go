@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
+// blockState is the collection of modified state that is used to assemble a block
 type blockState struct {
 	signer types.Signer
 
@@ -67,6 +68,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
+		log.Error("Failed to apply transactions to the block", "err", err)
 		return
 	}
 	// TODO: How often to update the snapshot?
@@ -74,6 +76,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	block, err := b.finalizeAndAssemble(w)
 	if err != nil {
+		log.Error("Failed to finalize and assemble the block", "err", err)
 		return
 	}
 	// TODO: How often to update the snapshot?
@@ -151,7 +154,6 @@ func (w *worker) prepareBlock() (*blockState, error) {
 
 		lastCommitment, err := random.GetLastCommitment(w.validator, b.header, b.state)
 		if err != nil {
-			log.Error("Failed to get last commitment", "err", err)
 			return nil, fmt.Errorf("Failed to get last commitment: %w", err)
 		}
 
@@ -159,27 +161,23 @@ func (w *worker) prepareBlock() (*blockState, error) {
 		if (lastCommitment != common.Hash{}) {
 			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 			if (lastRandomnessParentHash == common.Hash{}) {
-				log.Error("Failed to get last randomness cache entry")
 				return nil, errors.New("Failed to get last randomness cache entry")
 			}
 
 			var err error
 			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
-				log.Error("Failed to generate last randomness", "err", err)
 				return nil, fmt.Errorf("Failed to generate last randomness: %w", err)
 			}
 		}
 
 		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
 		if err != nil {
-			log.Error("Failed to generate new randomness", "err", err)
 			return nil, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
 		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, b.header, b.state)
 		if err != nil {
-			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
 			return nil, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
 		}
 		// always true (EIP158)
@@ -198,6 +196,7 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
+	// TODO: should this be a fatal error?
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		return nil
@@ -359,12 +358,14 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 	b.state = b.state.Copy()
 
 	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts, b.randomness)
+	if err != nil {
+		return nil, fmt.Errorf("Error in FinalizeAndAssemble: %w", err)
+	}
 
 	// Set the validator set diff in the new header if we're using Istanbul and it's the last block of the epoch
 	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
 		if err := istanbul.UpdateValSetDiff(w.chain, block.MutableHeader(), b.state); err != nil {
-			log.Error("Unable to update Validator Set Diff", "err", err)
-			return nil, err
+			return nil, fmt.Errorf("Unable to update Validator Set Diff: %w", err)
 		}
 	}
 
@@ -376,11 +377,6 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 		}
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		b.receipts = append(b.receipts, receipt)
-	}
-
-	if err != nil {
-		log.Error("Unable to finalize block", "err", err)
-		return nil, err
 	}
 
 	return block, nil
