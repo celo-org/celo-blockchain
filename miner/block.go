@@ -49,121 +49,35 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
-	snap := b.state.Snapshot()
+// commitNewWork generates several new sealing tasks based on the parent block.
+func (w *worker) commitNewWork(timestamp int64) {
+	start := time.Now()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig())
+	// Initialize the block.
+	b, err := w.prepareBlock()
 	if err != nil {
-		b.state.RevertToSnapshot(snap)
-		return nil, err
+		log.Error("Failed to create mining context", "err", err)
+		return
 	}
-	b.txs = append(b.txs, tx)
-	b.receipts = append(b.receipts, receipt)
+	// TODO: Sleep here instead of in prepareBlock()
 
-	return receipt.Logs, nil
-}
-
-func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address) error {
-	if b.gasPool == nil {
-		b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
+	err = b.selectAndApplyTransactions(context.TODO(), w)
+	if err != nil {
+		return
 	}
 
-	var coalescedLogs []*types.Log
-	defer func() {
-		if !w.isRunning() && len(coalescedLogs) > 0 {
-			// We don't push the pendingLogsEvent while we are mining. The reason is that
-			// when we are mining, the worker will regenerate a mining block every 3 seconds.
-			// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
+	block, err := b.finalizeAndAssemble(w)
+	if err != nil {
+		return
+	}
+	w.updateSnapshot(b)
+	if w.isRunning() {
+		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 
-			// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
-			// logs by filling in the block hash when the block was mined by the local miner. This can
-			// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
-			cpy := make([]*types.Log, len(coalescedLogs))
-			for i, l := range coalescedLogs {
-				cpy[i] = new(types.Log)
-				*cpy[i] = *l
-			}
-			w.pendingLogsFeed.Send(cpy)
-		}
-	}()
+		feesEth := totalFees(block, b.receipts)
+		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
+			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// pass
-		}
-		// If we don't have enough gas for any further transactions then we're done
-		if b.gasPool.Gas() < params.TxGas {
-			log.Trace("Not enough gas for further transactions", "have", b.gasPool, "want", params.TxGas)
-			return nil
-		}
-		// Retrieve the next transaction and abort if all done
-		tx := txs.Peek()
-		if tx == nil {
-			return nil
-		}
-		// Short-circuit if the transaction requires more gas than we have in the pool.
-		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
-		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
-		// anyway due to the block not having enough gas left.
-		if b.gasPool.Gas() < tx.Gas() {
-			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", b.gasPool.Gas(), "txgas", tx.Gas())
-			txs.Pop()
-			continue
-		}
-		// Error may be ignored here. The error has already been checked
-		// during transaction acceptance is the transaction pool.
-		//
-		// We use the eip155 signer regardless of the current hf.
-		from, _ := types.Sender(b.signer, tx)
-		// Check whether the tx is replay protected. If we're not in the EIP155 hf
-		// phase, start ignoring the sender until we do.
-		if tx.Protected() && !w.chainConfig.IsEIP155(b.header.Number) {
-			log.Trace("Ignoring reply protected transaction", "hash", tx.Hash(), "eip155", w.chainConfig.EIP155Block)
-
-			txs.Pop()
-			continue
-		}
-		// Start executing the transaction
-		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
-
-		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
-		switch err {
-		case core.ErrGasLimitReached:
-			// Pop the current out-of-gas transaction without shifting in the next from the account
-			log.Trace("Gas limit exceeded for current block", "sender", from)
-			txs.Pop()
-
-		case core.ErrNonceTooLow:
-			// New head notification data race between the transaction pool and miner, shift
-			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
-			txs.Shift()
-
-		case core.ErrNonceTooHigh:
-			// Reorg notification data race between the transaction pool and miner, skip account =
-			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
-			txs.Pop()
-
-		case core.ErrGasPriceDoesNotExceedMinimum:
-			// We are below the GPM, so we can stop (the rest of the transactions will either have
-			// even lower gas price or won't be mineable yet due to their nonce)
-			log.Trace("Skipping remaining transaction below the gas price minimum")
-			return nil
-
-		case nil:
-			// Everything ok, collect the logs and shift in the next transaction from the same account
-			coalescedLogs = append(coalescedLogs, logs...)
-			b.tcount++
-			txs.Shift()
-
-		default:
-			// Strange error, discard the transaction and get the next in line (note, the
-			// nonce-too-high clause will prevent us from executing in vain).
-			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
-			txs.Shift()
-		}
 	}
 
 }
@@ -275,39 +189,7 @@ func (w *worker) prepareBlock() (*blockState, error) {
 	return b, nil
 }
 
-// commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(timestamp int64) {
-	start := time.Now()
-
-	// Initialize the block.
-	b, err := w.prepareBlock()
-	if err != nil {
-		log.Error("Failed to create mining context", "err", err)
-		return
-	}
-	// TODO: Sleep here instead of in prepareBlock()
-
-	err = b.selectAndApplyTransactions(context.TODO(), w)
-	if err != nil {
-		return
-	}
-
-	block, err := b.finalizeAndAssemble(w)
-	if err != nil {
-		return
-	}
-	w.updateSnapshot(b)
-	if w.isRunning() {
-		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
-
-		feesEth := totalFees(block, b.receipts)
-		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
-			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-
-	}
-
-}
-
+// selectAndApplyTransactions selects and applies transactions to the in flight block state.
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
@@ -346,6 +228,128 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 	return nil
 }
 
+// commitTransactions attempts to commit every transaction in the transactions list until the block is full or there are no more valid transactions.
+func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address) error {
+	if b.gasPool == nil {
+		b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
+	}
+
+	var coalescedLogs []*types.Log
+	defer func() {
+		if !w.isRunning() && len(coalescedLogs) > 0 {
+			// We don't push the pendingLogsEvent while we are mining. The reason is that
+			// when we are mining, the worker will regenerate a mining block every 3 seconds.
+			// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
+
+			// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
+			// logs by filling in the block hash when the block was mined by the local miner. This can
+			// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
+			cpy := make([]*types.Log, len(coalescedLogs))
+			for i, l := range coalescedLogs {
+				cpy[i] = new(types.Log)
+				*cpy[i] = *l
+			}
+			w.pendingLogsFeed.Send(cpy)
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// pass
+		}
+		// If we don't have enough gas for any further transactions then we're done
+		if b.gasPool.Gas() < params.TxGas {
+			log.Trace("Not enough gas for further transactions", "have", b.gasPool, "want", params.TxGas)
+			return nil
+		}
+		// Retrieve the next transaction and abort if all done
+		tx := txs.Peek()
+		if tx == nil {
+			return nil
+		}
+		// Short-circuit if the transaction requires more gas than we have in the pool.
+		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
+		// Short-circuiting here saves us the trouble of checking the GPM and so on when the tx can't be included
+		// anyway due to the block not having enough gas left.
+		if b.gasPool.Gas() < tx.Gas() {
+			log.Trace("Skipping transaction which requires more gas than is left in the block", "hash", tx.Hash(), "gas", b.gasPool.Gas(), "txgas", tx.Gas())
+			txs.Pop()
+			continue
+		}
+		// Error may be ignored here. The error has already been checked
+		// during transaction acceptance is the transaction pool.
+		//
+		// We use the eip155 signer regardless of the current hf.
+		from, _ := types.Sender(b.signer, tx)
+		// Check whether the tx is replay protected. If we're not in the EIP155 hf
+		// phase, start ignoring the sender until we do.
+		if tx.Protected() && !w.chainConfig.IsEIP155(b.header.Number) {
+			log.Trace("Ignoring reply protected transaction", "hash", tx.Hash(), "eip155", w.chainConfig.EIP155Block)
+
+			txs.Pop()
+			continue
+		}
+		// Start executing the transaction
+		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
+
+		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
+		switch err {
+		case core.ErrGasLimitReached:
+			// Pop the current out-of-gas transaction without shifting in the next from the account
+			log.Trace("Gas limit exceeded for current block", "sender", from)
+			txs.Pop()
+
+		case core.ErrNonceTooLow:
+			// New head notification data race between the transaction pool and miner, shift
+			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
+			txs.Shift()
+
+		case core.ErrNonceTooHigh:
+			// Reorg notification data race between the transaction pool and miner, skip account =
+			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
+			txs.Pop()
+
+		case core.ErrGasPriceDoesNotExceedMinimum:
+			// We are below the GPM, so we can stop (the rest of the transactions will either have
+			// even lower gas price or won't be mineable yet due to their nonce)
+			log.Trace("Skipping remaining transaction below the gas price minimum")
+			return nil
+
+		case nil:
+			// Everything ok, collect the logs and shift in the next transaction from the same account
+			coalescedLogs = append(coalescedLogs, logs...)
+			b.tcount++
+			txs.Shift()
+
+		default:
+			// Strange error, discard the transaction and get the next in line (note, the
+			// nonce-too-high clause will prevent us from executing in vain).
+			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
+			txs.Shift()
+		}
+	}
+
+}
+
+// commitTransaction attempts to appply a single transaction. If the transaction fails, it's modifications are reverted.
+func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
+	snap := b.state.Snapshot()
+
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig())
+	if err != nil {
+		b.state.RevertToSnapshot(snap)
+		return nil, err
+	}
+	b.txs = append(b.txs, tx)
+	b.receipts = append(b.receipts, receipt)
+
+	return receipt.Logs, nil
+}
+
+// finalizeAndAssemble runs post-transaction state modification and assembles the final block.
 func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 	// Need to copy the state here otherwise block production stalls. Not sure why.
 	b.state = b.state.Copy()
