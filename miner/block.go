@@ -61,17 +61,26 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
-	// TODO: How often to update the snapshot?
 	w.updateSnapshot(b)
 
-	// TODO: Sleep here instead of in prepareBlock()
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Unix(int64(b.header.Time), 0).Sub(time.Now())
+	if delay < 0 {
+		// sb.sleepGauge.Update(0)
+	} else {
+		// sb.sleepGauge.Update(delay.Nanoseconds())
+	}
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+		return
+	}
 
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
 		log.Error("Failed to apply transactions to the block", "err", err)
 		return
 	}
-	// TODO: How often to update the snapshot?
 	w.updateSnapshot(b)
 
 	block, err := b.finalizeAndAssemble(w)
@@ -79,7 +88,6 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		log.Error("Failed to finalize and assemble the block", "err", err)
 		return
 	}
-	// TODO: How often to update the snapshot?
 	w.updateSnapshot(b)
 	if w.isRunning() {
 		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
