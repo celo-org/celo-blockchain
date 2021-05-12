@@ -40,7 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
@@ -82,6 +82,10 @@ var (
 	advancedMode = cli.BoolFlag{
 		Name:  "advanced",
 		Usage: "If enabled, issues warnings instead of rejections for suspicious requests. Default off",
+	}
+	acceptFlag = cli.BoolFlag{
+		Name:  "suppress-bootwarn",
+		Usage: "If set, does not show the warning during boot",
 	}
 	keystoreFlag = cli.StringFlag{
 		Name:  "keystore",
@@ -197,6 +201,7 @@ The delpw command removes a password for a given address (keyfile).
 			logLevelFlag,
 			keystoreFlag,
 			utils.LightKDFFlag,
+			acceptFlag,
 		},
 		Description: `
 The newaccount command creates a new keystore-backed account. It is a convenience-method
@@ -222,11 +227,11 @@ func init() {
 		chainIdFlag,
 		utils.LightKDFFlag,
 		utils.NoUSBFlag,
-		utils.RPCListenAddrFlag,
-		utils.RPCVirtualHostsFlag,
+		utils.HTTPListenAddrFlag,
+		utils.HTTPVirtualHostsFlag,
 		utils.IPCDisabledFlag,
 		utils.IPCPathFlag,
-		utils.RPCEnabledFlag,
+		utils.HTTPEnabledFlag,
 		rpcPortFlag,
 		signerSecretFlag,
 		customDBFlag,
@@ -235,6 +240,7 @@ func init() {
 		stdiouiFlag,
 		testFlag,
 		advancedMode,
+		acceptFlag,
 	}
 	app.Action = signer
 	app.Commands = []cli.Command{initCommand,
@@ -433,8 +439,10 @@ func initialize(c *cli.Context) error {
 	if c.GlobalBool(stdiouiFlag.Name) {
 		logOutput = os.Stderr
 		// If using the stdioui, we can't do the 'confirm'-flow
-		fmt.Fprint(logOutput, legalWarning)
-	} else {
+		if !c.GlobalBool(acceptFlag.Name) {
+			fmt.Fprint(logOutput, legalWarning)
+		}
+	} else if !c.GlobalBool(acceptFlag.Name) {
 		if !confirm(legalWarning) {
 			return fmt.Errorf("aborted by user")
 		}
@@ -578,9 +586,9 @@ func signer(c *cli.Context) error {
 			Service:   api,
 			Version:   "1.0"},
 	}
-	if c.GlobalBool(utils.RPCEnabledFlag.Name) {
-		vhosts := splitAndTrim(c.GlobalString(utils.RPCVirtualHostsFlag.Name))
-		cors := splitAndTrim(c.GlobalString(utils.RPCCORSDomainFlag.Name))
+	if c.GlobalBool(utils.HTTPEnabledFlag.Name) {
+		vhosts := splitAndTrim(c.GlobalString(utils.HTTPVirtualHostsFlag.Name))
+		cors := splitAndTrim(c.GlobalString(utils.HTTPCORSDomainFlag.Name))
 
 		srv := rpc.NewServer()
 		err := node.RegisterApisFromWhitelist(rpcAPI, []string{"account"}, srv, false)
@@ -590,16 +598,17 @@ func signer(c *cli.Context) error {
 		handler := node.NewHTTPHandlerStack(srv, cors, vhosts)
 
 		// start http server
-		httpEndpoint := fmt.Sprintf("%s:%d", c.GlobalString(utils.RPCListenAddrFlag.Name), c.Int(rpcPortFlag.Name))
-		listener, err := node.StartHTTPEndpoint(httpEndpoint, rpc.DefaultHTTPTimeouts, handler)
+		httpEndpoint := fmt.Sprintf("%s:%d", c.GlobalString(utils.HTTPListenAddrFlag.Name), c.Int(rpcPortFlag.Name))
+		httpServer, addr, err := node.StartHTTPEndpoint(httpEndpoint, rpc.DefaultHTTPTimeouts, handler)
 		if err != nil {
 			utils.Fatalf("Could not start RPC api: %v", err)
 		}
-		extapiURL = fmt.Sprintf("http://%v/", listener.Addr())
+		extapiURL = fmt.Sprintf("http://%v/", addr)
 		log.Info("HTTP endpoint opened", "url", extapiURL)
 
 		defer func() {
-			listener.Close()
+			// Don't bother imposing a timeout here.
+			httpServer.Shutdown(context.Background())
 			log.Info("HTTP endpoint closed", "url", extapiURL)
 		}()
 	}
@@ -882,14 +891,14 @@ func testExternalUI(api *core.SignerAPI) {
 // getPassPhrase retrieves the password associated with clef, either fetched
 // from a list of preloaded passphrases, or requested interactively from the user.
 // TODO: there are many `getPassPhrase` functions, it will be better to abstract them into one.
-func getPassPhrase(prompt string, confirmation bool) string {
-	fmt.Println(prompt)
-	password, err := console.Stdin.PromptPassword("Password: ")
+func getPassPhrase(query string, confirmation bool) string {
+	fmt.Println(query)
+	password, err := prompt.Stdin.PromptPassword("Password: ")
 	if err != nil {
 		utils.Fatalf("Failed to read password: %v", err)
 	}
 	if confirmation {
-		confirm, err := console.Stdin.PromptPassword("Repeat password: ")
+		confirm, err := prompt.Stdin.PromptPassword("Repeat password: ")
 		if err != nil {
 			utils.Fatalf("Failed to read password confirmation: %v", err)
 		}
@@ -950,7 +959,7 @@ func GenDoc(ctx *cli.Context) {
 			if data, err := json.MarshalIndent(v, "", "  "); err == nil {
 				output = append(output, fmt.Sprintf("### %s\n\n%s\n\nExample:\n```json\n%s\n```", name, desc, data))
 			} else {
-				log.Error("Error generating output", err)
+				log.Error("Error generating output", "err", err)
 			}
 		}
 	)

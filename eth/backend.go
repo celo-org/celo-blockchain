@@ -40,6 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/ethdb"
@@ -74,7 +75,7 @@ type Ethereum struct {
 	blockchain      *core.BlockChain
 	protocolManager *ProtocolManager
 	lesServer       LesServer
-	dialCandiates   enode.Iterator
+	dialCandidates  enode.Iterator
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
@@ -209,7 +210,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			SnapshotLimit:       config.SnapshotCache,
 		}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +228,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetInternalEVMHandler(eth.blockchain)
+	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(eth.blockchain))
 
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 
@@ -256,7 +257,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
 
-	eth.dialCandiates, err = eth.setupDiscovery(&ctx.Config.P2P)
+	eth.dialCandidates, err = eth.setupDiscovery(&ctx.Config.P2P)
 	if err != nil {
 		return nil, err
 	}
@@ -596,7 +597,7 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	for i, vsn := range istanbul.ProtocolVersions {
 		protos[i] = s.protocolManager.makeProtocol(vsn)
 		protos[i].Attributes = []enr.Entry{s.currentEthEntry()}
-		protos[i].DialCandidates = s.dialCandiates
+		protos[i].DialCandidates = s.dialCandidates
 	}
 	if s.lesServer != nil {
 		protos = append(protos, s.lesServer.Protocols()...)

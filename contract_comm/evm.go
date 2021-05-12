@@ -17,139 +17,92 @@
 package contract_comm
 
 import (
+	"fmt"
 	"math/big"
-	"reflect"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
+	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
 )
+
+type evmRunnerFactory func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error)
 
 var (
-	emptyMessage                = types.NewMessage(common.HexToAddress("0x0"), nil, 0, common.Big0, 0, common.Big0, nil, nil, common.Big0, []byte{}, false)
-	internalEvmHandlerSingleton *InternalEVMHandler
+	_newEvmRunner evmRunnerFactory
 )
 
-// An EVM handler to make calls to smart contracts from within geth
-type InternalEVMHandler struct {
-	chain vm.ChainContext
-}
-
-func MakeStaticCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, nil, header, state, true)
-}
-
-func MakeCall(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) (uint64, error) {
-	gasLeft, err := makeCallWithContractId(registryId, abi, funcName, args, returnObj, gas, value, header, state, false)
-	if err == nil && finaliseState {
-		state.Finalise(true)
+func SetEVMRunnerFactory(factory evmRunnerFactory) {
+	if _newEvmRunner == nil {
+		log.Trace("Setting the evmRunnerFactory Singleton")
+		_newEvmRunner = factory
 	}
-	return gasLeft, err
 }
 
-func MakeStaticCallWithAddress(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) (uint64, error) {
-	return makeCallFromSystem(scAddress, abi, funcName, args, returnObj, gas, nil, header, state, true)
-}
-
-func GetRegisteredAddress(registryId [32]byte, header *types.Header, state vm.StateDB) (*common.Address, error) {
-	vmevm, err := createEVM(header, state)
+func MustNewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprintf("failed to get vmRunner: %s", err))
 	}
-	return vm.GetRegisteredAddressWithEvm(registryId, vmevm)
+	return vmRunner
 }
 
-func createEVM(header *types.Header, state vm.StateDB) (*vm.EVM, error) {
+func newEVMRunner(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
 	// Normally, when making an evm call, we should use the current block's state.  However,
 	// there are times (e.g. retrieving the set of validators when an epoch ends) that we need
 	// to call the evm using the currently mined block.  In that case, the header and state params
 	// will be non nil.
-	if internalEvmHandlerSingleton == nil {
+	if _newEvmRunner == nil {
 		return nil, errors.ErrNoInternalEvmHandlerSingleton
 	}
 
-	if header == nil {
-		header = internalEvmHandlerSingleton.chain.CurrentHeader()
-	}
-
-	if state == nil || reflect.ValueOf(state).IsNil() {
-		var err error
-		state, err = internalEvmHandlerSingleton.chain.State()
-		if err != nil {
-			log.Error("Error in retrieving the state from the blockchain", "err", err)
-			return nil, err
-		}
-	}
-
-	// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-	// Putting in zero values.
-	context := vm.NewEVMContext(emptyMessage, header, internalEvmHandlerSingleton.chain, nil)
-	evm := vm.NewEVM(context, state, internalEvmHandlerSingleton.chain.Config(), *internalEvmHandlerSingleton.chain.GetVMConfig())
-
-	return evm, nil
+	return _newEvmRunner(header, state)
 }
 
-func makeCallFromSystem(scAddress common.Address, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
-	// Record a metrics data point about execution time.
-	timer := metrics.GetOrRegisterTimer("contract_comm/systemcall/"+funcName, nil)
-	start := time.Now()
-	defer timer.UpdateSince(start)
-
-	vmevm, err := createEVM(header, state)
+func GetRegisteredAddress(registryId common.Hash, header *types.Header, state vm.StateDB) (common.Address, error) {
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
-		return 0, err
+		return common.ZeroAddress, err
 	}
-
-	var gasLeft uint64
-
-	if static {
-		gasLeft, err = vmevm.StaticCallFromSystem(scAddress, abi, funcName, args, returnObj, gas)
-	} else {
-		gasLeft, err = vmevm.CallFromSystem(scAddress, abi, funcName, args, returnObj, gas, value)
-	}
-	if err != nil {
-		log.Error("Error when invoking evm function", "err", err, "funcName", funcName, "static", static, "address", scAddress, "args", args, "gas", gas, "gasLeft", gasLeft, "value", value)
-		return gasLeft, err
-	}
-
-	return gasLeft, nil
+	return contracts.GetRegisteredAddress(vmRunner, registryId)
 }
 
-func SetInternalEVMHandler(chain vm.ChainContext) {
-	if internalEvmHandlerSingleton == nil {
-		log.Trace("Setting the InternalEVMHandler Singleton")
-		internalEvmHandler := InternalEVMHandler{
-			chain: chain,
-		}
-		internalEvmHandlerSingleton = &internalEvmHandler
+func MakeStaticCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
+	vmRunner, err := newEVMRunner(header, state)
+	if err != nil {
+		return err
 	}
+
+	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
+	return m.Query(vmRunner, returnObj, args...)
+
 }
 
-func makeCallWithContractId(registryId [32]byte, abi abi.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, static bool) (uint64, error) {
-	scAddress, err := GetRegisteredAddress(registryId, header, state)
-
+func MakeCall(registryId common.Hash, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int, header *types.Header, state vm.StateDB, finaliseState bool) error {
+	vmRunner, err := newEVMRunner(header, state)
 	if err != nil {
-		if err == errors.ErrSmartContractNotDeployed {
-			log.Debug("Contract not yet registered", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
-			return 0, err
-		} else if err == errors.ErrRegistryContractNotDeployed {
-			log.Debug("Registry contract not yet deployed", "function", funcName, "registryId", hexutil.Encode(registryId[:]))
-			return 0, err
-		} else {
-			log.Error("Error in getting registered address", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
-			return 0, err
-		}
+		return err
 	}
 
-	gasLeft, err := makeCallFromSystem(*scAddress, abi, funcName, args, returnObj, gas, value, header, state, static)
-	if err != nil {
-		log.Error("Error in executing function on registered contract", "function", funcName, "registryId", hexutil.Encode(registryId[:]), "err", err)
+	m := contracts.NewRegisteredContractMethod(registryId, &abi, method, gas)
+	err = m.Execute(vmRunner, returnObj, value, args...)
+
+	if err == nil && finaliseState {
+		state.Finalise(true)
 	}
-	return gasLeft, err
+
+	return err
+}
+
+func MakeStaticCallWithAddress(contractAddress common.Address, abi abi.ABI, method string, args []interface{}, returnObj interface{}, gas uint64, header *types.Header, state vm.StateDB) error {
+	vmRunner, err := newEVMRunner(header, state)
+	if err != nil {
+		return err
+	}
+
+	m := contracts.NewBoundMethod(contractAddress, &abi, method, gas)
+	return m.Query(vmRunner, returnObj, args...)
 }

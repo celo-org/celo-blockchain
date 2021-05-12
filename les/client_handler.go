@@ -137,7 +137,7 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	if checkpoint != nil {
 		height = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 	}
-	handler.fetcher = newLightFetcher(handler)
+	handler.fetcher = newLightFetcher(handler, backend.serverPool.getTimeout)
 	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.subscribe((*downloaderPeerNotify)(handler))
@@ -161,15 +161,9 @@ func (h *clientHandler) runPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter)
 	}
 	peer := newServerPeer(int(version), h.backend.config.NetworkId, trusted, p, newMeteredMsgWriter(rw, int(version)))
 	defer peer.close()
-	peer.poolEntry = h.backend.serverPool.connect(peer, peer.Node())
-	if peer.poolEntry == nil {
-		p.Log().Error("pool entry nil")
-		return p2p.DiscRequested
-	}
 	h.wg.Add(1)
 	defer h.wg.Done()
 	err := h.handle(peer)
-	h.backend.serverPool.disconnect(peer.poolEntry)
 	return err
 }
 
@@ -215,11 +209,6 @@ func (h *clientHandler) handle(p *serverPeer) error {
 	}()
 
 	h.fetcher.announce(p, &announceData{Hash: p.headInfo.Hash, Number: p.headInfo.Number, Td: p.headInfo.Td})
-
-	// pool entry can be nil during the unit test.
-	if p.poolEntry != nil {
-		h.backend.serverPool.registered(p.poolEntry)
-	}
 
 	// Loop until we receive a RequestEtherbase response or timeout.
 	go func() {

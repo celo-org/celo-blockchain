@@ -20,19 +20,18 @@ require (
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
 	github.com/dlclark/regexp2 v1.2.0 // indirect
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
-	github.com/dop251/goja v0.0.0-20200721192441-a695b0cdd498
-	github.com/elastic/gosigar v0.10.5
-	github.com/ethereum/go-ethereum v1.10.0
-	github.com/fatih/color v1.7.0
-	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5
+	github.com/dop251/goja v0.0.0-20200219165308-d1232e640a87
+	github.com/fatih/color v1.3.0
+	github.com/fjl/memsize v0.0.0-20180418122429-ca190fb6ffbc
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff
 	github.com/go-sourcemap/sourcemap v2.1.2+incompatible // indirect
 	github.com/go-stack/stack v1.8.0
-	github.com/golang/protobuf v1.4.3
-	github.com/golang/snappy v0.0.3-0.20201103224600-674baa8c7fc3
-	github.com/gorilla/websocket v1.4.2
-	github.com/graph-gophers/graphql-go v0.0.0-20201113091052-beb923fada29
-	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
+	github.com/golang/protobuf v1.3.2-0.20190517061210-b285ee9cfc6c
+	github.com/golang/snappy v0.0.3
+	github.com/google/go-cmp v0.3.1 // indirect
+	github.com/gorilla/websocket v1.4.1-0.20190629185528-ae1634f6a989
+	github.com/graph-gophers/graphql-go v0.0.0-20191115155744-f33e81362277
+	github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad
 	github.com/hdevalence/ed25519consensus v0.0.0-20201207055737-7fde80a9d5ff
 	github.com/huin/goupnp v1.0.1-0.20200620063722-49508fba0031
 	github.com/influxdata/influxdb v1.8.3
@@ -55,6 +54,7 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/rs/xhandler v0.0.0-20160618193221-ed27b6fd6521 // indirect
 	github.com/shopspring/decimal v1.2.0
+	github.com/shirou/gopsutil v2.20.5-0.20200531151128-663af789c085+incompatible
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
 	github.com/steakknife/hamming v0.0.0-20180906055917-c99c65617cd3 // indirect
@@ -63,17 +63,17 @@ require (
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/mobile v0.0.0-20200801112145-973feb4309de // indirect
+	golang.org/x/mobile v0.0.0-20210220033013-bdb1ca9a1e08 // indirect
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
 	golang.org/x/text v0.3.3
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
-	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200619000410-60c24ae608a6
+	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200603215123-a4a8cb9d2cbc
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools v2.2.0+incompatible // indirect
 )
 
 // Use our fork which disables bitcode
-replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20201127114005-6a1221213dcf
+replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20210324213558-66ac87d7fb95

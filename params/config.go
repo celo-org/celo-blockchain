@@ -62,8 +62,8 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       nil,
-		DonutBlock:          nil,
+		ChurritoBlock:       big.NewInt(6774000),
+		DonutBlock:          big.NewInt(6774000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -87,7 +87,7 @@ var (
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(2719099),
-		DonutBlock:          nil,
+		DonutBlock:          big.NewInt(5002000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -110,8 +110,8 @@ var (
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		ChurritoBlock:       nil,
-		DonutBlock:          nil,
+		ChurritoBlock:       big.NewInt(4960000),
+		DonutBlock:          big.NewInt(4960000),
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -352,21 +352,22 @@ func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *Confi
 // to guarantee that forks can be implemented in a different order than on official networks
 func (c *ChainConfig) CheckConfigForkOrder() error {
 	type fork struct {
-		name  string
-		block *big.Int
+		name     string
+		block    *big.Int
+		optional bool // if true, the fork may be nil and next fork is still allowed
 	}
 	var lastFork fork
 	for _, cur := range []fork{
-		{"homesteadBlock", c.HomesteadBlock},
-		{"eip150Block", c.EIP150Block},
-		{"eip155Block", c.EIP155Block},
-		{"eip158Block", c.EIP158Block},
-		{"byzantiumBlock", c.ByzantiumBlock},
-		{"constantinopleBlock", c.ConstantinopleBlock},
-		{"petersburgBlock", c.PetersburgBlock},
-		{"istanbulBlock", c.IstanbulBlock},
-		{"churritoBlock", c.ChurritoBlock},
-		{"donutBlock", c.DonutBlock},
+		{name: "homesteadBlock", block: c.HomesteadBlock},
+		{name: "eip150Block", block: c.EIP150Block},
+		{name: "eip155Block", block: c.EIP155Block},
+		{name: "eip158Block", block: c.EIP158Block},
+		{name: "byzantiumBlock", block: c.ByzantiumBlock},
+		{name: "constantinopleBlock", block: c.ConstantinopleBlock},
+		{name: "petersburgBlock", block: c.PetersburgBlock},
+		{name: "istanbulBlock", block: c.IstanbulBlock},
+		{name: "churritoBlock", block: c.ChurritoBlock},
+		{name: "donutBlock", block: c.DonutBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -381,7 +382,10 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 				}
 			}
 		}
-		lastFork = cur
+		// If it was optional and not set, then ignore it
+		if !cur.optional || cur.block != nil {
+			lastFork = cur
+		}
 	}
 	return nil
 }

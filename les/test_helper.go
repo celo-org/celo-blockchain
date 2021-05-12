@@ -508,7 +508,7 @@ func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, 
 		clock = &mclock.Simulated{}
 	}
 	dist := newRequestDistributor(speers, clock)
-	rm := newRetrieveManager(speers, dist, nil)
+	rm := newRetrieveManager(speers, dist, func() time.Duration { return time.Millisecond * 500 })
 	odr := NewLesOdr(cdb, light.TestClientIndexerConfig, rm)
 
 	sindexers := testIndexers(sdb, nil, light.TestServerIndexerConfig)

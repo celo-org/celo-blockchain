@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/filters"
@@ -52,17 +53,18 @@ import (
 type LightEthereum struct {
 	lesCommons
 
-	peers        *serverPeerSet
-	reqDist      *requestDistributor
-	retriever    *retrieveManager
-	odr          *LesOdr
-	relay        *lesTxRelay
-	handler      *clientHandler
-	txPool       *light.TxPool
-	blockchain   *light.LightChain
-	serverPool   *serverPool
-	chainreader  *LightChainReader
-	valueTracker *lpc.ValueTracker
+	peers          *serverPeerSet
+	reqDist        *requestDistributor
+	retriever      *retrieveManager
+	odr            *LesOdr
+	relay          *lesTxRelay
+	handler        *clientHandler
+	txPool         *light.TxPool
+	blockchain     *light.LightChain
+	serverPool     *serverPool
+	chainreader    *LightChainReader
+	valueTracker   *lpc.ValueTracker
+	dialCandidates enode.Iterator
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -122,11 +124,19 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		serverPool:     newServerPool(chainDb, config.UltraLightServers),
 		valueTracker:   lpc.NewValueTracker(lespayDb, &mclock.System{}, requestList, time.Minute, 1/float64(time.Hour), 1/float64(time.Hour*100), 1/float64(time.Hour*1000)),
 	}
 	peers.subscribe((*vtSubscription)(leth.valueTracker))
-	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool)
+
+	dnsdisc, err := leth.setupDiscovery(&ctx.Config.P2P)
+	if err != nil {
+		return nil, err
+	}
+	leth.serverPool = newServerPool(lespayDb, []byte("serverpool:"), leth.valueTracker, dnsdisc, time.Second, nil, &mclock.System{}, config.UltraLightServers)
+	peers.subscribe(leth.serverPool)
+	leth.dialCandidates = leth.serverPool.dialIterator
+
+	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool.getTimeout)
 	leth.relay = newLesTxRelay(peers, leth.retriever)
 
 	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
@@ -150,7 +160,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 
 	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
 	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetInternalEVMHandler(leth.blockchain)
+	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(leth.blockchain))
 
 	leth.chainReader = leth.blockchain
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
@@ -196,7 +206,12 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if istanbul, isIstanbul := leth.engine.(*istanbulBackend.Backend); isIstanbul {
 		istanbul.SetChain(leth.chainreader, nil, nil)
 	}
-
+	// TODO mcortesi (needs etherbase & gatewayFee?)
+	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
+	if leth.handler.ulc != nil {
+		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
+		leth.blockchain.DisableCheckFreq()
+	}
 	return leth, nil
 }
 
@@ -304,7 +319,7 @@ func (s *LightEthereum) Protocols() []p2p.Protocol {
 			return p.Info()
 		}
 		return nil
-	})
+	}, s.dialCandidates)
 }
 
 // Start implements node.Service, starting all internal goroutines needed by the
@@ -312,15 +327,12 @@ func (s *LightEthereum) Protocols() []p2p.Protocol {
 func (s *LightEthereum) Start(srvr *p2p.Server) error {
 	log.Warn("Light client mode is an experimental feature")
 
+	s.serverPool.start()
 	// Start bloom request workers.
 	s.wg.Add(bloomServiceThreads)
 	s.startBloomHandlers(params.BloomBitsBlocksClient)
 
 	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.config.NetworkId)
-
-	// clients are searching for the first advertised protocol in the list
-	protocolVersion := AdvertiseProtocolVersions[0]
-	s.serverPool.start(srvr, lesTopic(s.blockchain.Genesis().Hash(), protocolVersion))
 	return nil
 }
 
@@ -332,6 +344,8 @@ func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
 	close(s.closeCh)
+	s.serverPool.stop()
+	s.valueTracker.Stop()
 	s.peers.close()
 	s.reqDist.close()
 	s.odr.Stop()
@@ -347,8 +361,6 @@ func (s *LightEthereum) Stop() error {
 	s.txPool.Stop()
 	s.engine.Close()
 	s.eventMux.Stop()
-	s.serverPool.stop()
-	s.valueTracker.Stop()
 	s.chainDb.Close()
 	s.wg.Wait()
 	log.Info("Light ethereum stopped")

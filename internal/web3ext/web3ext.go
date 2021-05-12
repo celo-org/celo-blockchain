@@ -935,10 +935,6 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFeeCache',
 			getter: 'les_gatewayFeeCache'
-		}),
-		new web3._extend.Property({
-			name: 'serverPoolEntries',
-			getter: 'les_serverPoolEntries'
 		})
 	]
 });

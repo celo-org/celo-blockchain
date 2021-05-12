@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/cmd/utils"
-	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -31,13 +31,13 @@ import (
 // promptPassphrase prompts the user for a passphrase.  Set confirmation to true
 // to require the user to confirm the passphrase.
 func promptPassphrase(confirmation bool) string {
-	passphrase, err := console.Stdin.PromptPassword("Password: ")
+	passphrase, err := prompt.Stdin.PromptPassword("Password: ")
 	if err != nil {
 		utils.Fatalf("Failed to read password: %v", err)
 	}
 
 	if confirmation {
-		confirm, err := console.Stdin.PromptPassword("Repeat password: ")
+		confirm, err := prompt.Stdin.PromptPassword("Repeat password: ")
 		if err != nil {
 			utils.Fatalf("Failed to read password confirmation: %v", err)
 		}

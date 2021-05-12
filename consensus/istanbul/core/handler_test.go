@@ -172,7 +172,9 @@ func BenchmarkHandleMsg(b *testing.B) {
 	}
 }
 
-func newInitializedTestSystem() *testSystem {
+// newInitializedTestSystem creates a test system
+// It optionally creates a round state db in a temporary directory
+func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 	N := uint64(2)
 	F := uint64(1) // F does not affect tests
 
@@ -182,17 +184,36 @@ func newInitializedTestSystem() *testSystem {
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
 
-		c.current = newTestRoundState(
-			&istanbul.View{
-				Round:    big.NewInt(0),
-				Sequence: big.NewInt(1),
-			},
-			backend.peers,
-		)
+		if useRoundStateDB {
+			rsdb, err := newRoundStateDB(b.TempDir(), nil)
+			if err != nil {
+				b.Errorf("Failed to create rsdb: %v", err)
+			}
 
-		if i == 0 {
-			// replica 0 is the proposer
-			c.current.(*roundStateImpl).state = StatePreprepared
+			c.current = withSavingDecorator(rsdb, newTestRoundState(
+				&istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(1),
+				},
+				backend.peers,
+			))
+
+			if i == 0 {
+				// replica 0 is the proposer
+				c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
+			}
+		} else {
+			c.current = newTestRoundState(
+				&istanbul.View{
+					Round:    big.NewInt(0),
+					Sequence: big.NewInt(1),
+				},
+				backend.peers,
+			)
+			if i == 0 {
+				// replica 0 is the proposer
+				c.current.(*roundStateImpl).state = StatePreprepared
+			}
 		}
 	}
 
@@ -201,7 +222,17 @@ func newInitializedTestSystem() *testSystem {
 }
 
 func BenchmarkE2EHandleCommit(b *testing.B) {
-	sys := newInitializedTestSystem()
+	sys := newInitializedTestSystem(b, false)
+	bemchmarkE2EHandleCommit(b, sys)
+}
+
+func BenchmarkE2EHandleCommitWithSave(b *testing.B) {
+	sys := newInitializedTestSystem(b, true)
+	bemchmarkE2EHandleCommit(b, sys)
+
+}
+
+func bemchmarkE2EHandleCommit(b *testing.B, sys *testSystem) {
 
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
@@ -245,9 +276,18 @@ func BenchmarkE2EHandleCommit(b *testing.B) {
 	}
 }
 
-func BenchmarkE2EHandlePrepare(b *testing.B) {
-	sys := newInitializedTestSystem()
+func BenchmarkE2EHandlePrepareWithSave(b *testing.B) {
+	sys := newInitializedTestSystem(b, true)
+	benchmarkE2EHandlePrepare(b, sys)
+}
 
+func BenchmarkE2EHandlePrepare(b *testing.B) {
+	sys := newInitializedTestSystem(b, false)
+	benchmarkE2EHandlePrepare(b, sys)
+
+}
+
+func benchmarkE2EHandlePrepare(b *testing.B, sys *testSystem) {
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
 	c := v0.engine.(*core)

@@ -9,4 +9,5 @@ var (
 	ErrSmartContractNotDeployed      = errors.New("Contract not in Registry")
 	ErrRegistryContractNotDeployed   = errors.New("Registry not deployed")
 	ErrNoInternalEvmHandlerSingleton = errors.New("No internalEvmHandlerSingleton set for contract communication")
+	ErrExchangeRateZero              = errors.New("Exchange rate returned from the network is zero")
 )

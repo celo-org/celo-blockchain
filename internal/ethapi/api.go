@@ -292,7 +292,7 @@ func (s *PrivateAccountAPI) NewAccount(password string) (common.Address, error) 
 	return common.Address{}, err
 }
 
-// fetchKeystore retrives the encrypted keystore from the account manager.
+// fetchKeystore retrieves the encrypted keystore from the account manager.
 func fetchKeystore(am *accounts.Manager) *keystore.KeyStore {
 	return am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 }
@@ -694,6 +694,7 @@ type CallArgs struct {
 	GatewayFee          hexutil.Big     `json:"gatewayFee"`
 	Value               *hexutil.Big    `json:"value"`
 	Data                *hexutil.Bytes  `json:"data"`
+	EthCompatible       bool            `json:"ethCompatible"`
 }
 
 // ToMessage converts CallArgs to the Message type used by the core evm
@@ -728,7 +729,7 @@ func (args *CallArgs) ToMessage(globalGasCap *big.Int) types.Message {
 		data = []byte(*args.Data)
 	}
 
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, false)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, args.EthCompatible, false)
 	return msg
 }
 
@@ -819,6 +820,36 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	return result, err
 }
 
+func newRevertError(result *core.ExecutionResult) *revertError {
+	reason, errUnpack := abi.UnpackRevert(result.Revert())
+	err := errors.New("execution reverted")
+	if errUnpack == nil {
+		err = fmt.Errorf("execution reverted: %v", reason)
+	}
+	return &revertError{
+		error:  err,
+		reason: hexutil.Encode(result.Revert()),
+	}
+}
+
+// revertError is an API error that encompassas an EVM revertal with JSON error
+// code and a binary data blob.
+type revertError struct {
+	error
+	reason string // revert reason hex encoded
+}
+
+// ErrorCode returns the JSON error code for a revertal.
+// See: https://github.com/ethereum/wiki/wiki/JSON-RPC-Error-Codes-Improvement-Proposal
+func (e *revertError) ErrorCode() int {
+	return 3
+}
+
+// ErrorData returns the hex encoded revert reason.
+func (e *revertError) ErrorData() interface{} {
+	return e.reason
+}
+
 // Call executes the given transaction on the state for the given block number.
 //
 // Additionally, the caller can specify a batch of contract for fields overriding.
@@ -834,24 +865,11 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if err != nil {
 		return nil, err
 	}
-	return result.Return(), nil
-}
-
-type estimateGasError struct {
-	error  string // Concrete error type if it's failed to estimate gas usage
-	vmerr  error  // Additional field, it's non-nil if the given transaction is invalid
-	revert string // Additional field, it's non-empty if the transaction is reverted and reason is provided
-}
-
-func (e estimateGasError) Error() string {
-	errMsg := e.error
-	if e.vmerr != nil {
-		errMsg += fmt.Sprintf(" (%v)", e.vmerr)
+	// If the result contains a revert reason, try to unpack and return it.
+	if len(result.Revert()) > 0 {
+		return nil, newRevertError(result)
 	}
-	if e.revert != "" {
-		errMsg += fmt.Sprintf(" (%s)", e.revert)
-	}
-	return errMsg
+	return result.Return(), result.Err
 }
 
 func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, gasCap *big.Int) (hexutil.Uint64, error) {
@@ -930,23 +948,13 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 		}
 		if failed {
 			if result != nil && result.Err != vm.ErrOutOfGas {
-				var revert string
 				if len(result.Revert()) > 0 {
-					ret, err := abi.UnpackRevert(result.Revert())
-					if err != nil {
-						revert = hexutil.Encode(result.Revert())
-					} else {
-						revert = ret
-					}
+					return 0, newRevertError(result)
 				}
-				return 0, estimateGasError{
-					error:  "always failing transaction",
-					vmerr:  result.Err,
-					revert: revert,
-				}
+				return 0, result.Err
 			}
 			// Otherwise, the specified gas cap is too low
-			return 0, estimateGasError{error: fmt.Sprintf("gas required exceeds allowance (%d)", cap)}
+			return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
 		}
 	}
 	return hexutil.Uint64(hi), nil
@@ -1123,6 +1131,7 @@ type RPCTransaction struct {
 	V                   *hexutil.Big    `json:"v"`
 	R                   *hexutil.Big    `json:"r"`
 	S                   *hexutil.Big    `json:"s"`
+	EthCompatible       bool            `json:"ethCompatible"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1150,6 +1159,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		V:                   (*hexutil.Big)(v),
 		R:                   (*hexutil.Big)(r),
 		S:                   (*hexutil.Big)(s),
+		EthCompatible:       tx.EthCompatible(),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = &blockHash
@@ -1384,6 +1394,7 @@ type SendTxArgs struct {
 	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
 	Value               *hexutil.Big    `json:"value"`
 	Nonce               *hexutil.Uint64 `json:"nonce"`
+	EthCompatible       bool            `json:"ethCompatible"`
 	// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
 	// newer name and should be preferred by clients.
 	Data  *hexutil.Bytes `json:"data"`
@@ -1392,6 +1403,9 @@ type SendTxArgs struct {
 
 // setDefaults is a helper function that fills in default values for unspecified tx fields.
 func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
+	if err := args.checkEthCompatibility(); err != nil {
+		return err
+	}
 	if args.Gas == nil {
 		args.Gas = new(hexutil.Uint64)
 		defaultGas := uint64(90000)
@@ -1449,7 +1463,7 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 	}
 
-	if args.GatewayFeeRecipient == nil {
+	if args.GatewayFeeRecipient == nil && !args.EthCompatible {
 		recipient := b.GatewayFeeRecipient()
 		if (recipient != common.Address{}) {
 			args.GatewayFeeRecipient = &recipient
@@ -1485,6 +1499,14 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 	return nil
 }
 
+func (args *SendTxArgs) checkEthCompatibility() error {
+	// Reject if Celo-only fields set when EthCompatible is true
+	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
+}
+
 func (args *SendTxArgs) toTransaction() *types.Transaction {
 	var input []byte
 	if args.Input != nil {
@@ -1493,7 +1515,13 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		input = *args.Data
 	}
 	if args.To == nil {
+		if args.EthCompatible {
+			return types.NewContractCreationEthCompatible(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
+		}
 		return types.NewContractCreation(uint64(*args.Nonce), (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
+	}
+	if args.EthCompatible {
+		return types.NewTransactionEthCompatible(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), input)
 	}
 	return types.NewTransaction(uint64(*args.Nonce), *args.To, (*big.Int)(args.Value), uint64(*args.Gas), (*big.Int)(args.GasPrice), args.FeeCurrency, args.GatewayFeeRecipient, (*big.Int)(args.GatewayFee), input)
 }

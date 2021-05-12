@@ -17,21 +17,14 @@
 package vm
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
-	goerrors "errors"
 	"math/big"
 	"sync/atomic"
 	"time"
 
-	abipkg "github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -39,14 +32,11 @@ import (
 // deployed contract addresses (relevant after the account abstraction).
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
-// systemCaller is the caller when the EVM is invoked from the within the blockchain system.
-var systemCaller = AccountRef(common.HexToAddress("0x0"))
-
 type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
 	// TransferFunc is the signature of a transfer function
-	TransferFunc func(StateDB, common.Address, common.Address, *big.Int)
+	TransferFunc func(*EVM, common.Address, common.Address, *big.Int)
 	// GetHashFunc returns the n'th block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
@@ -58,6 +48,9 @@ type (
 
 	// GetValidatorsFunc is the signature for the GetValidators function
 	GetValidatorsFunc func(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
+
+	// GetRegisteredAddressFunc returns the address for a registered contract
+	GetRegisteredAddressFunc func(evm *EVM, registryId common.Hash) (common.Address, error)
 )
 
 // run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
@@ -90,7 +83,7 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 			return interpreter.Run(contract, input, readOnly)
 		}
 	}
-	return nil, errors.New("no compatible interpreter")
+	return nil, ErrNoCompatibleInterpreter
 }
 
 // Context provides the EVM with auxiliary information. Once provided
@@ -119,8 +112,9 @@ type Context struct {
 
 	Header *types.Header
 
-	EpochSize     uint64
-	GetValidators GetValidatorsFunc
+	EpochSize            uint64
+	GetValidators        GetValidatorsFunc
+	GetRegisteredAddress GetRegisteredAddressFunc
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
@@ -137,7 +131,6 @@ type EVM struct {
 	Context
 	// StateDB gives access to the underlying state
 	StateDB StateDB
-
 	// Depth is the current call stack
 	depth int
 
@@ -160,7 +153,7 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	DontMeterGas bool
+	dontMeterGas bool
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -173,7 +166,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
-		DontMeterGas: false,
+		dontMeterGas: false,
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
@@ -220,10 +213,6 @@ func (evm *EVM) GetStateDB() StateDB {
 	return evm.StateDB
 }
 
-func (evm *EVM) GetHeader() *types.Header {
-	return evm.Context.Header
-}
-
 func (evm *EVM) GetDebug() bool {
 	return evm.vmConfig.Debug
 }
@@ -240,6 +229,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
+
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
@@ -248,6 +238,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, gas, ErrInsufficientBalance
 	}
+
 	var (
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
@@ -273,11 +264,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		evm.StateDB.CreateAccount(addr)
 	}
-	gas, err = evm.TobinTransfer(evm.StateDB, caller.Address(), to.Address(), gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, gas, err
-	}
+	evm.Transfer(evm, caller.Address(), to.Address(), value)
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
 	contract := NewContract(caller, to, value, gas)
@@ -319,6 +306,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
+
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
@@ -327,9 +315,10 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	// Note although it's noop to transfer X ether to caller itself. But
 	// if caller doesn't have enough balance, it would be an error to allow
 	// over-charging itself. So the check here is necessary.
-	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, gas, ErrInsufficientBalance
 	}
+
 	var (
 		snapshot = evm.StateDB.Snapshot()
 		to       = AccountRef(caller.Address())
@@ -362,10 +351,12 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+
 	var (
 		snapshot = evm.StateDB.Snapshot()
 		to       = AccountRef(caller.Address())
 	)
+
 	// Initialise a new contract and make initialise the delegate values
 	contract := NewContract(caller, to, nil, gas).AsDelegate()
 	contract.SetCallCode(&addr, evm.StateDB.GetCodeHash(addr), evm.StateDB.GetCode(addr))
@@ -392,6 +383,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+
 	var (
 		to       = AccountRef(addr)
 		snapshot = evm.StateDB.Snapshot()
@@ -456,11 +448,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	if evm.chainRules.IsEIP158 {
 		evm.StateDB.SetNonce(address, 1)
 	}
-	gas, err := evm.TobinTransfer(evm.StateDB, caller.Address(), address, gas, value)
-	if err != nil {
-		log.Error("Failed to transfer with tobin tax", "err", err)
-		return nil, address, gas, err
-	}
+	evm.Transfer(evm, caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -532,129 +520,10 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func getTobinTax(evm *EVM, sender common.Address) (numerator *big.Int, denominator *big.Int, reserveAddress *common.Address, err error) {
-	reserveAddress, err = GetRegisteredAddressWithEvm(params.ReserveRegistryId, evm)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	ret, _, err := evm.Call(AccountRef(sender), *reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Expected size of ret is 64 bytes because getOrComputeTobinTax() returns two uint256 values,
-	// each of which is equivalent to 32 bytes
-	if binary.Size(ret) != 64 {
-		return nil, nil, nil, goerrors.New("Length of tobin tax not equal to 64 bytes")
-	}
-	numerator = new(big.Int).SetBytes(ret[0:32])
-	denominator = new(big.Int).SetBytes(ret[32:64])
-	if denominator.Cmp(common.Big0) == 0 {
-		return nil, nil, nil, goerrors.New("Tobin tax denominator equal to zero")
-	}
-	if numerator.Cmp(denominator) == 1 {
-		return nil, nil, nil, goerrors.New("Tobin tax numerator greater than denominator")
-	}
-	return numerator, denominator, reserveAddress, nil
+func (evm *EVM) StopGasMetering() {
+	evm.dontMeterGas = true
 }
 
-// TobinTransfer performs a transfer that may take a tax from the sent amount and give it to the reserve.
-// If the calculation or transfer of the tax amount fails for any reason, the regular transfer goes ahead.
-// NB: Gas is not charged or accounted for this calculation.
-func (evm *EVM) TobinTransfer(db StateDB, sender, recipient common.Address, gas uint64, amount *big.Int) (leftOverGas uint64, err error) {
-	// Run only primary evm.Call() with tracer
-	if evm.GetDebug() {
-		evm.SetDebug(false)
-		defer func() { evm.SetDebug(true) }()
-	}
-
-	if amount.Cmp(big.NewInt(0)) != 0 {
-		numerator, denominator, reserveAddress, err := getTobinTax(evm, sender)
-		if err == nil {
-			tobinTax := new(big.Int).Div(new(big.Int).Mul(numerator, amount), denominator)
-			evm.Context.Transfer(db, sender, recipient, new(big.Int).Sub(amount, tobinTax))
-			evm.Context.Transfer(db, sender, *reserveAddress, tobinTax)
-			return gas, nil
-		} else {
-			log.Error("Failed to get tobin tax", "error", err)
-		}
-	}
-
-	// Complete a normal transfer if the amount is 0 or the tobin tax value is unable to be fetched and parsed.
-	// We transfer even when the amount is 0 because state trie clearing [EIP161] is necessary at the end of a transaction
-	evm.Context.Transfer(db, sender, recipient, amount)
-	return gas, nil
-}
-
-func (evm *EVM) StaticCallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64) (uint64, error) {
-	staticCall := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.StaticCall(systemCaller, contractAddress, transactionData, gas)
-	}
-
-	return evm.handleABICall(abi, funcName, args, returnObj, staticCall)
-}
-
-func (evm *EVM) CallFromSystem(contractAddress common.Address, abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, gas uint64, value *big.Int) (uint64, error) {
-	call := func(transactionData []byte) ([]byte, uint64, error) {
-		return evm.Call(systemCaller, contractAddress, transactionData, gas, value)
-	}
-	return evm.handleABICall(abi, funcName, args, returnObj, call)
-}
-
-var (
-	errorSig     = []byte{0x08, 0xc3, 0x79, 0xa0} // Keccak256("Error(string)")[:4]
-	abiString, _ = abipkg.NewType("string", "", nil)
-)
-
-func unpackError(result []byte) (string, error) {
-	if len(result) < 4 || !bytes.Equal(result[:4], errorSig) {
-		return "<tx result not Error(string)>", goerrors.New("TX result not of type Error(string)")
-	}
-	vs, err := abipkg.Arguments{{Type: abiString}}.UnpackValues(result[4:])
-	if err != nil {
-		return "<invalid tx result>", err
-	}
-	return vs[0].(string), nil
-}
-
-func (evm *EVM) handleABICall(abi abipkg.ABI, funcName string, args []interface{}, returnObj interface{}, call func([]byte) ([]byte, uint64, error)) (uint64, error) {
-	transactionData, err := abi.Pack(funcName, args...)
-	if err != nil {
-		log.Error("Error in generating the ABI encoding for the function call", "err", err, "funcName", funcName, "args", args)
-		return 0, err
-	}
-
-	ret, leftoverGas, err := call(transactionData)
-
-	if err != nil {
-		msg, _ := unpackError(ret)
-		// Do not log execution reverted as error for getAddressFor. This only happens before the Registry is deployed.
-		// TODO(nategraf): Find a more generic and complete solution to the problem of logging tolerated EVM call failures.
-		if funcName == "getAddressFor" {
-			log.Trace("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
-		} else {
-			log.Error("Error in calling the EVM", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "err", err, "msg", msg)
-		}
-		return leftoverGas, err
-	}
-
-	log.Trace("EVM call successful", "funcName", funcName, "transactionData", hexutil.Encode(transactionData), "ret", hexutil.Encode(ret))
-
-	if returnObj != nil {
-		if err := abi.Unpack(returnObj, funcName, ret); err != nil {
-
-			// TODO (mcortesi) Remove ErrEmptyArguments check after we change Proxy to fail on unset impl
-			// `ErrEmptyArguments` is expected when when syncing & importing blocks
-			// before a contract has been deployed
-			if err == abipkg.ErrEmptyArguments {
-				log.Trace("Error in unpacking EVM call return bytes", "err", err)
-			} else {
-				log.Error("Error in unpacking EVM call return bytes", "err", err)
-			}
-			return leftoverGas, err
-		}
-	}
-
-	return leftoverGas, nil
+func (evm *EVM) StartGasMetering() {
+	evm.dontMeterGas = false
 }

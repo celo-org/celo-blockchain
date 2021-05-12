@@ -381,10 +381,8 @@ func TestVerifyCommit(t *testing.T) {
 		c := sys.backends[0].engine.(*core)
 		c.current = test.roundState
 
-		if err := c.verifyCommit(test.commit); err != nil {
-			if err != test.expected {
-				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
-			}
+		if err := c.verifyCommit(test.commit); err != test.expected {
+			t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
 		}
 	}
 }

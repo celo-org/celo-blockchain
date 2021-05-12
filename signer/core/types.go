@@ -76,6 +76,7 @@ type SendTxArgs struct {
 	GatewayFee          hexutil.Big              `json:"gatewayFee"`
 	Value               hexutil.Big              `json:"value"`
 	Nonce               hexutil.Uint64           `json:"nonce"`
+	EthCompatible       bool                     `json:"ethCompatible"`
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	Data  *hexutil.Bytes `json:"data"`
 	Input *hexutil.Bytes `json:"input,omitempty"`
@@ -87,6 +88,10 @@ func (args SendTxArgs) String() string {
 		return string(s)
 	}
 	return err.Error()
+}
+
+func (args SendTxArgs) CheckEthCompatibility() error {
+	return args.toTransaction().CheckEthCompatibility()
 }
 
 func (args *SendTxArgs) toTransaction() *types.Transaction {
@@ -107,7 +112,13 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 		gatewayFeeRecipient = &tmp
 	}
 	if args.To == nil {
+		if args.EthCompatible {
+			return types.NewContractCreationEthCompatible(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), input)
+		}
 		return types.NewContractCreation(uint64(args.Nonce), (*big.Int)(&args.Value), uint64(args.Gas), (*big.Int)(&args.GasPrice), feeCurrency, gatewayFeeRecipient, (*big.Int)(&args.GatewayFee), input)
+	}
+	if args.EthCompatible {
+		return types.NewTransactionEthCompatible(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), input)
 	}
 	return types.NewTransaction(uint64(args.Nonce), args.To.Address(), (*big.Int)(&args.Value), (uint64)(args.Gas), (*big.Int)(&args.GasPrice), feeCurrency, gatewayFeeRecipient, (*big.Int)(&args.GatewayFee), input)
 }

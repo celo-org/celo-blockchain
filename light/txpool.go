@@ -25,8 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/freezer"
-	"github.com/celo-org/celo-blockchain/contract_comm/transfer_whitelist"
+	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -72,6 +71,7 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicated whether Donut has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -325,6 +325,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
 	pool.istanbul = pool.config.IsIstanbul(next)
+	pool.donut = pool.config.IsDonut(next)
 }
 
 // Stop stops the light transaction pool
@@ -360,6 +361,16 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		err  error
 	)
 
+	if pool.donut && !tx.Protected() {
+		return core.ErrUnprotectedTransaction
+	}
+	if tx.EthCompatible() && !pool.donut {
+		return core.ErrEthCompatibleTransactionsNotSupported
+	}
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return err
+	}
+
 	// Validate the transaction sender and it's sig. Throw
 	// if the from fields is invalid.
 	if from, err = types.Sender(pool.signer, tx); err != nil {
@@ -386,27 +397,18 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 
 	// Should supply enough intrinsic gas
 	header := pool.chain.GetHeaderByHash(pool.head)
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, header, currentState, tx.FeeCurrency(), pool.istanbul)
+
+	gasForAlternativeCurrency := uint64(0)
+	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
+	if tx.FeeCurrency() != nil {
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, currentState)
+	}
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
 	}
 	if tx.Gas() < gas {
 		return core.ErrIntrinsicGas
-	}
-
-	// Ensure gold transfers are whitelisted if transfers are frozen.
-	if tx.Value().Sign() > 0 {
-		to := *tx.To()
-		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
-			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
-		} else if isFrozen {
-			log.Info("Transfers are frozen")
-			if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-				log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-				return core.ErrTransfersFrozen
-			}
-			log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
-		}
 	}
 
 	if !pool.relay.CanRelayTransaction(tx) {

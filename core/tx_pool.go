@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -30,10 +31,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	ccerrors "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	"github.com/celo-org/celo-blockchain/contract_comm/freezer"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
-	"github.com/celo-org/celo-blockchain/contract_comm/transfer_whitelist"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -80,7 +77,7 @@ var (
 	// maximum allowance of the current block.
 	ErrGasLimit = errors.New("exceeds block gas limit")
 
-	// ErrNegativeValue is a sanity error to ensure noone is able to specify a
+	// ErrNegativeValue is a sanity error to ensure no one is able to specify a
 	// transaction with a negative value.
 	ErrNegativeValue = errors.New("negative value")
 
@@ -238,6 +235,11 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 	return conf
 }
 
+type txPoolContext struct {
+	BlockContext
+	*currency.CurrencyManager
+}
+
 // TxPool contains all currently known transactions. Transactions
 // enter the pool when they are received from the network or submitted
 // locally. They exit the pool when they are included in the blockchain.
@@ -256,10 +258,12 @@ type TxPool struct {
 	mu          sync.RWMutex
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicator for the Donut fork.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
 	currentMaxGas uint64         // Current gas limit for transaction caps
+	currentCtx    atomic.Value   // Current block context (holds a txPoolContext)
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
@@ -313,7 +317,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newTxPricedList(pool.all)
+	pool.priced = newTxPricedList(pool.all, &pool.currentCtx)
 
 	pool.reset(nil, chain.CurrentBlock().Header())
 
@@ -480,10 +484,24 @@ func (pool *TxPool) SetGasLimit(gasLimit uint64) {
 	pool.demoteUnexecutables()
 
 	for _, list := range pool.queue {
-		rm, _ := list.Filter(nil, gasLimit)
+		rm, _ := list.FilterOnGasLimit(gasLimit)
 		for _, tx := range rm {
 			pool.removeTx(tx.Hash(), false)
 		}
+	}
+}
+
+// handleDonutActivation removes from the pool all transactions without EIP-155 replay protection
+func (pool *TxPool) handleDonutActivation() {
+	toRemove := make(map[common.Hash]struct{})
+	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+		if !tx.Protected() {
+			toRemove[hash] = struct{}{}
+		}
+		return true
+	})
+	for hash := range toRemove {
+		pool.removeTx(hash, true)
 	}
 }
 
@@ -574,9 +592,23 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 	return txs
 }
 
+func (pool *TxPool) ctx() *txPoolContext {
+	ctx := pool.currentCtx.Load().(txPoolContext)
+	return &ctx
+}
+
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
+	if pool.donut && !tx.Protected() {
+		return ErrUnprotectedTransaction
+	}
+	if tx.EthCompatible() && !pool.donut {
+		return ErrEthCompatibleTransactionsNotSupported
+	}
+	if err := tx.CheckEthCompatibility(); err != nil {
+		return err
+	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -597,14 +629,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 
-	// Ensure the fee currency is native or whitelisted.
-	if tx.FeeCurrency() != nil && !currency.IsWhitelisted(*tx.FeeCurrency(), nil, nil) {
+	isWhitelisted := pool.ctx().IsWhitelisted(tx.FeeCurrency())
+	if !isWhitelisted {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
 	// Drop non-local transactions under our own minimal accepted gas price
 	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && currency.Cmp(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
+	if !local && pool.ctx().CmpValues(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -616,7 +648,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err != nil {
 		return err
 	}
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, pool.chain.CurrentBlock().Header(), pool.currentState, tx.FeeCurrency(), pool.istanbul)
+
+	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -624,40 +657,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Gas() < intrGas {
 		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
-	}
-
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(tx.FeeCurrency(), nil, nil)
-	if err != nil && err != ccerrors.ErrSmartContractNotDeployed && err != ccerrors.ErrRegistryContractNotDeployed {
-		log.Debug("unable to fetch gas price minimum", "err", err)
-		return err
-	}
-
-	if tx.GasPrice().Cmp(gasPriceMinimum) == -1 {
-		log.Debug("gas price less than current gas price minimum", "gasPrice", tx.GasPrice(), "gasPriceMinimum", gasPriceMinimum)
-		return ErrGasPriceDoesNotExceedMinimum
-	}
-
-	// Ensure gold transfers are whitelisted if transfers are frozen.
-	if tx.Value().Sign() > 0 {
-		if isFrozen, err := freezer.IsFrozen(params.GoldTokenRegistryId, nil, nil); err != nil {
-			log.Warn("Error determining if transfers are frozen, will proceed as if they are not", "err", err)
-		} else if isFrozen {
-			log.Info("Transfers are frozen")
-			if tx.To() == nil {
-				if !transfer_whitelist.IsWhitelisted(from, from, nil, nil) {
-					log.Debug("Attempt to transfer to new contract from non-whitelisted address", "hash", tx.Hash(), "from", from)
-					return ErrTransfersFrozen
-				}
-				log.Info("New contract transfer is whitelisted", "hash", tx.Hash(), "from", from)
-			} else {
-				to := *tx.To()
-				if !transfer_whitelist.IsWhitelisted(to, from, nil, nil) {
-					log.Debug("Attempt to transfer between non-whitelisted addresses", "hash", tx.Hash(), "to", to, "from", from)
-					return ErrTransfersFrozen
-				}
-				log.Info("Transfer is whitelisted", "hash", tx.Hash(), "to", to, "from", from)
-			}
-		}
 	}
 
 	return nil
@@ -753,7 +752,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
-		pool.queue[from] = newTxList(false)
+		pool.queue[from] = newTxList(false, &pool.currentCtx)
 	}
 	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
 	if !inserted {
@@ -800,7 +799,7 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true)
+		pool.pending[addr] = newTxList(true, &pool.currentCtx)
 	}
 	list := pool.pending[addr]
 
@@ -1152,13 +1151,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	}
 	// Check for pending transactions for every account that sent new ones
 	promoted := pool.promoteExecutables(promoteAddrs)
-	for _, tx := range promoted {
-		addr, _ := types.Sender(pool.signer, tx)
-		if _, ok := events[addr]; !ok {
-			events[addr] = newTxSortedMap()
-		}
-		events[addr].Put(tx)
-	}
+
 	// If a new block appeared, validate the pool of pending transactions. This will
 	// remove any transaction that has been included in the block or was invalidated
 	// because of another transaction (e.g. higher gas price).
@@ -1177,6 +1170,13 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	pool.mu.Unlock()
 
 	// Notify subsystems for newly added transactions
+	for _, tx := range promoted {
+		addr, _ := types.Sender(pool.signer, tx)
+		if _, ok := events[addr]; !ok {
+			events[addr] = newTxSortedMap()
+		}
+		events[addr].Put(tx)
+	}
 	if len(events) > 0 {
 		var txs []*types.Transaction
 		for _, set := range events {
@@ -1264,6 +1264,13 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.pendingNonces = newTxNoncer(statedb)
 	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
+	// atomic store of the new txPoolContext
+	newCtx := txPoolContext{
+		NewBlockContext(newHead, statedb),
+		currency.NewManager(newHead, statedb),
+	}
+	pool.currentCtx.Store(newCtx)
+
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
 	senderCacher.recover(pool.signer, reinject)
@@ -1272,6 +1279,11 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
+	wasDonut := pool.donut
+	pool.donut = pool.chainconfig.IsDonut(next)
+	if pool.donut && !wasDonut {
+		pool.handleDonutActivation()
+	}
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1294,8 +1306,15 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			pool.all.Remove(hash)
 			log.Trace("Removed old queued transaction", "hash", hash)
 		}
+		// Get balances in each currency
+		balances := make(map[common.Address]*big.Int)
+		allCurrencies := list.FeeCurrencies()
+		for _, feeCurrency := range allCurrencies {
+			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			balances[feeCurrency] = feeCurrencyBalance
+		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), balances, pool.ctx().BlockContext, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
@@ -1487,8 +1506,15 @@ func (pool *TxPool) demoteUnexecutables() {
 			pool.all.Remove(hash)
 			log.Trace("Removed old pending transaction", "hash", hash)
 		}
+		// Get balances in each currency
+		balances := make(map[common.Address]*big.Int)
+		allCurrencies := list.FeeCurrencies()
+		for _, feeCurrency := range allCurrencies {
+			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			balances[feeCurrency] = feeCurrencyBalance
+		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), balances, pool.ctx().BlockContext, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
@@ -1532,15 +1558,17 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
 		return ErrInsufficientFunds
 	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, _, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), params.MaxGasToReadErc20Balance, nil, nil)
+		feeCurrencyBalance, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), nil, nil)
 
 		if err != nil {
 			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
 			return err
 		}
 
-		gasFee := new(big.Int).Mul(tx.GasPrice(), big.NewInt(int64(tx.Gas())))
-		if feeCurrencyBalance.Cmp(new(big.Int).Add(gasFee, tx.GatewayFee())) < 0 {
+		// To match the logic in canPayFee() state_transition.go, we require the balance to be strictly greater than the fee,
+		// which means we reject the transaction if balance <= fee
+		fee := tx.Fee()
+		if feeCurrencyBalance.Cmp(fee) <= 0 {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return ErrInsufficientFunds
 		}
