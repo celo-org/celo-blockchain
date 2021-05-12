@@ -337,12 +337,7 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
 func (b *blockState) commit(w *worker, start time.Time) error {
-	// Deep copy receipts here to avoid interaction between different tasks.
-	receipts := make([]*types.Receipt, len(b.receipts))
-	for i, l := range b.receipts {
-		receipts[i] = new(types.Receipt)
-		*receipts[i] = *l
-	}
+	// Need to copy the state here otherwise block production stalls. Not sure why.
 	s := b.state.Copy()
 
 	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, s, b.txs, b.receipts, b.randomness)
@@ -359,10 +354,10 @@ func (b *blockState) commit(w *worker, start time.Time) error {
 		receipt := types.NewReceipt(nil, false, 0)
 		receipt.Logs = s.GetLogs(common.Hash{})
 		for i := range receipt.Logs {
-			receipt.Logs[i].TxIndex = uint(len(receipts))
+			receipt.Logs[i].TxIndex = uint(len(b.receipts))
 		}
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		receipts = append(receipts, receipt)
+		b.receipts = append(b.receipts, receipt)
 	}
 
 	if err != nil {
@@ -370,9 +365,9 @@ func (b *blockState) commit(w *worker, start time.Time) error {
 		return err
 	}
 	if w.isRunning() {
-		w.handleTask(&task{receipts: receipts, state: s, block: block, createdAt: time.Now()})
+		w.handleTask(&task{receipts: b.receipts, state: s, block: block, createdAt: time.Now()})
 
-		feesEth := totalFees(block, receipts)
+		feesEth := totalFees(block, b.receipts)
 		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 
