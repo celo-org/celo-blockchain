@@ -277,7 +277,7 @@ func (w *worker) prepareBlock() (*blockState, error) {
 
 // commitNewWork generates several new sealing tasks based on the parent block.
 func (w *worker) commitNewWork(timestamp int64) {
-	tstart := time.Now()
+	start := time.Now()
 
 	// Initialize the block.
 	b, err := w.prepareBlock()
@@ -292,8 +292,20 @@ func (w *worker) commitNewWork(timestamp int64) {
 		return
 	}
 
-	b.commit(w, tstart)
+	block, err := b.finalizeAndAssemble(w)
+	if err != nil {
+		return
+	}
 	w.updateSnapshot(b)
+	if w.isRunning() {
+		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
+
+		feesEth := totalFees(block, b.receipts)
+		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
+			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+
+	}
+
 }
 
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
@@ -364,25 +376,6 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 	}
 
 	return block, nil
-}
-
-// commit runs any post-transaction state modifications, assembles the final block
-// and commits new work if consensus engine is running.
-func (b *blockState) commit(w *worker, start time.Time) error {
-	block, err := b.finalizeAndAssemble(w)
-	if err != nil {
-		return err
-	}
-	if w.isRunning() {
-		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
-
-		feesEth := totalFees(block, b.receipts)
-		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
-			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
-
-	}
-
-	return nil
 }
 
 // totalFees computes total consumed fees in ETH. Block transactions and receipts have to have the same order.
