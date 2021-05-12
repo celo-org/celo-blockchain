@@ -9,7 +9,6 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
-	"github.com/celo-org/celo-blockchain/mycelo/templates"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -95,8 +94,8 @@ func readBuildPath(ctx *cli.Context) (string, error) {
 
 func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genesis.Config, error) {
 	templateString := ctx.String("template")
-	template := templates.TemplateFromString(templateString)
-	env, err := template.CreateEnv(workdir)
+	template := templateFromString(templateString)
+	env, err := template.createEnv(workdir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -112,7 +111,7 @@ func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genes
 	}
 
 	// Genesis config
-	genesisConfig, err := template.CreateGenesisConfig(env)
+	genesisConfig, err := template.createGenesisConfig(env)
 	if err != nil {
 		return nil, nil, err
 	}
