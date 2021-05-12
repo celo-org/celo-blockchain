@@ -383,6 +383,14 @@ func (sb *Backend) Prepare(chain consensus.ChainReader, header *types.Header) er
 		header.Time = nowTime
 	}
 
+	// Record what the delay should be, but sleep in the miner, not the consensus engine.
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if delay < 0 {
+		sb.sleepGauge.Update(0)
+	} else {
+		sb.sleepGauge.Update(delay.Nanoseconds())
+	}
+
 	if err := writeEmptyIstanbulExtra(header); err != nil {
 		return err
 	}
