@@ -29,7 +29,7 @@ type LoadGenerator struct {
 }
 
 // TxConfig contains the options for a transaction
-type TxConfig struct {
+type txConfig struct {
 	Acc               env.Account
 	Nonce             uint64
 	Recipient         common.Address
@@ -101,7 +101,7 @@ func Start(ctx context.Context, cfg *Config) error {
 			clientIdx++
 			client := cfg.Clients[clientIdx%len(cfg.Clients)]
 			group.Go(func() error {
-				txCfg := TxConfig{
+				txCfg := txConfig{
 					Acc:               sender,
 					Nonce:             nonce,
 					Recipient:         recipient,
@@ -110,7 +110,7 @@ func Start(ctx context.Context, cfg *Config) error {
 					SkipGasEstimation: cfg.SkipGasEstimation,
 					MixFeeCurrency:    cfg.MixFeeCurrency,
 				}
-				return RunTransaction(ctx, client, cfg.ChainID, lg, txCfg)
+				return runTransaction(ctx, client, cfg.ChainID, lg, txCfg)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -118,7 +118,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func RunTransaction(ctx context.Context, client *ethclient.Client, chainID *big.Int, lg *LoadGenerator, txCfg TxConfig) error {
+func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.Int, lg *LoadGenerator, txCfg txConfig) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
