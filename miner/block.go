@@ -134,9 +134,11 @@ func (w *worker) prepareBlock() (*blockState, error) {
 	}
 	// TODO(joshua): This will block for at least 500ms on non-validators & causes spurious logging
 	// Should  this be skipped or modified when the worker is not running?
-	if err := w.engine.Prepare(w.chain, header); err != nil {
-		log.Error("Failed to prepare header for mining", "err", err)
-		return nil, fmt.Errorf("Failed to prepare header for mining: %w", err)
+	if w.isRunning() {
+		if err := w.engine.Prepare(w.chain, header); err != nil {
+			log.Error("Failed to prepare header for mining", "err", err)
+			return nil, fmt.Errorf("Failed to prepare header for mining: %w", err)
+		}
 	}
 
 	// Initialize the block state itself
