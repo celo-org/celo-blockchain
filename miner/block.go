@@ -287,25 +287,27 @@ func (w *worker) commitNewWork(timestamp int64) {
 	}
 	// TODO: Sleep here instead of in prepareBlock()
 
-	istanbulEmptyBlockCommit := func() {
-		if w.isIstanbulEngine() {
-			b.commit(w, false, tstart)
-		}
+	err = b.selectAndApplyTransactions(context.TODO(), w)
+	if err != nil {
+		return
 	}
 
+	b.commit(w, tstart)
+	w.updateSnapshot(b)
+}
+
+func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
-		istanbulEmptyBlockCommit()
-		return
+		return nil
 	}
 
 	// Short circuit if there is no available pending transactions.
 	if len(pending) == 0 {
-		istanbulEmptyBlockCommit()
-		return
+		return nil
 	}
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
@@ -319,22 +321,22 @@ func (w *worker) commitNewWork(timestamp int64) {
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
-		if err := b.commitTransactions(context.TODO(), w, txs, b.txFeeRecipient); err != nil {
-			return
+		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
+			return fmt.Errorf("Failed to commit local transactions: %w", err)
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
-		if err := b.commitTransactions(context.TODO(), w, txs, b.txFeeRecipient); err != nil {
-			return
+		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
+			return fmt.Errorf("Failed to commit remote transactions: %w", err)
 		}
 	}
-	b.commit(w, true, tstart)
+	return nil
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (b *blockState) commit(w *worker, update bool, start time.Time) error {
+func (b *blockState) commit(w *worker, start time.Time) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
 	receipts := make([]*types.Receipt, len(b.receipts))
 	for i, l := range b.receipts {
@@ -375,9 +377,7 @@ func (b *blockState) commit(w *worker, update bool, start time.Time) error {
 			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 
 	}
-	if update {
-		w.updateSnapshot(b)
-	}
+
 	return nil
 }
 
