@@ -26,7 +26,7 @@ This will create a `genesis.json`.
 
 If you want to run a local testnet, you'll want to create an environment, for that use:
 
-```bash 
+```bash
 mycelo genesis --newenv path/to/envfolder
 ```
 
@@ -37,7 +37,7 @@ This command will create folder `path/to/envfolder` and write there `genesis.jso
 Genesis creation has many configuration options, for that `mycelo` use the concept of templates.
 
 ```bash
-mycelo genesis --template=[local|loadtest]
+mycelo genesis --template=[local|loadtest|monorepo]
 ```
 
 Additionally, you can override template options via command line, chedk `mycelo genesis --help` for options:
@@ -58,7 +58,7 @@ If that's not enough, you can ask mycelo to generate a genesis-config file that 
 mycelo genesis-config path/to/env
 ```
 
-This will create `path/to/env/env.json` & `path/to/env/genesis-config.json`. 
+This will create `path/to/env/env.json` & `path/to/env/genesis-config.json`.
 
 Next step is to customize those files with your desired options, and then run:
 
@@ -88,7 +88,7 @@ And then, run the nodes:
 mycelo validator-run --geth path/to/geth/binary path/to/env
 ```
 
-This command will run one geth node for each validator as subprocesses. 
+This command will run one geth node for each validator as subprocesses.
 
 
 ### Running a load bot (Experimental)
@@ -106,14 +106,7 @@ This feature is still experimental and needs more work, but it's already usable.
 
 ## What's missing?
 
-Currently, there are few things that are missing on mycelo. 
-
-  * Not all migration are being executed:
-    * Attestations
-    * Governance
-    * Validators Registration
-
-These are easy to do, but since it's already usable we don't want to delay the release of it
+You tell us!
 
 Happy Coding!!!!!
 

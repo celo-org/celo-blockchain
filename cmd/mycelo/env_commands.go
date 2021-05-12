@@ -34,7 +34,7 @@ var (
 	accountTypeFlag = utils.TextMarshalerFlag{
 		Name:  "type",
 		Usage: `Account type (validator, developer, txNode, faucet, attestation, priceOracle, proxy, attestationBot, votingBot, txNodePrivate, validatorGroup, admin)`,
-		Value: &env.Developer,
+		Value: &env.DeveloperAT,
 	}
 )
 
@@ -47,7 +47,7 @@ func getAccount(ctx *cli.Context) error {
 	idx := ctx.Int(idxFlag.Name)
 	accountType := *utils.LocalTextMarshaler(ctx, accountTypeFlag.Name).(*env.AccountType)
 
-	account, err := myceloEnv.Account(accountType, idx)
+	account, err := myceloEnv.Accounts().Account(accountType, idx)
 	if err != nil {
 		return err
 	}

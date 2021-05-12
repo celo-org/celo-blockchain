@@ -29,7 +29,7 @@ var (
 	ErrNoGenesis = errors.New("genesis not found in chain")
 )
 
-// List of evm-call-message pre-checking errors. All state transtion messages will
+// List of evm-call-message pre-checking errors. All state transition messages will
 // be pre-checked before execution. If any invalidation detected, the corresponding
 // error should be returned which is defined here.
 //
@@ -76,4 +76,12 @@ var (
 	// ErrIntrinsicGas is returned if the transaction is specified to use less gas
 	// than required to start the invocation.
 	ErrIntrinsicGas = errors.New("intrinsic gas too low")
+
+	// ErrEthCompatibleTransactionsNotSupported is returned if the transaction omits the 3 Celo-only
+	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
+	ErrEthCompatibleTransactionsNotSupported = errors.New("support for eth-compatible transactions is not enabled")
+
+	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
+	// use it.
+	ErrUnprotectedTransaction = errors.New("replay protection is required")
 )

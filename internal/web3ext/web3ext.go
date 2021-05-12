@@ -747,25 +747,31 @@ web3._extend({
 			name: 'getSnapshot',
 			call: 'istanbul_getSnapshot',
 			params: 1,
-			inputFormatter: [null]
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getValidators',
 			call: 'istanbul_getValidators',
 			params: 1,
-			inputFormatter: [null]
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getValidatorsBLSPublicKeys',
 			call: 'istanbul_getValidatorsBLSPublicKeys',
 			params: 1,
-			inputFormatter: [null]
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getProposer',
 			call: 'istanbul_getProposer',
 			params: 2,
-			inputFormatter: [null, null]
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter, null]
+		}),
+		new web3._extend.Method({
+			name: 'getLookbackWindow',
+			call: 'istanbul_getLookbackWindow',
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'addProxy',
@@ -913,10 +919,6 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'gatewayFeeCache',
 			getter: 'les_gatewayFeeCache'
-		}),
-		new web3._extend.Property({
-			name: 'serverPoolEntries',
-			getter: 'les_serverPoolEntries'
 		})
 	]
 });

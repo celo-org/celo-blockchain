@@ -5,6 +5,6 @@ index b6989868d..9947b3aa4 100644
 @@ -75,3 +75,5 @@ require (
  
  // Use our fork which disables bitcode
- replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20201127114005-6a1221213dcf
+ replace golang.org/x/mobile => github.com/celo-org/mobile v0.0.0-20210324213558-66ac87d7fb95
 +
 +replace golang.org/x/sys => github.com/celo-org/sys v0.0.0-20200816232032-1d4c3212eaf2

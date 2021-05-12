@@ -13,17 +13,22 @@ import (
 // Cluster represent a set of nodes (validators)
 // that are managed together
 type Cluster struct {
-	env      *env.Environment
-	gethPath string
+	env    *env.Environment
+	config Config
 
 	nodes []*Node
 }
 
+type Config struct {
+	GethPath   string
+	ExtraFlags string
+}
+
 // New creates a new cluster instance
-func New(env *env.Environment, gethPath string) *Cluster {
+func New(env *env.Environment, cfg Config) *Cluster {
 	return &Cluster{
-		env:      env,
-		gethPath: gethPath,
+		env:    env,
+		config: cfg,
 	}
 }
 
@@ -65,15 +70,18 @@ func (cl *Cluster) Init() error {
 func (cl *Cluster) ensureNodes() []*Node {
 
 	if cl.nodes == nil {
-		validators := cl.env.ValidatorAccounts()
+		validators := cl.env.Accounts().ValidatorAccounts()
+		txFeeRecipients := cl.env.Accounts().TxFeeRecipientAccounts()
 		cl.nodes = make([]*Node, len(validators))
 		for i, validator := range validators {
 			nodeConfig := &NodeConfig{
-				GethPath: cl.gethPath,
-				Number:   i,
-				Account:  validator,
-				Datadir:  cl.env.ValidatorDatadir(i),
-				ChainID:  cl.env.Config.ChainID,
+				GethPath:              cl.config.GethPath,
+				ExtraFlags:            cl.config.ExtraFlags,
+				Number:                i,
+				Account:               validator,
+				TxFeeRecipientAccount: txFeeRecipients[i],
+				Datadir:               cl.env.ValidatorDatadir(i),
+				ChainID:               cl.env.Config.ChainID,
 			}
 			cl.nodes[i] = NewNode(nodeConfig)
 		}

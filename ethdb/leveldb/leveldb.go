@@ -248,6 +248,9 @@ func (db *Database) meter(refresh time.Duration) {
 		merr error
 	)
 
+	timer := time.NewTimer(refresh)
+	defer timer.Stop()
+
 	// Iterate ad infinitum and collect the stats
 	for i := 1; errc == nil && merr == nil; i++ {
 		// Retrieve the database stats
@@ -399,7 +402,8 @@ func (db *Database) meter(refresh time.Duration) {
 		select {
 		case errc = <-db.quitChan:
 			// Quit requesting, stop hammering the database
-		case <-time.After(refresh):
+		case <-timer.C:
+			timer.Reset(refresh)
 			// Timeout, gather a new set of stats
 		}
 	}
@@ -428,7 +432,7 @@ func (b *batch) Put(key, value []byte) error {
 // Delete inserts the a key removal into the batch for later committing.
 func (b *batch) Delete(key []byte) error {
 	b.b.Delete(key)
-	b.size++
+	b.size += len(key)
 	return nil
 }
 

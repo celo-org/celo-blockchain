@@ -12,6 +12,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/mycelo/hdwallet"
+	"github.com/celo-org/celo-bls-go/bls"
 	"github.com/tyler-smith/go-bip39"
 )
 
@@ -52,6 +53,41 @@ func (a Account) MarshalJSON() ([]byte, error) {
 	return json.Marshal(data)
 }
 
+// MustBLSProofOfPossession variant of BLSProofOfPossession that panics on error
+func (a *Account) MustBLSProofOfPossession() []byte {
+	pop, err := a.BLSProofOfPossession()
+	if err != nil {
+		panic(err)
+	}
+	return pop
+}
+
+// BLSProofOfPossession generates bls proof of possession
+func (a *Account) BLSProofOfPossession() ([]byte, error) {
+	privateKeyBytes, err := blscrypto.ECDSAToBLS(a.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := bls.DeserializePrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer privateKey.Destroy()
+
+	signature, err := privateKey.SignPoP(a.Address.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	defer signature.Destroy()
+
+	signatureBytes, err := signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return signatureBytes, nil
+}
+
 // BLSPublicKey returns the bls public key
 func (a *Account) BLSPublicKey() (blscrypto.SerializedPublicKey, error) {
 	privateKey, err := blscrypto.ECDSAToBLS(a.PrivateKey)
@@ -60,6 +96,11 @@ func (a *Account) BLSPublicKey() (blscrypto.SerializedPublicKey, error) {
 	}
 
 	return blscrypto.PrivateToPublic(privateKey)
+}
+
+// PublicKeyHex hex representation of the public key
+func (a *Account) PublicKey() []byte {
+	return crypto.FromECDSAPub(&a.PrivateKey.PublicKey)
 }
 
 // PrivateKeyHex hex representation of the private key
@@ -79,46 +120,48 @@ type AccountType int
 
 // The difference account types for the generator
 var (
-	Validator      AccountType = 0
-	Developer      AccountType = 1 // load test
-	TxNode         AccountType = 2
-	Faucet         AccountType = 3
-	Attestation    AccountType = 4
-	PriceOracle    AccountType = 5
-	Proxy          AccountType = 6
-	AttestationBot AccountType = 7
-	VotingBot      AccountType = 8
-	TxNodePrivate  AccountType = 9
-	ValidatorGroup AccountType = 10 // Not in celotool
-	Admin          AccountType = 11 // Not in celotool
+	ValidatorAT      AccountType = 0
+	DeveloperAT      AccountType = 1 // load test
+	TxNodeAT         AccountType = 2
+	BootnodeAT       AccountType = 3
+	FaucetAT         AccountType = 4
+	AttestationAT    AccountType = 5
+	PriceOracleAT    AccountType = 6
+	ProxyAT          AccountType = 7
+	AttestationBotAT AccountType = 8
+	VotingBotAT      AccountType = 9
+	TxNodePrivateAT  AccountType = 10
+	ValidatorGroupAT AccountType = 11 // Not in celotool (yet)
+	AdminAT          AccountType = 12 // Not in celotool (yet)
+	TxFeeRecipientAT AccountType = 13 // Not in celotool (yet)
 )
 
 // String implements the stringer interface.
 func (accountType AccountType) String() string {
 	switch accountType {
-	case Validator:
+	case ValidatorAT:
 		return "validator"
-	case Developer:
+	case DeveloperAT:
 		return "developer"
-	case TxNode:
+	case TxNodeAT:
 		return "txNode"
-	case Faucet:
+	case FaucetAT:
 		return "faucet"
-	case Attestation:
+	case AttestationAT:
 		return "attestation"
-	case PriceOracle:
+	case PriceOracleAT:
 		return "priceOracle"
-	case Proxy:
+	case ProxyAT:
 		return "proxy"
-	case AttestationBot:
+	case AttestationBotAT:
 		return "attestationBot"
-	case VotingBot:
+	case VotingBotAT:
 		return "votingBot"
-	case TxNodePrivate:
+	case TxNodePrivateAT:
 		return "txNodePrivate"
-	case ValidatorGroup:
+	case ValidatorGroupAT:
 		return "validatorGroup"
-	case Admin:
+	case AdminAT:
 		return "admin"
 	default:
 		return "unknown"
@@ -128,29 +171,29 @@ func (accountType AccountType) String() string {
 // MarshalText marshall account type into text
 func (accountType AccountType) MarshalText() ([]byte, error) {
 	switch accountType {
-	case Validator:
+	case ValidatorAT:
 		return []byte("validator"), nil
-	case Developer:
+	case DeveloperAT:
 		return []byte("developer"), nil
-	case TxNode:
+	case TxNodeAT:
 		return []byte("txNode"), nil
-	case Faucet:
+	case FaucetAT:
 		return []byte("faucet"), nil
-	case Attestation:
+	case AttestationAT:
 		return []byte("attestation"), nil
-	case PriceOracle:
+	case PriceOracleAT:
 		return []byte("priceOracle"), nil
-	case Proxy:
+	case ProxyAT:
 		return []byte("proxy"), nil
-	case AttestationBot:
+	case AttestationBotAT:
 		return []byte("attestationBot"), nil
-	case VotingBot:
+	case VotingBotAT:
 		return []byte("votingBot"), nil
-	case TxNodePrivate:
+	case TxNodePrivateAT:
 		return []byte("txNodePrivate"), nil
-	case ValidatorGroup:
+	case ValidatorGroupAT:
 		return []byte("validatorGroup"), nil
-	case Admin:
+	case AdminAT:
 		return []byte("admin"), nil
 	default:
 		return nil, fmt.Errorf("unknown account type %d", accountType)
@@ -161,29 +204,29 @@ func (accountType AccountType) MarshalText() ([]byte, error) {
 func (accountType *AccountType) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "validator":
-		*accountType = Validator
+		*accountType = ValidatorAT
 	case "developer":
-		*accountType = Developer
+		*accountType = DeveloperAT
 	case "txNode":
-		*accountType = TxNode
+		*accountType = TxNodeAT
 	case "faucet":
-		*accountType = Faucet
+		*accountType = FaucetAT
 	case "attestation":
-		*accountType = Attestation
+		*accountType = AttestationAT
 	case "priceOracle":
-		*accountType = PriceOracle
+		*accountType = PriceOracleAT
 	case "proxy":
-		*accountType = Proxy
+		*accountType = ProxyAT
 	case "attestationBot":
-		*accountType = AttestationBot
+		*accountType = AttestationBotAT
 	case "votingBot":
-		*accountType = VotingBot
+		*accountType = VotingBotAT
 	case "txNodePrivate":
-		*accountType = TxNodePrivate
+		*accountType = TxNodePrivateAT
 	case "validatorGroup":
-		*accountType = ValidatorGroup
+		*accountType = ValidatorGroupAT
 	case "admin":
-		*accountType = Admin
+		*accountType = AdminAT
 	default:
 		return fmt.Errorf(`unknown account type %q, want "validator", "developer", "txNode", "faucet", "attestation", "priceOracle", "proxy", "attestationBot", "votingBot", "txNodePrivate", "validatorGroup", "admin"`, text)
 	}
@@ -216,8 +259,8 @@ func DeriveAccount(mnemonic string, accountType AccountType, idx int) (*Account,
 	}, nil
 }
 
-// GenerateAccounts will generate the desired number of accounts using mnemonic & accountType
-func GenerateAccounts(mnemonic string, accountType AccountType, qty int) ([]Account, error) {
+// DeriveAccountList will generate the desired number of accounts using mnemonic & accountType
+func DeriveAccountList(mnemonic string, accountType AccountType, qty int) ([]Account, error) {
 	wallet, err := hdwallet.NewFromMnemonic(mnemonic)
 	if err != nil {
 		log.Fatal(err)

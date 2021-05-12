@@ -12,11 +12,11 @@ import (
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
-	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/mycelo/loadbot"
 	"github.com/celo-org/celo-blockchain/params"
 	"gopkg.in/urfave/cli.v1"
@@ -62,56 +62,21 @@ func init() {
 		loadBotCommand,
 		envCommand,
 	}
+	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
 }
 
 func main() {
 	exit(app.Run(os.Args))
 }
 
-var templateFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:  "template",
-		Usage: "Optional template to use (default: local)",
-	},
-	cli.IntFlag{
-		Name:  "validators",
-		Usage: "Number of Validators",
-	},
-	cli.IntFlag{
-		Name:  "dev.accounts",
-		Usage: "Number of developer accounts",
-	},
-	cli.Uint64Flag{
-		Name:  "blockperiod",
-		Usage: "Seconds between each block",
-	},
-	cli.Uint64Flag{
-		Name:  "epoch",
-		Usage: "Epoch size",
-	},
-	cli.Int64Flag{
-		Name:  "blockgaslimit",
-		Usage: "Block gas limit",
-	},
-	cli.StringFlag{
-		Name:  "mnemonic",
-		Usage: "Mnemonic to generate accounts",
-	},
-}
-
-var buildpathFlag = cli.StringFlag{
-	Name:  "buildpath",
-	Usage: "Directory where smartcontract truffle build file live",
-}
-
-var newEnvFlag = cli.StringFlag{
-	Name:  "newenv",
-	Usage: "Creates a new env in desired folder",
-}
-
 var gethPathFlag = cli.StringFlag{
 	Name:  "geth",
 	Usage: "Path to geth binary",
+}
+
+var gethExtraFlagsFlag = cli.StringFlag{
+	Name:  "extraflags",
+	Usage: "extra flags to pass to the validators",
 }
 
 var loadTestTPSFlag = cli.IntFlag{
@@ -126,30 +91,14 @@ var loadTestMaxPendingFlag = cli.UintFlag{
 	Value: 200,
 }
 
-var createGenesisCommand = cli.Command{
-	Name:      "genesis",
-	Usage:     "Creates genesis.json from a template and overrides",
-	Action:    createGenesis,
-	ArgsUsage: "",
-	Flags: append(
-		[]cli.Flag{buildpathFlag, newEnvFlag},
-		templateFlags...),
+var loadTestSkipGasEstimationFlag = cli.BoolFlag{
+	Name:  "skipgasestimation",
+	Usage: "Skips estimating gas if true and instead hardcodes a value for the cUSD transfer",
 }
 
-var createGenesisConfigCommand = cli.Command{
-	Name:      "genesis-config",
-	Usage:     "Creates genesis-config.json from a template and overrides",
-	Action:    createGenesisConfig,
-	ArgsUsage: "[envdir]",
-	Flags:     append([]cli.Flag{}, templateFlags...),
-}
-
-var createGenesisFromConfigCommand = cli.Command{
-	Name:      "genesis-from-config",
-	Usage:     "Creates genesis.json from a genesis-config.json and env.json",
-	ArgsUsage: "[envdir]",
-	Action:    createGenesisFromConfig,
-	Flags:     []cli.Flag{buildpathFlag},
+var loadTestMixFeeCurrencyFlag = cli.BoolFlag{
+	Name:  "mixfeecurrency",
+	Usage: "Switches between paying for gas in cUSD and CELO",
 }
 
 var initValidatorsCommand = cli.Command{
@@ -167,6 +116,7 @@ var runValidatorsCommand = cli.Command{
 	Action:    validatorRun,
 	Flags: []cli.Flag{
 		gethPathFlag,
+		gethExtraFlagsFlag,
 		cli.BoolFlag{Name: "init", Usage: "Init nodes before running them"},
 	},
 }
@@ -192,7 +142,11 @@ var loadBotCommand = cli.Command{
 	Usage:     "Runs the load bot on the environment",
 	ArgsUsage: "[envdir]",
 	Action:    loadBot,
-	Flags:     []cli.Flag{loadTestTPSFlag, loadTestMaxPendingFlag},
+	Flags: []cli.Flag{
+		loadTestTPSFlag,
+		loadTestMaxPendingFlag,
+		loadTestSkipGasEstimationFlag,
+		loadTestMixFeeCurrencyFlag},
 }
 
 func readWorkdir(ctx *cli.Context) (string, error) {
@@ -207,21 +161,8 @@ func readWorkdir(ctx *cli.Context) (string, error) {
 	return ctx.Args().Get(0), nil
 }
 
-func readBuildPath(ctx *cli.Context) (string, error) {
-	buildpath := ctx.String("buildpath")
-	if buildpath == "" {
-		buildpath = path.Join(os.Getenv("CELO_MONOREPO"), "packages/protocol/build/contracts")
-		if fileutils.FileExists(buildpath) {
-			log.Info("Missing --buildpath flag, using CELO_MONOREPO derived path", "buildpath", buildpath)
-		} else {
-			return "", fmt.Errorf("Missing --buildpath flag")
-		}
-	}
-	return buildpath, nil
-}
-
 func readGethPath(ctx *cli.Context) (string, error) {
-	buildpath := ctx.String("geth")
+	buildpath := ctx.String(gethPathFlag.Name)
 	if buildpath == "" {
 		buildpath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
 		if fileutils.FileExists(buildpath) {
@@ -241,136 +182,6 @@ func readEnv(ctx *cli.Context) (*env.Environment, error) {
 	return env.Load(workdir)
 }
 
-func envFromTemplate(ctx *cli.Context, workdir string) (*env.Environment, *genesis.Config, error) {
-	templateString := ctx.String("template")
-	template := templateFromString(templateString)
-	env, err := template.createEnv(workdir)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Env overrides
-	if ctx.IsSet("validators") {
-		env.Config.InitialValidators = ctx.Int("validators")
-	}
-	if ctx.IsSet("dev.accounts") {
-		env.Config.DeveloperAccounts = ctx.Int("dev.accounts")
-	}
-	if ctx.IsSet("mnemonic") {
-		env.Config.Mnemonic = ctx.String("mnemonic")
-	}
-
-	// Create the accounts after the env overrides are set
-	err = env.Refresh()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Genesis config
-	genesisConfig, err := template.createGenesisConfig(env)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Overrides
-	if ctx.IsSet("epoch") {
-		genesisConfig.Istanbul.Epoch = ctx.Uint64("epoch")
-	}
-	if ctx.IsSet("blockperiod") {
-		genesisConfig.Istanbul.BlockPeriod = ctx.Uint64("blockperiod")
-	}
-	if ctx.IsSet("blockgaslimit") {
-		genesisConfig.Blockchain.BlockGasLimit = big.NewInt(ctx.Int64("blockgaslimit"))
-	}
-
-	return env, genesisConfig, nil
-}
-
-func createGenesis(ctx *cli.Context) error {
-	var workdir string
-	var err error
-	if ctx.IsSet("newenv") {
-		workdir = ctx.String("newenv")
-		if !fileutils.FileExists(workdir) {
-			os.MkdirAll(workdir, os.ModePerm)
-		}
-	} else {
-		workdir, err = os.Getwd()
-		if err != nil {
-			return err
-		}
-	}
-
-	env, genesisConfig, err := envFromTemplate(ctx, workdir)
-	if err != nil {
-		return err
-	}
-
-	buildpath, err := readBuildPath(ctx)
-	if err != nil {
-		return err
-	}
-
-	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
-	if err != nil {
-		return err
-	}
-
-	if ctx.IsSet("newenv") {
-		if err = env.Save(); err != nil {
-			return err
-		}
-	}
-
-	return env.SaveGenesis(genesis)
-}
-
-func createGenesisConfig(ctx *cli.Context) error {
-	workdir, err := readWorkdir(ctx)
-	if err != nil {
-		return err
-	}
-
-	env, genesisConfig, err := envFromTemplate(ctx, workdir)
-	if err != nil {
-		return err
-	}
-
-	err = env.Save()
-	if err != nil {
-		return err
-	}
-
-	return genesisConfig.Save(path.Join(workdir, "genesis-config.json"))
-}
-
-func createGenesisFromConfig(ctx *cli.Context) error {
-	workdir, err := readWorkdir(ctx)
-	if err != nil {
-		return err
-	}
-	env, err := env.Load(workdir)
-	if err != nil {
-		return err
-	}
-
-	genesisConfig, err := genesis.LoadConfig(path.Join(workdir, "genesis-config.json"))
-	if err != nil {
-		return err
-	}
-
-	buildpath, err := readBuildPath(ctx)
-	if err != nil {
-		return err
-	}
-
-	genesis, err := genesis.GenerateGenesis(env.AdminAccount(), env.ValidatorAccounts(), genesisConfig, buildpath)
-	if err != nil {
-		return err
-	}
-
-	return env.SaveGenesis(genesis)
-}
-
 func validatorInit(ctx *cli.Context) error {
 	env, err := readEnv(ctx)
 	if err != nil {
@@ -381,8 +192,9 @@ func validatorInit(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	cfg := cluster.Config{GethPath: gethPath}
 
-	cluster := cluster.New(env, gethPath)
+	cluster := cluster.New(env, cfg)
 	return cluster.Init()
 }
 
@@ -396,8 +208,16 @@ func validatorRun(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	extra := ""
+	if ctx.IsSet(gethExtraFlagsFlag.Name) {
+		extra = ctx.String(gethExtraFlagsFlag.Name)
+	}
+	cfg := cluster.Config{
+		GethPath:   gethPath,
+		ExtraFlags: extra,
+	}
 
-	cluster := cluster.New(env, gethPath)
+	cluster := cluster.New(env, cfg)
 
 	if ctx.IsSet("init") {
 		if err := cluster.Init(); err != nil {
@@ -460,7 +280,7 @@ func loadBot(ctx *cli.Context) error {
 	runCtx := context.Background()
 
 	var clients []*ethclient.Client
-	for i := 0; i < env.Config.InitialValidators; i++ {
+	for i := 0; i < env.Accounts().NumValidators; i++ {
 		// TODO: Pull all of these values from env.json
 		client, err := ethclient.Dial(env.ValidatorIPC(i))
 		if err != nil {
@@ -470,11 +290,14 @@ func loadBot(ctx *cli.Context) error {
 	}
 
 	return loadbot.Start(runCtx, &loadbot.Config{
-		Accounts:              env.DeveloperAccounts(),
+		ChainID:               env.Config.ChainID,
+		Accounts:              env.Accounts().DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: ctx.Int(loadTestTPSFlag.Name),
 		Clients:               clients,
 		Verbose:               verbose,
 		MaxPending:            ctx.Uint64(loadTestMaxPendingFlag.Name),
+		SkipGasEstimation:     ctx.GlobalBool(loadTestSkipGasEstimationFlag.Name),
+		MixFeeCurrency:        ctx.GlobalBool(loadTestMixFeeCurrencyFlag.Name),
 	})
 }

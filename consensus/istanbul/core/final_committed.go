@@ -16,10 +16,8 @@
 
 package core
 
-import "github.com/celo-org/celo-blockchain/common"
-
 func (c *core) handleFinalCommitted() error {
 	logger := c.newLogger("func", "handleFinalCommitted")
 	logger.Trace("Received a final committed proposal")
-	return c.startNewRound(common.Big0)
+	return c.startNewSequence()
 }

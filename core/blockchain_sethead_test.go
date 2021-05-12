@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
@@ -125,7 +126,10 @@ func (tt *rewindTest) Dump(crash bool) string {
 // chain to be rolled back to the committed block. Everything above the sethead
 // point should be deleted. In between the committed block and the requested head
 // the data can remain as "fast sync" data to avoid redownloading it.
-func TestShortSetHead(t *testing.T) {
+func TestShortSetHead(t *testing.T)              { testShortSetHead(t, false) }
+func TestShortSetHeadWithSnapshots(t *testing.T) { testShortSetHead(t, true) }
+
+func testShortSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
 	//
@@ -154,7 +158,7 @@ func TestShortSetHead(t *testing.T) {
 		expHeadHeader:      7,
 		expHeadFastBlock:   7,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a short canonical chain where the fast sync pivot point was
@@ -163,7 +167,10 @@ func TestShortSetHead(t *testing.T) {
 // Everything above the sethead point should be deleted. In between the committed
 // block and the requested head the data can remain as "fast sync" data to avoid
 // redownloading it.
-func TestShortFastSyncedSetHead(t *testing.T) {
+func TestShortFastSyncedSetHead(t *testing.T)              { testShortFastSyncedSetHead(t, false) }
+func TestShortFastSyncedSetHeadWithSnapshots(t *testing.T) { testShortFastSyncedSetHead(t, true) }
+
+func testShortFastSyncedSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
 	//
@@ -192,7 +199,7 @@ func TestShortFastSyncedSetHead(t *testing.T) {
 		expHeadHeader:      7,
 		expHeadFastBlock:   7,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a short canonical chain where the fast sync pivot point was
@@ -200,7 +207,10 @@ func TestShortFastSyncedSetHead(t *testing.T) {
 // detect that it was fast syncing and delete everything from the new head, since
 // we can just pick up fast syncing from there. The head full block should be set
 // to the genesis.
-func TestShortFastSyncingSetHead(t *testing.T) {
+func TestShortFastSyncingSetHead(t *testing.T)              { testShortFastSyncingSetHead(t, false) }
+func TestShortFastSyncingSetHeadWithSnapshots(t *testing.T) { testShortFastSyncingSetHead(t, true) }
+
+func testShortFastSyncingSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
 	//
@@ -229,7 +239,7 @@ func TestShortFastSyncingSetHead(t *testing.T) {
 		expHeadHeader:      7,
 		expHeadFastBlock:   7,
 		expHeadBlock:       0,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where a recent
@@ -238,7 +248,10 @@ func TestShortFastSyncingSetHead(t *testing.T) {
 // to the committed block. Everything above the sethead point should be deleted.
 // In between the committed block and the requested head the data can remain as
 // "fast sync" data to avoid redownloading it.
-func TestLongShallowSetHead(t *testing.T) {
+func TestLongShallowSetHead(t *testing.T)              { testLongShallowSetHead(t, false) }
+func TestLongShallowSetHeadWithSnapshots(t *testing.T) { testLongShallowSetHead(t, true) }
+
+func testLongShallowSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18 (HEAD)
 	//
@@ -272,7 +285,7 @@ func TestLongShallowSetHead(t *testing.T) {
 		expHeadHeader:      6,
 		expHeadFastBlock:   6,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where a recent
@@ -280,7 +293,10 @@ func TestLongShallowSetHead(t *testing.T) {
 // sethead was called. In this case we expect the full chain to be rolled back
 // to the committed block. Since the ancient limit was underflown, everything
 // needs to be deleted onwards to avoid creating a gap.
-func TestLongDeepSetHead(t *testing.T) {
+func TestLongDeepSetHead(t *testing.T)              { testLongDeepSetHead(t, false) }
+func TestLongDeepSetHeadWithSnapshots(t *testing.T) { testLongDeepSetHead(t, true) }
+
+func testLongDeepSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18->C19->C20->C21->C22->C23->C24 (HEAD)
 	//
@@ -313,7 +329,7 @@ func TestLongDeepSetHead(t *testing.T) {
 		expHeadHeader:      4,
 		expHeadFastBlock:   4,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where the fast
@@ -323,6 +339,13 @@ func TestLongDeepSetHead(t *testing.T) {
 // deleted. In between the committed block and the requested head the data can
 // remain as "fast sync" data to avoid redownloading it.
 func TestLongFastSyncedShallowSetHead(t *testing.T) {
+	testLongFastSyncedShallowSetHead(t, false)
+}
+func TestLongFastSyncedShallowSetHeadWithSnapshots(t *testing.T) {
+	testLongFastSyncedShallowSetHead(t, true)
+}
+
+func testLongFastSyncedShallowSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18 (HEAD)
 	//
@@ -356,7 +379,7 @@ func TestLongFastSyncedShallowSetHead(t *testing.T) {
 		expHeadHeader:      6,
 		expHeadFastBlock:   6,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where the fast
@@ -364,7 +387,10 @@ func TestLongFastSyncedShallowSetHead(t *testing.T) {
 // which sethead was called. In this case we expect the full chain to be rolled
 // back to the committed block. Since the ancient limit was underflown, everything
 // needs to be deleted onwards to avoid creating a gap.
-func TestLongFastSyncedDeepSetHead(t *testing.T) {
+func TestLongFastSyncedDeepSetHead(t *testing.T)              { testLongFastSyncedDeepSetHead(t, false) }
+func TestLongFastSyncedDeepSetHeadWithSnapshots(t *testing.T) { testLongFastSyncedDeepSetHead(t, true) }
+
+func testLongFastSyncedDeepSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18->C19->C20->C21->C22->C23->C24 (HEAD)
 	//
@@ -397,7 +423,7 @@ func TestLongFastSyncedDeepSetHead(t *testing.T) {
 		expHeadHeader:      4,
 		expHeadFastBlock:   4,
 		expHeadBlock:       4,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where the fast
@@ -406,6 +432,13 @@ func TestLongFastSyncedDeepSetHead(t *testing.T) {
 // syncing and delete everything from the new head, since we can just pick up fast
 // syncing from there.
 func TestLongFastSyncingShallowSetHead(t *testing.T) {
+	testLongFastSyncingShallowSetHead(t, false)
+}
+func TestLongFastSyncingShallowSetHeadWithSnapshots(t *testing.T) {
+	testLongFastSyncingShallowSetHead(t, true)
+}
+
+func testLongFastSyncingShallowSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18 (HEAD)
 	//
@@ -439,7 +472,7 @@ func TestLongFastSyncingShallowSetHead(t *testing.T) {
 		expHeadHeader:      6,
 		expHeadFastBlock:   6,
 		expHeadBlock:       0,
-	})
+	}, snapshots)
 }
 
 // Tests a sethead for a long canonical chain with frozen blocks where the fast
@@ -448,6 +481,13 @@ func TestLongFastSyncingShallowSetHead(t *testing.T) {
 // syncing and delete everything from the new head, since we can just pick up fast
 // syncing from there.
 func TestLongFastSyncingDeepSetHead(t *testing.T) {
+	testLongFastSyncingDeepSetHead(t, false)
+}
+func TestLongFastSyncingDeepSetHeadWithSnapshots(t *testing.T) {
+	testLongFastSyncingDeepSetHead(t, true)
+}
+
+func testLongFastSyncingDeepSetHead(t *testing.T, snapshots bool) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8->C9->C10->C11->C12->C13->C14->C15->C16->C17->C18->C19->C20->C21->C22->C23->C24 (HEAD)
 	//
@@ -480,10 +520,10 @@ func TestLongFastSyncingDeepSetHead(t *testing.T) {
 		expHeadHeader:      6,
 		expHeadFastBlock:   6,
 		expHeadBlock:       0,
-	})
+	}, snapshots)
 }
 
-func testSetHead(t *testing.T, tt *rewindTest) {
+func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 	// It's hard to follow the test case, visualize the input
 	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	//fmt.Println(tt.dump(false))
@@ -505,8 +545,18 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	var (
 		genesis = new(Genesis).MustCommit(db)
 		engine  = mockEngine.NewFaker()
+		config  = &CacheConfig{
+			TrieCleanLimit: 256,
+			TrieDirtyLimit: 256,
+			TrieTimeLimit:  5 * time.Minute,
+			SnapshotLimit:  0, // Disable snapshot
+		}
 	)
-	chain, err := NewBlockChain(db, nil, params.IstanbulTestChainConfig, engine, vm.Config{}, nil)
+	if snapshots {
+		config.SnapshotLimit = 256
+		config.SnapshotWait = true
+	}
+	chain, err := NewBlockChain(db, config, params.IstanbulTestChainConfig, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -519,6 +569,11 @@ func testSetHead(t *testing.T, tt *rewindTest) {
 	}
 	if tt.commitBlock > 0 {
 		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
+		if snapshots {
+			if err := chain.snaps.Cap(canonblocks[tt.commitBlock-1].Root(), 0); err != nil {
+				t.Fatalf("Failed to flatten snapshots: %v", err)
+			}
+		}
 	}
 	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)

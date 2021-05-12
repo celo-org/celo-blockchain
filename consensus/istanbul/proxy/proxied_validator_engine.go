@@ -519,6 +519,8 @@ loop:
 	}
 }
 
+// sendValEnodeShareMsgs sends a ValEnodeShare Message to each proxy to update the proxie's validator enode table.
+// This is a no-op for replica validators.
 func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 	logger := pv.logger.New("func", "sendValEnodeShareMsgs")
 
@@ -529,15 +531,21 @@ func (pv *proxiedValidatorEngine) sendValEnodeShareMsgs(ps *proxySet) {
 			for valAddress := range assignedValidators {
 				valAddresses = append(valAddresses, valAddress)
 			}
-			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses", common.ConvertToStringSlice(valAddresses))
+			logger.Info("Sending val enode share msg to proxy", "proxy peer", proxy.peer, "valAddresses length", len(valAddresses))
+			logger.Trace("Sending val enode share msg to proxy with validator addresses", "valAddresses", common.ConvertToStringSlice(valAddresses))
 			pv.sendValEnodesShareMsg(proxy.peer, valAddresses)
 		}
 	}
 }
 
 // sendEnodeCerts will send the appropriate enode certificate to the proxies.
+// This is a no-op for replica validators.
 func (pv *proxiedValidatorEngine) sendEnodeCerts(ps *proxySet, enodeCerts map[enode.ID]*istanbul.EnodeCertMsg) {
 	logger := pv.logger.New("func", "sendEnodeCerts")
+	if !pv.backend.IsValidating() {
+		logger.Trace("Skipping sending EnodeCerts to proxies b/c not validating")
+		return
+	}
 
 	for proxyID, proxy := range ps.proxiesByID {
 		if proxy.peer != nil && enodeCerts[proxyID] != nil {

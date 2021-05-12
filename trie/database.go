@@ -399,7 +399,7 @@ func (db *Database) node(hash common.Hash) node {
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the persistent database for the content.
 func (db *Database) Node(hash common.Hash) ([]byte, error) {
-	// It doens't make sense to retrieve the metaroot
+	// It doesn't make sense to retrieve the metaroot
 	if hash == (common.Hash{}) {
 		return nil, errors.New("not found")
 	}
@@ -747,7 +747,7 @@ func (db *Database) Commit(node common.Hash, report bool) error {
 	batch.Replay(uncacher)
 	batch.Reset()
 
-	// Reset the storage counters and bumpd metrics
+	// Reset the storage counters and bumped metrics
 	db.preimages = make(map[common.Hash][]byte)
 	db.preimagesSize = 0
 

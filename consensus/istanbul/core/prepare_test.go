@@ -540,3 +540,49 @@ func TestVerifyPrepare(t *testing.T) {
 		}
 	}
 }
+
+// benchMarkHandlePrepare benchmarks handling a prepare message
+func BenchmarkHandlePrepare(b *testing.B) {
+	N := uint64(2)
+	F := uint64(1) // F does not affect tests
+
+	sys := NewMutedTestSystemWithBackend(N, F)
+	// sys := NewTestSystemWithBackend(N, F)
+
+	for i, backend := range sys.backends {
+		c := backend.engine.(*core)
+
+		c.current = newTestRoundState(
+			&istanbul.View{
+				Round:    big.NewInt(0),
+				Sequence: big.NewInt(1),
+			},
+			backend.peers,
+		)
+
+		if i == 0 {
+			// replica 0 is the proposer
+			c.current.(*roundStateImpl).state = StatePreprepared
+		}
+	}
+
+	sys.Run(false)
+
+	v0 := sys.backends[0]
+	c := v0.engine.(*core)
+	m, _ := Encode(v0.engine.(*core).current.Subject())
+	msg := istanbul.Message{
+		Code:    istanbul.MsgPrepare,
+		Msg:     m,
+		Address: c.current.ValidatorSet().GetByIndex(uint64(1)).Address(),
+	}
+
+	// benchmarked portion
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := c.handlePrepare(&msg)
+		if err != nil {
+			b.Errorf("Error handling the pre-prepare message. err: %v", err)
+		}
+	}
+}
