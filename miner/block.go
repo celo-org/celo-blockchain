@@ -63,6 +63,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	}
 	w.updateSnapshot(b)
 
+	// TODO: worker based adaptive sleep with this delay
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(int64(b.header.Time), 0).Sub(time.Now())
 	if delay < 0 {
