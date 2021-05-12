@@ -17,8 +17,9 @@
 package miner
 
 import (
-	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -41,10 +42,11 @@ type blockState struct {
 	gasPool  *core.GasPool  // available gas used to pack transactions
 	gasLimit uint64
 
-	header     *types.Header
-	txs        []*types.Transaction
-	receipts   []*types.Receipt
-	randomness *types.Randomness // The types.Randomness of the last block by mined by this worker.
+	header         *types.Header
+	txs            []*types.Transaction
+	receipts       []*types.Receipt
+	randomness     *types.Randomness // The types.Randomness of the last block by mined by this worker.
+	txFeeRecipient common.Address
 }
 
 // newBlockState creates a new environment for the current cycle.
@@ -57,12 +59,11 @@ func (w *worker) newBlockState(parent *types.Block, header *types.Header) (*bloc
 	env := &blockState{
 		signer:   types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:    state,
-		header:   header,
+		tcount:   0,
 		gasLimit: core.CalcGasLimit(parent, state),
+		header:   header,
 	}
 
-	// Keep track of transactions which return errors so they can be removed
-	env.tcount = 0
 	return env, nil
 }
 
@@ -185,22 +186,16 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 
 }
 
-// commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(timestamp int64) {
+// prepareBlock intializes a new blockState that is ready to have transaction included to.
+func (w *worker) prepareBlock() (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	tstart := time.Now()
+	timestamp := time.Now().Unix()
 	parent := w.chain.CurrentBlock()
 
 	if parent.Time() >= uint64(timestamp) {
 		timestamp = int64(parent.Time() + 1)
-	}
-	// this will ensure we're not going off too far in the future
-	if now := time.Now().Unix(); timestamp > now+1 {
-		wait := time.Duration(timestamp-now) * time.Second
-		log.Info("Mining too far in the future", "wait", common.PrettyDuration(wait))
-		time.Sleep(wait)
 	}
 
 	num := parent.Number()
@@ -220,45 +215,29 @@ func (w *worker) commitNewWork(timestamp int64) {
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
 		if txFeeRecipient == (common.Address{}) {
-			log.Error("Refusing to mine without etherbase")
-			return
+			return nil, errors.New("Refusing to mine without etherbase")
 		}
 		header.Coinbase = txFeeRecipient
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
-		return
+		return nil, fmt.Errorf("Failed to prepare header for mining: %w", err)
 	}
-	// Start record block construction time after `engine.Prepare` to exclude the sleep time
-	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 
-	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
-	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {
-		// Check whether the block is among the fork extra-override range
-		limit := new(big.Int).Add(daoBlock, params.DAOForkExtraRange)
-		if header.Number.Cmp(daoBlock) >= 0 && header.Number.Cmp(limit) < 0 {
-			// Depending whether we support or oppose the fork, override differently
-			if w.chainConfig.DAOForkSupport {
-				header.Extra = common.CopyBytes(params.DAOForkBlockExtra)
-			} else if bytes.Equal(header.Extra, params.DAOForkBlockExtra) {
-				header.Extra = []byte{} // If miner opposes, don't let it use the reserved extra-data
-			}
-		}
-	}
-	// Could potentially happen if starting to mine in an odd state.
-	b, err := w.newBlockState(parent, header)
+	// Initialize the block state itself
+	state, err := w.chain.StateAt(parent.Root())
 	if err != nil {
-		log.Error("Failed to create mining context", "err", err)
-		return
+		return nil, fmt.Errorf("Failed to get the parent state: %w:", err)
 	}
 
-	istanbulEmptyBlockCommit := func() {
-		if w.isIstanbulEngine() {
-			b.commit(w, false, tstart)
-		}
+	b := &blockState{
+		signer:         types.NewEIP155Signer(w.chainConfig.ChainID),
+		state:          state,
+		tcount:         0,
+		gasLimit:       core.CalcGasLimit(parent, state),
+		header:         header,
+		txFeeRecipient: txFeeRecipient,
 	}
-
-	w.updateSnapshot(b)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
@@ -270,7 +249,7 @@ func (w *worker) commitNewWork(timestamp int64) {
 		lastCommitment, err := random.GetLastCommitment(w.validator, b.header, b.state)
 		if err != nil {
 			log.Error("Failed to get last commitment", "err", err)
-			return
+			return nil, fmt.Errorf("Failed to get last commitment: %w", err)
 		}
 
 		lastRandomness := common.Hash{}
@@ -278,27 +257,27 @@ func (w *worker) commitNewWork(timestamp int64) {
 			lastRandomnessParentHash := rawdb.ReadRandomCommitmentCache(w.db, lastCommitment)
 			if (lastRandomnessParentHash == common.Hash{}) {
 				log.Error("Failed to get last randomness cache entry")
-				return
+				return nil, errors.New("Failed to get last randomness cache entry")
 			}
 
 			var err error
 			lastRandomness, _, err = istanbul.GenerateRandomness(lastRandomnessParentHash)
 			if err != nil {
 				log.Error("Failed to generate last randomness", "err", err)
-				return
+				return nil, fmt.Errorf("Failed to generate last randomness: %w", err)
 			}
 		}
 
 		_, newCommitment, err := istanbul.GenerateRandomness(b.header.ParentHash)
 		if err != nil {
 			log.Error("Failed to generate new randomness", "err", err)
-			return
+			return nil, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
 		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, b.header, b.state)
 		if err != nil {
 			log.Error("Failed to reveal and commit randomness", "randomness", lastRandomness.Hex(), "commitment", newCommitment.Hex(), "err", err)
-			return
+			return nil, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
 		}
 		// always true (EIP158)
 		b.state.IntermediateRoot(true)
@@ -306,6 +285,30 @@ func (w *worker) commitNewWork(timestamp int64) {
 		b.randomness = &types.Randomness{Revealed: lastRandomness, Committed: newCommitment}
 	} else {
 		b.randomness = &types.EmptyRandomness
+	}
+
+	// TODO:  Pull this out?
+	w.updateSnapshot(b)
+
+	return b, nil
+}
+
+// commitNewWork generates several new sealing tasks based on the parent block.
+func (w *worker) commitNewWork(timestamp int64) {
+	tstart := time.Now()
+
+	// Initialize the block.
+	b, err := w.prepareBlock()
+	if err != nil {
+		log.Error("Failed to create mining context", "err", err)
+		return
+	}
+	// TODO: Sleep here instead of in prepareBlock()
+
+	istanbulEmptyBlockCommit := func() {
+		if w.isIstanbulEngine() {
+			b.commit(w, false, tstart)
+		}
 	}
 
 	// Fill the block with all available pending transactions.
@@ -334,13 +337,13 @@ func (w *worker) commitNewWork(timestamp int64) {
 	txComparator := w.createTxCmp()
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
-		if err := b.commitTransactions(context.TODO(), w, txs, txFeeRecipient); err != nil {
+		if err := b.commitTransactions(context.TODO(), w, txs, b.txFeeRecipient); err != nil {
 			return
 		}
 	}
 	if len(remoteTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
-		if err := b.commitTransactions(context.TODO(), w, txs, txFeeRecipient); err != nil {
+		if err := b.commitTransactions(context.TODO(), w, txs, b.txFeeRecipient); err != nil {
 			return
 		}
 	}
