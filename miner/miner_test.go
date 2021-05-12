@@ -55,7 +55,7 @@ func waitForNBlocks(client *ethclient.Client, N int, perBlockTimeout, totalTimeo
 	}
 }
 
-func TestProducesBlocksWithoutLoad(t *testing.T) {
+func TestProducesBlocksWithLoad(t *testing.T) {
 	network, err := celotest.NewMyceloNetwork(t.TempDir())
 	if err != nil {
 		t.Fatalf("Failed to create a mycelo network: %v", err)
