@@ -39,18 +39,8 @@ const (
 	// resultQueueSize is the size of channel listening to sealing result.
 	resultQueueSize = 10
 
-	// txChanSize is the size of channel listening to NewTxsEvent.
-	// The number is referenced from the size of tx pool.
-	txChanSize = 4096
-
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
-
-	// resubmitAdjustChanSize is the size of resubmitting interval adjustment channel.
-	resubmitAdjustChanSize = 10
-
-	// miningLogAtDepth is the number of confirmations before logging successful mining.
-	miningLogAtDepth = 7
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
 	staleThreshold = 7
@@ -65,11 +55,6 @@ type task struct {
 	state     *state.StateDB
 	block     *types.Block
 	createdAt time.Time
-}
-
-// newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
-type newWorkReq struct {
-	timestamp int64
 }
 
 // worker is the main object which takes care of submitting new work to consensus engine
@@ -90,10 +75,9 @@ type worker struct {
 	chainHeadSub event.Subscription
 
 	// Channels
-	newWorkCh chan *newWorkReq
-	resultCh  chan *types.Block
-	startCh   chan struct{}
-	exitCh    chan struct{}
+	resultCh chan *types.Block
+	startCh  chan struct{}
+	exitCh   chan struct{}
 
 	// Previous sent task
 	prevTaskStopCh chan struct{}
@@ -113,20 +97,11 @@ type worker struct {
 
 	// atomic status counters
 	running int32 // The indicator whether the consensus engine is running or not.
-	newTxs  int32 // New arrival transaction count since last sealing work submitting.
-
-	// noempty is the flag used to control whether the feature of pre-seal empty
-	// block is enabled. The default value is false(pre-seal is enabled by default).
-	// But in some special scenario the consensus engine will seal blocks instantaneously,
-	// in this case this feature will add all empty blocks into canonical chain
-	// non-stop and no real transaction will be included.
-	noempty uint32
 
 	// Test hooks
-	newTaskHook  func(*task)                        // Method to call upon receiving a new sealing task.
-	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
-	fullTaskHook func()                             // Method to call before pushing the full sealing task.
-	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
+	newTaskHook  func(*task)      // Method to call upon receiving a new sealing task.
+	skipSealHook func(*task) bool // Method to decide whether skipping the sealing.
+	fullTaskHook func()           // Method to call before pushing the full sealing task.
 
 	// Needed for randomness
 	db ethdb.Database
@@ -144,7 +119,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chain:               eth.BlockChain(),
 		pendingTasks:        make(map[common.Hash]*task),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		newWorkCh:           make(chan *newWorkReq),
 		resultCh:            make(chan *types.Block, resultQueueSize),
 		exitCh:              make(chan struct{}),
 		startCh:             make(chan struct{}, 1),
@@ -416,10 +390,4 @@ func (w *worker) updateSnapshot(b *blockState) {
 	)
 
 	w.snapshotState = b.state.Copy()
-}
-
-func (w *worker) isIstanbulEngine() bool {
-	// TODO find a better way to do this
-	_, isIstanbul := w.engine.(consensus.Istanbul)
-	return isIstanbul
 }
