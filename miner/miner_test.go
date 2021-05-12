@@ -65,7 +65,7 @@ func TestProducesBlocksWithLoad(t *testing.T) {
 	defer network.Wait()
 	defer network.Shutdown()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
 	defer cancel()
 	clients, err := network.Clients(ctx)
 	if err != nil {
