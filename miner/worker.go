@@ -289,6 +289,9 @@ func (w *worker) interruptSealingTask() {
 }
 
 func (w *worker) handleTask(task *task) {
+	if w.newTaskHook != nil {
+		w.newTaskHook(task)
+	}
 
 	// Reject duplicate sealing work due to resubmitting.
 	sealHash := w.engine.SealHash(task.block.Header())
@@ -298,6 +301,10 @@ func (w *worker) handleTask(task *task) {
 	// Interrupt previous sealing operation
 	w.interruptSealingTask()
 	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
+
+	if w.skipSealHook != nil && w.skipSealHook(task) {
+		return
+	}
 
 	w.pendingMu.Lock()
 	w.pendingTasks[w.engine.SealHash(task.block.Header())] = task

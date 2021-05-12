@@ -188,7 +188,6 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 }
 
 func TestGenerateBlockAndImport(t *testing.T) {
-	t.Skip("slow")
 	var (
 		engine      consensus.Engine
 		chainConfig *params.ChainConfig
@@ -328,7 +327,6 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 // that potentially increase the fee revenue for the sealer. In Istanbul, that is not possible and even counter productive
 // as proposing another block after having already done so is clearly byzantine behavior.
 func TestRegenerateMiningBlockIstanbul(t *testing.T) {
-	t.Skip("slow")
 	chainConfig := istanbulChainConfig
 	engine := getAuthorizedIstanbulEngine()
 

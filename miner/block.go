@@ -86,6 +86,9 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	}
 	w.updateSnapshot(b)
 	if w.isRunning() {
+		if w.fullTaskHook != nil {
+			w.fullTaskHook()
+		}
 		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 
 		feesEth := totalFees(block, b.receipts)
