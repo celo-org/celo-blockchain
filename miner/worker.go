@@ -17,6 +17,7 @@
 package miner
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -252,27 +253,45 @@ func (w *worker) mainLoop() {
 		w.pendingMu.Unlock()
 	}
 
+	// Context and cancel function for the currently executing block construction
+	var ctx context.Context
+	var cancel context.CancelFunc
+
 	for {
 		select {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
+			if cancel != nil {
+				cancel()
+			}
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			w.commitNewWork(time.Now().Unix())
+			ctx, cancel = context.WithCancel(context.Background())
+			w.constructAndSubmitNewBlock(ctx)
 
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
+			if cancel != nil {
+				cancel()
+			}
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			w.commitNewWork(time.Now().Unix())
+			ctx, cancel = context.WithCancel(context.Background())
+			w.constructAndSubmitNewBlock(ctx)
 
 		// System stopped
 		case <-w.exitCh:
+			if cancel != nil {
+				cancel()
+			}
 			return
 		case <-w.chainHeadSub.Err():
+			if cancel != nil {
+				cancel()
+			}
 			return
 		}
 	}

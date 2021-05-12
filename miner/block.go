@@ -49,8 +49,9 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-// commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(timestamp int64) {
+// constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
+// a task to the engine
+func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	start := time.Now()
 
 	// Initialize the block.
@@ -59,17 +60,23 @@ func (w *worker) commitNewWork(timestamp int64) {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
+	// TODO: How often to update the snapshot?
+	w.updateSnapshot(b)
+
 	// TODO: Sleep here instead of in prepareBlock()
 
-	err = b.selectAndApplyTransactions(context.TODO(), w)
+	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
 		return
 	}
+	// TODO: How often to update the snapshot?
+	w.updateSnapshot(b)
 
 	block, err := b.finalizeAndAssemble(w)
 	if err != nil {
 		return
 	}
+	// TODO: How often to update the snapshot?
 	w.updateSnapshot(b)
 	if w.isRunning() {
 		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
@@ -182,9 +189,6 @@ func (w *worker) prepareBlock() (*blockState, error) {
 	} else {
 		b.randomness = &types.EmptyRandomness
 	}
-
-	// TODO:  Pull this out?
-	w.updateSnapshot(b)
 
 	return b, nil
 }
