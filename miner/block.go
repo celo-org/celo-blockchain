@@ -49,24 +49,6 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-// newBlockState creates a new environment for the current cycle.
-func (w *worker) newBlockState(parent *types.Block, header *types.Header) (*blockState, error) {
-	state, err := w.chain.StateAt(parent.Root())
-	if err != nil {
-		return nil, err
-	}
-
-	env := &blockState{
-		signer:   types.NewEIP155Signer(w.chainConfig.ChainID),
-		state:    state,
-		tcount:   0,
-		gasLimit: core.CalcGasLimit(parent, state),
-		header:   header,
-	}
-
-	return env, nil
-}
-
 func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := b.state.Snapshot()
 
