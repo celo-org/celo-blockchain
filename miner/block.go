@@ -152,6 +152,7 @@ func (w *worker) prepareBlock() (*blockState, error) {
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
 	}
+	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
 	// Play our part in generating the random beacon.
 	if w.isRunning() && random.IsRunning() {
@@ -241,10 +242,6 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 
 // commitTransactions attempts to commit every transaction in the transactions list until the block is full or there are no more valid transactions.
 func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *types.TransactionsByPriceAndNonce, txFeeRecipient common.Address) error {
-	if b.gasPool == nil {
-		b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
-	}
-
 	var coalescedLogs []*types.Log
 
 loop:
