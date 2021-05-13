@@ -246,24 +246,8 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 	}
 
 	var coalescedLogs []*types.Log
-	defer func() {
-		if !w.isRunning() && len(coalescedLogs) > 0 {
-			// We don't push the pendingLogsEvent while we are mining. The reason is that
-			// when we are mining, the worker will regenerate a mining block every 3 seconds.
-			// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
 
-			// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
-			// logs by filling in the block hash when the block was mined by the local miner. This can
-			// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
-			cpy := make([]*types.Log, len(coalescedLogs))
-			for i, l := range coalescedLogs {
-				cpy[i] = new(types.Log)
-				*cpy[i] = *l
-			}
-			w.pendingLogsFeed.Send(cpy)
-		}
-	}()
-
+loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -274,12 +258,12 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 		// If we don't have enough gas for any further transactions then we're done
 		if b.gasPool.Gas() < params.TxGas {
 			log.Trace("Not enough gas for further transactions", "have", b.gasPool, "want", params.TxGas)
-			return nil
+			break
 		}
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
-			return nil
+			break
 		}
 		// Short-circuit if the transaction requires more gas than we have in the pool.
 		// If we didn't short-circuit here, we would get core.ErrGasLimitReached below.
@@ -327,7 +311,7 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 			// We are below the GPM, so we can stop (the rest of the transactions will either have
 			// even lower gas price or won't be mineable yet due to their nonce)
 			log.Trace("Skipping remaining transaction below the gas price minimum")
-			return nil
+			break loop
 
 		case nil:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
@@ -343,6 +327,22 @@ func (b *blockState) commitTransactions(ctx context.Context, w *worker, txs *typ
 		}
 	}
 
+	if !w.isRunning() && len(coalescedLogs) > 0 {
+		// We don't push the pendingLogsEvent while we are mining. The reason is that
+		// when we are mining, the worker will regenerate a mining block every 3 seconds.
+		// In order to avoid pushing the repeated pendingLog, we disable the pending log pushing.
+
+		// make a copy, the state caches the logs and these logs get "upgraded" from pending to mined
+		// logs by filling in the block hash when the block was mined by the local miner. This can
+		// cause a race condition if a log was "upgraded" before the PendingLogsEvent is processed.
+		cpy := make([]*types.Log, len(coalescedLogs))
+		for i, l := range coalescedLogs {
+			cpy[i] = new(types.Log)
+			*cpy[i] = *l
+		}
+		w.pendingLogsFeed.Send(cpy)
+	}
+	return nil
 }
 
 // commitTransaction attempts to appply a single transaction. If the transaction fails, it's modifications are reverted.
