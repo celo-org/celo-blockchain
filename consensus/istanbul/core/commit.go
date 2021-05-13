@@ -317,6 +317,7 @@ func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, e
 // persisted to disk, this should not pose a problem however because if this
 // step is reached again they will again be discarded.
 func (c *core) removeInvalidCommittedSeals() {
+	logger := c.newLogger("func", "removeInvalidCommittedSeals")
 	commits := c.current.Commits()
 	for _, msg := range commits.Values() {
 		// Continue if this commit has already been validated.
@@ -326,6 +327,7 @@ func (c *core) removeInvalidCommittedSeals() {
 		err := c.verifyCommittedSeal(msg.Commit(), c.current.GetValidatorByAddress(msg.Address))
 		if err != nil {
 			commits.Remove(msg.Address)
+			logger.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
 		} else {
 			// Mark this committed seal as valid
 			msg.Commit().SetCommittedSealValid()
