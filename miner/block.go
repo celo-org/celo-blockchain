@@ -89,7 +89,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		if w.fullTaskHook != nil {
 			w.fullTaskHook()
 		}
-		w.handleTask(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
+		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 
 		feesEth := totalFees(block, b.receipts)
 		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),

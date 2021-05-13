@@ -304,7 +304,7 @@ func (w *worker) interruptSealingTask() {
 	}
 }
 
-func (w *worker) handleTask(task *task) {
+func (w *worker) submitTaskToEngine(task *task) {
 	if w.newTaskHook != nil {
 		w.newTaskHook(task)
 	}
