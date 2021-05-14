@@ -294,11 +294,11 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			h.fetcher.announce(p, &req)
 		}
 	case BlockHeadersMsg:
-		p.Log().Error("Received block header response message")
 		var resp struct {
 			ReqID, BV uint64
 			Headers   []*types.Header
 		}
+		p.Log().Error("Received block header response message", "headers", resp.Headers)
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
@@ -633,23 +633,23 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		}
 		// No more proofs to add, break
 		if maxRange == 0 && currEpoch < earliestMatch {
-			// TODO check height
-			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
-			amount := int(earliestMatch - currEpoch)
-			if amount > maxEpochHeaderFetch {
-				amount = maxEpochHeaderFetch
-			}
-			gap := headerGap{
-				FirstEpoch: currEpoch,
-				Amount:     amount,
-			}
-			headerGaps = append(headerGaps, gap)
+			// // TODO check height
+			// log.Error("No more proofs", "currFrom", currFrom, "original from", from)
+			// amount := int(earliestMatch - currEpoch)
+			// if amount > maxEpochHeaderFetch {
+			// 	amount = maxEpochHeaderFetch
+			// }
+			// gap := headerGap{
+			// 	FirstEpoch: currEpoch,
+			// 	Amount:     amount,
+			// }
+			// headerGaps = append(headerGaps, gap)
 			break
 		}
 		if currEpoch < earliestMatch {
 			log.Error("Need to add header gap", "currEpoch", currEpoch, "earliestMatch", earliestMatch)
 			gap := headerGap{
-				FirstEpoch: currEpoch,
+				FirstEpoch: currEpoch + 1,
 				Amount:     int(earliestMatch - currEpoch),
 			}
 			headerGaps = append(headerGaps, gap)
@@ -696,7 +696,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 			if int(headerGap.FirstEpoch) == 44 {
 				headerGap.Amount = 1
 			} else {
-				headerGap.Amount = 440 - (int(headerGap.FirstEpoch) * int(epoch))
+				headerGap.Amount = 44 - int(headerGap.FirstEpoch)
 			}
 		}
 		headerReq := &distReq{

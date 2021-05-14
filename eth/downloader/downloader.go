@@ -1760,30 +1760,51 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			}
 			// gotProofs = true
 
-			for len(lightProofs) > 0 {
-				// Terminate if something failed in between processing chunks
-				select {
-				case <-d.cancelCh:
-					return errCanceled
-				default:
-				}
+			progress := d.Progress()
+			// for len(lightProofs) > 0 {
+			// Terminate if something failed in between processing chunks
+			select {
+			case <-d.cancelCh:
+				return errCanceled
+			default:
+			}
 
-				// TODO
-				limit := maxHeadersProcess
-				if limit > len(lightProofs) {
-					limit = len(lightProofs)
+			// TODO
+			limit := maxHeadersProcess
+			if limit > len(lightProofs) {
+				limit = len(lightProofs)
+			}
+			var chunks []istanbul.LightPlumoProof
+			var rejects []istanbul.LightPlumoProof
+			for i := 0; i < limit; i++ {
+				lightProof := lightProofs[i]
+				if uint64(lightProof.FirstEpoch) <= progress.CurrentBlock {
+					chunks = append(chunks, lightProof)
+				} else {
+					log.Error("Ignoring proof", "proof", lightProof, "current progress", progress)
+					rejects = append(rejects, lightProof)
 				}
-				chunk := lightProofs[:limit]
-				unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
-				for _, lightProof := range chunk {
-					unknown = append(unknown, lightProof)
-				}
-				d.lightchain.InsertPlumoProofs(chunk)
+				// lightProofs = lightProofs[i:]
+				origin += 1
+			}
+			select {
+			case d.plumoProofProcCh <- rejects:
+			case <-d.cancelCh:
+				return errCanceled
+			}
+			// unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
+			// for _, lightProof := range chunk {
+			// 	unknown = append(unknown, lightProof)
+			// }
+			if len(chunks) > 0 {
+
+				d.lightchain.InsertPlumoProofs(chunks)
 				log.Error("Finished inserting plumo proofs")
 
-				lightProofs = lightProofs[limit:]
-				origin += uint64(limit)
+				// lightProofs = lightProofs[limit:]
+				// origin += uint64(limit)
 			}
+			// }
 		}
 	}
 }

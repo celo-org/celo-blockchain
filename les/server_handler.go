@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -146,7 +147,7 @@ func (h *serverHandler) handle(p *clientPeer) error {
 	}
 	// Reject light clients if server is not synced.
 	if !h.synced() {
-		p.Log().Debug("Light server not synced, rejecting peer")
+		p.Log().Error("Light server not synced, rejecting peer")
 		return p2p.DiscRequested
 	}
 	defer p.fcClient.Disconnect()
@@ -947,9 +948,17 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 					// Could try and fetch roundstate here... but curiously never happens anywhere else.
 					firstEpochValSet := backend.GetValidatorSet(uint64(metadata.FirstEpoch), common.Hash{})
 					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
+					lastEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch), backend.EpochSize())
+					lastBlockHeader := h.blockchain.GetHeaderByNumber(lastEpochBlockNumber)
+					lastEpochEntropy := blscrypto.EpochEntropyFromHash(lastBlockHeader.Hash())
+					parentEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch)-1, backend.EpochSize())
+					parentBlockHeader := h.blockchain.GetHeaderByNumber(parentEpochBlockNumber)
+					parentEpochEntropy := blscrypto.EpochEntropyFromHash(parentBlockHeader.Hash())
 					lastEpochBlock := istanbul.LightEpochBlock{
-						Index:         metadata.LastEpoch,
-						MaxNonSigners: uint(lastEpochValSet.MinQuorumSize()),
+						Index:              metadata.LastEpoch,
+						MaxNonSigners:      uint(lastEpochValSet.MinQuorumSize()),
+						EpochEntropy:       lastEpochEntropy,
+						ParentEpochEntropy: parentEpochEntropy,
 					}
 					var firstEpochValData []istanbul.ValidatorData
 					var lastEpochValData []istanbul.ValidatorData
