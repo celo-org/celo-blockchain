@@ -31,15 +31,6 @@ type evmRunner struct {
 	dontMeterGas bool
 }
 
-// NewTestingEVMRunner creates an EVMRunner based on a newEVM function.
-// USE ONLY FOR TESTING
-func NewTestingEVMRunner(newEVM func() *vm.EVM, state vm.StateDB) vm.EVMRunner {
-	return &evmRunner{
-		newEVM: newEVM,
-		state:  state,
-	}
-}
-
 func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
 	return &evmRunner{
