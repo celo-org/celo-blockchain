@@ -258,7 +258,7 @@ func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Con
 		log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
 		return params.IntrinsicGasForAlternativeFeeCurrency
 	}
-	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
+	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
 
 func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64 {

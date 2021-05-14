@@ -18,7 +18,7 @@ type BlockContext struct {
 // header & state).
 // state MUST be pointing to header's stateRoot
 func NewBlockContext(vmRunner vm.EVMRunner) BlockContext {
-	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
+	gasForAlternativeCurrency := blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 
 	whitelistedCurrenciesArr, err := currency.CurrencyWhitelist(vmRunner)
 	if err != nil {

@@ -117,6 +117,8 @@ func init() {
 	getUptimeLookbackWindowMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, &parsedAbi, "getUptimeLookbackWindow", params.MaxGasForReadBlockchainParameter)
 }
 
+// GetMinimumVersion retrieves the client required minimum version
+// If a node is running a version smaller than this, it should exit/stop
 func GetMinimumVersion(vmRunner vm.EVMRunner) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
 	err := getMinimumClientVersionMethod.Query(vmRunner, &version)
@@ -130,18 +132,34 @@ func GetMinimumVersion(vmRunner vm.EVMRunner) (*params.VersionInfo, error) {
 	}, nil
 }
 
-func GetIntrinsicGasForAlternativeFeeCurrency(vmRunner vm.EVMRunner) uint64 {
-	var gas *big.Int
-	err := intrinsicGasForAlternativeFeeCurrencyMethod.Query(vmRunner, &gas)
-
+// GetIntrinsicGasForAlternativeFeeCurrencyOrDefault retrieves the intrisic gas for transactions that pay gas in
+// with an alternative currency (not CELO).
+// In case of error, it returns the default value
+func GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner vm.EVMRunner) uint64 {
+	gas, err := GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
 	if err != nil {
 		log.Trace("Default gas", "gas", params.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
 		return params.IntrinsicGasForAlternativeFeeCurrency
 	}
 	log.Trace("Reading gas", "gas", gas)
-	return gas.Uint64()
+	return gas
 }
 
+// GetIntrinsicGasForAlternativeFeeCurrency retrieves the intrisic gas for transactions that pay gas in
+// with an alternative currency (not CELO)
+func GetIntrinsicGasForAlternativeFeeCurrency(vmRunner vm.EVMRunner) (uint64, error) {
+	var gas *big.Int
+	err := intrinsicGasForAlternativeFeeCurrencyMethod.Query(vmRunner, &gas)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return gas.Uint64(), nil
+}
+
+// GetBlockGasLimitOrDefault retrieves the block max gas limit
+// In case of error, it returns the default value
 func GetBlockGasLimitOrDefault(vmRunner vm.EVMRunner) uint64 {
 	val, err := GetBlockGasLimit(vmRunner)
 	if err != nil {
@@ -151,6 +169,7 @@ func GetBlockGasLimitOrDefault(vmRunner vm.EVMRunner) uint64 {
 	return val
 }
 
+// GetBlockGasLimit retrieves the block max gas limit
 func GetBlockGasLimit(vmRunner vm.EVMRunner) (uint64, error) {
 	var gasLimit *big.Int
 	err := blockGasLimitMethod.Query(vmRunner, &gasLimit)
@@ -160,6 +179,8 @@ func GetBlockGasLimit(vmRunner vm.EVMRunner) (uint64, error) {
 	return gasLimit.Uint64(), nil
 }
 
+// GetLookbackWindow retrieves the lookback window parameter to be used
+// for uptime score computations
 func GetLookbackWindow(vmRunner vm.EVMRunner) (uint64, error) {
 	var lookbackWindow *big.Int
 	err := getUptimeLookbackWindowMethod.Query(vmRunner, &lookbackWindow)
@@ -171,6 +192,8 @@ func GetLookbackWindow(vmRunner vm.EVMRunner) (uint64, error) {
 	return lookbackWindow.Uint64(), nil
 }
 
+// CheckMinimumVersion performs a check on the client's minimum version
+// In case of not passing hte check it will exit the node
 func CheckMinimumVersion(vmRunner vm.EVMRunner) {
 	version, err := GetMinimumVersion(vmRunner)
 
@@ -181,6 +204,7 @@ func CheckMinimumVersion(vmRunner vm.EVMRunner) {
 
 	if params.CurrentVersionInfo.Cmp(version) == -1 {
 		time.Sleep(10 * time.Second)
+		// TODO this should exist gracefully, not like this
 		log.Crit("Client version older than required", "current", params.Version, "required", version)
 	}
 
@@ -194,6 +218,8 @@ func logError(method string, err error) {
 	}
 }
 
+// SpawnCheck starts a goroutine that will periodically check the client's minimun version
+// In case of not passing hte check it will exit the node
 func SpawnCheck(runnerFactory func() (vm.EVMRunner, error)) {
 	go func() {
 		for {

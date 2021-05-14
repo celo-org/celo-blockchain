@@ -299,7 +299,7 @@ func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Con
 		log.Warn("Cannot create evmCaller to get intrinsic gas for alternative fee currency", "err", err)
 		return params.IntrinsicGasForAlternativeFeeCurrency
 	}
-	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(vmRunner)
+	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {

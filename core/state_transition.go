@@ -412,7 +412,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.vmRunner)
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
 	}
 	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
 	if err != nil {
