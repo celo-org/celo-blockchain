@@ -288,14 +288,11 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 }
 
 // generateAggregateCommittedSeal will generate the aggregate committed seal
-// verify it and return it.
+// verify it and return it. It assumes that there is at least a quorum of
+// commits in the current round state.
 func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, error) {
-	commits := c.current.Commits()
-	if commits.Size() < c.current.ValidatorSet().MinQuorumSize() {
-		return types.IstanbulAggregatedSeal{}, fmt.Errorf("insufficient commits to construct aggregate seal")
-	}
 	bitmap, aggregate, err := AggregateSeals(
-		commits,
+		c.current.Commits(),
 		func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
 	)
 	if err != nil {
