@@ -65,8 +65,6 @@ var (
 
 	// errInvalidEpochValidatorSetSeal is returned when a COMMIT message has an invalid epoch validator seal.
 	errInvalidEpochValidatorSetSeal = errors.New("invalid epoch validator set seal in COMMIT message")
-	// errNotLastBlockInEpoch is returned when the block number was not the last block in the epoch
-	errNotLastBlockInEpoch = errors.New("not last block in epoch")
 	// errMissingRoundChangeCertificate is returned when ROUND CHANGE certificate is missing from a PREPREPARE for round > 0.
 	errMissingRoundChangeCertificate = errors.New("missing ROUND CHANGE certificate in PREPREPARE")
 	// errFailedCreateRoundChangeCertificate is returned when there aren't enough ROUND CHANGE messages to create a ROUND CHANGE certificate.

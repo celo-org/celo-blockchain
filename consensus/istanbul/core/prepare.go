@@ -87,10 +87,14 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			if err != nil {
 				return nil, err
 			}
-			err = c.verifyEpochValidatorSetSeal(commit, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
-			if err != nil {
-				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
-				return nil, err
+
+			num := preparedCertificate.Proposal.Number().Uint64()
+			if num > 0 && istanbul.IsLastBlockOfEpoch(num, c.config.Epoch) {
+				err = c.verifyEpochValidatorSetSeal(commit, num, newValSet, src)
+				if err != nil {
+					logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
+					return nil, err
+				}
 			}
 
 			subject = commit.Subject
