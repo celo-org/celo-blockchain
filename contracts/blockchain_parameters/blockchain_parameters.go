@@ -194,16 +194,16 @@ func logError(method string, err error) {
 	}
 }
 
-func SpawnCheck(callerFactory func() (vm.EVMRunner, error)) {
+func SpawnCheck(runnerFactory func() (vm.EVMRunner, error)) {
 	go func() {
 		for {
 			time.Sleep(60 * time.Second)
 
-			caller, err := callerFactory()
+			vmRunner, err := runnerFactory()
 			if err != nil {
 				continue
 			}
-			CheckMinimumVersion(caller)
+			CheckMinimumVersion(vmRunner)
 		}
 	}()
 }
