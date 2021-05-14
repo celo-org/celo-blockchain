@@ -113,7 +113,12 @@ var (
 	requestRTT       = metrics.NewRegisteredTimer("les/client/req/rtt", nil)
 	requestSendDelay = metrics.NewRegisteredTimer("les/client/req/sendDelay", nil)
 
-	clientDiscoveredNodesCounter = metrics.NewRegisteredCounter("les/client/discovered", nil) // Counter for discovered nodes
+	serverSelectableGauge = metrics.NewRegisteredGauge("les/client/serverPool/selectable", nil)
+	serverDialedMeter     = metrics.NewRegisteredMeter("les/client/serverPool/dialed", nil)
+	serverConnectedGauge  = metrics.NewRegisteredGauge("les/client/serverPool/connected", nil)
+	sessionValueMeter     = metrics.NewRegisteredMeter("les/client/serverPool/sessionValue", nil)
+	totalValueGauge       = metrics.NewRegisteredGauge("les/client/serverPool/totalValue", nil)
+	suggestedTimeoutGauge = metrics.NewRegisteredGauge("les/client/serverPool/timeout", nil)
 )
 
 // meteredMsgReadWriter is a wrapper around a p2p.MsgReadWriter, capable of

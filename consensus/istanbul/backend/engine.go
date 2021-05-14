@@ -390,6 +390,11 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	// wait for the timestamp of header, use this to adjust the block period
 	delay := time.Unix(int64(header.Time), 0).Sub(now())
 	time.Sleep(delay)
+	if delay < 0 {
+		sb.sleepGauge.Update(0)
+	} else {
+		sb.sleepGauge.Update(delay.Nanoseconds())
+	}
 
 	return sb.addParentSeal(chain, header)
 }
@@ -433,7 +438,7 @@ func (sb *Backend) LookbackWindow(header *types.Header, state *state.StateDB) ui
 	firstBlockOfEpoch := istanbul.MustGetEpochFirstBlockGivenBlockNumber(header.Number.Uint64(), sb.config.Epoch)
 	cip21Activated := sb.chain.Config().IsDonut(new(big.Int).SetUint64(firstBlockOfEpoch))
 
-	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	return uptime.ComputeLookbackWindow(
 		sb.config.Epoch,
 		sb.config.DefaultLookbackWindow,
@@ -455,7 +460,7 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	logger.Trace("Finalizing")
 
 	snapshot := state.Snapshot()
-	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)

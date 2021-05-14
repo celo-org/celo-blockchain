@@ -17,7 +17,7 @@ type Method struct {
 	maxGas uint64
 }
 
-// NewMethod creates a new contract message
+// NewMethod creates a new Method
 func NewMethod(abi *abi.ABI, method string, maxGas uint64) Method {
 	return Method{
 		abi:    abi,
@@ -26,6 +26,8 @@ func NewMethod(abi *abi.ABI, method string, maxGas uint64) Method {
 	}
 }
 
+// Bind returns a BoundMethod instance which can be used to call the contract method represented by am
+// and residing at contracAddress.
 func (am Method) Bind(contractAddress common.Address) *BoundMethod {
 	return &BoundMethod{
 		Method:         am,
@@ -46,6 +48,7 @@ func (am Method) decodeResult(result interface{}, output []byte) error {
 	return am.abi.Unpack(result, am.method, output)
 }
 
+// NewBoundMethod constructs a new bound method instance bound to the given address.
 func NewBoundMethod(contractAddress common.Address, abi *abi.ABI, methodName string, maxGas uint64) *BoundMethod {
 	return NewMethod(abi, methodName, maxGas).Bind(contractAddress)
 }
@@ -59,15 +62,22 @@ func NewRegisteredContractMethod(registryId common.Hash, abi *abi.ABI, methodNam
 	}
 }
 
+// BoundMethod represents a Method that is bounded to an address
+// In particular, instead of address we use an address resolver to cope the fact
+// that addresses need to be obtained from the Registry before making a call
 type BoundMethod struct {
 	Method
 	resolveAddress func(vm.EVMRunner) (common.Address, error)
 }
 
+// Query executes the method with the given EVMRunner as a read only action, the returned
+// value is unpacked into result.
 func (bm *BoundMethod) Query(vmRunner vm.EVMRunner, result interface{}, args ...interface{}) error {
 	return bm.run(vmRunner, result, true, nil, args...)
 }
 
+// Execute executes the method with the given EVMRunner and unpacks the return value into result.
+// If the method does not return a value then result should be nil.
 func (bm *BoundMethod) Execute(vmRunner vm.EVMRunner, result interface{}, value *big.Int, args ...interface{}) error {
 	return bm.run(vmRunner, result, false, value, args...)
 }

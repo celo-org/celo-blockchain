@@ -389,7 +389,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return core.ErrNegativeValue
 	}
 
-	caller := pool.chain.NewSystemEVMRunner(pool.chain.CurrentHeader(), currentState)
+	caller := pool.chain.NewEVMRunner(pool.chain.CurrentHeader(), currentState)
 	// Transactor should have enough funds to cover the costs
 	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState, caller)
 	if err != nil {

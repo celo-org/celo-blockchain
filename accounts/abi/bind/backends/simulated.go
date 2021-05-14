@@ -65,7 +65,7 @@ type SimulatedBackend struct {
 
 	mu           sync.Mutex
 	pendingBlock *types.Block   // Currently pending block that will be imported on request
-	pendingState *state.StateDB // Currently pending state that will be the active on on request
+	pendingState *state.StateDB // Currently pending state that will be the active on request
 
 	events *filters.EventSystem // Event system for filtering log events live
 
@@ -134,11 +134,11 @@ func (b *SimulatedBackend) stateByBlockNumber(ctx context.Context, blockNumber *
 	if blockNumber == nil || blockNumber.Cmp(b.blockchain.CurrentBlock().Number()) == 0 {
 		return b.blockchain.State()
 	}
-	block, err := b.BlockByNumber(ctx, blockNumber)
+	block, err := b.blockByNumberNoLock(ctx, blockNumber)
 	if err != nil {
 		return nil, err
 	}
-	return b.blockchain.StateAt(block.Hash())
+	return b.blockchain.StateAt(block.Root())
 }
 
 // CodeAt returns the code associated with a certain account in the blockchain.
@@ -245,6 +245,12 @@ func (b *SimulatedBackend) BlockByNumber(ctx context.Context, number *big.Int) (
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	return b.blockByNumberNoLock(ctx, number)
+}
+
+// blockByNumberNoLock retrieves a block from the database by number, caching it
+// (associated with its hash) if found without Lock.
+func (b *SimulatedBackend) blockByNumberNoLock(ctx context.Context, number *big.Int) (*types.Block, error) {
 	if number == nil || number.Cmp(b.pendingBlock.Number()) == 0 {
 		return b.blockchain.CurrentBlock(), nil
 	}
@@ -439,7 +445,7 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	if call.Gas >= params.TxGas {
 		hi = call.Gas
 	} else {
-		vmRunner := b.blockchain.NewSystemEVMRunner(b.pendingBlock.Header(), b.pendingState)
+		vmRunner := b.blockchain.NewEVMRunner(b.pendingBlock.Header(), b.pendingState)
 		hi = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	}
 	cap = hi
@@ -522,7 +528,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	vmenv := vm.NewEVM(evmContext, statedb, b.config, vm.Config{})
 	gaspool := new(core.GasPool).AddGas(math.MaxUint64)
 
-	vmRunner := b.blockchain.NewSystemEVMRunner(block.Header(), statedb)
+	vmRunner := b.blockchain.NewEVMRunner(block.Header(), statedb)
 
 	return core.NewStateTransition(vmenv, msg, gaspool, vmRunner).TransitionDb()
 }

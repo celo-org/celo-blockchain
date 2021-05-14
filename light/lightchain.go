@@ -320,10 +320,16 @@ func (lc *LightChain) Stop() {
 		return
 	}
 	close(lc.quit)
-	atomic.StoreInt32(&lc.procInterrupt, 1)
-
+	lc.StopInsert()
 	lc.wg.Wait()
-	log.Info("Blockchain manager stopped")
+	log.Info("Blockchain stopped")
+}
+
+// StopInsert interrupts all insertion methods, causing them to return
+// errInsertionInterrupted as soon as possible. Insertion is permanently disabled after
+// calling this method.
+func (lc *LightChain) StopInsert() {
+	atomic.StoreInt32(&lc.procInterrupt, 1)
 }
 
 // Rollback is designed to remove a chain of links from the database that aren't
@@ -500,20 +506,20 @@ func (lc *LightChain) GetVMConfig() *vm.Config {
 	return &vm.Config{}
 }
 
-// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
-func (lc *LightChain) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
-	return vmcontext.NewSystemEVMRunner(lc, header, state)
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (lc *LightChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewEVMRunner(lc, header, state)
 }
 
-// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
-func (lc *LightChain) NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lc *LightChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
 	header := lc.CurrentHeader()
 	// FIXME small race condition here. Need to make sure state matches header
 	state, err := lc.State()
 	if err != nil {
 		return nil, err
 	}
-	return vmcontext.NewSystemEVMRunner(lc, header, state), nil
+	return vmcontext.NewEVMRunner(lc, header, state), nil
 }
 
 // Config retrieves the header chain's chain configuration.

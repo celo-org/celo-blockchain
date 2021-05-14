@@ -134,8 +134,15 @@ type core struct {
 
 	consensusTimestamp time.Time
 
-	// the timer to record consensus duration (from accepting a preprepare to final committed stage)
-	consensusTimer metrics.Timer
+	// Time from accepting a pre-prepare (after block verifcation) to preparing or committing
+	consensusPrepareTimeGauge metrics.Gauge
+	consensusCommitTimeGauge  metrics.Gauge
+	// Time to verify blocks. Only records cache misses.
+	verifyGauge metrics.Gauge
+	// Historgram of the time to handle each message type
+	handlePrePrepareTimer metrics.Timer
+	handlePrepareTimer    metrics.Timer
+	handleCommitTimer     metrics.Timer
 }
 
 // New creates an Istanbul consensus core
@@ -146,17 +153,22 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 	}
 
 	c := &core{
-		config:             config,
-		address:            backend.Address(),
-		logger:             log.New(),
-		selectProposer:     validator.GetProposerSelector(config.ProposerPolicy),
-		handlerWg:          new(sync.WaitGroup),
-		backend:            backend,
-		pendingRequests:    prque.New(nil),
-		pendingRequestsMu:  new(sync.Mutex),
-		consensusTimestamp: time.Time{},
-		rsdb:               rsdb,
-		consensusTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/consensus", nil),
+		config:                    config,
+		address:                   backend.Address(),
+		logger:                    log.New(),
+		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
+		handlerWg:                 new(sync.WaitGroup),
+		backend:                   backend,
+		pendingRequests:           prque.New(nil),
+		pendingRequestsMu:         new(sync.Mutex),
+		consensusTimestamp:        time.Time{},
+		rsdb:                      rsdb,
+		consensusPrepareTimeGauge: metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_prepare", nil),
+		consensusCommitTimeGauge:  metrics.NewRegisteredGauge("consensus/istanbul/core/consensus_commit", nil),
+		verifyGauge:               metrics.NewRegisteredGauge("consensus/istanbul/core/verify", nil),
+		handlePrePrepareTimer:     metrics.NewRegisteredTimer("consensus/istanbul/core/handle_preprepare", nil),
+		handlePrepareTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil),
+		handleCommitTimer:         metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil),
 	}
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
@@ -358,6 +370,12 @@ func (c *core) commit() error {
 		return err
 	}
 
+	// Update metrics.
+	if !c.consensusTimestamp.IsZero() {
+		c.consensusCommitTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+		c.consensusTimestamp = time.Time{}
+	}
+
 	// Process Backlog Messages
 	c.backlog.updateState(c.current.View(), c.current.State())
 
@@ -528,11 +546,6 @@ func (c *core) startNewSequence() error {
 		// TODO(Joshua): figure out if we need to wait for the next block to be mined here
 		// This function is called on a final committed event which should occur once the block is inserted into the chain.
 		return nil
-	}
-	// Update metrics.
-	if !c.consensusTimestamp.IsZero() {
-		c.consensusTimer.UpdateSince(c.consensusTimestamp)
-		c.consensusTimestamp = time.Time{}
 	}
 
 	// Generate next view and preprepare
@@ -781,6 +794,7 @@ func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error)
 		return 0, verificationStatus
 	} else {
 		logger.Trace("verification status cache miss")
+		defer func(start time.Time) { c.verifyGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 
 		duration, err := c.backend.Verify(proposal)
 		logger.Trace("proposal verify return values", "duration", duration, "err", err)

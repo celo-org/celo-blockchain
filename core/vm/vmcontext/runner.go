@@ -31,11 +31,6 @@ type evmRunner struct {
 	dontMeterGas bool
 }
 
-// NewSystemEVMRunner creates an EVMRunner where calls are originated by the VMAddress
-func NewSystemEVMRunner(ctx evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
-	return newEVMRunner(ctx, VMAddress, common.Big0, header, state)
-}
-
 // NewTestingEVMRunner creates an EVMRunner based on a newEVM function.
 // USE ONLY FOR TESTING
 func NewTestingEVMRunner(newEVM func() *vm.EVM, state vm.StateDB) vm.EVMRunner {
@@ -45,15 +40,15 @@ func NewTestingEVMRunner(newEVM func() *vm.EVM, state vm.StateDB) vm.EVMRunner {
 	}
 }
 
-func newEVMRunner(ctx evmRunnerContext, sender common.Address, gasPrice *big.Int, header *types.Header, state vm.StateDB) vm.EVMRunner {
+func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
 	return &evmRunner{
 		state: state,
 		newEVM: func() *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 			// Putting in zero values.
-			context := New(sender, gasPrice, header, ctx, nil)
-			return vm.NewEVM(context, state, ctx.Config(), *ctx.GetVMConfig())
+			context := New(VMAddress, common.Big0, header, chain, nil)
+			return vm.NewEVM(context, state, chain.Config(), *chain.GetVMConfig())
 		},
 	}
 }

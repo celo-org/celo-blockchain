@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"runtime"
 	godebug "runtime/debug"
 	"sort"
 	"strconv"
@@ -32,7 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/console"
+	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
@@ -43,7 +42,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
-	"github.com/elastic/gosigar"
+	gopsutil "github.com/shirou/gopsutil/mem"
 	cli "gopkg.in/urfave/cli.v1"
 )
 
@@ -208,6 +207,7 @@ var (
 		utils.MetricsInfluxDBUsernameFlag,
 		utils.MetricsInfluxDBPasswordFlag,
 		utils.MetricsInfluxDBTagsFlag,
+		utils.MetricsLoadTestCSVFlag,
 	}
 )
 
@@ -260,7 +260,7 @@ func init() {
 	}
 	app.After = func(ctx *cli.Context) error {
 		debug.Exit()
-		console.Stdin.Close() // Resets terminal mode.
+		prompt.Stdin.Close() // Resets terminal mode.
 		return nil
 	}
 }
@@ -304,20 +304,16 @@ func prepare(ctx *cli.Context) {
 		ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(128))
 	}
 	// Cap the cache allowance and tune the garbage collector
-	var mem gosigar.Mem
-	// Workaround until OpenBSD support lands into gosigar
-	// Check https://github.com/elastic/gosigar#supported-platforms
-	if runtime.GOOS != "openbsd" {
-		if err := mem.Get(); err == nil {
-			if 32<<(^uintptr(0)>>63) == 32 && mem.Total > 2*1024*1024*1024 {
-				log.Warn("Lowering memory allowance on 32bit arch", "available", mem.Total/1024/1024, "addressable", 2*1024)
-				mem.Total = 2 * 1024 * 1024 * 1024
-			}
-			allowance := int(mem.Total / 1024 / 1024 / 3)
-			if cache := ctx.GlobalInt(utils.CacheFlag.Name); cache > allowance {
-				log.Warn("Sanitizing cache to Go's GC limits", "provided", cache, "updated", allowance)
-				ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(allowance))
-			}
+	mem, err := gopsutil.VirtualMemory()
+	if err == nil {
+		if 32<<(^uintptr(0)>>63) == 32 && mem.Total > 2*1024*1024*1024 {
+			log.Warn("Lowering memory allowance on 32bit arch", "available", mem.Total/1024/1024, "addressable", 2*1024)
+			mem.Total = 2 * 1024 * 1024 * 1024
+		}
+		allowance := int(mem.Total / 1024 / 1024 / 3)
+		if cache := ctx.GlobalInt(utils.CacheFlag.Name); cache > allowance {
+			log.Warn("Sanitizing cache to Go's GC limits", "provided", cache, "updated", allowance)
+			ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(allowance))
 		}
 	}
 	// Ensure Go's GC ignores the database cache for trigger percentage
@@ -496,14 +492,14 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			if err := stack.Service(&ethService); err != nil {
 				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
 			}
-			callerFactory = ethService.BlockChain().NewSystemEVMRunnerForCurrentBlock
+			callerFactory = ethService.BlockChain().NewEVMRunnerForCurrentBlock
 
 		} else {
 			var lesService *les.LightEthereum
 			if err := stack.Service(&lesService); err != nil {
 				utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
 			}
-			callerFactory = lesService.BlockChain().NewSystemEVMRunnerForCurrentBlock
+			callerFactory = lesService.BlockChain().NewEVMRunnerForCurrentBlock
 		}
 		blockchain_parameters.SpawnCheck(callerFactory)
 	}

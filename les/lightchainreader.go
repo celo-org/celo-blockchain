@@ -34,12 +34,12 @@ func (lcr *LightChainReader) GetBlock(hash common.Hash, number uint64) *types.Bl
 	panic("GetBlock cannot be called on LightChainReader")
 }
 
-// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
-func (lcr *LightChainReader) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
-	return lcr.blockchain.NewSystemEVMRunner(header, state)
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (lcr *LightChainReader) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return lcr.blockchain.NewEVMRunner(header, state)
 }
 
-// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
-func (lcr *LightChainReader) NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
-	return lcr.blockchain.NewSystemEVMRunnerForCurrentBlock()
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lcr *LightChainReader) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	return lcr.blockchain.NewEVMRunnerForCurrentBlock()
 }

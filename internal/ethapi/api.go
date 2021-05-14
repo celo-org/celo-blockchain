@@ -282,7 +282,7 @@ func (s *PrivateAccountAPI) NewAccount(password string) (common.Address, error) 
 	return common.Address{}, err
 }
 
-// fetchKeystore retrives the encrypted keystore from the account manager.
+// fetchKeystore retrieves the encrypted keystore from the account manager.
 func fetchKeystore(am *accounts.Manager) *keystore.KeyStore {
 	return am.Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 }
@@ -800,7 +800,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// Setup the gas pool (also for unmetered requests) and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewSystemEVMRunner(header, state))
+	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state))
 	if err := vmError(); err != nil {
 		return nil, err
 	}

@@ -271,7 +271,7 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	vmRunner, err := b.eth.BlockChain().NewSystemEVMRunnerForCurrentBlock()
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -285,16 +285,16 @@ func (b *EthAPIBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 		return params.DefaultGasLimit
 	}
 
-	vmRunner := b.eth.BlockChain().NewSystemEVMRunner(header, statedb)
+	vmRunner := b.eth.BlockChain().NewEVMRunner(header, statedb)
 	return blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 }
 
-func (b *EthAPIBackend) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
-	return b.eth.BlockChain().NewSystemEVMRunner(header, state)
+func (b *EthAPIBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return b.eth.BlockChain().NewEVMRunner(header, state)
 }
 
 func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
-	vmRunner, err := b.eth.BlockChain().NewSystemEVMRunnerForCurrentBlock()
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		log.Warn("Cannot create evmCaller to get intrinsic gas for alternative fee currency", "err", err)
 		return params.IntrinsicGasForAlternativeFeeCurrency

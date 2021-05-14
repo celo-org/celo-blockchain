@@ -81,7 +81,7 @@ func (bc *testBlockChain) GetHeader(common.Hash, uint64) *types.Header {
 	return nil
 }
 
-func (bc *testBlockChain) NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+func (bc *testBlockChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
 	return nil
 }
 

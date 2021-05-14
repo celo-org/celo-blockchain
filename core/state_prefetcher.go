@@ -52,7 +52,7 @@ func newStatePrefetcher(config *params.ChainConfig, bc *BlockChain, engine conse
 func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, cfg vm.Config, interrupt *uint32) {
 	var (
 		header   = block.Header()
-		vmRunner = p.bc.NewSystemEVMRunner(header, statedb)
+		vmRunner = p.bc.NewEVMRunner(header, statedb)
 		gaspool  = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
 	// Iterate over and process the individual transactions
@@ -91,6 +91,6 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 	ctx := NewEVMContext(msg, header, bc, author)
 	vm := vm.NewEVM(ctx, statedb, config, cfg)
 
-	_, err = ApplyMessage(vm, msg, gaspool, bc.NewSystemEVMRunner(header, statedb))
+	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb))
 	return err
 }

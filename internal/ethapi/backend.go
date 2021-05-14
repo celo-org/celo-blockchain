@@ -89,7 +89,7 @@ type Backend interface {
 	GatewayFee() *big.Int
 	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
 	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
-	NewSystemEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
+	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

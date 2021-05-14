@@ -185,7 +185,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(params.DefaultGasLimit)
 	snapshot := statedb.Snapshot()
-	vmRunner := vmcontext.NewSystemEVMRunner(nil, block.Header(), statedb)
+	vmRunner := vmcontext.NewEVMRunner(nil, block.Header(), statedb)
 	if _, err := core.ApplyMessage(evm, msg, gaspool, vmRunner); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
@@ -222,7 +222,7 @@ func MakePreState(db ethdb.Database, accounts core.GenesisAlloc, snapshotter boo
 
 	var snaps *snapshot.Tree
 	if snapshotter {
-		snaps = snapshot.New(db, sdb.TrieDB(), 1, root, false)
+		snaps = snapshot.New(db, sdb.TrieDB(), 1, root, false, false)
 	}
 	statedb, _ = state.New(root, sdb, snaps)
 	return snaps, statedb

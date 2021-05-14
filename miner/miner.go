@@ -124,7 +124,7 @@ func (miner *Miner) update() {
 					}
 
 					if currentHeader.Number.Uint64() > 0 {
-						vmRunner := miner.eth.BlockChain().NewSystemEVMRunner(currentHeader, currentState)
+						vmRunner := miner.eth.BlockChain().NewEVMRunner(currentHeader, currentState)
 
 						// Check to see if we already have the commitment cache
 						lastCommitment, err := random.GetLastCommitment(vmRunner, miner.validator)
@@ -251,6 +251,6 @@ func (miner *Miner) DisablePreseal() {
 
 // SubscribePendingLogs starts delivering logs from pending transactions
 // to the given channel.
-func (self *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {
-	return self.worker.pendingLogsFeed.Subscribe(ch)
+func (miner *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {
+	return miner.worker.pendingLogsFeed.Subscribe(ch)
 }

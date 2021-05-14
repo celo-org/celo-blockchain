@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -112,6 +113,15 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksDowntimeEventMeter:           metrics.NewRegisteredMeter("consensus/istanbul/blocks/downtimeevent", nil),
 		blocksFinalizedTransactionsGauge:   metrics.NewRegisteredGauge("consensus/istanbul/blocks/transactions", nil),
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
+		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
+	}
+	if config.LoadTestCSVFile != "" {
+		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
+			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
+				"cycle", "sleep", "consensus", "block_verify", "block_construct",
+				"sysload", "syswait", "procload")
+		}
+
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
@@ -277,6 +287,14 @@ type Backend struct {
 	// Gauge counting the gas used in the last block
 	blocksFinalizedGasUsedGauge metrics.Gauge
 
+	// Gauge reporting how many nanoseconds were spent sleeping
+	sleepGauge metrics.Gauge
+	// Start of the previous block cycle.
+	cycleStart time.Time
+
+	// Consensus csv recorded for load testing
+	csvRecorder *metrics.CSVRecorder
+
 	// Cache for the return values of the method RetrieveValidatorConnSet
 	cachedValidatorConnSet         map[common.Address]bool
 	cachedValidatorConnSetBlockNum uint64
@@ -405,6 +423,9 @@ func (sb *Backend) Close() error {
 			errs = append(errs, err)
 		}
 	}
+	if err := sb.csvRecorder.Close(); err != nil {
+		errs = append(errs, err)
+	}
 	var concatenatedErrs error
 	for i, err := range errs {
 		if i == 0 {
@@ -484,6 +505,9 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
 	})
+	if sb.csvRecorder != nil {
+		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), aggregatedSeal.Round.Uint64())
+	}
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 	// - if the proposed and committed blocks are the same, send the proposed hash
@@ -588,7 +612,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
-	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	newValSetAddresses, err := election.GetElectedValidators(vmRunner)
 	if err != nil {
 		return nil, err
@@ -712,7 +736,7 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	vmRunner, err := sb.chain.NewSystemEVMRunnerForCurrentBlock()
+	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -924,7 +948,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	if err != nil {
 		return nil, 0, time.Time{}, err
 	}
-	vmRunner := sb.chain.NewSystemEVMRunner(currentBlock.Header(), currentState)
+	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
 	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
@@ -1011,4 +1035,22 @@ func (sb *Backend) UpdateReplicaState(seq *big.Int) {
 	if sb.replicaState != nil {
 		sb.replicaState.NewChainHead(seq)
 	}
+}
+
+// recordBlockProductionTimes records information about the block production cycle and reports it through the CSVRecorder
+func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, gasUsed, round uint64) {
+	cycle := time.Since(sb.cycleStart)
+	sb.cycleStart = time.Now()
+	sleepGauge := sb.sleepGauge
+	consensusGauge := metrics.Get("consensus/istanbul/core/consensus_commit").(metrics.Gauge)
+	verifyGauge := metrics.Get("consensus/istanbul/core/verify").(metrics.Gauge)
+	blockConstructGauge := metrics.Get("miner/worker/block_construct").(metrics.Gauge)
+	cpuSysLoadGauge := metrics.Get("system/cpu/sysload").(metrics.Gauge)
+	cpuSysWaitGauge := metrics.Get("system/cpu/syswait").(metrics.Gauge)
+	cpuProcLoadGauge := metrics.Get("system/cpu/procload").(metrics.Gauge)
+
+	sb.csvRecorder.Write(blockNumber, txCount, gasUsed, round,
+		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
+		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
+
 }

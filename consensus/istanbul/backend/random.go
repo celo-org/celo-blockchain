@@ -31,7 +31,7 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, comm
 	logger := sb.logger.New("func", "GenerateRandomness")
 
 	// TODO(HF) check which state the vm runner should use (probably not current block's)
-	vmRunner, err := sb.chain.NewSystemEVMRunnerForCurrentBlock()
+	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return common.Hash{}, common.Hash{}, nil
 	}

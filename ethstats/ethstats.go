@@ -992,7 +992,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		stateDB, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
-		vmRunner = s.eth.BlockChain().NewSystemEVMRunner(header, stateDB)
+		vmRunner = s.eth.BlockChain().NewEVMRunner(header, stateDB)
 		txs = make([]txStats, len(block.Transactions()))
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
@@ -1005,7 +1005,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			header = s.les.BlockChain().CurrentHeader()
 		}
 		stateDB, _ = s.les.BlockChain().State()
-		vmRunner = s.les.BlockChain().NewSystemEVMRunner(header, stateDB)
+		vmRunner = s.les.BlockChain().NewEVMRunner(header, stateDB)
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -1062,7 +1062,7 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 		valsElected    []common.Address
 	)
 
-	vmRunner := s.eth.BlockChain().NewSystemEVMRunner(block.Header(), state)
+	vmRunner := s.eth.BlockChain().NewEVMRunner(block.Header(), state)
 
 	// Add set of registered validators
 	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(vmRunner)

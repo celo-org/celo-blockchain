@@ -55,11 +55,11 @@ type ChainHeaderReader interface {
 type ChainContext interface {
 	ChainHeaderReader
 
-	// NewSystemEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
-	NewSystemEVMRunnerForCurrentBlock() (vm.EVMRunner, error)
+	// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+	NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error)
 
-	// NewSystemEVMRunner creates the System's EVMRunner for given header & sttate
-	NewSystemEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner
+	// NewEVMRunner creates the System's EVMRunner for given header & sttate
+	NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner
 }
 
 // Engine is an algorithm agnostic consensus engine.

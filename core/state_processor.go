@@ -60,7 +60,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		usedGas  = new(uint64)
 		header   = block.Header()
 		allLogs  []*types.Log
-		vmRunner = p.bc.NewSystemEVMRunner(block.Header(), statedb)
+		vmRunner = p.bc.NewEVMRunner(block.Header(), statedb)
 		gp       = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
 	// Mutate the block and state according to any hard-fork specs
@@ -70,7 +70,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// TODO(HF) use vmRunner instead of parentVMRunner (HF required)
 	isRandomRunning := false
-	parentVMRunner, err := p.bc.NewSystemEVMRunnerForCurrentBlock()
+	parentVMRunner, err := p.bc.NewEVMRunnerForCurrentBlock()
 	if err == nil {
 		isRandomRunning = random.IsRunning(parentVMRunner)
 	}

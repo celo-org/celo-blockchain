@@ -45,7 +45,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	defer sb.rewardDistributionTimer.UpdateSince(start)
 	logger := sb.logger.New("func", "Backend.distributeEpochPaymentsAndRewards", "blocknum", header.Number.Uint64())
 
-	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	// Check if reward distribution has been frozen and return early without error if it is.
 	if frozen, err := freezer.IsFrozen(vmRunner, params.EpochRewardsRegistryId); err != nil {
 		logger.Warn("Failed to determine if epoch rewards are frozen", "err", err)
@@ -106,7 +106,7 @@ func (sb *Backend) distributeEpochRewards(header *types.Header, state *state.Sta
 	}
 
 	// TODO(HF) Use vmRunner instead of current block's one
-	currentBlockVMRunner, err := sb.chain.NewSystemEVMRunnerForCurrentBlock()
+	currentBlockVMRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (sb *Backend) updateValidatorScores(header *types.Header, state *state.Stat
 		return nil, err
 	}
 
-	vmRunner := sb.chain.NewSystemEVMRunner(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
 	for i, val := range valSet {
 		logger.Trace("Updating validator score", "uptime", uptimes[i], "address", val.Address())
 		err := validators.UpdateValidatorScore(vmRunner, val.Address(), uptimes[i])

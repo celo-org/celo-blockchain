@@ -194,30 +194,33 @@ type worker struct {
 
 	// Needed for randomness
 	db ethdb.Database
+
+	blockConstructGauge metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, db ethdb.Database, init bool) *worker {
 	worker := &worker{
-		config:             config,
-		chainConfig:        chainConfig,
-		engine:             engine,
-		eth:                eth,
-		mux:                mux,
-		chain:              eth.BlockChain(),
-		isLocalBlock:       isLocalBlock,
-		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:       make(map[common.Hash]*task),
-		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:          make(chan *newWorkReq),
-		taskCh:             make(chan *task),
-		resultCh:           make(chan *types.Block, resultQueueSize),
-		exitCh:             make(chan struct{}),
-		startCh:            make(chan struct{}, 1),
-		resubmitIntervalCh: make(chan time.Duration),
-		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
-		db:                 db,
+		config:              config,
+		chainConfig:         chainConfig,
+		engine:              engine,
+		eth:                 eth,
+		mux:                 mux,
+		chain:               eth.BlockChain(),
+		isLocalBlock:        isLocalBlock,
+		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
+		newWorkCh:           make(chan *newWorkReq),
+		taskCh:              make(chan *task),
+		resultCh:            make(chan *types.Block, resultQueueSize),
+		exitCh:              make(chan struct{}),
+		startCh:             make(chan struct{}, 1),
+		resubmitIntervalCh:  make(chan time.Duration),
+		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
+		db:                  db,
+		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -339,7 +342,7 @@ func (w *worker) close() {
 }
 
 func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-	vmRunner := w.chain.NewSystemEVMRunner(w.current.header, w.current.state)
+	vmRunner := w.chain.NewEVMRunner(w.current.header, w.current.state)
 	currencyManager := currency.NewManager(vmRunner)
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
@@ -653,7 +656,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 		return err
 	}
 
-	vmRunner := w.chain.NewSystemEVMRunner(header, state)
+	vmRunner := w.chain.NewEVMRunner(header, state)
 	env := &environment{
 		signer:    types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:     state,
@@ -692,7 +695,7 @@ func (w *worker) updateSnapshot() {
 func (w *worker) commitTransaction(tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := w.current.state.Snapshot()
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.chain.NewSystemEVMRunner(w.current.header, w.current.state))
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig(), w.chain.NewEVMRunner(w.current.header, w.current.state))
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -876,6 +879,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
+	// Start record block construction time after `engine.Prepare` to exclude the sleep time
+	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
+
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {
 		// Check whether the block is among the fork extra-override range
@@ -922,12 +928,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		state, err := w.chain.StateAt(header.Root)
 		// TODO(HF) make this check use w.current.header instead of blockchain's current
 		if err == nil {
-			parentVMRunner := w.chain.NewSystemEVMRunner(parent.Header(), state)
+			parentVMRunner := w.chain.NewEVMRunner(parent.Header(), state)
 			randomIsActive = random.IsRunning(parentVMRunner)
 		}
 
 		if randomIsActive {
-			vmRunner := w.chain.NewSystemEVMRunner(w.current.header, w.current.state)
+			vmRunner := w.chain.NewEVMRunner(w.current.header, w.current.state)
 			istanbul, ok := w.engine.(consensus.Istanbul)
 			if !ok {
 				log.Crit("Istanbul consensus engine must be in use for the randomness beacon")

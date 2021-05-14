@@ -448,7 +448,7 @@ func (api *RetestethAPI) mineBlock() error {
 	}
 	statedb, err := api.blockchain.StateAt(parent.Root())
 
-	vmRunner := api.blockchain.NewSystemEVMRunner(parent.Header(), statedb)
+	vmRunner := api.blockchain.NewEVMRunner(parent.Header(), statedb)
 	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	header := &types.Header{
 		ParentHash: parent.Hash(),
@@ -495,7 +495,7 @@ func (api *RetestethAPI) mineBlock() error {
 				statedb.Prepare(tx.Hash(), common.Hash{}, txCount)
 				snap := statedb.Snapshot()
 
-				vmRunner := api.blockchain.NewSystemEVMRunner(header, statedb)
+				vmRunner := api.blockchain.NewEVMRunner(header, statedb)
 				receipt, err := core.ApplyTransaction(
 					api.chainConfig,
 					api.blockchain,
@@ -662,7 +662,7 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			vmRunner := api.blockchain.NewSystemEVMRunner(block.Header(), statedb)
+			vmRunner := api.blockchain.NewEVMRunner(block.Header(), statedb)
 			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return AccountRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
@@ -773,7 +773,7 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			vmRunner := api.blockchain.NewSystemEVMRunner(block.Header(), statedb)
+			vmRunner := api.blockchain.NewEVMRunner(block.Header(), statedb)
 			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return StorageRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
