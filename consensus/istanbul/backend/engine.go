@@ -416,11 +416,6 @@ func (sb *Backend) UpdateValSetDiff(chain consensus.ChainReader, header *types.H
 	return writeValidatorSetDiff(header, []istanbul.ValidatorData{}, []istanbul.ValidatorData{})
 }
 
-// IsLastBlockOfEpoch returns whether or not a particular header represents the last block in the epoch.
-func (sb *Backend) IsLastBlockOfEpoch(header *types.Header) bool {
-	return istanbul.IsLastBlockOfEpoch(header.Number.Uint64(), sb.config.Epoch)
-}
-
 // EpochSize returns the size of epochs in blocks.
 func (sb *Backend) EpochSize() uint64 {
 	return sb.config.Epoch

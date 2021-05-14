@@ -205,9 +205,6 @@ type Istanbul interface {
 	// The changes are executed inline.
 	UpdateValSetDiff(chain ChainReader, header *types.Header, state *state.StateDB) error
 
-	// IsLastBlockOfEpoch will check to see if the header is from the last block of an epoch
-	IsLastBlockOfEpoch(header *types.Header) bool
-
 	// LookbackWindow returns the size of the lookback window for calculating uptime (in blocks)
 	LookbackWindow(header *types.Header, state *state.StateDB) uint64
 
