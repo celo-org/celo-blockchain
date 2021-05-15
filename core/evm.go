@@ -35,8 +35,6 @@ type ChainContext interface {
 	GetHeader(common.Hash, uint64) *types.Header
 
 	// GetHeaderByNumber returns the hash corresponding number.
-	// FIXME: Use of this function, as implemented, in the EVM context produces undefined behavior
-	// in the pressence of forks. A new method needs to be created to retrieve a header by number
 	// in the correct fork.
 	GetHeaderByNumber(uint64) *types.Header
 
