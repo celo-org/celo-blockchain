@@ -514,11 +514,7 @@ func (lc *LightChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EV
 // NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
 func (lc *LightChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
 	header := lc.CurrentHeader()
-	// FIXME small race condition here. Need to make sure state matches header
-	state, err := lc.State()
-	if err != nil {
-		return nil, err
-	}
+	state := NewState(context.Background(), header, lc.odr)
 	return vmcontext.NewEVMRunner(lc, header, state), nil
 }
 
