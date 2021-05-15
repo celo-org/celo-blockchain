@@ -304,7 +304,7 @@ func GetBalanceOf(vmRunner vm.EVMRunner, accountOwner common.Address, contractAd
 	err = getBalanceMethod.Bind(contractAddress).Query(vmRunner, &result, accountOwner)
 
 	if err != nil {
-		log.Error("GetBalanceOf evm invocation error", "leftoverGas", "err", err)
+		log.Error("GetBalanceOf evm invocation error", "err", err)
 	} else {
 		log.Trace("GetBalanceOf evm invocation success", "accountOwner", accountOwner.Hex(), "Balance", result.String())
 	}
