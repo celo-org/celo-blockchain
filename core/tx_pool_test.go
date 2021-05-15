@@ -89,8 +89,6 @@ func (bc *testBlockChain) GetVMConfig() *vm.Config {
 	return nil
 }
 
-// func (bc *testBlockChain) Config() *params.ChainConfig { return nil }
-
 func transaction(nonce uint64, gaslimit uint64, key *ecdsa.PrivateKey) *types.Transaction {
 	return pricedTransaction(nonce, gaslimit, big.NewInt(1), key)
 }

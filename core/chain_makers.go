@@ -96,8 +96,8 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 	}
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
 
-	caller := &fakeEVMRunner{b.statedb}
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, caller)
+	vmRunner := &fakeEVMRunner{b.statedb}
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, vmRunner)
 	if err != nil {
 		panic(err)
 	}
