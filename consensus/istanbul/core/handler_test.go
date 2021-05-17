@@ -228,7 +228,7 @@ func bemchmarkE2EHandleCommit(b *testing.B, sys *testSystem) {
 	c := v0.engine.(*core)
 	subject := v0.engine.(*core).current.Subject()
 
-	committedSeal, err := v0.engine.(*core).generateCommittedSeal(subject)
+	committedSeal, err := NewCommitSeal(subject.Digest, subject.View.Round).Sign(v0.engine.(*core).backend.SignBLS)
 	if err != nil {
 		b.Errorf("Got error: %v", err)
 	}

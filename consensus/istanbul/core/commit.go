@@ -38,15 +38,10 @@ func (c *core) sendCommit() {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
-	seal := NewCommitSeal(sub.Digest, sub.View.Round)
-	return seal.Sign(c.backend.SignBLS)
-}
-
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.newLogger("func", "broadcastCommit")
 
-	committedSeal, err := c.generateCommittedSeal(sub)
+	committedSeal, err := NewCommitSeal(sub.Digest, sub.View.Round).Sign(c.backend.SignBLS)
 	if err != nil {
 		logger.Error("Failed to commit seal", "err", err)
 		return

@@ -299,7 +299,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		Digest: proposal.Hash(),
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(subject)
+	committedSeal, err := NewCommitSeal(subject.Digest, subject.View.Round).Sign(self.engine.(*core).backend.SignBLS)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
