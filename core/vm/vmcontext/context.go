@@ -35,7 +35,7 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 		Time:        new(big.Int).SetUint64(header.Time),
 		GasPrice:    new(big.Int).Set(gasPrice),
 
-		GetRegisteredAddress: contracts.GetRegisteredAddress,
+		GetRegisteredAddress: GetRegisteredAddress,
 	}
 
 	if chain != nil {
@@ -47,6 +47,11 @@ func New(from common.Address, gasPrice *big.Int, header *types.Header, chain vm.
 		ctx.GetHeaderByNumber = func(uint64) *types.Header { panic("evm context without blockchain context") }
 	}
 	return ctx
+}
+
+func GetRegisteredAddress(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+	caller := &SharedEVMRunner{evm}
+	return contracts.GetRegisteredAddress(caller, registryId)
 }
 
 // GetHashFn returns a GetHashFunc which retrieves header hashes by number
@@ -127,7 +132,8 @@ func TobinTransfer(evm *vm.EVM, sender, recipient common.Address, amount *big.In
 	}
 
 	if amount.Cmp(big.NewInt(0)) != 0 {
-		tax, taxRecipient, err := reserve.ComputeTobinTax(evm, sender, amount)
+		caller := &SharedEVMRunner{evm}
+		tax, taxRecipient, err := reserve.ComputeTobinTax(caller, sender, amount)
 		if err == nil {
 			Transfer(evm.StateDB, sender, recipient, new(big.Int).Sub(amount, tax))
 			Transfer(evm.StateDB, sender, taxRecipient, tax)

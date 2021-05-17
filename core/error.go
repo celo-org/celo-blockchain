@@ -33,7 +33,7 @@ var (
 	ErrNotHeadBlock = errors.New("block is not next head block")
 )
 
-// List of evm-call-message pre-checking errors. All state transtion messages will
+// List of evm-call-message pre-checking errors. All state transition messages will
 // be pre-checked before execution. If any invalidation detected, the corresponding
 // error should be returned which is defined here.
 //

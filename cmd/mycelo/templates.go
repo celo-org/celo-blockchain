@@ -154,10 +154,6 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.GasPriceMinimum.TargetDensity = fixed.MustNew("0.9999")
 	genesisConfig.GasPriceMinimum.AdjustmentSpeed = fixed.MustNew("0")
 
-	genesisConfig.Hardforks = genesis.HardforkConfig{
-		DonutBlock: nil,
-	}
-
 	return genesisConfig, nil
 }
 

@@ -214,9 +214,9 @@ var (
 		Usage: `Blockchain garbage collection mode ("full", "archive")`,
 		Value: "full",
 	}
-	SnapshotFlag = cli.BoolFlag{
+	SnapshotFlag = cli.BoolTFlag{
 		Name:  "snapshot",
-		Usage: `Enables snapshot-database mode -- experimental work in progress feature`,
+		Usage: `Enables snapshot-database mode (default = enable)`,
 	}
 	TxLookupLimitFlag = cli.Int64Flag{
 		Name:  "txlookuplimit",
@@ -1695,7 +1695,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheSnapshotFlag.Name) {
 		cfg.SnapshotCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheSnapshotFlag.Name) / 100
 	}
-	if !ctx.GlobalIsSet(SnapshotFlag.Name) {
+	if !ctx.GlobalBool(SnapshotFlag.Name) {
+		cfg.TrieCleanCache += cfg.SnapshotCache
 		cfg.SnapshotCache = 0 // Disabled
 	}
 	if ctx.GlobalIsSet(DocRootFlag.Name) {
@@ -1735,13 +1736,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.NetworkId = params.BaklavaNetworkId
 		}
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
-		setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.BaklavaGenesisHash])
+		setDNSDiscoveryDefaults(cfg, params.BaklavaGenesisHash)
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.AlfajoresNetworkId
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
-		setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.AlfajoresGenesisHash])
+		setDNSDiscoveryDefaults(cfg, params.AlfajoresGenesisHash)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1771,18 +1772,25 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
-			setDNSDiscoveryDefaults(cfg, params.KnownDNSNetworks[params.MainnetGenesisHash])
+			setDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 		}
 	}
 }
 
 // setDNSDiscoveryDefaults configures DNS discovery with the given URL if
 // no URLs are set.
-func setDNSDiscoveryDefaults(cfg *eth.Config, url string) {
+func setDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
 	if cfg.DiscoveryURLs != nil {
-		return
+		return // already set through flags/config
 	}
-	cfg.DiscoveryURLs = []string{url}
+
+	protocol := "all"
+	if cfg.SyncMode == downloader.LightSync {
+		protocol = "les"
+	}
+	if url := params.KnownDNSNetwork(genesis, protocol); url != "" {
+		cfg.DiscoveryURLs = []string{url}
+	}
 }
 
 // RegisterEthService adds an Ethereum client to the stack.
@@ -1946,7 +1954,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readOnly bool) (chain *core.B
 		TrieTimeLimit:       eth.DefaultConfig.TrieTimeout,
 		SnapshotLimit:       eth.DefaultConfig.SnapshotCache,
 	}
-	if !ctx.GlobalIsSet(SnapshotFlag.Name) {
+	if !ctx.GlobalBool(SnapshotFlag.Name) {
 		cache.SnapshotLimit = 0 // Disabled
 	}
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheTrieFlag.Name) {

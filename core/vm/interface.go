@@ -21,7 +21,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -99,13 +98,30 @@ type ChainContext interface {
 	// in the correct fork.
 	GetHeaderByNumber(uint64) *types.Header
 
-	// GetVMConfig returns the node's vm configuration
-	GetVMConfig() *Config
-
-	CurrentHeader() *types.Header
-
-	State() (*state.StateDB, error)
-
 	// Config returns the blockchain's chain configuration
 	Config() *params.ChainConfig
+}
+
+// EVMRunner provides a simplified API to run EVM calls
+// EVM's sender, gasPrice, txFeeRecipient and state are set by the runner on each call
+// This object can be re-used many times in contrast to the EVM's single use behaviour.
+type EVMRunner interface {
+	// Execute performs a potentially write operation over the runner's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
+
+	// Query performs a read operation over the runner's state
+	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
+	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+
+	// StopGasMetering backward compatibility method to stop gas metering
+	// Deprecated. DO NOT USE
+	StopGasMetering()
+
+	// StartGasMetering backward compatibility method to start gas metering
+	// Deprecated. DO NOT USE
+	StartGasMetering()
+
+	// GetStateDB retrieves current stateDB within the runner
+	GetStateDB() StateDB
 }

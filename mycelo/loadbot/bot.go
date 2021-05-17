@@ -41,6 +41,7 @@ type txConfig struct {
 
 // Config represent the load bot run configuration
 type Config struct {
+	ChainID               *big.Int
 	Accounts              []env.Account
 	Amount                *big.Int
 	TransactionsPerSecond int
@@ -109,7 +110,7 @@ func Start(ctx context.Context, cfg *Config) error {
 					SkipGasEstimation: cfg.SkipGasEstimation,
 					MixFeeCurrency:    cfg.MixFeeCurrency,
 				}
-				return runTransaction(ctx, client, lg, txCfg)
+				return runTransaction(ctx, client, cfg.ChainID, lg, txCfg)
 			})
 		case <-ctx.Done():
 			return group.Wait()
@@ -117,7 +118,7 @@ func Start(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGenerator, txCfg txConfig) error {
+func runTransaction(ctx context.Context, client *ethclient.Client, chainID *big.Int, lg *LoadGenerator, txCfg txConfig) error {
 	defer func() {
 		lg.PendingMu.Lock()
 		if lg.MaxPending != 0 {
@@ -131,6 +132,7 @@ func runTransaction(ctx context.Context, client *ethclient.Client, lg *LoadGener
 
 	transactor := bind.NewKeyedTransactor(txCfg.Acc.PrivateKey)
 	transactor.Context = ctx
+	transactor.ChainID = chainID
 	transactor.Nonce = new(big.Int).SetUint64(txCfg.Nonce)
 
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
