@@ -100,9 +100,6 @@ type CoreBackend interface {
 
 	IsPrimaryForSeq(seq *big.Int) bool
 	UpdateReplicaState(seq *big.Int)
-
-	// VerifyAggregatedSeal verifies the aggregate bls signature given the header hash and validator set.
-	VerifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error
 }
 
 type core struct {

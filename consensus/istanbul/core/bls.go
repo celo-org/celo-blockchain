@@ -13,6 +13,13 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
+// Ideally we can move the aggregated seal here
+type IstanbulAggregatedSeal types.IstanbulAggregatedSeal
+
+func (s IstanbulAggregatedSeal) Verify(digest common.Hash, validators istanbul.ValidatorSet) error {
+	return NewCommitSeal(digest, s.Round).VerifyAggregate(validators, s.Signature, s.Bitmap)
+}
+
 type BLSSeal struct {
 	Seal            []byte
 	ExtraData       []byte
@@ -30,17 +37,36 @@ func (b *BLSSeal) Verify(key blscrypto.SerializedPublicKey, signature []byte) er
 	return blscrypto.VerifySignature(key, b.Seal, b.ExtraData, signature, b.CompositeHasher, b.Cip22)
 }
 
-func (b *BLSSeal) VerifyAggregate(publicKeys []blscrypto.SerializedPublicKey, signature []byte) error {
-	publicKeyObjs := []*bls.PublicKey{}
-	for _, publicKey := range publicKeys {
-		publicKeyObj, err := bls.DeserializePublicKeyCached(publicKey[:])
-		if err != nil {
-			return err
-		}
-		defer publicKeyObj.Destroy()
-		publicKeyObjs = append(publicKeyObjs, publicKeyObj)
+func (b *BLSSeal) VerifyAggregate(validators istanbul.ValidatorSet, signature []byte, bitmap *big.Int) error {
+
+	if len(signature) != types.IstanbulExtraBlsSignature {
+		return fmt.Errorf("invalid aggregate seal, expecting length %d, but got length %d", types.IstanbulExtraBlsSignature, len(signature))
 	}
-	apk, err := bls.AggregatePublicKeys(publicKeyObjs)
+
+	// Find which public keys signed from the provided validator set
+	publicKeys := []*bls.PublicKey{}
+	for i := 0; i < validators.Size(); i++ {
+		if bitmap.Bit(i) == 1 {
+			serializedKey := validators.GetByIndex(uint64(i)).BLSPublicKey()
+			publicKey, err := bls.DeserializePublicKeyCached(serializedKey[:])
+			if err != nil {
+				return err
+			}
+			defer publicKey.Destroy()
+			publicKeys = append(publicKeys, publicKey)
+		}
+	}
+
+	// The length of a valid seal should be greater than the minimum quorum size
+	if len(publicKeys) < validators.MinQuorumSize() {
+		return fmt.Errorf(
+			"aggregated seal does not aggregate enough seals, numSeals %d minimum quorum size %d",
+			len(publicKeys),
+			validators.MinQuorumSize(),
+		)
+	}
+
+	apk, err := bls.AggregatePublicKeys(publicKeys)
 	if err != nil {
 		return err
 	}

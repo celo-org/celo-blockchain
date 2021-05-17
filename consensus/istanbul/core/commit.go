@@ -255,7 +255,8 @@ func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, e
 	}
 
 	aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
-	err = c.backend.VerifyAggregatedSeal(c.current.Proposal().Hash(), c.current.ValidatorSet(), aggregatedSeal)
+
+	err = IstanbulAggregatedSeal(aggregatedSeal).Verify(c.current.Proposal().Hash(), c.current.ValidatorSet())
 	if err != nil {
 		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed verify aggregate seal: %v", err)
 	}

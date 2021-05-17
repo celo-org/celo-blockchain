@@ -343,10 +343,6 @@ func (self *testSystemBackend) setVerifyImpl(verifyImpl func(proposal istanbul.P
 	self.verifyImpl = verifyImpl
 }
 
-func (self *testSystemBackend) VerifyAggregatedSeal(headerHash common.Hash, validators istanbul.ValidatorSet, aggregatedSeal types.IstanbulAggregatedSeal) error {
-	return nil
-}
-
 // ==============================================
 //
 // define the struct that need to be provided for integration tests.
