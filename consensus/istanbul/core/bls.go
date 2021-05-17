@@ -13,16 +13,17 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
-// type BLSSeal interface {
-// 	Seal() []byte
-// 	Verify(key blscrypto.SerializedPublicKey, signature []byte) error
-// }
-
 type BLSSeal struct {
 	Seal            []byte
 	ExtraData       []byte
 	CompositeHasher bool
 	Cip22           bool
+}
+
+type signFn func(seal []byte, extraData []byte, compositeHasher, cip22 bool) ([]byte, error)
+
+func (b *BLSSeal) Sign(sign signFn) ([]byte, error) {
+	return sign(b.Seal, b.ExtraData, b.CompositeHasher, b.Cip22)
 }
 
 func (b *BLSSeal) Verify(key blscrypto.SerializedPublicKey, signature []byte) error {
@@ -56,20 +57,16 @@ func (b *BLSSeal) VerifyAggregate(publicKeys []blscrypto.SerializedPublicKey, si
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
 func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
-	seal, extraData, compositeHasher, cip22, err := PrepareCommitSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
-	if err != nil {
-		return err
-	}
-	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, extraData, comSub.CommittedSeal, compositeHasher, cip22)
+	return NewCommitSeal(comSub.Subject.Digest, comSub.Subject.View.Round).Verify(src.BLSPublicKey(), comSub.CommittedSeal)
 }
 
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
 func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
-	epochData, epochExtraData, cip22, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
+	seal, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
 	if err != nil {
 		return err
 	}
-	return blscrypto.VerifySignature(src.BLSPublicKey(), epochData, epochExtraData, comSub.EpochValidatorSetSeal, true, cip22)
+	return seal.Verify(src.BLSPublicKey(), comSub.EpochValidatorSetSeal)
 }
 
 func NewCommitSeal(hash common.Hash, round *big.Int) *BLSSeal {
@@ -85,30 +82,37 @@ func NewCommitSeal(hash common.Hash, round *big.Int) *BLSSeal {
 	}
 }
 
-// PrepareCommitSeal returns a commit seal for the given hash and round number.
-func PrepareCommitSeal(hash common.Hash, round *big.Int) (message []byte, extraData []byte, compositeHasher, cip22 bool, err error) {
-	var buf bytes.Buffer
-	buf.Write(hash.Bytes())
-	buf.Write(round.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
-	return buf.Bytes(), []byte{}, false, false, nil
-}
-
 func NewEpochSeal(keys []blscrypto.SerializedPublicKey, maxNonSigners uint32, epochNum uint16) (*BLSSeal, error) {
-	message, extraData, err = blscrypto.EncodeEpochSnarkData(keys, maxNonSigners, epochNum)
+	message, extraData, err := blscrypto.EncodeEpochSnarkData(keys, maxNonSigners, epochNum)
+
 	// This is before the Donut hardfork, so signify this doesn't use CIP22.
-	return message, extraData, true, false, err
+	return &BLSSeal{
+		Seal:            message,
+		ExtraData:       extraData,
+		CompositeHasher: true,
+		Cip22:           false,
+	}, err
 }
 
-func PrepareEpochDonut(keys []blscrypto.SerializedPublicKey, maxNonSigners uint32, epochNum uint16) (message []byte, extraData []byte, compositeHasher, cip22 bool, err error) {
-	message, extraData, err = blscrypto.EncodeEpochSnarkData(keys, maxNonSigners, epochNum)
-	// This is before the Donut hardfork, so signify this doesn't use CIP22.
-	return message, extraData, true, false, err
+func NewEpochSealDonut(keys []blscrypto.SerializedPublicKey, quorumSize uint32, epochNum uint16, round uint8, blockHash, parentEpochBlockHash common.Hash) (*BLSSeal, error) {
+	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
+		keys, maxValidators-quorumSize, maxValidators,
+		epochNum,
+		round,
+		blscrypto.EpochEntropyFromHash(blockHash),
+		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
+	)
+	return &BLSSeal{
+		Seal:            message,
+		ExtraData:       extraData,
+		CompositeHasher: true,
+		Cip22:           true,
+	}, err
 }
 
 // Generates serialized epoch data for use in the Plumo SNARK circuit.
 // Block number and hash may be information for a pending block.
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
+func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) (*BLSSeal, error) {
 	// Serialize the public keys for the validators in the validator set.
 	blsPubKeys := []blscrypto.SerializedPublicKey{}
 	for _, v := range newValSet.List() {
@@ -117,34 +121,19 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 
 	maxNonSigners := uint32(newValSet.Size() - newValSet.MinQuorumSize())
 
+	epochNum := uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch))
 	// Before the Donut fork, use the snark data encoding with epoch entropy.
 	if !c.backend.ChainConfig().IsDonut(big.NewInt(int64(blockNumber))) {
-		message, extraData, err := blscrypto.EncodeEpochSnarkData(
-			blsPubKeys,
-			maxNonSigners,
-			uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
-		)
-		// This is before the Donut hardfork, so signify this doesn't use CIP22.
-		return message, extraData, false, err
+		return NewEpochSeal(blsPubKeys, maxNonSigners, epochNum)
 	}
 
 	// Retrieve the block hash for the last block of the previous epoch.
 	parentEpochBlockHash := c.backend.HashForBlock(blockNumber - c.config.Epoch)
 	if blockNumber > 0 && parentEpochBlockHash == (common.Hash{}) {
-		return nil, nil, false, errors.New("unknown block")
+		return nil, errors.New("unknown block")
 	}
 
-	maxNonSigners = maxValidators - uint32(newValSet.MinQuorumSize())
-
-	message, extraData, err := blscrypto.EncodeEpochSnarkDataCIP22(
-		blsPubKeys, maxNonSigners, maxValidators,
-		uint16(istanbul.GetEpochNumber(blockNumber, c.config.Epoch)),
-		round,
-		blscrypto.EpochEntropyFromHash(blockHash),
-		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
-	)
-	// This is after the Donut hardfork, so signify this uses CIP22.
-	return message, extraData, true, err
+	return NewEpochSealDonut(blsPubKeys, uint32(newValSet.MinQuorumSize()), epochNum, round, blockHash, parentEpochBlockHash)
 }
 
 // AggregateSeals returns the bls aggregation of the committed seals for the

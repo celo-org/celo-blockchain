@@ -158,7 +158,7 @@ func (self *testSystemBackend) Gossip(payload []byte, ethMsgCode uint64) error {
 	return nil
 }
 
-func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
+func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) ([]byte, error) {
 	privateKey, _ := bls.DeserializePrivateKey(self.blsKey)
 	defer privateKey.Destroy()
 
@@ -166,7 +166,8 @@ func (self *testSystemBackend) SignBLS(data []byte, extra []byte, useComposite, 
 	defer signature.Destroy()
 	signatureBytes, _ := signature.Serialize()
 
-	return blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	sig, err := blscrypto.SerializedSignatureFromBytes(signatureBytes)
+	return sig[:], err
 }
 
 func (self *testSystemBackend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {

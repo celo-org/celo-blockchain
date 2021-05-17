@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
@@ -72,7 +71,7 @@ type CoreBackend interface {
 	Sign([]byte) ([]byte, error)
 
 	// Sign with the data with the BLS key, using either a direct or composite hasher and optional cip22 encoding
-	SignBLS([]byte, []byte, bool, bool) (blscrypto.SerializedSignature, error)
+	SignBLS([]byte, []byte, bool, bool) ([]byte, error)
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator

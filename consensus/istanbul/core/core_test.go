@@ -26,6 +26,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -202,24 +204,22 @@ func TestEpochSnarkData(t *testing.T) {
 
 	publicKey, _ := blscrypto.PrivateToPublic(serializedPrivateKey)
 
-	message, extraData, cip22, _ := backendCore.generateEpochValidatorSetData(0, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
-	if cip22 || len(extraData) > 0 {
-		t.Errorf("Unexpected cip22 (%t != false) or extraData length (%v > 0)", cip22, len(extraData))
+	epochSeal, err := backendCore.generateEpochValidatorSetData(0, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	require.NoError(t, err)
+	if epochSeal.Cip22 || len(epochSeal.ExtraData) > 0 {
+		t.Errorf("Unexpected cip22 (%t != false) or extraData length (%v > 0)", epochSeal.Cip22, len(epochSeal.ExtraData))
 	}
-	epochValidatorSetSeal, _ := backendCore.backend.SignBLS(message, extraData, true, cip22)
+	epochSig, err := epochSeal.Sign(backendCore.backend.SignBLS)
+	assert.NoError(t, err)
+	err = epochSeal.Verify(publicKey, epochSig)
+	assert.NoError(t, err)
 
-	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
-		t.Errorf("Failed verifying BLS signature")
+	epochSealDonut, err := backendCore.generateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	if !epochSealDonut.Cip22 || len(epochSealDonut.ExtraData) == 0 {
+		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", epochSealDonut.Cip22, len(epochSealDonut.ExtraData))
 	}
-
-	message, extraData, cip22, _ = backendCore.generateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
-	if !cip22 || len(extraData) == 0 {
-		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", cip22, len(extraData))
-	}
-	epochValidatorSetSeal, _ = backendCore.backend.SignBLS(message, extraData, true, cip22)
-
-	if err := blscrypto.VerifySignature(publicKey, message, extraData, epochValidatorSetSeal[:], true, cip22); err != nil {
-		t.Errorf("Failed verifying BLS signature after Donut")
-	}
-
+	epochSig, err = epochSealDonut.Sign(backendCore.backend.SignBLS)
+	assert.NoError(t, err)
+	err = epochSealDonut.Verify(publicKey, epochSig)
+	assert.NoError(t, err)
 }

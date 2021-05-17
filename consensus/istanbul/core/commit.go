@@ -24,7 +24,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
@@ -39,13 +38,9 @@ func (c *core) sendCommit() {
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
+func (c *core) generateCommittedSeal(sub *istanbul.Subject) ([]byte, error) {
 	seal := NewCommitSeal(sub.Digest, sub.View.Round)
-	committedSeal, err := c.backend.SignBLS(seal.Seal, []byte{}, false, false)
-	if err != nil {
-		return blscrypto.SerializedSignature{}, err
-	}
-	return committedSeal, nil
+	return seal.Sign(c.backend.SignBLS)
 }
 
 func (c *core) broadcastCommit(sub *istanbul.Subject) {
@@ -58,7 +53,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	}
 
 	currentBlockNumber := c.current.Proposal().Number().Uint64()
-	var epochValidatorSetSeal blscrypto.SerializedSignature
+	var epochValidatorSetSeal []byte
 	if istanbul.IsLastBlockOfEpoch(currentBlockNumber, c.config.Epoch) {
 		newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
 		if err != nil {
@@ -66,12 +61,12 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 			return
 		}
 
-		epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
+		epochSeal, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
 		if err != nil {
 			logger.Error("Failed to create epoch validator set data", "err", err)
 			return
 		}
-		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData, epochValidatorSetExtraData, true, cip22)
+		epochValidatorSetSeal, err = epochSeal.Sign(c.backend.SignBLS)
 		if err != nil {
 			logger.Error("Failed to sign epoch validator set seal", "err", err)
 			return
@@ -79,8 +74,8 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	}
 	istMsg := istanbul.NewMessage(&istanbul.CommittedSubject{
 		Subject:               sub,
-		CommittedSeal:         committedSeal[:],
-		EpochValidatorSetSeal: epochValidatorSetSeal[:],
+		CommittedSeal:         committedSeal,
+		EpochValidatorSetSeal: epochValidatorSetSeal,
 	}, c.address)
 	c.broadcast(istMsg)
 }
