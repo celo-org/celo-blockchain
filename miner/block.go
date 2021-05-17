@@ -61,7 +61,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		log.Error("Failed to create mining context", "err", err)
 		return
 	}
-	w.updateSnapshot(b)
+	w.updatePendingBlock(b)
 
 	// TODO: worker based adaptive sleep with this delay
 	// wait for the timestamp of header, use this to adjust the block period
@@ -77,14 +77,14 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		log.Error("Failed to apply transactions to the block", "err", err)
 		return
 	}
-	w.updateSnapshot(b)
+	w.updatePendingBlock(b)
 
 	block, err := b.finalizeAndAssemble(w)
 	if err != nil {
 		log.Error("Failed to finalize and assemble the block", "err", err)
 		return
 	}
-	w.updateSnapshot(b)
+	w.updatePendingBlock(b)
 	if w.isRunning() {
 		if w.fullTaskHook != nil {
 			w.fullTaskHook()

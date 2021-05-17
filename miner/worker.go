@@ -399,9 +399,8 @@ func (w *worker) resultLoop() {
 	}
 }
 
-// updateSnapshot updates pending snapshot block and state.
-// Note this function assumes the current variable is thread safe.
-func (w *worker) updateSnapshot(b *blockState) {
+// updatePendingBlock updates pending snapshot block and state.
+func (w *worker) updatePendingBlock(b *blockState) {
 	w.snapshotMu.Lock()
 	defer w.snapshotMu.Unlock()
 
