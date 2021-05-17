@@ -206,7 +206,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	// create the sig and call Commit so that the result is pushed to the channel
 	aggregatedSeal := signBlock(keys, block)
 	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
-	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal, &istanbulCore.StateProcessResult{})
+	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal, nil)
 	if err != nil {
 		return nil, err
 	}
