@@ -91,9 +91,9 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		}
 		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 
-		feesEth := totalFees(block, b.receipts)
+		feesCelo := totalFees(block, b.receipts)
 		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
-			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
 
 	}
 
@@ -387,7 +387,7 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 	return block, nil
 }
 
-// totalFees computes total consumed fees in ETH. Block transactions and receipts have to have the same order.
+// totalFees computes total consumed fees in CELO. Block transactions and receipts have to have the same order.
 func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
