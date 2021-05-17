@@ -77,7 +77,8 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			commit := message.Commit()
 			// Verify the committedSeal
 			src := c.current.GetValidatorByAddress(signer)
-			err = c.verifyCommittedSeal(commit, src)
+
+			err = NewCommitSeal(commit.Subject.Digest, commit.Subject.View.Round).Verify(src.BLSPublicKey(), commit.CommittedSeal)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
 				return nil, err

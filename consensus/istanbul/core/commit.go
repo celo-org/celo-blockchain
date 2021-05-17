@@ -272,11 +272,13 @@ func (c *core) removeInvalidCommittedSeals() {
 	logger := c.newLogger("func", "removeInvalidCommittedSeals")
 	commits := c.current.Commits()
 	for _, msg := range commits.Values() {
+		commit := msg.Commit()
 		// Continue if this commit has already been validated.
-		if msg.Commit().CommittedSealValid() {
+		if commit.CommittedSealValid() {
 			continue
 		}
-		err := c.verifyCommittedSeal(msg.Commit(), c.current.GetValidatorByAddress(msg.Address))
+		pubKey := c.current.GetValidatorByAddress(msg.Address).BLSPublicKey()
+		err := NewCommitSeal(commit.Subject.Digest, commit.Subject.View.Round).Verify(pubKey, commit.CommittedSeal)
 		if err != nil {
 			commits.Remove(msg.Address)
 			logger.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)

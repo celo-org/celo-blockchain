@@ -444,7 +444,9 @@ func TestHandlePreprepare(t *testing.T) {
 				if expectedCode == istanbul.MsgCommit {
 					srcValidator := c.current.GetValidatorByAddress(v.address)
 
-					if err := c.verifyCommittedSeal(decodedMsg.Commit(), srcValidator); err != nil {
+					commit := decodedMsg.Commit()
+					err := NewCommitSeal(commit.Subject.Digest, commit.Subject.View.Round).Verify(srcValidator.BLSPublicKey(), commit.CommittedSeal)
+					if err != nil {
 						t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, decodedMsg.Commit().CommittedSeal)
 					}
 				}

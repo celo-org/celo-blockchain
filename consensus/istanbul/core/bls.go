@@ -55,11 +55,6 @@ func (b *BLSSeal) VerifyAggregate(publicKeys []blscrypto.SerializedPublicKey, si
 	return apk.VerifySignature(b.Seal, b.ExtraData, signatureObj, b.CompositeHasher, b.Cip22)
 }
 
-// verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
-	return NewCommitSeal(comSub.Subject.Digest, comSub.Subject.View.Round).Verify(src.BLSPublicKey(), comSub.CommittedSeal)
-}
-
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
 func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
 	seal, err := c.generateEpochValidatorSetData(blockNumber, uint8(comSub.Subject.View.Round.Uint64()), comSub.Subject.Digest, newValSet)
