@@ -215,6 +215,7 @@ func TestEpochSnarkData(t *testing.T) {
 	assert.NoError(t, err)
 
 	epochSealDonut, err := backendCore.generateEpochValidatorSetData(2, 0, common.Hash{}, sys.backends[0].Validators(backendCore.current.Proposal()))
+	assert.NoError(t, err)
 	if !epochSealDonut.Cip22 || len(epochSealDonut.ExtraData) == 0 {
 		t.Errorf("Unexpected cip22 (%t != true) or extraData length (%v == 0)", epochSealDonut.Cip22, len(epochSealDonut.ExtraData))
 	}
