@@ -99,6 +99,63 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 }
 
+// constructPendingStateBlock constructs a new block and keeps applying new transactions to it.
+// until it is full or the context is cancelled.
+func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
+	// Initialize the block.
+	b, err := w.prepareBlock()
+	if err != nil {
+		log.Error("Failed to create mining context", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	err = b.selectAndApplyTransactions(ctx, w)
+	if err != nil {
+		log.Error("Failed to apply transactions to the block", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	w.mu.RLock()
+	txFeeRecipient := w.txFeeRecipient
+	if !w.chainConfig.IsDonut(b.header.Number) && w.txFeeRecipient != w.validator {
+		txFeeRecipient = w.validator
+		log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+	}
+	w.mu.RUnlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev := <-txsCh:
+			if !w.isRunning() {
+				// If block is already full, abort
+				if gp := b.gasPool; gp != nil && gp.Gas() < params.TxGas {
+					return
+				}
+
+				txs := make(map[common.Address]types.Transactions)
+				for _, tx := range ev.Txs {
+					acc, _ := types.Sender(b.signer, tx)
+					txs[acc] = append(txs[acc], tx)
+				}
+
+				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, w.createTxCmp())
+				tcount := b.tcount
+				b.commitTransactions(ctx, w, txset, txFeeRecipient)
+				// Only update the snapshot if any new transactons were added
+				// to the pending block
+				if tcount != b.tcount {
+					w.updatePendingBlock(b)
+				}
+			}
+		}
+	}
+
+}
+
 // prepareBlock intializes a new blockState that is ready to have transaction included to.
 func (w *worker) prepareBlock() (*blockState, error) {
 	w.mu.RLock()
