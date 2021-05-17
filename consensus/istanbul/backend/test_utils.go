@@ -326,11 +326,11 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 	headerHash := block.Header().Hash()
 	signatures := make([][]byte, len(keys))
 
-	msg := istanbulCore.PrepareCommittedSeal(headerHash, round)
+	msg := istanbulCore.NewCommitSeal(headerHash, round)
 
 	for i, key := range keys {
 		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite, cip22)
+		sig, err := signFn(accounts.Account{}, msg.Seal, extraData, useComposite, cip22)
 		if err != nil {
 			panic("could not sign msg")
 		}

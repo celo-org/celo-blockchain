@@ -17,7 +17,6 @@
 package core
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"math/big"
@@ -207,86 +206,6 @@ func (c *core) ForceRoundChange() {
 	// timeout current DesiredView
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
-}
-
-// PrepareCommittedSeal returns a committed seal for the given hash and round number.
-func PrepareCommittedSeal(hash common.Hash, round *big.Int) []byte {
-	var buf bytes.Buffer
-	buf.Write(hash.Bytes())
-	buf.Write(round.Bytes())
-	buf.Write([]byte{byte(istanbul.MsgCommit)})
-	return buf.Bytes()
-}
-
-// AggregateSeals returns the bls aggregation of the committed seals for the
-// messgages in mset. It returns a big.Int that represents a bitmap where each
-// set bit corresponds to the position of a validator in the list of validators
-// for this epoch that contributed a seal to the returned aggregate. It is
-// assumed that mset contains only commit messages.
-func AggregateSeals(mset MessageSet, sealExtractor func(*istanbul.CommittedSubject) []byte) (bitmap *big.Int, aggregateSeal []byte, err error) {
-	bitmap = big.NewInt(0)
-	committedSeals := make([][]byte, mset.Size())
-	for i, v := range mset.Values() {
-		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		commit := v.Commit()
-		copy(committedSeals[i][:], sealExtractor(commit))
-
-		j, err := mset.GetAddressIndex(v.Address)
-		if err != nil {
-			return nil, nil, fmt.Errorf(
-				"missing validator %q for committed seal at %s: %v",
-				v.Address.String(),
-				commit.Subject.View.String(),
-				err,
-			)
-		}
-		bitmap.SetBit(bitmap, int(j), 1)
-	}
-
-	aggregateSeal, err = blscrypto.AggregateSignatures(committedSeals)
-	if err != nil {
-		return nil, nil, fmt.Errorf("aggregating signatures failed: %v", err)
-	}
-
-	return bitmap, aggregateSeal, nil
-}
-
-// UnionOfSeals combines a BLS aggregated signature with an array of signatures. Accounts for
-// double aggregating the same signature by only adding aggregating if the
-// validator was not found in the previous bitmap.
-// This function assumes that the provided seals' validator set is the same one
-// which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
-	// TODO(asa): Check for round equality...
-	// Check who already has signed the message
-	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
-	committedSeals := [][]byte{}
-	committedSeals = append(committedSeals, aggregatedSignature.Signature)
-	for _, v := range seals.Values() {
-		valIndex, err := seals.GetAddressIndex(v.Address)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
-
-		// if the bit was not set, this means we should add this signature to
-		// the batch
-		if newBitmap.Bit(int(valIndex)) == 0 {
-			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
-		}
-	}
-
-	asig, err := blscrypto.AggregateSignatures(committedSeals)
-	if err != nil {
-		return types.IstanbulAggregatedSeal{}, err
-	}
-
-	return types.IstanbulAggregatedSeal{
-		Bitmap:    newBitmap,
-		Signature: asig,
-		Round:     aggregatedSignature.Round,
-	}, nil
 }
 
 // Appends the current view and state to the given context.

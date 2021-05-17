@@ -320,7 +320,7 @@ func (sb *Backend) VerifyAggregatedSeal(headerHash common.Hash, validators istan
 		return errInvalidAggregatedSeal
 	}
 
-	proposalSeal := istanbulCore.PrepareCommittedSeal(headerHash, aggregatedSeal.Round)
+	proposalSeal := istanbulCore.NewCommitSeal(headerHash, aggregatedSeal.Round)
 	// Find which public keys signed from the provided validator set
 	publicKeys := []blscrypto.SerializedPublicKey{}
 	for i := 0; i < validators.Size(); i++ {
@@ -335,7 +335,7 @@ func (sb *Backend) VerifyAggregatedSeal(headerHash common.Hash, validators istan
 		logger.Error("Aggregated seal does not aggregate enough seals", "numSeals", len(publicKeys), "minimum quorum size", validators.MinQuorumSize())
 		return errInsufficientSeals
 	}
-	err := blscrypto.VerifyAggregatedSignature(publicKeys, proposalSeal, []byte{}, aggregatedSeal.Signature, false, false)
+	err := proposalSeal.VerifyAggregate(publicKeys, aggregatedSeal.Signature)
 	if err != nil {
 		logger.Error("Unable to verify aggregated signature", "err", err)
 		return errInvalidSignature

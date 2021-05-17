@@ -209,8 +209,8 @@ OUTER:
 			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
 			defer privateKey.Destroy()
 
-			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
-			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
+			seal := NewCommitSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+			signature, _ := privateKey.SignMessage(seal.Seal, []byte{}, false, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 
@@ -426,8 +426,8 @@ func BenchmarkHandleCommit(b *testing.B) {
 		privateKey, _ := bls.DeserializePrivateKey(sys.validatorsKeys[i])
 		defer privateKey.Destroy()
 
-		hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
-		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
+		seal := NewCommitSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+		signature, _ := privateKey.SignMessage(seal.Seal, []byte{}, false, false)
 		defer signature.Destroy()
 		signatureBytes, _ := signature.Serialize()
 		im = istanbul.NewMessage(&istanbul.CommittedSubject{
