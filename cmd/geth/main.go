@@ -90,6 +90,7 @@ var (
 		utils.LightIngressFlag,
 		utils.LightEgressFlag,
 		utils.LightMaxPeersFlag,
+		utils.LightNoPruneFlag,
 		utils.LightKDFFlag,
 		utils.LightGatewayFeeFlag,
 		utils.UltraLightServersFlag,

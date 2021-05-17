@@ -274,7 +274,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		Root:       root,
 	}
 	statedb.Commit(false)
-	statedb.Database().TrieDB().Commit(root, true)
+	statedb.Database().TrieDB().Commit(root, true, nil)
 
 	return types.NewBlock(head, nil, nil, nil)
 }

@@ -162,11 +162,14 @@ func (b *LesApiBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*typ
 	return nil, nil
 }
 
-func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
-	return b.eth.blockchain.GetTdByHash(hash)
+func (b *LesApiBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
+	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return b.eth.blockchain.GetTdOdr(ctx, hash, *number)
+	}
+	return nil
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
