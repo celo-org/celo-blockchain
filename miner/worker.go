@@ -39,6 +39,10 @@ const (
 	// resultQueueSize is the size of channel listening to sealing result.
 	resultQueueSize = 10
 
+	// txChanSize is the size of channel listening to NewTxsEvent.
+	// The number is referenced from the size of tx pool.
+	txChanSize = 4096
+
 	// chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 	chainHeadChanSize = 10
 
@@ -71,6 +75,8 @@ type worker struct {
 
 	// Subscriptions
 	mux          *event.TypeMux
+	txsCh        chan core.NewTxsEvent
+	txsSub       event.Subscription
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
 
@@ -118,6 +124,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		mux:                 mux,
 		chain:               eth.BlockChain(),
 		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		resultCh:            make(chan *types.Block, resultQueueSize),
 		exitCh:              make(chan struct{}),
@@ -125,6 +132,8 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		db:                  db,
 		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
+	// Subscribe NewTxsEvent for tx pool
+	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
@@ -225,6 +234,54 @@ func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transacti
 
 	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
 		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	}
+}
+
+func (w *worker) fullNodeLoop() {
+	defer w.chainHeadSub.Unsubscribe()
+	// Context and cancel function for the currently executing block construction
+	var ctx context.Context
+	var cancel context.CancelFunc
+	var wg sync.WaitGroup
+
+	for {
+		select {
+		case <-w.startCh:
+			if cancel != nil {
+				cancel()
+			}
+			wg.Wait()
+			ctx, cancel = context.WithCancel(context.Background())
+			wg.Add(1)
+			go func() {
+				w.constructPendingStateBlock(ctx, w.txsCh)
+				wg.Done()
+			}()
+
+		case <-w.chainHeadCh:
+			if cancel != nil {
+				cancel()
+			}
+			wg.Wait()
+			ctx, cancel = context.WithCancel(context.Background())
+			wg.Add(1)
+			go func() {
+				w.constructPendingStateBlock(ctx, w.txsCh)
+				wg.Done()
+			}()
+
+		// System stopped
+		case <-w.exitCh:
+			if cancel != nil {
+				cancel()
+			}
+			return
+		case <-w.chainHeadSub.Err():
+			if cancel != nil {
+				cancel()
+			}
+			return
+		}
 	}
 }
 
