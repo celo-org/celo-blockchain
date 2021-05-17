@@ -1169,6 +1169,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
 						// TODO this may be inadequately dealing with concurrent proof/header requests
+						log.Error("!!!!!!! No more header fetches pending???")
 						d.headerProcCh <- nil
 						select {
 						case d.plumoProofProcCh <- nil:
@@ -1210,6 +1211,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				d.plumoProofProcCh <- nil
 				break
 			}
+			timeout.Stop()
 
 			if packet.Items() == 0 {
 				log.Error("Packet empty, end of sequence?")
@@ -1239,14 +1241,14 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				// epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch + 1
 				// from += uint64(epochRange)*epoch - 1
 				// getEpochHeaders(from)
-				p.log.Debug("No more proofs available")
-				select {
-				case d.plumoProofProcCh <- nil:
-					// TODO what exactly to do here
-					// return nil
-				case <-d.cancelCh:
-					return errCanceled
-				}
+				p.log.Error("No more proofs available")
+				// select {
+				// case d.plumoProofProcCh <- nil:
+				// 	// TODO what exactly to do here
+				// 	// return nil
+				// case <-d.cancelCh:
+				// 	return errCanceled
+				// }
 			} else {
 				// No plumo proofs delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Error("All plumo proofs delayed, waiting")
@@ -1756,6 +1758,7 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 		case lightProofs := <-d.plumoProofProcCh:
 			log.Error("Processing some light proofs", "light proof len", len(lightProofs))
 			if len(lightProofs) == 0 {
+				log.Error("EXITING PROCESS PLUMO PROOFS")
 				return nil
 			}
 			// gotProofs = true
@@ -1765,6 +1768,7 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			// Terminate if something failed in between processing chunks
 			select {
 			case <-d.cancelCh:
+				log.Error("Error canceling process plumo proofs channel")
 				return errCanceled
 			default:
 			}
@@ -1776,8 +1780,10 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			}
 			var chunks []istanbul.LightPlumoProof
 			var rejects []istanbul.LightPlumoProof
+			log.Error("CHecking sanity of loop in downloader", "limit", limit, "light proofs", lightProofs)
 			for i := 0; i < limit; i++ {
 				lightProof := lightProofs[i]
+				log.Error("Iterating over light proofs", "Light proof", lightProof, "i", i, "progress current block", progress.CurrentBlock, "first Epoch", lightProof.FirstEpoch)
 				if uint64(lightProof.FirstEpoch) <= progress.CurrentBlock {
 					chunks = append(chunks, lightProof)
 				} else {
@@ -1787,25 +1793,31 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 				// lightProofs = lightProofs[i:]
 				origin += 1
 			}
-			select {
-			case d.plumoProofProcCh <- rejects:
-			case <-d.cancelCh:
-				return errCanceled
+			if len(rejects) > 0 {
+				log.Error("Sending rejects")
+				if len(d.plumoProofProcCh) != 0 {
+					proofsFromChannel := <- d.plumoProofProcCh
+					rejects = append(rejects, proofsFromChannel...)
+				}
+				d.plumoProofProcCh <- rejects
 			}
+			log.Error("Rejects sent", "rejects", rejects)
+			// d.DeliverPlumoProofs("1", rejects)
 			// unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
 			// for _, lightProof := range chunk {
 			// 	unknown = append(unknown, lightProof)
 			// }
 			if len(chunks) > 0 {
-
+				log.Error("Inserting plumo proof chunks", "chunks", chunks)
 				d.lightchain.InsertPlumoProofs(chunks)
 				log.Error("Finished inserting plumo proofs")
-
 				// lightProofs = lightProofs[limit:]
 				// origin += uint64(limit)
 			}
+			log.Error("No more proofs", "rejects", rejects)
 			// }
 		}
+		log.Error("Iterating process plumo proofs")
 	}
 }
 
