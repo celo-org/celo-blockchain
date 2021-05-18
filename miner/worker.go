@@ -362,7 +362,7 @@ func (w *worker) fullNodeLoop(ctx context.Context) {
 
 	for {
 		select {
-		case <-chainHeadCh:
+		case <-w.chainHeadCh:
 			if cancel != nil {
 				cancel()
 			}
@@ -441,7 +441,8 @@ func (w *worker) validatorLoop(ctx context.Context) {
 			}
 			taskCtx, cancel = context.WithCancel(ctx)
 			go w.constructAndSubmitNewBlock(taskCtx)
-
+		case <-w.txsCh:
+			// drain txsCh
 		// System stopped
 		case <-ctx.Done():
 			if cancel != nil {
@@ -454,6 +455,11 @@ func (w *worker) validatorLoop(ctx context.Context) {
 			}
 			return
 		case <-w.chainHeadSub.Err():
+			if cancel != nil {
+				cancel()
+			}
+			return
+		case <-w.txsSub.Err():
 			if cancel != nil {
 				cancel()
 			}
