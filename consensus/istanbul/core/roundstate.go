@@ -352,8 +352,8 @@ func (rs *roundStateImpl) TransitionToPrepared(quorumSize int) error {
 	}
 
 	rs.preparedCertificate = istanbul.PreparedCertificate{
-		Proposal:                rs.preprepare.Proposal,
-		PrepareOrCommitMessages: messages,
+		Proposal:        rs.preprepare.Proposal,
+		PrepareMessages: messages,
 	}
 	rs.state = StatePrepared
 	return nil

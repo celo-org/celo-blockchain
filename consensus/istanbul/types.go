@@ -195,8 +195,8 @@ func (pp *Preprepare) DecodeRLP(s *rlp.Stream) error {
 // ## PreparedCertificate #####################################################
 
 type PreparedCertificate struct {
-	Proposal                Proposal
-	PrepareOrCommitMessages []Message
+	Proposal        Proposal
+	PrepareMessages []Message
 }
 
 type PreparedCertificateData struct {
@@ -221,25 +221,25 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
-		Proposal:                block.WithSeal(emptyHeader),
-		PrepareOrCommitMessages: []Message{},
+		Proposal:        block.WithSeal(emptyHeader),
+		PrepareMessages: []Message{},
 	}
 }
 
 func (pc *PreparedCertificate) IsEmpty() bool {
-	return len(pc.PrepareOrCommitMessages) == 0
+	return len(pc.PrepareMessages) == 0
 }
 
 func (pc *PreparedCertificate) AsData() *PreparedCertificateData {
 	return &PreparedCertificateData{
 		Proposal:                pc.Proposal.(*types.Block),
-		PrepareOrCommitMessages: pc.PrepareOrCommitMessages,
+		PrepareOrCommitMessages: pc.PrepareMessages,
 	}
 }
 
 func (pc *PreparedCertificate) Summary() *PreparedCertificateSummary {
 	var prepareSenders, commitSenders []common.Address
-	for _, msg := range pc.PrepareOrCommitMessages {
+	for _, msg := range pc.PrepareMessages {
 		if msg.Code == MsgPrepare {
 			prepareSenders = append(prepareSenders, msg.Address)
 		} else {
@@ -267,7 +267,7 @@ func (pc *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 	if err := s.Decode(&data); err != nil {
 		return err
 	}
-	pc.PrepareOrCommitMessages, pc.Proposal = data.PrepareOrCommitMessages, data.Proposal
+	pc.PrepareMessages, pc.Proposal = data.PrepareOrCommitMessages, data.Proposal
 	return nil
 
 }

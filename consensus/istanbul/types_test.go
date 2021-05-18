@@ -116,8 +116,8 @@ func dummyRoundChangeCertificate() *RoundChangeCertificate {
 
 func dummyPreparedCertificate() *PreparedCertificate {
 	return &PreparedCertificate{
-		PrepareOrCommitMessages: []Message{*dummyMessage(42), *dummyMessage(32), *dummyMessage(15)},
-		Proposal:                dummyBlock(1),
+		PrepareMessages: []Message{*dummyMessage(42), *dummyMessage(32), *dummyMessage(15)},
+		Proposal:        dummyBlock(1),
 	}
 }
 
@@ -218,7 +218,7 @@ func TestPreparedCertificateRLPEncoding(t *testing.T) {
 	}
 
 	// decoded Blocks don't equal Original ones so we need to check equality differently
-	assertEqual(t, "RLP Encode/Decode mismatch: PrepareOrCommitMessages", result.PrepareOrCommitMessages, original.PrepareOrCommitMessages)
+	assertEqual(t, "RLP Encode/Decode mismatch: PrepareOrCommitMessages", result.PrepareMessages, original.PrepareMessages)
 	assertEqual(t, "RLP Encode/Decode mismatch: BlockHash", result.Proposal.Hash(), original.Proposal.Hash())
 }
 
@@ -240,7 +240,7 @@ func TestRoundChangeRLPEncoding(t *testing.T) {
 
 	// decoded Blocks don't equal Original ones so we need to check equality differently
 	assertEqual(t, "RLP Encode/Decode mismatch: View", result.View, original.View)
-	assertEqual(t, "RLP Encode/Decode mismatch: PreparedCertificate.PrepareOrCommitMessages", result.PreparedCertificate.PrepareOrCommitMessages, original.PreparedCertificate.PrepareOrCommitMessages)
+	assertEqual(t, "RLP Encode/Decode mismatch: PreparedCertificate.PrepareOrCommitMessages", result.PreparedCertificate.PrepareMessages, original.PreparedCertificate.PrepareMessages)
 	assertEqual(t, "RLP Encode/Decode mismatch: PreparedCertificate.BlockHash", result.PreparedCertificate.Proposal.Hash(), original.PreparedCertificate.Proposal.Hash())
 }
 

@@ -86,5 +86,5 @@ func assertEqualRoundState(t *testing.T, have, want RoundState) {
 	havePPBlock := have.PreparedCertificate().Proposal
 	wantPPBlock := want.PreparedCertificate().Proposal
 	testEqual("PreparedCertificate().Proposal.Hash", havePPBlock.Hash(), wantPPBlock.Hash())
-	testEqual("PreparedCertificate().PrepareOrCommitMessages", have.PreparedCertificate().PrepareOrCommitMessages, want.PreparedCertificate().PrepareOrCommitMessages)
+	testEqual("PreparedCertificate().PrepareOrCommitMessages", have.PreparedCertificate().PrepareMessages, want.PreparedCertificate().PrepareMessages)
 }

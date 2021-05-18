@@ -38,14 +38,14 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		return nil, errInvalidPreparedCertificateProposal
 	}
 
-	if len(preparedCertificate.PrepareOrCommitMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
+	if len(preparedCertificate.PrepareMessages) > c.current.ValidatorSet().Size() || len(preparedCertificate.PrepareMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
 	seen := make(map[common.Address]bool)
 
 	var view *istanbul.View
-	for _, message := range preparedCertificate.PrepareOrCommitMessages {
+	for _, message := range preparedCertificate.PrepareMessages {
 		data, err := message.PayloadNoSig()
 		if err != nil {
 			return nil, err
@@ -128,11 +128,11 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 // Extract the view from a PreparedCertificate that has already been verified.
 func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
-	if len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
+	if len(preparedCertificate.PrepareMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
-	message := preparedCertificate.PrepareOrCommitMessages[0]
+	message := preparedCertificate.PrepareMessages[0]
 
 	// Assume prepare but overwrite if commit
 	subject := message.Prepare()

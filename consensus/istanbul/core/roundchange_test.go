@@ -266,7 +266,7 @@ func TestHandleRoundChange(t *testing.T) {
 			noopPrepare,
 			func(t *testing.T, sys *testSystem) istanbul.PreparedCertificate {
 				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
-				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
+				preparedCert.PrepareMessages[0] = preparedCert.PrepareMessages[1]
 				return preparedCert
 			},
 			errInvalidPreparedCertificateDuplicate,

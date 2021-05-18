@@ -541,8 +541,8 @@ func (t *testSystem) MinQuorumSize() uint64 {
 
 func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.View, proposal istanbul.Proposal) istanbul.PreparedCertificate {
 	preparedCertificate := istanbul.PreparedCertificate{
-		Proposal:                proposal,
-		PrepareOrCommitMessages: []istanbul.Message{},
+		Proposal:        proposal,
+		PrepareMessages: []istanbul.Message{},
 	}
 	for i, backend := range sys.backends {
 		if uint64(i) == sys.MinQuorumSize() {
@@ -558,7 +558,7 @@ func (sys *testSystem) getPreparedCertificate(t ErrorReporter, views []istanbul.
 		if err != nil {
 			t.Errorf("Failed to create message %v: %v", i, err)
 		}
-		preparedCertificate.PrepareOrCommitMessages = append(preparedCertificate.PrepareOrCommitMessages, msg)
+		preparedCertificate.PrepareMessages = append(preparedCertificate.PrepareMessages, msg)
 	}
 	return preparedCertificate
 }
