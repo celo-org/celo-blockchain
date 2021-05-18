@@ -237,6 +237,112 @@ func (w *worker) createTxCmp() func(tx1 *types.Transaction, tx2 *types.Transacti
 	}
 }
 
+// constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
+// a task to the engine
+func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
+	start := time.Now()
+
+	// Initialize the block.
+	b, err := w.prepareBlock()
+	if err != nil {
+		log.Error("Failed to create mining context", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	// TODO: worker based adaptive sleep with this delay
+	// wait for the timestamp of header, use this to adjust the block period
+	delay := time.Until(time.Unix(int64(b.header.Time), 0))
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+		return
+	}
+
+	err = b.selectAndApplyTransactions(ctx, w)
+	if err != nil {
+		log.Error("Failed to apply transactions to the block", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	block, err := b.finalizeAndAssemble(w)
+	if err != nil {
+		log.Error("Failed to finalize and assemble the block", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+	if w.isRunning() {
+		if w.fullTaskHook != nil {
+			w.fullTaskHook()
+		}
+		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
+
+		feesCelo := totalFees(block, b.receipts)
+		log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
+			"txs", b.tcount, "gas", block.GasUsed(), "fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
+
+	}
+
+}
+
+// constructPendingStateBlock constructs a new block and keeps applying new transactions to it.
+// until it is full or the context is cancelled.
+func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
+	// Initialize the block.
+	b, err := w.prepareBlock()
+	if err != nil {
+		log.Error("Failed to create mining context", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	err = b.selectAndApplyTransactions(ctx, w)
+	if err != nil {
+		log.Error("Failed to apply transactions to the block", "err", err)
+		return
+	}
+	w.updatePendingBlock(b)
+
+	w.mu.RLock()
+	txFeeRecipient := w.txFeeRecipient
+	if !w.chainConfig.IsDonut(b.header.Number) && w.txFeeRecipient != w.validator {
+		txFeeRecipient = w.validator
+		log.Warn("TxFeeRecipient and Validator flags set before split etherbase fork is active. Defaulting to the given validator address for the coinbase.")
+	}
+	w.mu.RUnlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev := <-txsCh:
+			if !w.isRunning() {
+				// If block is already full, abort
+				if gp := b.gasPool; gp != nil && gp.Gas() < params.TxGas {
+					return
+				}
+
+				txs := make(map[common.Address]types.Transactions)
+				for _, tx := range ev.Txs {
+					acc, _ := types.Sender(b.signer, tx)
+					txs[acc] = append(txs[acc], tx)
+				}
+
+				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, w.createTxCmp())
+				tcount := b.tcount
+				b.commitTransactions(ctx, w, txset, txFeeRecipient)
+				// Only update the snapshot if any new transactons were added
+				// to the pending block
+				if tcount != b.tcount {
+					w.updatePendingBlock(b)
+				}
+			}
+		}
+	}
+
+}
+
 func (w *worker) fullNodeLoop() {
 	defer w.chainHeadSub.Unsubscribe()
 	// Context and cancel function for the currently executing block construction
@@ -353,41 +459,6 @@ func (w *worker) mainLoop() {
 	}
 }
 
-// interrupt aborts the in-flight sealing task.
-func (w *worker) interruptSealingTask() {
-	if w.prevTaskStopCh != nil {
-		close(w.prevTaskStopCh)
-		w.prevTaskStopCh = nil
-	}
-}
-
-func (w *worker) submitTaskToEngine(task *task) {
-	if w.newTaskHook != nil {
-		w.newTaskHook(task)
-	}
-
-	// Reject duplicate sealing work due to resubmitting.
-	sealHash := w.engine.SealHash(task.block.Header())
-	if sealHash == w.prevSealHash {
-		return
-	}
-	// Interrupt previous sealing operation
-	w.interruptSealingTask()
-	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
-
-	if w.skipSealHook != nil && w.skipSealHook(task) {
-		return
-	}
-
-	w.pendingMu.Lock()
-	w.pendingTasks[w.engine.SealHash(task.block.Header())] = task
-	w.pendingMu.Unlock()
-
-	if err := w.engine.Seal(w.chain, task.block, w.resultCh, w.prevTaskStopCh); err != nil {
-		log.Warn("Block sealing failed", "err", err)
-	}
-}
-
 // resultLoop is a standalone goroutine to handle sealing result submitting
 // and flush relative data to the database.
 func (w *worker) resultLoop() {
@@ -453,6 +524,41 @@ func (w *worker) resultLoop() {
 		case <-w.exitCh:
 			return
 		}
+	}
+}
+
+// interrupt aborts the in-flight sealing task.
+func (w *worker) interruptSealingTask() {
+	if w.prevTaskStopCh != nil {
+		close(w.prevTaskStopCh)
+		w.prevTaskStopCh = nil
+	}
+}
+
+func (w *worker) submitTaskToEngine(task *task) {
+	if w.newTaskHook != nil {
+		w.newTaskHook(task)
+	}
+
+	// Reject duplicate sealing work due to resubmitting.
+	sealHash := w.engine.SealHash(task.block.Header())
+	if sealHash == w.prevSealHash {
+		return
+	}
+	// Interrupt previous sealing operation
+	w.interruptSealingTask()
+	w.prevTaskStopCh, w.prevSealHash = make(chan struct{}), sealHash
+
+	if w.skipSealHook != nil && w.skipSealHook(task) {
+		return
+	}
+
+	w.pendingMu.Lock()
+	w.pendingTasks[w.engine.SealHash(task.block.Header())] = task
+	w.pendingMu.Unlock()
+
+	if err := w.engine.Seal(w.chain, task.block, w.resultCh, w.prevTaskStopCh); err != nil {
+		log.Warn("Block sealing failed", "err", err)
 	}
 }
 
