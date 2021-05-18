@@ -158,12 +158,14 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 	return NewEpochSealDonut(blsPubKeys, uint32(newValSet.MinQuorumSize()), epochNum, round, blockHash, parentEpochBlockHash)
 }
 
+type sealExtractorFn func(*istanbul.CommittedSubject) []byte
+
 // AggregateSeals returns the bls aggregation of the committed seals for the
 // messgages in mset. It returns a big.Int that represents a bitmap where each
 // set bit corresponds to the position of a validator in the list of validators
 // for this epoch that contributed a seal to the returned aggregate. It is
 // assumed that mset contains only commit messages.
-func AggregateSeals(mset MessageSet, sealExtractor func(*istanbul.CommittedSubject) []byte) (bitmap *big.Int, aggregateSeal []byte, err error) {
+func AggregateSeals(mset MessageSet, sealExtractor sealExtractorFn) (bitmap *big.Int, aggregateSeal []byte, err error) {
 	bitmap = big.NewInt(0)
 	committedSeals := make([][]byte, mset.Size())
 	for i, v := range mset.Values() {

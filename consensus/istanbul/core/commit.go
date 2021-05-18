@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
@@ -100,10 +101,9 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 }
 
 // handleCheckedCommitForPreviousSequence adds messages for the previous
-// sequence to the parent commit set.
-// If the subject digest of msg does not match that of the previous block or it
-// was not sent by one of the previous block's validators, an error is returned.
-// If this is the last block of the epoch then the epoch seal will also be validated.
+// sequence to the parent commit set.  If the subject digest of msg does not
+// match that of the previous block or it was not sent by one of the previous
+// block's validators, an error is returned.
 //
 // The parent commit set is maintained for the sole purpose of tracking uptime,
 // allowing commits that did not arrive in time to be part of their intended
@@ -113,19 +113,12 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
 
-	num := commit.Subject.View.Sequence.Uint64()
-	if num > 0 && istanbul.IsLastBlockOfEpoch(num, c.config.Epoch) {
-		// Retrieve the validator set for the previous proposal (which should
-		// match the one broadcast)
-		parentValset := c.backend.ParentBlockValidators(headBlock)
-		_, validator := parentValset.GetByAddress(msg.Address)
-		if validator == nil {
-			return errInvalidValidatorAddress
-		}
-		// Verifies the individual seal for this commit message for the epoch
-		if err := c.verifyEpochValidatorSetSeal(commit, num, c.current.ValidatorSet(), validator); err != nil {
-			return errInvalidEpochValidatorSetSeal
-		}
+	// Retrieve the validator set for the previous proposal (which should
+	// match the one broadcast)
+	parentValset := c.backend.ParentBlockValidators(headBlock)
+	_, validator := parentValset.GetByAddress(msg.Address)
+	if validator == nil {
+		return errInvalidValidatorAddress
 	}
 
 	// Ensure that the commit's digest (ie the received proposal's hash) matches the head block's hash
@@ -182,48 +175,61 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	//
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
+		round := c.current.Round()
 		proposal := c.current.Proposal()
+		validators := c.current.ValidatorSet()
 		// TODO understand how proposal can be nil.
 		if proposal == nil {
 			return nil
 		}
-
+		extractCommitSeal := func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal }
 		// Generate aggregate seal
-		aggregatedSeal, err := c.generateAggregateCommittedSeal()
+		seal := NewCommitSeal(proposal.Hash(), round)
+		sig, bitmap, err := generateValidAggregateSignature(logger, seal, commits, validators, extractCommitSeal)
 		if err != nil {
-			logger.Warn("Initial verificaction of aggregate commit signature failed", "err", err)
-			// Remove any bad committed seals and try again if sufficient commits remain
-			c.removeInvalidCommittedSeals()
-			if c.current.Commits().Size() < c.current.ValidatorSet().MinQuorumSize() {
-				// Wait for more commits
-				return nil
-			}
-			aggregatedSeal, err = c.generateAggregateCommittedSeal()
-		}
-		// If there is still an error then sit this round out, we can't continue.
-		if err != nil {
-			nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to aggregate commit seals", "err", err, "desired_round", nextRound)
+			// If there an error then sit this round out, we can't continue.
+			nextRound := new(big.Int).Add(round, common.Big1)
+			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate commit seal", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
+		}
+		if sig == nil {
+			// Some bad seals were encountered, wait for more commits.
+			return nil
+		}
+		aggregatedSeal := types.IstanbulAggregatedSeal{
+			Bitmap:    bitmap,
+			Signature: sig,
+			Round:     round,
 		}
 
 		// Set the epoch aggregate seal if this is the last block of the epoch
 		aggregatedEpochValidatorSetSeal := types.IstanbulEpochValidatorSetSeal{}
 		if istanbul.IsLastBlockOfEpoch(proposal.Number().Uint64(), c.config.Epoch) {
-			epochBitmap, epochAggregate, err := AggregateSeals(
-				c.current.Commits(),
-				func(c *istanbul.CommittedSubject) []byte { return c.EpochValidatorSetSeal },
-			)
+
+			seal, err := c.generateEpochValidatorSetData(num, uint8(round.Uint64()), proposal.Hash(), validators)
 			if err != nil {
 				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-				logger.Warn("Error on commit, waiting for desired round", "reason", "getAggregatedSeal", "err", err, "desired_round", nextRound)
+				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to build epoch seal data", "err", err, "desired_round", nextRound)
 				c.waitForDesiredRound(nextRound)
 				return nil
 			}
 
-			aggregatedEpochValidatorSetSeal.Bitmap = epochBitmap
-			aggregatedEpochValidatorSetSeal.Signature = epochAggregate
+			extractEpochSeal := func(c *istanbul.CommittedSubject) []byte { return c.EpochValidatorSetSeal }
+			sig, bitmap, err := generateValidAggregateSignature(logger, seal, commits, validators, extractEpochSeal)
+			if err != nil {
+				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
+				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate epoch seal", "err", err, "desired_round", nextRound)
+				c.waitForDesiredRound(nextRound)
+				return nil
+			}
+			if sig == nil {
+				// Some bad seals were encountered, wait for more commits.
+				return nil
+			}
+
+			aggregatedEpochValidatorSetSeal.Bitmap = bitmap
+			aggregatedEpochValidatorSetSeal.Signature = sig
 		}
 
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", commits)
@@ -237,25 +243,66 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 
 }
 
-// generateAggregateCommittedSeal will generate the aggregate committed seal
-// verify it and return it. It assumes that there is at least a quorum of
-// commits in the current round state.
-func (c *core) generateAggregateCommittedSeal() (types.IstanbulAggregatedSeal, error) {
+// generateValidAggregateSignature will generate an aggregate signature of the
+// provided seal. It is assumed that there will be exactly a quorum of messages
+// in commits, because core handles messages in a single threaded manner so
+// this will be called whenever we reach a quorum of messages. If the aggregate
+// signature turns out to be invalid then messages will be individually
+// verified and messges with invalid signatures removed from the message set.
+// If no messages are removed during this step then an error will be returned,
+// because this implies that there is a problem with the code. Otherwise if
+// individual messages with invalid signatures are found and removed then a nil
+// signature is returned since there are not enough messages left to form a
+// quorum.
+func generateValidAggregateSignature(
+	logger log.Logger,
+	seal *BLSSeal,
+	commits MessageSet,
+	validators istanbul.ValidatorSet,
+	sealExtractor sealExtractorFn,
+) ([]byte, *big.Int, error) {
+
+	l := logger.New("func", "generateAggregateCommittedSeal")
 	bitmap, aggregate, err := AggregateSeals(
-		c.current.Commits(),
-		func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal },
+		commits,
+		sealExtractor,
 	)
 	if err != nil {
-		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed to aggregate seals: %v", err)
+		return nil, nil, fmt.Errorf("failed to aggregate seals: %v", err)
 	}
 
-	aggregatedSeal := types.IstanbulAggregatedSeal{Bitmap: bitmap, Signature: aggregate, Round: c.current.Round()}
-
-	err = IstanbulAggregatedSeal(aggregatedSeal).Verify(c.current.Proposal().Hash(), c.current.ValidatorSet())
-	if err != nil {
-		return types.IstanbulAggregatedSeal{}, fmt.Errorf("failed verify aggregate seal: %v", err)
+	err = seal.VerifyAggregate(validators, aggregate, bitmap)
+	if err == nil {
+		// No error return the aggregate seal
+		return aggregate, bitmap, nil
 	}
-	return aggregatedSeal, nil
+
+	// Attempt to remove bad seals, if we do not remove any bad seals then
+	// there must be some other problem in the code.
+	prevSize := commits.Size()
+	for _, msg := range commits.Values() {
+		commit := msg.Commit()
+		// Continue if this commit has already been validated.
+		if commit.CommittedSealValid() {
+			continue
+		}
+		_, validator := validators.GetByAddress(msg.Address)
+		err := seal.Verify(validator.BLSPublicKey(), commit.CommittedSeal)
+		if err != nil {
+			commits.Remove(msg.Address)
+			l.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
+		} else {
+			// Mark this committed seal as valid
+			msg.Commit().SetCommittedSealValid()
+		}
+	}
+	// The signature verification failed and there were no individual bad
+	// seals, this is a code error.
+	if commits.Size() == prevSize {
+		return nil, nil, fmt.Errorf("failed to verify aggregate seal: %v", err)
+	}
+	// If commits were removed we now need to wait for a quorum again.
+	return nil, nil, nil
 }
 
 // removeInvalidCommittedSeals individually verifies the committed seal on each
