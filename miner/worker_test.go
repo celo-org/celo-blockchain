@@ -180,7 +180,7 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 		backend.txPool.AddLocals(pendingTxs)
 	}
 
-	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), backend.db, false)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), backend.db)
 	w.setTxFeeRecipient(testBankAddress)
 	w.setValidator(testBankAddress)
 

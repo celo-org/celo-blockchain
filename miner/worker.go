@@ -112,7 +112,7 @@ type worker struct {
 	blockConstructGauge metrics.Gauge
 }
 
-func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, db ethdb.Database, init bool) *worker {
+func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, db ethdb.Database) *worker {
 	worker := &worker{
 		config:              config,
 		chainConfig:         chainConfig,
