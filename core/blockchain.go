@@ -1563,7 +1563,7 @@ func (bc *BlockChain) addFutureBlock(block *types.Block) error {
 }
 
 // InsertChain attempts to insert the given batch of blocks in to the canonical
-// chain or, otherwise, create a fork. If an error is returned it will return
+// chain or, otherwise, fail (no reorgs allowed). If an error is returned it will return
 // the index number of the failing block as well an error describing what went
 // wrong.
 //
@@ -1975,8 +1975,8 @@ Error: %v
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local
-// chain, possibly creating a reorg. If an error is returned, it will return the
-// index number of the failing header as well an error describing what went wrong.
+// chain. If an error is returned, it will return the index number of the failing
+// header as well an error describing what went wrong.
 func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
 	start := time.Now()
 	if i, err := bc.hc.ValidateHeaderChain(chain, checkFreq, true); err != nil {

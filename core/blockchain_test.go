@@ -1285,6 +1285,8 @@ func testInsertDifferentChainDataAfterReset(t *testing.T, typ string, setHeadBlo
 }
 
 func TestTransactionIndices(t *testing.T) {
+	// log.Root().SetHandler(log.LvlFilterHandler(4, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+
 	// Configure and generate a sample block chain
 	var (
 		gendb   = rawdb.NewMemoryDatabase()
@@ -1404,6 +1406,8 @@ func TestTransactionIndices(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create tester chain: %v", err)
 		}
+		// We require this insert due to the requirement of inserting a block with a canonical parent
+		chain.InsertChain(blocks)
 		chain.InsertChain(blocks2[i : i+1]) // Feed chain a higher block to trigger indices updater.
 		time.Sleep(50 * time.Millisecond)   // Wait for indices initialisation
 		check(&tails[i], chain)
