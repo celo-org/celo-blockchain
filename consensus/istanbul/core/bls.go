@@ -10,6 +10,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -20,6 +21,21 @@ type IstanbulAggregatedSeal types.IstanbulAggregatedSeal
 func (s IstanbulAggregatedSeal) Verify(digest common.Hash, validators istanbul.ValidatorSet) error {
 	return NewCommitSeal(digest, s.Round).VerifyAggregate(validators, s.Signature, s.Bitmap)
 }
+
+// SignatureExtractorFunction extracts a bls signature and indication of
+// whether that signature has already been successfully verified from a commit
+// message. Currently we just have commit signatures and epoch signatures.
+type SignatureExtractorFunction func(*istanbul.CommittedSubject) (alreadyValidated bool, signature []byte)
+
+var (
+	ExtractCommitSeal = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
+		return c.CommittedSealValid(), c.CommittedSeal
+	}
+
+	ExtractEpochSeal = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
+		return false, c.EpochValidatorSetSeal
+	}
+)
 
 func NewCommitSeal(hash common.Hash, round *big.Int) *BLSSeal {
 	var buf bytes.Buffer
@@ -158,21 +174,92 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 	return NewEpochSealDonut(blsPubKeys, uint32(newValSet.MinQuorumSize()), epochNum, round, blockHash, parentEpochBlockHash)
 }
 
-type sealExtractorFn func(*istanbul.CommittedSubject) []byte
+// GenerateValidAggregateSignature will generate an aggregate signature of the
+// provided seal. It is assumed that there will be exactly a quorum of messages
+// in commits, because core handles messages in a single threaded manner so
+// this will be called whenever we reach a quorum of messages. If the aggregate
+// signature turns out to be invalid then messages will be individually
+// verified and messges with invalid signatures removed from the message set.
+// If no messages are removed during this step then an error will be returned,
+// because this implies that there is a problem with the code. Otherwise if
+// individual messages with invalid signatures are found and removed then a nil
+// signature is returned since there are not enough messages left to form a
+// quorum.
+func GenerateValidAggregateSignature(
+	logger log.Logger,
+	seal *BLSSeal,
+	commits MessageSet,
+	validators istanbul.ValidatorSet,
+	extractSignature SignatureExtractorFunction,
+) ([]byte, *big.Int, error) {
+
+	l := logger.New("func", "GenerateValidAggregateSignature")
+	bitmap, aggregate, err := AggregateSeals(
+		commits,
+		extractSignature,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to aggregate seals: %v", err)
+	}
+
+	err = seal.VerifyAggregate(validators, aggregate, bitmap)
+	if err == nil {
+		// No error return the aggregate seal
+		return aggregate, bitmap, nil
+	}
+
+	// Attempt to remove bad seals, if we do not remove any bad seals then
+	// there must be some other problem in the code.
+	prevSize := commits.Size()
+	RemoveInvalidSignatures(l, seal, extractSignature, commits, validators)
+	if commits.Size() == prevSize {
+		return nil, nil, fmt.Errorf("failed to verify aggregate seal: %v", err)
+	}
+	// If commits were removed we now need to wait for a quorum again.
+	return nil, nil, nil
+}
+
+// RemoveInvalidSignatures individually verifies the signature for the given
+// seal on each commit message and discards commits with invalid signatures.
+//
+// Note that commit messages are discarded from memory but the removal is not
+// persisted to disk, this should not pose a problem however because if this
+// step is reached again they will again be discarded.
+func RemoveInvalidSignatures(logger log.Logger, seal *BLSSeal, extractSignature SignatureExtractorFunction, commits MessageSet, validators istanbul.ValidatorSet) {
+	l := logger.New("func", "RemoveInvalidSignatures")
+	for _, msg := range commits.Values() {
+		commit := msg.Commit()
+		// Continue if this commit has already been validated.
+		alreadyVerified, sig := extractSignature(commit)
+		if alreadyVerified {
+			continue
+		}
+		_, validator := validators.GetByAddress(msg.Address)
+		err := seal.Verify(validator.BLSPublicKey(), sig)
+		if err != nil {
+			commits.Remove(msg.Address)
+			l.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
+		} else {
+			// Mark this committed seal as valid
+			msg.Commit().SetCommittedSealValid()
+		}
+	}
+}
 
 // AggregateSeals returns the bls aggregation of the committed seals for the
 // messgages in mset. It returns a big.Int that represents a bitmap where each
 // set bit corresponds to the position of a validator in the list of validators
 // for this epoch that contributed a seal to the returned aggregate. It is
 // assumed that mset contains only commit messages.
-func AggregateSeals(mset MessageSet, sealExtractor sealExtractorFn) (bitmap *big.Int, aggregateSeal []byte, err error) {
+func AggregateSeals(mset MessageSet, signatureExtractor SignatureExtractorFunction) (bitmap *big.Int, aggregateSeal []byte, err error) {
 	bitmap = big.NewInt(0)
 	committedSeals := make([][]byte, mset.Size())
 	for i, v := range mset.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
 
 		commit := v.Commit()
-		copy(committedSeals[i][:], sealExtractor(commit))
+		_, sig := signatureExtractor(commit)
+		copy(committedSeals[i][:], sig)
 
 		j, err := mset.GetAddressIndex(v.Address)
 		if err != nil {
@@ -199,23 +286,32 @@ func AggregateSeals(mset MessageSet, sealExtractor sealExtractorFn) (bitmap *big
 // validator was not found in the previous bitmap.
 // This function assumes that the provided seals' validator set is the same one
 // which produced the provided bitmap
-func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals MessageSet) (types.IstanbulAggregatedSeal, error) {
+func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, commits MessageSet) (types.IstanbulAggregatedSeal, error) {
 	// TODO(asa): Check for round equality...
 	// Check who already has signed the message
 	newBitmap := new(big.Int).Set(aggregatedSignature.Bitmap)
-	committedSeals := [][]byte{}
-	committedSeals = append(committedSeals, aggregatedSignature.Signature)
-	for _, v := range seals.Values() {
-		valIndex, err := seals.GetAddressIndex(v.Address)
+
+	committedSeals := make([][]byte, 0, commits.Size()+1)
+	committedSeals = append(committedSeals, aggregatedSignature.Signature[:])
+	for _, msg := range commits.Values() {
+		valIndex, err := commits.GetAddressIndex(msg.Address)
 		if err != nil {
 			return types.IstanbulAggregatedSeal{}, err
+		}
+		// Check that round matches
+		if msg.Commit().Subject.View.Round.Cmp(aggregatedSignature.Round) != 0 {
+			return types.IstanbulAggregatedSeal{}, fmt.Errorf(
+				"commit round %s does not match that of aggregate to be unioned with %s",
+				msg.Commit().Subject.View.Round.String(),
+				aggregatedSignature.Round.String(),
+			)
 		}
 
 		// if the bit was not set, this means we should add this signature to
 		// the batch
 		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
+			committedSeals = append(committedSeals, msg.Commit().CommittedSeal)
 		}
 	}
 

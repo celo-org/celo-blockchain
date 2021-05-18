@@ -953,14 +953,14 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 			return parentExtra.AggregatedSeal
 		}
 
-		logger = logger.New("parentAggregatedSeal", parentExtra.AggregatedSeal.String(), "cur_seq", seq)
-
+		logger = logger.New("createParentSeal", parentExtra.AggregatedSeal.String(), "cur_seq", seq)
 		parentCommits := sb.core.ParentCommits()
-		if parentCommits == nil || parentCommits.Size() == 0 {
-			logger.Debug("No additional seals to combine with ParentAggregatedSeal")
-			return parentExtra.AggregatedSeal
-		}
 
+		// need to pass the previous block from the parent to get the parent's validators
+		// (otherwise we'd be getting the validators for the current block)
+		parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
+
+		seal := istanbulCore.NewCommitSeal(parent.Hash(), parentExtra.AggregatedSeal.Round)
 		logger = logger.New("numParentCommits", parentCommits.Size())
 		logger.Trace("Found commit messages from previous sequence to combine with ParentAggregatedSeal")
 
@@ -972,14 +972,24 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 			return parentExtra.AggregatedSeal
 		}
 
-		// need to pass the previous block from the parent to get the parent's validators
-		// (otherwise we'd be getting the validators for the current block)
-		parentValidators := sb.getValidators(parent.Number.Uint64()-1, parent.ParentHash)
 		// only update to use the union if we indeed provided a valid aggregate signature for this block
-		err = istanbulCore.IstanbulAggregatedSeal(unionAggregatedSeal).Verify(parent.Hash(), parentValidators)
+		err = seal.VerifyAggregate(parentValidators, unionAggregatedSeal.Signature, unionAggregatedSeal.Bitmap)
 		if err != nil {
-			logger.Error("Failed to verify combined ParentAggregatedSeal", "err", err)
-			return parentExtra.AggregatedSeal
+			logger.Error("Initial combined ParentAggregatedSeal verification failed", "err", err)
+			// Attempt to remove any bad seals
+			istanbulCore.RemoveInvalidSignatures(logger, seal, istanbulCore.ExtractCommitSeal, parentCommits, parentValidators)
+			// Create a new union
+			unionAggregatedSeal, err = istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, parentCommits)
+			if err != nil {
+				logger.Error("Failed to combine commit messages with ParentAggregatedSeal", "err", err)
+				return parentExtra.AggregatedSeal
+			}
+			// See if the new version is valid
+			err = seal.VerifyAggregate(parentValidators, unionAggregatedSeal.Signature, unionAggregatedSeal.Bitmap)
+			if err != nil {
+				logger.Error("Secondary combined ParentAggregatedSeal verification failed", "err", err)
+				return parentExtra.AggregatedSeal
+			}
 		}
 
 		logger.Debug("Succeeded in verifying combined ParentAggregatedSeal", "combinedParentAggregatedSeal", unionAggregatedSeal.String())

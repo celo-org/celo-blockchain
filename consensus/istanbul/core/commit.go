@@ -17,14 +17,12 @@
 package core
 
 import (
-	"fmt"
 	"math/big"
 	"reflect"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/log"
 )
 
 // maxValidators represents the maximum number of validators the SNARK circuit supports
@@ -182,10 +180,9 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		if proposal == nil {
 			return nil
 		}
-		extractCommitSeal := func(c *istanbul.CommittedSubject) []byte { return c.CommittedSeal }
 		// Generate aggregate seal
 		seal := NewCommitSeal(proposal.Hash(), round)
-		sig, bitmap, err := generateValidAggregateSignature(logger, seal, commits, validators, extractCommitSeal)
+		sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, ExtractCommitSeal)
 		if err != nil {
 			// If there an error then sit this round out, we can't continue.
 			nextRound := new(big.Int).Add(round, common.Big1)
@@ -215,8 +212,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 				return nil
 			}
 
-			extractEpochSeal := func(c *istanbul.CommittedSubject) []byte { return c.EpochValidatorSetSeal }
-			sig, bitmap, err := generateValidAggregateSignature(logger, seal, commits, validators, extractEpochSeal)
+			sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, ExtractEpochSeal)
 			if err != nil {
 				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate epoch seal", "err", err, "desired_round", nextRound)
@@ -241,95 +237,6 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	}
 	return nil
 
-}
-
-// generateValidAggregateSignature will generate an aggregate signature of the
-// provided seal. It is assumed that there will be exactly a quorum of messages
-// in commits, because core handles messages in a single threaded manner so
-// this will be called whenever we reach a quorum of messages. If the aggregate
-// signature turns out to be invalid then messages will be individually
-// verified and messges with invalid signatures removed from the message set.
-// If no messages are removed during this step then an error will be returned,
-// because this implies that there is a problem with the code. Otherwise if
-// individual messages with invalid signatures are found and removed then a nil
-// signature is returned since there are not enough messages left to form a
-// quorum.
-func generateValidAggregateSignature(
-	logger log.Logger,
-	seal *BLSSeal,
-	commits MessageSet,
-	validators istanbul.ValidatorSet,
-	sealExtractor sealExtractorFn,
-) ([]byte, *big.Int, error) {
-
-	l := logger.New("func", "generateAggregateCommittedSeal")
-	bitmap, aggregate, err := AggregateSeals(
-		commits,
-		sealExtractor,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to aggregate seals: %v", err)
-	}
-
-	err = seal.VerifyAggregate(validators, aggregate, bitmap)
-	if err == nil {
-		// No error return the aggregate seal
-		return aggregate, bitmap, nil
-	}
-
-	// Attempt to remove bad seals, if we do not remove any bad seals then
-	// there must be some other problem in the code.
-	prevSize := commits.Size()
-	for _, msg := range commits.Values() {
-		commit := msg.Commit()
-		// Continue if this commit has already been validated.
-		if commit.CommittedSealValid() {
-			continue
-		}
-		_, validator := validators.GetByAddress(msg.Address)
-		err := seal.Verify(validator.BLSPublicKey(), commit.CommittedSeal)
-		if err != nil {
-			commits.Remove(msg.Address)
-			l.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
-		} else {
-			// Mark this committed seal as valid
-			msg.Commit().SetCommittedSealValid()
-		}
-	}
-	// The signature verification failed and there were no individual bad
-	// seals, this is a code error.
-	if commits.Size() == prevSize {
-		return nil, nil, fmt.Errorf("failed to verify aggregate seal: %v", err)
-	}
-	// If commits were removed we now need to wait for a quorum again.
-	return nil, nil, nil
-}
-
-// removeInvalidCommittedSeals individually verifies the committed seal on each
-// commit message and discards commits with invalid committed seals.
-//
-// Note that commit messages are discarded from memory but the removal is not
-// persisted to disk, this should not pose a problem however because if this
-// step is reached again they will again be discarded.
-func (c *core) removeInvalidCommittedSeals() {
-	logger := c.newLogger("func", "removeInvalidCommittedSeals")
-	commits := c.current.Commits()
-	for _, msg := range commits.Values() {
-		commit := msg.Commit()
-		// Continue if this commit has already been validated.
-		if commit.CommittedSealValid() {
-			continue
-		}
-		pubKey := c.current.GetValidatorByAddress(msg.Address).BLSPublicKey()
-		err := NewCommitSeal(commit.Subject.Digest, commit.Subject.View.Round).Verify(pubKey, commit.CommittedSeal)
-		if err != nil {
-			commits.Remove(msg.Address)
-			logger.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
-		} else {
-			// Mark this committed seal as valid
-			msg.Commit().SetCommittedSealValid()
-		}
-	}
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
