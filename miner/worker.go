@@ -74,7 +74,11 @@ type worker struct {
 	pendingLogsFeed event.Feed
 
 	// Subscriptions
-	mux *event.TypeMux
+	mux          *event.TypeMux
+	txsCh        chan core.NewTxsEvent
+	txsSub       event.Subscription
+	chainHeadCh  chan core.ChainHeadEvent
+	chainHeadSub event.Subscription
 
 	// Channels
 	resultCh chan *types.Block
@@ -121,12 +125,18 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		mux:                 mux,
 		chain:               eth.BlockChain(),
 		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		resultCh:            make(chan *types.Block, resultQueueSize),
 		exitCh:              make(chan struct{}),
 		startCh:             make(chan struct{}, 1),
 		db:                  db,
 		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 	}
+	// Subscribe NewTxsEvent for tx pool
+	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
+	// Subscribe events for blockchain
+	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	worker.loopCancel = cancel
@@ -350,14 +360,6 @@ func (w *worker) fullNodeLoop(ctx context.Context) {
 	var cancel context.CancelFunc
 	var wg sync.WaitGroup
 
-	// Setup channels and subscriptions
-	txsCh := make(chan core.NewTxsEvent, txChanSize)
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	txsSub := w.eth.TxPool().SubscribeNewTxsEvent(txsCh)
-	defer txsSub.Unsubscribe()
-	chainHeadSub := w.eth.BlockChain().SubscribeChainHeadEvent(chainHeadCh)
-	defer chainHeadSub.Unsubscribe()
-
 	for {
 		select {
 		case <-chainHeadCh:
@@ -368,7 +370,7 @@ func (w *worker) fullNodeLoop(ctx context.Context) {
 			taskCtx, cancel = context.WithCancel(ctx)
 			wg.Add(1)
 			go func() {
-				w.constructPendingStateBlock(taskCtx, txsCh)
+				w.constructPendingStateBlock(taskCtx, w.txsCh)
 				wg.Done()
 			}()
 
@@ -383,12 +385,12 @@ func (w *worker) fullNodeLoop(ctx context.Context) {
 				cancel()
 			}
 			return
-		case <-chainHeadSub.Err():
+		case <-w.chainHeadSub.Err():
 			if cancel != nil {
 				cancel()
 			}
 			return
-		case <-txsSub.Err():
+		case <-w.txsSub.Err():
 			if cancel != nil {
 				cancel()
 			}
@@ -398,10 +400,6 @@ func (w *worker) fullNodeLoop(ctx context.Context) {
 
 // validatorLoop is a standalone goroutine to create tasks and submit to the engine.
 func (w *worker) validatorLoop(ctx context.Context) {
-	// Setup channels and subscriptions
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	chainHeadSub := w.eth.BlockChain().SubscribeChainHeadEvent(chainHeadCh)
-	defer chainHeadSub.Unsubscribe()
 
 	// clearPending cleans the stale pending tasks.
 	clearPending := func(number uint64) {
@@ -432,7 +430,7 @@ func (w *worker) validatorLoop(ctx context.Context) {
 
 			go w.constructAndSubmitNewBlock(taskCtx)
 
-		case head := <-chainHeadCh:
+		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
 			clearPending(headNumber)
 			if cancel != nil {
@@ -455,11 +453,7 @@ func (w *worker) validatorLoop(ctx context.Context) {
 				cancel()
 			}
 			return
-		case err := <-chainHeadSub.Err():
-			if err == nil {
-				continue
-			}
-
+		case <-w.chainHeadSub.Err():
 			if cancel != nil {
 				cancel()
 			}
