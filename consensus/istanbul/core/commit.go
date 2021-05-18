@@ -184,9 +184,9 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		seal := NewCommitSeal(proposal.Hash(), round)
 		sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, extractCommitSignature)
 		if err != nil {
-			// If there an error then sit this round out, we can't continue.
+			// If there was an error then sit this round out, we can't continue.
 			nextRound := new(big.Int).Add(round, common.Big1)
-			logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate commit seal", "err", err, "desired_round", nextRound)
+			logger.Error("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate commit seal", "err", err, "desired_round", nextRound)
 			c.waitForDesiredRound(nextRound)
 			return nil
 		}
@@ -207,7 +207,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 			seal, err := c.generateEpochValidatorSetData(num, uint8(round.Uint64()), proposal.Hash(), validators)
 			if err != nil {
 				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to build epoch seal data", "err", err, "desired_round", nextRound)
+				logger.Error("Error on commit, waiting for desired round", "reason", "failed to build epoch seal data", "err", err, "desired_round", nextRound)
 				c.waitForDesiredRound(nextRound)
 				return nil
 			}
@@ -215,7 +215,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 			sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, extractEpochSignature)
 			if err != nil {
 				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
-				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate epoch seal", "err", err, "desired_round", nextRound)
+				logger.Error("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate epoch seal", "err", err, "desired_round", nextRound)
 				c.waitForDesiredRound(nextRound)
 				return nil
 			}

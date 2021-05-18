@@ -975,7 +975,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 		// only update to use the union if we indeed provided a valid aggregate signature for this block
 		err = seal.VerifyAggregate(parentValidators, unionAggregatedSeal.Signature, unionAggregatedSeal.Bitmap)
 		if err != nil {
-			logger.Error("Initial combined ParentAggregatedSeal verification failed", "err", err)
+			logger.Warn("Initial combined ParentAggregatedSeal verification failed", "err", err)
 			// Attempt to remove any bad seals
 			istanbulCore.RemoveInvalidSignatures(logger, seal, parentCommits, parentValidators)
 			// Create a new union
