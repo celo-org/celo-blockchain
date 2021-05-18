@@ -25,17 +25,42 @@ func (s IstanbulAggregatedSeal) Verify(digest common.Hash, validators istanbul.V
 // SignatureExtractorFunction extracts a bls signature and indication of
 // whether that signature has already been successfully verified from a commit
 // message. Currently we just have commit signatures and epoch signatures.
-type SignatureExtractorFunction func(*istanbul.CommittedSubject) (alreadyValidated bool, signature []byte)
+type SignatureExtractorFunction func(*istanbul.CommittedSubject) (alreadyVerified bool, signature []byte)
+
+// SignatureMarkerFunction marks a commit's bls signature as valid. Currently we
+// only have commit signatures and epoch signatures.
+type SignatureMarkerFunction func(*istanbul.CommittedSubject)
 
 var (
-	ExtractCommitSeal = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
-		return c.CommittedSealValid(), c.CommittedSeal
+	extractCommitSignature = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
+		return c.CommittedSealVerified(), c.CommittedSeal
 	}
 
-	ExtractEpochSeal = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
+	markCommitSignatureVerified = func(c *istanbul.CommittedSubject) {
+		c.SetCommittedSealVerified()
+	}
+
+	extractEpochSignature = func(c *istanbul.CommittedSubject) (alreadyVerified bool, signature []byte) {
 		return false, c.EpochValidatorSetSeal
 	}
+
+	markEpochSignatureVerified = func(c *istanbul.CommittedSubject) {
+		c.SetEpochSealVerified()
+	}
 )
+
+// BLSSeal encapsulates functionality to sign, verify, verify in aggregate,
+// extract and mark verified different seals. Depending on the parameterisation
+// an instance of BLSSeal can represent the commit seal (found on each block)
+// and both types of epoch block seal (found on the last block of an epoch).
+type BLSSeal struct {
+	Seal             []byte
+	ExtraData        []byte
+	CompositeHasher  bool
+	Cip22            bool
+	ExtractSignature SignatureExtractorFunction
+	MarkVerified     SignatureMarkerFunction
+}
 
 func NewCommitSeal(hash common.Hash, round *big.Int) *BLSSeal {
 	var buf bytes.Buffer
@@ -43,10 +68,12 @@ func NewCommitSeal(hash common.Hash, round *big.Int) *BLSSeal {
 	buf.Write(round.Bytes())
 	buf.Write([]byte{byte(istanbul.MsgCommit)})
 	return &BLSSeal{
-		Seal:            buf.Bytes(),
-		ExtraData:       []byte{},
-		CompositeHasher: false,
-		Cip22:           false,
+		Seal:             buf.Bytes(),
+		ExtraData:        []byte{},
+		CompositeHasher:  false,
+		Cip22:            false,
+		ExtractSignature: extractCommitSignature,
+		MarkVerified:     markCommitSignatureVerified,
 	}
 }
 
@@ -55,10 +82,12 @@ func NewEpochSeal(keys []blscrypto.SerializedPublicKey, maxNonSigners uint32, ep
 
 	// This is before the Donut hardfork, so signify this doesn't use CIP22.
 	return &BLSSeal{
-		Seal:            message,
-		ExtraData:       extraData,
-		CompositeHasher: true,
-		Cip22:           false,
+		Seal:             message,
+		ExtraData:        extraData,
+		CompositeHasher:  true,
+		Cip22:            false,
+		ExtractSignature: extractEpochSignature,
+		MarkVerified:     markEpochSignatureVerified,
 	}, err
 }
 
@@ -71,18 +100,13 @@ func NewEpochSealDonut(keys []blscrypto.SerializedPublicKey, quorumSize uint32, 
 		blscrypto.EpochEntropyFromHash(parentEpochBlockHash),
 	)
 	return &BLSSeal{
-		Seal:            message,
-		ExtraData:       extraData,
-		CompositeHasher: true,
-		Cip22:           true,
+		Seal:             message,
+		ExtraData:        extraData,
+		CompositeHasher:  true,
+		Cip22:            true,
+		ExtractSignature: extractEpochSignature,
+		MarkVerified:     markEpochSignatureVerified,
 	}, err
-}
-
-type BLSSeal struct {
-	Seal            []byte
-	ExtraData       []byte
-	CompositeHasher bool
-	Cip22           bool
 }
 
 type signFn func(seal []byte, extraData []byte, compositeHasher, cip22 bool) ([]byte, error)
@@ -211,7 +235,7 @@ func GenerateValidAggregateSignature(
 	// Attempt to remove bad seals, if we do not remove any bad seals then
 	// there must be some other problem in the code.
 	prevSize := commits.Size()
-	RemoveInvalidSignatures(l, seal, extractSignature, commits, validators)
+	RemoveInvalidSignatures(l, seal, commits, validators)
 	if commits.Size() == prevSize {
 		return nil, nil, fmt.Errorf("failed to verify aggregate seal: %v", err)
 	}
@@ -225,12 +249,12 @@ func GenerateValidAggregateSignature(
 // Note that commit messages are discarded from memory but the removal is not
 // persisted to disk, this should not pose a problem however because if this
 // step is reached again they will again be discarded.
-func RemoveInvalidSignatures(logger log.Logger, seal *BLSSeal, extractSignature SignatureExtractorFunction, commits MessageSet, validators istanbul.ValidatorSet) {
+func RemoveInvalidSignatures(logger log.Logger, seal *BLSSeal, commits MessageSet, validators istanbul.ValidatorSet) {
 	l := logger.New("func", "RemoveInvalidSignatures")
 	for _, msg := range commits.Values() {
 		commit := msg.Commit()
 		// Continue if this commit has already been validated.
-		alreadyVerified, sig := extractSignature(commit)
+		alreadyVerified, sig := seal.ExtractSignature(commit)
 		if alreadyVerified {
 			continue
 		}
@@ -241,7 +265,7 @@ func RemoveInvalidSignatures(logger log.Logger, seal *BLSSeal, extractSignature 
 			l.Warn("Invalid committed seal received", "from", msg.Address.String(), "err", err)
 		} else {
 			// Mark this committed seal as valid
-			msg.Commit().SetCommittedSealValid()
+			seal.MarkVerified(commit)
 		}
 	}
 }

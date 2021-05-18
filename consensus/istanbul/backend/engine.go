@@ -977,7 +977,7 @@ func (sb *Backend) addParentSeal(chain consensus.ChainReader, header *types.Head
 		if err != nil {
 			logger.Error("Initial combined ParentAggregatedSeal verification failed", "err", err)
 			// Attempt to remove any bad seals
-			istanbulCore.RemoveInvalidSignatures(logger, seal, istanbulCore.ExtractCommitSeal, parentCommits, parentValidators)
+			istanbulCore.RemoveInvalidSignatures(logger, seal, parentCommits, parentValidators)
 			// Create a new union
 			unionAggregatedSeal, err = istanbulCore.UnionOfSeals(parentExtra.AggregatedSeal, parentCommits)
 			if err != nil {

@@ -321,18 +321,32 @@ type CommittedSubject struct {
 	EpochValidatorSetSeal []byte
 	// Cahed result of validating the committed seal
 	committedSealValid bool
+	// Cahed result of validating the epoch seal
+	epochSealValid bool
+}
+
+// CommittedSealVerified returns true if the committed seal is valid, and false if
+// the committed seal has not yet been validated.
+func (c *CommittedSubject) CommittedSealVerified() bool {
+	return c.committedSealValid
+}
+
+// SetCommittedSealVerified marks this committed subject as having a valid
+// committed seal.
+func (c *CommittedSubject) SetCommittedSealVerified() {
+	c.committedSealValid = true
 }
 
 // CommittedSealValid returns true if the committed seal is valid, and false if
 // the committed seal has not yet been validated.
-func (c *CommittedSubject) CommittedSealValid() bool {
-	return c.committedSealValid
+func (c *CommittedSubject) EpochSealVerified() bool {
+	return c.epochSealValid
 }
 
-// SetCommittedSealValid marks this committed subject as having a valid
+// SetEpochSealVerified marks this committed subject as having a valid
 // committed seal.
-func (c *CommittedSubject) SetCommittedSealValid() {
-	c.committedSealValid = true
+func (c *CommittedSubject) SetEpochSealVerified() {
+	c.epochSealValid = true
 }
 
 // ## ForwardMessage #################################################################

@@ -182,7 +182,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 		}
 		// Generate aggregate seal
 		seal := NewCommitSeal(proposal.Hash(), round)
-		sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, ExtractCommitSeal)
+		sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, extractCommitSignature)
 		if err != nil {
 			// If there an error then sit this round out, we can't continue.
 			nextRound := new(big.Int).Add(round, common.Big1)
@@ -212,7 +212,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 				return nil
 			}
 
-			sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, ExtractEpochSeal)
+			sig, bitmap, err := GenerateValidAggregateSignature(logger, seal, commits, validators, extractEpochSignature)
 			if err != nil {
 				nextRound := new(big.Int).Add(c.current.Round(), common.Big1)
 				logger.Warn("Error on commit, waiting for desired round", "reason", "failed to generate valid aggregate epoch seal", "err", err, "desired_round", nextRound)
