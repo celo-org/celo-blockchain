@@ -433,7 +433,6 @@ func (w *worker) validatorLoop(ctx context.Context) {
 	// Context and cancel function for the currently executing block construction
 	var taskCtx context.Context
 	var cancel context.CancelFunc
-	var wg sync.WaitGroup
 
 	for {
 		select {
@@ -446,11 +445,8 @@ func (w *worker) validatorLoop(ctx context.Context) {
 				h.NewWork()
 			}
 			taskCtx, cancel = context.WithCancel(ctx)
-			wg.Add(1)
-			go func() {
-				w.constructAndSubmitNewBlock(taskCtx)
-				wg.Done()
-			}()
+
+			go w.constructAndSubmitNewBlock(taskCtx)
 
 		case head := <-w.chainHeadCh:
 			headNumber := head.Block.NumberU64()
@@ -462,11 +458,7 @@ func (w *worker) validatorLoop(ctx context.Context) {
 				h.NewWork()
 			}
 			taskCtx, cancel = context.WithCancel(ctx)
-			wg.Add(1)
-			go func() {
-				w.constructAndSubmitNewBlock(taskCtx)
-				wg.Done()
-			}()
+			go w.constructAndSubmitNewBlock(taskCtx)
 
 		// System stopped
 		case <-ctx.Done():
