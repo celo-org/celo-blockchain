@@ -55,9 +55,6 @@ var (
 	// errInvalidSignature is returned when given signature is not signed by given
 	// address.
 	errInvalidSignature = errors.New("invalid signature")
-	// errInsufficientSeals is returned when there is not enough signatures to
-	// pass the quorum check.
-	errInsufficientSeals = errors.New("not enough seals to reach quorum")
 	// errUnknownBlock is returned when the list of validators or header is requested for a block
 	// that is not part of the local blockchain.
 	errUnknownBlock = errors.New("unknown block")
