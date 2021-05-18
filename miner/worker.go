@@ -232,6 +232,10 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
+	// Unsubscribe here as we will start/stop the validator/full node loops prior to exiting
+	w.chainHeadSub.Unsubscribe()
+	w.txsSub.Unsubscribe()
+
 	w.loopCancel()
 	w.interruptSealingTask()
 	close(w.exitCh)
