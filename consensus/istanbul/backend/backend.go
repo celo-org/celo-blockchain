@@ -520,19 +520,19 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	if sb.proposedBlockHash == block.Hash() {
 		// feed block hash to Seal() and wait the Seal() result
 		sb.commitCh <- block
-		return nil
+	} else {
+		// If caller didn't provide a result, try verifying the block to produce one
+		if result == nil {
+			// This is a suboptimal path, since caller is expected to already have a result available
+			// and thus to avoid doing the block processing again
+			sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
+			if result, _, err = sb.Verify(proposal); err != nil {
+				return err
+			}
+		}
+		go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	}
 
-	// If caller didn't provide a result, try verifying the block to produce one
-	if result == nil {
-		// This is a suboptimal path, since caller is expected to already have a result available
-		// and thus to avoid doing the block processing again
-		sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
-		if result, _, err = sb.Verify(proposal); err != nil {
-			return err
-		}
-	}
-	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	return nil
 }
 

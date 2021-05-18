@@ -507,27 +507,38 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	return block, nil
 }
 
-// Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// update the block header timestamp and signature and propose the block to core engine
-	header := block.Header()
-	number := header.Number.Uint64()
-
-	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
+// checkIsValidSigner checks if validator is a valid signer for the block
+// returns an error if not
+func (sb *Backend) checkIsValidSigner(chain consensus.ChainReader, header *types.Header) error {
+	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
-	if _, v := snap.ValSet.GetByAddress(sb.address); v == nil {
+
+	_, v := snap.ValSet.GetByAddress(sb.address)
+	if v == nil {
 		return errUnauthorized
 	}
+	return nil
+}
 
-	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
+// Seal generates a new block for the given input block with the local miner's
+// seal place on top.
+func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+
+	header := block.Header()
+
+	// Bail out if we're unauthorized to sign a block
+	if err := sb.checkIsValidSigner(chain, header); err != nil {
+		return err
+	}
+
+	if parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1); parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	block, err = sb.signBlock(block)
+
+	// update the block header timestamp and signature and propose the block to core engine
+	block, err := sb.signBlock(block)
 	if err != nil {
 		return err
 	}
@@ -541,12 +552,11 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	}
 
 	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
+	go sb.EventMux().Post(istanbul.RequestEvent{Proposal: block})
 
 	go func() {
 		defer clear()
+
 		for {
 			select {
 			case result := <-sb.commitCh:
