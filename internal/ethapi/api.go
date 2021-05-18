@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contract_comm/currency"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -411,6 +412,10 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args SendTxArgs
 	}
 	if args.Nonce == nil {
 		return nil, fmt.Errorf("nonce not specified")
+	}
+	// Before actually sign the transaction, ensure the transaction fee is reasonable.
+	if err := checkCeloTxArgsFee(ctx, s.b, args); err != nil {
+		return nil, err
 	}
 	signed, err := s.signTransaction(ctx, &args, passwd)
 	if err != nil {
@@ -1555,15 +1560,8 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
 	// If the transaction fee cap is already specified, ensure the
 	// fee of the given transaction is _reasonable_.
-	if b.RPCTxFeeCap() != 0 {
-		currencyManager, err := NewCurrencyManager(ctx, b)
-		if err != nil {
-			return common.Hash{}, err
-		}
-		feeCap := GetWei(b.RPCTxFeeCap())
-		if currencyManager.CmpValues(tx.Fee(), tx.FeeCurrency(), feeCap, nil) > 0 {
-			return common.Hash{}, fmt.Errorf("tx fee (%d celo) exceeds the configured cap (%d celo)", tx.Fee().Uint64(), int64(b.RPCTxFeeCap()))
-		}
+	if err := checkCeloTxFeeTx(ctx, b, tx); err != nil {
+		return common.Hash{}, err
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
@@ -1687,6 +1685,10 @@ func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args Sen
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
 	}
+	// Before actually sign the transaction, ensure the transaction fee is reasonable.
+	if err := checkCeloTxArgsFee(ctx, s.b, args); err != nil {
+		return nil, err
+	}
 	tx, err := s.sign(args.From, args.toTransaction())
 	if err != nil {
 		return nil, err
@@ -1735,11 +1737,24 @@ func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs SendTxAr
 		return common.Hash{}, err
 	}
 	matchTx := sendArgs.toTransaction()
+
+	// Before replacing the old transaction, ensure the _new_ transaction fee is reasonable.
+	var price = matchTx.GasPrice()
+	if gasPrice != nil {
+		price = gasPrice.ToInt()
+	}
+	var gas = matchTx.Gas()
+	if gasLimit != nil {
+		gas = uint64(*gasLimit)
+	}
+	if err := checkCeloTxFee(ctx, s.b, sendArgs.FeeCurrency, price, gas, (*big.Int)(sendArgs.GatewayFee)); err != nil {
+		return common.Hash{}, err
+	}
+	// Iterate the pending list for replacement
 	pending, err := s.b.GetPoolTransactions()
 	if err != nil {
 		return common.Hash{}, err
 	}
-
 	for _, p := range pending {
 		var signer types.Signer = types.HomesteadSigner{}
 		if p.Protected() {
@@ -1867,4 +1882,19 @@ func (s *PublicNetAPI) PeerCount() hexutil.Uint {
 // Version returns the current ethereum protocol version.
 func (s *PublicNetAPI) Version() string {
 	return fmt.Sprintf("%d", s.networkVersion)
+}
+
+// checkTxFee is an internal function used to check whether the fee of
+// the given transaction is _reasonable_(under the cap).
+func checkTxFee(cm *currency.CurrencyManager, feeCurrency *common.Address, fee *big.Int, cap float64) error {
+	// Short circuit if there is no cap for transaction fee at all.
+	if cap == 0 {
+		return nil
+	}
+	weiCap := getWei(cap)
+	if cm.CmpValues(fee, feeCurrency, weiCap, nil) > 0 {
+		feeFloat := float64(fee.Uint64()) / params.Ether
+		return fmt.Errorf("tx fee (%.2f ether) exceeds the configured cap (%.2f celo)", feeFloat, cap)
+	}
+	return nil
 }

@@ -295,8 +295,13 @@ func (tx *Transaction) Nonce() uint64                        { return tx.data.Ac
 func (tx *Transaction) CheckNonce() bool                     { return true }
 func (tx *Transaction) EthCompatible() bool                  { return tx.data.EthCompatible }
 func (tx *Transaction) Fee() *big.Int {
-	gasFee := new(big.Int).Mul(tx.data.Price, big.NewInt(int64(tx.data.GasLimit)))
-	return gasFee.Add(gasFee, tx.data.GatewayFee)
+	return Fee(tx.data.Price, tx.data.GasLimit, tx.data.GatewayFee)
+}
+
+// Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
+func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
+	gasFee := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))
+	return gasFee.Add(gasFee, gatewayFee)
 }
 
 // To returns the recipient address of the transaction.
