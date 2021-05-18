@@ -306,6 +306,13 @@ func SignBLSFn(key *ecdsa.PrivateKey) istanbul.BLSSignerFn {
 	}
 }
 
+func signerFn(key *ecdsa.PrivateKey) func(data, extraData []byte, compositeHasher, cip22 bool) ([]byte, error) {
+	return func(data []byte, extraData []byte, useComposite, cip22 bool) ([]byte, error) {
+		sig, err := SignBLSFn(key)(accounts.Account{}, data, extraData, useComposite, cip22)
+		return sig[:], err
+	}
+}
+
 func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 	if key == nil {
 		key, _ = generatePrivateKey()
@@ -319,9 +326,6 @@ func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 // this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
 // block's hash, on consensus round 0, without a composite hasher
 func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
-	extraData := []byte{}
-	useComposite := false
-	cip22 := false
 	round := big.NewInt(0)
 	headerHash := block.Header().Hash()
 	signatures := make([][]byte, len(keys))
@@ -329,12 +333,11 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 	msg := istanbulCore.NewCommitSeal(headerHash, round)
 
 	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg.Seal, extraData, useComposite, cip22)
+		sig, err := msg.Sign(signerFn(key))
 		if err != nil {
 			panic("could not sign msg")
 		}
-		signatures[i] = sig[:]
+		signatures[i] = sig
 	}
 
 	asigBytes, err := blscrypto.AggregateSignatures(signatures)
@@ -360,13 +363,17 @@ func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggre
 // this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
 // an abtirary message
 func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
-	useComposite := true
-	cip22 := true
-	signatures := make([][]byte, len(keys))
 
+	msg := &istanbulCore.BLSSeal{
+		Seal:            message,
+		ExtraData:       extraData,
+		CompositeHasher: true,
+		Cip22:           true,
+	}
+
+	signatures := make([][]byte, len(keys))
 	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, message, extraData, useComposite, cip22)
+		sig, err := msg.Sign(signerFn(key))
 		if err != nil {
 			panic("could not sign msg")
 		}

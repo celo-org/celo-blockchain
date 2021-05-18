@@ -13,7 +13,8 @@ import (
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
-// Ideally we can move the aggregated seal here
+// Make a local copy of types.IstanbulAggregatedSeal so that we can add functionality to it.
+// Unfortunately it is not easy to move types.IstanbulAggregatedSeal here.
 type IstanbulAggregatedSeal types.IstanbulAggregatedSeal
 
 func (s IstanbulAggregatedSeal) Verify(digest common.Hash, validators istanbul.ValidatorSet) error {
