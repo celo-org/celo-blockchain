@@ -102,7 +102,8 @@ type worker struct {
 	snapshotState *state.StateDB
 
 	// atomic status counters
-	running int32 // The indicator whether the consensus engine is running or not.
+	running    int32              // The indicator whether the consensus engine is running or not.
+	loopCancel context.CancelFunc // Func to cancel the validtor/full node loop
 
 	// Test hooks
 	newTaskHook  func(*task)      // Method to call upon receiving a new sealing task.
@@ -137,7 +138,10 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
-	go worker.mainLoop()
+	ctx, cancel := context.WithCancel(context.Background())
+	worker.loopCancel = cancel
+
+	go worker.fullNodeLoop(ctx)
 	go worker.resultLoop()
 
 	// Submit first work to initialize pending state.
@@ -189,6 +193,10 @@ func (w *worker) pendingBlock() *types.Block {
 
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
+	w.loopCancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	w.loopCancel = cancel
+	go w.validatorLoop(ctx)
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
 
@@ -208,6 +216,10 @@ func (w *worker) start() {
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
+	w.loopCancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	w.loopCancel = cancel
+	go w.fullNodeLoop(ctx)
 	w.interruptSealingTask()
 	atomic.StoreInt32(&w.running, 0)
 
@@ -224,6 +236,7 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
+	w.loopCancel()
 	w.interruptSealingTask()
 	close(w.exitCh)
 }
@@ -343,10 +356,12 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 
 }
 
-func (w *worker) fullNodeLoop() {
+// fullNodeLoop applies pending transactions to the current block and makes the result available as the
+// pending block.
+func (w *worker) fullNodeLoop(ctx context.Context) {
 	defer w.chainHeadSub.Unsubscribe()
 	// Context and cancel function for the currently executing block construction
-	var ctx context.Context
+	var taskCtx context.Context
 	var cancel context.CancelFunc
 	var wg sync.WaitGroup
 
@@ -357,10 +372,10 @@ func (w *worker) fullNodeLoop() {
 				cancel()
 			}
 			wg.Wait()
-			ctx, cancel = context.WithCancel(context.Background())
+			taskCtx, cancel = context.WithCancel(ctx)
 			wg.Add(1)
 			go func() {
-				w.constructPendingStateBlock(ctx, w.txsCh)
+				w.constructPendingStateBlock(taskCtx, w.txsCh)
 				wg.Done()
 			}()
 
@@ -369,14 +384,19 @@ func (w *worker) fullNodeLoop() {
 				cancel()
 			}
 			wg.Wait()
-			ctx, cancel = context.WithCancel(context.Background())
+			taskCtx, cancel = context.WithCancel(ctx)
 			wg.Add(1)
 			go func() {
-				w.constructPendingStateBlock(ctx, w.txsCh)
+				w.constructPendingStateBlock(taskCtx, w.txsCh)
 				wg.Done()
 			}()
 
 		// System stopped
+		case <-ctx.Done():
+			if cancel != nil {
+				cancel()
+			}
+			return
 		case <-w.exitCh:
 			if cancel != nil {
 				cancel()
@@ -395,8 +415,8 @@ func (w *worker) fullNodeLoop() {
 	}
 }
 
-// mainLoop is a standalone goroutine to regenerate the sealing task based on the received event.
-func (w *worker) mainLoop() {
+// validatorLoop is a standalone goroutine to create tasks and submit to the engine.
+func (w *worker) validatorLoop(ctx context.Context) {
 	defer w.chainHeadSub.Unsubscribe()
 
 	// clearPending cleans the stale pending tasks.
@@ -411,7 +431,7 @@ func (w *worker) mainLoop() {
 	}
 
 	// Context and cancel function for the currently executing block construction
-	var ctx context.Context
+	var taskCtx context.Context
 	var cancel context.CancelFunc
 	var wg sync.WaitGroup
 
@@ -425,10 +445,10 @@ func (w *worker) mainLoop() {
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			ctx, cancel = context.WithCancel(context.Background())
+			taskCtx, cancel = context.WithCancel(ctx)
 			wg.Add(1)
 			go func() {
-				w.constructAndSubmitNewBlock(ctx)
+				w.constructAndSubmitNewBlock(taskCtx)
 				wg.Done()
 			}()
 
@@ -441,14 +461,19 @@ func (w *worker) mainLoop() {
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
-			ctx, cancel = context.WithCancel(context.Background())
+			taskCtx, cancel = context.WithCancel(ctx)
 			wg.Add(1)
 			go func() {
-				w.constructAndSubmitNewBlock(ctx)
+				w.constructAndSubmitNewBlock(taskCtx)
 				wg.Done()
 			}()
 
 		// System stopped
+		case <-ctx.Done():
+			if cancel != nil {
+				cancel()
+			}
+			return
 		case <-w.exitCh:
 			if cancel != nil {
 				cancel()
