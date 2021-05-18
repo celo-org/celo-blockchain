@@ -140,24 +140,36 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 // without the real blocks. Hence, writing headers directly should only be done
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
-func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, err error) {
+func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 	// Cache some values to prevent constant recalculation
 	var (
 		hash     = header.Hash()
 		number   = header.Number.Uint64()
 		externTd *big.Int
+		head     = hc.CurrentHeader().Number.Uint64()
 	)
 
 	if cannonicalHash := hc.GetCanonicalHash(number); (cannonicalHash != common.Hash{} && cannonicalHash != hash) {
 		log.Error("Found two headers with same height", "old", cannonicalHash, "new", hash)
-		return NonStatTy, errParentNotCanonical
+		return NonStatTy, errAlreadyCanonical
 	}
 
-	// Calculate the total difficulty of the header.
-	// ptd seems to be abbreviation of "parent total difficulty".
-	// In IBFT, the announced td (total difficulty) is 1 + block number.
-	ptd := hc.GetTd(header.ParentHash, number-1)
-	if ptd == nil {
+	// This is only possible if !FullHeaderChainAvailable, otherwise would have failed in
+	// the "exiting canonical" at the same height
+	if head > number {
+		log.Debug("Encountered a header with height lower than main chain",
+			"extern height", number, "local height", head)
+		// In the case of FullHeaderChainAvailable, header already inserted
+		// if !FullHeaderChainAvailable, already inserted or gap
+		return NonStatTy, nil
+	}
+
+	parentCannonicalHash := hc.GetCanonicalHash(number - 1)
+	if (parentCannonicalHash != common.Hash{}) {
+		if parentCannonicalHash != header.ParentHash {
+			return NonStatTy, errParentNotCanonical
+		}
+	} else {
 		if hc.config.FullHeaderChainAvailable {
 			return NonStatTy, consensus.ErrUnknownAncestor
 		}
@@ -165,69 +177,25 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, er
 
 	externTd = big.NewInt(int64(number + 1))
 
-	// Irrelevant of the canonical status, write the td and header to the database
-	//
 	// Note all the components of header(td, hash->number index and header) should
 	// be written atomically.
 	headerBatch := hc.chainDb.NewBatch()
 	rawdb.WriteTd(headerBatch, hash, number, externTd)
 	rawdb.WriteHeader(headerBatch, header)
+	rawdb.WriteCanonicalHash(headerBatch, hash, number)
+	rawdb.WriteHeadHeaderHash(headerBatch, hash)
 	if err := headerBatch.Write(); err != nil {
 		log.Crit("Failed to write header into disk", "err", err)
-	}
-	// If the header can be added into canonical chain, adjust the
-	// header chain markers(canonical indexes and head header flag).
-	//
-	// Note all markers should be written atomically.
-
-	// Delete any canonical number assignments above the new head
-	markerBatch := hc.chainDb.NewBatch()
-	for i := number + 1; ; i++ {
-		hash := rawdb.ReadCanonicalHash(hc.chainDb, i)
-		if hash == (common.Hash{}) {
-			break
-		}
-		rawdb.DeleteCanonicalHash(markerBatch, i)
-	}
-
-	// Overwrite any stale canonical number assignments
-	var (
-		headHash   = header.ParentHash
-		headNumber = header.Number.Uint64() - 1
-		headHeader = hc.GetHeader(headHash, headNumber)
-	)
-	for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
-		// In some sync modes we do not have all headers.
-		if !hc.config.FullHeaderChainAvailable {
-			if headHeader == nil {
-				log.Debug("WriteHeader/nil head header encountered")
-				break
-			}
-		}
-
-		rawdb.WriteCanonicalHash(markerBatch, headHash, headNumber)
-
-		headHash = headHeader.ParentHash
-		headNumber = headHeader.Number.Uint64() - 1
-		headHeader = hc.GetHeader(headHash, headNumber)
-	}
-	// Extend the canonical chain with the new header
-	rawdb.WriteCanonicalHash(markerBatch, hash, number)
-	rawdb.WriteHeadHeaderHash(markerBatch, hash)
-	if err := markerBatch.Write(); err != nil {
-		log.Crit("Failed to write header markers into disk", "err", err)
 	}
 	// Last step update all in-memory head header markers
 	hc.currentHeaderHash = hash
 	hc.currentHeader.Store(types.CopyHeader(header))
 	headHeaderGauge.Update(header.Number.Int64())
 
-	status = CanonStatTy
-
 	hc.tdCache.Add(hash, externTd)
 	hc.headerCache.Add(hash, header)
 	hc.numberCache.Add(hash, number)
-	return
+	return CanonStatTy, nil
 }
 
 // WhCallback is a callback function for inserting individual headers.
