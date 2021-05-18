@@ -103,7 +103,7 @@ type worker struct {
 
 	// atomic status counters
 	running    int32              // The indicator whether the consensus engine is running or not.
-	loopCancel context.CancelFunc // Func to cancel the validtor/full node loop
+	loopCancel context.CancelFunc // Func to cancel the validator/full node loop
 
 	// Test hooks
 	newTaskHook  func(*task)      // Method to call upon receiving a new sealing task.
