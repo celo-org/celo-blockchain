@@ -387,6 +387,10 @@ func (w *worker) fullNodeLoop() {
 				cancel()
 			}
 			return
+		case <-w.txsSub.Err():
+			if cancel != nil {
+				cancel()
+			}
 		}
 	}
 }
