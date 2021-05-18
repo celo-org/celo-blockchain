@@ -308,7 +308,7 @@ func (sb *Backend) verifyAggregatedSeals(chain consensus.ChainReader, header *ty
 		// parent.Hash() would correspond to the previous epoch
 		// block in ultralight, while the extra.ParentCommit is made on the block which was
 		// immediately before the current block.
-		return istanbulCore.IstanbulAggregatedSeal(extra.AggregatedSeal).Verify(header.ParentHash, parentValidators)
+		return istanbulCore.IstanbulAggregatedSeal(extra.ParentAggregatedSeal).Verify(header.ParentHash, parentValidators)
 	}
 
 	return nil
