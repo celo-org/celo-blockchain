@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPrepare(t *testing.T) {
@@ -204,54 +205,40 @@ func TestVerifySeal(t *testing.T) {
 
 	// cannot verify genesis
 	err := engine.VerifySeal(chain, genesis.Header())
-	if err != errUnknownBlock {
-		t.Errorf("error mismatch: have %v, want %v", err, errUnknownBlock)
-	}
+	assert.Error(t, err)
 
 	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
 	header := block.Header()
 	err = engine.VerifySeal(chain, header)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	assert.NoError(t, err)
 
 	// change header content and expect to invalidate signature
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(chain, header)
-	if err != errInvalidSignature {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
-	}
+	assert.Error(t, err)
 
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
 	err = engine.VerifySeal(chain, header)
-	if err != errInvalidExtraDataFormat {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
-	}
+	assert.Error(t, err)
 
 	// modify seal bitmap and expect to fail the quorum check
 	header = block.Header()
 	extra, err := types.ExtractIstanbulExtra(header)
-	if err != nil {
-		t.Fatalf("failed to extract istanbul data: %v", err)
-	}
+	assert.NoError(t, err)
+
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
 	encoded, err := rlp.EncodeToBytes(extra)
-	if err != nil {
-		t.Fatalf("failed to encode istanbul data: %v", err)
-	}
+	assert.NoError(t, err)
+
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
 	err = engine.VerifySeal(chain, header)
-	if err != errInsufficientSeals {
-		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
-	}
+	assert.Error(t, err)
 
 	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestVerifyHeaders(t *testing.T) {
