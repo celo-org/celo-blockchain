@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
@@ -20,10 +21,12 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -86,21 +89,23 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	b.StartAnnouncing()
 
 	if !isProxy {
-		b.SetBlockProcessors(blockchain.HasBadBlock,
+		b.SetCallBacks(blockchain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
-			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
+			blockchain.Validator().ValidateState,
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+				if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+					panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
+				}
 			})
-
 		if isProxied {
 			b.StartProxiedValidatorEngine()
 		}
 		b.StartValidating()
 	}
 
-	contract_comm.SetInternalEVMHandler(blockchain)
+	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(blockchain))
 
 	return blockchain, b, &config
 }
@@ -111,7 +116,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	validators := make([]istanbul.ValidatorData, n)
 	for i := 0; i < n; i++ {
 		var addr common.Address
-		if i == 1 {
+		if i == 0 {
 			nodeKeys[i], _ = generatePrivateKey()
 			addr = getAddress()
 		} else {
@@ -143,6 +148,38 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	return genesis, nodeKeys
 }
 
+func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul.ValidatorData) {
+	if len(genesis.ExtraData) < types.IstanbulExtraVanity {
+		genesis.ExtraData = append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...)
+	}
+	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
+
+	var addrs []common.Address
+	var publicKeys []blscrypto.SerializedPublicKey
+
+	for i := range validators {
+		if (validators[i].BLSPublicKey == blscrypto.SerializedPublicKey{}) {
+			panic("BLSPublicKey is nil")
+		}
+		addrs = append(addrs, validators[i].Address)
+		publicKeys = append(publicKeys, validators[i].BLSPublicKey)
+	}
+
+	ist := &types.IstanbulExtra{
+		AddedValidators:           addrs,
+		AddedValidatorsPublicKeys: publicKeys,
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+	}
+
+	istPayload, err := rlp.EncodeToBytes(&ist)
+	if err != nil {
+		panic("failed to encode istanbul extra")
+	}
+	genesis.ExtraData = append(genesis.ExtraData, istPayload...)
+}
+
 func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
@@ -156,24 +193,29 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 
 func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
-	block, _ = engine.updateBlock(parent.Header(), block)
 
 	// start the sealing procedure
 	results := make(chan *types.Block)
-	go func() {
-		err := engine.Seal(chain, block, results, nil)
-		if err != nil {
-			panic(err)
-		}
-	}()
 
-	// create the sig and call Commit so that the result is pushed to the channel
-	aggregatedSeal := signBlock(keys, block)
-	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
-	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
+	// start seal request (this is non blocking)
+	err := engine.Seal(chain, block, results, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	// create the sig and call Commit so that the result is pushed to the channel
+	block, err = engine.signBlock(block)
+	if err != nil {
+		return nil, err
+	}
+	aggregatedSeal := signBlock(keys, block)
+	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
+	err = engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// wait for seal job to finish
 	block = <-results
 
 	// insert the block to the chain so that we can make multiple calls to this function
@@ -181,6 +223,10 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	if err != nil {
 		return nil, err
 	}
+
+	// Notify the core engine to stop working on current Seal.
+	go engine.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+
 	return block, nil
 }
 

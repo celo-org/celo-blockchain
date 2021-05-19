@@ -221,7 +221,7 @@ func EmptyPreparedCertificate() PreparedCertificate {
 	block = block.WithEpochSnarkData(&types.EmptyEpochSnarkData)
 
 	return PreparedCertificate{
-		Proposal:                block.WithSeal(emptyHeader),
+		Proposal:                block.WithHeader(emptyHeader),
 		PrepareOrCommitMessages: []Message{},
 	}
 }

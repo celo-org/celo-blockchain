@@ -27,6 +27,10 @@ var (
 
 	// ErrNoGenesis is returned when there is no Genesis Block.
 	ErrNoGenesis = errors.New("genesis not found in chain")
+
+	// ErrNotHeadBlock is returned when block to insert is not the next head
+	// of the canonical chain
+	ErrNotHeadBlock = errors.New("block is not next head block")
 )
 
 // List of evm-call-message pre-checking errors. All state transition messages will

@@ -514,27 +514,38 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainReader, header *type
 	return block, nil
 }
 
-// Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// update the block header timestamp and signature and propose the block to core engine
-	header := block.Header()
-	number := header.Number.Uint64()
-
-	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
+// checkIsValidSigner checks if validator is a valid signer for the block
+// returns an error if not
+func (sb *Backend) checkIsValidSigner(chain consensus.ChainReader, header *types.Header) error {
+	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
-	if _, v := snap.ValSet.GetByAddress(sb.address); v == nil {
+
+	_, v := snap.ValSet.GetByAddress(sb.address)
+	if v == nil {
 		return errUnauthorized
 	}
+	return nil
+}
 
-	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
+// Seal generates a new block for the given input block with the local miner's
+// seal place on top.
+func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+
+	header := block.Header()
+
+	// Bail out if we're unauthorized to sign a block
+	if err := sb.checkIsValidSigner(chain, header); err != nil {
+		return err
+	}
+
+	if parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1); parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	block, err = sb.updateBlock(parent, block)
+
+	// update the block header timestamp and signature and propose the block to core engine
+	block, err := sb.signBlock(block)
 	if err != nil {
 		return err
 	}
@@ -548,12 +559,11 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 	}
 
 	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
+	go sb.EventMux().Post(istanbul.RequestEvent{Proposal: block})
 
 	go func() {
 		defer clear()
+
 		for {
 			select {
 			case result := <-sb.commitCh:
@@ -577,8 +587,8 @@ func (sb *Backend) SealHash(header *types.Header) common.Hash {
 	return sigHash(header)
 }
 
-// update timestamp and signature of the block based on its number of transactions
-func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types.Block, error) {
+// signBlock signs block with a seal
+func (sb *Backend) signBlock(block *types.Block) (*types.Block, error) {
 	header := block.Header()
 	// sign the hash
 	seal, err := sb.Sign(sigHash(header).Bytes())
@@ -591,7 +601,7 @@ func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types
 		return nil, err
 	}
 
-	return block.WithSeal(header), nil
+	return block.WithHeader(header), nil
 }
 
 // APIs returns the RPC APIs this consensus engine provides.
@@ -655,10 +665,11 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	}
 }
 
-// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
-func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
+// SetCallBacks implements consensus.Istanbul.SetCallBacks
+func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -668,7 +679,7 @@ func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
 	sb.validateState = validateState
-
+	sb.onNewConsensusBlock = onNewConsensusBlock
 	return nil
 }
 

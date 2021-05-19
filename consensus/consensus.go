@@ -178,10 +178,11 @@ type Istanbul interface {
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainReader, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
-	// SetBlockProcessors sets block processors
-	SetBlockProcessors(hasBadBlock func(common.Hash) bool,
+	// SetCallBacks sets call back functions
+	SetCallBacks(hasBadBlock func(common.Hash) bool,
 		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+		onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error
 
 	// StartValidating starts the validating engine
 	StartValidating() error

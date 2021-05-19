@@ -112,8 +112,7 @@ func init() {
 
 func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionInfo, error) {
 	version := [3]*big.Int{big.NewInt(0), big.NewInt(0), big.NewInt(0)}
-	var err error
-	_, err = contract_comm.MakeStaticCall(
+	err := contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"getMinimumClientVersion",
@@ -129,13 +128,12 @@ func GetMinimumVersion(header *types.Header, state vm.StateDB) (*params.VersionI
 	return &params.VersionInfo{Major: version[0].Uint64(), Minor: version[1].Uint64(), Patch: version[2].Uint64()}, nil
 }
 
-func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, method string) uint64 {
+func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.StateDB) uint64 {
 	var gas *big.Int
-	var err error
-	_, err = contract_comm.MakeStaticCall(
+	err := contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
-		method,
+		"intrinsicGasForAlternativeFeeCurrency",
 		[]interface{}{},
 		&gas,
 		params.MaxGasForReadBlockchainParameter,
@@ -143,15 +141,11 @@ func GetGasCost(header *types.Header, state vm.StateDB, defaultGas uint64, metho
 		state,
 	)
 	if err != nil {
-		log.Trace("Default gas", "gas", defaultGas, "method", method)
-		return defaultGas
+		log.Trace("Default gas", "gas", params.IntrinsicGasForAlternativeFeeCurrency, "method", "intrinsicGasForAlternativeFeeCurrency")
+		return params.IntrinsicGasForAlternativeFeeCurrency
 	}
 	log.Trace("Reading gas", "gas", gas)
 	return gas.Uint64()
-}
-
-func GetIntrinsicGasForAlternativeFeeCurrency(header *types.Header, state vm.StateDB) uint64 {
-	return GetGasCost(header, state, params.IntrinsicGasForAlternativeFeeCurrency, "intrinsicGasForAlternativeFeeCurrency")
 }
 
 func CheckMinimumVersion(header *types.Header, state vm.StateDB) {
@@ -184,7 +178,7 @@ func SpawnCheck() {
 
 func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 	var gasLimit *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	err := contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"blockGasLimit",
@@ -207,7 +201,7 @@ func GetBlockGasLimit(header *types.Header, state vm.StateDB) (uint64, error) {
 
 func GetLookbackWindow(header *types.Header, state vm.StateDB) (uint64, error) {
 	var lookbackWindow *big.Int
-	_, err := contract_comm.MakeStaticCall(
+	err := contract_comm.MakeStaticCall(
 		params.BlockchainParametersRegistryId,
 		blockchainParametersABI,
 		"getUptimeLookbackWindow",
