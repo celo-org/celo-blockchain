@@ -269,7 +269,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 	start := time.Now()
 
 	// Initialize the block.
-	b, err := w.prepareBlock()
+	b, err := prepareBlock(w)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -316,7 +316,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 // until it is full or the context is cancelled.
 func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
 	// Initialize the block.
-	b, err := w.prepareBlock()
+	b, err := prepareBlock(w)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return

@@ -51,7 +51,7 @@ type blockState struct {
 }
 
 // prepareBlock intializes a new blockState that is ready to have transaction included to.
-func (w *worker) prepareBlock() (*blockState, error) {
+func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
