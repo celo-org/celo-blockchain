@@ -9,8 +9,8 @@ RUN apt update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN rustup target add aarch64-unknown-linux-gnu
-RUN wget https://dl.google.com/go/go1.16.2.linux-amd64.tar.gz && \
-    tar xf go1.16.2.linux-amd64.tar.gz -C /usr/local
+RUN wget https://dl.google.com/go/go1.16.4.linux-amd64.tar.gz && \
+    tar xf go1.16.4.linux-amd64.tar.gz -C /usr/local
 
 COPY . /go-ethereum
 WORKDIR /go-ethereum
