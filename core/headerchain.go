@@ -132,8 +132,7 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 }
 
 // WriteHeader writes a header into the local chain, given that its parent is
-// already known. If the total difficulty of the newly inserted header becomes
-// greater than the current known TD, the canonical chain is re-routed.
+// already known.
 //
 // Note: This method is not concurrent-safe with inserting blocks simultaneously
 // into the chain, as side effects caused by reorganisations cannot be emulated
@@ -143,35 +142,29 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 	// Cache some values to prevent constant recalculation
 	var (
-		hash     = header.Hash()
-		number   = header.Number.Uint64()
-		externTd *big.Int
-		head     = hc.CurrentHeader().Number.Uint64()
+		hash       = header.Hash()
+		number     = header.Number.Uint64()
+		externTd   *big.Int
+		head       = hc.CurrentHeader()
+		headNumber = head.Number.Uint64()
 	)
 
-	if cannonicalHash := hc.GetCanonicalHash(number); (cannonicalHash != common.Hash{} && cannonicalHash != hash) {
-		log.Error("Found two headers with same height", "old", cannonicalHash, "new", hash)
-		return NonStatTy, errAlreadyCanonical
-	}
-
-	// This is only possible if !FullHeaderChainAvailable, otherwise would have failed in
-	// the "exiting canonical" at the same height
-	if head > number {
-		log.Debug("Encountered a header with height lower than main chain",
-			"extern height", number, "local height", head)
-		// In the case of FullHeaderChainAvailable, header already inserted
-		// if !FullHeaderChainAvailable, already inserted or gap
-		return NonStatTy, nil
-	}
-
-	parentCannonicalHash := hc.GetCanonicalHash(number - 1)
-	if (parentCannonicalHash != common.Hash{}) {
-		if parentCannonicalHash != header.ParentHash {
-			return NonStatTy, errParentNotCanonical
-		}
-	} else {
-		if hc.config.FullHeaderChainAvailable {
-			return NonStatTy, consensus.ErrUnknownAncestor
+	if head.Hash() != header.ParentHash {
+		if hc.config.FullHeaderChainAvailable || (number-1) == headNumber {
+			return NonStatTy, fmt.Errorf(
+				"parent not canonical: fail to write header %s, expected parent hash %s, current head %s",
+				header.ShortString(),
+				header.ParentHash.ShortString(),
+				head.ShortString())
+		} else {
+			// if it's not a full header chain, ensure that the parent's number of the new header is
+			// bigger that the canonical one
+			if headNumber >= number {
+				return NonStatTy, fmt.Errorf(
+					"fail to write header %s, current head %s bigger or equal height",
+					header.ShortString(),
+					head.ShortString())
+			}
 		}
 	}
 

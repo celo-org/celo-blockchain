@@ -77,8 +77,6 @@ var (
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errCommitmentNotFound   = errors.New("randomness commitment not found")
-	errParentNotCanonical   = errors.New("parent not canonical, reorgs disabled")
-	errAlreadyCanonical     = errors.New("already a canonical block in same level, reorgs disabled")
 )
 
 const (
@@ -1396,7 +1394,11 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 
 	current := bc.CurrentBlock()
 	if block.ParentHash() != current.Hash() {
-		return errParentNotCanonical
+		return fmt.Errorf(
+			"parent not canonical: fail to write block %s, expected parent hash %s, current head %s",
+			block.ShortString(),
+			block.ParentHash().ShortString(),
+			current.ShortString())
 	}
 	bc.writeHeadBlock(block)
 	return nil
@@ -1418,7 +1420,10 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 		log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
-		return NonStatTy, errAlreadyCanonical
+		return NonStatTy, fmt.Errorf(
+			"fail to insert block %s: already a canonical block %s in same level",
+			block.ShortString(),
+			hash.ShortString())
 	}
 
 	randomCommitment := common.Hash{}
@@ -1639,7 +1644,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		}
 		if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 			log.Error("Insert chain new block with same height as an old one", "old", hash, "new", block.Hash())
-			return 0, errAlreadyCanonical
+			return 0, fmt.Errorf(
+				"fail to insert block %s: already a canonical block %s in same level",
+				block.ShortString(),
+				hash.ShortString())
 		}
 	}
 	if len(chain) == skippableBlocks {

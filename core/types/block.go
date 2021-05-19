@@ -97,6 +97,11 @@ func (h *Header) SanityCheck() error {
 	return nil
 }
 
+// ShortString returns the block number and short hash separated b a colon.
+func (h *Header) ShortString() string {
+	return fmt.Sprintf("%d:%s", h.Number.Uint64(), h.Hash().ShortString())
+}
+
 func rlpHash(x interface{}) (h common.Hash) {
 	hw := sha3.NewLegacyKeccak256()
 	rlp.Encode(hw, x)
@@ -427,6 +432,11 @@ func (b *Block) Hash() common.Hash {
 	v := b.header.Hash()
 	b.hash.Store(v)
 	return v
+}
+
+// ShortString returns the block number and short hash separated b a colon.
+func (b *Block) ShortString() string {
+	return fmt.Sprintf("%d:%s", b.NumberU64(), b.Hash().ShortString())
 }
 
 type Blocks []*Block
