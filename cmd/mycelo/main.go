@@ -10,9 +10,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
@@ -62,7 +62,7 @@ func init() {
 		loadBotCommand,
 		envCommand,
 	}
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 func main() {

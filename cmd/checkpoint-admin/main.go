@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common/fdlimit"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"github.com/celo-org/celo-blockchain/log"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -37,7 +37,7 @@ var (
 var app *cli.App
 
 func init() {
-	app = utils.NewApp(gitCommit, gitDate, "ethereum checkpoint helper tool")
+	app = flags.NewApp(gitCommit, gitDate, "ethereum checkpoint helper tool")
 	app.Commands = []cli.Command{
 		commandStatus,
 		commandDeploy,
@@ -48,7 +48,7 @@ func init() {
 		oracleFlag,
 		nodeURLFlag,
 	}
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 // Commonly used command line flags.

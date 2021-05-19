@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/cmd/evm/internal/t8ntool"
 	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -31,7 +32,7 @@ var gitCommit = "" // Git SHA1 commit hash of the release (set via linker flags)
 var gitDate = ""
 
 var (
-	app = utils.NewApp(gitCommit, gitDate, "the evm command line interface")
+	app = flags.NewApp(gitCommit, gitDate, "the evm command line interface")
 
 	DebugFlag = cli.BoolFlag{
 		Name:  "debug",
@@ -180,7 +181,7 @@ func init() {
 		stateTestCommand,
 		stateTransitionCommand,
 	}
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 func main() {
