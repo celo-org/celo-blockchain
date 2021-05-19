@@ -19,7 +19,6 @@ package backend
 import (
 	"bytes"
 	"math/big"
-	"reflect"
 	"testing"
 	"time"
 
@@ -27,73 +26,76 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
+	. "github.com/onsi/gomega"
 )
 
+func stopEngine(engine *Backend) {
+	engine.StopValidating()
+	engine.StopAnnouncing()
+}
+
 func TestPrepare(t *testing.T) {
+	g := NewGomegaWithT(t)
+
 	chain, engine := newBlockChain(1, true)
+	defer stopEngine(engine)
 	header := makeHeader(chain.Genesis(), engine.config)
 	err := engine.Prepare(chain, header)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
+
 	header.ParentHash = common.BytesToHash([]byte("1234567890"))
 	err = engine.Prepare(chain, header)
-	if err != consensus.ErrUnknownAncestor {
-		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrUnknownAncestor)
-	}
+	g.Expect(err).To(BeIdenticalTo(consensus.ErrUnknownAncestor))
 }
 
 func TestMakeBlockWithSignature(t *testing.T) {
+	g := NewGomegaWithT(t)
+
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer stopEngine(engine)
 	genesis := chain.Genesis()
+
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	block2, err := makeBlock(nodeKeys, chain, engine, block)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	_, err = makeBlock(nodeKeys, chain, engine, block2)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestSealStopChannel(t *testing.T) {
+	g := NewGomegaWithT(t)
+
 	chain, engine := newBlockChain(1, true)
+	defer stopEngine(engine)
+
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	stop := make(chan struct{}, 1)
+
 	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
-	eventLoop := func() {
+	go func() {
+		defer eventSub.Unsubscribe()
 		ev := <-eventSub.Chan()
 		_, ok := ev.Data.(istanbul.RequestEvent)
-		if !ok {
-			t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
-		}
+		g.Expect(ok).To((BeTrue()), "unexpected event")
+
 		stop <- struct{}{}
-		eventSub.Unsubscribe()
-	}
-	go eventLoop()
+	}()
+
 	results := make(chan *types.Block)
 
 	err := engine.Seal(chain, block, results, stop)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
-	select {
-	case <-results:
-		t.Errorf("Did not expect a block")
-	case <-time.After(time.Second):
-	}
+	g.Consistently(results, "1s").ShouldNot(Receive())
 }
 
 // TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
@@ -105,15 +107,16 @@ func TestSealCommittedOtherHash(t *testing.T) {
 }
 
 func testSealCommittedOtherHash(t *testing.T, numValidators int) {
+	g := NewGomegaWithT(t)
+
 	chain, engine := newBlockChain(numValidators, true)
+	defer stopEngine(engine)
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	// create a second block which will have a different hash
 	h := block.Header()
 	h.ParentHash = block.Hash()
 	otherBlock := types.NewBlock(h, nil, nil, nil)
-	if block.Hash() == otherBlock.Hash() {
-		t.Fatalf("did not create different blocks")
-	}
+	g.Expect(block.Hash()).NotTo(Equal(otherBlock.Hash()), "did not create different blocks")
 
 	results := make(chan *types.Block)
 	engine.Seal(chain, block, results, nil)
@@ -124,140 +127,121 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 		<-results
 	}
 	// this commit should _NOT_ push a new message to the queue
-	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{})
+	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
 
-	select {
-	case res := <-results:
-		t.Fatal("seal should not be completed", res)
-	case <-time.After(100 * time.Millisecond):
-	}
+	g.Consistently(results, "100ms").ShouldNot(Receive(), "seal should not be completed")
 }
 
 func TestSealCommitted(t *testing.T) {
+	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
+	defer stopEngine(engine)
+	// In normal case, the StateProcessResult should be passed into Commit
+	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
+
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	expectedBlock, _ := engine.updateBlock(engine.chain.GetHeader(block.ParentHash(), block.NumberU64()-1), block)
+	expectedBlock, _ := engine.signBlock(block)
 
 	results := make(chan *types.Block)
 	go func() {
 		err := engine.Seal(chain, block, results, nil)
-		if err != nil {
-			t.Errorf("error mismatch: have %v, want nil", err)
-		}
+		g.Expect(err).NotTo(HaveOccurred())
 	}()
 
-	finalBlock := <-results
-	if finalBlock.Hash() != expectedBlock.Hash() {
-		t.Errorf("hash mismatch: have %v, want %v", finalBlock.Hash(), expectedBlock.Hash())
-	}
+	var finalBlock *types.Block
+	g.Eventually(results, "1s").Should(Receive(&finalBlock))
+	g.Expect(finalBlock.Hash()).To(Equal(expectedBlock.Hash()))
 }
 
 func TestVerifyHeader(t *testing.T) {
+	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
+	defer stopEngine(engine)
 
 	// errEmptyAggregatedSeal case
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	block, _ = engine.updateBlock(chain.Genesis().Header(), block)
+	block, _ = engine.signBlock(block)
 	err := engine.VerifyHeader(chain, block.Header(), false)
-	if err != errEmptyAggregatedSeal {
-		t.Errorf("error mismatch: have %v, want %v", err, errEmptyAggregatedSeal)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errEmptyAggregatedSeal))
 
 	// short extra data
 	header := block.Header()
 	header.Extra = []byte{}
 	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidExtraDataFormat {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
+
 	// incorrect extra format
 	header.Extra = []byte("0000000000000000000000000000000012300000000000000000000000000000000000000000000000000000000000000000")
 	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidExtraDataFormat {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
 
 	// invalid timestamp
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
 	header.Time = chain.Genesis().Time() + engine.config.BlockPeriod - 1
 	err = engine.VerifyHeader(chain, header, false)
-	if err != errInvalidTimestamp {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidTimestamp)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInvalidTimestamp))
 
 	// future block
 	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
 	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
-	if err != consensus.ErrFutureBlock {
-		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
-	}
+	g.Expect(err).Should(BeIdenticalTo(consensus.ErrFutureBlock))
 }
 
 func TestVerifySeal(t *testing.T) {
+	g := NewGomegaWithT(t)
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer stopEngine(engine)
+
 	genesis := chain.Genesis()
 
 	// cannot verify genesis
 	err := engine.VerifySeal(chain, genesis.Header())
-	if err != errUnknownBlock {
-		t.Errorf("error mismatch: have %v, want %v", err, errUnknownBlock)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
+	// should verify
 	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
 	header := block.Header()
 	err = engine.VerifySeal(chain, header)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	// change header content and expect to invalidate signature
 	header.Number = big.NewInt(4)
 	err = engine.VerifySeal(chain, header)
-	if err != errInvalidSignature {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInvalidSignature))
 
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
 	err = engine.VerifySeal(chain, header)
-	if err != errInvalidExtraDataFormat {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidExtraDataFormat)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
 
 	// modify seal bitmap and expect to fail the quorum check
 	header = block.Header()
 	extra, err := types.ExtractIstanbulExtra(header)
-	if err != nil {
-		t.Fatalf("failed to extract istanbul data: %v", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 	extra.AggregatedSeal.Bitmap = big.NewInt(0)
 	encoded, err := rlp.EncodeToBytes(extra)
-	if err != nil {
-		t.Fatalf("failed to encode istanbul data: %v", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
 	err = engine.VerifySeal(chain, header)
-	if err != errInsufficientSeals {
-		t.Errorf("error mismatch: have %v, want %v", err, errInsufficientSeals)
-	}
+	g.Expect(err).Should(BeIdenticalTo(errInsufficientSeals))
 
 	// verifiy the seal on the unmodified block.
 	err = engine.VerifySeal(chain, block.Header())
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestVerifyHeaders(t *testing.T) {
+
 	numValidators := 4
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer stopEngine(engine)
 	genesis := chain.Genesis()
 
 	// success case
@@ -265,6 +249,7 @@ func TestVerifyHeaders(t *testing.T) {
 	blocks := []*types.Block{}
 	size := 10
 
+	// generate blocks
 	for i := 0; i < size; i++ {
 		var b *types.Block
 		if i == 0 {
@@ -276,121 +261,126 @@ func TestVerifyHeaders(t *testing.T) {
 		blocks = append(blocks, b)
 		headers = append(headers, blocks[i].Header())
 	}
+
+	// mock istanbul now() function
 	now = func() time.Time {
 		return time.Unix(int64(headers[size-1].Time), 0)
 	}
-	_, results := engine.VerifyHeaders(chain, headers, nil)
-	const timeoutDura = 2 * time.Second
-	timeout := time.NewTimer(timeoutDura)
-	index := 0
-OUT1:
-	for {
-		select {
-		case err := <-results:
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-				break OUT1
-			}
-			index++
-			if index == size {
-				break OUT1
-			}
-		case <-timeout.C:
-			break OUT1
-		}
-	}
-	// abort cases
-	abort, results := engine.VerifyHeaders(chain, headers, nil)
-	timeout = time.NewTimer(timeoutDura)
-	index = 0
-OUT2:
-	for {
-		select {
-		case err := <-results:
-			if err != nil {
-				t.Errorf("error mismatch: have %v, want nil", err)
-				break OUT2
-			}
-			index++
-			if index == 1 {
-				abort <- struct{}{}
-			}
-			if index >= size {
-				t.Errorf("verifyheaders should be aborted")
-				break OUT2
-			}
-		case <-timeout.C:
-			break OUT2
-		}
-	}
-	// error header cases
-	headers[2].Number = big.NewInt(100)
-	_, results = engine.VerifyHeaders(chain, headers, nil)
-	timeout = time.NewTimer(timeoutDura)
-	index = 0
-	errors := 0
-	expectedErrors := 8
-OUT3:
-	for {
-		select {
-		case err := <-results:
-			if err != nil {
-				errors++
-			}
-			index++
-			if index == size {
-				if errors != expectedErrors {
-					t.Errorf("error mismatch: have %v, want %v", errors, expectedErrors)
+
+	t.Run("Success case", func(t *testing.T) {
+		_, results := engine.VerifyHeaders(chain, headers, nil)
+
+		timeout := time.NewTimer(2 * time.Second)
+		index := 0
+	OUT1:
+		for {
+			select {
+			case err := <-results:
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+					break OUT1
 				}
+				index++
+				if index == size {
+					break OUT1
+				}
+			case <-timeout.C:
+				break OUT1
+			}
+		}
+	})
+
+	t.Run("Abort case", func(t *testing.T) {
+		// abort cases
+		abort, results := engine.VerifyHeaders(chain, headers, nil)
+		timeout := time.NewTimer(2 * time.Second)
+
+		index := 0
+	OUT:
+		for {
+			select {
+			case err := <-results:
+				if err != nil {
+					t.Errorf("error mismatch: have %v, want nil", err)
+					break OUT
+				}
+				index++
+				if index == 1 {
+					abort <- struct{}{}
+				}
+				if index >= size {
+					t.Errorf("verifyheaders should be aborted")
+					break OUT
+				}
+			case <-timeout.C:
+				break OUT
+			}
+		}
+	})
+
+	t.Run("Error Header cases", func(t *testing.T) {
+		// error header cases
+		headers[2].Number = big.NewInt(100)
+		_, results := engine.VerifyHeaders(chain, headers, nil)
+		timeout := time.NewTimer(2 * time.Second)
+		index := 0
+		errors := 0
+		expectedErrors := 8
+	OUT3:
+		for {
+			select {
+			case err := <-results:
+				if err != nil {
+					errors++
+				}
+				index++
+				if index == size {
+					if errors != expectedErrors {
+						t.Errorf("error mismatch: have %v, want %v", errors, expectedErrors)
+					}
+					break OUT3
+				}
+			case <-timeout.C:
 				break OUT3
 			}
-		case <-timeout.C:
-			break OUT3
 		}
-	}
+	})
 }
 
 func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	chain, engine := newBlockChain(1, false)
+	defer stopEngine(engine)
 
-	// allow future block without full chain available
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header := block.Header()
-	header.Time = uint64(now().Unix() + 3)
-	err := engine.VerifyHeader(chain, header, false)
-	if err != errEmptyAggregatedSeal {
-		t.Errorf("error mismatch: have %v, want %v", err, errEmptyAggregatedSeal)
-	}
+	t.Run("should allow future block without full chain available", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+		header := block.Header()
+		header.Time = uint64(now().Unix() + 3)
+		err := engine.VerifyHeader(chain, header, false)
+		g.Expect(err).To(BeIdenticalTo(errEmptyAggregatedSeal))
+	})
 
-	// reject future block without full chain available
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	header = block.Header()
-	header.Time = uint64(now().Unix() + 10)
-	err = engine.VerifyHeader(chain, header, false)
-	if err != consensus.ErrFutureBlock {
-		t.Errorf("error mismatch: have %v, want %v", err, consensus.ErrFutureBlock)
-	}
+	t.Run("should reject future block without full chain available", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+		header := block.Header()
+		header.Time = uint64(now().Unix() + 10)
+		err := engine.VerifyHeader(chain, header, false)
+		g.Expect(err).To(BeIdenticalTo(consensus.ErrFutureBlock))
+	})
 }
 
 func TestPrepareExtra(t *testing.T) {
-	oldValidators := make([]istanbul.ValidatorData, 2)
-	oldValidators[0] = istanbul.ValidatorData{
-		Address:      common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
-		BLSPublicKey: blscrypto.SerializedPublicKey{},
-	}
-	oldValidators[1] = istanbul.ValidatorData{
-		Address:      common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
-		BLSPublicKey: blscrypto.SerializedPublicKey{},
+	g := NewGomegaWithT(t)
+
+	oldValidators := []istanbul.ValidatorData{
+		{Address: common.HexToAddress("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")},
+		{Address: common.HexToAddress("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")},
 	}
 
-	newValidators := make([]istanbul.ValidatorData, 2)
-	newValidators[0] = istanbul.ValidatorData{
-		Address:      common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-		BLSPublicKey: blscrypto.SerializedPublicKey{},
-	}
-	newValidators[1] = istanbul.ValidatorData{
-		Address:      common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
-		BLSPublicKey: blscrypto.SerializedPublicKey{},
+	newValidators := []istanbul.ValidatorData{
+		{Address: common.HexToAddress("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")},
+		{Address: common.HexToAddress("0x8be76812f765c24641ec63dc2852b378aba2b440")},
 	}
 
 	extra, err := rlp.EncodeToBytes(&types.IstanbulExtra{
@@ -401,23 +391,18 @@ func TestPrepareExtra(t *testing.T) {
 		AggregatedSeal:            types.IstanbulAggregatedSeal{},
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 	})
-	if err != nil {
-		t.Errorf("error: %v", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
+
 	h := &types.Header{
 		Extra: append(make([]byte, types.IstanbulExtraVanity), extra...),
 	}
 
 	err = writeValidatorSetDiff(h, oldValidators, newValidators)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want: nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	// the header must have the updated extra data
 	updatedExtra, err := types.ExtractIstanbulExtra(h)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want: nil", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	var updatedExtraVals []istanbul.ValidatorData
 	for i := range updatedExtra.AddedValidators {
@@ -427,24 +412,20 @@ func TestPrepareExtra(t *testing.T) {
 		})
 	}
 
-	if !reflect.DeepEqual(updatedExtraVals, newValidators) {
-		t.Errorf("validators were not properly updated")
-	}
+	g.Expect(updatedExtraVals).To(Equal(newValidators), "validators were not properly updated")
 
-	// the validators which were removed were 2, so the bitmap is 11, meaning it
-	// should be 3
-	if updatedExtra.RemovedValidators.Cmp(big.NewInt(3)) != 0 {
-		t.Errorf("Invalid removed validators bitmap, got %v, want %v", updatedExtra.RemovedValidators, big.NewInt(3))
-	}
-
+	// the validators which were removed were 2, so the bitmap is 11, meaning it should be 3
+	g.Expect(updatedExtra.RemovedValidators.Int64()).To(Equal(int64(3)))
 }
 
 func TestWriteSeal(t *testing.T) {
+	g := NewGomegaWithT(t)
+
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
-			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+			common.HexToAddress("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"),
+			common.HexToAddress("0x8be76812f765c24641ec63dc2852b378aba2b440"),
 		},
 		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
@@ -453,18 +434,13 @@ func TestWriteSeal(t *testing.T) {
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{Bitmap: big.NewInt(0), Signature: []byte{}, Round: big.NewInt(0)},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
-	if err != nil {
-		t.Errorf("error: %v", err)
-	}
+	g.Expect(err).ToNot(HaveOccurred())
 
 	expectedSeal := hexutil.MustDecode("0x29fe2612266a3965321c23a2e0382cd819e992f293d9a0032439728e41201d2c387cc9de5914a734873d79addb76c59ce73c1085a98b968384811b4ad050dddc56")
-	if len(expectedSeal) != types.IstanbulExtraSeal {
-		t.Errorf("incorrect length for seal: have %v, want %v", len(expectedSeal), types.IstanbulExtraSeal)
-	}
+	g.Expect(expectedSeal).To(HaveLen(types.IstanbulExtraSeal), "incorrect length for seal")
+
 	expectedIstExtra := istExtra
 	expectedIstExtra.Seal = expectedSeal
-
-	var expectedErr error
 
 	h := &types.Header{
 		Extra: append(vanity, istExtraRaw...),
@@ -472,33 +448,27 @@ func TestWriteSeal(t *testing.T) {
 
 	// normal case
 	err = writeSeal(h, expectedSeal)
-	if err != expectedErr {
-		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
 
 	// verify istanbul extra-data
 	actualIstExtra, err := types.ExtractIstanbulExtra(h)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-	if !reflect.DeepEqual(actualIstExtra, expectedIstExtra) {
-		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(actualIstExtra).To(Equal(expectedIstExtra))
 
 	// invalid seal
 	unexpectedSeal := append(expectedSeal, make([]byte, 1)...)
 	err = writeSeal(h, unexpectedSeal)
-	if err != errInvalidSignature {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
-	}
+	g.Expect(err).To(BeIdenticalTo(errInvalidSignature))
 }
 
 func TestWriteAggregatedSeal(t *testing.T) {
+	g := NewGomegaWithT(t)
+
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
 	istExtra := &types.IstanbulExtra{
 		AddedValidators: []common.Address{
-			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
-			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+			common.HexToAddress("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"),
+			common.HexToAddress("0x8be76812f765c24641ec63dc2852b378aba2b440"),
 		},
 		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
 		RemovedValidators:         big.NewInt(12), // 1100, remove third and fourth validators
@@ -507,9 +477,7 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
 	}
 	istExtraRaw, err := rlp.EncodeToBytes(&istExtra)
-	if err != nil {
-		t.Errorf("error: %v", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
 
 	aggregatedSeal := types.IstanbulAggregatedSeal{
 		Round:     big.NewInt(2),
@@ -527,23 +495,15 @@ func TestWriteAggregatedSeal(t *testing.T) {
 
 	// normal case
 	err = writeAggregatedSeal(h, aggregatedSeal, false)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
 
 	err = writeAggregatedSeal(h, aggregatedSeal, true)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
 
 	// verify istanbul extra-data
 	actualIstExtra, err := types.ExtractIstanbulExtra(h)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-	if !reflect.DeepEqual(actualIstExtra, expectedIstExtra) {
-		t.Errorf("extra data mismatch: have %v, want %v", actualIstExtra, expectedIstExtra)
-	}
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(actualIstExtra).To(Equal(expectedIstExtra))
 
 	// try to write an invalid length seal to the CommitedSeal or ParentCommit field
 	invalidAggregatedSeal := types.IstanbulAggregatedSeal{
@@ -552,12 +512,8 @@ func TestWriteAggregatedSeal(t *testing.T) {
 		Signature: append(aggregatedSeal.Signature, make([]byte, 1)...),
 	}
 	err = writeAggregatedSeal(h, invalidAggregatedSeal, false)
-	if err != errInvalidAggregatedSeal {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidAggregatedSeal)
-	}
+	g.Expect(err).To(BeIdenticalTo(errInvalidAggregatedSeal))
 
 	err = writeAggregatedSeal(h, invalidAggregatedSeal, true)
-	if err != errInvalidAggregatedSeal {
-		t.Errorf("error mismatch: have %v, want %v", err, errInvalidAggregatedSeal)
-	}
+	g.Expect(err).To(BeIdenticalTo(errInvalidAggregatedSeal))
 }
