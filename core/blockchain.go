@@ -333,7 +333,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	// The first thing the node will do is reconstruct the verification data for
 	// the head block (ethash cache or clique voting snapshot). Might as well do
 	// it in advance.
-	if err := bc.engine.VerifyHeader(bc, head.Header(), true); err != nil {
+	if err := bc.engine.VerifyHeader(bc, bc.CurrentHeader(), true); err != nil {
 		return nil, err
 	}
 
