@@ -17,11 +17,14 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+var dummyExtraData = "0xecc833a7747eaa8327335e8e0c6b6d8aa3a38d0063591e43ce116ccf5c89753ef90262f869945296a071434eb2943c1bde8a2e1d555d911cd1d594bc236d14fbbe74b4d3bc132309b861dcf1c527c594ab3233a00d1e03b3e0c7c9912421b56f498901ef9421d87e9445d3b355807c91937e70e6f9914f2a1d94f6a964ad845a8a8a4a50b884c140ab8c3ed8252cf901eab86056631e24a6ec7fb89b5d967b6e7169eed00c0d802b9050d5a749b9d69a2c70d047b5add1d78646c4c3d579e7da7691001f0c832e9b26dd02b960b610ebfa63cd3a9dc0d6da8abfd8c16ffc5679debc682216c2934af7dc93d82e4a42564b4d80b86065be0e12d1ac62a4ddf326cb0dde804d8c1aab376dff994c9db706c6a5c0d5ba57319105491658f9ae5d5a4f48752b006137148123d8a526b2237d7284d5f0ab664f186ef0e7649d586a9754f54ca042539b3ba7ea25d0209f639cce30262081b860f1dade6f52a125a236a546a5bf5468ef8c95da980a51ee2ea595919e80bb56b3941bd17315b2681a411b6f7b6a2aaa01815a62fff57a14cae0cbef5a540dbd34f098ae18c07f93137eefc25132ac1971c8e74f2ddf24ceeeece87dcd18f19500b8601e4c01b96874cbc25fe98a4a8300035865d02724ec7b62d1662eba6b49777aaad51b73eb228d136d8d1f436e391e7e01d2c597cfcc17465a3aa1951d610360365bb116ab759887d5a74064c663aeeb3facf55ddc9a212e9f06b9925d27011700b860306ff63a1746b45b891a33d8ad7a02c92bf0ec628499f5308c55b15e7b5a2ab3d97113ef669c5ae446cb69b965c28d0056c780a4f2462b989bcb15380cc71fcf163d7e7be97c8c2a70b72e8273ff87f7d249f3c552fe7ecc28331f4ce90d92808080c3808080c3808080"
 
 var customGenesisTests = []struct {
 	genesis string
@@ -30,7 +33,7 @@ var customGenesisTests = []struct {
 }{
 	// Genesis file with an empty chain configuration (ensure missing fields work)
 	{
-		genesis: `{
+		genesis: fmt.Sprintf(`{
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
@@ -38,14 +41,15 @@ var customGenesisTests = []struct {
 			"timestamp"  : "0xabcdef",
 			"config"     : {
 				"istanbul": {}
-			}
-		}`,
+			},
+			"extraData"  : "%s"
+		}`, dummyExtraData),
 		query:  "eth.getBlock(0).timestamp",
 		result: "11259375",
 	},
 	// Genesis file with specific chain configurations
 	{
-		genesis: `{
+		genesis: fmt.Sprintf(`{
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
 			"extraData"  : "",
@@ -56,8 +60,9 @@ var customGenesisTests = []struct {
 				"daoForkBlock"   : 141,
 				"daoForkSupport" : true,
 				"istanbul": {}
-			}
-		}`,
+			},
+			"extraData"  : "%s"
+		}`, dummyExtraData),
 		query:  "eth.getBlock(0).timestamp",
 		result: "11259376",
 	},
