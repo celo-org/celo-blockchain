@@ -72,34 +72,6 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-// TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
-// different block hash, it will abort
-func TestSealCommittedOtherHash(t *testing.T) {
-	for numValidators := 1; numValidators < 5; numValidators++ {
-		testSealCommittedOtherHash(t, numValidators)
-	}
-}
-
-func testSealCommittedOtherHash(t *testing.T, numValidators int) {
-	g := NewGomegaWithT(t)
-
-	chain, engine := newBlockChain(numValidators, true)
-	defer stopEngine(engine)
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	// create a second block which will have a different hash
-	h := block.Header()
-	h.ParentHash = block.Hash()
-	otherBlock := types.NewBlock(h, nil, nil, nil)
-	g.Expect(block.Hash()).NotTo(Equal(otherBlock.Hash()), "did not create different blocks")
-
-	engine.Seal(chain, block)
-
-	// this commit should _NOT_ push a new message to the queue
-	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
-
-	//g.Consistently(results, "100ms").ShouldNot(Receive(), "seal should not be completed")
-}
-
 func TestSealCommitted(t *testing.T) {
 	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
