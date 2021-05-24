@@ -83,6 +83,14 @@ const (
 // Gauge used to measure block finalization time from created to after written to chain.
 var blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
 
+type callBackEngine interface {
+	// SetCallBacks sets call back functions
+	SetCallBacks(hasBadBlock func(common.Hash) bool,
+		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+		onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error
+}
+
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
 	signer types.Signer
@@ -299,8 +307,8 @@ func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
 
-	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.SetCallBacks(w.chain.HasBadBlock,
+	if cbEngine, ok := w.engine.(callBackEngine); ok {
+		cbEngine.SetCallBacks(w.chain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
@@ -320,6 +328,10 @@ func (w *worker) start() {
 					log.Error("Error when posting NewMinedBlockEvent", "err", err)
 				}
 			})
+	}
+
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()
 		}

@@ -131,6 +131,10 @@ type MockEngine struct {
 
 	fakeFail  uint64        // Block number which fails consensus even in fake mode
 	fakeDelay time.Duration // Time delay to sleep for before returning from verify
+
+	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 }
 
 const (
@@ -351,12 +355,22 @@ func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) 
 func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
 	header := block.Header()
 	finalBlock := block.WithHeader(header)
-
 	c := chain.(*core.BlockChain)
 
-	_, err := c.InsertChain([]*types.Block{finalBlock})
+	parent := c.CurrentBlock()
 
-	return err
+	state, err := c.StateAt(parent.Root())
+	if err != nil {
+		return err
+	}
+
+	receipts, logs, _, err := e.processBlock(finalBlock, state)
+	if err != nil {
+		return err
+	}
+	e.onNewConsensusBlock(block, receipts, logs, state)
+
+	return nil
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC APIs.
@@ -372,4 +386,17 @@ func (e *MockEngine) Close() error {
 // EpochSize size of the epoch
 func (e *MockEngine) EpochSize() uint64 {
 	return 100
+}
+
+// SetCallBacks sets call back functions
+func (e *MockEngine) SetCallBacks(hasBadBlock func(common.Hash) bool,
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
+	e.processBlock = processBlock
+	e.validateState = validateState
+	e.onNewConsensusBlock = onNewConsensusBlock
+
+	return nil
+
 }
