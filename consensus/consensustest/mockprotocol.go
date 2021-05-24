@@ -28,16 +28,14 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -350,34 +348,15 @@ func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) 
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func (e *MockEngine) SealHash(header *types.Header) (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-
-	rlp.Encode(hasher, []interface{}{
-		header.ParentHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Number,
-		header.GasUsed,
-		header.Time,
-		header.Extra,
-	})
-	hasher.Sum(hash[:0])
-	return hash
-}
-
-func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
 	header := block.Header()
-	select {
-	case results <- block.WithHeader(header):
-	default:
-		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
-	}
-	return nil
+	finalBlock := block.WithHeader(header)
+
+	c := chain.(*core.BlockChain)
+
+	_, err := c.InsertChain([]*types.Block{finalBlock})
+
+	return err
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC APIs.

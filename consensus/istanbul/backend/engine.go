@@ -523,8 +523,8 @@ func (sb *Backend) checkIsValidSigner(chain consensus.ChainReader, header *types
 }
 
 // Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+// seal place on top. It returns the block it submitted to the engine.
+func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block) error {
 
 	header := block.Header()
 
@@ -543,41 +543,10 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block, results
 		return err
 	}
 
-	// get the proposed block hash and clear it if the seal() is completed.
-	sb.sealMu.Lock()
-	sb.proposedBlockHash = block.Hash()
-	clear := func() {
-		sb.proposedBlockHash = common.Hash{}
-		sb.sealMu.Unlock()
-	}
-
 	// post block into Istanbul engine
 	go sb.EventMux().Post(istanbul.RequestEvent{Proposal: block})
 
-	go func() {
-		defer clear()
-
-		for {
-			select {
-			case result := <-sb.commitCh:
-				// Somehow, the block `result` coming from commitCh can be null
-				// if the block hash and the hash from channel are the same,
-				// return the result. Otherwise, keep waiting the next hash.
-				if result != nil && block.Hash() == result.Hash() {
-					results <- result
-					return
-				}
-			case <-stop:
-				return
-			}
-		}
-	}()
 	return nil
-}
-
-// SealHash returns the hash of a block prior to it being sealed.
-func (sb *Backend) SealHash(header *types.Header) common.Hash {
-	return sigHash(header)
 }
 
 // signBlock signs block with a seal

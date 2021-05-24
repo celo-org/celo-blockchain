@@ -71,33 +71,6 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestSealStopChannel(t *testing.T) {
-	g := NewGomegaWithT(t)
-
-	chain, engine := newBlockChain(1, true)
-	defer stopEngine(engine)
-
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	stop := make(chan struct{}, 1)
-
-	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
-	go func() {
-		defer eventSub.Unsubscribe()
-		ev := <-eventSub.Chan()
-		_, ok := ev.Data.(istanbul.RequestEvent)
-		g.Expect(ok).To((BeTrue()), "unexpected event")
-
-		stop <- struct{}{}
-	}()
-
-	results := make(chan *types.Block)
-
-	err := engine.Seal(chain, block, results, stop)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Consistently(results, "1s").ShouldNot(Receive())
-}
-
 // TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
 // different block hash, it will abort
 func TestSealCommittedOtherHash(t *testing.T) {
@@ -118,18 +91,12 @@ func testSealCommittedOtherHash(t *testing.T, numValidators int) {
 	otherBlock := types.NewBlock(h, nil, nil, nil)
 	g.Expect(block.Hash()).NotTo(Equal(otherBlock.Hash()), "did not create different blocks")
 
-	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
+	engine.Seal(chain, block)
 
-	// in the single validator case, the result will instantly be processed
-	// so we should discard it and check that the Commit will not do anything
-	if numValidators == 1 {
-		<-results
-	}
 	// this commit should _NOT_ push a new message to the queue
 	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
 
-	g.Consistently(results, "100ms").ShouldNot(Receive(), "seal should not be completed")
+	//g.Consistently(results, "100ms").ShouldNot(Receive(), "seal should not be completed")
 }
 
 func TestSealCommitted(t *testing.T) {
@@ -140,17 +107,16 @@ func TestSealCommitted(t *testing.T) {
 	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
 
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	expectedBlock, _ := engine.signBlock(block)
+	// expectedBlock, _ := engine.signBlock(block)
 
-	results := make(chan *types.Block)
 	go func() {
-		err := engine.Seal(chain, block, results, nil)
+		err := engine.Seal(chain, block)
 		g.Expect(err).NotTo(HaveOccurred())
 	}()
 
-	var finalBlock *types.Block
-	g.Eventually(results, "1s").Should(Receive(&finalBlock))
-	g.Expect(finalBlock.Hash()).To(Equal(expectedBlock.Hash()))
+	// var finalBlock *types.Block
+	// g.Eventually(results, "1s").Should(Receive(&finalBlock))
+	// g.Expect(finalBlock.Hash()).To(Equal(expectedBlock.Hash()))
 }
 
 func TestVerifyHeader(t *testing.T) {

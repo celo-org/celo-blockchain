@@ -197,7 +197,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 	results := make(chan *types.Block)
 
 	// start seal request (this is non blocking)
-	err := engine.Seal(chain, block, results, nil)
+	err := engine.Seal(chain, block)
 	if err != nil {
 		return nil, err
 	}
