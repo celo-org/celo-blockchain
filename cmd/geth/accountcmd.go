@@ -469,14 +469,14 @@ func accountCreate(ctx *cli.Context) error {
 		}
 	}
 	utils.SetNodeConfig(ctx, &cfg.Node)
-	scryptN, scryptP, keydir, err := cfg.Node.AccountConfig()
-
+	keydir, err := cfg.Node.GetKeyStoreDir()
 	if err != nil {
-		utils.Fatalf("Failed to read configuration: %v", err)
+		utils.Fatalf("Failed get keystore dir: %v", err)
 	}
 
 	password := getPassPhrase("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
 
+	scryptN, scryptP := cfg.Node.KeystoreEncryptionParams()
 	account, err := keystore.StoreKey(keydir, password, scryptN, scryptP)
 
 	if err != nil {
