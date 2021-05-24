@@ -28,7 +28,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -352,10 +351,15 @@ func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) 
 	return nil
 }
 
+type fullChain interface {
+	CurrentBlock() *types.Block
+	StateAt(common.Hash) (*state.StateDB, error)
+}
+
 func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
 	header := block.Header()
 	finalBlock := block.WithHeader(header)
-	c := chain.(*core.BlockChain)
+	c := chain.(fullChain)
 
 	parent := c.CurrentBlock()
 
