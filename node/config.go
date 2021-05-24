@@ -93,6 +93,10 @@ type Config struct {
 	// scrypt KDF at the expense of security.
 	UseLightweightKDF bool `toml:",omitempty"`
 
+	// UsePlaintextKeystore stores keys in plain text without any encryption,
+	// this should only be used for testing.
+	UsePlaintextKeystore bool `toml:",omitempty"`
+
 	// InsecureUnlockAllowed allows user to unlock accounts in unsafe http environment.
 	InsecureUnlockAllowed bool `toml:",omitempty"`
 
@@ -442,19 +446,50 @@ func (c *Config) parsePersistentNodes(w *bool, path string) []*enode.Node {
 	return nodes
 }
 
-// AccountConfig determines the settings for scrypt and keydirectory
-func (c *Config) AccountConfig() (int, int, string, error) {
-	scryptN := keystore.StandardScryptN
-	scryptP := keystore.StandardScryptP
+// KeystoreEncryptionParams returns the scrypt N and P parameters, that control
+// the level of encryption used in keystore operations.
+func (c *Config) KeystoreEncryptionParams() (scryptN, scryptP int) {
+	scryptN = keystore.StandardScryptN
+	scryptP = keystore.StandardScryptP
 	if c.UseLightweightKDF {
 		scryptN = keystore.LightScryptN
 		scryptP = keystore.LightScryptP
 	}
+	return scryptN, scryptP
+}
 
-	var (
-		keydir string
-		err    error
-	)
+// GetKeyStore returns a keystore, and if no keystore path was provided in the
+// config, it returns the ephemeral path that has been generated for this keystore.
+func (c *Config) GetKeyStore() (store *keystore.KeyStore, ephemeralPath string, err error) {
+	path, err := c.GetKeyStoreDir()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get the path for the keystore: %v", err)
+	}
+	if path == "" {
+		// There is no datadir, make an ephemeral one
+		path, err = ioutil.TempDir("", "go-ethereum-keystore")
+		ephemeralPath = path
+	} else {
+		err = os.MkdirAll(path, 0700)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed make the keystore directory: %v", err)
+		}
+	}
+
+	switch {
+	case c.UseLightweightKDF:
+		return keystore.NewKeyStore(path, keystore.LightScryptN, keystore.LightScryptP), ephemeralPath, nil
+	case c.UsePlaintextKeystore:
+		return keystore.NewPlaintextKeyStore(path), ephemeralPath, nil
+	}
+	return keystore.NewKeyStore(path, keystore.StandardScryptN, keystore.StandardScryptP), ephemeralPath, nil
+
+}
+
+// GetKeyStoreDir returns the absolute path of the keystore, if KeyStoreDir is
+// not set this function will generae a path from the data dir. If neither are
+// set this function will return the empty string.
+func (c *Config) GetKeyStoreDir() (keydir string, err error) {
 	switch {
 	case filepath.IsAbs(c.KeyStoreDir):
 		keydir = c.KeyStoreDir
@@ -467,24 +502,10 @@ func (c *Config) AccountConfig() (int, int, string, error) {
 	case c.KeyStoreDir != "":
 		keydir, err = filepath.Abs(c.KeyStoreDir)
 	}
-	return scryptN, scryptP, keydir, err
+	return keydir, err
 }
 
 func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
-	scryptN, scryptP, keydir, err := conf.AccountConfig()
-	var ephemeral string
-	if keydir == "" {
-		// There is no datadir.
-		keydir, err = ioutil.TempDir("", "go-ethereum-keystore")
-		ephemeral = keydir
-	}
-
-	if err != nil {
-		return nil, "", err
-	}
-	if err := os.MkdirAll(keydir, 0700); err != nil {
-		return nil, "", err
-	}
 	// Assemble the account manager and supported backends
 	var backends []accounts.Backend
 	if len(conf.ExternalSigner) > 0 {
@@ -495,12 +516,20 @@ func makeAccountManager(conf *Config) (*accounts.Manager, string, error) {
 			return nil, "", fmt.Errorf("error connecting to external signer: %v", err)
 		}
 	}
+	var ephemeral string
 	if len(backends) == 0 {
+		var ks *keystore.KeyStore
+		var err error
+		ks, ephemeral, err = conf.GetKeyStore()
+		if err != nil {
+			return nil, "", err
+		}
 		// For now, we're using EITHER external signer OR local signers.
 		// If/when we implement some form of lockfile for USB and keystore wallets,
 		// we can have both, but it's very confusing for the user to see the same
 		// accounts in both externally and locally, plus very racey.
-		backends = append(backends, keystore.NewKeyStore(keydir, scryptN, scryptP))
+		backends = append(backends, ks)
+
 		if !conf.NoUSB {
 			// Start a USB hub for Ledger hardware wallets
 			if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
