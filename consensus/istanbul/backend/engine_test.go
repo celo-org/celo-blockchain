@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
+	bccore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -73,23 +74,32 @@ func TestMakeBlockWithSignature(t *testing.T) {
 }
 
 func TestSealCommitted(t *testing.T) {
-	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
 	// In normal case, the StateProcessResult should be passed into Commit
 	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
 
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	// expectedBlock, _ := engine.signBlock(block)
+	expectedBlock, _ := engine.signBlock(block)
 
 	go func() {
-		err := engine.Seal(chain, block)
-		g.Expect(err).NotTo(HaveOccurred())
+		if err := engine.Seal(chain, block); err != nil {
+			t.Errorf("Failed to seal the block: %v", err)
+		}
 	}()
 
-	// var finalBlock *types.Block
-	// g.Eventually(results, "1s").Should(Receive(&finalBlock))
-	// g.Expect(finalBlock.Hash()).To(Equal(expectedBlock.Hash()))
+	newHeadCh := make(chan bccore.ChainHeadEvent, 10)
+	sub := chain.SubscribeChainHeadEvent(newHeadCh)
+	defer sub.Unsubscribe()
+
+	select {
+	case newHead := <-newHeadCh:
+		if newHead.Block.Hash() != expectedBlock.Hash() {
+			t.Errorf("Expected result block hash of %v, but got %v", expectedBlock.Hash(), newHead.Block.Hash())
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out when waiting for a new block")
+	}
 }
 
 func TestVerifyHeader(t *testing.T) {
