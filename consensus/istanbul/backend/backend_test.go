@@ -174,16 +174,15 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	t.Skip("panics")
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	makeBlock(nodeKeys, chain, engine, chain.Genesis())
 
-	block, _ := makeBlock(nodeKeys, chain, engine, chain.Genesis())
-	chain.InsertChain(types.Blocks{block})
 	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()
 	if actual != expected {
 		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
 	}
+
 }
