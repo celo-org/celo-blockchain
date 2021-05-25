@@ -56,7 +56,6 @@ func TestPrepare(t *testing.T) {
 func TestMakeBlockWithSignature(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	// TODO: To test more validators, need to go round robin between the engines (or submit async to makeBlock)
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
@@ -141,9 +140,8 @@ func TestVerifyHeader(t *testing.T) {
 }
 
 func TestVerifySeal(t *testing.T) {
-	t.Skip("deadlock")
 	g := NewGomegaWithT(t)
-	numValidators := 4
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
@@ -155,7 +153,8 @@ func TestVerifySeal(t *testing.T) {
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
 	// should verify
-	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
 	err = engine.VerifySeal(chain, header)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -188,9 +187,7 @@ func TestVerifySeal(t *testing.T) {
 }
 
 func TestVerifyHeaders(t *testing.T) {
-	t.Skip("deadlock")
-
-	numValidators := 4
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
