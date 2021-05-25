@@ -206,9 +206,10 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 		return nil, err
 	}
 
-	// Wait for the mined block.
+	// Wait for and then save the mined block.
 	select {
-	case <-chainHeadCh:
+	case ev := <-chainHeadCh:
+		block = ev.Block
 	case <-time.After(6 * time.Second):
 		return nil, errors.New("Timed out when making a block")
 	}
