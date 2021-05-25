@@ -3,9 +3,11 @@ package backend
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
@@ -193,34 +195,22 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 
-	// start the sealing procedure
-	results := make(chan *types.Block)
+	// Set up block subscription
+	chainHeadCh := make(chan core.ChainHeadEvent, 10)
+	sub := chain.SubscribeChainHeadEvent(chainHeadCh)
+	defer sub.Unsubscribe()
 
-	// start seal request (this is non blocking)
+	// start seal request (this is non-blocking)
 	err := engine.Seal(chain, block)
 	if err != nil {
 		return nil, err
 	}
 
-	// create the sig and call Commit so that the result is pushed to the channel
-	block, err = engine.signBlock(block)
-	if err != nil {
-		return nil, err
-	}
-	aggregatedSeal := signBlock(keys, block)
-	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
-	err = engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// wait for seal job to finish
-	block = <-results
-
-	// insert the block to the chain so that we can make multiple calls to this function
-	_, err = chain.InsertChain(types.Blocks{block})
-	if err != nil {
-		return nil, err
+	// Wait for the mined block.
+	select {
+	case <-chainHeadCh:
+	case <-time.After(6 * time.Second):
+		return nil, errors.New("Timed out when making a block")
 	}
 
 	// Notify the core engine to stop working on current Seal.
