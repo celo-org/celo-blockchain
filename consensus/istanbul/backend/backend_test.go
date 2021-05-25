@@ -177,7 +177,9 @@ func TestGetProposer(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	makeBlock(nodeKeys, chain, engine, chain.Genesis())
+	if _, err := makeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {
+		t.Errorf("Failed to make a block: %v", err)
+	}
 
 	expected := engine.AuthorForBlock(1)
 	actual := engine.Address()

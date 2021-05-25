@@ -54,12 +54,13 @@ func TestPrepare(t *testing.T) {
 }
 
 func TestMakeBlockWithSignature(t *testing.T) {
-	t.Skip("deadlocks")
 	g := NewGomegaWithT(t)
 
-	numValidators := 4
+	// TODO: To test more validators, need to go round robin between the engines (or submit async to makeBlock)
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+
 	defer stopEngine(engine)
 	genesis := chain.Genesis()
 
