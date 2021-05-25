@@ -24,6 +24,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 )
@@ -110,65 +111,46 @@ func TestCheckValidatorSignature(t *testing.T) {
 	}
 }
 
-func TestCommit(t *testing.T) {
-	backend := newBackend()
+func TestNormalCommit(t *testing.T) {
 
-	commitCh := make(chan *types.Block)
-	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
-	testCases := []struct {
-		expectedErr       error
-		expectedSignature []byte
-		expectedBlock     func() *types.Block
-	}{
-		{
-			// normal case
-			nil,
-			make([]byte, types.IstanbulExtraBlsSignature),
-			func() *types.Block {
-				chain, engine := newBlockChain(1, true)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				expectedBlock, _ := engine.signBlock(block)
-				return expectedBlock
-			},
-		},
-		{
-			// invalid signature
-			errInvalidAggregatedSeal,
-			nil,
-			func() *types.Block {
-				chain, engine := newBlockChain(1, true)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				expectedBlock, _ := engine.signBlock(block)
-				return expectedBlock
-			},
-		},
+	chain, backend := newBlockChain(1, true)
+	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+	expBlock, _ := backend.signBlock(block)
+	expectedSignature := make([]byte, types.IstanbulExtraBlsSignature)
+
+	newHeadCh := make(chan core.ChainHeadEvent, 10)
+	sub := chain.SubscribeChainHeadEvent(newHeadCh)
+	defer sub.Unsubscribe()
+
+	if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, nil); err != nil {
+		if err != nil {
+			t.Errorf("error mismatch: have %v, want %v", err, nil)
+		}
 	}
 
-	for _, test := range testCases {
-		expBlock := test.expectedBlock()
-		go func() {
-			result := <-backend.commitCh
-			commitCh <- result
-		}()
+	// to avoid race condition is occurred by goroutine
+	select {
+	case result := <-newHeadCh:
+		if result.Block.Hash() != expBlock.Hash() {
+			t.Errorf("hash mismatch: have %v, want %v", result.Block.Hash(), expBlock.Hash())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout")
+	}
 
-		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: test.expectedSignature}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, nil); err != nil {
-			if err != test.expectedErr {
-				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
-			}
+}
+
+func TestInvalidCommit(t *testing.T) {
+
+	chain, backend := newBlockChain(1, true)
+	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+	expBlock, _ := backend.signBlock(block)
+
+	if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: nil}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, nil); err != nil {
+		if err != errInvalidAggregatedSeal {
+			t.Errorf("error mismatch: have %v, want %v", err, errInvalidAggregatedSeal)
 		}
 
-		if test.expectedErr == nil {
-			// to avoid race condition is occurred by goroutine
-			select {
-			case result := <-commitCh:
-				if result.Hash() != expBlock.Hash() {
-					t.Errorf("hash mismatch: have %v, want %v", result.Hash(), expBlock.Hash())
-				}
-			case <-time.After(10 * time.Second):
-				t.Fatal("timeout")
-			}
-		}
 	}
 }
 

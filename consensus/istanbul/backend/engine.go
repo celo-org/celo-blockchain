@@ -657,13 +657,6 @@ func (sb *Backend) StartValidating() error {
 		return errors.New("Must SetBlockProcessors prior to StartValidating")
 	}
 
-	// clear previous data
-	sb.proposedBlockHash = common.Hash{}
-	if sb.commitCh != nil {
-		close(sb.commitCh)
-	}
-	sb.commitCh = make(chan *types.Block, 1)
-
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {
 		return err
