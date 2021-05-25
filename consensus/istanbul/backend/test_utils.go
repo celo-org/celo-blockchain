@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
-	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
@@ -351,82 +349,6 @@ func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 	return func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, key)
 	}
-}
-
-// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
-// block's hash, on consensus round 0, without a composite hasher
-func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
-	extraData := []byte{}
-	useComposite := false
-	cip22 := false
-	round := big.NewInt(0)
-	headerHash := block.Header().Hash()
-	signatures := make([][]byte, len(keys))
-
-	msg := istanbulCore.PrepareCommittedSeal(headerHash, round)
-
-	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite, cip22)
-		if err != nil {
-			panic("could not sign msg")
-		}
-		signatures[i] = sig[:]
-	}
-
-	asigBytes, err := blscrypto.AggregateSignatures(signatures)
-	if err != nil {
-		panic("could not aggregate sigs")
-	}
-
-	// create the bitmap from the validators
-	bitmap := big.NewInt(0)
-	for i := 0; i < len(keys); i++ {
-		bitmap.SetBit(bitmap, i, 1)
-	}
-
-	asig := types.IstanbulAggregatedSeal{
-		Bitmap:    bitmap,
-		Round:     round,
-		Signature: asigBytes,
-	}
-
-	return asig
-}
-
-// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
-// an abtirary message
-func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
-	useComposite := true
-	cip22 := true
-	signatures := make([][]byte, len(keys))
-
-	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, message, extraData, useComposite, cip22)
-		if err != nil {
-			panic("could not sign msg")
-		}
-		signatures[i] = sig[:]
-	}
-
-	asigBytes, err := blscrypto.AggregateSignatures(signatures)
-	if err != nil {
-		panic("could not aggregate sigs")
-	}
-
-	// create the bitmap from the validators
-	bitmap := big.NewInt(0)
-	for i := 0; i < len(keys); i++ {
-		bitmap.SetBit(bitmap, i, 1)
-	}
-
-	asig := types.IstanbulEpochValidatorSetSeal{
-		Bitmap:    bitmap,
-		Signature: asigBytes,
-	}
-
-	return asig
 }
 
 func newBackend() (b *Backend) {
