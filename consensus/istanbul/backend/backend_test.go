@@ -111,7 +111,6 @@ func TestCheckValidatorSignature(t *testing.T) {
 }
 
 func TestCommit(t *testing.T) {
-	t.Skip("deadlock")
 	backend := newBackend()
 
 	commitCh := make(chan *types.Block)
