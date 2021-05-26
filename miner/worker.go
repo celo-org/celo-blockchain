@@ -74,6 +74,8 @@ const (
 	intervalAdjustBias = 200 * 1000.0 * 1000.0
 )
 
+// callBackEngine is a subset of the consensus.Istanbul interface. It is used over consensus.Istanbul to enable sealing
+// for the MockEngine (which implements this and the engine interface, but not the full istanbul interface).
 type callBackEngine interface {
 	// SetCallBacks sets call back functions
 	SetCallBacks(hasBadBlock func(common.Hash) bool,
