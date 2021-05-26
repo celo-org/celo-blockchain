@@ -523,7 +523,7 @@ func (sb *Backend) checkIsValidSigner(chain consensus.ChainReader, header *types
 }
 
 // Seal generates a new block for the given input block with the local miner's
-// seal place on top. It returns the block it submitted to the engine.
+// seal place on top and submits it the the consensus engine.
 func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block) error {
 
 	header := block.Header()
