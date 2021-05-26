@@ -544,7 +544,9 @@ func (sb *Backend) Seal(chain consensus.ChainReader, block *types.Block) error {
 	}
 
 	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{Proposal: block})
+	if err := sb.EventMux().Post(istanbul.RequestEvent{Proposal: block}); err != nil {
+		return err
+	}
 
 	return nil
 }
