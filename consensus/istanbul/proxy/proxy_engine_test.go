@@ -37,7 +37,7 @@ func TestHandleValEnodeShare(t *testing.T) {
 	// 1) Proxied validator (val0)
 	// 2) Non proxied validator (val1)
 	numValidators := 2
-	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators)
 
 	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
 	val0BE := val0BEi.(BackendForProxiedValidatorEngine)
@@ -119,7 +119,7 @@ func TestHandleEnodeCertificateMessage(t *testing.T) {
 	// 1) Proxied validator (val0)
 	// 2) Non proxied validator (val1)
 	numValidators := 2
-	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators)
 
 	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
 	val0BE := val0BEi.(BackendForProxiedValidatorEngine)
@@ -254,7 +254,7 @@ func TestHandleConsensusMsg(t *testing.T) {
 	// 1) Proxied validator (val0)
 	// 2) Non proxied validator (val1)
 	numValidators := 2
-	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators)
 
 	val0BEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
 	val0BE := val0BEi.(BackendForProxiedValidatorEngine)

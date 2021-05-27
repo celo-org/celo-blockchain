@@ -32,37 +32,141 @@ import (
 // in this test, we can set n to 1, and it means we can process Istanbul and commit a
 // block by one node. Otherwise, if n is larger than 1, we have to generate
 // other fake events to process Istanbul.
-func newBlockChain(n int, isFullChain bool) (*core.BlockChain, *Backend) {
-	genesis, nodeKeys := getGenesisAndKeys(n, isFullChain)
+func newBlockChain(n int) *testNode {
+	genesis, nodeKeys := generateGenesisAndKeys(n)
 
-	bc, be, _ := newBlockChainWithKeys(false, common.Address{}, false, genesis, nodeKeys[0])
-	return bc, be
+	return testNodeFromGenesis(Validator, common.ZeroAddress, genesis, nodeKeys[0])
 }
 
-func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) (*core.BlockChain, *Backend, *istanbul.Config) {
+type nodeType int
+
+const (
+	Validator nodeType = iota
+	ProxiedValidator
+	Proxy
+)
+
+type testNode struct {
+	chain    *core.BlockChain
+	engine   *Backend
+	config   istanbul.Config
+	nodeType nodeType
+}
+
+func (tn *testNode) start() {
+	tn.engine.StartAnnouncing()
+	if tn.nodeType == ProxiedValidator {
+		tn.engine.StartProxiedValidatorEngine()
+	}
+	if tn.nodeType == ProxiedValidator || tn.nodeType == Validator {
+		tn.engine.StartValidating()
+	}
+}
+
+func (tn *testNode) startAndStop() func() {
+	tn.start()
+	return tn.stop
+}
+
+func (tn *testNode) stop() {
+	tn.engine.StopAnnouncing()
+	if tn.nodeType == ProxiedValidator {
+		tn.engine.StopProxiedValidatorEngine()
+	}
+	if tn.nodeType == ProxiedValidator || tn.nodeType == Validator {
+		tn.engine.StopValidating()
+	}
+}
+
+// --------------------------------------------------------------------------------------
+// Test Config Scenarios
+// --------------------------------------------------------------------------------------
+
+type testConfigBuilder func() (*core.Genesis, []*ecdsa.PrivateKey)
+
+func manyValidators(qty int) testConfigBuilder {
+	return func() (*core.Genesis, []*ecdsa.PrivateKey) { return generateGenesisAndKeys(qty) }
+}
+
+var singleValidator testConfigBuilder = manyValidators(1)
+
+func lightestNode() (*core.Genesis, []*ecdsa.PrivateKey) {
+	genesis, keys := singleValidator()
+	genesis.Config.FullHeaderChainAvailable = false
+	return genesis, keys
+}
+
+// --------------------------------------------------------------------------------------
+
+func withEngine(
+	testConfigBuilder testConfigBuilder,
+	startEngine bool,
+	testFn func(n *testNode, keys []*ecdsa.PrivateKey),
+) {
+	genesis, nodeKeys := testConfigBuilder()
+
+	node := testNodeFromGenesis(Validator, common.ZeroAddress, genesis, nodeKeys[0])
+
+	// if required start engine (announce, validator, proxy) and make sure we stop it
+	if startEngine {
+		node.start()
+		defer node.stop()
+	}
+	testFn(node, nodeKeys)
+}
+
+func withManyEngines(
+	testConfigBuilder testConfigBuilder,
+	startEngine bool,
+	testFn func(n []testNode, keys []*ecdsa.PrivateKey),
+) {
+	genesis, nodeKeys := testConfigBuilder()
+
+	testNodes := make([]testNode, len(nodeKeys))
+	for i, key := range nodeKeys {
+		testNodes[i] = *testNodeFromGenesis(Validator, common.ZeroAddress, genesis, key)
+	}
+
+	// if required start engine (announce, validator, proxy) and make sure we stop it
+	if startEngine {
+		for _, node := range testNodes {
+			node.start()
+			defer node.stop()
+		}
+	}
+
+	testFn(testNodes, nodeKeys)
+}
+
+// testNodeFromGenesis creates a testNode from a genesis & privateKey
+func testNodeFromGenesis(nodeType nodeType, proxiedValAddress common.Address, genesis *core.Genesis, privateKey *ecdsa.PrivateKey) *testNode {
 	memDB := rawdb.NewMemoryDatabase()
 	config := *istanbul.DefaultConfig
 	config.ReplicaStateDBPath = ""
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 	config.RoundStateDBPath = ""
-	config.Proxy = isProxy
+	config.Proxy = nodeType == Proxy
 	config.ProxiedValidatorAddress = proxiedValAddress
-	config.Proxied = isProxied
-	config.Validator = !isProxy
+	config.Proxied = nodeType == ProxiedValidator
+	config.Validator = nodeType == ProxiedValidator || nodeType == Validator
 	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
-	b, _ := New(&config, memDB).(*Backend)
+	engine, _ := New(&config, memDB).(*Backend)
 
 	var publicKey ecdsa.PublicKey
-	if !isProxy {
+	if nodeType == ProxiedValidator || nodeType == Validator {
 		publicKey = privateKey.PublicKey
 		address := crypto.PubkeyToAddress(publicKey)
-		decryptFn := DecryptFn(privateKey)
-		signerFn := SignFn(privateKey)
-		signerBLSFn := SignBLSFn(privateKey)
-		signerHashFn := SignHashFn(privateKey)
-		b.Authorize(address, address, &publicKey, decryptFn, signerFn, signerBLSFn, signerHashFn)
+		engine.Authorize(
+			address,
+			address,
+			&publicKey,
+			DecryptFn(privateKey),
+			SignFn(privateKey),
+			SignBLSFn(privateKey),
+			SignHashFn(privateKey),
+		)
 	} else {
 		proxyNodeKey, _ := crypto.GenerateKey()
 		publicKey = proxyNodeKey.PublicKey
@@ -70,12 +174,12 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 
 	genesis.MustCommit(memDB)
 
-	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, b, vm.Config{}, nil, nil)
+	blockchain, err := core.NewBlockChain(memDB, nil, genesis.Config, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	b.SetChain(
+	engine.SetChain(
 		blockchain,
 		blockchain.CurrentBlock,
 		func(hash common.Hash) (*state.StateDB, error) {
@@ -83,12 +187,11 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			return blockchain.StateAt(stateRoot)
 		},
 	)
-	b.SetBroadcaster(&consensustest.MockBroadcaster{})
-	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
-	b.StartAnnouncing()
+	engine.SetBroadcaster(&consensustest.MockBroadcaster{})
+	engine.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 
-	if !isProxy {
-		b.SetCallBacks(blockchain.HasBadBlock,
+	if nodeType == ProxiedValidator || nodeType == Validator {
+		engine.SetCallBacks(blockchain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
@@ -98,18 +201,19 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 					panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
 				}
 			})
-		if isProxied {
-			b.StartProxiedValidatorEngine()
-		}
-		b.StartValidating()
 	}
 
 	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(blockchain))
 
-	return blockchain, b, &config
+	return &testNode{
+		config:   config,
+		chain:    blockchain,
+		engine:   engine,
+		nodeType: nodeType,
+	}
 }
 
-func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
+func generateGenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	validators := make([]istanbul.ValidatorData, n)
@@ -134,9 +238,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	// generate genesis block
 	genesis := core.MainnetGenesisBlock()
 	genesis.Config = params.IstanbulTestChainConfig
-	if !isFullChain {
-		genesis.Config.FullHeaderChainAvailable = false
-	}
+
 	// force enable Istanbul engine
 	genesis.Config.Istanbul = &params.IstanbulConfig{
 		Epoch:          10,
@@ -438,13 +540,13 @@ func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) typ
 	return asig
 }
 
-func newBackend() (b *Backend) {
-	_, b = newBlockChain(4, true)
+func newBackend() *Backend {
+	testNode := newBlockChain(4)
 
 	key, _ := generatePrivateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
-	b.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key), SignHashFn(key))
-	return
+	testNode.engine.Authorize(address, address, &key.PublicKey, DecryptFn(key), SignFn(key), SignBLSFn(key), SignHashFn(key))
+	return testNode.engine
 }
 
 type testBackendFactoryImpl struct{}
@@ -454,11 +556,20 @@ var TestBackendFactory backendtest.TestBackendFactory = testBackendFactoryImpl{}
 
 // New is part of TestBackendInterface.
 func (testBackendFactoryImpl) New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (backendtest.TestBackendInterface, *istanbul.Config) {
-	_, be, config := newBlockChainWithKeys(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
-	return be, config
+	var nodeType nodeType
+	if isProxy {
+		nodeType = Proxy
+	} else if isProxied {
+		nodeType = ProxiedValidator
+	} else {
+		nodeType = Validator
+	}
+	node := testNodeFromGenesis(nodeType, proxiedValAddress, genesisCfg, privateKey)
+	node.start()
+	return node.engine, &node.config
 }
 
 // GetGenesisAndKeys is part of TestBackendInterface
-func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
-	return getGenesisAndKeys(numValidators, isFullChain)
+func (testBackendFactoryImpl) GetGenesisAndKeys(numValidators int) (*core.Genesis, []*ecdsa.PrivateKey) {
+	return generateGenesisAndKeys(numValidators)
 }

@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"testing"
 	"time"
 
@@ -66,17 +67,17 @@ func (p *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
 }
 
 func TestIstanbulMessage(t *testing.T) {
-	_, backend := newBlockChain(1, true)
+	withEngine(singleValidator, true, func(n *testNode, keys []*ecdsa.PrivateKey) {
+		// generate one msg
+		data := []byte("data1")
+		msg := makeMsg(istanbul.QueryEnodeMsg, data)
+		addr := common.BytesToAddress([]byte("address"))
 
-	// generate one msg
-	data := []byte("data1")
-	msg := makeMsg(istanbul.QueryEnodeMsg, data)
-	addr := common.BytesToAddress([]byte("address"))
-
-	_, err := backend.HandleMsg(addr, msg, &MockPeer{})
-	if err != nil {
-		t.Fatalf("handle message failed: %v", err)
-	}
+		_, err := n.engine.HandleMsg(addr, msg, &MockPeer{})
+		if err != nil {
+			t.Fatalf("handle message failed: %v", err)
+		}
+	})
 }
 
 func TestRecentMessageCaches(t *testing.T) {
@@ -116,110 +117,112 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, backend := newBlockChain(1, true)
+		withEngine(singleValidator, true, func(node *testNode, keys []*ecdsa.PrivateKey) {
+			// generate a msg that is not an Announce
+			data := []byte("data1")
+			hash := istanbul.RLPHash(data)
+			msg := makeMsg(tt.ethMsgCode, data)
+			addr := common.BytesToAddress([]byte("address"))
 
-		// generate a msg that is not an Announce
-		data := []byte("data1")
-		hash := istanbul.RLPHash(data)
-		msg := makeMsg(tt.ethMsgCode, data)
-		addr := common.BytesToAddress([]byte("address"))
-
-		// 1. this message should not be in cache
-		// for peers
-		if _, ok := backend.peerRecentMessages.Get(addr); ok {
-			t.Fatalf("the cache of messages for this peer should be nil")
-		}
-
-		// for self
-		if _, ok := backend.selfRecentMessages.Get(hash); ok {
-			t.Fatalf("the cache of messages should be nil")
-		}
-
-		// 2. this message should be in cache only when ethMsgCode == istanbulQueryEnodeMsg || ethMsgCode == istanbulVersionCertificatesMsg
-		_, err := backend.HandleMsg(addr, msg, &MockPeer{})
-		if err != nil {
-			t.Fatalf("handle message failed: %v", err)
-		}
-
-		// Sleep for a bit, since some of the messages are handled in a different thread
-		time.Sleep(10 * time.Second)
-
-		// for peers
-		if ms, ok := backend.peerRecentMessages.Get(addr); tt.shouldCache != ok {
-			t.Fatalf("the cache of messages for this peer should be nil")
-		} else if tt.shouldCache {
-			if m, ok := ms.(*lru.ARCCache); !ok {
-				t.Fatalf("the cache of messages for this peer cannot be casted")
-			} else if _, ok := m.Get(hash); !ok {
-				t.Fatalf("the cache of messages for this peer cannot be found")
+			// 1. this message should not be in cache
+			// for peers
+			if _, ok := node.engine.peerRecentMessages.Get(addr); ok {
+				t.Fatalf("the cache of messages for this peer should be nil")
 			}
-		}
-		// for self
-		if _, ok := backend.selfRecentMessages.Get(hash); tt.shouldCache != ok {
-			t.Fatalf("the cache of messages must be nil")
-		}
+
+			// for self
+			if _, ok := node.engine.selfRecentMessages.Get(hash); ok {
+				t.Fatalf("the cache of messages should be nil")
+			}
+
+			// 2. this message should be in cache only when ethMsgCode == istanbulQueryEnodeMsg || ethMsgCode == istanbulVersionCertificatesMsg
+			_, err := node.engine.HandleMsg(addr, msg, &MockPeer{})
+			if err != nil {
+				t.Fatalf("handle message failed: %v", err)
+			}
+
+			// Sleep for a bit, since some of the messages are handled in a different thread
+			time.Sleep(10 * time.Second)
+
+			// for peers
+			if ms, ok := node.engine.peerRecentMessages.Get(addr); tt.shouldCache != ok {
+				t.Fatalf("the cache of messages for this peer should be nil")
+			} else if tt.shouldCache {
+				if m, ok := ms.(*lru.ARCCache); !ok {
+					t.Fatalf("the cache of messages for this peer cannot be casted")
+				} else if _, ok := m.Get(hash); !ok {
+					t.Fatalf("the cache of messages for this peer cannot be found")
+				}
+			}
+			// for self
+			if _, ok := node.engine.selfRecentMessages.Get(hash); tt.shouldCache != ok {
+				t.Fatalf("the cache of messages must be nil")
+			}
+		})
 	}
 }
 
 func TestReadValidatorHandshakeMessage(t *testing.T) {
-	_, backend := newBlockChain(2, true)
+	withEngine(manyValidators(2), true, func(node *testNode, keys []*ecdsa.PrivateKey) {
 
-	peer := &MockPeer{
-		Messages:     make(chan p2p.Msg, 1),
-		NodeOverride: backend.p2pserver.Self(),
-	}
-
-	// Test an empty message being sent
-	emptyMsg := &istanbul.Message{}
-	emptyMsgPayload, err := emptyMsg.Payload()
-	if err != nil {
-		t.Errorf("Error getting payload of empty msg %v", err)
-	}
-	peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, emptyMsgPayload)
-	isValidator, err := backend.readValidatorHandshakeMessage(peer)
-	if err != nil {
-		t.Errorf("Error from readValidatorHandshakeMessage %v", err)
-	}
-	if isValidator {
-		t.Errorf("Expected isValidator to be false with empty istanbul message")
-	}
-
-	var validMsg *istanbul.Message
-	// The enodeCertificate is not set synchronously. Wait until it's been set
-	for i := 0; i < 10; i++ {
-		// Test a legitimate message being sent
-		enodeCertMsg := backend.RetrieveEnodeCertificateMsgMap()[backend.SelfNode().ID()]
-		if enodeCertMsg != nil {
-			validMsg = enodeCertMsg.Msg
+		peer := &MockPeer{
+			Messages:     make(chan p2p.Msg, 1),
+			NodeOverride: node.engine.p2pserver.Self(),
 		}
 
-		if validMsg != nil {
-			break
+		// Test an empty message being sent
+		emptyMsg := &istanbul.Message{}
+		emptyMsgPayload, err := emptyMsg.Payload()
+		if err != nil {
+			t.Errorf("Error getting payload of empty msg %v", err)
 		}
-		time.Sleep(time.Duration(i) * time.Second)
-	}
-	if validMsg == nil {
-		t.Errorf("enodeCertificate is nil")
-	}
+		peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, emptyMsgPayload)
+		isValidator, err := node.engine.readValidatorHandshakeMessage(peer)
+		if err != nil {
+			t.Errorf("Error from readValidatorHandshakeMessage %v", err)
+		}
+		if isValidator {
+			t.Errorf("Expected isValidator to be false with empty istanbul message")
+		}
 
-	validMsgPayload, err := validMsg.Payload()
-	if err != nil {
-		t.Errorf("Error getting payload of valid msg %v", err)
-	}
-	peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, validMsgPayload)
+		var validMsg *istanbul.Message
+		// The enodeCertificate is not set synchronously. Wait until it's been set
+		for i := 0; i < 10; i++ {
+			// Test a legitimate message being sent
+			enodeCertMsg := node.engine.RetrieveEnodeCertificateMsgMap()[node.engine.SelfNode().ID()]
+			if enodeCertMsg != nil {
+				validMsg = enodeCertMsg.Msg
+			}
 
-	block := backend.currentBlock()
-	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
-	// set backend to a different validator
-	backend.address = valSet.GetByIndex(1).Address()
+			if validMsg != nil {
+				break
+			}
+			time.Sleep(time.Duration(i) * time.Second)
+		}
+		if validMsg == nil {
+			t.Errorf("enodeCertificate is nil")
+		}
 
-	isValidator, err = backend.readValidatorHandshakeMessage(peer)
-	if err != nil {
-		t.Errorf("Error from readValidatorHandshakeMessage with valid message %v", err)
-	}
-	if !isValidator {
-		t.Errorf("Expected isValidator to be true with valid message")
-	}
+		validMsgPayload, err := validMsg.Payload()
+		if err != nil {
+			t.Errorf("Error getting payload of valid msg %v", err)
+		}
+		peer.Messages <- makeMsg(istanbul.ValidatorHandshakeMsg, validMsgPayload)
+
+		block := node.engine.currentBlock()
+		valSet := node.engine.getValidators(block.Number().Uint64(), block.Hash())
+		// set node.engine to a different validator
+		node.engine.address = valSet.GetByIndex(1).Address()
+
+		isValidator, err = node.engine.readValidatorHandshakeMessage(peer)
+		if err != nil {
+			t.Errorf("Error from readValidatorHandshakeMessage with valid message %v", err)
+		}
+		if !isValidator {
+			t.Errorf("Expected isValidator to be true with valid message")
+		}
+	})
+
 }
 
 func makeMsg(msgcode uint64, data interface{}) p2p.Msg {

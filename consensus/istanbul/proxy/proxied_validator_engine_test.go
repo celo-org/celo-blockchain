@@ -30,7 +30,7 @@ import (
 
 func TestAddProxy(t *testing.T) {
 	numValidators := 2
-	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators)
 
 	valBEi, _ := backendtest.NewTestBackend(false, common.Address{}, true, genesisCfg, nodeKeys[0])
 	valBE := valBEi.(BackendForProxiedValidatorEngine)

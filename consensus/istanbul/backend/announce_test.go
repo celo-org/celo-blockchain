@@ -1,150 +1,138 @@
 package backend
 
 import (
+	"crypto/ecdsa"
 	"testing"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/rlp"
+	. "github.com/onsi/gomega"
 )
 
 // This test function will test the announce message generator and handler.
 // It will also test the gossip query generator and handler.
 func TestAnnounceGossipQueryMsg(t *testing.T) {
-	// Create three backends
-	numValidators := 3
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	withManyEngines(manyValidators(3), true, func(n []testNode, keys []*ecdsa.PrivateKey) {
+		g := NewGomegaWithT(t)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
-	_, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+		engine0, engine1, engine2 := n[0].engine, n[1].engine, n[2].engine
 
-	// Wait a bit so that the announce versions are generated for the engines
-	time.Sleep(6 * time.Second)
+		// Wait a bit so that the announce versions are generated for the engines
+		time.Sleep(6 * time.Second)
 
-	engine0Address := engine0.Address()
-	engine1Address := engine1.Address()
-	engine2Address := engine2.Address()
+		engine0Address := engine0.Address()
+		engine1Address := engine1.Address()
+		engine2Address := engine2.Address()
 
-	engine0AnnounceVersion := engine0.GetAnnounceVersion()
-	engine1AnnounceVersion := engine1.GetAnnounceVersion()
-	engine2AnnounceVersion := engine2.GetAnnounceVersion()
+		engine0AnnounceVersion := engine0.GetAnnounceVersion()
+		engine1AnnounceVersion := engine1.GetAnnounceVersion()
+		engine2AnnounceVersion := engine2.GetAnnounceVersion()
 
-	engine0Enode := engine0.SelfNode()
+		engine0Enode := engine0.SelfNode()
 
-	// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
-	vCert1, err := engine1.generateVersionCertificate(engine1AnnounceVersion)
-	if err != nil {
-		t.Errorf("Error in generating version certificate for engine1.  Error: %v", err)
-	}
+		// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
+		vCert1, err := engine1.generateVersionCertificate(engine1AnnounceVersion)
+		g.Expect(err).ToNot(HaveOccurred())
 
-	vCert2, err := engine2.generateVersionCertificate(engine2AnnounceVersion)
-	if err != nil {
-		t.Errorf("Error in generating version certificate for engine2.  Error: %v", err)
-	}
+		vCert2, err := engine2.generateVersionCertificate(engine2AnnounceVersion)
+		g.Expect(err).ToNot(HaveOccurred())
 
-	// Have engine0 handle vCert messages from engine1 and engine2
-	vCert1MsgPayload, err := engine1.encodeVersionCertificatesMsg([]*versionCertificate{vCert1})
-	if err != nil {
-		t.Errorf("Error in encoding vCert1.  Error: %v", err)
-	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
-	if err != nil {
-		t.Errorf("Error in handling vCert1.  Error: %v", err)
-	}
+		// Have engine0 handle vCert messages from engine1 and engine2
+		vCert1MsgPayload, err := engine1.encodeVersionCertificatesMsg([]*versionCertificate{vCert1})
+		g.Expect(err).ToNot(HaveOccurred())
 
-	vCert2MsgPayload, err := engine2.encodeVersionCertificatesMsg([]*versionCertificate{vCert2})
-	if err != nil {
-		t.Errorf("Error in encoding vCert2.  Error: %v", err)
-	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
-	if err != nil {
-		t.Errorf("Error in handling vCert2.  Error: %v", err)
-	}
+		err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
+		g.Expect(err).ToNot(HaveOccurred())
 
-	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeEntries, err := engine0.getQueryEnodeValEnodeEntries(false)
-	if err != nil {
-		t.Errorf("Error in retrieving entries for queryEnode request")
-	}
+		vCert2MsgPayload, err := engine2.encodeVersionCertificatesMsg([]*versionCertificate{vCert2})
+		g.Expect(err).ToNot(HaveOccurred())
 
-	if len(qeEntries) != 2 {
-		t.Errorf("qeEntries size is incorrect.  Have: %d, Want: 2", len(qeEntries))
-	}
+		err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
+		g.Expect(err).ToNot(HaveOccurred())
 
-	for _, expectedEntry := range []*istanbul.AddressEntry{{Address: engine1Address, HighestKnownVersion: engine1AnnounceVersion},
-		{Address: engine2Address, HighestKnownVersion: engine2AnnounceVersion}} {
-		found := false
-		for _, qeEntry := range qeEntries {
-			if qeEntry.Address == expectedEntry.Address && qeEntry.HighestKnownVersion == expectedEntry.HighestKnownVersion {
-				found = true
-				break
+		// Verify that engine0 will query for both engine1 and engine2's enodeURL
+		qeEntries, err := engine0.getQueryEnodeValEnodeEntries(false)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		g.Expect(qeEntries).To(HaveLen(2))
+
+		// expctedEntries := []*istanbul.AddressEntry{
+		// 	{Address: engine1Address, HighestKnownVersion: engine1AnnounceVersion},
+		// 	{Address: engine2Address, HighestKnownVersion: engine2AnnounceVersion},
+		// }
+		msgFrom := func(expectedAddress common.Address, expectedVersion uint) func(entry *istanbul.AddressEntry) bool {
+			return func(entry *istanbul.AddressEntry) bool {
+				return entry.Address == expectedAddress && entry.HighestKnownVersion == expectedVersion
 			}
 		}
 
-		if !found {
-			t.Errorf("Didn't find expected entry in qeEntries.  Expected Entry: %v", expectedEntry)
+		g.Expect(qeEntries).To(ContainElement(Satisfy(msgFrom(engine1Address, engine1AnnounceVersion))))
+		g.Expect(qeEntries).To(ContainElement(Satisfy(msgFrom(engine2Address, engine2AnnounceVersion))))
+
+		// for _, expectedEntry := range []*istanbul.AddressEntry{,
+		// 	} {
+
+		// 	found := false
+		// 	for _, qeEntry := range qeEntries {
+		// 		if qeEntry.Address == expectedEntry.Address && qeEntry.HighestKnownVersion == expectedEntry.HighestKnownVersion {
+		// 			found = true
+		// 			break
+		// 		}
+		// 	}
+
+		// 	if !found {
+		// 		t.Errorf("Didn't find expected entry in qeEntries.  Expected Entry: %v", expectedEntry)
+		// 	}
+		// }
+
+		// Generate query enode message for engine0
+		qeMsg, err := engine0.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		// Convert to payload
+		qePayload, err := qeMsg.Payload()
+		g.Expect(err).ToNot(HaveOccurred())
+
+		// Handle the qeMsg for both engine1 and engine2
+		err = engine1.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		err = engine2.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		// Verify that engine1 and engine2 has engine0's entry in their val enode table
+		expectedEntry := &istanbul.AddressEntry{Address: engine0Address, Node: engine0Enode, Version: engine0AnnounceVersion}
+
+		entryMap, err := engine1.GetValEnodeTableEntries([]common.Address{engine0Address})
+		g.Expect(err).ToNot(HaveOccurred())
+
+		if entry := entryMap[engine0Address]; entry == nil || entry.Address != expectedEntry.Address || entry.Node.URLv4() != expectedEntry.Node.URLv4() || entry.Version != expectedEntry.Version {
+			t.Errorf("Incorrect val enode table entry for engine0.  Want: %v, Have: %v", expectedEntry, entry)
 		}
-	}
 
-	// Generate query enode message for engine0
-	qeMsg, err := engine0.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
-	if err != nil {
-		t.Errorf("Error in generating a query enode message.  Error: %v", err)
-	}
+		entryMap, err = engine2.GetValEnodeTableEntries([]common.Address{engine0Address})
+		g.Expect(err).ToNot(HaveOccurred())
 
-	// Convert to payload
-	qePayload, err := qeMsg.Payload()
-	if err != nil {
-		t.Errorf("Error in converting QueryEnode Message to payload.  Error: %v", err)
-	}
-
-	// Handle the qeMsg for both engine1 and engine2
-	err = engine1.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
-	if err != nil {
-		t.Errorf("Error in handling query enode message for engine1.  Error: %v", err)
-	}
-
-	err = engine2.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
-	if err != nil {
-		t.Errorf("Error in handling query enode message for engine2.  Error: %v", err)
-	}
-
-	// Verify that engine1 and engine2 has engine0's entry in their val enode table
-	expectedEntry := &istanbul.AddressEntry{Address: engine0Address, Node: engine0Enode, Version: engine0AnnounceVersion}
-
-	entryMap, err := engine1.GetValEnodeTableEntries([]common.Address{engine0Address})
-	if err != nil {
-		t.Errorf("Error in retrieving val enode table entry from engine1.  Error: %v", err)
-	}
-
-	if entry := entryMap[engine0Address]; entry == nil || entry.Address != expectedEntry.Address || entry.Node.URLv4() != expectedEntry.Node.URLv4() || entry.Version != expectedEntry.Version {
-		t.Errorf("Incorrect val enode table entry for engine0.  Want: %v, Have: %v", expectedEntry, entry)
-	}
-
-	entryMap, err = engine2.GetValEnodeTableEntries([]common.Address{engine0Address})
-	if err != nil {
-		t.Errorf("Error in retrieving val enode table entry from engine2.  Error: %v", err)
-	}
-
-	if entry := entryMap[engine0Address]; entry == nil || entry.Address != expectedEntry.Address || entry.PublicKey != expectedEntry.PublicKey || entry.Node.URLv4() != expectedEntry.Node.URLv4() || entry.Version != expectedEntry.Version || entry.HighestKnownVersion != expectedEntry.HighestKnownVersion {
-		t.Errorf("Incorrect val enode table entry for engine0.  Want: %v, Have: %v", expectedEntry, entry)
-	}
-
-	engine0.StopAnnouncing()
-	engine1.StopAnnouncing()
-	engine2.StopAnnouncing()
+		if entry := entryMap[engine0Address]; entry == nil || entry.Address != expectedEntry.Address || entry.PublicKey != expectedEntry.PublicKey || entry.Node.URLv4() != expectedEntry.Node.URLv4() || entry.Version != expectedEntry.Version || entry.HighestKnownVersion != expectedEntry.HighestKnownVersion {
+			t.Errorf("Incorrect val enode table entry for engine0.  Want: %v, Have: %v", expectedEntry, entry)
+		}
+	})
 }
 
 // Test enode certificate generation (via the announce thread), and the handling of an enode certificate msg.
 func TestHandleEnodeCertificateMsg(t *testing.T) {
 	// Create two backends
 	numValidators := 2
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := generateGenesisAndKeys(numValidators)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	node0 := testNodeFromGenesis(Validator, common.Address{}, genesisCfg, nodeKeys[0])
+	defer node0.startAndStop()()
+	node1 := testNodeFromGenesis(Validator, common.Address{}, genesisCfg, nodeKeys[1])
+	defer node1.startAndStop()()
+
+	engine0, engine1 := node0.engine, node1.engine
 
 	engine0Node := engine0.SelfNode()
 
@@ -181,9 +169,6 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	if engine0VetEntry.Version != engine0.GetAnnounceVersion() {
 		t.Errorf("Engine0's val enode table entry's version is incorrect.  Want: %d, Have: %d", engine0.GetAnnounceVersion(), engine0VetEntry.Version)
 	}
-
-	engine0.StopAnnouncing()
-	engine1.StopAnnouncing()
 }
 
 // This function will test the setAndShareUpdatedAnnounceVersion function.
@@ -192,9 +177,11 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	// Create one backend
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := generateGenesisAndKeys(numValidators)
 
-	_, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	node := testNodeFromGenesis(Validator, common.Address{}, genesisCfg, nodeKeys[0])
+	defer node.startAndStop()()
+	engine := node.engine
 
 	// Wait a bit so that the announce versions are generated for the engines
 	time.Sleep(10 * time.Second)
@@ -248,6 +235,4 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	if enodeCertMsg.DestAddresses != nil {
 		t.Errorf("Enode cert dest addresses is not nil")
 	}
-
-	engine.StopAnnouncing()
 }

@@ -36,7 +36,7 @@ type TestBackendInterface interface {
 type TestBackendFactory interface {
 	New(isProxy bool, proxiedValAddress common.Address, isProxied bool, genesisCfg *core.Genesis, privateKey *ecdsa.PrivateKey) (TestBackendInterface, *istanbul.Config)
 
-	GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey)
+	GetGenesisAndKeys(numValidators int) (*core.Genesis, []*ecdsa.PrivateKey)
 }
 
 var testBackendFactoryImpl TestBackendFactory
@@ -49,8 +49,8 @@ func NewTestBackend(isProxy bool, proxiedValAddress common.Address, isProxied bo
 	return testBackendFactoryImpl.New(isProxy, proxiedValAddress, isProxied, genesisCfg, privateKey)
 }
 
-func GetGenesisAndKeys(numValidators int, isFullChain bool) (*core.Genesis, []*ecdsa.PrivateKey) {
-	return testBackendFactoryImpl.GetGenesisAndKeys(numValidators, isFullChain)
+func GetGenesisAndKeys(numValidators int) (*core.Genesis, []*ecdsa.PrivateKey) {
+	return testBackendFactoryImpl.GetGenesisAndKeys(numValidators)
 }
 
 func CreateP2PMsg(code uint64, payload []byte) (p2p.Msg, error) {

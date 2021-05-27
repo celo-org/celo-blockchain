@@ -125,9 +125,9 @@ func TestCommit(t *testing.T) {
 			nil,
 			make([]byte, types.IstanbulExtraBlsSignature),
 			func() *types.Block {
-				chain, engine := newBlockChain(1, true)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				expectedBlock, _ := engine.signBlock(block)
+				n := newBlockChain(1)
+				block := makeBlockWithoutSeal(n.chain, n.engine, n.chain.Genesis())
+				expectedBlock, _ := n.engine.signBlock(block)
 				return expectedBlock
 			},
 		},
@@ -136,9 +136,9 @@ func TestCommit(t *testing.T) {
 			errInvalidAggregatedSeal,
 			nil,
 			func() *types.Block {
-				chain, engine := newBlockChain(1, true)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				expectedBlock, _ := engine.signBlock(block)
+				n := newBlockChain(1)
+				block := makeBlockWithoutSeal(n.chain, n.engine, n.chain.Genesis())
+				expectedBlock, _ := n.engine.signBlock(block)
 				return expectedBlock
 			},
 		},
@@ -174,14 +174,15 @@ func TestCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	genesisCfg, nodeKeys := generateGenesisAndKeys(numValidators)
+	node := testNodeFromGenesis(Validator, common.Address{}, genesisCfg, nodeKeys[0])
+	defer node.startAndStop()()
 
-	block, _ := makeBlock(nodeKeys, chain, engine, chain.Genesis())
-	chain.InsertChain(types.Blocks{block})
-	expected := engine.AuthorForBlock(1)
-	actual := engine.Address()
+	block, _ := makeBlock(nodeKeys, node.chain, node.engine, node.chain.Genesis())
+	node.chain.InsertChain(types.Blocks{block})
+	expected := node.engine.AuthorForBlock(1)
+	actual := node.engine.Address()
 	if actual != expected {
-		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), chain.CurrentBlock().Number())
+		t.Errorf("proposer mismatch: have %v, want %v, currentblock: %v", actual.Hex(), expected.Hex(), node.chain.CurrentBlock().Number())
 	}
 }
