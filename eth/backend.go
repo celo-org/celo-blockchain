@@ -90,8 +90,7 @@ type Ethereum struct {
 
 	APIBackend *EthAPIBackend
 
-	miner *miner.Miner
-	// gasPrice       *big.Int
+	miner          *miner.Miner
 	gatewayFee     *big.Int
 	validator      common.Address
 	txFeeRecipient common.Address
