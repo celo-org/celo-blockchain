@@ -72,11 +72,7 @@ var (
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
 
-	testConfig = &Config{
-		Recommit: time.Second,
-		GasFloor: 0,
-		GasCeil:  0,
-	}
+	testConfig = &Config{}
 )
 
 func init() {

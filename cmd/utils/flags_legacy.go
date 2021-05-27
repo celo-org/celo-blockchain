@@ -38,8 +38,6 @@ var DeprecatedFlags = []cli.Flag{
 	LegacyLightServFlag,
 	LegacyLightPeersFlag,
 	LegacyMinerThreadsFlag,
-	LegacyMinerGasTargetFlag,
-	LegacyMinerGasPriceFlag,
 	LegacyMinerExtraDataFlag,
 }
 
@@ -49,16 +47,6 @@ var (
 		Name:  "minerthreads",
 		Usage: "Number of CPU threads to use for mining (deprecated, use --miner.threads)",
 		Value: 0,
-	}
-	LegacyMinerGasTargetFlag = cli.Uint64Flag{
-		Name:  "targetgaslimit",
-		Usage: "Target gas floor for mined blocks (deprecated, use --miner.gastarget)",
-		Value: eth.DefaultConfig.Miner.GasFloor,
-	}
-	LegacyMinerGasPriceFlag = BigFlag{
-		Name:  "gasprice",
-		Usage: "Minimum gas price for mining a transaction (deprecated, use --miner.gasprice)",
-		Value: eth.DefaultConfig.Miner.GasPrice,
 	}
 	LegacyMinerExtraDataFlag = cli.StringFlag{
 		Name:  "extradata",
