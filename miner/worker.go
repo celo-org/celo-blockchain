@@ -226,10 +226,6 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
-	// Unsubscribe here as we will start/stop the validator/full node loops prior to exiting
-	w.chainHeadSub.Unsubscribe()
-	w.txsSub.Unsubscribe()
-
 	close(w.exitCh)
 }
 
@@ -350,6 +346,8 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 
 // mainLoop is a standalone goroutine to create tasks and submit to the engine.
 func (w *worker) mainLoop() {
+	defer w.chainHeadSub.Unsubscribe()
+	defer w.txsSub.Unsubscribe()
 	// Context and cancel function for the currently executing block construction
 	// Cancel needs to be called in each exit path to make the linter happy
 	// because go struggles with analyzing lexical scoping.
