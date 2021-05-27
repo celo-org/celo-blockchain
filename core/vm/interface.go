@@ -87,11 +87,11 @@ type CallContext interface {
 type EVMRunner interface {
 	// Execute performs a potentially write operation over the runner's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
-	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error)
+	Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error)
 
 	// Query performs a read operation over the runner's state
 	// It can be seen as a message (input,value) from sender to recipient that returns `ret`
-	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error)
 
 	// StopGasMetering backward compatibility method to stop gas metering
 	// Deprecated. DO NOT USE

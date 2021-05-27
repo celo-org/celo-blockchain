@@ -44,20 +44,22 @@ func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB
 	}
 }
 
-func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
 	evm := ev.newEVM()
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	ret, _, err = evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	return ret, err
 }
 
-func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
 	evm := ev.newEVM()
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
+	ret, _, err = evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
+	return ret, err
 }
 
 func (ev *evmRunner) StopGasMetering() {
@@ -78,10 +80,12 @@ func (ev *evmRunner) GetStateDB() vm.StateDB {
 // purposes
 type SharedEVMRunner struct{ *vm.EVM }
 
-func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	return sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
+func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	ret, _, err = sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
+	return ret, err
 }
 
-func (sev *SharedEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	return sev.StaticCall(vm.AccountRef(VMAddress), recipient, input, gas)
+func (sev *SharedEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
+	ret, _, err = sev.StaticCall(vm.AccountRef(VMAddress), recipient, input, gas)
+	return ret, err
 }

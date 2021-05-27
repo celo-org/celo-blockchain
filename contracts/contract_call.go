@@ -103,11 +103,10 @@ func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly b
 	}
 
 	var output []byte
-	var leftoverGas uint64
 	if readOnly {
-		output, leftoverGas, err = vmRunner.Query(contractAddress, input, bm.maxGas)
+		output, err = vmRunner.Query(contractAddress, input, bm.maxGas)
 	} else {
-		output, leftoverGas, err = vmRunner.Execute(contractAddress, input, bm.maxGas, value)
+		output, err = vmRunner.Execute(contractAddress, input, bm.maxGas, value)
 	}
 
 	if err != nil {
@@ -117,7 +116,7 @@ func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly b
 	}
 
 	if err := bm.decodeResult(result, output); err != nil {
-		logger.Error("Error invoking evm function: can't unpack result", "err", err, "gasLeft", leftoverGas)
+		logger.Error("Error invoking evm function: can't unpack result", "err", err)
 		return err
 	}
 

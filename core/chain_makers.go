@@ -284,11 +284,11 @@ type fakeEVMRunner struct {
 	statedb *state.StateDB
 }
 
-func (ec *fakeEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	return nil, 0, errors.New("not implemented")
+func (ec *fakeEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	return nil, errors.New("not implemented")
 }
-func (ec *fakeEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	return nil, 0, errors.New("not implemented")
+func (ec *fakeEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
+	return nil, errors.New("not implemented")
 }
 func (ec *fakeEVMRunner) StopGasMetering() {
 
