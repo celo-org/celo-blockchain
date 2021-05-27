@@ -80,7 +80,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *types.Block, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
@@ -196,11 +195,8 @@ type Backend struct {
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
 	// the channels for istanbul engine notifications
-	commitCh          chan *types.Block
-	proposedBlockHash common.Hash
-	sealMu            sync.Mutex
-	coreStarted       bool
-	coreMu            sync.RWMutex
+	coreStarted bool
+	coreMu      sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -511,27 +507,17 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 	}
 
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
-	// - if the proposed and committed blocks are the same, send the proposed hash
-	//   to commit channel, which is being watched inside the engine.Seal() function.
-	// - otherwise, we try to insert the block.
-	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
-	//    the next block and the previous Seal() will be stopped.
-	// -- otherwise, a error will be returned and a round change event will be fired.
-	if sb.proposedBlockHash == block.Hash() {
-		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- block
-	} else {
-		// If caller didn't provide a result, try verifying the block to produce one
-		if result == nil {
-			// This is a suboptimal path, since caller is expected to already have a result available
-			// and thus to avoid doing the block processing again
-			sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
-			if result, _, err = sb.Verify(proposal); err != nil {
-				return err
-			}
+
+	// If caller didn't provide a result, try verifying the block to produce one
+	if result == nil {
+		// This is a suboptimal path, since caller is expected to already have a result available
+		// and thus to avoid doing the block processing again
+		sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
+		if result, _, err = sb.Verify(proposal); err != nil {
+			return err
 		}
-		go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	}
+	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 
 	return nil
 }

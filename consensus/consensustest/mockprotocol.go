@@ -31,13 +31,10 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -133,6 +130,10 @@ type MockEngine struct {
 
 	fakeFail  uint64        // Block number which fails consensus even in fake mode
 	fakeDelay time.Duration // Time delay to sleep for before returning from verify
+
+	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 }
 
 const (
@@ -350,33 +351,29 @@ func (e *MockEngine) Prepare(chain consensus.ChainReader, header *types.Header) 
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func (e *MockEngine) SealHash(header *types.Header) (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-
-	rlp.Encode(hasher, []interface{}{
-		header.ParentHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Number,
-		header.GasUsed,
-		header.Time,
-		header.Extra,
-	})
-	hasher.Sum(hash[:0])
-	return hash
+type fullChain interface {
+	CurrentBlock() *types.Block
+	StateAt(common.Hash) (*state.StateDB, error)
 }
 
-func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (e *MockEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
 	header := block.Header()
-	select {
-	case results <- block.WithHeader(header):
-	default:
-		log.Warn("Sealing result is not read by miner", "mode", "fake", "sealhash", e.SealHash(header))
+	finalBlock := block.WithHeader(header)
+	c := chain.(fullChain)
+
+	parent := c.CurrentBlock()
+
+	state, err := c.StateAt(parent.Root())
+	if err != nil {
+		return err
 	}
+
+	receipts, logs, _, err := e.processBlock(finalBlock, state)
+	if err != nil {
+		return err
+	}
+	e.onNewConsensusBlock(block, receipts, logs, state)
+
 	return nil
 }
 
@@ -393,4 +390,17 @@ func (e *MockEngine) Close() error {
 // EpochSize size of the epoch
 func (e *MockEngine) EpochSize() uint64 {
 	return 100
+}
+
+// SetCallBacks sets call back functions
+func (e *MockEngine) SetCallBacks(hasBadBlock func(common.Hash) bool,
+	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
+	e.processBlock = processBlock
+	e.validateState = validateState
+	e.onNewConsensusBlock = onNewConsensusBlock
+
+	return nil
+
 }
