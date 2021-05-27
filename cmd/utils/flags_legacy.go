@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/eth"
@@ -37,17 +38,12 @@ var ShowDeprecated = cli.Command{
 var DeprecatedFlags = []cli.Flag{
 	LegacyLightServFlag,
 	LegacyLightPeersFlag,
-	LegacyMinerThreadsFlag,
 	LegacyMinerExtraDataFlag,
+	LegacyMinerGasPriceFlag,
 }
 
 var (
 	// (Deprecated April 2018)
-	LegacyMinerThreadsFlag = cli.IntFlag{
-		Name:  "minerthreads",
-		Usage: "Number of CPU threads to use for mining (deprecated, use --miner.threads)",
-		Value: 0,
-	}
 	LegacyMinerExtraDataFlag = cli.StringFlag{
 		Name:  "extradata",
 		Usage: "Block extra data set by the miner (default = client version, deprecated, use --miner.extradata)",
@@ -161,6 +157,13 @@ var (
 		Name:  "bootnodesv5",
 		Usage: "Comma separated enode URLs for P2P v5 discovery bootstrap (light server, light nodes) (deprecated, use --bootnodes)",
 		Value: "",
+	}
+
+	// Deprecated in celo-blockchain 1.4.0
+	LegacyMinerGasPriceFlag = BigFlag{
+		Name:  "miner.gasprice",
+		Usage: "Minimum gas price for mining a transaction",
+		Value: big.NewInt(1),
 	}
 )
 
