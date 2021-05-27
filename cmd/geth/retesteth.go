@@ -239,12 +239,8 @@ func (e *NoRewardEngine) FinalizeAndAssemble(chain consensus.ChainReader, header
 	}
 }
 
-func (e *NoRewardEngine) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	return e.inner.Seal(chain, block, results, stop)
-}
-
-func (e *NoRewardEngine) SealHash(header *types.Header) common.Hash {
-	return e.inner.SealHash(header)
+func (e *NoRewardEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
+	return e.inner.Seal(chain, block)
 }
 
 func (e *NoRewardEngine) GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator {

@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
+	bccore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -55,9 +56,10 @@ func TestPrepare(t *testing.T) {
 func TestMakeBlockWithSignature(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	numValidators := 4
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+
 	defer stopEngine(engine)
 	genesis := chain.Genesis()
 
@@ -71,69 +73,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
-func TestSealStopChannel(t *testing.T) {
-	g := NewGomegaWithT(t)
-
-	chain, engine := newBlockChain(1, true)
-	defer stopEngine(engine)
-
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	stop := make(chan struct{}, 1)
-
-	eventSub := engine.EventMux().Subscribe(istanbul.RequestEvent{})
-	go func() {
-		defer eventSub.Unsubscribe()
-		ev := <-eventSub.Chan()
-		_, ok := ev.Data.(istanbul.RequestEvent)
-		g.Expect(ok).To((BeTrue()), "unexpected event")
-
-		stop <- struct{}{}
-	}()
-
-	results := make(chan *types.Block)
-
-	err := engine.Seal(chain, block, results, stop)
-	g.Expect(err).ToNot(HaveOccurred())
-
-	g.Consistently(results, "1s").ShouldNot(Receive())
-}
-
-// TestSealCommittedOtherHash checks that when Seal() ask for a commit, if we send a
-// different block hash, it will abort
-func TestSealCommittedOtherHash(t *testing.T) {
-	for numValidators := 1; numValidators < 5; numValidators++ {
-		testSealCommittedOtherHash(t, numValidators)
-	}
-}
-
-func testSealCommittedOtherHash(t *testing.T, numValidators int) {
-	g := NewGomegaWithT(t)
-
-	chain, engine := newBlockChain(numValidators, true)
-	defer stopEngine(engine)
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-	// create a second block which will have a different hash
-	h := block.Header()
-	h.ParentHash = block.Hash()
-	otherBlock := types.NewBlock(h, nil, nil, nil)
-	g.Expect(block.Hash()).NotTo(Equal(otherBlock.Hash()), "did not create different blocks")
-
-	results := make(chan *types.Block)
-	engine.Seal(chain, block, results, nil)
-
-	// in the single validator case, the result will instantly be processed
-	// so we should discard it and check that the Commit will not do anything
-	if numValidators == 1 {
-		<-results
-	}
-	// this commit should _NOT_ push a new message to the queue
-	engine.Commit(otherBlock, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
-
-	g.Consistently(results, "100ms").ShouldNot(Receive(), "seal should not be completed")
-}
-
 func TestSealCommitted(t *testing.T) {
-	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
 	// In normal case, the StateProcessResult should be passed into Commit
@@ -142,15 +82,24 @@ func TestSealCommitted(t *testing.T) {
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.signBlock(block)
 
-	results := make(chan *types.Block)
 	go func() {
-		err := engine.Seal(chain, block, results, nil)
-		g.Expect(err).NotTo(HaveOccurred())
+		if err := engine.Seal(chain, block); err != nil {
+			t.Errorf("Failed to seal the block: %v", err)
+		}
 	}()
 
-	var finalBlock *types.Block
-	g.Eventually(results, "1s").Should(Receive(&finalBlock))
-	g.Expect(finalBlock.Hash()).To(Equal(expectedBlock.Hash()))
+	newHeadCh := make(chan bccore.ChainHeadEvent, 10)
+	sub := chain.SubscribeChainHeadEvent(newHeadCh)
+	defer sub.Unsubscribe()
+
+	select {
+	case newHead := <-newHeadCh:
+		if newHead.Block.Hash() != expectedBlock.Hash() {
+			t.Errorf("Expected result block hash of %v, but got %v", expectedBlock.Hash(), newHead.Block.Hash())
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out when waiting for a new block")
+	}
 }
 
 func TestVerifyHeader(t *testing.T) {
@@ -192,7 +141,7 @@ func TestVerifyHeader(t *testing.T) {
 
 func TestVerifySeal(t *testing.T) {
 	g := NewGomegaWithT(t)
-	numValidators := 4
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
@@ -204,7 +153,8 @@ func TestVerifySeal(t *testing.T) {
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
 	// should verify
-	block, _ := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
 	err = engine.VerifySeal(chain, header)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -237,8 +187,7 @@ func TestVerifySeal(t *testing.T) {
 }
 
 func TestVerifyHeaders(t *testing.T) {
-
-	numValidators := 4
+	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
