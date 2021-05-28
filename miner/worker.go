@@ -356,7 +356,7 @@ func (w *worker) mainLoop() {
 
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
-	newWorkFunc := func() {
+	generateNewBlock := func() {
 		if cancel != nil {
 			cancel()
 		}
@@ -376,10 +376,10 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case <-w.startCh:
-			newWorkFunc()
+			generateNewBlock()
 
 		case <-w.chainHeadCh:
-			newWorkFunc()
+			generateNewBlock()
 
 		case ev := <-w.txsCh:
 			// Drain tx sub channel as a validator,
