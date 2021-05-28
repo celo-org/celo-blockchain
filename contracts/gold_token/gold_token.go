@@ -13,6 +13,7 @@ import (
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/GoldToken.json
+	// nolint: gosec
 	goldTokenABI = `[
 		{
 		"constant": false,

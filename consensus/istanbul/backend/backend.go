@@ -55,9 +55,6 @@ import (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-
-	// errNoBlockHeader is returned when the requested block header could not be found.
-	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
 
 // New creates an Ethereum backend for Istanbul core engine.

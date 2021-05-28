@@ -11,7 +11,7 @@ import (
 
 var (
 	ErrUnkownMethod   = errors.New("unknown method")
-	ErrUnkownContract = errors.New("unkown contract")
+	ErrUnkownContract = errors.New("unknown contract")
 )
 
 // Check we actually implement EVMRunner

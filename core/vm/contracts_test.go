@@ -99,10 +99,7 @@ var vmctx = Context{
 	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
 	VerifySeal: func(header *types.Header) bool {
 		// If the block is later than the unsealed reference block, return false.
-		if header.Number.Cmp(testHeader.Number) > 0 {
-			return false
-		}
-		return true
+		return !(header.Number.Cmp(testHeader.Number) > 0)
 	},
 	Origin:      common.HexToAddress("a11ce"),
 	Coinbase:    common.Address{},
