@@ -68,14 +68,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	// TODO(HF) use vmRunner instead of parentVMRunner (HF required)
-	isRandomRunning := false
-	parentVMRunner, err := p.bc.NewEVMRunnerForCurrentBlock()
-	if err == nil {
-		isRandomRunning = random.IsRunning(parentVMRunner)
-	}
-
-	if isRandomRunning {
+	if random.IsRunning(vmRunner) {
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
 			return nil, nil, 0, err

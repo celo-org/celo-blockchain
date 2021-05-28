@@ -922,18 +922,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.updateSnapshot()
 
 	if w.isRunning() {
-		// TODO use caller instead of parentCaller (HF required)
-		randomIsActive := false
-		header := w.chain.CurrentHeader()
-		state, err := w.chain.StateAt(header.Root)
-		// TODO(HF) make this check use w.current.header instead of blockchain's current
-		if err == nil {
-			parentVMRunner := w.chain.NewEVMRunner(parent.Header(), state)
-			randomIsActive = random.IsRunning(parentVMRunner)
-		}
+		vmRunner := w.chain.NewEVMRunner(w.current.header, w.current.state)
 
-		if randomIsActive {
-			vmRunner := w.chain.NewEVMRunner(w.current.header, w.current.state)
+		if random.IsRunning(vmRunner) {
 			istanbul, ok := w.engine.(consensus.Istanbul)
 			if !ok {
 				log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
