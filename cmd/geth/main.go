@@ -448,7 +448,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	isFullNode := ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast"
 	// Miners and proxies only makes sense if a full node is running
 	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		if isFullNode {
+		if !isFullNode {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
