@@ -511,6 +511,18 @@ web3._extend({
 			params: 1,
 			inputFormatter: [web3._extend.utils.fromDecimal]
 		}),
+		new web3._extend.Method({
+			name: 'start',
+			call: 'miner_start',
+			params: 0,
+			inputFormatter: []
+		}),
+		new web3._extend.Method({
+			name: 'stop',
+			call: 'miner_stop',
+			params: 0,
+			inputFormatter: []
+		}),
 	],
 	properties: []
 });
