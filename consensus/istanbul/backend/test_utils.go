@@ -223,6 +223,7 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 	// The worker that calls Prepare is the one filling the Coinbase
 	header.Coinbase = engine.address
 	engine.Prepare(chain, header)
+	time.Sleep(time.Until(time.Unix(int64(header.Time), 0)))
 
 	state, err := chain.StateAt(parent.Root())
 	if err != nil {
