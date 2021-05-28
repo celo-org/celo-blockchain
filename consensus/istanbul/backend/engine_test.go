@@ -44,6 +44,7 @@ func TestPrepare(t *testing.T) {
 
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 	header := makeHeader(chain.Genesis(), engine.config)
 	err := engine.Prepare(chain, header)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -61,6 +62,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 
 	defer stopEngine(engine)
+	defer chain.Stop()
 	genesis := chain.Genesis()
 
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
@@ -76,6 +78,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 func TestSealCommitted(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 	// In normal case, the StateProcessResult should be passed into Commit
 	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
 
@@ -106,6 +109,7 @@ func TestVerifyHeader(t *testing.T) {
 	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	// errEmptyAggregatedSeal case
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -145,6 +149,7 @@ func TestVerifySeal(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	genesis := chain.Genesis()
 
@@ -191,6 +196,7 @@ func TestVerifyHeaders(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
+	defer chain.Stop()
 	genesis := chain.Genesis()
 
 	// success case
@@ -299,6 +305,7 @@ func TestVerifyHeaders(t *testing.T) {
 func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	chain, engine := newBlockChain(1, false)
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	t.Run("should allow future block without full chain available", func(t *testing.T) {
 		g := NewGomegaWithT(t)

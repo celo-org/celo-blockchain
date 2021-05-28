@@ -16,9 +16,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	numValidators := 3
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
-	_, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain0.Stop()
+	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	defer chain1.Stop()
+	chain2, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	defer chain2.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
 	time.Sleep(6 * time.Second)
@@ -143,8 +146,10 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	numValidators := 2
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain0.Stop()
+	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	defer chain1.Stop()
 
 	engine0Node := engine0.SelfNode()
 
@@ -194,7 +199,8 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
 	time.Sleep(10 * time.Second)
