@@ -25,6 +25,10 @@ or, to build the full suite of utilities:
 make all
 ```
 
+Note: Cross compiling is currently only supported for cross-compiling to linux-amd64 and linux-arm64.
+
+
+
 ### Mobile Clients
 
 There are two different commands in the `Makefile` to build the `ios` and the `android` clients.
