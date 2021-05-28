@@ -353,6 +353,7 @@ func (w *worker) mainLoop() {
 	// because go struggles with analyzing lexical scoping.
 	var taskCtx context.Context
 	var cancel context.CancelFunc
+	var wg sync.WaitGroup
 
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
@@ -360,16 +361,25 @@ func (w *worker) mainLoop() {
 		if cancel != nil {
 			cancel()
 		}
+		wg.Wait()
 		taskCtx, cancel = context.WithCancel(context.Background())
+		wg.Add(1)
 
 		if w.isRunning() {
+			// engine.NewWork posts the FinalCommitted Event to IBFT to signal the start of the next round
 			if h, ok := w.engine.(consensus.Handler); ok {
 				h.NewWork()
 			}
 
-			go w.constructAndSubmitNewBlock(taskCtx)
+			go func() {
+				w.constructAndSubmitNewBlock(taskCtx)
+				wg.Done()
+			}()
 		} else {
-			go w.constructPendingStateBlock(taskCtx, txsCh)
+			go func() {
+				w.constructPendingStateBlock(taskCtx, txsCh)
+				wg.Done()
+			}()
 		}
 	}
 
