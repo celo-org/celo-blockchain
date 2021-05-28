@@ -11,7 +11,7 @@ import (
 
 const (
 	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
-	getAddressForABI = `[{"constant": true,
+	RegistryABIString = `[{"constant": true,
                               "inputs": [
                                    {
                                        "name": "identifier",
@@ -35,7 +35,7 @@ var getAddressMethod *BoundMethod
 
 func init() {
 	var err error
-	getAddressForFuncABI, err := abi.JSON(strings.NewReader(getAddressForABI))
+	getAddressForFuncABI, err := abi.JSON(strings.NewReader(RegistryABIString))
 	if err != nil {
 		panic("can't parse registry abi " + err.Error())
 	}

@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	blockchainParametersABIString = `[{
+	ABIString = `[{
 			"constant": true,
 			"inputs": [],
 			"name": "getMinimumClientVersion",
@@ -106,7 +106,7 @@ var (
 )
 
 func init() {
-	parsedAbi, err := abi.JSON(strings.NewReader(blockchainParametersABIString))
+	parsedAbi, err := abi.JSON(strings.NewReader(ABIString))
 	if err != nil {
 		log.Crit("Error reading ABI for BlockchainParameters", "err", err)
 	}
