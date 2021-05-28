@@ -49,13 +49,12 @@ type Config struct {
 
 // Miner creates blocks and searches for proof-of-work values.
 type Miner struct {
-	mux            *event.TypeMux
-	worker         *worker
-	validator      common.Address
-	txFeeRecipient common.Address
-	eth            Backend
-	engine         consensus.Engine
-	db             ethdb.Database // Needed for randomness
+	mux       *event.TypeMux
+	worker    *worker
+	validator common.Address
+	eth       Backend
+	engine    consensus.Engine
+	db        ethdb.Database // Needed for randomness
 
 	exitCh  chan struct{}
 	startCh chan struct{}
@@ -224,7 +223,6 @@ func (miner *Miner) SetValidator(addr common.Address) {
 
 // SetTxFeeRecipient sets the address where the miner and worker will receive fees
 func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
-	miner.txFeeRecipient = addr
 	miner.worker.setTxFeeRecipient(addr)
 }
 
