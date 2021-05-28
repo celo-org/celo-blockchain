@@ -214,17 +214,28 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	// Start mining!
 	w.start()
 
+	sentTxs := 1 // from newTestWorker w/ shouldAddPendingTxs = true
+	totalTxs := 0
+
 	for i := 0; i < 5; i++ {
 		b.txPool.AddLocal(b.newRandomTx(true))
 		b.txPool.AddLocal(b.newRandomTx(false))
+		sentTxs += 2
 		select {
 		case ev := <-sub.Chan():
-			if _, ok := ev.Data.(core.NewMinedBlockEvent); !ok {
+			block, ok := ev.Data.(core.NewMinedBlockEvent)
+			if !ok {
 				t.Fatal("Could not decode NewMinedBlockEvent from subscription channel")
 			}
+			totalTxs += len(block.Block.Transactions())
+
 		case <-time.After(3 * time.Second): // Worker needs 1s to include new changes.
 			t.Fatalf("timeout")
 		}
+	}
+
+	if sentTxs != totalTxs {
+		t.Errorf("Expected %v transactions, got %v transactions", sentTxs, totalTxs)
 	}
 }
 
