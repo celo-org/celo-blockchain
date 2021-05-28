@@ -83,10 +83,6 @@ func (bm *BoundMethod) Execute(vmRunner vm.EVMRunner, result interface{}, value 
 }
 
 func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly bool, value *big.Int, args ...interface{}) error {
-	if vmRunner == nil {
-		return ErrNoEVMRunner
-	}
-
 	defer meterExecutionTime(bm.method)()
 
 	contractAddress, err := bm.resolveAddress(vmRunner)

@@ -48,9 +48,6 @@ func init() {
 
 // GetRegisteredAddress returns the address on the registry for a given id
 func GetRegisteredAddress(vmRunner vm.EVMRunner, registryId common.Hash) (common.Address, error) {
-	if vmRunner == nil {
-		return common.ZeroAddress, ErrNoEVMRunner
-	}
 
 	vmRunner.StopGasMetering()
 	defer vmRunner.StartGasMetering()

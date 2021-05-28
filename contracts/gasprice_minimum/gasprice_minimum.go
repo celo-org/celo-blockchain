@@ -106,11 +106,6 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	var currencyAddress common.Address
 	var err error
 
-	// TODO this is not ideal, we fail on vmRunner == nil
-	if vmRunner == nil {
-		return FallbackGasPriceMinimum, nil
-	}
-
 	if currency == nil {
 		currencyAddress, err = contracts.GetRegisteredAddress(vmRunner, params.GoldTokenRegistryId)
 
