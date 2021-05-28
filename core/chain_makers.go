@@ -17,13 +17,13 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -96,8 +96,8 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 	}
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
 
-	vmRunner := &fakeEVMRunner{b.statedb}
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, vmRunner)
+	celoMock := testutil.NewCeloMock()
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner)
 	if err != nil {
 		panic(err)
 	}
@@ -279,23 +279,3 @@ func (cr *fakeChainReader) GetHeaderByHash(hash common.Hash) *types.Header      
 func (cr *fakeChainReader) GetHeader(hash common.Hash, number uint64) *types.Header { return nil }
 func (cr *fakeChainReader) GetBlock(hash common.Hash, number uint64) *types.Block   { return nil }
 func (cr *fakeChainReader) StateAt(root common.Hash) (*state.StateDB, error)        { return nil, nil }
-
-type fakeEVMRunner struct {
-	statedb *state.StateDB
-}
-
-func (ec *fakeEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	return nil, errors.New("not implemented")
-}
-func (ec *fakeEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
-	return nil, errors.New("not implemented")
-}
-func (ec *fakeEVMRunner) StopGasMetering() {
-
-}
-func (ec *fakeEVMRunner) StartGasMetering() {
-
-}
-func (ec *fakeEVMRunner) GetStateDB() vm.StateDB {
-	return ec.statedb
-}
