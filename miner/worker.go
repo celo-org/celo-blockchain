@@ -42,9 +42,6 @@ import (
 )
 
 const (
-	// resultQueueSize is the size of channel listening to sealing result.
-	resultQueueSize = 10
-
 	// txChanSize is the size of channel listening to NewTxsEvent.
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
@@ -76,13 +73,17 @@ const (
 	// intervalAdjustBias is applied during the new resubmit interval calculation in favor of
 	// increasing upper limit or decreasing lower limit so that the limit can be reachable.
 	intervalAdjustBias = 200 * 1000.0 * 1000.0
-
-	// staleThreshold is the maximum depth of the acceptable stale block.
-	staleThreshold = 7
 )
 
-// Gauge used to measure block finalization time from created to after written to chain.
-var blockFinalizationTimeGauge = metrics.NewRegisteredGauge("miner/block/finalizationTime", nil)
+// callBackEngine is a subset of the consensus.Istanbul interface. It is used over consensus.Istanbul to enable sealing
+// for the MockEngine (which implements this and the engine interface, but not the full istanbul interface).
+type callBackEngine interface {
+	// SetCallBacks sets call back functions
+	SetCallBacks(hasBadBlock func(common.Hash) bool,
+		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+		onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error
+}
 
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
@@ -151,7 +152,6 @@ type worker struct {
 	// Channels
 	newWorkCh          chan *newWorkReq
 	taskCh             chan *task
-	resultCh           chan *types.Block
 	startCh            chan struct{}
 	exitCh             chan struct{}
 	resubmitIntervalCh chan time.Duration
@@ -164,9 +164,6 @@ type worker struct {
 	validator      common.Address
 	txFeeRecipient common.Address
 	extra          []byte
-
-	pendingMu    sync.RWMutex
-	pendingTasks map[common.Hash]*task
 
 	snapshotMu    sync.RWMutex // The lock used to protect the block snapshot and state snapshot
 	snapshotBlock *types.Block
@@ -208,13 +205,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		chain:               eth.BlockChain(),
 		isLocalBlock:        isLocalBlock,
 		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:        make(map[common.Hash]*task),
 		txsCh:               make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
 		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
 		newWorkCh:           make(chan *newWorkReq),
 		taskCh:              make(chan *task),
-		resultCh:            make(chan *types.Block, resultQueueSize),
 		exitCh:              make(chan struct{}),
 		startCh:             make(chan struct{}, 1),
 		resubmitIntervalCh:  make(chan time.Duration),
@@ -237,7 +232,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
-	go worker.resultLoop()
 	go worker.taskLoop()
 
 	// Submit first work to initialize pending state.
@@ -307,14 +301,31 @@ func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
 
-	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
-		istanbul.SetBlockProcessors(w.chain.HasBadBlock,
+	if cbEngine, ok := w.engine.(callBackEngine); ok {
+		cbEngine.SetCallBacks(w.chain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return w.chain.Processor().Process(block, state, *w.chain.GetVMConfig())
 			},
-			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-				return w.chain.Validator().ValidateState(block, state, receipts, usedGas)
+			w.chain.Validator().ValidateState,
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+				if err := w.chain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+					if err == core.ErrNotHeadBlock {
+						log.Warn("Tried to insert duplicated produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+					} else {
+						log.Error("Failed to insert produced block", "blockNumber", block.Number(), "hash", block.Hash(), "err", err)
+					}
+					return
+				}
+				log.Info("Successfully produced new block", "number", block.Number(), "hash", block.Hash())
+
+				if err := w.mux.Post(core.NewMinedBlockEvent{Block: block}); err != nil {
+					log.Error("Error when posting NewMinedBlockEvent", "err", err)
+				}
 			})
+	}
+
+	if istanbul, ok := w.engine.(consensus.Istanbul); ok {
+
 		if istanbul.IsPrimary() {
 			istanbul.StartValidating()
 		}
@@ -393,27 +404,14 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		}
 		recommit = time.Duration(int64(next))
 	}
-	// clearPending cleans the stale pending tasks.
-	clearPending := func(number uint64) {
-		w.pendingMu.Lock()
-		for h, t := range w.pendingTasks {
-			if t.block.NumberU64()+staleThreshold <= number {
-				delete(w.pendingTasks, h)
-			}
-		}
-		w.pendingMu.Unlock()
-	}
 
 	for {
 		select {
 		case <-w.startCh:
-			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
-		case head := <-w.chainHeadCh:
-			headNumber := head.Block.NumberU64()
-			clearPending(headNumber)
+		case <-w.chainHeadCh:
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
 
@@ -534,115 +532,21 @@ func (w *worker) mainLoop() {
 // taskLoop is a standalone goroutine to fetch sealing task from the generator and
 // push them to consensus engine.
 func (w *worker) taskLoop() {
-	var (
-		stopCh chan struct{}
-		prev   common.Hash
-	)
 
-	// interrupt aborts the in-flight sealing task.
-	interrupt := func() {
-		if stopCh != nil {
-			close(stopCh)
-			stopCh = nil
-		}
-	}
 	for {
 		select {
 		case task := <-w.taskCh:
 			if w.newTaskHook != nil {
 				w.newTaskHook(task)
 			}
-			// Reject duplicate sealing work due to resubmitting.
-			sealHash := w.engine.SealHash(task.block.Header())
-			if sealHash == prev {
-				continue
-			}
-			// Interrupt previous sealing operation
-			interrupt()
-			stopCh, prev = make(chan struct{}), sealHash
 
 			if w.skipSealHook != nil && w.skipSealHook(task) {
 				continue
 			}
-			w.pendingMu.Lock()
-			w.pendingTasks[w.engine.SealHash(task.block.Header())] = task
-			w.pendingMu.Unlock()
 
-			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
+			if err := w.engine.Seal(w.chain, task.block); err != nil {
 				log.Warn("Block sealing failed", "err", err)
 			}
-		case <-w.exitCh:
-			interrupt()
-			return
-		}
-	}
-}
-
-// resultLoop is a standalone goroutine to handle sealing result submitting
-// and flush relative data to the database.
-func (w *worker) resultLoop() {
-	for {
-		select {
-		case block := <-w.resultCh:
-			// Short circuit when receiving empty result.
-			if block == nil {
-				continue
-			}
-			// Short circuit when receiving duplicate result caused by resubmitting.
-			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
-				continue
-			}
-			var (
-				sealhash = w.engine.SealHash(block.Header())
-				hash     = block.Hash()
-			)
-			w.pendingMu.RLock()
-			task, exist := w.pendingTasks[sealhash]
-			w.pendingMu.RUnlock()
-			if !exist {
-				log.Error("Block found but no relative pending task", "number", block.Number(), "sealhash", sealhash, "hash", hash)
-				continue
-			}
-			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
-			var (
-				receipts = make([]*types.Receipt, len(task.receipts))
-				logs     []*types.Log
-			)
-			for i, receipt := range task.receipts {
-				// add block location fields
-				receipt.BlockHash = hash
-				receipt.BlockNumber = block.Number()
-				receipt.TransactionIndex = uint(i)
-
-				receipts[i] = new(types.Receipt)
-				*receipts[i] = *receipt
-				// Update the block hash in all logs since it is now available and not when the
-				// receipt/log of individual transactions were created.
-				for _, log := range receipt.Logs {
-					log.BlockHash = hash
-					// Handle block finalization receipt
-					if (log.TxHash == common.Hash{}) {
-						log.TxHash = hash
-					}
-				}
-				logs = append(logs, receipt.Logs...)
-			}
-			// Commit block and state to database.
-			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
-			if err != nil {
-				log.Error("Failed writing block to chain", "err", err)
-				continue
-			}
-			blockFinalizationTimeGauge.Update(time.Now().UnixNano() - int64(block.Time())*1000000000)
-			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
-				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
-
-			// Broadcast the block and announce chain insertion event
-			w.mux.Post(core.NewMinedBlockEvent{Block: block})
-
-			// Insert the block into the set of pending ones to resultLoop for confirmations
-			w.unconfirmed.Insert(block.NumberU64(), block.Hash())
-
 		case <-w.exitCh:
 			return
 		}
@@ -1062,8 +966,8 @@ func (w *worker) commit(interval func(), update bool, start time.Time) error {
 			}
 			feesEth := new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 
-			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
-				"txs", w.current.tcount, "gas", block.GasUsed(), "fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
+			log.Info("Commit new mining work", "number", block.Number(), "txs", w.current.tcount, "gas", block.GasUsed(),
+				"fees", feesEth, "elapsed", common.PrettyDuration(time.Since(start)))
 		case <-w.exitCh:
 			log.Info("Worker has exited")
 		}

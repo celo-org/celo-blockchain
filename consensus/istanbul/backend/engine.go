@@ -509,71 +509,52 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	return block, nil
 }
 
-// Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// update the block header timestamp and signature and propose the block to core engine
-	header := block.Header()
-	number := header.Number.Uint64()
-
-	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
+// checkIsValidSigner checks if validator is a valid signer for the block
+// returns an error if not
+func (sb *Backend) checkIsValidSigner(chain consensus.ChainHeaderReader, header *types.Header) error {
+	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
-	if _, v := snap.ValSet.GetByAddress(sb.address); v == nil {
+
+	_, v := snap.ValSet.GetByAddress(sb.address)
+	if v == nil {
 		return errUnauthorized
 	}
-
-	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
-		return consensus.ErrUnknownAncestor
-	}
-	block, err = sb.updateBlock(parent, block)
-	if err != nil {
-		return err
-	}
-
-	// get the proposed block hash and clear it if the seal() is completed.
-	sb.sealMu.Lock()
-	sb.proposedBlockHash = block.Hash()
-	clear := func() {
-		sb.proposedBlockHash = common.Hash{}
-		sb.sealMu.Unlock()
-	}
-
-	// post block into Istanbul engine
-	go sb.EventMux().Post(istanbul.RequestEvent{
-		Proposal: block,
-	})
-
-	go func() {
-		defer clear()
-		for {
-			select {
-			case result := <-sb.commitCh:
-				// Somehow, the block `result` coming from commitCh can be null
-				// if the block hash and the hash from channel are the same,
-				// return the result. Otherwise, keep waiting the next hash.
-				if result != nil && block.Hash() == result.Hash() {
-					results <- result
-					return
-				}
-			case <-stop:
-				return
-			}
-		}
-	}()
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func (sb *Backend) SealHash(header *types.Header) common.Hash {
-	return sigHash(header)
+// Seal generates a new block for the given input block with the local miner's
+// seal place on top and submits it the the consensus engine.
+func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block) error {
+
+	header := block.Header()
+
+	// Bail out if we're unauthorized to sign a block
+	if err := sb.checkIsValidSigner(chain, header); err != nil {
+		return err
+	}
+
+	if parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1); parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	// update the block header timestamp and signature and propose the block to core engine
+	block, err := sb.signBlock(block)
+	if err != nil {
+		return err
+	}
+
+	// post block into Istanbul engine
+	if err := sb.EventMux().Post(istanbul.RequestEvent{Proposal: block}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// update timestamp and signature of the block based on its number of transactions
-func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types.Block, error) {
+// signBlock signs block with a seal
+func (sb *Backend) signBlock(block *types.Block) (*types.Block, error) {
 	header := block.Header()
 	// sign the hash
 	seal, err := sb.Sign(sigHash(header).Bytes())
@@ -586,7 +567,7 @@ func (sb *Backend) updateBlock(parent *types.Header, block *types.Block) (*types
 		return nil, err
 	}
 
-	return block.WithSeal(header), nil
+	return block.WithHeader(header), nil
 }
 
 // APIs returns the RPC APIs this consensus engine provides.
@@ -650,10 +631,11 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	}
 }
 
-// SetBlockProcessors implements consensus.Istanbul.SetBlockProcessors
-func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
+// SetCallBacks implements consensus.Istanbul.SetCallBacks
+func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error {
+	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -663,7 +645,7 @@ func (sb *Backend) SetBlockProcessors(hasBadBlock func(common.Hash) bool,
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
 	sb.validateState = validateState
-
+	sb.onNewConsensusBlock = onNewConsensusBlock
 	return nil
 }
 
@@ -678,13 +660,6 @@ func (sb *Backend) StartValidating() error {
 	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
 		return errors.New("Must SetBlockProcessors prior to StartValidating")
 	}
-
-	// clear previous data
-	sb.proposedBlockHash = common.Hash{}
-	if sb.commitCh != nil {
-		close(sb.commitCh)
-	}
-	sb.commitCh = make(chan *types.Block, 1)
 
 	sb.logger.Info("Starting istanbul.Engine validating")
 	if err := sb.core.Start(); err != nil {

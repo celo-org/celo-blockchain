@@ -102,15 +102,10 @@ type Engine interface {
 	// consensus rules that happen at finalization (e.g. block rewards).
 	FinalizeAndAssemble(chain ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error)
 
-	// Seal generates a new sealing request for the given input block and pushes
-	// the result into the given channel.
+	// Seal generates a new sealing request for the given input block.
 	//
-	// Note, the method returns immediately and will send the result async. More
-	// than one result may also be returned depending on the consensus algorithm.
-	Seal(chain ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error
-
-	// SealHash returns the hash of a block prior to it being sealed.
-	SealHash(header *types.Header) common.Hash
+	// Note: The engine will insert the resulting block.
+	Seal(chain ChainHeaderReader, block *types.Block) error
 
 	// GetValidators returns the list of current validators.
 	GetValidators(blockNumber *big.Int, headerHash common.Hash) []istanbul.Validator
@@ -188,10 +183,11 @@ type Istanbul interface {
 	// SetChain injects the blockchain and related functions to the istanbul consensus engine
 	SetChain(chain ChainContext, currentBlock func() *types.Block, stateAt func(common.Hash) (*state.StateDB, error))
 
-	// SetBlockProcessors sets block processors
-	SetBlockProcessors(hasBadBlock func(common.Hash) bool,
+	// SetCallBacks sets call back functions
+	SetCallBacks(hasBadBlock func(common.Hash) bool,
 		processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
-		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error) error
+		validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
+		onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error
 
 	// StartValidating starts the validating engine
 	StartValidating() error
