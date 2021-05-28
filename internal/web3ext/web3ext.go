@@ -495,16 +495,6 @@ web3._extend({
 	property: 'miner',
 	methods: [
 		new web3._extend.Method({
-			name: 'start',
-			call: 'miner_start',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'stop',
-			call: 'miner_stop'
-		}),
-		new web3._extend.Method({
 			name: 'setEtherbase',
 			call: 'miner_setEtherbase',
 			params: 1,
@@ -522,13 +512,16 @@ web3._extend({
 			inputFormatter: [web3._extend.utils.fromDecimal]
 		}),
 		new web3._extend.Method({
-			name: 'setRecommitInterval',
-			call: 'miner_setRecommitInterval',
-			params: 1,
+			name: 'start',
+			call: 'miner_start',
+			params: 0,
+			inputFormatter: []
 		}),
 		new web3._extend.Method({
-			name: 'getHashrate',
-			call: 'miner_getHashrate'
+			name: 'stop',
+			call: 'miner_stop',
+			params: 0,
+			inputFormatter: []
 		}),
 	],
 	properties: []

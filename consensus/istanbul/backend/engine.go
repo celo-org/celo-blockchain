@@ -368,6 +368,7 @@ func (sb *Backend) VerifySeal(header *types.Header) error {
 
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
+// The parent seal is not included when the node is not validating.
 func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
@@ -383,20 +384,26 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = nowTime
 	}
 
-	if err := writeEmptyIstanbulExtra(header); err != nil {
-		return err
-	}
-
-	// wait for the timestamp of header, use this to adjust the block period
-	delay := time.Unix(int64(header.Time), 0).Sub(now())
-	time.Sleep(delay)
+	// Record what the delay should be, but sleep in the miner, not the consensus engine.
+	delay := time.Until(time.Unix(int64(header.Time), 0))
 	if delay < 0 {
 		sb.sleepGauge.Update(0)
 	} else {
 		sb.sleepGauge.Update(delay.Nanoseconds())
 	}
 
-	return sb.addParentSeal(chain, header)
+	if err := writeEmptyIstanbulExtra(header); err != nil {
+		return err
+	}
+
+	// addParentSeal blocks for up to 500ms waiting for the core to reach the target sequence.
+	// Prepare is called from non-validators, so don't bother with the parent seal unless this
+	// block is to be proposed instead of for the local state.
+	if sb.IsValidating() {
+		return sb.addParentSeal(chain, header)
+	} else {
+		return nil
+	}
 }
 
 // UpdateValSetDiff will update the validator set diff in the header, if the mined header is the last block of the epoch
@@ -1194,7 +1201,6 @@ func waitCoreToReachSequence(core istanbulCore.Engine, expectedSequence *big.Int
 				return view.Sequence
 			}
 		case <-timeout:
-			// TODO(asa): Why is this logged by full nodes?
 			log.Trace("Timed out while waiting for core to sequence change, unable to combine commit messages with ParentAggregatedSeal", "cur_view", core.CurrentView())
 			return nil
 		}

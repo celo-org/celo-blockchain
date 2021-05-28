@@ -89,7 +89,6 @@ type Ethereum struct {
 	APIBackend *EthAPIBackend
 
 	miner          *miner.Miner
-	gasPrice       *big.Int
 	gatewayFee     *big.Int
 	validator      common.Address
 	txFeeRecipient common.Address
@@ -122,10 +121,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
-	}
-	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(common.Big0) <= 0 {
-		log.Warn("Sanitizing invalid miner gas price", "provided", config.Miner.GasPrice, "updated", DefaultConfig.Miner.GasPrice)
-		config.Miner.GasPrice = new(big.Int).Set(DefaultConfig.Miner.GasPrice)
 	}
 	if config.NoPruning && config.TrieDirtyCache > 0 {
 		if config.SnapshotCache > 0 {
@@ -162,7 +157,6 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		engine:            CreateConsensusEngine(ctx, chainConfig, config, chainDb),
 		closeBloomHandler: make(chan struct{}),
 		networkID:         config.NetworkId,
-		gasPrice:          config.Miner.GasPrice,
 		validator:         config.Miner.Validator,
 		txFeeRecipient:    config.TxFeeRecipient,
 		gatewayFee:        config.GatewayFee,
@@ -239,7 +233,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 			})
 	}
 
-	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock, chainDb)
+	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, chainDb)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth}
@@ -440,28 +434,10 @@ func (s *Ethereum) SetTxFeeRecipient(txFeeRecipient common.Address) {
 	s.miner.SetTxFeeRecipient(txFeeRecipient)
 }
 
-// StartMining starts the miner with the given number of CPU threads. If mining
-// is already running, this method adjust the number of threads allowed to use
-// and updates the minimum price required by the transaction pool.
-func (s *Ethereum) StartMining(threads int) error {
-	// Update the thread count within the consensus engine
-	type threaded interface {
-		SetThreads(threads int)
-	}
-	if th, ok := s.engine.(threaded); ok {
-		log.Info("Updated mining threads", "threads", threads)
-		if threads == 0 {
-			threads = -1 // Disable the miner from within
-		}
-		th.SetThreads(threads)
-	}
+// StartMining starts the miner
+func (s *Ethereum) StartMining() error {
 	// If the miner was not running, initialize it
 	if !s.IsMining() {
-		// Propagate the initial price point to the transaction pool
-		s.lock.RLock()
-		price := s.gasPrice
-		s.lock.RUnlock()
-		s.txPool.SetGasPrice(price)
 
 		// Configure the local mining address
 		validator, err := s.Validator()
@@ -521,13 +497,6 @@ func (s *Ethereum) StartMining(threads int) error {
 // StopMining terminates the miner, both at the consensus engine level as well as
 // at the block creation level.
 func (s *Ethereum) StopMining() {
-	// Update the thread count within the consensus engine
-	type threaded interface {
-		SetThreads(threads int)
-	}
-	if th, ok := s.engine.(threaded); ok {
-		th.SetThreads(-1)
-	}
 	// Stop the block creating itself
 	s.miner.Stop()
 

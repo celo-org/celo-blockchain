@@ -111,15 +111,9 @@ var (
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerValidatorFlag,
-		utils.MinerThreadsFlag,
-		utils.LegacyMinerThreadsFlag,
-		utils.MinerGasTargetFlag,
-		utils.LegacyMinerGasTargetFlag,
-		utils.MinerGasLimitFlag,
-		utils.MinerGasPriceFlag,
+		utils.LegacyMinerGasPriceFlag,
 		utils.MinerExtraDataFlag,
 		utils.LegacyMinerExtraDataFlag,
-		utils.MinerRecommitIntervalFlag,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,
@@ -470,19 +464,10 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			utils.Fatalf("Ethereum service not running: %v", err)
 		}
 		// Set the gas price to the limits from the CLI and start mining
-		gasprice := utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		if ctx.GlobalIsSet(utils.LegacyMinerGasPriceFlag.Name) && !ctx.GlobalIsSet(utils.MinerGasPriceFlag.Name) {
-			gasprice = utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
-		}
+		gasprice := utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
 		ethereum.TxPool().SetGasPrice(gasprice)
 
-		threads := ctx.GlobalInt(utils.MinerThreadsFlag.Name)
-		if ctx.GlobalIsSet(utils.LegacyMinerThreadsFlag.Name) && !ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
-			threads = ctx.GlobalInt(utils.LegacyMinerThreadsFlag.Name)
-			log.Warn("The flag --minerthreads is deprecated and will be removed in the future, please use --miner.threads")
-		}
-
-		if err := ethereum.StartMining(threads); err != nil {
+		if err := ethereum.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
 	}

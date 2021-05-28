@@ -1192,7 +1192,6 @@ type nodeStats struct {
 	Mining   bool `json:"mining"`
 	Proxy    bool `json:"proxy"`
 	Elected  bool `json:"elected"`
-	Hashrate int  `json:"hashrate"`
 	Peers    int  `json:"peers"`
 	GasPrice int  `json:"gasPrice"`
 	Uptime   int  `json:"uptime"`
@@ -1207,7 +1206,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		mining           bool
 		proxy            bool
 		elected          bool
-		hashrate         int
 		syncing          bool
 		gasprice         int
 	)
@@ -1218,7 +1216,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 
 		proxy = s.backend.IsProxy()
 		mining = s.eth.Miner().Mining()
-		hashrate = int(s.eth.Miner().HashRate())
 
 		elected = false
 		valsElected := s.backend.GetValidators(block.Number(), block.Hash())
@@ -1249,7 +1246,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 			Mining:   mining,
 			Elected:  elected,
 			Proxy:    proxy,
-			Hashrate: hashrate,
 			Peers:    s.server.PeerCount(),
 			GasPrice: gasprice,
 			Syncing:  syncing,
