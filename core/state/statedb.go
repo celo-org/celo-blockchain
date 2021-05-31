@@ -135,7 +135,6 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		logs:                make(map[common.Hash][]*types.Log),
 		preimages:           make(map[common.Hash][]byte),
 		journal:             newJournal(),
-		accessList:          newAccessList(),
 		hasher:              crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
@@ -745,12 +744,6 @@ func (s *StateDB) Copy() *StateDB {
 			state.snapStorage[k] = temp
 		}
 	}
-	// Do we need to copy the access list? In practice: No. At the start of a
-	// transaction, the access list is empty. In practice, we only ever copy state
-	// _between_ transactions/blocks, never in the middle of a transaction.
-	// However, it doesn't cost us much to copy an empty list, so we do it anyway
-	// to not blow up if we ever decide copy it in the middle of a transaction
-	state.accessList = s.accessList.Copy()
 
 	// If there's a prefetcher running, make an inactive copy of it that can
 	// only access data but does not actively preload (since the user will not

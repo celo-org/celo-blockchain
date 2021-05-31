@@ -75,7 +75,6 @@ func HashData(kh KeccakState, data []byte) (h common.Hash) {
 
 // Keccak256 calculates and returns the Keccak256 hash of the input data.
 func Keccak256(data ...[]byte) []byte {
-	b := make([]byte, 32)
 	d := NewKeccakState()
 	for _, b := range data {
 		d.Write(b)
