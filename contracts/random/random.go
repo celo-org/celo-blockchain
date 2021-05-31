@@ -142,7 +142,7 @@ func IsRunning(vmRunner vm.EVMRunner) bool {
 		log.Error(err.Error())
 	}
 
-	return err != nil && randomAddress != common.ZeroAddress
+	return err == nil && randomAddress != common.ZeroAddress
 }
 
 // GetLastCommitment returns up the last commitment in the smart contract
