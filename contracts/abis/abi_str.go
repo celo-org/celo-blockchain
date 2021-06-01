@@ -392,7 +392,6 @@ const FreezerStr = `[
 	}
 ]`
 
-// TODO (jarmg 5/22/19): Store ABIs in a central location
 const GasPriceMinimumStr = `[
 	{
 		"constant": true,
@@ -438,6 +437,7 @@ const GasPriceMinimumStr = `[
 		}
 ]`
 
+// nolint: gosec
 const GoldTokenStr = `[
 	{
 		"constant": false,
