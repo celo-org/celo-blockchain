@@ -18,162 +18,15 @@ package validators
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/params"
 )
-
-// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Validators.json
-const validatorsABIString string = `[
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "getRegisteredValidatorSigners",
-        "outputs": [
-        {
-            "name": "",
-            "type": "address[]"
-        }
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "getRegisteredValidators",
-      "outputs": [
-        {
-          "name": "",
-          "type": "address[]"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "signer",
-          "type": "address"
-        }
-      ],
-      "name": "getValidatorBlsPublicKeyFromSigner",
-      "outputs": [
-        {
-          "name": "blsKey",
-          "type": "bytes"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-	  {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "getValidator",
-      "outputs": [
-        {
-          "name": "ecdsaPublicKey",
-          "type": "bytes"
-        },
-        {
-          "name": "blsPublicKey",
-          "type": "bytes"
-        },
-        {
-          "name": "affiliation",
-          "type": "address"
-        },
-        {
-          "name": "score",
-          "type": "uint256"
-        },
-        {
-          "name": "signer",
-          "type": "address"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "validator",
-          "type": "address"
-        },
-        {
-          "name": "maxPayment",
-          "type": "uint256"
-        }
-      ],
-      "name": "distributeEpochPaymentsFromSigner",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "validator",
-          "type": "address"
-        },
-        {
-          "name": "uptime",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateValidatorScoreFromSigner",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "getMembershipInLastEpochFromSigner",
-      "outputs": [
-        {
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }
-]`
 
 type ValidatorContractData struct {
 	EcdsaPublicKey []byte
@@ -184,30 +37,14 @@ type ValidatorContractData struct {
 }
 
 var (
-	getRegisteredValidatorSignersMethod      *contracts.BoundMethod
-	getRegisteredValidatorsMethod            *contracts.BoundMethod
-	getValidatorBlsPublicKeyFromSignerMethod *contracts.BoundMethod
-	getMembershipInLastEpochFromSignerMethod *contracts.BoundMethod
-	getValidatorMethod                       *contracts.BoundMethod
-	updateValidatorScoreFromSignerMethod     *contracts.BoundMethod
-	distributeEpochPaymentsFromSignerMethod  *contracts.BoundMethod
+	getRegisteredValidatorSignersMethod      = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "getRegisteredValidatorSigners", params.MaxGasForGetRegisteredValidators)
+	getRegisteredValidatorsMethod            = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "getRegisteredValidators", params.MaxGasForGetRegisteredValidators)
+	getValidatorBlsPublicKeyFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "getValidatorBlsPublicKeyFromSigner", params.MaxGasForGetValidator)
+	getMembershipInLastEpochFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "getMembershipInLastEpochFromSigner", params.MaxGasForGetMembershipInLastEpoch)
+	getValidatorMethod                       = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "getValidator", params.MaxGasForGetValidator)
+	updateValidatorScoreFromSignerMethod     = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "updateValidatorScoreFromSigner", params.MaxGasForUpdateValidatorScore)
+	distributeEpochPaymentsFromSignerMethod  = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, abis.Validators, "distributeEpochPaymentsFromSigner", params.MaxGasForDistributeEpochPayment)
 )
-
-func init() {
-
-	validatorsABI, err := abi.JSON(strings.NewReader(validatorsABIString))
-	if err != nil {
-		panic(err)
-	}
-
-	getRegisteredValidatorSignersMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "getRegisteredValidatorSigners", params.MaxGasForGetRegisteredValidators)
-	getRegisteredValidatorsMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "getRegisteredValidators", params.MaxGasForGetRegisteredValidators)
-	getValidatorBlsPublicKeyFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "getValidatorBlsPublicKeyFromSigner", params.MaxGasForGetValidator)
-	getMembershipInLastEpochFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "getMembershipInLastEpochFromSigner", params.MaxGasForGetMembershipInLastEpoch)
-	getValidatorMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "getValidator", params.MaxGasForGetValidator)
-	updateValidatorScoreFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "updateValidatorScoreFromSigner", params.MaxGasForUpdateValidatorScore)
-	distributeEpochPaymentsFromSignerMethod = contracts.NewRegisteredContractMethod(params.ValidatorsRegistryId, &validatorsABI, "distributeEpochPaymentsFromSigner", params.MaxGasForDistributeEpochPayment)
-}
 
 func RetrieveRegisteredValidatorSigners(vmRunner vm.EVMRunner) ([]common.Address, error) {
 	// Get the new epoch's validator signer set

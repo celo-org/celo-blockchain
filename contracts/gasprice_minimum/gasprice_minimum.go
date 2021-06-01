@@ -18,63 +18,13 @@ package gasprice_minimum
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
-)
-
-// TODO (jarmg 5/22/19): Store ABIs in a central location
-const (
-	gasPriceMinimumABIString = `[
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "_tokenAddress",
-          "type": "address"
-        }
-      ],
-      "name": "getGasPriceMinimum",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "_blockGasTotal",
-          "type": "uint256"
-        },
-        {
-          "name": "_blockGasLimit",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateGasPriceMinimum",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-      } 
-    
-  ]`
 )
 
 var (
@@ -83,19 +33,9 @@ var (
 )
 
 var (
-	getGasPriceMinimumMethod    *contracts.BoundMethod
-	updateGasPriceMinimumMethod *contracts.BoundMethod
+	getGasPriceMinimumMethod    = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", params.MaxGasForGetGasPriceMinimum)
+	updateGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
 )
-
-func init() {
-	gasPriceMinimumABI, err := abi.JSON(strings.NewReader(gasPriceMinimumABIString))
-	if err != nil {
-		panic(err)
-	}
-
-	getGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, &gasPriceMinimumABI, "getGasPriceMinimum", params.MaxGasForGetGasPriceMinimum)
-	updateGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, &gasPriceMinimumABI, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
-}
 
 func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)

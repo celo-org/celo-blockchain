@@ -17,49 +17,16 @@
 package freezer
 
 import (
-	"strings"
-
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Freezer.json
-	isFrozenABI = `[{
-      "constant": true,
-      "inputs": [
-        {
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "isFrozen",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }]`
-)
-
 var (
-	isFrozenMethod *contracts.BoundMethod
+	isFrozenMethod = contracts.NewRegisteredContractMethod(params.FreezerRegistryId, abis.Freezer, "isFrozen", params.MaxGasForIsFrozen)
 )
-
-func init() {
-	isFrozenFuncABI, err := abi.JSON(strings.NewReader(isFrozenABI))
-	if err != nil {
-		panic(err)
-	}
-	isFrozenMethod = contracts.NewRegisteredContractMethod(params.FreezerRegistryId, &isFrozenFuncABI, "isFrozen", params.MaxGasForIsFrozen)
-}
 
 func IsFrozen(vmRunner vm.EVMRunner, registryId common.Hash) (bool, error) {
 	address, err := contracts.GetRegisteredAddress(vmRunner, registryId)

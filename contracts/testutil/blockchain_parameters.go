@@ -2,52 +2,42 @@ package testutil
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
-	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
 type BlockchainParametersMock struct {
-	contractMock
+	ContractMock
 
-	MinimumVersion                        params.VersionInfo
-	BlockGasLimit                         *big.Int
-	LookbackWindow                        *big.Int
-	IntrinsicGasForAlternativeFeeCurrency *big.Int
+	MinimumVersion                             params.VersionInfo
+	BlockGasLimitValue                         *big.Int
+	LookbackWindow                             *big.Int
+	IntrinsicGasForAlternativeFeeCurrencyValue *big.Int
 }
 
 func NewBlockchainParametersMock() *BlockchainParametersMock {
-	parsedAbi, err := abi.JSON(strings.NewReader(blockchain_parameters.ABIString))
-	if err != nil {
-		panic(err)
+	mock := &BlockchainParametersMock{
+		MinimumVersion:     params.VersionInfo{Major: 1, Minor: 0, Patch: 0},
+		BlockGasLimitValue: big.NewInt(20000000),
+		LookbackWindow:     big.NewInt(3),
+		IntrinsicGasForAlternativeFeeCurrencyValue: big.NewInt(10000),
 	}
 
-	var mock BlockchainParametersMock
-	mock = BlockchainParametersMock{
-		contractMock: contractMock{
-			abi: parsedAbi,
-			methods: map[string]solidityMethod{
-				"getMinimumClientVersion": func(inputs []interface{}) (outputs []interface{}, err error) {
-					return []interface{}{mock.MinimumVersion.Major, mock.MinimumVersion.Minor, mock.MinimumVersion.Patch}, nil
-				},
-				"blockGasLimit": func(inputs []interface{}) (outputs []interface{}, err error) {
-					return []interface{}{mock.BlockGasLimit}, nil
-				},
-				"getUptimeLookbackWindow": func(inputs []interface{}) (outputs []interface{}, err error) {
-					return []interface{}{mock.LookbackWindow}, nil
-				},
-				"intrinsicGasForAlternativeFeeCurrency": func(inputs []interface{}) (outputs []interface{}, err error) {
-					return []interface{}{mock.IntrinsicGasForAlternativeFeeCurrency}, nil
-				},
-			},
-		},
-		MinimumVersion:                        params.VersionInfo{Major: 1, Minor: 0, Patch: 0},
-		BlockGasLimit:                         big.NewInt(20000000),
-		LookbackWindow:                        big.NewInt(3),
-		IntrinsicGasForAlternativeFeeCurrency: big.NewInt(10000),
-	}
+	contract := NewContractMock(abis.BlockchainParameters, mock)
+	mock.ContractMock = contract
+	return mock
+}
 
-	return &mock
+func (bp *BlockchainParametersMock) GetMinimumClientVersion() (uint64, uint64, uint64) {
+	return bp.MinimumVersion.Major, bp.MinimumVersion.Minor, bp.MinimumVersion.Patch
+}
+func (bp *BlockchainParametersMock) BlockGasLimit() *big.Int {
+	return bp.BlockGasLimitValue
+}
+func (bp *BlockchainParametersMock) GetUptimeLookbackWindow() *big.Int {
+	return bp.LookbackWindow
+}
+func (bp *BlockchainParametersMock) IntrinsicGasForAlternativeFeeCurrency() *big.Int {
+	return bp.IntrinsicGasForAlternativeFeeCurrencyValue
 }

@@ -2,45 +2,31 @@ package testutil
 
 import (
 	"errors"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 )
 
 type RegistryMock struct {
-	contractMock
-
+	ContractMock
 	Contracts map[common.Hash]common.Address
 }
 
+func (rm *RegistryMock) GetAddressFor(id common.Hash) (common.Address, error) {
+	addr, ok := rm.Contracts[id]
+	if !ok {
+		return common.ZeroAddress, errors.New("contract not in registry")
+	}
+	return addr, nil
+}
+
 func NewRegistryMock() *RegistryMock {
-	parsedAbi, err := abi.JSON(strings.NewReader(contracts.RegistryABIString))
-	if err != nil {
-		panic(err)
+	registryMock := &RegistryMock{
+		Contracts: make(map[common.Hash]common.Address),
 	}
-
-	registryContracts := make(map[common.Hash]common.Address)
-
-	getAddressFor := func(inputs []interface{}) (outputs []interface{}, err error) {
-		id := inputs[0].([32]uint8)
-		addr, ok := registryContracts[id]
-		if !ok {
-			return nil, errors.New("contract not in registry")
-		}
-		return []interface{}{addr}, nil
-	}
-
-	return &RegistryMock{
-		contractMock: contractMock{
-			abi: parsedAbi,
-			methods: map[string]solidityMethod{
-				"getAddressFor": getAddressFor,
-			},
-		},
-		Contracts: registryContracts,
-	}
+	contract := NewContractMock(abis.Registry, registryMock)
+	registryMock.ContractMock = contract
+	return registryMock
 }
 
 func (rm *RegistryMock) AddContract(id common.Hash, address common.Address) {

@@ -18,167 +18,23 @@ package election
 import (
 	"math/big"
 	"sort"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Election.json
-const electionABIString string = `[
-  {"constant": true,
-              "inputs": [],
-        "name": "electValidatorSigners",
-        "outputs": [
-       {
-            "name": "",
-      "type": "address[]"
-       }
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-       },
-			     {
-      "constant": true,
-      "inputs": [],
-      "name": "getTotalVotesForEligibleValidatorGroups",
-      "outputs": [
-        {
-          "name": "groups",
-          "type": "address[]"
-        },
-        {
-          "name": "values",
-          "type": "uint256[]"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-		    {
-      "constant": false,
-      "inputs": [
-        {
-          "name": "group",
-          "type": "address"
-        },
-        {
-          "name": "value",
-          "type": "uint256"
-        },
-        {
-          "name": "lesser",
-          "type": "address"
-        },
-        {
-          "name": "greater",
-          "type": "address"
-        }
-      ],
-      "name": "distributeEpochRewards",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-		    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "group",
-          "type": "address"
-        },
-        {
-          "name": "maxTotalRewards",
-          "type": "uint256"
-        },
-        {
-          "name": "uptimes",
-          "type": "uint256[]"
-        }
-      ],
-      "name": "getGroupEpochRewards",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "minElectableValidators",
-          "type": "uint256"
-        },
-        {
-          "name": "maxElectableValidators",
-          "type": "uint256"
-        }
-      ],
-      "name": "electNValidatorSigners",
-      "outputs": [
-        {
-          "name": "",
-          "type": "address[]"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "getElectableValidators",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }
-]`
-
 var (
-	electValidatorSignersMethod                   *contracts.BoundMethod
-	getElectableValidatorsMethod                  *contracts.BoundMethod
-	electNValidatorSignersMethod                  *contracts.BoundMethod
-	getTotalVotesForEligibleValidatorGroupsMethod *contracts.BoundMethod
-	getGroupEpochRewardsMethod                    *contracts.BoundMethod
-	distributeEpochRewardsMethod                  *contracts.BoundMethod
+	electValidatorSignersMethod                   = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electValidatorSigners", params.MaxGasForElectValidators)
+	getElectableValidatorsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getElectableValidators", params.MaxGasForGetElectableValidators)
+	electNValidatorSignersMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "electNValidatorSigners", params.MaxGasForElectNValidatorSigners)
+	getTotalVotesForEligibleValidatorGroupsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getTotalVotesForEligibleValidatorGroups", params.MaxGasForGetEligibleValidatorGroupsVoteTotals)
+	getGroupEpochRewardsMethod                    = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "getGroupEpochRewards", params.MaxGasForGetGroupEpochRewards)
+	distributeEpochRewardsMethod                  = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, abis.Elections, "distributeEpochRewards", params.MaxGasForDistributeEpochRewards)
 )
-
-func init() {
-	electionABI, err := abi.JSON(strings.NewReader(electionABIString))
-	if err != nil {
-		panic(err)
-	}
-
-	electValidatorSignersMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "electValidatorSigners", params.MaxGasForElectValidators)
-	getElectableValidatorsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "getElectableValidators", params.MaxGasForGetElectableValidators)
-	electNValidatorSignersMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "electNValidatorSigners", params.MaxGasForElectNValidatorSigners)
-	getTotalVotesForEligibleValidatorGroupsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "getTotalVotesForEligibleValidatorGroups", params.MaxGasForGetEligibleValidatorGroupsVoteTotals)
-	getGroupEpochRewardsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "getGroupEpochRewards", params.MaxGasForGetGroupEpochRewards)
-	distributeEpochRewardsMethod = contracts.NewRegisteredContractMethod(params.ElectionRegistryId, &electionABI, "distributeEpochRewards", params.MaxGasForDistributeEpochRewards)
-}
 
 func GetElectedValidators(vmRunner vm.EVMRunner) ([]common.Address, error) {
 	// Get the new epoch's validator set

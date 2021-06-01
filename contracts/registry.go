@@ -1,47 +1,14 @@
 package contracts
 
 import (
-	"strings"
-
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Registry.json
-	RegistryABIString = `[{"constant": true,
-                              "inputs": [
-                                   {
-                                       "name": "identifier",
-                                       "type": "bytes32"
-                                   }
-                              ],
-                              "name": "getAddressFor",
-                              "outputs": [
-                                   {
-                                       "name": "",
-                                       "type": "address"
-                                   }
-                              ],
-                              "payable": false,
-                              "stateMutability": "view",
-                              "type": "function"
-                             }]`
-)
-
-var getAddressMethod *BoundMethod
-
-func init() {
-	var err error
-	getAddressForFuncABI, err := abi.JSON(strings.NewReader(RegistryABIString))
-	if err != nil {
-		panic("can't parse registry abi " + err.Error())
-	}
-
-	getAddressMethod = NewBoundMethod(params.RegistrySmartContractAddress, &getAddressForFuncABI, "getAddressFor", params.MaxGasForGetAddressFor)
-}
+var getAddressMethod = NewBoundMethod(params.RegistrySmartContractAddress, abis.Registry, "getAddressFor", params.MaxGasForGetAddressFor)
 
 // TODO(kevjue) - Re-Enable caching of the retrieved registered address
 // See this commit for the removed code for caching:  https://github.com/celo-org/geth/commit/43a275273c480d307a3d2b3c55ca3b3ee31ec7dd.

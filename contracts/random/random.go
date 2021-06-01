@@ -2,136 +2,23 @@ package random
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Random.json
-	randomABI = `[
-		{
-			"constant": false,
-			"inputs": [
-				{
-					"name": "randomness",
-					"type": "bytes32"
-				},
-				{
-					"name": "newCommitment",
-					"type": "bytes32"
-				},
-				{
-					"name": "proposer",
-					"type": "address"
-				}
-			],
-			"name": "revealAndCommit",
-			"outputs": [],
-			"payable": false,
-			"stateMutability": "nonpayable",
-			"type": "function"
-		},
-		{
-			"constant": true,
-			"inputs": [
-				{
-					"name": "",
-					"type": "address"
-				}
-			],
-			"name": "commitments",
-			"outputs": [
-				{
-					"name": "",
-					"type": "bytes32"
-				}
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"constant": true,
-			"inputs": [
-				{
-					"name": "randomness",
-					"type": "bytes32"
-				}
-			],
-			"name": "computeCommitment",
-			"outputs": [
-				{
-					"name": "",
-					"type": "bytes32"
-				}
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"constant": true,
-			"inputs": [],
-			"name": "random",
-			"outputs": [
-				{
-					"name": "",
-					"type": "bytes32"
-				}
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-		},
-		{
-			"constant": true,
-			"inputs": [
-				{
-					"name": "blockNumber",
-					"type": "uint256"
-				}
-			],
-			"name": "getBlockRandomness",
-			"outputs": [
-				{
-					"name": "",
-					"type": "bytes32"
-				}
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-		}
-	]`
-)
-
 var (
-	revealAndCommitMethod    *contracts.BoundMethod
-	commitmentsMethod        *contracts.BoundMethod
-	computeCommitmentMethod  *contracts.BoundMethod
-	randomMethod             *contracts.BoundMethod
-	getBlockRandomnessMethod *contracts.BoundMethod
+	revealAndCommitMethod    = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "revealAndCommit", params.MaxGasForRevealAndCommit)
+	commitmentsMethod        = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "commitments", params.MaxGasForCommitments)
+	computeCommitmentMethod  = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "computeCommitment", params.MaxGasForComputeCommitment)
+	randomMethod             = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "random", params.MaxGasForBlockRandomness)
+	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, abis.Random, "getBlockRandomness", params.MaxGasForBlockRandomness)
 )
-
-func init() {
-	randomAbi, err := abi.JSON(strings.NewReader(randomABI))
-	if err != nil {
-		panic(err)
-	}
-
-	revealAndCommitMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, &randomAbi, "revealAndCommit", params.MaxGasForRevealAndCommit)
-	commitmentsMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, &randomAbi, "commitments", params.MaxGasForCommitments)
-	computeCommitmentMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, &randomAbi, "computeCommitment", params.MaxGasForComputeCommitment)
-	randomMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, &randomAbi, "random", params.MaxGasForBlockRandomness)
-	getBlockRandomnessMethod = contracts.NewRegisteredContractMethod(params.RandomRegistryId, &randomAbi, "getBlockRandomness", params.MaxGasForBlockRandomness)
-}
 
 func IsRunning(vmRunner vm.EVMRunner) bool {
 	randomAddress, err := contracts.GetRegisteredAddress(vmRunner, params.RandomRegistryId)

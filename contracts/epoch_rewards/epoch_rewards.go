@@ -17,115 +17,20 @@ package epoch_rewards
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/Election.json
-const epochRewardsABIString string = `[
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "calculateTargetEpochRewards",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        },
-        {
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    { 
-      "constant": true,
-      "inputs": [],
-      "name": "carbonOffsettingPartner",
-      "outputs": [
-        { 
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": false,
-      "inputs": [],
-      "name": "updateTargetVotingYield",
-      "outputs": [],
-      "payable": false,
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "isReserveLow",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [],
-      "name": "frozen",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }
-]
-`
-
 var (
-	calculateTargetEpochRewardsMethod *contracts.BoundMethod
-	isReserveLowMethod                *contracts.BoundMethod
-	carbonOffsettingPartnerMethod     *contracts.BoundMethod
-	updateTargetVotingYieldMethod     *contracts.BoundMethod
+	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "calculateTargetEpochRewards", params.MaxGasForCalculateTargetEpochPaymentAndRewards)
+	isReserveLowMethod                = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "isReserveLow", params.MaxGasForIsReserveLow)
+	carbonOffsettingPartnerMethod     = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "carbonOffsettingPartner", params.MaxGasForGetCarbonOffsettingPartner)
+	updateTargetVotingYieldMethod     = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, abis.EpochRewards, "updateTargetVotingYield", params.MaxGasForUpdateTargetVotingYield)
 )
-
-func init() {
-	epochRewardsABI, err := abi.JSON(strings.NewReader(epochRewardsABIString))
-	if err != nil {
-		panic(err)
-	}
-
-	calculateTargetEpochRewardsMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, &epochRewardsABI, "calculateTargetEpochRewards", params.MaxGasForCalculateTargetEpochPaymentAndRewards)
-	isReserveLowMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, &epochRewardsABI, "isReserveLow", params.MaxGasForIsReserveLow)
-	carbonOffsettingPartnerMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, &epochRewardsABI, "carbonOffsettingPartner", params.MaxGasForGetCarbonOffsettingPartner)
-	updateTargetVotingYieldMethod = contracts.NewRegisteredContractMethod(params.EpochRewardsRegistryId, &epochRewardsABI, "updateTargetVotingYield", params.MaxGasForUpdateTargetVotingYield)
-}
 
 func UpdateTargetVotingYield(vmRunner vm.EVMRunner) error {
 	err := updateTargetVotingYieldMethod.Execute(vmRunner, nil, common.Big0)

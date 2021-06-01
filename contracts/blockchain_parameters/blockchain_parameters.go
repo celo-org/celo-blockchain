@@ -18,104 +18,22 @@ package blockchain_parameters
 
 import (
 	"math/big"
-	"strings"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	ABIString = `[{
-			"constant": true,
-			"inputs": [],
-			"name": "getMinimumClientVersion",
-			"outputs": [
-			  {
-				"name": "major",
-				"type": "uint256"
-			  },
-			  {
-				"name": "minor",
-				"type": "uint256"
-			  },
-			  {
-				"name": "patch",
-				"type": "uint256"
-			  }
-			],
-			"payable": false,
-			"stateMutability": "view",
-			"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "blockGasLimit",
-		"outputs": [
-		  {
-			"name": "",
-			"type": "uint256"
-		  }
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "getUptimeLookbackWindow",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "lookbackWindow",
-				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "intrinsicGasForAlternativeFeeCurrency",
-		"outputs": [
-			{
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	}
-]`
-)
-
 var (
-	getMinimumClientVersionMethod               *contracts.BoundMethod
-	intrinsicGasForAlternativeFeeCurrencyMethod *contracts.BoundMethod
-	blockGasLimitMethod                         *contracts.BoundMethod
-	getUptimeLookbackWindowMethod               *contracts.BoundMethod
+	getMinimumClientVersionMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getMinimumClientVersion", params.MaxGasForReadBlockchainParameter)
+	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "intrinsicGasForAlternativeFeeCurrency", params.MaxGasForReadBlockchainParameter)
+	blockGasLimitMethod                         = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "blockGasLimit", params.MaxGasForReadBlockchainParameter)
+	getUptimeLookbackWindowMethod               = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, abis.BlockchainParameters, "getUptimeLookbackWindow", params.MaxGasForReadBlockchainParameter)
 )
-
-func init() {
-	parsedAbi, err := abi.JSON(strings.NewReader(ABIString))
-	if err != nil {
-		log.Crit("Error reading ABI for BlockchainParameters", "err", err)
-	}
-
-	getMinimumClientVersionMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, &parsedAbi, "getMinimumClientVersion", params.MaxGasForReadBlockchainParameter)
-	intrinsicGasForAlternativeFeeCurrencyMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, &parsedAbi, "intrinsicGasForAlternativeFeeCurrency", params.MaxGasForReadBlockchainParameter)
-	blockGasLimitMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, &parsedAbi, "blockGasLimit", params.MaxGasForReadBlockchainParameter)
-	getUptimeLookbackWindowMethod = contracts.NewRegisteredContractMethod(params.BlockchainParametersRegistryId, &parsedAbi, "getUptimeLookbackWindow", params.MaxGasForReadBlockchainParameter)
-}
 
 // getMinimumVersion retrieves the client required minimum version
 // If a node is running a version smaller than this, it should exit/stop

@@ -1,8 +1,11 @@
 package testutil
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
+	"reflect"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
@@ -16,38 +19,6 @@ var (
 
 // Check we actually implement EVMRunner
 var _ vm.EVMRunner = &MockEVMRunner{}
-
-type solidityMethod func(inputs []interface{}) (outputs []interface{}, err error)
-
-type contractMock struct {
-	abi     abi.ABI
-	methods map[string]solidityMethod
-}
-
-func (cm *contractMock) Call(input []byte) (ret []byte, err error) {
-	methodId := input[:4]
-	method, err := cm.abi.MethodById(methodId)
-	if err != nil {
-		return nil, err
-	}
-
-	methodFn, ok := cm.methods[method.Name]
-	if !ok {
-		return nil, ErrUnkownMethod
-	}
-
-	inputs, err := method.Inputs.UnpackValues(input[4:])
-	if err != nil {
-		return nil, err
-	}
-
-	outputs, err := methodFn(inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	return method.Outputs.PackValues(outputs)
-}
 
 type Contract interface {
 	Call(input []byte) (ret []byte, err error)
@@ -98,8 +69,103 @@ func (ev *MockEVMRunner) GetStateDB() vm.StateDB {
 	return &mockStateDB{}
 }
 
-type mockStateDB struct{ vm.StateDB }
+type ContractMock struct {
+	methods []MethodMock
+}
 
-func (msdb *mockStateDB) GetCodeSize(common.Address) int {
-	return 100
+func NewContractMock(parsedAbi *abi.ABI, handler interface{}) ContractMock {
+	methodMocks := make([]MethodMock, 0)
+
+	handlerType := reflect.TypeOf(handler)
+	handlerValue := reflect.ValueOf(handler)
+	for i := 0; i < handlerValue.NumMethod(); i++ {
+		methodVal := handlerValue.Method(i)
+		methodType := handlerType.Method(i)
+
+		if abiMethod, ok := parsedAbi.Methods[decapitalise(methodType.Name)]; ok {
+			fmt.Printf("Registering handler for %s\n", abiMethod.Name)
+			methodMocks = append(
+				methodMocks,
+				*NewMethod(&abiMethod, methodVal),
+			)
+		}
+
+	}
+
+	return ContractMock{methods: methodMocks}
+}
+
+func (cm *ContractMock) methodById(id []byte) (*MethodMock, error) {
+	for _, method := range cm.methods {
+		if bytes.Equal(method.Id(), id[:4]) {
+			return &method, nil
+		}
+	}
+
+	return nil, ErrUnkownMethod
+}
+
+func (cm *ContractMock) Call(input []byte) (ret []byte, err error) {
+	method, err := cm.methodById(input[:4])
+	if err != nil {
+		return nil, err
+	}
+
+	return method.Call(input)
+}
+
+type MethodMock struct {
+	method *abi.Method
+	fn     reflect.Value
+}
+
+func NewMethod(m *abi.Method, fnVal reflect.Value) *MethodMock {
+	fnType := fnVal.Type()
+
+	if fnType.Kind() != reflect.Func {
+		panic("fn must be a function")
+	}
+
+	if fnType.NumIn() != len(m.Inputs) {
+		panic(fmt.Sprintf("fn %s() must match number of input arguments [fn: %d, abi: %d]", m.Name, fnType.NumIn(), len(m.Inputs)))
+	}
+	if !(fnType.NumOut() == len(m.Outputs) || fnType.NumOut() == 1+len(m.Outputs)) {
+		panic(fmt.Sprintf("fn %s() must match number of output arguments [fn: %d, abi: %d]", m.Name, fnType.NumOut(), len(m.Outputs)))
+	}
+
+	return &MethodMock{
+		method: m,
+		fn:     fnVal,
+	}
+}
+
+func (mm *MethodMock) Id() []byte {
+	return mm.method.ID
+}
+
+func (mm *MethodMock) Call(input []byte) (ret []byte, err error) {
+	inputs, err := mm.method.Inputs.UnpackValues(input[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	ins := make([]reflect.Value, len(inputs))
+	for i, arg := range inputs {
+		ins[i] = reflect.ValueOf(arg)
+	}
+
+	outs := mm.fn.Call(ins)
+	retValues := make([]interface{}, len(outs))
+
+	// check if we have an error
+	if len(outs) == len(mm.method.Outputs)+1 {
+		err = (outs[len(outs)-1].Interface()).(error)
+		return nil, err
+	}
+
+	for i, outArg := range outs {
+		retValues[i] = outArg.Interface()
+	}
+
+	return mm.method.Outputs.PackValues(retValues)
 }
