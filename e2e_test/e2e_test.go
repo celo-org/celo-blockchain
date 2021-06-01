@@ -3,17 +3,19 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNetworkStartupShutdown(t *testing.T) {
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlDebug, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 	now := time.Now()
 	println("starting test", now.String())
 	network, err := test.NewNetworkFromUsers()

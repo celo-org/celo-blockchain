@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,7 +22,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
@@ -358,14 +356,6 @@ func NewNetworkFromUsers() (Network, error) {
 		network[i] = n
 	}
 
-	// There is a race condition in miner.worker its field snapshotBlock is set
-	// only when new transactions are received or commitNewWork is called. But
-	// both of these happen in goroutines separate to the call to miner.Start
-	// and miner.Start does not wait for snapshotBlock to be set. Therefore
-	// there is currently no way to know when it is safe to call estimate gas.
-	// What we do here is sleep a bit and cross our fingers.
-	time.Sleep(10 * time.Millisecond)
-
 	enodes := make([]*enode.Node, len(network))
 	for i, n := range network {
 		host, port, err := net.SplitHostPort(n.P2PListenAddr)
@@ -394,53 +384,32 @@ func NewNetworkFromUsers() (Network, error) {
 			network[j].Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
+	// There is a race condition in miner.worker its field snapshotBlock is set
+	// only when new transactions are received or commitNewWork is called. But
+	// both of these happen in goroutines separate to the call to miner.Start
+	// and miner.Start does not wait for snapshotBlock to be set. Therefore
+	// there is currently no way to know when it is safe to call estimate gas.
+	// What we do here is sleep a bit and cross our fingers.
+	time.Sleep(10 * time.Millisecond)
+	version := uint(time.Now().Unix())
 
 	for i := range network {
-		n := network[i]
-		en := enodes[i]
-		encryptedURLs := make([]*encryptedEnodeURL, 0, len(network)-1)
-		for j := range network {
-			if j == i {
-				continue
-			}
-			nn := network[j]
-			encryptedURL, err := ecies.Encrypt(
-				rand.Reader,
-				ecies.ImportECDSAPublic(enodes[j].Pubkey()),
-				[]byte(en.String()),
-				nil,
-				nil,
-			)
-			if err != nil {
-				return nil, err
-			}
-			encryptedURLs = append(encryptedURLs, &encryptedEnodeURL{
-				DestAddress:       nn.Address,
-				EncryptedEnodeURL: encryptedURL,
-			})
+		enodeCertificate := &istanbul.EnodeCertificate{
+			EnodeURL: enodes[i].URLv4(),
+			Version:  version,
 		}
-
-		version := uint(time.Now().Unix())
-		query := &queryEnodeData{
-			EncryptedEnodeURLs: encryptedURLs,
-			Version:            version,
-			Timestamp:          version,
-		}
-
-		queryEnodeBytes, err := rlp.EncodeToBytes(query)
+		enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
 		if err != nil {
 			return nil, err
 		}
 
+		b := network[i].Eth.Engine().(*backend.Backend)
 		msg := &istanbul.Message{
-			Code:      istanbul.QueryEnodeMsg,
-			Msg:       queryEnodeBytes,
-			Address:   n.Address,
-			Signature: []byte{},
+			Code:    istanbul.EnodeCertificateMsg,
+			Address: b.Address(),
+			Msg:     enodeCertificateBytes,
 		}
-
-		b := n.Eth.Engine().(*backend.Backend)
-		// Sign the announce message
+		// Sign the message
 		if err := msg.Sign(b.Sign); err != nil {
 			return nil, err
 		}
@@ -448,11 +417,69 @@ func NewNetworkFromUsers() (Network, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = b.Gossip(p, istanbul.QueryEnodeMsg)
+
+		err = b.Gossip(p, istanbul.EnodeCertificateMsg)
 		if err != nil {
 			return nil, err
 		}
 	}
+	// for i := range network {
+	// 	n := network[i]
+	// 	en := enodes[i]
+	// 	encryptedURLs := make([]*encryptedEnodeURL, 0, len(network)-1)
+	// 	for j := range network {
+	// 		if j == i {
+	// 			continue
+	// 		}
+	// 		nn := network[j]
+	// 		encryptedURL, err := ecies.Encrypt(
+	// 			rand.Reader,
+	// 			ecies.ImportECDSAPublic(enodes[j].Pubkey()),
+	// 			[]byte(en.URLv4()),
+	// 			nil,
+	// 			nil,
+	// 		)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		encryptedURLs = append(encryptedURLs, &encryptedEnodeURL{
+	// 			DestAddress:       nn.Address,
+	// 			EncryptedEnodeURL: encryptedURL,
+	// 		})
+	// 	}
+
+	// 	query := &queryEnodeData{
+	// 		EncryptedEnodeURLs: encryptedURLs,
+	// 		Version:            version,
+	// 		Timestamp:          version,
+	// 	}
+
+	// 	queryEnodeBytes, err := rlp.EncodeToBytes(query)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	msg := &istanbul.Message{
+	// 		Code:      istanbul.QueryEnodeMsg,
+	// 		Msg:       queryEnodeBytes,
+	// 		Address:   n.Address,
+	// 		Signature: []byte{},
+	// 	}
+
+	// 	b := n.Eth.Engine().(*backend.Backend)
+	// 	// Sign the announce message
+	// 	if err := msg.Sign(b.Sign); err != nil {
+	// 		return nil, err
+	// 	}
+	// 	p, err := msg.Payload()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	err = b.Gossip(p, istanbul.QueryEnodeMsg)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	//return uint(time.Now().Unix()) version and timestamp
 	// type enodeQuery struct {
