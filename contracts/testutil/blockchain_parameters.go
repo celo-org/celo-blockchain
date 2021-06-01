@@ -29,8 +29,8 @@ func NewBlockchainParametersMock() *BlockchainParametersMock {
 	return mock
 }
 
-func (bp *BlockchainParametersMock) GetMinimumClientVersion() (uint64, uint64, uint64) {
-	return bp.MinimumVersion.Major, bp.MinimumVersion.Minor, bp.MinimumVersion.Patch
+func (bp *BlockchainParametersMock) GetMinimumClientVersion() (*big.Int, *big.Int, *big.Int) {
+	return big.NewInt(int64(bp.MinimumVersion.Major)), big.NewInt(int64(bp.MinimumVersion.Minor)), big.NewInt(int64(bp.MinimumVersion.Patch))
 }
 func (bp *BlockchainParametersMock) BlockGasLimit() *big.Int {
 	return bp.BlockGasLimitValue
