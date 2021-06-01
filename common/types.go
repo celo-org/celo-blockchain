@@ -73,12 +73,6 @@ func (h Hash) Big() *big.Int { return new(big.Int).SetBytes(h[:]) }
 // Hex converts a hash to a hex string.
 func (h Hash) Hex() string { return hexutil.Encode(h[:]) }
 
-// ShortString returns a hex representation of the first 8 bytes of the hash.
-// Its intent is to aid debugging by providing enough of the hash that it can
-// be easily reconciled with logs containing the full hash but is also small
-// enough to keep the logs human readable.
-func (h Hash) ShortString() string { return hexutil.Encode(h[:8]) }
-
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (h Hash) TerminalString() string {

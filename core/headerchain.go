@@ -153,17 +153,17 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 		if hc.config.FullHeaderChainAvailable || (number-1) == headNumber {
 			return NonStatTy, fmt.Errorf(
 				"parent not canonical: fail to write header %s, expected parent hash %s, current head %s",
-				header.ShortString(),
-				header.ParentHash.ShortString(),
-				head.ShortString())
+				header.InfoString(),
+				header.ParentHash.String(),
+				head.InfoString())
 		} else {
 			// if it's not a full header chain, ensure that the parent's number of the new header is
 			// bigger that the canonical one
 			if headNumber >= number {
 				return NonStatTy, fmt.Errorf(
 					"fail to write header %s, current head %s bigger or equal height",
-					header.ShortString(),
-					head.ShortString())
+					header.InfoString(),
+					head.InfoString())
 			}
 		}
 	}

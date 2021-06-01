@@ -1390,9 +1390,9 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	if block.ParentHash() != current.Hash() {
 		return fmt.Errorf(
 			"parent not canonical: fail to write block %s, expected parent hash %s, current head %s",
-			block.ShortString(),
-			block.ParentHash().ShortString(),
-			current.ShortString())
+			block.InfoString(),
+			block.ParentHash().String(),
+			current.InfoString())
 	}
 	bc.writeHeadBlock(block)
 	return nil
@@ -1416,8 +1416,8 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
 		return NonStatTy, fmt.Errorf(
 			"fail to insert block %s: already a canonical block %s in same level",
-			block.ShortString(),
-			hash.ShortString())
+			block.InfoString(),
+			hash.String())
 	}
 
 	randomCommitment := common.Hash{}
@@ -1640,8 +1640,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			log.Error("Insert chain new block with same height as an old one", "old", hash, "new", block.Hash())
 			return 0, fmt.Errorf(
 				"fail to insert block %s: already a canonical block %s in same level",
-				block.ShortString(),
-				hash.ShortString())
+				block.InfoString(),
+				hash.String())
 		}
 	}
 	if len(chain) == skippableBlocks {
