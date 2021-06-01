@@ -640,13 +640,8 @@ func (bc *BlockChain) CurrentBlock() *types.Block {
 //
 // Warning: There are no guarantees about the safety of using the returned 'snap' if the
 // blockchain is simultaneously importing blocks, so take care.
-func (bc *BlockChain) Snapshot() *snapshot.Tree {
-	return bc.snaps
-}
-
-// Add this to solve conflicts due to cherry-picking
 func (bc *BlockChain) Snapshots() *snapshot.Tree {
-	return bc.Snapshot()
+	return bc.snaps
 }
 
 // CurrentFastBlock retrieves the current fast-sync head block of the canonical
