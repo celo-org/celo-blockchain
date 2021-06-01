@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,9 +19,11 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
@@ -31,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 var (
@@ -362,32 +366,127 @@ func NewNetworkFromUsers() (Network, error) {
 	// What we do here is sleep a bit and cross our fingers.
 	time.Sleep(10 * time.Millisecond)
 
+	enodes := make([]*enode.Node, len(network))
+	for i, n := range network {
+		host, port, err := net.SplitHostPort(n.P2PListenAddr)
+		if err != nil {
+			return nil, err
+		}
+		portNum, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, err
+		}
+		en := enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
+		enodes[i] = en
+	}
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// untill they have received the announce message from that node, which
 	// takes a little while. This could definitely be improved by sending the
 	// announce messages at this point.
 	for i := range network {
+		en := enodes[i]
 		for j := range network {
 			if j == i {
 				continue
 			}
-			n := network[i]
-			host, port, err := net.SplitHostPort(n.P2PListenAddr)
-			if err != nil {
-				return nil, err
-			}
-			portNum, err := strconv.Atoi(port)
-			if err != nil {
-				return nil, err
-			}
-			en := enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
 			network[j].Server().AddPeer(en, p2p.ValidatorPurpose)
 			network[j].Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
+	for i := range network {
+		n := network[i]
+		en := enodes[i]
+		encryptedURLs := make([]*encryptedEnodeURL, 0, len(network)-1)
+		for j := range network {
+			if j == i {
+				continue
+			}
+			nn := network[j]
+			encryptedURL, err := ecies.Encrypt(
+				rand.Reader,
+				ecies.ImportECDSAPublic(enodes[j].Pubkey()),
+				[]byte(en.String()),
+				nil,
+				nil,
+			)
+			if err != nil {
+				return nil, err
+			}
+			encryptedURLs = append(encryptedURLs, &encryptedEnodeURL{
+				DestAddress:       nn.Address,
+				EncryptedEnodeURL: encryptedURL,
+			})
+		}
+
+		version := uint(time.Now().Unix())
+		query := &queryEnodeData{
+			EncryptedEnodeURLs: encryptedURLs,
+			Version:            version,
+			Timestamp:          version,
+		}
+
+		queryEnodeBytes, err := rlp.EncodeToBytes(query)
+		if err != nil {
+			return nil, err
+		}
+
+		msg := &istanbul.Message{
+			Code:      istanbul.QueryEnodeMsg,
+			Msg:       queryEnodeBytes,
+			Address:   n.Address,
+			Signature: []byte{},
+		}
+
+		b := n.Eth.Engine().(*backend.Backend)
+		// Sign the announce message
+		if err := msg.Sign(b.Sign); err != nil {
+			return nil, err
+		}
+		p, err := msg.Payload()
+		if err != nil {
+			return nil, err
+		}
+		err = b.Gossip(p, istanbul.QueryEnodeMsg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//return uint(time.Now().Unix()) version and timestamp
+	// type enodeQuery struct {
+	// 	recipientAddress   common.Address
+	// 	recipientPublicKey *ecdsa.PublicKey
+	// 	enodeURL           string
+	// }
+
+	// publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
+	// encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
+	// if err != nil {
+	// 	logger.Error("Error in encrypting enodeURL", "enodeURL", param.enodeURL, "publicKey", publicKey)
+	// 	return nil, err
+	// }
+
+	// encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
+	// 	DestAddress:       param.recipientAddress,
+	// 	EncryptedEnodeURL: encEnodeURL,
+	// })
+
 	return network, nil
+}
+
+type encryptedEnodeURL struct {
+	DestAddress       common.Address
+	EncryptedEnodeURL []byte
+}
+
+type queryEnodeData struct {
+	EncryptedEnodeURLs []*encryptedEnodeURL
+	Version            uint
+	// The timestamp of the node when the message is generated.
+	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
+	Timestamp uint
 }
 
 // AwaitTransactions ensures that the entire network has processed the provided transactions.
