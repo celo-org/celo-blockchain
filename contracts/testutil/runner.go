@@ -3,6 +3,7 @@ package testutil
 import (
 	"bytes"
 	"fmt"
+
 	"math/big"
 	"reflect"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // Check we actually implement EVMRunner
@@ -85,7 +87,7 @@ func NewContractMock(parsedAbi *abi.ABI, handler interface{}) ContractMock {
 		methodType := handlerType.Method(i)
 
 		if abiMethod, ok := parsedAbi.Methods[decapitalise(methodType.Name)]; ok {
-			fmt.Printf("Registering handler for %s\n", abiMethod.Name)
+			log.Debug("Registering method handler", "method", abiMethod.Name)
 			methodMocks = append(
 				methodMocks,
 				*NewMethod(&abiMethod, methodVal),
