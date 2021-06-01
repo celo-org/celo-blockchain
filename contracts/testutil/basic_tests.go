@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -58,6 +59,7 @@ func TestReturnsDefaultOnFailingRunner(t *testing.T, defaultValue interface{}, f
 		fnValue := reflect.ValueOf(fn)
 
 		argsValues := vmRunnerArguments(FailingVmRunner{}, args...)
+		fmt.Printf("inputs: %v", argsValues)
 		outs := fnValue.Call(argsValues)
 
 		retValue := outs[0].Interface()
@@ -98,7 +100,7 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 }
 
 func vmRunnerArguments(vmRunner vm.EVMRunner, args ...interface{}) []reflect.Value {
-	finalArgs := make([]interface{}, len(args)+1)
+	finalArgs := make([]interface{}, 1)
 	finalArgs[0] = vmRunner
 	finalArgs = append(finalArgs, args...)
 	return mapToValues(finalArgs...)

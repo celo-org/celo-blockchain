@@ -1,9 +1,6 @@
 package testutil
 
 import (
-	"fmt"
-	"reflect"
-
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/params"
@@ -40,25 +37,11 @@ func NewSingleMethodRunner(registryId common.Hash, methodName string, mockFn int
 	registry := NewRegistryMock()
 	runner.RegisterContract(params.RegistrySmartContractAddress, registry)
 
-	contractAbi := abis.AbiFor(registryId)
-	if contractAbi == nil {
-		panic(fmt.Sprintf("no abi for id: %s", registryId.Hex()))
-	}
-
-	method, ok := contractAbi.Methods[methodName]
-	if !ok {
-		panic(fmt.Sprintf("no method named: %s", methodName))
-	}
-
-	contract := ContractMock{
-		methods: []MethodMock{
-			*NewMethod(&method, reflect.ValueOf(mockFn)),
-		},
-	}
+	contract := NewSingleMethodContract(registryId, methodName, mockFn)
 
 	someAdddress := common.HexToAddress("0x045454545")
 	registry.AddContract(registryId, someAdddress)
-	runner.RegisterContract(someAdddress, &contract)
+	runner.RegisterContract(someAdddress, contract)
 
 	return runner
 }

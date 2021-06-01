@@ -9,6 +9,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 )
 
@@ -168,4 +169,23 @@ func (mm *MethodMock) Call(input []byte) (ret []byte, err error) {
 	}
 
 	return mm.method.Outputs.PackValues(retValues)
+}
+
+func NewSingleMethodContract(registryId common.Hash, methodName string, mockFn interface{}) *ContractMock {
+	contractAbi := abis.AbiFor(registryId)
+	if contractAbi == nil {
+		panic(fmt.Sprintf("no abi for id: %s", registryId.Hex()))
+	}
+
+	method, ok := contractAbi.Methods[methodName]
+	if !ok {
+		panic(fmt.Sprintf("no method named: %s", methodName))
+	}
+
+	contract := ContractMock{
+		methods: []MethodMock{
+			*NewMethod(&method, reflect.ValueOf(mockFn)),
+		},
+	}
+	return &contract
 }
