@@ -21,8 +21,8 @@ func TestFailOnFailingRunner(t *testing.T, fn interface{}, args ...interface{}) 
 		t.Fatalf("Bad test: function bad number of arguments")
 	}
 
-	if fnType.NumOut() != 2 {
-		t.Fatalf("Bad test: function must return (value, error)")
+	if fnType.NumOut() < 2 {
+		t.Fatalf("Bad test: function must return an error as last parameter (outs:%d)", fnType.NumOut())
 	}
 
 	t.Run("should fail if vmRunner fails", func(t *testing.T) {
@@ -33,7 +33,7 @@ func TestFailOnFailingRunner(t *testing.T, fn interface{}, args ...interface{}) 
 		argsValues := vmRunnerArguments(FailingVmRunner{}, args...)
 		outs := fnValue.Call(argsValues)
 
-		err := outs[1].Interface()
+		err := outs[len(outs)-1].Interface()
 		g.Expect(err).To(MatchError(ErrFailingRunner))
 	})
 }
@@ -78,11 +78,11 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 		t.Fatalf("Bad test: function bad number of arguments")
 	}
 
-	if fnType.NumOut() != 2 {
-		t.Fatalf("Bad test: function must return (value, error)")
+	if fnType.NumOut() < 2 {
+		t.Fatalf("Bad test: function must return an error as last parameter (outs:%d)", fnType.NumOut())
 	}
 
-	t.Run("should fail when contract not in registry", func(t *testing.T) {
+	t.Run("should fail when contract not deployed", func(t *testing.T) {
 		t.Parallel()
 		g := NewGomegaWithT(t)
 		fnValue := reflect.ValueOf(fn)
@@ -94,7 +94,7 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 		argsValues := vmRunnerArguments(vmRunner, args...)
 		outs := fnValue.Call(argsValues)
 
-		err := outs[1].Interface()
+		err := outs[len(outs)-1].Interface()
 		g.Expect(err).To(MatchError(expectedError))
 	})
 }
