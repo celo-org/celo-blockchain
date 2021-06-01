@@ -109,7 +109,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
 	// Play our part in generating the random beacon.
-	if random.IsRunning(vmRunner) {
+	if w.isRunning() && random.IsRunning(vmRunner) {
 		istanbul, ok := w.engine.(consensus.Istanbul)
 		if !ok {
 			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
