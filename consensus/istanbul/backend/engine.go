@@ -475,7 +475,7 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 	// Trigger an update to the gas price minimum in the GasPriceMinimum contract based on block congestion
 	snapshot = state.Snapshot()
-	_, err = gpm.UpdateGasPriceMinimum(header.GasUsed, vmRunner)
+	_, err = gpm.UpdateGasPriceMinimum(vmRunner, header.GasUsed)
 	if err != nil {
 		state.RevertToSnapshot(snapshot)
 	}
