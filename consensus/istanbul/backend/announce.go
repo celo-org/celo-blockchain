@@ -84,7 +84,7 @@ func (sb *Backend) announceThread() {
 
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
-	checkIfShouldAnnounceTicker := time.NewTicker(1 * time.Second)
+	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
 	// Occasionally share the entire version certificate table with all peers
 	shareVersionCertificatesTicker := time.NewTicker(5 * time.Minute)
 	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
@@ -142,14 +142,13 @@ func (sb *Backend) announceThread() {
 				// have a more up-to-date cached registered/elected valset, and
 				// hence more likely that they will be aware that this node is
 				// within that set.
-				// waitPeriod := 1 * time.Minute
-				// if sb.config.Epoch <= 10 {
-				// 	waitPeriod = 5 * time.Second
-				// }
-				// time.AfterFunc(waitPeriod, func() {
-				// 	sb.startGossipQueryEnodeTask()
-				// })
-				sb.startGossipQueryEnodeTask()
+				waitPeriod := 1 * time.Minute
+				if sb.config.Epoch <= 10 {
+					waitPeriod = 5 * time.Second
+				}
+				time.AfterFunc(waitPeriod, func() {
+					sb.startGossipQueryEnodeTask()
+				})
 
 				if sb.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
 					queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
