@@ -87,7 +87,9 @@ func startLightServer(t *testing.T) *gethrpc {
 	datadir := initGeth(t)
 	runGeth(t, "--datadir", datadir, "--password", "./testdata/password.txt", "account", "import", "./testdata/key.prv").WaitExit()
 	account := "0x02f0d131f1f97aef08aec6e3291b957d9efe7105"
-	server := startGethWithRpc(t, "lightserver", "--allow-insecure-unlock", "--datadir", datadir, "--password", "./testdata/password.txt", "--unlock", account, "--mine", "--light.serve=100", "--light.maxpeers=1", "--nodiscover", "--nat=extip:127.0.0.1")
+	server := startGethWithRpc(t, "lightserver", "--allow-insecure-unlock", "--datadir", datadir, "--password", "./testdata/password.txt",
+		"--unlock", account, "--mine", "--miner.validator", account, "--tx-fee-recipient", account,
+		"--light.serve=100", "--light.maxpeers=1", "--nodiscover", "--nat=extip:127.0.0.1")
 	return server
 }
 
@@ -97,10 +99,6 @@ func startClient(t *testing.T, name string) *gethrpc {
 }
 
 func TestPriorityClient(t *testing.T) {
-	t.Skip() // Currently not working
-	// Probably needs some tweaking to work in the Celo network,
-	// since this test was brought from upstream.
-
 	lightServer := startLightServer(t)
 	defer lightServer.killAndWait()
 
