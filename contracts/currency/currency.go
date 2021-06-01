@@ -18,103 +18,20 @@ package currency
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/SortedOracles.json
-	medianRateABI = `[
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "medianRate",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint128"
-        },
-        {
-          "name": "",
-          "type": "uint128"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/ERC20.json
-	balanceOfABI = `[{"constant": true,
-                          "inputs": [
-                               {
-                                   "name": "who",
-                                   "type": "address"
-                               }
-                          ],
-                          "name": "balanceOf",
-                          "outputs": [
-                               {
-                                   "name": "",
-                                   "type": "uint256"
-                               }
-                          ],
-                          "payable": false,
-                          "stateMutability": "view",
-                          "type": "function"
-                         }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/FeeCurrency.json
-	getWhitelistABI = `[{"constant": true,
-	                     "inputs": [],
-	                     "name": "getWhitelist",
-	                     "outputs": [
-			          {
-			              "name": "",
-				      "type": "address[]"
-				  }
-			     ],
-			     "payable": false,
-			     "stateMutability": "view",
-			     "type": "function"
-			    }]`
-)
-
 var (
-	medianRateMethod   *contracts.BoundMethod
-	getWhitelistMethod *contracts.BoundMethod
-	getBalanceMethod   contracts.Method
+	medianRateMethod   = contracts.NewRegisteredContractMethod(params.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", params.MaxGasForMedianRate)
+	getWhitelistMethod = contracts.NewRegisteredContractMethod(params.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", params.MaxGasForGetWhiteList)
+	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", params.MaxGasToReadErc20Balance)
 )
-
-func init() {
-	medianRateFuncABI, err := abi.JSON(strings.NewReader(medianRateABI))
-	if err != nil {
-		panic(err)
-	}
-	balanceOfFuncABI, err := abi.JSON(strings.NewReader(balanceOfABI))
-	if err != nil {
-		panic(err)
-	}
-	getWhitelistFuncABI, err := abi.JSON(strings.NewReader(getWhitelistABI))
-	if err != nil {
-		panic(err)
-	}
-
-	medianRateMethod = contracts.NewRegisteredContractMethod(params.SortedOraclesRegistryId, &medianRateFuncABI, "medianRate", params.MaxGasForMedianRate)
-	getWhitelistMethod = contracts.NewRegisteredContractMethod(params.FeeCurrencyWhitelistRegistryId, &getWhitelistFuncABI, "getWhitelist", params.MaxGasForGetWhiteList)
-	getBalanceMethod = contracts.NewMethod(&balanceOfFuncABI, "balanceOf", params.MaxGasToReadErc20Balance)
-}
 
 // NoopExchangeRate represents an exchange rate of 1 to 1
 var NoopExchangeRate = ExchangeRate{common.Big1, common.Big1}
