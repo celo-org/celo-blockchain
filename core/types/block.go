@@ -376,9 +376,9 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// WithSeal returns a new block with the data from b but the header replaced with
+// WithHeader returns a new block with the data from b but the header replaced with
 // the sealed one.
-func (b *Block) WithSeal(header *Header) *Block {
+func (b *Block) WithHeader(header *Header) *Block {
 	cpy := *header
 
 	return &Block{

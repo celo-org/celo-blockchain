@@ -40,13 +40,7 @@ var DefaultConfig = Config{
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
 	SnapshotCache:      102,
-	Miner: miner.Config{
-		GasFloor: 8000000,
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(1),
-		Recommit: 3 * time.Second,
-	},
-	GatewayFee: big.NewInt(0),
+	GatewayFee:         big.NewInt(0),
 
 	TxPool:      core.DefaultTxPoolConfig,
 	RPCGasCap:   25000000,
