@@ -207,13 +207,6 @@ func (t *PrefetchTrie) prefetchConcurrent(origNode node, key []byte, pos int) er
 	}
 }
 
-func (t *PrefetchTrie) resolveHash(hash common.Hash, prefix []byte) (node, error) {
-	if node := t.trie.trie.db.node(hash); node != nil {
-		return node, nil
-	}
-	return nil, &MissingNodeError{NodeHash: hash, Path: prefix}
-}
-
 // Copy returns a copy of PrefetchTrie.
 func (t *PrefetchTrie) Copy() *PrefetchTrie {
 	t.rootLock.RLock()
