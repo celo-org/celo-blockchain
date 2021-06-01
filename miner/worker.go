@@ -226,6 +226,9 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
+	if w.current != nil && w.current.state != nil {
+		w.current.state.StopPrefetcher()
+	}
 	close(w.exitCh)
 }
 
@@ -341,7 +344,6 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 			}
 		}
 	}
-
 }
 
 // mainLoop is a standalone goroutine to create tasks and submit to the engine.
