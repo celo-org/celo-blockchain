@@ -160,8 +160,11 @@ func (mm *MethodMock) Call(input []byte) (ret []byte, err error) {
 
 	// check if we have an error
 	if len(outs) == len(mm.method.Outputs)+1 {
-		err = (outs[len(outs)-1].Interface()).(error)
-		return nil, err
+		errValue := outs[len(outs)-1]
+		if errValue.IsNil() {
+			return nil, nil
+		}
+		return nil, (errValue.Interface()).(error)
 	}
 
 	for i, outArg := range outs {

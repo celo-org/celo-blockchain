@@ -23,3 +23,5 @@ type mockStateDB struct{ vm.StateDB }
 func (msdb *mockStateDB) GetCodeSize(common.Address) int {
 	return 100
 }
+
+func (msdb *mockStateDB) Finalise(bool) {}
