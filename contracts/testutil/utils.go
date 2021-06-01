@@ -18,10 +18,16 @@ func decapitalise(input string) string {
 	return strings.ToLower(goForm[:1]) + goForm[1:]
 }
 
-type mockStateDB struct{ vm.StateDB }
+type mockStateDB struct {
+	vm.StateDB
+	isContract func(common.Address) bool
+}
 
-func (msdb *mockStateDB) GetCodeSize(common.Address) int {
-	return 100
+func (msdb *mockStateDB) GetCodeSize(addr common.Address) int {
+	if msdb.isContract(addr) {
+		return 100
+	}
+	return 0
 }
 
 func (msdb *mockStateDB) Finalise(bool) {}

@@ -88,8 +88,8 @@ func TestFailsWhenContractNotDeployed(t *testing.T, expectedError error, fn inte
 		fnValue := reflect.ValueOf(fn)
 
 		vmRunner := NewMockEVMRunner()
-		registrMock := NewRegistryMock()
-		vmRunner.RegisterContract(params.RegistrySmartContractAddress, registrMock)
+		registryMock := NewRegistryMock()
+		vmRunner.RegisterContract(params.RegistrySmartContractAddress, registryMock)
 
 		argsValues := vmRunnerArguments(vmRunner, args...)
 		outs := fnValue.Call(argsValues)

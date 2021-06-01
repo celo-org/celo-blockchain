@@ -26,5 +26,9 @@ func (fvm FailingVmRunner) StopGasMetering()  {}
 func (fvm FailingVmRunner) StartGasMetering() {}
 
 func (fvm FailingVmRunner) GetStateDB() vm.StateDB {
-	return &mockStateDB{}
+	return &mockStateDB{
+		isContract: func(a common.Address) bool {
+			return true
+		},
+	}
 }

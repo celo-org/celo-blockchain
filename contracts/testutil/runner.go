@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -11,11 +10,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
-)
-
-var (
-	ErrUnkownMethod   = errors.New("unknown method")
-	ErrUnkownContract = errors.New("unknown contract")
 )
 
 // Check we actually implement EVMRunner
@@ -42,7 +36,8 @@ func (ev *MockEVMRunner) RegisterContract(address common.Address, mock Contract)
 func (ev *MockEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
 	mock, ok := ev.contracts[recipient]
 	if !ok {
-		return nil, ErrUnkownContract
+		/// following evm.go when recipient doesn't exist, we return nil
+		return nil, nil
 	}
 
 	return mock.Call(input)
@@ -51,7 +46,8 @@ func (ev *MockEVMRunner) Execute(recipient common.Address, input []byte, gas uin
 func (ev *MockEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
 	mock, ok := ev.contracts[recipient]
 	if !ok {
-		return nil, ErrUnkownContract
+		/// following evm.go when recipient doesn't exist, we return nil
+		return nil, nil
 	}
 
 	return mock.Call(input)
@@ -67,7 +63,12 @@ func (ev *MockEVMRunner) StartGasMetering() {
 
 // GetStateDB implements Backend.GetStateDB
 func (ev *MockEVMRunner) GetStateDB() vm.StateDB {
-	return &mockStateDB{}
+	return &mockStateDB{
+		isContract: func(a common.Address) bool {
+			_, ok := ev.contracts[a]
+			return ok
+		},
+	}
 }
 
 type ContractMock struct {
@@ -96,20 +97,20 @@ func NewContractMock(parsedAbi *abi.ABI, handler interface{}) ContractMock {
 	return ContractMock{methods: methodMocks}
 }
 
-func (cm *ContractMock) methodById(id []byte) (*MethodMock, error) {
+func (cm *ContractMock) methodById(id []byte) (*MethodMock, bool) {
 	for _, method := range cm.methods {
 		if bytes.Equal(method.Id(), id[:4]) {
-			return &method, nil
+			return &method, true
 		}
 	}
 
-	return nil, ErrUnkownMethod
+	return nil, false
 }
 
 func (cm *ContractMock) Call(input []byte) (ret []byte, err error) {
-	method, err := cm.methodById(input[:4])
-	if err != nil {
-		return nil, err
+	method, ok := cm.methodById(input[:4])
+	if !ok {
+		return nil, vm.ErrExecutionReverted
 	}
 
 	return method.Call(input)
