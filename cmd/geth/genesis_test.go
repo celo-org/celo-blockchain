@@ -38,7 +38,6 @@ var customGenesisTests = []struct {
 		genesis: fmt.Sprintf(`{
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
-			"extraData"  : "",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0xabcdef",
 			"config"     : {
@@ -54,7 +53,6 @@ var customGenesisTests = []struct {
 		genesis: fmt.Sprintf(`{
 			"alloc"      : {},
 			"coinbase"   : "0x0000000000000000000000000000000000000000",
-			"extraData"  : "",
 			"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
 			"timestamp"  : "0xabcdf0",
 			"config"     : {
