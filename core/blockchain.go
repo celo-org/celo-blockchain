@@ -1026,14 +1026,6 @@ func (bc *BlockChain) procFutureBlocks() {
 	}
 }
 
-// WriteStatus status of write
-type WriteStatus byte
-
-const (
-	NonStatTy WriteStatus = iota
-	CanonStatTy
-)
-
 // truncateAncient rewinds the blockchain to the specified header and deletes all
 // data in the ancient store that exceeds the specified header.
 func (bc *BlockChain) truncateAncient(head uint64) error {
@@ -1399,7 +1391,7 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
@@ -1408,13 +1400,13 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
 	if hash := bc.GetCanonicalHash(block.NumberU64()); (hash != common.Hash{} && hash != block.Hash()) {
 		log.Error("Found two blocks with same height", "old", hash, "new", block.Hash())
-		return NonStatTy, fmt.Errorf(
+		return fmt.Errorf(
 			"fail to insert block %s: already a canonical block %s in same level",
 			block.InfoString(),
 			hash.String())
@@ -1426,9 +1418,8 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		lookbackWindow := istEngine.LookbackWindow(block.Header(), state)
 
 		uptimeMonitor := uptime.NewMonitor(store.New(bc.db), bc.chainConfig.Istanbul.Epoch, lookbackWindow)
-		err = uptimeMonitor.ProcessBlock(block)
-		if err != nil {
-			return NonStatTy, err
+		if err := uptimeMonitor.ProcessBlock(block); err != nil {
+			return err
 		}
 
 		blockAuthor, err := istEngine.Author(block.Header())
@@ -1442,7 +1433,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 			if err != nil {
 				log.Error("Couldn't generate the randomness for the block", "blockNum", block.NumberU64(), "err", err)
-				return NonStatTy, err
+				return err
 			}
 		}
 	}
@@ -1450,7 +1441,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
-		return NonStatTy, consensus.ErrUnknownAncestor
+		return consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
 	externTd := big.NewInt(int64(block.NumberU64() + 1))
@@ -1475,14 +1466,14 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Commit all cached state changes into underlying memory database.
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
-		return NonStatTy, err
+		return err
 	}
 	triedb := bc.stateCache.TrieDB()
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
 		if err := triedb.Commit(root, false); err != nil {
-			return NonStatTy, err
+			return err
 		}
 	} else {
 		// Full but not archive node, do proper garbage collection
@@ -1546,7 +1537,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	if emitHeadEvent {
 		bc.chainHeadFeed.Send(ChainHeadEvent{Block: block})
 	}
-	return CanonStatTy, nil
+	return nil
 }
 
 // addFutureBlock checks if the block is within the max allowed window to get
@@ -1781,7 +1772,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 			// Write the block to the chain and get the status.
 			substart = time.Now()
-			status, err := bc.writeBlockWithState(block, receipts, logs, statedb, false)
+			err = bc.writeBlockWithState(block, receipts, logs, statedb, false)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			if err != nil {
 				return it.index, err
@@ -1795,23 +1786,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			blockWriteTimer.Update(time.Since(substart) - statedb.AccountCommits - statedb.StorageCommits - statedb.SnapshotCommits)
 			blockInsertTimer.UpdateSince(start)
 
-			if status == CanonStatTy {
-				log.Debug("Inserted new block", "number", block.Number(), "txs", len(block.Transactions()), "gas", block.GasUsed(),
-					"elapsed", common.PrettyDuration(time.Since(start)),
-					"root", block.Root())
+			log.Debug("Inserted new block", "number", block.Number(), "txs", len(block.Transactions()), "gas", block.GasUsed(),
+				"elapsed", common.PrettyDuration(time.Since(start)),
+				"root", block.Root())
 
-				lastCanon = block
+			lastCanon = block
 
-				// Only count canonical blocks for GC processing time
-				bc.gcproc += proctime
-			} else {
-				// This in theory is impossible, but lets be nice to our future selves and leave
-				// a log, instead of trying to track down blocks imports that don't emit logs.
-				log.Warn("Inserted block with unknown status", "number", block.Number(), "hash", block.Hash(),
-					"elapsed", common.PrettyDuration(time.Since(start)),
-					"txs", len(block.Transactions()), "gas", block.GasUsed(),
-					"root", block.Root())
-			}
+			// Only count canonical blocks for GC processing time
+			bc.gcproc += proctime
 			stats.processed++
 			stats.usedGas += usedGas
 
@@ -1992,12 +1974,7 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
-	whFunc := func(header *types.Header) error {
-		_, err := bc.hc.WriteHeader(header)
-		return err
-	}
-	res, err := bc.hc.InsertHeaderChain(chain, whFunc, start)
-	return res, err
+	return bc.hc.InsertHeaderChain(chain, bc.hc.WriteHeader, start)
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The

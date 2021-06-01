@@ -139,7 +139,7 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 // without the real blocks. Hence, writing headers directly should only be done
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
-func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
+func (hc *HeaderChain) WriteHeader(header *types.Header) error {
 	// Cache some values to prevent constant recalculation
 	var (
 		hash       = header.Hash()
@@ -151,7 +151,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 
 	if head.Hash() != header.ParentHash {
 		if hc.config.FullHeaderChainAvailable || (number-1) == headNumber {
-			return NonStatTy, fmt.Errorf(
+			return fmt.Errorf(
 				"parent not canonical: fail to write header %s, expected parent hash %s, current head %s",
 				header.InfoString(),
 				header.ParentHash.String(),
@@ -160,7 +160,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 			// if it's not a full header chain, ensure that the parent's number of the new header is
 			// bigger that the canonical one
 			if headNumber >= number {
-				return NonStatTy, fmt.Errorf(
+				return fmt.Errorf(
 					"fail to write header %s, current head %s bigger or equal height",
 					header.InfoString(),
 					head.InfoString())
@@ -188,7 +188,7 @@ func (hc *HeaderChain) WriteHeader(header *types.Header) (WriteStatus, error) {
 	hc.tdCache.Add(hash, externTd)
 	hc.headerCache.Add(hash, header)
 	hc.numberCache.Add(hash, number)
-	return CanonStatTy, nil
+	return nil
 }
 
 // WhCallback is a callback function for inserting individual headers.
