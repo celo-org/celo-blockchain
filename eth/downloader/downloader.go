@@ -140,14 +140,15 @@ type Downloader struct {
 	ancientLimit    uint64 // The maximum block number which can be regarded as ancient data.
 
 	// Channels
-	headerCh         chan dataPack                   // [eth/62] Channel receiving inbound block headers
-	plumoProofCh     chan dataPack                   // [celo/66] Channel receiving inbound plumo proofs
-	bodyCh           chan dataPack                   // [eth/62] Channel receiving inbound block bodies
-	receiptCh        chan dataPack                   // [eth/63] Channel receiving inbound receipts
-	bodyWakeCh       chan bool                       // [eth/62] Channel to signal the block body fetcher of new tasks
-	receiptWakeCh    chan bool                       // [eth/63] Channel to signal the receipt fetcher of new tasks
-	headerProcCh     chan []*types.Header            // [eth/62] Channel to feed the header processor new tasks
-	plumoProofProcCh chan []istanbul.LightPlumoProof // [celo/66] Channel to feed the plumo proof processor new tasks
+	headerCh          chan dataPack                   // [eth/62] Channel receiving inbound block headers
+	plumoProofCh      chan dataPack                   // [celo/66] Channel receiving inbound plumo proofs
+	bodyCh            chan dataPack                   // [eth/62] Channel receiving inbound block bodies
+	receiptCh         chan dataPack                   // [eth/63] Channel receiving inbound receipts
+	bodyWakeCh        chan bool                       // [eth/62] Channel to signal the block body fetcher of new tasks
+	receiptWakeCh     chan bool                       // [eth/63] Channel to signal the receipt fetcher of new tasks
+	headerProcCh      chan []*types.Header            // [eth/62] Channel to feed the header processor new tasks
+	plumoProofProcCh  chan []istanbul.LightPlumoProof // [celo/66] Channel to feed the plumo proof processor new tasks
+	plumoProofDelayCh chan []istanbul.LightPlumoProof
 
 	// for stateFetcher
 	stateSyncStart chan *stateSync
@@ -247,28 +248,29 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 	}
 
 	dl := &Downloader{
-		stateDB:          stateDb,
-		stateBloom:       stateBloom,
-		mux:              mux,
-		checkpoint:       checkpoint,
-		queue:            newQueue(),
-		peers:            newPeerSet(),
-		rttEstimate:      uint64(rttDefaultEstimate),
-		rttConfidence:    uint64(1000000),
-		blockchain:       chain,
-		lightchain:       lightchain,
-		dropPeer:         dropPeer,
-		headerCh:         make(chan dataPack, 1),
-		plumoProofCh:     make(chan dataPack, 1),
-		bodyCh:           make(chan dataPack, 1),
-		receiptCh:        make(chan dataPack, 1),
-		bodyWakeCh:       make(chan bool, 1),
-		receiptWakeCh:    make(chan bool, 1),
-		headerProcCh:     make(chan []*types.Header, 1),
-		plumoProofProcCh: make(chan []istanbul.LightPlumoProof, 1),
-		quitCh:           make(chan struct{}),
-		stateCh:          make(chan dataPack),
-		stateSyncStart:   make(chan *stateSync),
+		stateDB:           stateDb,
+		stateBloom:        stateBloom,
+		mux:               mux,
+		checkpoint:        checkpoint,
+		queue:             newQueue(),
+		peers:             newPeerSet(),
+		rttEstimate:       uint64(rttDefaultEstimate),
+		rttConfidence:     uint64(1000000),
+		blockchain:        chain,
+		lightchain:        lightchain,
+		dropPeer:          dropPeer,
+		headerCh:          make(chan dataPack, 1),
+		plumoProofCh:      make(chan dataPack, 1),
+		bodyCh:            make(chan dataPack, 1),
+		receiptCh:         make(chan dataPack, 1),
+		bodyWakeCh:        make(chan bool, 1),
+		receiptWakeCh:     make(chan bool, 1),
+		headerProcCh:      make(chan []*types.Header, 1),
+		plumoProofProcCh:  make(chan []istanbul.LightPlumoProof, 1),
+		plumoProofDelayCh: make(chan []istanbul.LightPlumoProof, 1),
+		quitCh:            make(chan struct{}),
+		stateCh:           make(chan dataPack),
+		stateSyncStart:    make(chan *stateSync),
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
@@ -1204,11 +1206,13 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			if d.Mode != LightestSync {
 				log.Error("Received Plumo proof when not on lightest sync")
 				d.plumoProofProcCh <- nil
+				d.plumoProofDelayCh <- nil
 				break
 			}
 			if packet.PeerId() != p.id {
 				log.Error("Received plumo proof from incorrect peer", "peer", packet.PeerId())
 				d.plumoProofProcCh <- nil
+				d.plumoProofDelayCh <- nil
 				break
 			}
 			timeout.Stop()
@@ -1686,22 +1690,26 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 						frequency = 1
 					}
 					log.Error("Inserting header chain within process Headers", "First header", chunk[0], "last Header", chunk[len(chunk)-1])
-					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
-						rollbackErr = err
+					difference := big.NewInt(0).Sub(chunk[0].Number, d.lightchain.CurrentHeader().Number).Uint64()
+					log.Error("Checking difference", "Difference", difference, "epoch", d.epoch, "chunk first", chunk[0].Number, "current header", d.lightchain.CurrentHeader().Number)
+					if difference <= d.epoch {
+						if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
+							rollbackErr = err
 
-						// If some headers were inserted, track them as uncertain
-						if n > 0 && rollback == 0 {
-							rollback = chunk[0].Number.Uint64()
+							// If some headers were inserted, track them as uncertain
+							if n > 0 && rollback == 0 {
+								rollback = chunk[0].Number.Uint64()
+							}
+							log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
+							return fmt.Errorf("%w: %v", errInvalidChain, err)
 						}
-						log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
-						return fmt.Errorf("%w: %v", errInvalidChain, err)
-					}
-					// All verifications passed, track all headers within the alloted limits
-					head := chunk[len(chunk)-1].Number.Uint64()
-					if head-rollback > uint64(fsHeaderSafetyNet) {
-						rollback = head - uint64(fsHeaderSafetyNet)
-					} else {
-						rollback = 1
+						// All verifications passed, track all headers within the alloted limits
+						head := chunk[len(chunk)-1].Number.Uint64()
+						if head-rollback > uint64(fsHeaderSafetyNet) {
+							rollback = head - uint64(fsHeaderSafetyNet)
+						} else {
+							rollback = 1
+						}
 					}
 				}
 				// Unless we're doing light chains, schedule the headers for associated content retrieval
@@ -1740,6 +1748,12 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				default:
 				}
 			}
+			select {
+			case lightProofs := <-d.plumoProofDelayCh:
+				log.Error("Received lightProofs", "light", lightProofs)
+			default:
+				log.Error("No proofs in delay ch")
+			}
 		}
 	}
 }
@@ -1763,7 +1777,9 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			}
 			// gotProofs = true
 
+			log.Error("Getting progress")
 			progress := d.Progress()
+			log.Error("Got progress")
 			// for len(lightProofs) > 0 {
 			// Terminate if something failed in between processing chunks
 			select {
@@ -1790,16 +1806,17 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 					log.Error("Ignoring proof", "proof", lightProof, "current progress", progress)
 					rejects = append(rejects, lightProof)
 				}
-				// lightProofs = lightProofs[i:]
+				lightProofs = lightProofs[i:]
 				origin += 1
 			}
 			if len(rejects) > 0 {
-				log.Error("Sending rejects")
-				if len(d.plumoProofProcCh) != 0 {
-					proofsFromChannel := <- d.plumoProofProcCh
-					rejects = append(rejects, proofsFromChannel...)
-				}
-				d.plumoProofProcCh <- rejects
+				log.Error("Sending rejects to delay channel")
+				d.plumoProofDelayCh <- rejects[:1]
+				// if len(d.plumoProofProcCh) != 0 {
+				// 	proofsFromChannel := <-d.plumoProofProcCh
+				// 	rejects = append(rejects, proofsFromChannel...)
+				// }
+				// d.plumoProofProcCh <- rejects
 			}
 			log.Error("Rejects sent", "rejects", rejects)
 			// d.DeliverPlumoProofs("1", rejects)
