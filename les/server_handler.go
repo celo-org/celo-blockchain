@@ -28,10 +28,13 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -54,6 +57,8 @@ const (
 	MaxHelperTrieProofsFetch = 64  // Amount of helper tries to be fetched per retrieval request
 	MaxTxSend                = 64  // Amount of transactions to be send per request
 	MaxTxStatus              = 256 // Amount of transactions to queried per request
+	MaxPlumoProofsMetadata   = 256 // TODO(lucas): Amount of plumo proofs' metadata to be returned per client request
+	MaxPlumoProofsFetch      = 256 // TODO(lucas): Amount of plumo proofs to be fetched per retrieval request
 	MaxEtherbase             = 1
 	MaxGatewayFee            = 1
 )
@@ -68,6 +73,7 @@ var (
 type serverHandler struct {
 	blockchain *core.BlockChain
 	chainDb    ethdb.Database
+	proofDb    ethdb.Database
 	txpool     *core.TxPool
 	server     *LesServer
 
@@ -83,11 +89,13 @@ type serverHandler struct {
 	addTxsSync bool
 }
 
-func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, proofDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
+	log.Error("Creating server handler")
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
 		chainDb:    chainDb,
+		proofDb:    proofDb,
 		txpool:     txpool,
 		closeCh:    make(chan struct{}),
 		synced:     synced,
@@ -139,7 +147,7 @@ func (h *serverHandler) handle(p *clientPeer) error {
 	}
 	// Reject light clients if server is not synced.
 	if !h.synced() {
-		p.Log().Debug("Light server not synced, rejecting peer")
+		p.Log().Error("Light server not synced, rejecting peer")
 		return p2p.DiscRequested
 	}
 	defer p.fcClient.Disconnect()
@@ -194,7 +202,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	p.Log().Trace("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
+	p.Log().Error("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
 
 	// Discard large message which exceeds the limitation.
 	if msg.Size > ProtocolMaxMsgSize {
@@ -283,7 +291,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 	}
 	switch msg.Code {
 	case GetBlockHeadersMsg:
-		p.Log().Trace("Received block header request")
+		p.Log().Error("Received block header request")
 		if metrics.EnabledExpensive {
 			miscInHeaderPacketsMeter.Mark(1)
 			miscInHeaderTrafficMeter.Mark(int64(msg.Size))
@@ -846,7 +854,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 
 	case GetEtherbaseMsg:
 		// Celo: Handle Etherbase Request
-		p.Log().Trace("Received etherbase request")
+		p.Log().Error("Received etherbase request")
 		if metrics.EnabledExpensive {
 			miscInEtherbasePacketsMeter.Mark(1)
 			miscInEtherbaseTrafficMeter.Mark(int64(msg.Size))
@@ -890,8 +898,97 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 			}()
 		}
 
+	case GetPlumoProofInventoryMsg:
+		p.Log().Error("Received plumoProofInventory request")
+		var req struct {
+			ReqID uint64
+		}
+		if err := msg.Decode(&req); err != nil {
+			p.Log().Error("Error decoding")
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		if accept(req.ReqID, 1, MaxPlumoProofsMetadata) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proofInventory := rawdb.KnownPlumoProofs(h.proofDb)
+
+				p.Log().Error("Proof inventory", "inventory", proofInventory)
+
+				reply := p.ReplyPlumoProofInventory(req.ReqID, proofInventory)
+				sendResponse(req.ReqID, 1, reply, task.done())
+			}()
+		}
+
+	case GetPlumoProofsMsg:
+		p.Log().Error("Received GetPlumoProofs request")
+		var req struct {
+			ReqID          uint64
+			ProofsMetadata []types.PlumoProofMetadata
+		}
+		if err := msg.Decode(&req); err != nil {
+			clientErrorMeter.Mark(1)
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		reqCnt := len(req.ProofsMetadata)
+		if accept(req.ReqID, uint64(reqCnt), MaxPlumoProofsFetch) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proofs := make([]istanbul.LightPlumoProof, len(req.ProofsMetadata))
+				for i, metadata := range req.ProofsMetadata {
+					if i != 0 && !task.waitOrStop() {
+						sendResponse(req.ReqID, 0, nil, task.servingTime)
+						return
+					}
+					proofBytes := rawdb.ReadPlumoProof(h.proofDb, metadata)
+					engine := h.blockchain.Engine()
+					backend := engine.(*istanbulBackend.Backend)
+					// Could try and fetch roundstate here... but curiously never happens anywhere else.
+					firstEpochValSet := backend.GetValidatorSet(uint64(metadata.FirstEpoch), common.Hash{})
+					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
+					lastEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch), backend.EpochSize())
+					lastBlockHeader := h.blockchain.GetHeaderByNumber(lastEpochBlockNumber)
+					lastEpochEntropy := blscrypto.EpochEntropyFromHash(lastBlockHeader.Hash())
+					parentEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch)-1, backend.EpochSize())
+					parentBlockHeader := h.blockchain.GetHeaderByNumber(parentEpochBlockNumber)
+					parentEpochEntropy := blscrypto.EpochEntropyFromHash(parentBlockHeader.Hash())
+					lastEpochBlock := istanbul.LightEpochBlock{
+						Index:              metadata.LastEpoch,
+						MaxNonSigners:      uint(lastEpochValSet.MinQuorumSize()),
+						EpochEntropy:       lastEpochEntropy,
+						ParentEpochEntropy: parentEpochEntropy,
+					}
+					var firstEpochValData []istanbul.ValidatorData
+					var lastEpochValData []istanbul.ValidatorData
+					for _, validator := range firstEpochValSet.List() {
+						firstEpochValData = append(firstEpochValData, *validator.AsData())
+					}
+					for _, validator := range lastEpochValSet.List() {
+						lastEpochValData = append(lastEpochValData, *validator.AsData())
+					}
+
+					valPositions, addedValidators := istanbul.SnarkValidatorSetDiff(firstEpochValData, lastEpochValData)
+
+					proofs[i] = istanbul.LightPlumoProof{
+						Proof:              proofBytes,
+						FirstEpoch:         metadata.FirstEpoch,
+						LastEpoch:          lastEpochBlock,
+						VersionNumber:      metadata.VersionNumber,
+						FirstHashToField:   []byte{},
+						NewValidators:      addedValidators,
+						ValidatorPositions: valPositions,
+					}
+				}
+				reply := p.ReplyPlumoProofs(req.ReqID, proofs)
+				sendResponse(req.ReqID, uint64(reqCnt), reply, task.done())
+				// TODO metrics
+			}()
+		}
+
 	default:
-		p.Log().Trace("Received invalid message", "code", msg.Code)
+		p.Log().Error("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

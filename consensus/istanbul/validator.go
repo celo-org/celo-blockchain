@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-bls-go/bls"
 
 	"github.com/celo-org/celo-blockchain/common"
 )
@@ -90,6 +91,15 @@ func MapValidatorsToPublicKeys(validators []Validator) []blscrypto.SerializedPub
 		returnList[i] = val.BLSPublicKey()
 	}
 
+	return returnList
+}
+
+func MapValidatorsToValidatorData(validators []Validator) []ValidatorData {
+	returnList := make([]ValidatorData, len(validators))
+
+	for i, val := range validators {
+		returnList[i] = *val.AsData()
+	}
 	return returnList
 }
 
@@ -191,4 +201,24 @@ func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]commo
 	}
 
 	return addrs, pubKeys
+}
+
+// LightEpochBlock stores the minimal info needed to construct a snark.EpochBlock
+type LightEpochBlock struct { // 48 bytes
+	Index              uint             // 8 bytes
+	MaxNonSigners      uint             // 8 bytes
+	EpochEntropy       bls.EpochEntropy // 16 bytes
+	ParentEpochEntropy bls.EpochEntropy // 16 bytes
+}
+
+// LightPlumoProof encapsulates all data needed by a light client to verify and utilize a Plumo proof.
+type LightPlumoProof struct { // Total at least 567 bytes
+	Proof            []byte          // 383 bytes?
+	FirstEpoch       uint            // 8 bytes
+	LastEpoch        LightEpochBlock // 48 bytes
+	VersionNumber    uint            // 8 bytes
+	FirstHashToField []byte          // TODO type and how to compute
+	// TODO 96 bytes?
+	NewValidators      []ValidatorData // (116 * numNewValidators) bytes
+	ValidatorPositions []byte          // len(NewValSet) bytes
 }

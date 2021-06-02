@@ -38,9 +38,11 @@ var (
 	errNotRegistered     = errors.New("peer is not registered")
 )
 
+// TODO(lucas): How much for proof constants and why?
 const (
-	maxKnownTxs    = 32768 // Maximum transactions hashes to keep in the known list (prevent DOS)
-	maxKnownBlocks = 1024  // Maximum block hashes to keep in the known list (prevent DOS)
+	maxKnownTxs         = 32768 // Maximum transactions hashes to keep in the known list (prevent DOS)
+	maxKnownBlocks      = 1024  // Maximum block hashes to keep in the known list (prevent DOS)
+	maxKnownPlumoProofs = 1024  // Maximum plumo proofs to keep in the known list (prevent DOS)
 
 	// maxQueuedTxs is the maximum number of transactions to queue up before dropping
 	// older broadcasts.
@@ -59,6 +61,10 @@ const (
 	// dropping broadcasts. Similarly to block propagations, there's no point to queue
 	// above some healthy uncle limit, so use that.
 	maxQueuedBlockAnns = 4
+
+	// maxQueuedPlumoProofs is the maximum number of plumo proof announcements to queue up before
+	// dropping broadcasts.
+	maxQueuedPlumoProofs = 4
 
 	handshakeTimeout = 5 * time.Second
 )
@@ -107,23 +113,28 @@ type peer struct {
 	txAnnounce  chan []common.Hash                   // Channel used to queue transaction announcement requests
 	getPooledTx func(common.Hash) *types.Transaction // Callback used to retrieve transaction from txpool
 
+	knownPlumoProofs  mapset.Set             // Set of plumo proofs by {firstEpoch, lastEpoch} known to be known by this peer
+	queuedPlumoProofs chan *types.PlumoProof // Queue of proofs to announce to the peer
+
 	term chan struct{} // Termination channel to stop the broadcaster
 }
 
 func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter, getPooledTx func(hash common.Hash) *types.Transaction) *peer {
 	return &peer{
-		Peer:            p,
-		rw:              rw,
-		version:         version,
-		id:              fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownTxs:        mapset.NewSet(),
-		knownBlocks:     mapset.NewSet(),
-		queuedBlocks:    make(chan *propEvent, maxQueuedBlocks),
-		queuedBlockAnns: make(chan *types.Block, maxQueuedBlockAnns),
-		txBroadcast:     make(chan []common.Hash),
-		txAnnounce:      make(chan []common.Hash),
-		getPooledTx:     getPooledTx,
-		term:            make(chan struct{}),
+		Peer:              p,
+		rw:                rw,
+		version:           version,
+		id:                fmt.Sprintf("%x", p.ID().Bytes()[:8]),
+		knownTxs:          mapset.NewSet(),
+		knownBlocks:       mapset.NewSet(),
+		knownPlumoProofs:  mapset.NewSet(),
+		queuedBlocks:      make(chan *propEvent, maxQueuedBlocks),
+		queuedBlockAnns:   make(chan *types.Block, maxQueuedBlockAnns),
+		txBroadcast:       make(chan []common.Hash),
+		txAnnounce:        make(chan []common.Hash),
+		getPooledTx:       getPooledTx,
+		queuedPlumoProofs: make(chan *types.PlumoProof, maxQueuedPlumoProofs),
+		term:              make(chan struct{}),
 	}
 }
 
@@ -146,6 +157,12 @@ func (p *peer) broadcastBlocks(removePeer func(string)) {
 				return
 			}
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
+
+		case proof := <-p.queuedPlumoProofs:
+			if err := p.SendNewPlumoProofs([]types.PlumoProofMetadata{proof.Metadata}); err != nil {
+				return
+			}
+			p.Log().Error("Announced Proof", "proof", proof)
 
 		case <-p.term:
 			return
@@ -312,6 +329,15 @@ func (p *peer) SetHead(hash common.Hash, td *big.Int) {
 
 	copy(p.head[:], hash[:])
 	p.td.Set(td)
+}
+
+// MarkPlumoProofs marks a set of epochs as known for the peer, ensuring that the proof will
+// never be propagated to this particular peer.
+func (p *peer) MarkPlumoProof(plumoProofMetadata *types.PlumoProofMetadata) {
+	for p.knownPlumoProofs.Cardinality() >= maxKnownPlumoProofs {
+		p.knownPlumoProofs.Pop()
+	}
+	p.knownPlumoProofs.Add(plumoProofMetadata)
 }
 
 // MarkBlock marks a block as known for the peer, ensuring that the block will
@@ -494,6 +520,33 @@ func (p *peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 	}
 }
 
+// SendNewPlumoProofs announces the availability of a number of proofs through
+// a metadata notification.
+func (p *peer) SendNewPlumoProofs(proofsMetadata []types.PlumoProofMetadata) error {
+	// Mark all the proofs' metadata as known, but ensure we don't overflow our limits
+	for _, metadata := range proofsMetadata {
+		p.knownPlumoProofs.Add(metadata)
+	}
+	return p2p.Send(p.rw, NewPlumoProofsMsg, proofsMetadata)
+}
+
+// SendPlumoProof propagates a plumo proof to a remote peer.
+func (p *peer) SendPlumoProof(proof *types.PlumoProof) error {
+	p.MarkPlumoProof(&proof.Metadata)
+	return p2p.Send(p.rw, PlumoProofsMsg, proof)
+}
+
+// AsyncSendPlumoProof queues a Plumo proof for propagation to a remote peer.
+// If the peer's broadcast queue is full, the event is silently dropped.
+func (p *peer) AsyncSendPlumoProof(proof *types.PlumoProof) {
+	select {
+	case p.queuedPlumoProofs <- proof:
+		p.MarkPlumoProof(&proof.Metadata)
+	default:
+		p.Log().Error("Dropping Plumo proof propagation", "proof", proof.Proof, "Metadata", proof.Metadata)
+	}
+}
+
 // SendBlockHeaders sends a batch of block headers to the remote peer.
 func (p *peer) SendBlockHeaders(headers []*types.Header) error {
 	return p2p.Send(p.rw, BlockHeadersMsg, headers)
@@ -515,6 +568,12 @@ func (p *peer) SendNodeData(data [][]byte) error {
 // ones requested from an already RLP encoded format.
 func (p *peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
 	return p2p.Send(p.rw, ReceiptsMsg, receipts)
+}
+
+// SendPlumoProofsRLP sends a batch of plumo proofs to the remote peer from
+// an already RLP encoded format
+func (p *peer) SendPlumoProofs(proofs []types.PlumoProof) error {
+	return p2p.Send(p.rw, PlumoProofsMsg, proofs)
 }
 
 // RequestOneHeader is a wrapper around the header query functions to fetch a
@@ -558,6 +617,21 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 	return p2p.Send(p.rw, GetReceiptsMsg, hashes)
 }
 
+// RequestPlumoProofs fetches a proof from a remote node
+func (p *peer) RequestPlumoProofs(metadata []types.PlumoProofMetadata, complement bool) error {
+	// TODO trace
+	p.Log().Error("Fetching batch of proofs", "complement", complement)
+	return p2p.Send(p.rw, GetPlumoProofsMsg, &getPlumoProofsData{Complement: complement, ProofsMetadata: metadata})
+}
+
+func (p *peer) RequestPlumoProofInventory() error {
+	panic("RequestPlumoProofInventory not supported unless in lightest sync mode")
+}
+
+func (p *peer) RequestPlumoProofsAndHeaders(uint64, uint64, int, int, int) error {
+	panic("RequestPlumoProofsAndHeaders not supported unless in lightest sync mode")
+}
+
 // RequestTxs fetches a batch of transactions from a remote node.
 func (p *peer) RequestTxs(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of transactions", "count", len(hashes))
@@ -593,6 +667,24 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 				Genesis:         genesis,
 				ForkID:          forkID,
 			})
+		case p.version == istanbul.Celo66:
+			errc <- p2p.Send(p.rw, StatusMsg, &statusData{
+				ProtocolVersion: uint32(p.version),
+				NetworkID:       network,
+				TD:              td,
+				Head:            head,
+				Genesis:         genesis,
+				ForkID:          forkID,
+			})
+		case p.version == istanbul.Celo67:
+			errc <- p2p.Send(p.rw, StatusMsg, &statusData{
+				ProtocolVersion: uint32(p.version),
+				NetworkID:       network,
+				TD:              td,
+				Head:            head,
+				Genesis:         genesis,
+				ForkID:          forkID,
+			})
 		default:
 			panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
 		}
@@ -602,6 +694,10 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 		case p.version == istanbul.Celo64:
 			errc <- p.readStatusLegacy(network, &status63, genesis)
 		case p.version >= istanbul.Celo65:
+			errc <- p.readStatus(network, &status, genesis, forkFilter)
+		case p.version == istanbul.Celo66:
+			errc <- p.readStatus(network, &status, genesis, forkFilter)
+		case p.version == istanbul.Celo67:
 			errc <- p.readStatus(network, &status, genesis, forkFilter)
 		default:
 			panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
@@ -623,6 +719,10 @@ func (p *peer) Handshake(network uint64, td *big.Int, head common.Hash, genesis 
 	case p.version == istanbul.Celo64:
 		p.td, p.head = status63.TD, status63.CurrentBlock
 	case p.version >= istanbul.Celo65:
+		p.td, p.head = status.TD, status.Head
+	case p.version == istanbul.Celo66:
+		p.td, p.head = status.TD, status.Head
+	case p.version == istanbul.Celo67:
 		p.td, p.head = status.TD, status.Head
 	default:
 		panic(fmt.Sprintf("unsupported eth protocol version: %d", p.version))
@@ -687,6 +787,7 @@ func (p *peer) ReadMsg() (p2p.Msg, error) {
 		return msg, err
 	}
 	if msg.Size > protocolMaxMsgSize {
+		p.Log().Error("Protocol message too big")
 		return msg, errResp(ErrMsgTooLarge, "%v > %v", msg.Size, protocolMaxMsgSize)
 	}
 	return msg, nil
@@ -788,6 +889,21 @@ func (ps *peerSet) Len() int {
 	defer ps.lock.RUnlock()
 
 	return len(ps.peers)
+}
+
+// PeersWithoutPlumoProof retrieves a list of peers that do not have a given plumo proof (by epochs) in
+// their set of known proofs.
+func (ps *peerSet) PeersWithoutPlumoProof(plumoProofMetadata *types.PlumoProofMetadata) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.knownPlumoProofs.Contains(plumoProofMetadata) {
+			list = append(list, p)
+		}
+	}
+	return list
 }
 
 // PeersWithoutBlock retrieves a list of peers that do not have a given block in

@@ -19,6 +19,7 @@ package downloader
 import (
 	"fmt"
 
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 
@@ -41,6 +42,15 @@ type headerPack struct {
 func (p *headerPack) PeerId() string { return p.peerID }
 func (p *headerPack) Items() int     { return len(p.headers) }
 func (p *headerPack) Stats() string  { return fmt.Sprintf("%d", len(p.headers)) }
+
+type plumoProofPack struct {
+	peerID      string
+	lightProofs []istanbul.LightPlumoProof
+}
+
+func (p *plumoProofPack) PeerId() string { return p.peerID }
+func (p *plumoProofPack) Items() int     { return len(p.lightProofs) }
+func (p *plumoProofPack) Stats() string  { return fmt.Sprintf("%d", len(p.lightProofs)) }
 
 // bodyPack is a batch of block bodies returned by a peer.
 type bodyPack struct {

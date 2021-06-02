@@ -48,6 +48,7 @@ var (
 	MaxBodyFetch        = 128 // Amount of block bodies to be fetched per retrieval request
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
 	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
+	MaxPlumoProofFetch  = 192 // Amount of plumo proofs to be fetched per retrieval request (TODO(lucas))
 
 	rttMinEstimate     = 2 * time.Second  // Minimum round-trip time to target for download requests
 	rttMaxEstimate     = 20 * time.Second // Maximum round-trip time to target for download requests
@@ -139,12 +140,15 @@ type Downloader struct {
 	ancientLimit    uint64 // The maximum block number which can be regarded as ancient data.
 
 	// Channels
-	headerCh      chan dataPack        // [eth/62] Channel receiving inbound block headers
-	bodyCh        chan dataPack        // [eth/62] Channel receiving inbound block bodies
-	receiptCh     chan dataPack        // [eth/63] Channel receiving inbound receipts
-	bodyWakeCh    chan bool            // [eth/62] Channel to signal the block body fetcher of new tasks
-	receiptWakeCh chan bool            // [eth/63] Channel to signal the receipt fetcher of new tasks
-	headerProcCh  chan []*types.Header // [eth/62] Channel to feed the header processor new tasks
+	headerCh          chan dataPack                   // [eth/62] Channel receiving inbound block headers
+	plumoProofCh      chan dataPack                   // [celo/66] Channel receiving inbound plumo proofs
+	bodyCh            chan dataPack                   // [eth/62] Channel receiving inbound block bodies
+	receiptCh         chan dataPack                   // [eth/63] Channel receiving inbound receipts
+	bodyWakeCh        chan bool                       // [eth/62] Channel to signal the block body fetcher of new tasks
+	receiptWakeCh     chan bool                       // [eth/63] Channel to signal the receipt fetcher of new tasks
+	headerProcCh      chan []*types.Header            // [eth/62] Channel to feed the header processor new tasks
+	plumoProofProcCh  chan []istanbul.LightPlumoProof // [celo/66] Channel to feed the plumo proof processor new tasks
+	plumoProofDelayCh chan []istanbul.LightPlumoProof
 
 	// for stateFetcher
 	stateSyncStart chan *stateSync
@@ -185,6 +189,8 @@ type LightChain interface {
 
 	// InsertHeaderChain inserts a batch of headers into the local chain.
 	InsertHeaderChain([]*types.Header, int, bool) (int, error)
+
+	InsertPlumoProofs([]istanbul.LightPlumoProof)
 
 	Config() *params.ChainConfig
 	// SetHead rewinds the local chain to a new head.
@@ -242,26 +248,29 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 	}
 
 	dl := &Downloader{
-		stateDB:        stateDb,
-		stateBloom:     stateBloom,
-		mux:            mux,
-		checkpoint:     checkpoint,
-		queue:          newQueue(),
-		peers:          newPeerSet(),
-		rttEstimate:    uint64(rttDefaultEstimate),
-		rttConfidence:  uint64(1000000),
-		blockchain:     chain,
-		lightchain:     lightchain,
-		dropPeer:       dropPeer,
-		headerCh:       make(chan dataPack, 1),
-		bodyCh:         make(chan dataPack, 1),
-		receiptCh:      make(chan dataPack, 1),
-		bodyWakeCh:     make(chan bool, 1),
-		receiptWakeCh:  make(chan bool, 1),
-		headerProcCh:   make(chan []*types.Header, 1),
-		quitCh:         make(chan struct{}),
-		stateCh:        make(chan dataPack),
-		stateSyncStart: make(chan *stateSync),
+		stateDB:           stateDb,
+		stateBloom:        stateBloom,
+		mux:               mux,
+		checkpoint:        checkpoint,
+		queue:             newQueue(),
+		peers:             newPeerSet(),
+		rttEstimate:       uint64(rttDefaultEstimate),
+		rttConfidence:     uint64(1000000),
+		blockchain:        chain,
+		lightchain:        lightchain,
+		dropPeer:          dropPeer,
+		headerCh:          make(chan dataPack, 1),
+		plumoProofCh:      make(chan dataPack, 1),
+		bodyCh:            make(chan dataPack, 1),
+		receiptCh:         make(chan dataPack, 1),
+		bodyWakeCh:        make(chan bool, 1),
+		receiptWakeCh:     make(chan bool, 1),
+		headerProcCh:      make(chan []*types.Header, 1),
+		plumoProofProcCh:  make(chan []istanbul.LightPlumoProof, 1),
+		plumoProofDelayCh: make(chan []istanbul.LightPlumoProof, 1),
+		quitCh:            make(chan struct{}),
+		stateCh:           make(chan dataPack),
+		stateSyncStart:    make(chan *stateSync),
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
@@ -421,7 +430,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 		default:
 		}
 	}
-	for _, ch := range []chan dataPack{d.headerCh, d.bodyCh, d.receiptCh} {
+	for _, ch := range []chan dataPack{d.headerCh, d.plumoProofCh, d.bodyCh, d.receiptCh} {
 		for empty := false; !empty; {
 			select {
 			case <-ch:
@@ -433,6 +442,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 	for empty := false; !empty; {
 		select {
 		case <-d.headerProcCh:
+		case <-d.plumoProofCh:
 		default:
 			empty = true
 		}
@@ -473,9 +483,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		return errTooOld
 	}
 
-	log.Debug("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash, "td", td, "mode", d.Mode)
+	log.Error("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash, "td", td, "mode", d.Mode)
 	defer func(start time.Time) {
-		log.Debug("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
+		log.Error("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
 	}(time.Now())
 
 	// Look up the sync boundaries: the common ancestor and the target block
@@ -564,6 +574,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		fetchers = append(fetchers, func() error { return d.processFastSyncContent(latest) })
 	} else if d.Mode == FullSync {
 		fetchers = append(fetchers, d.processFullSyncContent)
+	}
+	if d.Mode == LightestSync {
+		fetchers = append(fetchers, func() error { return d.processPlumoProofs(origin+1, pivot, td) })
 	}
 	return d.spawnSync(fetchers)
 }
@@ -958,7 +971,7 @@ func (d *Downloader) findAncestor(p *peerConnection, remoteHeader *types.Header)
 // the origin is dropped.
 // height = latest block announced by the peers.
 func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, height uint64) error {
-	p.log.Debug("fetchHeaders", "origin", from, "pivot", pivot, "height", height)
+	p.log.Error("fetchHeaders", "origin", from, "pivot", pivot, "height", height)
 	defer p.log.Debug("Header download terminated")
 
 	// Create a timeout timer, and the associated header fetcher
@@ -998,18 +1011,19 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		}
 
 		request = time.Now()
-
 		ttl = d.requestTTL()
 		timeout.Reset(ttl)
 
+		p.log.Error("Fetching proofs", "from", fromEpochBlock)
 		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
 		// 1000, 1101, 1202, 1303 ...
 		// So, skip has to be epoch - 1 to get the right set of blocks.
 		skip := int(epoch - 1)
-		count := MaxEpochHeaderFetch
-		log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
-		p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
-		go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
+		p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
+		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, epoch, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		// go p.peer.RequestProofs()
+		// go p.peer.RequestPlumoProofInventory()
 	}
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
@@ -1018,7 +1032,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		nextEpochBlock := (from-1)/epoch*epoch + epoch
 		// If we're still not synced up to the latest epoch, sync only epoch headers.
 		// Otherwise, sync block headers as we would normally in light sync.
-		log.Trace("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
+
+		log.Error("Getting headers in lightest sync mode", "from", from, "height", height, "nextEpochBlock", nextEpochBlock, "epoch", epoch)
 		if nextEpochBlock < height {
 			getEpochHeaders(nextEpochBlock)
 			return true
@@ -1098,6 +1113,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			// If we received a skeleton batch, resolve internals concurrently
 			if skeleton {
 				filled, proced, err := d.fillHeaderSkeleton(from, headers)
+				log.Error("Processing skeleton", "filled", filled)
 				if err != nil {
 					p.log.Debug("Skeleton chain invalid", "err", err)
 					return fmt.Errorf("%w: %v", errInvalidChain, err)
@@ -1141,7 +1157,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 			}
 			// Insert all the new headers and fetch the next batch
 			if len(headers) > 0 {
-				p.log.Trace("Scheduling new headers", "count", len(headers), "from", from)
+				p.log.Error("Scheduling new headers", "count", len(headers), "from", from)
 				select {
 				case d.headerProcCh <- headers:
 				case <-d.cancelCh:
@@ -1151,11 +1167,14 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				// In the lightest sync mode, increment the value by epoch instead.
 				if d.Mode == LightestSync {
 					lastFetchedHeaderNumber := headers[len(headers)-1].Number.Uint64()
+					log.Error("Get epoch or normal Headers", "lastFetchedHeaderNumber", lastFetchedHeaderNumber)
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
-						p.log.Debug("No more headers available")
+						// TODO this may be inadequately dealing with concurrent proof/header requests
+						log.Error("!!!!!!! No more header fetches pending???")
+						d.headerProcCh <- nil
 						select {
-						case d.headerProcCh <- nil:
+						case d.plumoProofProcCh <- nil:
 							return nil
 						case <-d.cancelCh:
 							return errCanceled
@@ -1163,7 +1182,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					}
 				} else {
 					from += uint64(len(headers))
-					log.Trace("getHeaders#downloadMoreHeaders", "from", from)
+					log.Error("getHeaders#downloadMoreHeaders", "from", from)
 					getHeaders(from)
 				}
 			} else {
@@ -1176,6 +1195,70 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					} else {
 						getHeaders(from)
 					}
+					continue
+				case <-d.cancelCh:
+					return errCanceled
+				}
+			}
+
+		case packet := <-d.plumoProofCh:
+			// Make sure the active peer is responding with proofs
+			if d.Mode != LightestSync {
+				log.Error("Received Plumo proof when not on lightest sync")
+				d.plumoProofProcCh <- nil
+				d.plumoProofDelayCh <- nil
+				break
+			}
+			if packet.PeerId() != p.id {
+				log.Error("Received plumo proof from incorrect peer", "peer", packet.PeerId())
+				d.plumoProofProcCh <- nil
+				d.plumoProofDelayCh <- nil
+				break
+			}
+			timeout.Stop()
+
+			if packet.Items() == 0 {
+				log.Error("Packet empty, end of sequence?")
+				select {
+				case d.plumoProofProcCh <- nil:
+					return nil
+				case <-d.cancelCh:
+					return errCanceled
+				}
+			}
+
+			lightProofs := packet.(*plumoProofPack).lightProofs
+
+			// Insert all the new proofs and fetch the next batch
+			if len(lightProofs) > 0 {
+				p.log.Error("Scheduling new proofs", "count", len(lightProofs), "from", from)
+				select {
+				case d.plumoProofProcCh <- lightProofs:
+				case <-d.cancelCh:
+					return errCanceled
+				}
+				// TODO(lucas): This will need work
+				// lastFetchedEpochNumber := uint64(lightProofs[len(lightProofs)-1].LastEpoch.Index)
+				// moreEpochFetchesPending := getEpochOrNormalHeaders(lastFetchedEpochNumber)
+				// if !moreEpochFetchesPending {
+				// }
+				// epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch + 1
+				// from += uint64(epochRange)*epoch - 1
+				// getEpochHeaders(from)
+				p.log.Error("No more proofs available")
+				// select {
+				// case d.plumoProofProcCh <- nil:
+				// 	// TODO what exactly to do here
+				// 	// return nil
+				// case <-d.cancelCh:
+				// 	return errCanceled
+				// }
+			} else {
+				// No plumo proofs delivered, or all of them being delayed, sleep a bit and retry
+				p.log.Error("All plumo proofs delayed, waiting")
+				select {
+				case <-time.After(fsHeaderContCheck):
+					getEpochOrNormalHeaders(from)
 					continue
 				case <-d.cancelCh:
 					return errCanceled
@@ -1201,8 +1284,10 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				case <-d.cancelCh:
 				}
 			}
+			// TODO how to do both?
+			d.headerProcCh <- nil
 			select {
-			case d.headerProcCh <- nil:
+			case d.plumoProofProcCh <- nil:
 			case <-d.cancelCh:
 			}
 			return errBadPeer
@@ -1604,22 +1689,27 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 					if chunk[len(chunk)-1].Number.Uint64()+uint64(fsHeaderForceVerify) > pivot {
 						frequency = 1
 					}
-					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
-						rollbackErr = err
+					log.Error("Inserting header chain within process Headers", "First header", chunk[0], "last Header", chunk[len(chunk)-1])
+					difference := big.NewInt(0).Sub(chunk[0].Number, d.lightchain.CurrentHeader().Number).Uint64()
+					log.Error("Checking difference", "Difference", difference, "epoch", d.epoch, "chunk first", chunk[0].Number, "current header", d.lightchain.CurrentHeader().Number)
+					if difference <= d.epoch {
+						if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
+							rollbackErr = err
 
-						// If some headers were inserted, track them as uncertain
-						if n > 0 && rollback == 0 {
-							rollback = chunk[0].Number.Uint64()
+							// If some headers were inserted, track them as uncertain
+							if n > 0 && rollback == 0 {
+								rollback = chunk[0].Number.Uint64()
+							}
+							log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
+							return fmt.Errorf("%w: %v", errInvalidChain, err)
 						}
-						log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
-						return fmt.Errorf("%w: %v", errInvalidChain, err)
-					}
-					// All verifications passed, track all headers within the alloted limits
-					head := chunk[len(chunk)-1].Number.Uint64()
-					if head-rollback > uint64(fsHeaderSafetyNet) {
-						rollback = head - uint64(fsHeaderSafetyNet)
-					} else {
-						rollback = 1
+						// All verifications passed, track all headers within the alloted limits
+						head := chunk[len(chunk)-1].Number.Uint64()
+						if head-rollback > uint64(fsHeaderSafetyNet) {
+							rollback = head - uint64(fsHeaderSafetyNet)
+						} else {
+							rollback = 1
+						}
 					}
 				}
 				// Unless we're doing light chains, schedule the headers for associated content retrieval
@@ -1658,7 +1748,93 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 				default:
 				}
 			}
+			select {
+			case lightProofs := <-d.plumoProofDelayCh:
+				log.Error("Received lightProofs", "light", lightProofs)
+			default:
+				log.Error("No proofs in delay ch")
+			}
 		}
+	}
+}
+
+func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int) error {
+	// Wait for batches of proofs to process
+	// gotProofs := false
+	log.Error("Processing Plumo Proofs")
+
+	for {
+		select {
+		case <-d.cancelCh:
+			log.Error("CANCELLING PLUMO PROOF CH")
+			return errCanceled
+
+		case lightProofs := <-d.plumoProofProcCh:
+			log.Error("Processing some light proofs", "light proof len", len(lightProofs))
+			if len(lightProofs) == 0 {
+				log.Error("EXITING PROCESS PLUMO PROOFS")
+				return nil
+			}
+			// gotProofs = true
+
+			log.Error("Getting progress")
+			progress := d.Progress()
+			log.Error("Got progress")
+			// for len(lightProofs) > 0 {
+			// Terminate if something failed in between processing chunks
+			select {
+			case <-d.cancelCh:
+				log.Error("Error canceling process plumo proofs channel")
+				return errCanceled
+			default:
+			}
+
+			// TODO
+			limit := maxHeadersProcess
+			if limit > len(lightProofs) {
+				limit = len(lightProofs)
+			}
+			var chunks []istanbul.LightPlumoProof
+			var rejects []istanbul.LightPlumoProof
+			log.Error("CHecking sanity of loop in downloader", "limit", limit, "light proofs", lightProofs)
+			for i := 0; i < limit; i++ {
+				lightProof := lightProofs[i]
+				log.Error("Iterating over light proofs", "Light proof", lightProof, "i", i, "progress current block", progress.CurrentBlock, "first Epoch", lightProof.FirstEpoch)
+				if uint64(lightProof.FirstEpoch) <= progress.CurrentBlock {
+					chunks = append(chunks, lightProof)
+				} else {
+					log.Error("Ignoring proof", "proof", lightProof, "current progress", progress)
+					rejects = append(rejects, lightProof)
+				}
+				lightProofs = lightProofs[i:]
+				origin += 1
+			}
+			if len(rejects) > 0 {
+				log.Error("Sending rejects to delay channel")
+				d.plumoProofDelayCh <- rejects[:1]
+				// if len(d.plumoProofProcCh) != 0 {
+				// 	proofsFromChannel := <-d.plumoProofProcCh
+				// 	rejects = append(rejects, proofsFromChannel...)
+				// }
+				// d.plumoProofProcCh <- rejects
+			}
+			log.Error("Rejects sent", "rejects", rejects)
+			// d.DeliverPlumoProofs("1", rejects)
+			// unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
+			// for _, lightProof := range chunk {
+			// 	unknown = append(unknown, lightProof)
+			// }
+			if len(chunks) > 0 {
+				log.Error("Inserting plumo proof chunks", "chunks", chunks)
+				d.lightchain.InsertPlumoProofs(chunks)
+				log.Error("Finished inserting plumo proofs")
+				// lightProofs = lightProofs[limit:]
+				// origin += uint64(limit)
+			}
+			log.Error("No more proofs", "rejects", rejects)
+			// }
+		}
+		log.Error("Iterating process plumo proofs")
 	}
 }
 
@@ -1922,6 +2098,10 @@ func (d *Downloader) DeliverHeaders(id string, headers []*types.Header) (err err
 	return d.deliver(id, d.headerCh, &headerPack{id, headers}, headerInMeter, headerDropMeter)
 }
 
+func (d *Downloader) DeliverPlumoProofs(id string, proofs []istanbul.LightPlumoProof) (err error) {
+	return d.deliver(id, d.plumoProofCh, &plumoProofPack{id, proofs}, plumoProofInMeter, plumoProofDropMeter)
+}
+
 // DeliverBodies injects a new batch of block bodies received from a remote node.
 func (d *Downloader) DeliverBodies(id string, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData) (err error) {
 	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, randomness, epochSnarkData}, bodyInMeter, bodyDropMeter)
@@ -1951,6 +2131,7 @@ func (d *Downloader) deliver(id string, destCh chan dataPack, packet dataPack, i
 	cancel := d.cancelCh
 	d.cancelLock.RUnlock()
 	if cancel == nil {
+		log.Error("Cancel channel is null")
 		return errNoSyncActive
 	}
 	select {

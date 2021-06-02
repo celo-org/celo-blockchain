@@ -74,6 +74,12 @@ type Engine interface {
 	// the consensus rules of the given engine.
 	VerifySeal(chain ChainReader, header *types.Header) error
 
+	VerifyLightPlumoProofs(lightProofs []istanbul.LightPlumoProof) error
+
+	// VerifyPlumoProof checks whether the plumo proof is valid by calling in to the
+	// celo-bls-go snark library.
+	VerifyPlumoProofs(proof []types.PlumoProof) error
+
 	// Prepare initializes the consensus fields of a block header according to the
 	// rules of a particular engine. The changes are executed inline.
 	Prepare(chain ChainReader, header *types.Header) error

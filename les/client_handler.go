@@ -26,6 +26,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/light"
@@ -293,7 +294,6 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			h.fetcher.announce(p, &req)
 		}
 	case BlockHeadersMsg:
-		p.Log().Trace("Received block header response message")
 		var resp struct {
 			ReqID, BV uint64
 			Headers   []*types.Header
@@ -301,16 +301,18 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+		p.Log().Error("Received block header response message", "headers", resp.Headers)
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.answeredRequest(resp.ReqID)
 		if h.fetcher.requestedID(resp.ReqID) {
 			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
-		} else {
+		} else { // ODR
 			h.backend.retriever.lock.RLock()
 			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
 			h.backend.retriever.lock.RUnlock()
 			if headerRequested != nil {
 				contiguousHeaders := h.syncMode != downloader.LightestSync
+				log.Error("Inserting header chain")
 				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
 					return err
 				}
@@ -461,6 +463,38 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		h.gatewayFeeCache.update(p.id, &resp.Data)
 
+	case PlumoProofInventoryMsg:
+		p.Log().Error("Received PlumoProofInventory response")
+		var resp struct {
+			// TODO would be nice to have detail on what BV exactly is? Looks like a buffer limit of sorts
+			ReqID, BV       uint64
+			ProofsInventory []types.PlumoProofMetadata
+		}
+		if err := msg.Decode(&resp); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Error("Received proof inventory", "inventory", resp.ProofsInventory)
+		h.fetcher.importKnownPlumoProofs(p, resp.ProofsInventory)
+
+	case PlumoProofsMsg:
+		p.Log().Error("Recieved PlumoProofsMsg response")
+		var resp struct {
+			ReqID, BV   uint64
+			LightProofs []istanbul.LightPlumoProof
+		}
+		if err := msg.Decode(&resp); err != nil {
+			p.Log().Error("Error decoding")
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+
+		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
+		p.Log().Error("Received requested proofs", "light_proofs", resp.LightProofs)
+		if err := h.downloader.DeliverPlumoProofs(p.id, resp.LightProofs); err != nil {
+			log.Error("Failed to deliver proofs", "err", err)
+		}
+
 	default:
 		p.Log().Trace("Received invalid message", "code", msg.Code)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
@@ -509,6 +543,7 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)
 	if !ok {
+		log.Error("Returning no peers from request headers by hash")
 		return light.ErrNoPeers
 	}
 	return nil
@@ -533,7 +568,161 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 	}
 	_, ok := <-pc.handler.backend.reqDist.queue(rq)
 	if !ok {
+		log.Error("Returning no peers from request headers by number")
 		return light.ErrNoPeers
+	}
+	return nil
+}
+
+func (pc *peerConnection) RequestPlumoProofInventory() error {
+	rq := &distReq{
+		getCost: func(dp distPeer) uint64 {
+			peer := dp.(*serverPeer)
+			// Would 0 work here?
+			return peer.getRequestCost(GetPlumoProofInventoryMsg, 0)
+		},
+		canSend: func(dp distPeer) bool {
+			return dp.(*serverPeer) == pc.peer
+		},
+		request: func(dp distPeer) func() {
+			reqID := genReqID()
+			peer := dp.(*serverPeer)
+			cost := peer.getRequestCost(GetPlumoProofInventoryMsg, 0)
+			peer.fcServer.QueuedRequest(reqID, cost)
+			return func() { peer.RequestPlumoProofInventory(reqID, cost) }
+		},
+	}
+	_, ok := <-pc.handler.backend.reqDist.queue(rq)
+	if !ok {
+		log.Error("Returning no peers from request proof inventory")
+		return light.ErrNoPeers
+	}
+	return nil
+}
+
+func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+	// Greedy alg for grabbing proofs
+	// TODO version number
+	// TODO limit based on max fetch
+	var proofsToRequest []types.PlumoProofMetadata
+	type headerGap struct {
+		FirstEpoch uint
+		Amount     int
+	}
+	var headerGaps []headerGap
+	knownPlumoProofs := pc.peer.knownPlumoProofs
+	var currFrom uint = uint(from)
+	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch)) - 1
+	// Outer loop finding the path
+	for {
+		// Inner loop adding the next proof
+		var earliestMatch uint = math.MaxUint32
+		var maxRange uint = 0
+		var chosenProofMetadata types.PlumoProofMetadata
+		for _, proofMetadata := range knownPlumoProofs {
+			log.Error("iterating proofs", "currFrom", currFrom, "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
+			if proofMetadata.FirstEpoch >= currEpoch {
+				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
+				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
+					log.Error("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
+					earliestMatch = uint(proofMetadata.FirstEpoch)
+					maxRange = proofRange
+					chosenProofMetadata = proofMetadata
+				}
+			}
+		}
+		// No more proofs to add, break
+		if maxRange == 0 && currEpoch < earliestMatch {
+			// TODO check height
+			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
+			amount := int(earliestMatch - currEpoch)
+			if amount > maxEpochHeaderFetch {
+				amount = maxEpochHeaderFetch
+			}
+			gap := headerGap{
+				FirstEpoch: currEpoch,
+				Amount:     amount,
+			}
+			headerGaps = append(headerGaps, gap)
+			break
+		}
+		if currEpoch < earliestMatch {
+			log.Error("Need to add header gap", "currEpoch", currEpoch, "earliestMatch", earliestMatch)
+			gap := headerGap{
+				FirstEpoch: currEpoch + 1,
+				Amount:     int(earliestMatch - currEpoch),
+			}
+			headerGaps = append(headerGaps, gap)
+		}
+		proofsToRequest = append(proofsToRequest, chosenProofMetadata)
+		if len(proofsToRequest) >= maxPlumoProofFetch {
+			break
+		}
+		currEpoch = chosenProofMetadata.LastEpoch
+	}
+
+	if len(proofsToRequest) > 0 {
+		log.Error("Requesting proofs", "numProofs", len(proofsToRequest))
+		proofReq := &distReq{
+			getCost: func(dp distPeer) uint64 {
+				peer := dp.(*serverPeer)
+				return peer.getRequestCost(GetPlumoProofsMsg, len(proofsToRequest))
+			},
+			canSend: func(dp distPeer) bool {
+				return dp.(*serverPeer) == pc.peer
+			},
+			request: func(dp distPeer) func() {
+				reqID := genReqID()
+				peer := dp.(*serverPeer)
+				cost := peer.getRequestCost(GetPlumoProofInventoryMsg, len(proofsToRequest))
+				peer.fcServer.QueuedRequest(reqID, cost)
+				return func() { peer.RequestPlumoProofs(reqID, cost, proofsToRequest) }
+			},
+		}
+		_, ok := <-pc.handler.backend.reqDist.queue(proofReq)
+		if !ok {
+			log.Error("Returning no peers from request proofs and headers")
+			return light.ErrNoPeers
+		}
+	}
+	// This does seem to work in some ways, testing proofs now
+	for i := len(headerGaps) - 1; i >= 0; i-- {
+		headerGap := headerGaps[i]
+		// for _, headerGap := range headerGaps {
+		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount, "greater?", int(headerGap.FirstEpoch) > 52)
+
+		// if int(headerGap.FirstEpoch)+headerGap.Amount >= 52 {
+		// 	if int(headerGap.FirstEpoch) == 52 {
+		// 		headerGap.Amount = 1
+		// 	} else {
+		// 		headerGap.Amount = 52 - int(headerGap.FirstEpoch)
+		// 	}
+		// }
+		headerReq := &distReq{
+			getCost: func(dp distPeer) uint64 {
+				peer := dp.(*serverPeer)
+				return peer.getRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+			},
+			canSend: func(dp distPeer) bool {
+				return dp.(*serverPeer) == pc.peer
+			},
+			request: func(dp distPeer) func() {
+				reqID := genReqID()
+				peer := dp.(*serverPeer)
+				cost := peer.getRequestCost(GetBlockHeadersMsg, headerGap.Amount)
+				peer.fcServer.QueuedRequest(reqID, cost)
+				return func() {
+					blockNumber := uint64(headerGap.FirstEpoch) * epoch
+					log.Error("Requesting headers by number", "blockNumber", blockNumber, "amount", headerGap.Amount)
+					peer.requestHeadersByNumber(reqID, blockNumber, headerGap.Amount, skip, false)
+				}
+			},
+		}
+		_, ok := <-pc.handler.backend.reqDist.queue(headerReq)
+		if !ok {
+			log.Error("Returning no peers from request proofs and headers 2")
+			return light.ErrNoPeers
+		}
 	}
 	return nil
 }

@@ -79,6 +79,7 @@ type Ethereum struct {
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
+	proofDb ethdb.Database // Plumo proof database
 
 	eventMux       *event.TypeMux
 	engine         consensus.Engine
@@ -144,7 +145,12 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	proofDb, err := ctx.OpenDatabase("plumoproofdata", config.DatabaseCache, config.DatabaseHandles, "eth/db/plumoproofdata/")
+	if err != nil {
+		return nil, err
+	}
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideChurrito, config.OverrideDonut)
+
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
@@ -154,6 +160,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	eth := &Ethereum{
 		config:            config,
 		chainDb:           chainDb,
+		proofDb:           proofDb,
 		eventMux:          ctx.EventMux,
 		accountManager:    ctx.AccountManager,
 		engine:            CreateConsensusEngine(ctx, chainConfig, config, chainDb),
@@ -225,7 +232,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
-	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, ctx.Server, ctx.ProxyServer); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, proofDb, cacheLimit, config.Whitelist, ctx.Server, ctx.ProxyServer); err != nil {
 		return nil, err
 	}
 
@@ -542,6 +549,7 @@ func (s *Ethereum) TxPool() *core.TxPool                { return s.txPool }
 func (s *Ethereum) EventMux() *event.TypeMux            { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine            { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database             { return s.chainDb }
+func (s *Ethereum) ProofDb() ethdb.Database             { return s.proofDb }
 func (s *Ethereum) IsListening() bool                   { return true } // Always listening
 func (s *Ethereum) EthVersion() int                     { return int(istanbul.ProtocolVersions[0]) }
 func (s *Ethereum) NetVersion() uint64                  { return s.networkID }
@@ -616,6 +624,7 @@ func (s *Ethereum) Stop() error {
 	s.blockchain.Stop()
 	s.engine.Close()
 	s.chainDb.Close()
+	s.proofDb.Close()
 	s.eventMux.Stop()
 	return nil
 }

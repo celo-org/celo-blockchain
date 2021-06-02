@@ -107,7 +107,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
-	peers := newServerPeerSet()
+	peers := newServerPeerSet(syncMode == downloader.LightestSync)
 	leth := &LightEthereum{
 		lesCommons: lesCommons{
 			genesis:     genesisHash,
@@ -181,6 +181,13 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		leth.chtIndexer.Start(leth.blockchain)
 	}
 
+	// TODO mcortesi (needs etherbase & gatewayFee?)
+	log.Error("Starting client handler")
+	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
+	if leth.handler.ulc != nil {
+		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
+		leth.blockchain.DisableCheckFreq()
+	}
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)

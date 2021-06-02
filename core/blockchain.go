@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/uptime/store"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -2415,6 +2416,10 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 	}
 	res, err := bc.hc.InsertHeaderChain(chain, whFunc, start)
 	return res, err
+}
+
+func (bc *BlockChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) {
+	panic("This should not be called on a full sync blockchain.")
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The

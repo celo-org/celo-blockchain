@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
@@ -80,12 +81,14 @@ type ProtocolManager struct {
 	downloader   *downloader.Downloader
 	blockFetcher *fetcher.BlockFetcher
 	txFetcher    *fetcher.TxFetcher
+	proofFetcher *fetcher.ProofFetcher
 	peers        *peerSet
 
 	eventMux      *event.TypeMux
 	txsCh         chan core.NewTxsEvent
 	txsSub        event.Subscription
 	minedBlockSub *event.TypeMuxSubscription
+	plumoProofSub *event.TypeMuxSubscription
 
 	whitelist map[uint64]common.Hash
 
@@ -102,6 +105,7 @@ type ProtocolManager struct {
 	server      *p2p.Server
 	proxyServer *p2p.Server
 
+	proofDb ethdb.Database
 	// Test fields or hooks
 	broadcastTxAnnouncesOnly bool // Testing field, disable transaction propagation
 }
@@ -109,7 +113,7 @@ type ProtocolManager struct {
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
-	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
+	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database, proofdb ethdb.Database,
 	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
@@ -126,6 +130,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		engine:      engine,
 		server:      server,
 		proxyServer: proxyServer,
+		proofDb:     proofdb,
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
@@ -218,6 +223,31 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 
 	manager.chainSync = newChainSyncer(manager)
 
+	getPlumoProof := func(metadata types.PlumoProofMetadata) *types.PlumoProof {
+		proof := rawdb.ReadPlumoProof(manager.proofDb, metadata)
+		if proof != nil {
+			return &types.PlumoProof{Proof: proof, Metadata: metadata}
+		}
+		return nil
+	}
+	verifyPlumoProof := func(proof *types.PlumoProof) error {
+		return engine.VerifyPlumoProofs([]types.PlumoProof{*proof})
+	}
+	broadcastPlumoProof := func(proof *types.PlumoProof, propagate bool) {
+		// TODO
+	}
+	insertPlumoProofs := func(proofs types.PlumoProofs) error {
+		for _, proof := range proofs {
+			if err := verifyPlumoProof(proof); err != nil {
+				log.Error("Proof cannot verify")
+				return err
+			}
+			rawdb.WritePlumoProof(manager.proofDb, proof)
+		}
+		return nil
+	}
+	manager.proofFetcher = fetcher.NewProofFetcher(getPlumoProof, verifyPlumoProof, broadcastPlumoProof, insertPlumoProofs, manager.removePeer)
+
 	return manager, nil
 }
 
@@ -298,6 +328,9 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	pm.minedBlockSub = pm.eventMux.Subscribe(core.NewMinedBlockEvent{})
 	go pm.minedBroadcastLoop()
 
+	pm.plumoProofSub = pm.eventMux.Subscribe(core.NewPlumoProofAddedEvent{})
+	go pm.plumoProofBroadcastLoop()
+
 	// start sync handlers
 	pm.wg.Add(2)
 	go pm.chainSync.loop()
@@ -307,6 +340,7 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 func (pm *ProtocolManager) Stop() {
 	pm.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	pm.plumoProofSub.Unsubscribe() // quits plumoProofBroadcastLoop
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
@@ -447,6 +481,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 func (pm *ProtocolManager) handleMsg(p *peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.ReadMsg()
+	p.Log().Error("Msg received", "msg", msg)
 	if err != nil {
 		return err
 	}
@@ -881,6 +916,123 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txFetcher.Enqueue(p.id, txs, msg.Code == PooledTransactionsMsg)
 
+	case msg.Code == NewPlumoProofsMsg:
+		log.Error("NewPlumoProofs msg received")
+		var proofsMetadata newPlumoProofsData
+		if err := msg.Decode(&proofsMetadata); err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+		// Mark the proofs' metadata as present at the remote node
+		for _, proofMetadata := range proofsMetadata {
+			p.MarkPlumoProof(&proofMetadata)
+		}
+		// Schedule all the unknown proofs' metadata for retrieval
+		unknown := make(newPlumoProofsData, 0, len(proofsMetadata))
+		for _, proofMetadata := range proofsMetadata {
+			if !rawdb.HasPlumoProof(pm.proofDb, proofMetadata) {
+				unknown = append(unknown, proofMetadata)
+			}
+		}
+		requestSpecificProofs := func(proofsMetadata []types.PlumoProofMetadata) error {
+			log.Error("Requesting proofs")
+			return p.RequestPlumoProofs(proofsMetadata, false)
+		}
+		log.Error("Len of unknown", "len", len(unknown))
+		for _, proofMetadata := range unknown {
+			log.Error("Notifying fetcher")
+			pm.proofFetcher.Notify(p.id, proofMetadata, time.Now(), requestSpecificProofs)
+		}
+
+	case msg.Code == GetPlumoProofsMsg:
+		log.Error("Received getPlumoProofMsg")
+		// Decode the complex proofs query
+		var query getPlumoProofsData
+		if err := msg.Decode(&query); err != nil {
+			log.Error("Error response", "err", err, "msg", msg)
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+
+		// Gather proofs until the fetch or network limits is reached
+		var (
+			bytes  int
+			proofs []types.PlumoProof
+		)
+		if query.Complement {
+			// TODO(lucas): inefficient, could improve via some better DS
+			knownPlumoProofs := rawdb.KnownPlumoProofs(pm.proofDb)
+			for _, knownProof := range knownPlumoProofs {
+				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
+					log.Error("Too many proofs")
+					break
+				}
+				requested := true
+				for _, peerKnownProof := range query.ProofsMetadata {
+					if knownProof == peerKnownProof {
+						requested = false
+					}
+				}
+				if requested {
+					proof := rawdb.ReadPlumoProof(pm.proofDb, knownProof)
+					if proof == nil {
+						break
+					}
+					plumoProof := types.PlumoProof{
+						Proof:    proof,
+						Metadata: knownProof,
+					}
+					proofs = append(proofs, plumoProof)
+					// TODO(lucas): could optimize if this size is semi-constant
+					proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
+					if err != nil {
+						return err
+					}
+					proofRLP := rlp.RawValue(proofRLPBytes)
+					bytes += len(proofRLP)
+				}
+			}
+		} else {
+			for _, metadata := range query.ProofsMetadata {
+				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
+					log.Error("Too many proofs")
+					break
+				}
+				proof := rawdb.ReadPlumoProof(pm.proofDb, metadata)
+				if proof == nil {
+					log.Error("Unknown requested proof")
+					break
+				}
+				plumoProof := types.PlumoProof{
+					Proof:    proof,
+					Metadata: metadata,
+				}
+				proofs = append(proofs, plumoProof)
+				// TODO(lucas): could optimize if this size is semi-constant
+				proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
+				if err != nil {
+					return err
+				}
+				proofRLP := rlp.RawValue(proofRLPBytes)
+				bytes += len(proofRLP)
+			}
+		}
+		return p.SendPlumoProofs(proofs)
+
+	case msg.Code == PlumoProofsMsg:
+		log.Error("Received PlumoProofsMsg")
+		var proofs []types.PlumoProof
+		if err := msg.Decode(&proofs); err != nil {
+			return errResp(ErrDecode, "msg %v: %v", msg, err)
+		}
+		for _, proof := range proofs {
+			log.Error("Proof received", "proof", proof)
+			p.MarkPlumoProof(&proof.Metadata)
+			if err := pm.engine.VerifyPlumoProofs([]types.PlumoProof{proof}); err != nil {
+				log.Error("Proof does not verify. Dropping Peer")
+				return errResp(ErrDecode, "err %v", err)
+			}
+			rawdb.WritePlumoProof(pm.proofDb, &proof)
+		}
+
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
@@ -889,6 +1041,19 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 
 func (pm *ProtocolManager) Enqueue(id string, block *types.Block) {
 	pm.blockFetcher.Enqueue(id, block)
+}
+
+func (pm *ProtocolManager) BroadcastPlumoProof(plumoProof *types.PlumoProof) {
+	// Broadcast plumo proof to a batch of peers not knowing about it
+	peers := pm.peers.PeersWithoutPlumoProof(&plumoProof.Metadata)
+
+	// Send the block to a subset of our peers
+	transfer := peers[:int(math.Sqrt(float64(len(peers))))]
+	for _, peer := range transfer {
+		peer.AsyncSendPlumoProof(plumoProof)
+	}
+	// TODO (lucas): trace
+	log.Error("Broadcast Plumo Proof", "Metadata", plumoProof.Metadata)
 }
 
 // BroadcastBlock will either propagate a block to a subset of its peers, or
@@ -993,6 +1158,20 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 
 		case <-pm.txsSub.Err():
 			return
+		}
+	}
+}
+
+// TODO(lucas): remove?
+// Added Plumo Proof loop
+func (pm *ProtocolManager) plumoProofBroadcastLoop() {
+	// automatically stops if unsubscribed
+	for obj := range pm.plumoProofSub.Chan() {
+		if ev, ok := obj.Data.(core.NewPlumoProofAddedEvent); ok {
+			log.Error("Broadcast loop", "ev", ev)
+			rawdb.WritePlumoProof(pm.proofDb, ev.Proof)
+			// TODO propogate?
+			pm.BroadcastPlumoProof(ev.Proof)
 		}
 	}
 }

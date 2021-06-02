@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -80,6 +81,8 @@ type LightPeer interface {
 	Head() (common.Hash, *big.Int)
 	RequestHeadersByHash(common.Hash, int, int, bool) error
 	RequestHeadersByNumber(uint64, int, int, bool) error
+	RequestPlumoProofInventory() error
+	RequestPlumoProofsAndHeaders(uint64, uint64, int, int, int) error
 }
 
 // Peer encapsulates the methods required to synchronise with a remote full peer.
@@ -101,6 +104,12 @@ func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip 
 }
 func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int, reverse bool) error {
 	return w.peer.RequestHeadersByNumber(i, amount, skip, reverse)
+}
+func (w *lightPeerWrapper) RequestPlumoProofInventory() error {
+	return w.peer.RequestPlumoProofInventory()
+}
+func (w *lightPeerWrapper) RequestPlumoProofsAndHeaders(from uint64, epoch uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
+	return w.peer.RequestPlumoProofsAndHeaders(from, epoch, skip, maxPlumoProofFetch, maxEpochHeaderFetch)
 }
 func (w *lightPeerWrapper) RequestBodies([]common.Hash) error {
 	panic("RequestBodies not supported in light client mode sync")
@@ -470,7 +479,7 @@ func (ps *peerSet) HeaderIdlePeers() ([]*peerConnection, int) {
 		defer p.lock.RUnlock()
 		return p.headerThroughput
 	}
-	return ps.idlePeers(64, 66, idle, throughput)
+	return ps.idlePeers(istanbul.Celo64, istanbul.Celo67, idle, throughput)
 }
 
 // BodyIdlePeers retrieves a flat list of all the currently body-idle peers within
@@ -484,7 +493,7 @@ func (ps *peerSet) BodyIdlePeers() ([]*peerConnection, int) {
 		defer p.lock.RUnlock()
 		return p.blockThroughput
 	}
-	return ps.idlePeers(64, 66, idle, throughput)
+	return ps.idlePeers(istanbul.Celo64, istanbul.Celo67, idle, throughput)
 }
 
 // ReceiptIdlePeers retrieves a flat list of all the currently receipt-idle peers
@@ -498,7 +507,7 @@ func (ps *peerSet) ReceiptIdlePeers() ([]*peerConnection, int) {
 		defer p.lock.RUnlock()
 		return p.receiptThroughput
 	}
-	return ps.idlePeers(64, 66, idle, throughput)
+	return ps.idlePeers(istanbul.Celo64, istanbul.Celo67, idle, throughput)
 }
 
 // NodeDataIdlePeers retrieves a flat list of all the currently node-data-idle
@@ -512,7 +521,7 @@ func (ps *peerSet) NodeDataIdlePeers() ([]*peerConnection, int) {
 		defer p.lock.RUnlock()
 		return p.stateThroughput
 	}
-	return ps.idlePeers(64, 66, idle, throughput)
+	return ps.idlePeers(istanbul.Celo64, istanbul.Celo67, idle, throughput)
 }
 
 // idlePeers retrieves a flat list of all currently idle peers satisfying the

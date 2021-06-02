@@ -69,7 +69,7 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		panic(err)
 	}
-	pm, err := NewProtocolManager(gspec.Config, nil, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx, pool: make(map[common.Hash]*types.Transaction)}, engine, blockchain, db, 1, nil, nil, nil)
+	pm, err := NewProtocolManager(gspec.Config, nil, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx, pool: make(map[common.Hash]*types.Transaction)}, engine, blockchain, db, db, 1, nil, nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -205,6 +205,24 @@ func (p *testPeer) handshake(t *testing.T, td *big.Int, head common.Hash, genesi
 			GenesisBlock:    genesis,
 		}
 	case p.version >= istanbul.Celo65:
+		msg = &statusData{
+			ProtocolVersion: uint32(p.version),
+			NetworkID:       DefaultConfig.NetworkId,
+			TD:              td,
+			Head:            head,
+			Genesis:         genesis,
+			ForkID:          forkID,
+		}
+	case p.version == istanbul.Celo66:
+		msg = &statusData{
+			ProtocolVersion: uint32(p.version),
+			NetworkID:       DefaultConfig.NetworkId,
+			TD:              td,
+			Head:            head,
+			Genesis:         genesis,
+			ForkID:          forkID,
+		}
+	case p.version == istanbul.Celo67:
 		msg = &statusData{
 			ProtocolVersion: uint32(p.version),
 			NetworkID:       DefaultConfig.NetworkId,

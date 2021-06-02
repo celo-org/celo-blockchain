@@ -29,6 +29,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -428,6 +429,34 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 		log.Debug("InsertHeaderChain", "failing index number", i, "err", err)
 	}
 	return i, err
+}
+
+func (lc *LightChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) {
+	// TODO: any further info here? Or can this be pulled out
+	lc.engine.VerifyLightPlumoProofs(lightProofs)
+	start := time.Now()
+	lastProof := lightProofs[len(lightProofs)-1]
+	blockNumber := istanbul.GetEpochLastBlockNumber(uint64(lastProof.LastEpoch.Index), lc.engine.EpochSize())
+	headers := []*types.Header{
+		{
+			Number: big.NewInt(int64(blockNumber)),
+		},
+	}
+	whFunc := func(header *types.Header) error {
+		_, err := lc.hc.WriteHeader(header)
+
+		// switch status {
+		// case core.CanonStatTy:
+		// 	log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
+		// 	events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
+
+		// case core.SideStatTy:
+		// 	log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
+		// 	events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
+		// }
+		return err
+	}
+	lc.hc.InsertHeaderChain(headers, whFunc, start)
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The

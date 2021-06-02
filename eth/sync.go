@@ -200,8 +200,11 @@ func (cs *chainSyncer) loop() {
 
 	cs.pm.blockFetcher.Start()
 	cs.pm.txFetcher.Start()
+	cs.pm.proofFetcher.Start()
 	defer cs.pm.blockFetcher.Stop()
 	defer cs.pm.txFetcher.Stop()
+	defer cs.pm.proofFetcher.Stop()
+	defer cs.pm.downloader.Terminate()
 
 	// The force timer lowers the peer count threshold down to one when it fires.
 	// This ensures we'll always start sync even if there aren't enough peers.
@@ -326,6 +329,12 @@ func (pm *ProtocolManager) doSync(op *chainSyncOp) error {
 	if err != nil {
 		return err
 	}
+
+	knownProofs := rawdb.KnownPlumoProofs(pm.proofDb)
+	if err := op.peer.RequestPlumoProofs(knownProofs, true); err != nil {
+		return err
+	}
+
 	if atomic.LoadUint32(&pm.fastSync) == 1 {
 		log.Info("Fast sync complete, auto disabling")
 		atomic.StoreUint32(&pm.fastSync, 0)

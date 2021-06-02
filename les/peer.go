@@ -28,6 +28,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth"
@@ -35,6 +36,7 @@ import (
 	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
@@ -332,6 +334,10 @@ type serverPeer struct {
 	chainSince, chainRecent uint64 // The range of chain server peer can serve.
 	stateSince, stateRecent uint64 // The range of state server peer can serve.
 
+	// Celo67 fields
+	knownPlumoProofs            []types.PlumoProofMetadata
+	plumoProofInventorySupplied bool
+
 	// Gateway fields
 	etherbase  *common.Address
 	gatewayFee *big.Int
@@ -368,6 +374,12 @@ func newServerPeer(version int, network uint64, trusted bool, p *p2p.Peer, rw p2
 		},
 		trusted: trusted,
 	}
+}
+
+func (p *serverPeer) SetKnownPlumoProofs(plumoProofs []types.PlumoProofMetadata) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.knownPlumoProofs = plumoProofs
 }
 
 // rejectUpdate returns true if a parameter update has to be rejected because
@@ -839,6 +851,38 @@ func (p *clientPeer) sendStop() error {
 	return p2p.Send(p.rw, StopMsg, struct{}{})
 }
 
+// ReplyPlumoProofsInventory creates a reply with the full node's inventory of available proofs
+func (p *clientPeer) ReplyPlumoProofInventory(reqID uint64, inventory []types.PlumoProofMetadata) *reply {
+	data, _ := rlp.EncodeToBytes(inventory)
+	p.Log().Error("Replying proof inventory", "data", data)
+	return &reply{p.rw, PlumoProofInventoryMsg, reqID, data}
+}
+
+// ReplyPlumoProofs creates a reply with the requested proofs
+func (p *clientPeer) ReplyPlumoProofs(reqID uint64, proofs []istanbul.LightPlumoProof) *reply {
+	data, _ := rlp.EncodeToBytes(proofs)
+	p.Log().Error("Replying requested proofs", "data", data)
+	return &reply{p.rw, PlumoProofsMsg, reqID, data}
+}
+
+// RequestPlumoProofsInventory fetches an inventory of proofs' metadata that the server holds.
+func (p *serverPeer) RequestPlumoProofInventory(reqID, cost uint64) error {
+	p.Log().Error("Fetching proof invetnory")
+	type req struct {
+		ReqID uint64
+	}
+	return p2p.Send(p.rw, GetPlumoProofInventoryMsg, req{reqID})
+}
+
+func (p *serverPeer) RequestPlumoProofs(reqID, cost uint64, proofsMetadata []types.PlumoProofMetadata) error {
+	p.Log().Error("Fetching batch of plumo proofs", "count", len(proofsMetadata))
+	type req struct {
+		ReQID          uint64
+		ProofsMetadata []types.PlumoProofMetadata
+	}
+	return p2p.Send(p.rw, GetPlumoProofsMsg, req{reqID, proofsMetadata})
+}
+
 // sendResume notifies the client about getting out of frozen state
 func (p *clientPeer) sendResume(bv uint64) error {
 	return p2p.Send(p.rw, ResumeMsg, bv)
@@ -1090,11 +1134,12 @@ type clientPeerSet struct {
 	subscribers []clientPeerSubscriber
 	closed      bool
 	lock        sync.RWMutex
+	lightest    bool
 }
 
 // newClientPeerSet creates a new peer set to track the client peers.
-func newClientPeerSet() *clientPeerSet {
-	return &clientPeerSet{peers: make(map[string]*clientPeer)}
+func newClientPeerSet(lightest bool) *clientPeerSet {
+	return &clientPeerSet{peers: make(map[string]*clientPeer), lightest: lightest}
 }
 
 // subscribe adds a service to be notified about added or removed
@@ -1222,11 +1267,12 @@ type serverPeerSet struct {
 	subscribers []serverPeerSubscriber
 	closed      bool
 	lock        sync.RWMutex
+	lightest    bool
 }
 
 // newServerPeerSet creates a new peer set to track the active server peers.
-func newServerPeerSet() *serverPeerSet {
-	return &serverPeerSet{peers: make(map[string]*serverPeer)}
+func newServerPeerSet(lightest bool) *serverPeerSet {
+	return &serverPeerSet{peers: make(map[string]*serverPeer), lightest: lightest}
 }
 
 // subscribe adds a service to be notified about added or removed
@@ -1270,6 +1316,12 @@ func (ps *serverPeerSet) register(peer *serverPeer) error {
 	for _, sub := range ps.subscribers {
 		sub.registerPeer(peer)
 	}
+
+	// if ps.lightest {
+	// 	reqID := genReqID()
+	// 	cost := p.GetRequestCost(GetPlumoProofInventoryMsg, 0)
+	// 	go p.RequestPlumoProofInventory(reqID, cost)
+	// }
 
 	return nil
 }
@@ -1341,6 +1393,8 @@ func (ps *serverPeerSet) len() int {
 func (ps *serverPeerSet) bestPeer() *serverPeer { // nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
+
+	log.Error("Calculating BestPeer")
 
 	var (
 		bestPeer *serverPeer

@@ -45,6 +45,9 @@ const (
 	NodeDataMsg        = 0x0e
 	GetReceiptsMsg     = 0x0f
 	ReceiptsMsg        = 0x10
+	NewPlumoProofsMsg  = 0x19
+	GetPlumoProofsMsg  = 0x1a
+	PlumoProofsMsg     = 0x1b
 
 	// New protocol message codes introduced in eth65 (celo66)
 	//
@@ -197,3 +200,18 @@ type blockBodyWithBlockHash struct {
 
 // blockBodiesData is the network packet for block content distribution.
 type blockBodiesData []*blockBodyWithBlockHash
+
+// newPlumoProofsData is the network packet for the proof propagation message.
+type newPlumoProofsData []types.PlumoProofMetadata
+
+// getPlumoProofsData represents a plumo proof query.
+type getPlumoProofsData struct {
+	// If `Complement` is `false`, `ProofsMetadata` contains the metadata for the requested proofs.
+	// If `Complement` is `true`, `ProofsMetadata` is the set of proofs the sender knows,
+	// and is requesting the set's complement to receive the proofs it hasn't seen.
+	Complement     bool
+	ProofsMetadata []types.PlumoProofMetadata
+}
+
+// plumoProofsData is the network packet for plumo proof distribution.
+type plumoProofsData []*types.PlumoProof

@@ -284,7 +284,8 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.costTracker.testCostList = testCostList(0) // Disable flow control mechanism.
 	server.clientPool = newClientPool(db, 1, clock, nil)
 	server.clientPool.setLimits(10000, 10000) // Assign enough capacity for clientpool
-	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true }, common.ZeroAddress, eth.DefaultConfig.GatewayFee)
+	// TODO(lucas): Okay to use same db twice? No technical issues but may be confusing
+	server.handler = newServerHandler(server, simulation.Blockchain(), db, db, txpool, func() bool { return true }, common.ZeroAddress, eth.DefaultConfig.GatewayFee)
 	if server.oracle != nil {
 		server.oracle.Start(simulation)
 	}
@@ -461,7 +462,7 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 	if simClock {
 		clock = &mclock.Simulated{}
 	}
-	handler, b := newTestServerHandler(blocks, indexers, db, newClientPeerSet(), clock)
+	handler, b := newTestServerHandler(blocks, indexers, db, newClientPeerSet(false), clock)
 
 	var peer *testPeer
 	if newPeer {
@@ -500,7 +501,7 @@ func newServerEnv(t *testing.T, blocks int, protocol int, callback indexerCallba
 
 func newClientServerEnv(t *testing.T, syncMode downloader.SyncMode, blocks int, protocol int, callback indexerCallback, ulcServers []string, ulcFraction int, simClock bool, connect bool) (*testServer, *testClient, func()) {
 	sdb, cdb := rawdb.NewMemoryDatabase(), rawdb.NewMemoryDatabase()
-	speers, cpeers := newServerPeerSet(), newClientPeerSet()
+	speers, cpeers := newServerPeerSet(false), newClientPeerSet(true)
 
 	var clock mclock.Clock = &mclock.System{}
 	if simClock {

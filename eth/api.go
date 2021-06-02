@@ -19,6 +19,7 @@ package eth
 import (
 	"compress/gzip"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -244,6 +245,40 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 		blocks = blocks[:0]
 	}
 	return true, nil
+}
+
+func (api *PrivateAdminAPI) AddProof(proof string, firstEpoch uint, lastEpoch uint, versionNumber uint) (bool, error) {
+	proofDec, _ := hex.DecodeString(proof)
+	plumoProof := types.PlumoProof{
+		Proof: proofDec,
+		Metadata: types.PlumoProofMetadata{
+			FirstEpoch:    firstEpoch,
+			LastEpoch:     lastEpoch,
+			VersionNumber: versionNumber,
+		},
+	}
+	// TODO unify verify/add logic on one component - which one? Engine?
+	err := api.eth.Engine().VerifyPlumoProofs([]types.PlumoProof{plumoProof})
+	if err != nil {
+		return false, err
+	}
+	// TODO(lucas): is this cleaner than just adding an event?
+	rawdb.WritePlumoProof(api.eth.proofDb, &plumoProof)
+	api.eth.protocolManager.BroadcastPlumoProof(&plumoProof)
+	return true, nil
+}
+
+func (api *PrivateAdminAPI) RemoveProof(firstEpoch uint, lastEpoch uint, versionNumber uint) {
+	plumoProofMetadata := types.PlumoProofMetadata{
+		FirstEpoch:    firstEpoch,
+		LastEpoch:     lastEpoch,
+		VersionNumber: versionNumber,
+	}
+	rawdb.DeletePlumoProof(api.eth.proofDb, plumoProofMetadata)
+}
+
+func (api *PrivateAdminAPI) Proofs() ([][]byte, error) {
+	return rawdb.ReadPlumoProofs(api.eth.proofDb), nil
 }
 
 // PublicDebugAPI is the collection of Ethereum full node APIs exposed

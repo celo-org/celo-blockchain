@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/les/checkpointoracle"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/light"
@@ -83,7 +84,7 @@ func NewLesServer(e *eth.Ethereum, config *eth.Config) (*LesServer, error) {
 			closeCh:          make(chan struct{}),
 		},
 		archiveMode:  e.ArchiveMode(),
-		peers:        newClientPeerSet(),
+		peers:        newClientPeerSet(config.SyncMode == downloader.LightestSync),
 		lesTopics:    lesTopics,
 		fcManager:    flowcontrol.NewClientManager(nil, &mclock.System{}),
 		servingQueue: newServingQueue(int64(time.Millisecond*10), float64(config.LightServ)/100),
@@ -91,7 +92,7 @@ func NewLesServer(e *eth.Ethereum, config *eth.Config) (*LesServer, error) {
 		threadsIdle:  threads,
 	}
 
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), e.Synced, config.TxFeeRecipient, config.GatewayFee)
+	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.ProofDb(), e.TxPool(), e.Synced, config.TxFeeRecipient, config.GatewayFee)
 	srv.costTracker, srv.minCapacity = newCostTracker(e.ChainDb(), config)
 	srv.freeCapacity = srv.minCapacity
 

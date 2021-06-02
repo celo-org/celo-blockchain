@@ -237,6 +237,7 @@ func verifyImportDone(t *testing.T, imported chan *types.Block) {
 	}
 }
 
+// TODO(lucas): Add Celo66 tests
 // Tests that a fetcher accepts block announcements and initiates retrievals for
 // them, successfully importing into the local chain.
 func TestSequentialAnnouncements64(t *testing.T) { testSequentialAnnouncements(t, 64) }

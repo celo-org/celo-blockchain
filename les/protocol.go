@@ -35,17 +35,18 @@ const (
 	lpv2 = 2
 	lpv3 = 3
 	lpv4 = 4 // Work in progress. Breaking changes expected.
+	lpv5 = 5 // Work in progress. Breaking changes expected.
 )
 
 // Supported versions of the les protocol (first is primary)
 var (
-	ClientProtocolVersions    = []uint{lpv2, lpv3}
-	ServerProtocolVersions    = []uint{lpv2, lpv3}
-	AdvertiseProtocolVersions = []uint{lpv2} // clients are searching for the first advertised protocol in the list
+	ClientProtocolVersions    = []uint{lpv4, lpv2, lpv3}
+	ServerProtocolVersions    = []uint{lpv4, lpv2, lpv3}
+	AdvertiseProtocolVersions = []uint{lpv4} // clients are searching for the first advertised protocol in the list
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 30, lpv5: 32}
 
 const (
 	NetworkId          = 1
@@ -80,8 +81,13 @@ const (
 	StopMsg   = 0x18
 	ResumeMsg = 0x19
 	// Protocol messages to be introduced in LPV4
-	GetGatewayFeeMsg = 0x1A
-	GatewayFeeMsg    = 0x1B
+	GetPlumoProofInventoryMsg = 0x1A
+	PlumoProofInventoryMsg    = 0x1B
+	GetPlumoProofsMsg         = 0x1C
+	PlumoProofsMsg            = 0x1D
+	// Protocol messages to be introduced in LPV5
+	GetGatewayFeeMsg = 0x1E
+	GatewayFeeMsg    = 0x1F
 )
 
 type requestInfo struct {
@@ -111,6 +117,9 @@ var (
 		SendTxV2Msg:            {"SendTxV2", MaxTxSend, 1, 0},
 		GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus, 10, 0},
 		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
+		// TODO(lucas) values here?
+		GetPlumoProofInventoryMsg: {"GetPlumoProofInventory", MaxPlumoProofsMetadata, 1, 0},
+		GetPlumoProofsMsg:         {"GetPlumoProofs", MaxPlumoProofsFetch, 1, 0},
 	}
 	requestList    []lpc.RequestInfo
 	requestMapping map[uint32]reqMapping
