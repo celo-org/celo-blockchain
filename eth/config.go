@@ -40,15 +40,11 @@ var DefaultConfig = Config{
 	TrieDirtyCache:     256,
 	TrieTimeout:        60 * time.Minute,
 	SnapshotCache:      102,
-	Miner: miner.Config{
-		GasFloor: 8000000,
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(1),
-		Recommit: 3 * time.Second,
-	},
-	GatewayFee: big.NewInt(0),
+	GatewayFee:         big.NewInt(0),
 
-	TxPool: core.DefaultTxPoolConfig,
+	TxPool:      core.DefaultTxPoolConfig,
+	RPCGasCap:   25000000,
+	RPCTxFeeCap: 500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -127,7 +123,11 @@ type Config struct {
 	EVMInterpreter string
 
 	// RPCGasCap is the global gas cap for eth-call variants.
-	RPCGasCap *big.Int `toml:",omitempty"`
+	RPCGasCap uint64 `toml:",omitempty"`
+
+	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
+	// send-transction variants. The unit is ether.
+	RPCTxFeeCap float64 `toml:",omitempty"`
 
 	// Checkpoint is a hardcoded checkpoint which can be nil.
 	Checkpoint *params.TrustedCheckpoint `toml:",omitempty"`
