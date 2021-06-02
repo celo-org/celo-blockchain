@@ -390,12 +390,13 @@ func (bc *BlockChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EV
 
 // NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
 func (bc *BlockChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
-	header := bc.CurrentHeader()
-	state, err := bc.StateAt(header.Root)
+	block := bc.CurrentBlock()
+	state, err := bc.StateAt(block.Header().Root)
 	if err != nil {
+		log.Error("Can't create EVMRunner for current block (error fetching state)", "number", block.Number(), "stateRoot", block.Root().Hex(), "err", err)
 		return nil, err
 	}
-	return vmcontext.NewEVMRunner(bc, header, state), nil
+	return vmcontext.NewEVMRunner(bc, block.Header(), state), nil
 }
 
 // empty returns an indicator whether the blockchain is empty.
