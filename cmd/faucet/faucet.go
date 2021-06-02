@@ -699,7 +699,8 @@ func authTwitter(url string) (string, string, common.Address, error) {
 	// the mobile page though since the main page loads tweet contents via JS.
 	// #nosec (we don't use faucet)
 	url = strings.Replace(url, "https://twitter.com/", "https://mobile.twitter.com/", 1)
-	//nolint:gosec // G107 this function is called with a twitter url
+	// gosec/G107. This function is called with a twitter url, no need to run gosec.
+	//nolint:gosec
 	res, err := http.Get(url)
 	if err != nil {
 		return "", "", common.Address{}, err

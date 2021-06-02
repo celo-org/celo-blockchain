@@ -19,6 +19,7 @@ package tests
 import (
 	"fmt"
 	"math/big"
+	"sort"
 
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -140,6 +141,16 @@ var Forks = map[string]*params.ChainConfig{
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(5),
 	},
+}
+
+// Returns the set of defined fork names
+func AvailableForks() []string {
+	var availableForks []string
+	for k := range Forks {
+		availableForks = append(availableForks, k)
+	}
+	sort.Strings(availableForks)
+	return availableForks
 }
 
 // UnsupportedForkError is returned when a test requests a fork that isn't implemented.

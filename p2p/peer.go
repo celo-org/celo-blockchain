@@ -372,6 +372,7 @@ func (p *Peer) handle(msg Msg) error {
 		if metrics.Enabled {
 			m := fmt.Sprintf("%s/%s/%d/%#02x", ingressMeterName, proto.Name, proto.Version, msg.Code-proto.offset)
 			metrics.GetOrRegisterMeter(m, nil).Mark(int64(msg.meterSize))
+			metrics.GetOrRegisterMeter(m+"/packets", nil).Mark(1)
 		}
 		select {
 		case proto.in <- msg:
@@ -418,16 +419,6 @@ outer:
 		}
 	}
 
-	// If a primary protocol matched, return only that protocol.
-	for _, proto := range protocols {
-		if proto.Primary {
-			if match, ok := result[proto.Name]; ok && match.Version == proto.Version {
-				primary := make(map[string]*protoRW)
-				primary[proto.Name] = result[proto.Name]
-				return primary
-			}
-		}
-	}
 	return result
 }
 

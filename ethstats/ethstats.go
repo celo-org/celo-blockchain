@@ -355,6 +355,7 @@ func (s *Service) loop(ctx context.Context) {
 					if err = s.report(conn, sendCh); err != nil {
 						log.Warn("Initial stats report failed", "err", err)
 						conn.Close()
+						errTimer.Reset(0)
 						continue
 					}
 
