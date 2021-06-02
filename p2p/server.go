@@ -594,20 +594,10 @@ func (srv *Server) setupLocalNode() error {
 	srv.localnode.SetFallbackIP(net.IP{127, 0, 0, 1})
 
 	// TODO: check conflicts
-	primaries := make(map[string]bool)
 	for _, p := range srv.Protocols {
-		if p.Primary {
-			primaries[p.Name] = true
-		}
 		for _, e := range p.Attributes {
 			srv.localnode.Set(e)
 		}
-	}
-	if len(primaries) > 1 {
-		// It's ok for multiple versions of Istanbul to be marked as primary, since for a given peer
-		// connection only the latest version they both support will be used. But it's not ok if another
-		// protocol besides Istanbul is marked a primary, since then it's unclear which should be run.
-		srv.log.Crit("Multiple primary protocols specified", "names", primaries)
 	}
 	switch srv.NAT.(type) {
 	case nil:
