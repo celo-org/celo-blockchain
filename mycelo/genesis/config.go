@@ -179,20 +179,20 @@ type DowntimeSlasherParametersMarshaling struct {
 type GovernanceParameters struct {
 	UseMultiSig             bool         `json:"useMultiSig"` // whether the approver should be the multisig (otherwise it's the admin)
 	ConcurrentProposals     uint64       `json:"concurrentProposals"`
-	MinDeposit              *big.Int     `json:"MinDeposit"`
-	QueueExpiry             uint64       `json:"QueueExpiry"`
-	DequeueFrequency        uint64       `json:"DequeueFrequency"`
-	ApprovalStageDuration   uint64       `json:"ApprovalStageDuration"`
-	ReferendumStageDuration uint64       `json:"ReferendumStageDuration"`
-	ExecutionStageDuration  uint64       `json:"ExecutionStageDuration"`
+	MinDeposit              *big.Int     `json:"minDeposit"`
+	QueueExpiry             uint64       `json:"queueExpiry"`
+	DequeueFrequency        uint64       `json:"dequeueFrequency"`
+	ApprovalStageDuration   uint64       `json:"approvalStageDuration"`
+	ReferendumStageDuration uint64       `json:"referendumStageDuration"`
+	ExecutionStageDuration  uint64       `json:"executionStageDuration"`
 	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
 	ParticipationFloor      *fixed.Fixed `json:"participationFloor"`
-	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor"`
-	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor"`
+	BaselineUpdateFactor    *fixed.Fixed `json:"baselineUpdateFactor"`
+	BaselineQuorumFactor    *fixed.Fixed `json:"baselineQuorumFactor"`
 }
 
 type GovernanceParametersMarshaling struct {
-	MinDeposit *bigintstr.BigIntStr `json:"MinDeposit"`
+	MinDeposit *bigintstr.BigIntStr `json:"minDeposit"`
 }
 
 // ValidatorsParameters are the initial configuration parameters for Validators
