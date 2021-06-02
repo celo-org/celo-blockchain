@@ -290,6 +290,7 @@ func loadBot(ctx *cli.Context) error {
 	}
 
 	return loadbot.Start(runCtx, &loadbot.Config{
+		ChainID:               env.Config.ChainID,
 		Accounts:              env.Accounts().DeveloperAccounts(),
 		Amount:                big.NewInt(10000000),
 		TransactionsPerSecond: ctx.Int(loadTestTPSFlag.Name),

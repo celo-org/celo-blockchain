@@ -155,7 +155,7 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	DontMeterGas bool
+	dontMeterGas bool
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -168,7 +168,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(ctx.BlockNumber),
 		interpreters: make([]Interpreter, 0, 1),
-		DontMeterGas: false,
+		dontMeterGas: false,
 	}
 
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
@@ -209,6 +209,10 @@ func (evm *EVM) Cancelled() bool {
 // Interpreter returns the current interpreter
 func (evm *EVM) Interpreter() Interpreter {
 	return evm.interpreter
+}
+
+func (evm *EVM) GetStateDB() StateDB {
+	return evm.StateDB
 }
 
 func (evm *EVM) GetDebug() bool {
@@ -532,3 +536,11 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) StopGasMetering() {
+	evm.dontMeterGas = true
+}
+
+func (evm *EVM) StartGasMetering() {
+	evm.dontMeterGas = false
+}
