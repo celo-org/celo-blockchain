@@ -231,7 +231,6 @@ func (pm *ProtocolManager) makeProtocol(version uint) p2p.Protocol {
 		Name:    istanbul.ProtocolName,
 		Version: version,
 		Length:  length,
-		Primary: istanbul.IsPrimary(version),
 		Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 			return pm.runPeer(pm.newPeer(int(version), p, rw, pm.txpool.Get))
 		},

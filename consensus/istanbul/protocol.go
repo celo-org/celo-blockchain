@@ -22,8 +22,12 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
+	// No longer supported, can be removed.
+	// The corresponding version upstream (eth/65) is removed in upstream PR #22636.
 	Celo64 = 64 // eth/63 + the istanbul messages
 	Celo65 = 65 // incorporates changes from eth/64 (EIP)
+
+	// Supported versions
 	Celo66 = 66 // incorporates changes from eth/65 (EIP-2464)
 )
 
@@ -31,16 +35,8 @@ const (
 const ProtocolName = "istanbul"
 
 // ProtocolVersions are the supported versions of the istanbul protocol (first is primary).
-// (First is primary in the sense that it's the most current one supported, not in the sense of IsPrimary() below)
-var ProtocolVersions = []uint{Celo66, Celo65, Celo64}
-
-// Returns whether this version of Istanbul should have Primary: true (a legacy property that was needed to work
-// around an upstream bug in the LES protocol which prevented two LES servers from connecting to each other).
-// Versions up to Celo65 need to have it, for backwards compatibility. Newer versions don't need it, since the
-// upstream LES bug has now been fixed.
-func IsPrimary(version uint) bool {
-	return version <= Celo65
-}
+// (First is primary in the sense that it's the most current one supported)
+var ProtocolVersions = []uint{Celo66}
 
 // protocolLengths are the number of implemented message corresponding to different protocol versions.
 var ProtocolLengths = map[uint]uint64{Celo64: 22, Celo65: 27, Celo66: 27}
