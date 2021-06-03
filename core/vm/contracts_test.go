@@ -31,7 +31,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -41,20 +40,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// mockEngine provides functions used by precompiles for testing.
-type mockEngine struct {
-	consensus.Engine
-}
-
-func (e mockEngine) VerifySeal(_ consensus.ChainReader, header *types.Header) error {
-	return nil
-}
-
-func (e mockEngine) EpochSize() uint64 {
-	return 100
-}
-
-func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Validator {
+func getValidators(number *big.Int, _ common.Hash) []istanbul.Validator {
 	preimage := append([]byte("fakevalidators"), common.LeftPadBytes(number.Bytes()[:], 32)...)
 	hash := sha3.Sum256(preimage)
 	var validators []istanbul.Validator
@@ -66,11 +52,6 @@ func (e mockEngine) GetValidators(number *big.Int, _ common.Hash) []istanbul.Val
 		validators = append(validators, validator.New(addr, blsPublicKey))
 	}
 	return validators
-}
-
-// mockChainContext provides functions used by precompiles for testing.
-type mockChainContext struct {
-	ChainContext
 }
 
 func makeTestSeal(number *big.Int) types.IstanbulAggregatedSeal {
@@ -105,25 +86,12 @@ func makeTestHeader(number *big.Int) *types.Header {
 	}
 }
 
-func (c mockChainContext) GetHeader(_ common.Hash, number uint64) *types.Header {
+func getHeaderByNumber(number uint64) *types.Header {
 	return makeTestHeader(new(big.Int).SetUint64(number))
-}
-
-func (c mockChainContext) GetHeaderByNumber(number uint64) *types.Header {
-	return makeTestHeader(new(big.Int).SetUint64(number))
-}
-
-func (c mockChainContext) Config() *params.ChainConfig {
-	return &params.ChainConfig{Istanbul: &params.IstanbulConfig{}}
-}
-
-func (c mockChainContext) Engine() consensus.Engine {
-	return mockEngine{}
 }
 
 var testHeader = makeTestHeader(big.NewInt(10000))
 
-var chainCtx = mockChainContext{}
 var vmctx = Context{
 	CanTransfer: func(db StateDB, addr common.Address, amount *big.Int) bool {
 		return db.GetBalance(addr).Cmp(amount) >= 0
@@ -132,20 +100,7 @@ var vmctx = Context{
 	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
 	VerifySeal: func(header *types.Header) bool {
 		// If the block is later than the unsealed reference block, return false.
-		if header.Number.Cmp(testHeader.Number) > 0 {
-			return false
-		}
-
-		// FIXME: Implementation currently relies on the Istanbul engine's internal view of the
-		// chain, so return false if this is not an Istanbul chain. As a consequence of this the
-		// seal is always verified against the canonical chain, which makes behavior undefined if
-		// this function is evaluated on a chain which does not have the highest total difficulty.
-		if chainCtx.Config().Istanbul == nil {
-			return false
-		}
-
-		// Submit the header to the engine's seal verification function.
-		return chainCtx.Engine().VerifySeal(nil, header) == nil
+		return !(header.Number.Cmp(testHeader.Number) > 0)
 	},
 	Origin:      common.HexToAddress("a11ce"),
 	Coinbase:    common.Address{},
@@ -157,9 +112,9 @@ var vmctx = Context{
 		return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
 	},
 
-	EpochSize:         chainCtx.Engine().EpochSize(),
-	GetValidators:     chainCtx.Engine().GetValidators,
-	GetHeaderByNumber: chainCtx.GetHeaderByNumber,
+	EpochSize:         100,
+	GetValidators:     getValidators,
+	GetHeaderByNumber: getHeaderByNumber,
 }
 
 // Create a global mock EVM for use in the following tests.

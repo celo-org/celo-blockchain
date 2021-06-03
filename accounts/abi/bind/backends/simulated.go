@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -444,7 +445,8 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	if call.Gas >= params.TxGas {
 		hi = call.Gas
 	} else {
-		hi = core.CalcGasLimit(b.pendingBlock, b.pendingState)
+		vmRunner := b.blockchain.NewEVMRunner(b.pendingBlock.Header(), b.pendingState)
+		hi = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	}
 	cap = hi
 
@@ -526,7 +528,9 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	vmenv := vm.NewEVM(evmContext, statedb, b.config, vm.Config{})
 	gaspool := new(core.GasPool).AddGas(math.MaxUint64)
 
-	return core.NewStateTransition(vmenv, msg, gaspool).TransitionDb()
+	vmRunner := b.blockchain.NewEVMRunner(block.Header(), statedb)
+
+	return core.NewStateTransition(vmenv, msg, gaspool, vmRunner).TransitionDb()
 }
 
 // SendTransaction updates the pending block to include the given transaction.

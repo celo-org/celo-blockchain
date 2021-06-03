@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -12,13 +12,14 @@ import (
 // NewCurrencyManager creates and returns a currencyManager pointing to the latest block
 // from the underlying chain from the Backend.
 func NewCurrencyManager(ctx context.Context, b Backend) (*currency.CurrencyManager, error) {
+
 	stateDb, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 	if err != nil {
 		return nil, err
 	}
-	return currency.NewManager(
-		header,
-		stateDb), nil
+
+	vmRunner := b.NewEVMRunner(header, stateDb)
+	return currency.NewManager(vmRunner), nil
 }
 
 // GetWei converts a celo float to a big.Int Wei representation

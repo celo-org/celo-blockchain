@@ -29,8 +29,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -154,6 +154,8 @@ type blockChain interface {
 	GetBlock(hash common.Hash, number uint64) *types.Block
 	StateAt(root common.Hash) (*state.StateDB, error)
 
+	NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner
+
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 
 	// Engine retrieves the chain's consensus engine.
@@ -260,10 +262,11 @@ type TxPool struct {
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	donut    bool // Fork indicator for the Donut fork.
 
-	currentState  *state.StateDB // Current state in the blockchain head
-	pendingNonces *txNoncer      // Pending state tracking virtual nonces
-	currentMaxGas uint64         // Current gas limit for transaction caps
-	currentCtx    atomic.Value   // Current block context (holds a txPoolContext)
+	currentState    *state.StateDB // Current state in the blockchain head
+	currentVMRunner vm.EVMRunner   // Current EVMRunner
+	pendingNonces   *txNoncer      // Pending state tracking virtual nonces
+	currentMaxGas   uint64         // Current gas limit for transaction caps
+	currentCtx      atomic.Value   // Current block context (holds a txPoolContext)
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
@@ -464,23 +467,15 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 	log.Info("Transaction pool price threshold updated", "price", price)
 }
 
-// SetGasLimit updates the maximum allowed gas for a new transaction in the
+// setGasLimit updates the maximum allowed gas for a new transaction in the
 // pool, and drops all transactions above this threshold.
 //
-// Note: Only useful for testing, as this call will have no effect if
-// communication with the blockchain_parameters contract is successful.
-func (pool *TxPool) SetGasLimit(gasLimit uint64) {
+// DO NOT USE, ONLY FOR TESTING
+func (pool *TxPool) setGasLimit(gasLimit uint64) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	limitFromContract, err := blockchain_parameters.GetBlockGasLimit(pool.chain.CurrentBlock().Header(), pool.currentState)
-	if err == nil {
-		pool.currentMaxGas = limitFromContract
-		return
-	}
-
 	pool.currentMaxGas = gasLimit
-
 	pool.demoteUnexecutables()
 
 	for _, list := range pool.queue {
@@ -644,7 +639,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonceTooLow
 	}
 	// Transactor should have enough funds to cover the costs
-	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState)
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner)
 	if err != nil {
 		return err
 	}
@@ -1268,12 +1263,13 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
-	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
+	pool.currentVMRunner = pool.chain.NewEVMRunner(newHead, statedb)
+	pool.currentMaxGas = blockchain_parameters.GetBlockGasLimitOrDefault(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
-		NewBlockContext(newHead, statedb),
-		currency.NewManager(newHead, statedb),
+		NewBlockContext(pool.currentVMRunner),
+		currency.NewManager(pool.currentVMRunner),
 	}
 	pool.currentCtx.Store(newCtx)
 
@@ -1316,7 +1312,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(pool.currentVMRunner, addr, feeCurrency)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
@@ -1516,7 +1512,7 @@ func (pool *TxPool) demoteUnexecutables() {
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(pool.currentVMRunner, addr, feeCurrency)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
@@ -1556,7 +1552,7 @@ func (pool *TxPool) demoteUnexecutables() {
 }
 
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
-func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner) error {
 	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("Insufficient funds",
 			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
@@ -1564,7 +1560,7 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
 		return ErrInsufficientFunds
 	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), nil, nil)
+		feeCurrencyBalance, err := currency.GetBalanceOf(currentVMRunner, from, *tx.FeeCurrency())
 
 		if err != nil {
 			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)

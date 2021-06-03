@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	. "github.com/onsi/gomega"
 )
@@ -24,7 +23,7 @@ func (m *getExchangeRateMock) totalCalls() int {
 	return len(m.calls)
 }
 
-func (m *getExchangeRateMock) getExchangeRate(currency *common.Address, header *types.Header, state vm.StateDB) (*ExchangeRate, error) {
+func (m *getExchangeRateMock) getExchangeRate(vmRunner vm.EVMRunner, currency *common.Address) (*ExchangeRate, error) {
 	m.calls = append(m.calls, currency)
 
 	if len(m.returns) <= m.returnIdx {
@@ -52,7 +51,7 @@ func TestCurrencyManager(t *testing.T) {
 	t.Run("should not call getExchange rate if both currencies are gold", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 		mock := getExchangeRateMock{}
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		g.Expect(manager.CmpValues(common.Big1, nil, common.Big2, nil)).To(Equal(-1))
 		// no call to getExchange Rate
@@ -62,7 +61,7 @@ func TestCurrencyManager(t *testing.T) {
 	t.Run("should not call getExchange rate if both currencies are the same", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 		mock := getExchangeRateMock{}
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		g.Expect(manager.CmpValues(common.Big1, &common.Address{12}, common.Big2, &common.Address{12})).To(Equal(-1))
 		// no call to getExchange Rate
@@ -76,7 +75,7 @@ func TestCurrencyManager(t *testing.T) {
 
 		mock.nextReturn(twoToOne, nil)
 
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		g.Expect(manager.CmpValues(common.Big1, nil, common.Big1, &common.Address{12})).To(Equal(-1))
 		// call to the exchange rate only for non goldToken currency
@@ -88,7 +87,7 @@ func TestCurrencyManager(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		mock := getExchangeRateMock{}
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		// case 1: 2 gold = 1 usd
 		// then 1 gold < 1 usd
@@ -111,7 +110,7 @@ func TestCurrencyManager(t *testing.T) {
 		g := NewGomegaWithT(t)
 
 		mock := getExchangeRateMock{}
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		// case 1: both values == 0
 		g.Expect(manager.CmpValues(common.Big0, nil, common.Big0, nil)).To(Equal(0))
@@ -130,7 +129,7 @@ func TestCurrencyManager(t *testing.T) {
 		mock.nextReturn(twoToOne, nil)
 		mock.nextReturn(nil, errors.New("boom!"))
 
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 		g.Expect(manager.CmpValues(common.Big2, &common.Address{30}, common.Big1, &common.Address{12})).To(Equal(1))
 	})
 
@@ -141,7 +140,7 @@ func TestCurrencyManager(t *testing.T) {
 		mock.nextReturn(nil, errors.New("boom!"))
 		mock.nextReturn(twoToOne, nil)
 
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 		g.Expect(manager.CmpValues(common.Big2, &common.Address{30}, common.Big1, &common.Address{12})).To(Equal(1))
 	})
 
@@ -152,7 +151,7 @@ func TestCurrencyManager(t *testing.T) {
 		mock.nextReturn(twoToOne, nil)
 		mock.nextReturn(oneToTwo, nil)
 
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		for i := 0; i < 10; i++ {
 			g.Expect(manager.CmpValues(common.Big1, &common.Address{30}, common.Big1, &common.Address{12})).To(Equal(1))
@@ -170,7 +169,7 @@ func TestCurrencyManager(t *testing.T) {
 		mock := getExchangeRateMock{}
 		// default return is an error
 
-		manager := newManager(mock.getExchangeRate, nil, nil)
+		manager := newManager(mock.getExchangeRate, nil)
 
 		for i := 0; i < 10; i++ {
 			g.Expect(manager.CmpValues(common.Big1, &common.Address{30}, common.Big1, &common.Address{12})).To(Equal(0))

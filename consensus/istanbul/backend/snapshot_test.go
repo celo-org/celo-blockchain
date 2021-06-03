@@ -240,6 +240,7 @@ func TestValSetChange(t *testing.T) {
 		}
 		genesis.ExtraData = h.Extra
 		db := rawdb.NewMemoryDatabase()
+		defer db.Close()
 
 		config := *istanbul.DefaultConfig
 		config.ReplicaStateDBPath = ""

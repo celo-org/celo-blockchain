@@ -18,85 +18,19 @@ package currency
 
 import (
 	"math/big"
-	"strings"
 
-	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm"
-	"github.com/celo-org/celo-blockchain/contract_comm/errors"
-	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-const (
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/SortedOracles.json
-	medianRateABI = `[
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "medianRate",
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint128"
-        },
-        {
-          "name": "",
-          "type": "uint128"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "view",
-      "type": "function"
-    }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/ERC20.json
-	balanceOfABI = `[{"constant": true,
-                          "inputs": [
-                               {
-                                   "name": "who",
-                                   "type": "address"
-                               }
-                          ],
-                          "name": "balanceOf",
-                          "outputs": [
-                               {
-                                   "name": "",
-                                   "type": "uint256"
-                               }
-                          ],
-                          "payable": false,
-                          "stateMutability": "view",
-                          "type": "function"
-                         }]`
-
-	// This is taken from celo-monorepo/packages/protocol/build/<env>/contracts/FeeCurrency.json
-	getWhitelistABI = `[{"constant": true,
-	                     "inputs": [],
-	                     "name": "getWhitelist",
-	                     "outputs": [
-			          {
-			              "name": "",
-				      "type": "address[]"
-				  }
-			     ],
-			     "payable": false,
-			     "stateMutability": "view",
-			     "type": "function"
-			    }]`
-)
-
 var (
-	medianRateFuncABI, _   = abi.JSON(strings.NewReader(medianRateABI))
-	balanceOfFuncABI, _    = abi.JSON(strings.NewReader(balanceOfABI))
-	getWhitelistFuncABI, _ = abi.JSON(strings.NewReader(getWhitelistABI))
+	medianRateMethod   = contracts.NewRegisteredContractMethod(params.SortedOraclesRegistryId, abis.SortedOracles, "medianRate", params.MaxGasForMedianRate)
+	getWhitelistMethod = contracts.NewRegisteredContractMethod(params.FeeCurrencyWhitelistRegistryId, abis.FeeCurrency, "getWhitelist", params.MaxGasForGetWhiteList)
+	getBalanceMethod   = contracts.NewMethod(abis.ERC20, "balanceOf", params.MaxGasToReadErc20Balance)
 )
 
 // NoopExchangeRate represents an exchange rate of 1 to 1
@@ -164,10 +98,10 @@ type ExchangeRate struct {
 // Requires numerator >=0 && denominator >= 0
 func NewExchangeRate(numerator *big.Int, denominator *big.Int) (*ExchangeRate, error) {
 	if numerator == nil || common.Big0.Cmp(numerator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	if denominator == nil || common.Big0.Cmp(denominator) >= 0 {
-		return nil, errors.ErrExchangeRateZero
+		return nil, contracts.ErrExchangeRateZero
 	}
 	return &ExchangeRate{numerator, denominator}, nil
 }
@@ -187,22 +121,20 @@ func (er *ExchangeRate) FromBase(goldAmount *big.Int) *big.Int {
 //
 // It's implements an internal cache to avoid perfoming duplicated EVM calls
 type CurrencyManager struct {
-	header *types.Header
-	state  vm.StateDB
+	vmRunner vm.EVMRunner
 
-	currencyCache    map[common.Address]*Currency                                            // map of exchange rates of the form (CELO, token)
-	_getExchangeRate func(*common.Address, *types.Header, vm.StateDB) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
+	currencyCache    map[common.Address]*Currency                               // map of exchange rates of the form (CELO, token)
+	_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
 // NewManager creates a new CurrencyManager
-func NewManager(header *types.Header, state vm.StateDB) *CurrencyManager {
-	return newManager(GetExchangeRate, header, state)
+func NewManager(vmRunner vm.EVMRunner) *CurrencyManager {
+	return newManager(GetExchangeRate, vmRunner)
 }
 
-func newManager(_getExchangeRate func(*common.Address, *types.Header, vm.StateDB) (*ExchangeRate, error), header *types.Header, state vm.StateDB) *CurrencyManager {
+func newManager(_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error), vmRunner vm.EVMRunner) *CurrencyManager {
 	return &CurrencyManager{
-		header:           header,
-		state:            state,
+		vmRunner:         vmRunner,
 		currencyCache:    make(map[common.Address]*Currency),
 		_getExchangeRate: _getExchangeRate,
 	}
@@ -219,7 +151,7 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 		return val, nil
 	}
 
-	currencyExchangeRate, err := cc._getExchangeRate(currencyAddress, cc.header, cc.state)
+	currencyExchangeRate, err := cc._getExchangeRate(cc.vmRunner, currencyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -261,15 +193,16 @@ func (cc *CurrencyManager) CmpValues(val1 *big.Int, currencyAddr1 *common.Addres
 }
 
 // GetExchangeRate retrieves currency-to-CELO exchange rate
-func GetExchangeRate(currencyAddress *common.Address, header *types.Header, state vm.StateDB) (*ExchangeRate, error) {
+func GetExchangeRate(vmRunner vm.EVMRunner, currencyAddress *common.Address) (*ExchangeRate, error) {
 	if currencyAddress == nil {
 		return &NoopExchangeRate, nil
 	}
 
 	var returnArray [2]*big.Int
-	err := contract_comm.MakeStaticCall(params.SortedOraclesRegistryId, medianRateFuncABI, "medianRate", []interface{}{currencyAddress}, &returnArray, params.MaxGasForMedianRate, header, state)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	err := medianRateMethod.Query(vmRunner, &returnArray, currencyAddress)
+
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 		return &NoopExchangeRate, nil
 	} else if err != nil {
@@ -282,10 +215,11 @@ func GetExchangeRate(currencyAddress *common.Address, header *types.Header, stat
 }
 
 // GetBalanceOf returns an account's balance on a given ERC20 currency
-func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, header *types.Header, state vm.StateDB) (result *big.Int, err error) {
+func GetBalanceOf(vmRunner vm.EVMRunner, accountOwner common.Address, contractAddress common.Address) (result *big.Int, err error) {
 	log.Trace("GetBalanceOf() Called", "accountOwner", accountOwner.Hex(), "contractAddress", contractAddress)
 
-	err = contract_comm.MakeStaticCallWithAddress(contractAddress, balanceOfFuncABI, "balanceOf", []interface{}{accountOwner}, &result, params.MaxGasToReadErc20Balance, header, state)
+	err = getBalanceMethod.Bind(contractAddress).Query(vmRunner, &result, accountOwner)
+
 	if err != nil {
 		log.Error("GetBalanceOf evm invocation error", "err", err)
 	} else {
@@ -296,12 +230,12 @@ func GetBalanceOf(accountOwner common.Address, contractAddress common.Address, h
 }
 
 // CurrencyWhitelist retrieves the list of currencies that can be used to pay transaction fees
-func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address, error) {
+func CurrencyWhitelist(vmRunner vm.EVMRunner) ([]common.Address, error) {
 	returnList := []common.Address{}
 
-	err := contract_comm.MakeStaticCall(params.FeeCurrencyWhitelistRegistryId, getWhitelistFuncABI, "getWhitelist", []interface{}{}, &returnList, params.MaxGasForGetWhiteList, header, state)
+	err := getWhitelistMethod.Query(vmRunner, &returnList)
 
-	if err == errors.ErrSmartContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed {
 		log.Warn("Registry address lookup failed", "err", err)
 	} else if err != nil {
 		log.Error("getWhitelist invocation failed", "err", err)
@@ -313,12 +247,12 @@ func CurrencyWhitelist(header *types.Header, state vm.StateDB) ([]common.Address
 }
 
 // IsWhitelisted indicates if a currency is whitelisted for transaction fee payments
-func IsWhitelisted(feeCurrency *common.Address, header *types.Header, state vm.StateDB) bool {
+func IsWhitelisted(vmRunner vm.EVMRunner, feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
 		return true
 	}
 
-	whitelistedCurrencies, err := CurrencyWhitelist(header, state)
+	whitelistedCurrencies, err := CurrencyWhitelist(vmRunner)
 	if err != nil {
 		return true
 	}
