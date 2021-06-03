@@ -132,118 +132,63 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 }
 
 // WriteHeader writes a header into the local chain, given that its parent is
-// already known. If the total difficulty of the newly inserted header becomes
-// greater than the current known TD, the canonical chain is re-routed.
+// already known.
 //
 // Note: This method is not concurrent-safe with inserting blocks simultaneously
 // into the chain, as side effects caused by reorganisations cannot be emulated
 // without the real blocks. Hence, writing headers directly should only be done
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
-func (hc *HeaderChain) WriteHeader(header *types.Header) (status WriteStatus, err error) {
+func (hc *HeaderChain) WriteHeader(header *types.Header) error {
 	// Cache some values to prevent constant recalculation
 	var (
-		hash     = header.Hash()
-		number   = header.Number.Uint64()
-		localTd  *big.Int
-		externTd *big.Int
+		hash       = header.Hash()
+		number     = header.Number.Uint64()
+		externTd   *big.Int
+		head       = hc.CurrentHeader()
+		headNumber = head.Number.Uint64()
 	)
 
-	// Calculate the total difficulty of the header.
-	// ptd seems to be abbreviation of "parent total difficulty".
-	// In IBFT, the announced td (total difficulty) is 1 + block number.
-	ptd := hc.GetTd(header.ParentHash, number-1)
-	if ptd == nil {
-		if hc.config.FullHeaderChainAvailable {
-			return NonStatTy, consensus.ErrUnknownAncestor
+	if head.Hash() != header.ParentHash {
+		if hc.config.FullHeaderChainAvailable || (number-1) == headNumber {
+			return fmt.Errorf(
+				"parent not canonical: fail to write header %s, expected parent hash %s, current head %s",
+				header.InfoString(),
+				header.ParentHash.String(),
+				head.InfoString())
+		} else {
+			// if it's not a full header chain, ensure that the parent's number of the new header is
+			// bigger that the canonical one
+			if headNumber >= number {
+				return fmt.Errorf(
+					"fail to write header %s, current head %s bigger or equal height",
+					header.InfoString(),
+					head.InfoString())
+			}
 		}
-		localTd = big.NewInt(hc.CurrentHeader().Number.Int64() + 1)
-	} else {
-		localTd = hc.GetTd(hc.currentHeaderHash, hc.CurrentHeader().Number.Uint64())
 	}
 
-	head := hc.CurrentHeader().Number.Uint64()
 	externTd = big.NewInt(int64(number + 1))
 
-	// Irrelevant of the canonical status, write the td and header to the database
-	//
 	// Note all the components of header(td, hash->number index and header) should
 	// be written atomically.
 	headerBatch := hc.chainDb.NewBatch()
 	rawdb.WriteTd(headerBatch, hash, number, externTd)
 	rawdb.WriteHeader(headerBatch, header)
+	rawdb.WriteCanonicalHash(headerBatch, hash, number)
+	rawdb.WriteHeadHeaderHash(headerBatch, hash)
 	if err := headerBatch.Write(); err != nil {
 		log.Crit("Failed to write header into disk", "err", err)
 	}
-	// If the total difficulty is higher than our known, add it to the canonical chain
-	// Second clause in the if statement reduces the vulnerability to selfish mining.
-	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
-	reorg := externTd.Cmp(localTd) > 0
-	if !reorg && externTd.Cmp(localTd) == 0 {
-		if header.Number.Uint64() < head {
-			reorg = true
-		} else if header.Number.Uint64() == head {
-			reorg = mrand.Float64() < 0.5
-		}
-	}
-	if reorg {
-		// If the header can be added into canonical chain, adjust the
-		// header chain markers(canonical indexes and head header flag).
-		//
-		// Note all markers should be written atomically.
+	// Last step update all in-memory head header markers
+	hc.currentHeaderHash = hash
+	hc.currentHeader.Store(types.CopyHeader(header))
+	headHeaderGauge.Update(header.Number.Int64())
 
-		// Delete any canonical number assignments above the new head
-		markerBatch := hc.chainDb.NewBatch()
-		for i := number + 1; ; i++ {
-			hash := rawdb.ReadCanonicalHash(hc.chainDb, i)
-			if hash == (common.Hash{}) {
-				break
-			}
-			rawdb.DeleteCanonicalHash(markerBatch, i)
-		}
-
-		// Overwrite any stale canonical number assignments
-		var (
-			headHash   = header.ParentHash
-			headNumber = header.Number.Uint64() - 1
-			headHeader = hc.GetHeader(headHash, headNumber)
-		)
-		for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
-			// In some sync modes we do not have all headers.
-			if !hc.config.FullHeaderChainAvailable {
-				if headHeader == nil {
-					log.Debug("WriteHeader/nil head header encountered")
-					break
-				}
-			}
-
-			rawdb.WriteCanonicalHash(markerBatch, headHash, headNumber)
-
-			headHash = headHeader.ParentHash
-			headNumber = headHeader.Number.Uint64() - 1
-			headHeader = hc.GetHeader(headHash, headNumber)
-		}
-		// Extend the canonical chain with the new header
-		rawdb.WriteCanonicalHash(markerBatch, hash, number)
-		rawdb.WriteHeadHeaderHash(markerBatch, hash)
-		if err := markerBatch.Write(); err != nil {
-			log.Crit("Failed to write header markers into disk", "err", err)
-		}
-		// Last step update all in-memory head header markers
-		hc.currentHeaderHash = hash
-		hc.currentHeader.Store(types.CopyHeader(header))
-		headHeaderGauge.Update(header.Number.Int64())
-
-		status = CanonStatTy
-	} else {
-		log.Debug("Encountered a block with difficulty lower than main chain",
-			"extern total difficulty", externTd, "local total difficulty", localTd)
-		status = SideStatTy
-	}
 	hc.tdCache.Add(hash, externTd)
 	hc.headerCache.Add(hash, header)
 	hc.numberCache.Add(hash, number)
-	return
+	return nil
 }
 
 // WhCallback is a callback function for inserting individual headers.
@@ -540,6 +485,11 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		var nums []uint64
 		parent := hc.GetHeader(hdr.ParentHash, num-1)
 		if parent == nil {
+			// if the parent of the header is nil, it means that we don't have any header until that point,
+			// EXCEPT for the lightest sync, which could have non correlative headers, because it only
+			// downloads the last header of the epoch.
+			// Adding those levels to the nums array, will force us to specifically search them and erase
+			// them from the database
 			if !hc.config.FullHeaderChainAvailable {
 				for i := hc.config.Istanbul.Epoch; i < num; i += hc.config.Istanbul.Epoch {
 					nums = append(nums, i)

@@ -381,7 +381,8 @@ func (lc *LightChain) postChainEvents(events []interface{}) {
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local
-// chain, possibly creating a reorg. If an error is returned, it will return the
+// chain (it fails if it tries to fork from the canonical chain).
+// If an error is returned, it will return the
 // index number of the failing header as well an error describing what went wrong.
 //
 // The verify parameter can be used to fine tune whether nonce verification
@@ -410,18 +411,12 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int, co
 
 	var events []interface{}
 	whFunc := func(header *types.Header) error {
-		status, err := lc.hc.WriteHeader(header)
-
-		switch status {
-		case core.CanonStatTy:
-			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
-
-		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
+		if err := lc.hc.WriteHeader(header); err != nil {
+			return err
 		}
-		return err
+		log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
+		events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
+		return nil
 	}
 	i, err := lc.hc.InsertHeaderChain(chain, whFunc, start)
 	lc.postChainEvents(events)

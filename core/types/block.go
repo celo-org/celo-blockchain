@@ -99,6 +99,11 @@ func (h *Header) SanityCheck() error {
 	return nil
 }
 
+// InfoString returns the block number and hash separated by a colon.
+func (h *Header) InfoString() string {
+	return fmt.Sprintf("%d:%s", h.Number.Uint64(), h.Hash())
+}
+
 // hasherPool holds LegacyKeccak hashers.
 var hasherPool = sync.Pool{
 	New: func() interface{} {
@@ -438,6 +443,11 @@ func (b *Block) Hash() common.Hash {
 	v := b.header.Hash()
 	b.hash.Store(v)
 	return v
+}
+
+// InfoString returns the block number and hash separated by a colon.
+func (b *Block) InfoString() string {
+	return fmt.Sprintf("%d:%s", b.NumberU64(), b.Hash())
 }
 
 type Blocks []*Block

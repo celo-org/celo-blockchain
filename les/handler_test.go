@@ -570,29 +570,6 @@ func testTransactionStatus(t *testing.T, protocol int) {
 	test(tx1, false, light.TxStatus{Status: core.TxStatusIncluded, Lookup: &rawdb.LegacyTxLookupEntry{BlockHash: block1hash, BlockIndex: 1, Index: 0}})
 
 	test(tx2, false, light.TxStatus{Status: core.TxStatusIncluded, Lookup: &rawdb.LegacyTxLookupEntry{BlockHash: block1hash, BlockIndex: 1, Index: 1}})
-
-	// create a reorg that rolls them back
-	gchain, _ = core.GenerateChain(params.IstanbulTestChainConfig, chain.GetBlockByNumber(0), mockEngine.NewFaker(), server.db, 2, func(i int, block *core.BlockGen) {})
-	if _, err := chain.InsertChain(gchain); err != nil {
-		panic(err)
-	}
-	// wait until TxPool processes the reorg
-	for i := 0; i < 10; i++ {
-		if pending, _ := server.handler.txpool.Stats(); pending == 3 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if pending, _ := server.handler.txpool.Stats(); pending != 3 {
-		t.Fatalf("pending count mismatch: have %d, want 3", pending)
-	}
-	// Discard new block announcement
-	msg, _ = server.peer.app.ReadMsg()
-	msg.Discard()
-
-	// check if their status is pending again
-	test(tx1, false, light.TxStatus{Status: core.TxStatusPending})
-	test(tx2, false, light.TxStatus{Status: core.TxStatusPending})
 }
 
 func TestStopResumeLes3(t *testing.T) {
