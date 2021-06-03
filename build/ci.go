@@ -350,9 +350,9 @@ func doTest(cmdline []string) {
 	// Test a single package at a time. CI builders are slow
 	// and some tests run into timeouts under load.
 	gotest := goTool("test", buildFlags(env)...)
-	gotest.Args = append(gotest.Args, "-p", "1")
+	// gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.out")
 	}
 	if *verbose {
 		gotest.Args = append(gotest.Args, "-v")
