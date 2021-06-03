@@ -32,7 +32,8 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console/prompt"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
@@ -440,9 +441,11 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			}
 		}()
 	}
+
+	isFullNode := ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast"
 	// Miners and proxies only makes sense if a full node is running
 	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
+		if !isFullNode {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
@@ -472,7 +475,23 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
-		blockchain_parameters.SpawnCheck()
+		var runnerFactory func() (vm.EVMRunner, error)
+		if isFullNode {
+
+			var ethService *eth.Ethereum
+			if err := stack.Service(&ethService); err != nil {
+				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
+			}
+			runnerFactory = ethService.BlockChain().NewEVMRunnerForCurrentBlock
+
+		} else {
+			var lesService *les.LightEthereum
+			if err := stack.Service(&lesService); err != nil {
+				utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
+			}
+			runnerFactory = lesService.BlockChain().NewEVMRunnerForCurrentBlock
+		}
+		blockchain_parameters.SpawnCheck(runnerFactory)
 	}
 }
 

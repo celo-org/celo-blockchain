@@ -352,7 +352,7 @@ func doTest(cmdline []string) {
 	gotest := goTool("test", buildFlags(env)...)
 	gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.out")
 	}
 	if *verbose {
 		gotest.Args = append(gotest.Args, "-v")

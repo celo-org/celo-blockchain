@@ -38,6 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -379,6 +380,22 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 // GetVMConfig returns the block chain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
+}
+
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (bc *BlockChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewEVMRunner(bc, header, state)
+}
+
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (bc *BlockChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	block := bc.CurrentBlock()
+	state, err := bc.StateAt(block.Header().Root)
+	if err != nil {
+		log.Error("Can't create EVMRunner for current block (error fetching state)", "number", block.Number(), "stateRoot", block.Root().Hex(), "err", err)
+		return nil, err
+	}
+	return vmcontext.NewEVMRunner(bc, block.Header(), state), nil
 }
 
 // empty returns an indicator whether the blockchain is empty.

@@ -18,12 +18,31 @@ package core
 
 import (
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
+// ChainContext supports retrieving chain data and consensus parameters
+// from the blockchain to be used during transaction processing.
+type ChainContext interface {
+	// Engine retrieves the blockchain's consensus engine.
+	Engine() consensus.Engine
+
+	// GetHeader returns the hash corresponding to the given hash and number.
+	GetHeader(common.Hash, uint64) *types.Header
+
+	// GetHeaderByNumber returns the hash corresponding number.
+	// in the correct fork.
+	GetHeaderByNumber(uint64) *types.Header
+
+	// Config returns the blockchain's chain configuration
+	Config() *params.ChainConfig
+}
+
 // New creates a new context for use in the EVM.
-func NewEVMContext(msg Message, header *types.Header, chain vm.ChainContext, txFeeRecipient *common.Address) vm.Context {
+func NewEVMContext(msg Message, header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.Context {
 	return vmcontext.New(msg.From(), msg.GasPrice(), header, chain, txFeeRecipient)
 }

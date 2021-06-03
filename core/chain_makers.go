@@ -23,6 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -61,7 +62,7 @@ func (b *BlockGen) SetCoinbase(addr common.Address) {
 		panic("coinbase can only be set once")
 	}
 	b.header.Coinbase = addr
-	b.gasPool = new(GasPool).AddGas(CalcGasLimit(b.parent, b.statedb)) //TODO: fix this
+	b.gasPool = new(GasPool).AddGas(params.DefaultGasLimit)
 }
 
 // SetExtra sets the extra data field of the generated block.
@@ -89,12 +90,14 @@ func (b *BlockGen) AddTx(tx *types.Transaction) {
 // further limitations on the content of transactions that can be
 // added. If contract code relies on the BLOCKHASH instruction,
 // the block in chain will be returned.
-func (b *BlockGen) AddTxWithChain(bc vm.ChainContext, tx *types.Transaction) {
+func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{})
+
+	celoMock := testutil.NewCeloMock()
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner)
 	if err != nil {
 		panic(err)
 	}
@@ -226,7 +229,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	return blocks, receipts
 }
 
-func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {
+func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {
 	var time uint64
 	if parent.Time() == 0 {
 		time = 10

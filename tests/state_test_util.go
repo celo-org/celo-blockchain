@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -185,9 +186,10 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	evm := vm.NewEVM(context, statedb, config, vmconfig)
 
 	gaspool := new(core.GasPool)
-	gaspool.AddGas(core.CalcGasLimit(block, statedb))
+	gaspool.AddGas(params.DefaultGasLimit)
 	snapshot := statedb.Snapshot()
-	if _, err := core.ApplyMessage(evm, msg, gaspool); err != nil {
+	vmRunner := vmcontext.NewEVMRunner(nil, block.Header(), statedb)
+	if _, err := core.ApplyMessage(evm, msg, gaspool, vmRunner); err != nil {
 		statedb.RevertToSnapshot(snapshot)
 	}
 	// Commit block

@@ -34,10 +34,11 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm/election"
-	comm_errors "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/election"
+
+	"github.com/celo-org/celo-blockchain/contracts/random"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -54,9 +55,6 @@ import (
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-
-	// errNoBlockHeader is returned when the requested block header could not be found.
-	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -184,7 +182,7 @@ type Backend struct {
 	core         istanbulCore.Engine
 	logger       log.Logger
 	db           ethdb.Database
-	chain        consensus.ChainReader
+	chain        consensus.ChainContext
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
@@ -607,11 +605,12 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
-	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
+	newValSetAddresses, err := election.GetElectedValidators(vmRunner)
 	if err != nil {
 		return nil, err
 	}
-	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
+	newValSet, err := validators.GetValidatorData(vmRunner, newValSetAddresses)
 	return newValSet, err
 }
 
@@ -730,15 +729,11 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.CurrentHeader()
-	if header == nil {
-		return common.Hash{}, errNoBlockHeader
-	}
-	state, err := sb.stateAt(header.Hash())
+	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.BlockRandomness(header, state, lastBlockInPreviousEpoch)
+	return random.BlockRandomness(vmRunner, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
@@ -750,7 +745,7 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
-			if err == comm_errors.ErrRegistryContractNotDeployed {
+			if err == contracts.ErrRegistryContractNotDeployed {
 				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
 			} else {
 				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
@@ -946,11 +941,12 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	if err != nil {
 		return nil, 0, time.Time{}, err
 	}
-	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
+	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
 		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)

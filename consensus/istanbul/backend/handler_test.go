@@ -66,7 +66,8 @@ func (p *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
 }
 
 func TestIstanbulMessage(t *testing.T) {
-	_, backend := newBlockChain(1, true)
+	chain, backend := newBlockChain(1, true)
+	defer chain.Stop()
 
 	// generate one msg
 	data := []byte("data1")
@@ -116,7 +117,7 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, backend := newBlockChain(1, true)
+		chain, backend := newBlockChain(1, true)
 
 		// generate a msg that is not an Announce
 		data := []byte("data1")
@@ -158,11 +159,14 @@ func TestRecentMessageCaches(t *testing.T) {
 		if _, ok := backend.selfRecentMessages.Get(hash); tt.shouldCache != ok {
 			t.Fatalf("the cache of messages must be nil")
 		}
+
+		chain.Stop()
 	}
 }
 
 func TestReadValidatorHandshakeMessage(t *testing.T) {
-	_, backend := newBlockChain(2, true)
+	chain, backend := newBlockChain(2, true)
+	defer chain.Stop()
 
 	peer := &MockPeer{
 		Messages:     make(chan p2p.Msg, 1),

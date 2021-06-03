@@ -34,6 +34,7 @@ import (
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/misc"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -196,19 +197,19 @@ func (e *NoRewardEngine) Author(header *types.Header) (common.Address, error) {
 	return e.inner.Author(header)
 }
 
-func (e *NoRewardEngine) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+func (e *NoRewardEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	return e.inner.VerifyHeader(chain, header, seal)
 }
 
-func (e *NoRewardEngine) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (e *NoRewardEngine) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	return e.inner.VerifyHeaders(chain, headers, seals)
 }
 
-func (e *NoRewardEngine) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
-	return e.inner.VerifySeal(chain, header)
+func (e *NoRewardEngine) VerifySeal(header *types.Header) error {
+	return e.inner.VerifySeal(header)
 }
 
-func (e *NoRewardEngine) Prepare(chain consensus.ChainReader, header *types.Header) error {
+func (e *NoRewardEngine) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	return e.inner.Prepare(chain, header)
 }
 
@@ -218,7 +219,7 @@ func (e *NoRewardEngine) accumulateRewards(config *params.ChainConfig, state *st
 	state.AddBalance(header.Coinbase, reward)
 }
 
-func (e *NoRewardEngine) Finalize(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
+func (e *NoRewardEngine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction) {
 	if e.rewardsOn {
 		e.inner.Finalize(chain, header, statedb, txs)
 	} else {
@@ -227,7 +228,7 @@ func (e *NoRewardEngine) Finalize(chain consensus.ChainReader, header *types.Hea
 	}
 }
 
-func (e *NoRewardEngine) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
+func (e *NoRewardEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, statedb *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 	if e.rewardsOn {
 		return e.inner.FinalizeAndAssemble(chain, header, statedb, txs, receipts, nil)
 	} else {
@@ -239,7 +240,7 @@ func (e *NoRewardEngine) FinalizeAndAssemble(chain consensus.ChainReader, header
 	}
 }
 
-func (e *NoRewardEngine) Seal(chain consensus.ChainReader, block *types.Block) error {
+func (e *NoRewardEngine) Seal(chain consensus.ChainHeaderReader, block *types.Block) error {
 	return e.inner.Seal(chain, block)
 }
 
@@ -251,7 +252,7 @@ func (e *NoRewardEngine) EpochSize() uint64 {
 	return e.inner.EpochSize()
 }
 
-func (e *NoRewardEngine) APIs(chain consensus.ChainReader) []rpc.API {
+func (e *NoRewardEngine) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return e.inner.APIs(chain)
 }
 
@@ -443,7 +444,8 @@ func (api *RetestethAPI) mineBlock() error {
 	}
 	statedb, err := api.blockchain.StateAt(parent.Root())
 
-	gasLimit := core.CalcGasLimit(parent, statedb)
+	vmRunner := api.blockchain.NewEVMRunner(parent.Header(), statedb)
+	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     big.NewInt(int64(number + 1)),
@@ -489,6 +491,7 @@ func (api *RetestethAPI) mineBlock() error {
 				statedb.Prepare(tx.Hash(), common.Hash{}, txCount)
 				snap := statedb.Snapshot()
 
+				vmRunner := api.blockchain.NewEVMRunner(header, statedb)
 				receipt, err := core.ApplyTransaction(
 					api.chainConfig,
 					api.blockchain,
@@ -496,7 +499,10 @@ func (api *RetestethAPI) mineBlock() error {
 					gasPool,
 					statedb,
 					header,
-					tx, &header.GasUsed, *api.blockchain.GetVMConfig(),
+					tx,
+					&header.GasUsed,
+					*api.blockchain.GetVMConfig(),
+					vmRunner,
 				)
 				if err != nil {
 					statedb.RevertToSnapshot(snap)
@@ -652,7 +658,8 @@ func (api *RetestethAPI) AccountRange(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			vmRunner := api.blockchain.NewEVMRunner(block.Header(), statedb)
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return AccountRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state
@@ -762,7 +769,8 @@ func (api *RetestethAPI) StorageRangeAt(ctx context.Context,
 			context := core.NewEVMContext(msg, block.Header(), api.blockchain, nil)
 			// Not yet the searched for transaction, execute on top of the current state
 			vmenv := vm.NewEVM(context, statedb, api.blockchain.Config(), vm.Config{})
-			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			vmRunner := api.blockchain.NewEVMRunner(block.Header(), statedb)
+			if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 				return StorageRangeResult{}, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 			}
 			// Ensure any modifications are committed to the state
