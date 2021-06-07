@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -389,19 +389,17 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return core.ErrNegativeValue
 	}
 
+	vmRunner := pool.chain.NewEVMRunner(pool.chain.CurrentHeader(), currentState)
 	// Transactor should have enough funds to cover the costs
-	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState)
+	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState, vmRunner)
 	if err != nil {
 		return err
 	}
 
-	// Should supply enough intrinsic gas
-	header := pool.chain.GetHeaderByHash(pool.head)
-
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if tx.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, currentState)
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	}
 	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {

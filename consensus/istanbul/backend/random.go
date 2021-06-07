@@ -19,7 +19,7 @@ package backend
 import (
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/crypto"
 )
 
@@ -30,7 +30,13 @@ var randomSeedString = []byte("Randomness seed string")
 func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, common.Hash, error) {
 	logger := sb.logger.New("func", "GenerateRandomness")
 
-	if !random.IsRunning() {
+	// TODO(HF) check which state the vm runner should use (probably not current block's)
+	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return common.Hash{}, common.Hash{}, nil
+	}
+
+	if !random.IsRunning(vmRunner) {
 		return common.Hash{}, common.Hash{}, nil
 	}
 
@@ -48,18 +54,10 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, comm
 
 	randomness := crypto.Keccak256Hash(append(sb.randomSeed, parentHash.Bytes()...))
 
-	// Retrieve the head block's header and state.
 	// The logic to compute the commitment via the randomness is in the random smart contract.
 	// That logic is stateless, so passing in any block header and state is fine.  There is a TODO for
 	// that commitment computation logic to be removed fromthe random smart contract.
-	currentBlock := sb.currentBlock()
-	currentState, err := sb.stateAt(currentBlock.Hash())
-	if err != nil {
-		logger.Error("Failed to retrieve current state", "err", err)
-		return common.Hash{}, common.Hash{}, err
-	}
-
-	commitment, err := random.ComputeCommitment(currentBlock.Header(), currentState, randomness)
+	commitment, err := random.ComputeCommitment(vmRunner, randomness)
 	if err != nil {
 		logger.Error("Failed to compute commitment", "err", err)
 		return common.Hash{}, common.Hash{}, err

@@ -25,7 +25,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
+	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -95,24 +97,25 @@ func prepareBlock(w *worker) (*blockState, error) {
 		return nil, fmt.Errorf("Failed to get the parent state: %w:", err)
 	}
 
+	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
 		signer:         types.NewEIP155Signer(w.chainConfig.ChainID),
 		state:          state,
 		tcount:         0,
-		gasLimit:       core.CalcGasLimit(parent, state),
+		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
 	// Play our part in generating the random beacon.
-	if w.isRunning() && random.IsRunning() {
+	if w.isRunning() && random.IsRunning(vmRunner) {
 		istanbul, ok := w.engine.(consensus.Istanbul)
 		if !ok {
 			log.Crit("Istanbul consensus engine must be in use for the randomness beacon")
 		}
 
-		lastCommitment, err := random.GetLastCommitment(w.validator, b.header, b.state)
+		lastCommitment, err := random.GetLastCommitment(vmRunner, w.validator)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get last commitment: %w", err)
 		}
@@ -136,7 +139,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 			return nil, fmt.Errorf("Failed to generate new randomness: %w", err)
 		}
 
-		err = random.RevealAndCommit(lastRandomness, newCommitment, w.validator, b.header, b.state)
+		err = random.RevealAndCommit(vmRunner, lastRandomness, newCommitment, w.validator)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to reveal and commit randomness: %w", err)
 		}
@@ -175,7 +178,7 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 		}
 	}
 
-	txComparator := w.createTxCmp()
+	txComparator := createTxCmp(w.chain, b.header, b.state)
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
@@ -296,8 +299,9 @@ loop:
 // commitTransaction attempts to appply a single transaction. If the transaction fails, it's modifications are reverted.
 func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRecipient common.Address) ([]*types.Log, error) {
 	snap := b.state.Snapshot()
+	vmRunner := w.chain.NewEVMRunner(b.header, b.state)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig())
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner)
 	if err != nil {
 		b.state.RevertToSnapshot(snap)
 		return nil, err
@@ -345,4 +349,14 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
+}
+
+// createTxCmp creates a Transaction comparator
+func createTxCmp(chain *core.BlockChain, header *types.Header, state *state.StateDB) func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+	vmRunner := chain.NewEVMRunner(header, state)
+	currencyManager := currency.NewManager(vmRunner)
+
+	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	}
 }

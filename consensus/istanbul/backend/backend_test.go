@@ -114,6 +114,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 func TestNormalCommit(t *testing.T) {
 
 	chain, backend := newBlockChain(1, true)
+	defer chain.Stop()
 	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
 	expectedSignature := make([]byte, types.IstanbulExtraBlsSignature)
@@ -143,6 +144,7 @@ func TestNormalCommit(t *testing.T) {
 func TestInvalidCommit(t *testing.T) {
 
 	chain, backend := newBlockChain(1, true)
+	defer chain.Stop()
 	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
 
@@ -158,6 +160,7 @@ func TestGetProposer(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain.Stop()
 	if _, err := makeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {
 		t.Errorf("Failed to make a block: %v", err)
 	}

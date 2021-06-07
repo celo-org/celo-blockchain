@@ -31,8 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -58,16 +57,7 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 
 // GasPrice returns a suggestion for a gas price.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context, feeCurrency *common.Address) (*hexutil.Big, error) {
-	if feeCurrency == nil {
-		price, err := s.b.SuggestPrice(ctx)
-		return (*hexutil.Big)(price), err
-	}
-
-	state, header, err := s.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
-	if err != nil {
-		return nil, err
-	}
-	price, err := s.b.SuggestPriceInCurrency(ctx, feeCurrency, header, state)
+	price, err := s.b.SuggestPrice(ctx, feeCurrency)
 	return (*hexutil.Big)(price), err
 }
 
@@ -835,7 +825,8 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 
 	// Setup the gas pool (also for unmetered requests) and apply the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp)
+
+	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state))
 	if err := vmError(); err != nil {
 		return nil, err
 	}
@@ -911,18 +902,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
-		// Retrieve the block to act as the gas ceiling
-		block, err := b.BlockByNumberOrHash(ctx, blockNrOrHash)
-		if err != nil {
-			return 0, err
-		}
-
-		statedb, _, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
-		if err != nil {
-			return 0, err
-		}
-
-		hi = core.CalcGasLimit(block, statedb)
+		hi = b.GetBlockGasLimit(ctx, blockNrOrHash)
 	}
 	// Recap the highest gas allowance with specified gascap.
 	if gasCap != 0 && hi > gasCap {
@@ -1444,24 +1424,14 @@ func (args *SendTxArgs) setDefaults(ctx context.Context, b Backend) error {
 		} else {
 			// When paying for fees in a currency other than Celo Gold, the intrinsic gas use is greater than when paying for fees in Celo Gold.
 			// We need to cover the gas use of one 'balanceOf', one 'debitFrom', and two 'creditTo' calls.
-			state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
-			if err != nil {
-				*(*uint64)(args.Gas) = defaultGas + blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(header, state)
-			} else {
-				log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
-				*(*uint64)(args.Gas) = defaultGas + params.IntrinsicGasForAlternativeFeeCurrency
-			}
+			*(*uint64)(args.Gas) = defaultGas + b.GetIntrinsicGasForAlternativeFeeCurrency(ctx)
 		}
 	}
 	// Checking against 0 is a hack to allow users to bypass the default gas price being set by web3,
 	// which will always be in Gold. This allows the default price to be set for the proper currency.
 	// TODO(asa): Remove this once this is handled in the Provider.
 	if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
-		state, header, err := b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
-		if err != nil {
-			return err
-		}
-		price, err := b.SuggestPriceInCurrency(ctx, args.FeeCurrency, header, state)
+		price, err := b.SuggestPrice(ctx, args.FeeCurrency)
 		if err != nil {
 			return err
 		}

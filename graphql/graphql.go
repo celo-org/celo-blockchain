@@ -952,7 +952,7 @@ func (r *Resolver) Logs(ctx context.Context, args struct{ Filter FilterCriteria 
 }
 
 func (r *Resolver) GasPrice(ctx context.Context) (hexutil.Big, error) {
-	price, err := r.backend.SuggestPrice(ctx)
+	price, err := r.backend.SuggestPrice(ctx, nil)
 	return hexutil.Big(*price), err
 }
 

@@ -38,7 +38,8 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -974,11 +975,12 @@ func (s *Service) reportBlock(conn *connWrapper, block *types.Block) error {
 func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 	// Gather the block infos from the local blockchain
 	var (
-		header  *types.Header
-		stateDB *state.StateDB
-		td      *big.Int
-		txs     []txStats
-		valSet  validatorSet
+		header   *types.Header
+		stateDB  *state.StateDB
+		vmRunner vm.EVMRunner
+		td       *big.Int
+		txs      []txStats
+		valSet   validatorSet
 	)
 	if s.eth != nil {
 		// Full nodes have all needed information available
@@ -989,6 +991,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		stateDB, _ = s.eth.BlockChain().State()
 		td = s.eth.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 
+		vmRunner = s.eth.BlockChain().NewEVMRunner(header, stateDB)
 		txs = make([]txStats, len(block.Transactions()))
 		for i, tx := range block.Transactions() {
 			txs[i].Hash = tx.Hash()
@@ -1001,6 +1004,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 			header = s.les.BlockChain().CurrentHeader()
 		}
 		stateDB, _ = s.les.BlockChain().State()
+		vmRunner = s.les.BlockChain().NewEVMRunner(header, stateDB)
 		td = s.les.BlockChain().GetTd(header.Hash(), header.Number.Uint64())
 		txs = []txStats{}
 	}
@@ -1016,7 +1020,7 @@ func (s *Service) assembleBlockStats(block *types.Block) *blockStats {
 		valSet = s.assembleValidatorSet(block, stateDB)
 	}
 
-	gasLimit := core.CalcGasLimit(block, stateDB)
+	gasLimit := blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
 
 	return &blockStats{
 		Number:      header.Number,
@@ -1057,11 +1061,13 @@ func (s *Service) assembleValidatorSet(block *types.Block, state vm.StateDB) val
 		valsElected    []common.Address
 	)
 
+	vmRunner := s.eth.BlockChain().NewEVMRunner(block.Header(), state)
+
 	// Add set of registered validators
-	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(s.eth.BlockChain().CurrentHeader(), state)
+	valsRegisteredMap, _ := validators.RetrieveRegisteredValidators(vmRunner)
 	valsRegistered = make([]validatorInfo, 0, len(valsRegisteredMap))
 	for _, address := range valsRegisteredMap {
-		valData, err := validators.GetValidator(s.eth.BlockChain().CurrentHeader(), state, address)
+		valData, err := validators.GetValidator(vmRunner, address)
 
 		if err != nil {
 			log.Warn("Validator data not found", "address", address.Hex(), "err", err)
@@ -1222,7 +1228,7 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		sync := s.eth.Downloader().Progress()
 		syncing = s.eth.BlockChain().CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := s.eth.APIBackend.SuggestPrice(context.Background())
+		price, _ := s.eth.APIBackend.SuggestPrice(context.Background(), nil)
 		gasprice = int(price.Uint64())
 	} else {
 		sync := s.les.Downloader().Progress()

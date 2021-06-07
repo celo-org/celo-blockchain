@@ -1342,7 +1342,6 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 }
 
 func setMiner(ctx *cli.Context, cfg *miner.Config) {
-
 	if ctx.GlobalIsSet(LegacyMinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(LegacyMinerExtraDataFlag.Name))
 		log.Warn("The flag --extradata is deprecated and will be removed in the future, please use --miner.extradata")

@@ -34,6 +34,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -514,8 +515,20 @@ func (lc *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (
 	return GetHeaderByNumber(ctx, lc.odr, number)
 }
 
-func (self *LightChain) GetVMConfig() *vm.Config {
+func (lc *LightChain) GetVMConfig() *vm.Config {
 	return &vm.Config{}
+}
+
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (lc *LightChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewEVMRunner(lc, header, state)
+}
+
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (lc *LightChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	header := lc.CurrentHeader()
+	state := NewState(context.Background(), header, lc.odr)
+	return vmcontext.NewEVMRunner(lc, header, state), nil
 }
 
 // Config retrieves the header chain's chain configuration.

@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
@@ -43,9 +43,9 @@ func newCurrencyManager(ctx context.Context, b Backend) (*currency.CurrencyManag
 	if err != nil {
 		return nil, err
 	}
-	return currency.NewManager(
-		header,
-		stateDb), nil
+
+	vmRunner := b.NewEVMRunner(header, stateDb)
+	return currency.NewManager(vmRunner), nil
 }
 
 // getWei converts a celo float to a big.Int Wei representation
