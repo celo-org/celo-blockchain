@@ -1,8 +1,20 @@
 version: 2.1
+parameters:
+  # Use this git tag or commit of the monorepo to build the system contracts. 
+  system-contracts-monorepo-version:
+    type: string
+    default: "celo-core-contracts-v3.rc0"
+  system-contracts-path:
+    type: string
+    default: "geth/monorepo/packages/protocol/build"
 executors:
   golang:
     docker:
       - image: circleci/golang:1.16
+    working_directory: ~/repos/geth
+  node-v10:
+    docker:
+      - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/geth
   e2e:
     docker:
@@ -32,6 +44,38 @@ jobs:
           root: ~/repos
           paths:
             - geth
+
+  prepare-system-contracts:
+    executor: node-v10
+    resource_class: medium+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: prepare system contracts
+          # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
+          # use We also need to add the fingerprint id for the github ssh key
+          # to our known hosts in order for the monorepo post install script to
+          # work. We only do this if the cache has not been restored.
+          command: |
+            set -e
+            if [ ! -d ~/repos/<<pipeline.parameters.system-contracts-path>> ]; then
+              mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+              make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
+            fi
+      - save_cache:
+          key: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
+          paths:
+            - ~/repos/<<pipeline.parameters.system-contracts-path>>
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - <<pipeline.parameters.system-contracts-path>>
+
   unit-tests:
     executor: golang
     resource_class: medium+
@@ -260,6 +304,7 @@ workflows:
     jobs:
       - checkout-monorepo
       - build-geth
+      - prepare-system-contracts
       - check-imports
       - lint:
           requires:
@@ -267,9 +312,11 @@ workflows:
       - unit-tests:
           requires:
             - build-geth
+            - prepare-system-contracts
       - coverage:
           requires:
             - build-geth
+            - prepare-system-contracts
       - android
       - ios
       - publish-mobile-client:
