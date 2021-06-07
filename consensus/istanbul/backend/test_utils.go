@@ -14,13 +14,11 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
@@ -103,8 +101,6 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		}
 		b.StartValidating()
 	}
-
-	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(blockchain))
 
 	return blockchain, b, &config
 }

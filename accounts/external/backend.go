@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/signer/core"
@@ -196,8 +195,13 @@ func (api *ExternalSigner) SignText(account accounts.Account, text []byte) ([]by
 	return signature, nil
 }
 
+// signTransactionResult represents the signinig result returned by clef.
+type signTransactionResult struct {
+	Raw hexutil.Bytes      `json:"raw"`
+	Tx  *types.Transaction `json:"tx"`
+}
+
 func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
-	res := ethapi.SignTransactionResult{}
 	data := hexutil.Bytes(tx.Data())
 	var to *common.MixedcaseAddress
 	if tx.To() != nil {
@@ -213,6 +217,7 @@ func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transactio
 		To:       to,
 		From:     common.NewMixedcaseAddress(account.Address),
 	}
+	var res signTransactionResult
 	if err := api.client.Call(&res, "account_signTransaction", args); err != nil {
 		return nil, err
 	}

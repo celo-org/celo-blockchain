@@ -41,12 +41,12 @@ type Backend interface {
 	// General Ethereum API
 	Downloader() *downloader.Downloader
 	ProtocolVersion() int
-	SuggestPrice(ctx context.Context) (*big.Int, error)
-	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error)
+	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool
-	RPCGasCap() *big.Int // global gas cap for eth_call over rpc: DoS protection
+	RPCTxFeeCap() float64 // global tx fee cap for all transaction related APIs
+	RPCGasCap() uint64    // global gas cap for eth_call over rpc: DoS protection
 
 	// Blockchain API
 	SetHead(number uint64)
@@ -88,6 +88,9 @@ type Backend interface {
 
 	GatewayFeeRecipient() common.Address
 	GatewayFee() *big.Int
+	GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64
+	GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64
+	NewEVMRunner(*types.Header, vm.StateDB) vm.EVMRunner
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

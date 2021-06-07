@@ -114,8 +114,7 @@ type LockedGoldRequirements struct {
 }
 
 type LockedgoldRequirementsMarshaling struct {
-	Value    *bigintstr.BigIntStr `json:"value"`
-	Duration uint64               `json:"duration"`
+	Value *bigintstr.BigIntStr `json:"value"`
 }
 
 //go:generate gencodec -type ElectionParameters -field-override ElectionParametersMarshaling -out gen_election_parameters_json.go
@@ -129,10 +128,7 @@ type ElectionParameters struct {
 }
 
 type ElectionParametersMarshaling struct {
-	MinElectableValidators uint64               `json:"minElectableValidators"`
-	MaxElectableValidators uint64               `json:"maxElectableValidators"`
-	MaxVotesPerAccount     *bigintstr.BigIntStr `json:"maxVotesPerAccount"`
-	ElectabilityThreshold  *fixed.Fixed         `json:"electabilityThreshold"`
+	MaxVotesPerAccount *bigintstr.BigIntStr `json:"maxVotesPerAccount"`
 }
 
 // Version represents an artifact version number
@@ -173,9 +169,8 @@ type DowntimeSlasherParameters struct {
 }
 
 type DowntimeSlasherParametersMarshaling struct {
-	Penalty           *bigintstr.BigIntStr `json:"penalty"`
-	Reward            *bigintstr.BigIntStr `json:"reward"`
-	SlashableDowntime uint64               `json:"slashableDowntime"`
+	Penalty *bigintstr.BigIntStr `json:"penalty"`
+	Reward  *bigintstr.BigIntStr `json:"reward"`
 }
 
 //go:generate gencodec -type GovernanceParameters -field-override GovernanceParametersMarshaling -out gen_governance_parameters_json.go
@@ -184,31 +179,20 @@ type DowntimeSlasherParametersMarshaling struct {
 type GovernanceParameters struct {
 	UseMultiSig             bool         `json:"useMultiSig"` // whether the approver should be the multisig (otherwise it's the admin)
 	ConcurrentProposals     uint64       `json:"concurrentProposals"`
-	MinDeposit              *big.Int     `json:"MinDeposit"`
-	QueueExpiry             uint64       `json:"QueueExpiry"`
-	DequeueFrequency        uint64       `json:"DequeueFrequency"`
-	ApprovalStageDuration   uint64       `json:"ApprovalStageDuration"`
-	ReferendumStageDuration uint64       `json:"ReferendumStageDuration"`
-	ExecutionStageDuration  uint64       `json:"ExecutionStageDuration"`
+	MinDeposit              *big.Int     `json:"minDeposit"`
+	QueueExpiry             uint64       `json:"queueExpiry"`
+	DequeueFrequency        uint64       `json:"dequeueFrequency"`
+	ApprovalStageDuration   uint64       `json:"approvalStageDuration"`
+	ReferendumStageDuration uint64       `json:"referendumStageDuration"`
+	ExecutionStageDuration  uint64       `json:"executionStageDuration"`
 	ParticipationBaseline   *fixed.Fixed `json:"participationBaseline"`
 	ParticipationFloor      *fixed.Fixed `json:"participationFloor"`
-	BaselineUpdateFactor    *fixed.Fixed `json:"BaselineUpdateFactor"`
-	BaselineQuorumFactor    *fixed.Fixed `json:"BaselineQuorumFactor"`
+	BaselineUpdateFactor    *fixed.Fixed `json:"baselineUpdateFactor"`
+	BaselineQuorumFactor    *fixed.Fixed `json:"baselineQuorumFactor"`
 }
 
 type GovernanceParametersMarshaling struct {
-	UseMultiSig             bool                 `json:"useMultiSig"` // whether the approver should be the multisig (otherwise it's the admin)
-	ConcurrentProposals     uint64               `json:"concurrentProposals"`
-	MinDeposit              *bigintstr.BigIntStr `json:"MinDeposit"`
-	QueueExpiry             uint64               `json:"QueueExpiry"`
-	DequeueFrequency        uint64               `json:"DequeueFrequency"`
-	ApprovalStageDuration   uint64               `json:"ApprovalStageDuration"`
-	ReferendumStageDuration uint64               `json:"ReferendumStageDuration"`
-	ExecutionStageDuration  uint64               `json:"ExecutionStageDuration"`
-	ParticipationBaseline   *fixed.Fixed         `json:"participationBaseline"`
-	ParticipationFloor      *fixed.Fixed         `json:"participationFloor"`
-	BaselineUpdateFactor    *fixed.Fixed         `json:"BaselineUpdateFactor"`
-	BaselineQuorumFactor    *fixed.Fixed         `json:"BaselineQuorumFactor"`
+	MinDeposit *bigintstr.BigIntStr `json:"minDeposit"`
 }
 
 // ValidatorsParameters are the initial configuration parameters for Validators
@@ -245,18 +229,7 @@ type EpochRewardsParameters struct {
 }
 
 type EpochRewardsParametersMarshaling struct {
-	TargetVotingYieldInitial                     *fixed.Fixed         `json:"targetVotingYieldInitial"`
-	TargetVotingYieldMax                         *fixed.Fixed         `json:"targetVotingYieldMax"`
-	TargetVotingYieldAdjustmentFactor            *fixed.Fixed         `json:"targetVotingYieldAdjustmentFactor"`
-	RewardsMultiplierMax                         *fixed.Fixed         `json:"rewardsMultiplierMax"`
-	RewardsMultiplierAdjustmentFactorsUnderspend *fixed.Fixed         `json:"rewardsMultiplierAdjustmentFactorsUnderspend"`
-	RewardsMultiplierAdjustmentFactorsOverspend  *fixed.Fixed         `json:"rewardsMultiplierAdjustmentFactorsOverspend"`
-	TargetVotingGoldFraction                     *fixed.Fixed         `json:"targetVotingGoldFraction"`
-	MaxValidatorEpochPayment                     *bigintstr.BigIntStr `json:"maxValidatorEpochPayment"`
-	CommunityRewardFraction                      *fixed.Fixed         `json:"communityRewardFraction"`
-	CarbonOffsettingPartner                      common.Address       `json:"carbonOffsettingPartner"`
-	CarbonOffsettingFraction                     *fixed.Fixed         `json:"carbonOffsettingFraction"`
-	Frozen                                       bool                 `json:"frozen"`
+	MaxValidatorEpochPayment *bigintstr.BigIntStr `json:"maxValidatorEpochPayment"`
 }
 
 // TransferWhitelistParameters are the initial configuration parameters for TransferWhitelist
@@ -299,9 +272,7 @@ type GasPriceMinimumParameters struct {
 }
 
 type GasPriceMinimumParametersMarshaling struct {
-	MinimumFloor    *bigintstr.BigIntStr `json:"minimumFloor"`
-	TargetDensity   *fixed.Fixed         `json:"targetDensity"`
-	AdjustmentSpeed *fixed.Fixed         `json:"adjustmentSpeed"`
+	MinimumFloor *bigintstr.BigIntStr `json:"minimumFloor"`
 }
 
 //go:generate gencodec -type ReserveParameters -field-override ReserveParametersMarshaling -out gen_reserve_parameters_json.go
@@ -323,18 +294,8 @@ type ReserveParameters struct {
 }
 
 type ReserveParametersMarshaling struct {
-	TobinTaxStalenessThreshold uint64              `json:"tobinTaxStalenessThreshold"`
-	DailySpendingRatio         *fixed.Fixed        `json:"dailySpendingRatio"`
-	AssetAllocations           AssetAllocationList `json:"assetAllocations"`
-	TobinTax                   *fixed.Fixed        `json:"tobinTax"`
-	TobinTaxReserveRatio       *fixed.Fixed        `json:"tobinTaxReserveRatio"`
-
-	// Other parameters
-	Spenders                 []common.Address     `json:"spenders"`
-	OtherAddresses           []common.Address     `json:"otherAddresses"`
 	InitialBalance           *bigintstr.BigIntStr `json:"initialBalance"`
 	FrozenAssetsStartBalance *bigintstr.BigIntStr `json:"frozenAssetsStartBalance"`
-	FrozenAssetsDays         uint64               `json:"frozenAssetsDays"`
 }
 
 // StableTokenParameters are the initial configuration parameters for StableToken
@@ -374,8 +335,7 @@ type Balance struct {
 }
 
 type BalanceMarshaling struct {
-	Account common.Address       `json:"account"`
-	Amount  *bigintstr.BigIntStr `json:"amount"`
+	Amount *bigintstr.BigIntStr `json:"amount"`
 }
 
 // BalanceList list of balances

@@ -44,6 +44,7 @@ func TestPrepare(t *testing.T) {
 
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 	header := makeHeader(chain.Genesis(), engine.config)
 	err := engine.Prepare(chain, header)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -61,6 +62,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 
 	defer stopEngine(engine)
+	defer chain.Stop()
 	genesis := chain.Genesis()
 
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
@@ -76,6 +78,7 @@ func TestMakeBlockWithSignature(t *testing.T) {
 func TestSealCommitted(t *testing.T) {
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 	// In normal case, the StateProcessResult should be passed into Commit
 	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
 
@@ -106,6 +109,7 @@ func TestVerifyHeader(t *testing.T) {
 	g := NewGomegaWithT(t)
 	chain, engine := newBlockChain(1, true)
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	// errEmptyAggregatedSeal case
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -145,29 +149,30 @@ func TestVerifySeal(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	genesis := chain.Genesis()
 
 	// cannot verify genesis
-	err := engine.VerifySeal(chain, genesis.Header())
+	err := engine.VerifySeal(genesis.Header())
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
 	// should verify
 	block, err := makeBlock(nodeKeys, chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// change header content and expect to invalidate signature
 	header.Number = big.NewInt(4)
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidSignature))
 
 	// delete istanbul extra data and expect invalid extra data format
 	header = block.Header()
 	header.Extra = nil
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
 
 	// modify seal bitmap and expect to fail the quorum check
@@ -178,11 +183,11 @@ func TestVerifySeal(t *testing.T) {
 	encoded, err := rlp.EncodeToBytes(extra)
 	g.Expect(err).ToNot(HaveOccurred())
 	header.Extra = append(header.Extra[:types.IstanbulExtraVanity], encoded...)
-	err = engine.VerifySeal(chain, header)
+	err = engine.VerifySeal(header)
 	g.Expect(err).Should(BeIdenticalTo(errInsufficientSeals))
 
 	// verifiy the seal on the unmodified block.
-	err = engine.VerifySeal(chain, block.Header())
+	err = engine.VerifySeal(block.Header())
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
@@ -191,6 +196,7 @@ func TestVerifyHeaders(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
+	defer chain.Stop()
 	genesis := chain.Genesis()
 
 	// success case
@@ -299,6 +305,7 @@ func TestVerifyHeaders(t *testing.T) {
 func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 	chain, engine := newBlockChain(1, false)
 	defer stopEngine(engine)
+	defer chain.Stop()
 
 	t.Run("should allow future block without full chain available", func(t *testing.T) {
 		g := NewGomegaWithT(t)

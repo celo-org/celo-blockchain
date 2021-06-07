@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -228,7 +229,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		var (
 			st     *state.StateDB
 			header *types.Header
-			chain  vm.ChainContext
+			chain  core.ChainContext
 		)
 		if bc == nil {
 			chain = lc
@@ -246,7 +247,9 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		context := core.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
-		result, _ := core.ApplyMessage(vmenv, msg, gp)
+
+		celoMock := testutil.NewCeloMock()
+		result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner)
 		res = append(res, result.Return()...)
 		if st.Error() != nil {
 			return res, st.Error()

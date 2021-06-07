@@ -29,8 +29,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -154,6 +154,8 @@ type blockChain interface {
 	GetBlock(hash common.Hash, number uint64) *types.Block
 	StateAt(root common.Hash) (*state.StateDB, error)
 
+	NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner
+
 	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 
 	// Engine retrieves the chain's consensus engine.
@@ -260,10 +262,11 @@ type TxPool struct {
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	donut    bool // Fork indicator for the Donut fork.
 
-	currentState  *state.StateDB // Current state in the blockchain head
-	pendingNonces *txNoncer      // Pending state tracking virtual nonces
-	currentMaxGas uint64         // Current gas limit for transaction caps
-	currentCtx    atomic.Value   // Current block context (holds a txPoolContext)
+	currentState    *state.StateDB // Current state in the blockchain head
+	currentVMRunner vm.EVMRunner   // Current EVMRunner
+	pendingNonces   *txNoncer      // Pending state tracking virtual nonces
+	currentMaxGas   uint64         // Current gas limit for transaction caps
+	currentCtx      atomic.Value   // Current block context (holds a txPoolContext)
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
@@ -464,23 +467,15 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 	log.Info("Transaction pool price threshold updated", "price", price)
 }
 
-// SetGasLimit updates the maximum allowed gas for a new transaction in the
+// setGasLimit updates the maximum allowed gas for a new transaction in the
 // pool, and drops all transactions above this threshold.
 //
-// Note: Only useful for testing, as this call will have no effect if
-// communication with the blockchain_parameters contract is successful.
-func (pool *TxPool) SetGasLimit(gasLimit uint64) {
+// DO NOT USE, ONLY FOR TESTING
+func (pool *TxPool) setGasLimit(gasLimit uint64) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	limitFromContract, err := blockchain_parameters.GetBlockGasLimit(pool.chain.CurrentBlock().Header(), pool.currentState)
-	if err == nil {
-		pool.currentMaxGas = limitFromContract
-		return
-	}
-
 	pool.currentMaxGas = gasLimit
-
 	pool.demoteUnexecutables()
 
 	for _, list := range pool.queue {
@@ -644,7 +639,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonceTooLow
 	}
 	// Transactor should have enough funds to cover the costs
-	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState)
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner)
 	if err != nil {
 		return err
 	}
@@ -892,16 +887,22 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 			knownTxMeter.Mark(1)
 			continue
 		}
+		// Exclude transactions with invalid signatures as soon as
+		// possible and cache senders in transactions before
+		// obtaining lock
+		_, err := types.Sender(pool.signer, tx)
+		if err != nil {
+			errs[i] = ErrInvalidSender
+			invalidTxMeter.Mark(1)
+			continue
+		}
 		// Accumulate all unknown transactions for deeper processing
 		news = append(news, tx)
 	}
 	if len(news) == 0 {
 		return errs
 	}
-	// Cache senders in transactions before obtaining lock (pool.signer is immutable)
-	for _, tx := range news {
-		types.Sender(pool.signer, tx)
-	}
+
 	// Process all the new transaction and merge any errors into the original slice
 	pool.mu.Lock()
 	newErrs, dirtyAddrs := pool.addTxsLocked(news, local)
@@ -1262,12 +1263,13 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
-	pool.currentMaxGas = CalcGasLimit(pool.chain.CurrentBlock(), statedb)
 
+	pool.currentVMRunner = pool.chain.NewEVMRunner(newHead, statedb)
+	pool.currentMaxGas = blockchain_parameters.GetBlockGasLimitOrDefault(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
-		NewBlockContext(newHead, statedb),
-		currency.NewManager(newHead, statedb),
+		NewBlockContext(pool.currentVMRunner),
+		currency.NewManager(pool.currentVMRunner),
 	}
 	pool.currentCtx.Store(newCtx)
 
@@ -1304,22 +1306,22 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		for _, tx := range forwards {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
-			log.Trace("Removed old queued transaction", "hash", hash)
 		}
+		log.Trace("Removed old queued transactions", "count", len(forwards))
 		// Get balances in each currency
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(pool.currentVMRunner, addr, feeCurrency)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), balances, pool.ctx().BlockContext, pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), balances, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
-			log.Trace("Removed unpayable queued transaction", "hash", hash)
 		}
+		log.Trace("Removed unpayable queued transactions", "count", len(drops))
 		queuedNofundsMeter.Mark(int64(len(drops)))
 
 		// Gather all executable transactions and promote them
@@ -1327,10 +1329,10 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		for _, tx := range readies {
 			hash := tx.Hash()
 			if pool.promoteTx(addr, hash, tx) {
-				log.Trace("Promoting queued transaction", "hash", hash)
 				promoted = append(promoted, tx)
 			}
 		}
+		log.Trace("Promoted queued transactions", "count", len(promoted))
 		queuedGauge.Dec(int64(len(readies)))
 
 		// Drop all transactions over the allowed limit
@@ -1510,11 +1512,11 @@ func (pool *TxPool) demoteUnexecutables() {
 		balances := make(map[common.Address]*big.Int)
 		allCurrencies := list.FeeCurrencies()
 		for _, feeCurrency := range allCurrencies {
-			feeCurrencyBalance, _ := currency.GetBalanceOf(addr, feeCurrency, nil, nil)
+			feeCurrencyBalance, _ := currency.GetBalanceOf(pool.currentVMRunner, addr, feeCurrency)
 			balances[feeCurrency] = feeCurrencyBalance
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), balances, pool.ctx().BlockContext, pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), balances, pool.currentMaxGas)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
@@ -1550,7 +1552,7 @@ func (pool *TxPool) demoteUnexecutables() {
 }
 
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
-func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB) error {
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner) error {
 	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("Insufficient funds",
 			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
@@ -1558,7 +1560,7 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
 		return ErrInsufficientFunds
 	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, err := currency.GetBalanceOf(from, *tx.FeeCurrency(), nil, nil)
+		feeCurrencyBalance, err := currency.GetBalanceOf(currentVMRunner, from, *tx.FeeCurrency())
 
 		if err != nil {
 			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)

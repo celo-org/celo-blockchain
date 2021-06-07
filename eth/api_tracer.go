@@ -502,7 +502,8 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 		vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
 
 		vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vm.Config{})
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
+		vmRunner := api.eth.blockchain.NewEVMRunner(block.Header(), statedb)
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner); err != nil {
 			failed = err
 			break
 		}
@@ -596,7 +597,8 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		}
 		// Execute the transaction and flush any traces to disk
 		vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vmConf)
-		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()))
+		vmRunner := api.eth.blockchain.NewEVMRunner(block.Header(), statedb)
+		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner)
 		if writer != nil {
 			writer.Flush()
 		}
@@ -757,18 +759,23 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	}
 	// Run the transaction with tracing enabled.
 	vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vm.Config{Debug: true, Tracer: tracer})
-
-	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
+	vmRunner := api.eth.blockchain.NewEVMRunner(vmctx.Header, statedb)
+	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), vmRunner)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %v", err)
 	}
 	// Depending on the tracer type, format and return the output
 	switch tracer := tracer.(type) {
 	case *vm.StructLogger:
+		// If the result contains a revert reason, return it.
+		returnVal := fmt.Sprintf("%x", result.Return())
+		if len(result.Revert()) > 0 {
+			returnVal = fmt.Sprintf("%x", result.Revert())
+		}
 		return &ethapi.ExecutionResult{
 			Gas:         result.UsedGas,
 			Failed:      result.Failed(),
-			ReturnValue: fmt.Sprintf("%x", result.Return()),
+			ReturnValue: returnVal,
 			StructLogs:  ethapi.FormatLogs(tracer.StructLogs()),
 		}, nil
 
@@ -812,7 +819,8 @@ func (api *PrivateDebugAPI) computeTxEnv(blockHash common.Hash, txIndex int, ree
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(context, statedb, api.eth.blockchain.Config(), vm.Config{})
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+		vmRunner := api.eth.blockchain.NewEVMRunner(block.Header(), statedb)
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
 			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state

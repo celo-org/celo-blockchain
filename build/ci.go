@@ -352,7 +352,7 @@ func doTest(cmdline []string) {
 	gotest := goTool("test", buildFlags(env)...)
 	gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.out")
 	}
 	if *verbose {
 		gotest.Args = append(gotest.Args, "-v")
@@ -1215,6 +1215,8 @@ func doPurge(cmdline []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Found %d blobs\n", len(blobs))
+
 	// Iterate over the blobs, collect and sort all unstable builds
 	for i := 0; i < len(blobs); i++ {
 		if !strings.Contains(blobs[i].Name, "unstable") {
@@ -1236,6 +1238,7 @@ func doPurge(cmdline []string) {
 			break
 		}
 	}
+	fmt.Printf("Deleting %d blobs\n", len(blobs))
 	// Delete all marked as such and return
 	if err := build.AzureBlobstoreDelete(auth, blobs); err != nil {
 		log.Fatal(err)

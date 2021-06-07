@@ -348,7 +348,7 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // This method uses the cached costcap and gascap to quickly decide if there's even
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
-func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, blockCtx BlockContext, gasLimit uint64) (types.Transactions, types.Transactions) {
+func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 
 	// check if we can bail & lower caps & raise floors at the same time
 	canBail := true
@@ -503,7 +503,7 @@ func (h priceHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h priceHeap) Less(i, j int) bool {
 	// Sort primarily by price, returning the cheaper one
-	switch h[i].GasPrice().Cmp(h[j].GasPrice()) {
+	switch h[i].GasPriceCmp(h[j]) {
 	case -1:
 		return true
 	case 1:

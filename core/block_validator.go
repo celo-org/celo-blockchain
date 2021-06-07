@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
@@ -93,21 +92,4 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 		return fmt.Errorf("invalid merkle root (remote: %x local: %x)", header.Root, root)
 	}
 	return nil
-}
-
-// CalcGasLimit computes the gas limit of the next block after parent. It aims
-// to keep the baseline gas above the provided floor, and increase it towards the
-// ceil if the blocks are full. If the ceil is exceeded, it will always decrease
-// the gas allowance.
-func CalcGasLimit(parent *types.Block, statedb *state.StateDB) uint64 {
-	header := parent.Header()
-
-	limit, err := blockchain_parameters.GetBlockGasLimit(header, statedb)
-
-	// Already logged a warning in GetBlockGasLimit, just return.
-	if err != nil {
-		return params.DefaultGasLimit
-	}
-
-	return limit
 }
