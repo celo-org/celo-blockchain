@@ -176,3 +176,16 @@ func TestSetupGenesis(t *testing.T) {
 		}
 	}
 }
+
+// TestRegistryInGenesis tests if RegistrySmartContract sits in the state of genesis block
+func TestRegistryInGenesis(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	MainnetGenesisBlock().MustCommit(db)
+	chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
+	defer chain.Stop()
+
+	state, _ := chain.State()
+	if state.GetCodeSize(params.RegistrySmartContractAddress) != 2585 { // According to core/mainnetAllocJSON
+		t.Errorf("Registry code size is %d, want %d", state.GetCodeSize(params.RegistrySmartContractAddress), 2585)
+	}
+}

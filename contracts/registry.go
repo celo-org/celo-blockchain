@@ -19,11 +19,6 @@ func GetRegisteredAddress(vmRunner vm.EVMRunner, registryId common.Hash) (common
 	vmRunner.StopGasMetering()
 	defer vmRunner.StartGasMetering()
 
-	// TODO(mcortesi) remove registrypoxy deployed at genesis
-	if vmRunner.GetStateDB().GetCodeSize(params.RegistrySmartContractAddress) == 0 {
-		return common.ZeroAddress, ErrRegistryContractNotDeployed
-	}
-
 	var contractAddress common.Address
 	err := getAddressMethod.Query(vmRunner, &contractAddress, registryId)
 
