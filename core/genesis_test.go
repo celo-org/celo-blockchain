@@ -177,15 +177,38 @@ func TestSetupGenesis(t *testing.T) {
 	}
 }
 
-// TestRegistryInGenesis tests if RegistrySmartContract sits in the state of genesis block
+// TestRegistryInGenesis tests if the params.RegistrySmartContract that defined in the genesis block sits in the blockchain
 func TestRegistryInGenesis(t *testing.T) {
-	db := rawdb.NewMemoryDatabase()
-	MainnetGenesisBlock().MustCommit(db)
-	chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
-	defer chain.Stop()
+	tests := []struct {
+		name       string
+		genesis func() *Genesis
+	}{
+		{
+			name: "dev",
+			genesis: DeveloperGenesisBlock,
+		},
+		{
+			name: "alfajores",
+			genesis: DefaultAlfajoresGenesisBlock,
+		},
+		{
+			name: "baklava",
+			genesis: DefaultBaklavaGenesisBlock,
+		},
+		{
+			name: "mainnet",
+			genesis: MainnetGenesisBlock,
+		},
+	}
 
-	state, _ := chain.State()
-	if state.GetCodeSize(params.RegistrySmartContractAddress) != 2585 { // According to core/mainnetAllocJSON
-		t.Errorf("Registry code size is %d, want %d", state.GetCodeSize(params.RegistrySmartContractAddress), 2585)
+	for _, test := range tests {
+		db := rawdb.NewMemoryDatabase()
+		test.genesis().MustCommit(db)
+		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
+		state, _ := chain.State()
+		if state.GetCodeSize(params.RegistrySmartContractAddress) != 2585 { // Hardcoded according to core/***AllocJSON
+			t.Errorf("Registry code size is %d, want %d", state.GetCodeSize(params.RegistrySmartContractAddress), 2585)
+		}
+		chain.Stop()
 	}
 }

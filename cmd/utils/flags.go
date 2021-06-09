@@ -1740,7 +1740,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 		log.Info("Using developer account", "address", developer.Address)
 
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
+		cfg.Genesis = core.DeveloperGenesisBlock()
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
 			setDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
