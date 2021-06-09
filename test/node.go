@@ -333,11 +333,15 @@ func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
 		params.IstanbulConfig{
-			Epoch:          1000,
-			ProposerPolicy: 2,
+			Epoch:          10,
+			ProposerPolicy: uint64(istanbul.ShuffledRoundRobin),
 			LookbackWindow: 3,
 			BlockPeriod:    0,
-			RequestTimeout: 3000,
+
+			// 50ms is a really low timeout, we set this here because nodes
+			// fail the first round of consensus and so setting this higher
+			// makes tests run slower.
+			RequestTimeout: 50,
 		},
 	)
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())

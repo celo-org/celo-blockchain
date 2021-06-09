@@ -78,7 +78,7 @@ func (tr *TransactionTracker) StartTracking(client *ethclient.Client) error {
 		defer tr.wg.Done()
 		err := tr.trackTransactions()
 		if err != nil {
-			fmt.Printf("trackTransactions failed with error: %v", err)
+			fmt.Printf("trackTransactions failed with error: %v\n", err)
 		}
 	}()
 	return nil
