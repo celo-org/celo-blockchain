@@ -10,15 +10,14 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNetworkStartupShutdown(t *testing.T) {
+func TestSendCelo(t *testing.T) {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
-	now := time.Now()
-	println("starting test", now.String())
-	network, err := test.NewNetworkFromUsers()
+	accounts := test.Accounts(3)
+	gc := test.GenesisConfig(accounts)
+	network, err := test.NewNetwork(accounts, gc)
 	require.NoError(t, err)
 	defer network.Shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -31,8 +30,6 @@ func TestNetworkStartupShutdown(t *testing.T) {
 		fmt.Printf("Addr: %v, Bal: %v\n", addr.String(), bal.String())
 	}
 
-	tx, err := network[0].SendCeloTracked(ctx, network[1].DevAddress, 1)
+	_, err = network[0].SendCeloTracked(ctx, network[1].DevAddress, 1)
 	require.NoError(t, err)
-	spew.Dump(tx)
-	println("test took", time.Since(now).String())
 }

@@ -29,10 +29,10 @@ func TemplateFromString(templateStr string) template {
 	return LocalEnv{}
 }
 
-// createCommonGenesisConfig generates a config starting point which templates can then customize further
-func createCommonGenesisConfig(env *env.Config, istanbulConfig params.IstanbulConfig) *Config {
+// CreateCommonGenesisConfig generates a config starting point which templates can then customize further
+func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Address, istanbulConfig params.IstanbulConfig) *Config {
 	genesisConfig := BaseConfig()
-	genesisConfig.ChainID = env.ChainID
+	genesisConfig.ChainID = chainID
 	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
 	genesisConfig.Istanbul = istanbulConfig
 	genesisConfig.Hardforks = HardforkConfig{
@@ -43,7 +43,7 @@ func createCommonGenesisConfig(env *env.Config, istanbulConfig params.IstanbulCo
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := MultiSigParameters{
-		Signatories:                      []common.Address{env.Accounts.AdminAccount().Address},
+		Signatories:                      []common.Address{adminAccountAddress},
 		NumRequiredConfirmations:         1,
 		NumInternalRequiredConfirmations: 1,
 	}
@@ -61,7 +61,7 @@ func createCommonGenesisConfig(env *env.Config, istanbulConfig params.IstanbulCo
 	return genesisConfig
 }
 
-func fundAccounts(genesisConfig *Config, accounts []env.Account) {
+func FundAccounts(genesisConfig *Config, accounts []env.Account) {
 	cusdBalances := make([]Balance, len(accounts))
 	ceurBalances := make([]Balance, len(accounts))
 	goldBalances := make([]Balance, len(accounts))
@@ -91,7 +91,7 @@ func (e LocalEnv) CreateConfig() (*env.Config, error) {
 
 func (e LocalEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := CreateCommonGenesisConfig(env.ChainID, env.Accounts.AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -100,7 +100,7 @@ func (e LocalEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 	})
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
+	FundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
 
 	return genesisConfig, nil
 }
@@ -120,7 +120,7 @@ func (e LoadtestEnv) CreateConfig() (*env.Config, error) {
 }
 
 func (e LoadtestEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := CreateCommonGenesisConfig(env.ChainID, env.Accounts.AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -132,7 +132,7 @@ func (e LoadtestEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
+	FundAccounts(genesisConfig, env.Accounts.DeveloperAccounts())
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * Year
 
@@ -159,7 +159,7 @@ func (e MonorepoEnv) CreateConfig() (*env.Config, error) {
 }
 
 func (e MonorepoEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := CreateCommonGenesisConfig(env.ChainID, env.Accounts.AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -168,7 +168,7 @@ func (e MonorepoEnv) CreateGenesisConfig(env *env.Config) (*Config, error) {
 	})
 
 	// Add balances to validator accounts instead of developer accounts
-	fundAccounts(genesisConfig, env.Accounts.ValidatorAccounts())
+	FundAccounts(genesisConfig, env.Accounts.ValidatorAccounts())
 
 	return genesisConfig, nil
 }

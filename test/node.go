@@ -319,40 +319,49 @@ func NewNodeConfig(validatorAccount, devAccount *env.Account) *NodeConfig {
 	}
 }
 
-// NewNetworkFromUsers generates a network of nodes that are running and
-// mining. For each provided user a corresponding node is created. If there is
-// an error it will be returned immediately, meaning that some nodes may be
-// running and others not.
-func NewNetworkFromUsers() (Network, error) {
+func Accounts(numValidators int) *env.AccountsConfig {
+	return &env.AccountsConfig{
+		Mnemonic:             env.MustNewMnemonic(),
+		NumValidators:        numValidators,
+		ValidatorsPerGroup:   1,
+		NumDeveloperAccounts: numValidators,
+	}
+}
 
-	local := genesis.LocalEnv{}
-	c, err := local.CreateConfig()
+func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
+	gc := genesis.CreateCommonGenesisConfig(
+		big.NewInt(1),
+		accounts.AdminAccount().Address,
+		params.IstanbulConfig{
+			Epoch:          1000,
+			ProposerPolicy: 2,
+			LookbackWindow: 3,
+			BlockPeriod:    0,
+			RequestTimeout: 3000,
+		},
+	)
+	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
+	return gc
+}
+
+// NewNetwork generates a network of nodes that are running and mining. For
+// each provided validator account a corresponding node is created and each
+// node is also assigned a developer account, there must be at least as many
+// developer accounts provided as validator accounts. If there is an error it
+// will be returned immediately, meaning that some nodes may be running and
+// others not.
+func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, error) {
+
+	genesis, err := genesis.GenerateGenesis(accounts, gc, "../../monorepo/packages/protocol/build/contracts")
 	if err != nil {
 		return nil, err
 	}
-	gc, err := local.CreateGenesisConfig(c)
-	if err != nil {
-		return nil, err
-	}
 
-	gc.Istanbul = params.IstanbulConfig{
-		BlockPeriod:    0,
-		RequestTimeout: 100,
-		Epoch:          10,
-		LookbackWindow: 5,
-		ProposerPolicy: uint64(istanbul.ShuffledRoundRobin),
-	}
-
-	g, err := genesis.GenerateGenesis(&c.Accounts, gc, "../monorepo/packages/protocol/build/contracts")
-	if err != nil {
-		return nil, err
-	}
-
-	validatorAccounts := c.Accounts.ValidatorAccounts()
+	validatorAccounts := accounts.ValidatorAccounts()
 	network := make([]*Node, len(validatorAccounts))
 	for i := range validatorAccounts {
-		conf := NewNodeConfig(&validatorAccounts[i], &c.Accounts.DeveloperAccounts()[i])
-		n, err := NewNode(conf, g)
+		conf := NewNodeConfig(&validatorAccounts[i], &accounts.DeveloperAccounts()[i])
+		n, err := NewNode(conf, genesis)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
