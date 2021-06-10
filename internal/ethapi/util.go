@@ -11,7 +11,7 @@ import (
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
-func checkCeloTxFeeTx(ctx context.Context, b Backend, tx *types.Transaction) error {
+func checkFeeFromCeloTx(ctx context.Context, b Backend, tx *types.Transaction) error {
 	currencyManager, err := newCurrencyManager(ctx, b)
 	if err != nil {
 		return err
@@ -19,11 +19,11 @@ func checkCeloTxFeeTx(ctx context.Context, b Backend, tx *types.Transaction) err
 	return checkTxFee(currencyManager, tx.FeeCurrency(), tx.Fee(), b.RPCTxFeeCap())
 }
 
-func checkCeloTxArgsFee(ctx context.Context, b Backend, args SendTxArgs) error {
-	return checkCeloTxFee(ctx, b, args.FeeCurrency, (*big.Int)(args.GasPrice), uint64(*args.Gas), (*big.Int)(args.GatewayFee))
+func checkFeeFromCeloArgs(ctx context.Context, b Backend, args SendTxArgs) error {
+	return checkFeeFromCeloCurrency(ctx, b, args.FeeCurrency, (*big.Int)(args.GasPrice), uint64(*args.Gas), (*big.Int)(args.GatewayFee))
 }
 
-func checkCeloTxFee(ctx context.Context, b Backend, feeCurrency *common.Address, gasPrice *big.Int, gas uint64, gatewayFee *big.Int) error {
+func checkFeeFromCeloCurrency(ctx context.Context, b Backend, feeCurrency *common.Address, gasPrice *big.Int, gas uint64, gatewayFee *big.Int) error {
 	currencyManager, err := newCurrencyManager(ctx, b)
 	if err != nil {
 		return err

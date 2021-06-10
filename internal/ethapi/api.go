@@ -404,7 +404,7 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args SendTxArgs
 		return nil, fmt.Errorf("nonce not specified")
 	}
 	// Before actually sign the transaction, ensure the transaction fee is reasonable.
-	if err := checkCeloTxArgsFee(ctx, s.b, args); err != nil {
+	if err := checkFeeFromCeloArgs(ctx, s.b, args); err != nil {
 		return nil, err
 	}
 	signed, err := s.signTransaction(ctx, &args, passwd)
@@ -1530,7 +1530,7 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
 	// If the transaction fee cap is already specified, ensure the
 	// fee of the given transaction is _reasonable_.
-	if err := checkCeloTxFeeTx(ctx, b, tx); err != nil {
+	if err := checkFeeFromCeloTx(ctx, b, tx); err != nil {
 		return common.Hash{}, err
 	}
 	if err := b.SendTx(ctx, tx); err != nil {
@@ -1656,7 +1656,7 @@ func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args Sen
 		return nil, err
 	}
 	// Before actually sign the transaction, ensure the transaction fee is reasonable.
-	if err := checkCeloTxArgsFee(ctx, s.b, args); err != nil {
+	if err := checkFeeFromCeloArgs(ctx, s.b, args); err != nil {
 		return nil, err
 	}
 	tx, err := s.sign(args.From, args.toTransaction())
@@ -1717,7 +1717,7 @@ func (s *PublicTransactionPoolAPI) Resend(ctx context.Context, sendArgs SendTxAr
 	if gasLimit != nil {
 		gas = uint64(*gasLimit)
 	}
-	if err := checkCeloTxFee(ctx, s.b, sendArgs.FeeCurrency, price, gas, (*big.Int)(sendArgs.GatewayFee)); err != nil {
+	if err := checkFeeFromCeloCurrency(ctx, s.b, sendArgs.FeeCurrency, price, gas, (*big.Int)(sendArgs.GatewayFee)); err != nil {
 		return common.Hash{}, err
 	}
 	// Iterate the pending list for replacement
