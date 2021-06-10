@@ -29,6 +29,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightIngress            int                    `toml:",omitempty"`
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
+		LightNoPrune            bool                   `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               common.Address         `toml:",omitempty"`
 		TxFeeRecipient          common.Address         `toml:",omitempty"`
@@ -71,6 +72,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightIngress = c.LightIngress
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
+	enc.LightNoPrune = c.LightNoPrune
 	enc.GatewayFee = c.GatewayFee
 	enc.Validator = c.Validator
 	enc.TxFeeRecipient = c.TxFeeRecipient
@@ -117,6 +119,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightIngress            *int                   `toml:",omitempty"`
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
+		LightNoPrune            *bool                  `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               *common.Address        `toml:",omitempty"`
 		TxFeeRecipient          *common.Address        `toml:",omitempty"`
@@ -185,6 +188,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.LightPeers != nil {
 		c.LightPeers = *dec.LightPeers
+	}
+	if dec.LightNoPrune != nil {
+		c.LightNoPrune = *dec.LightNoPrune
 	}
 	if dec.GatewayFee != nil {
 		c.GatewayFee = dec.GatewayFee

@@ -675,7 +675,6 @@ func (s *Service) readLoop(conn *connWrapper) {
 		// Retrieve the next generic network packet and bail out on error
 		var blob json.RawMessage
 		if err := conn.ReadJSON(&blob); err != nil {
-			// A closed connection from the server is also catched here
 			log.Warn("Failed to retrieve stats server message", "err", err)
 			return
 		}
@@ -688,7 +687,6 @@ func (s *Service) readLoop(conn *connWrapper) {
 			}
 			continue
 		}
-
 		// Not a system ping, try to decode an actual state message
 		var msg map[string]interface{}
 		if err := json.Unmarshal(blob, &msg); err != nil {
