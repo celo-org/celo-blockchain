@@ -1414,16 +1414,16 @@ func (bc *BlockChain) InsertPreprocessedBlock(block *types.Block, receipts []*ty
 	defer bc.chainmu.Unlock()
 
 	// check we are trying to insert the NEXT block
-	if block.Header().ParentHash != bc.CurrentHeader().Hash() {
+	if block.ParentHash() != bc.CurrentBlock().Hash() {
 		return ErrNotHeadBlock
 	}
 
-	return bc.insertPreprocessedBlock(block, receipts, logs, state, true)
+	return bc.writeBlockWithState(block, receipts, logs, state, true)
 }
 
-// insertPreprocessedBlock writes the block and all associated state to the database,
+// writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) error {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
@@ -1461,9 +1461,8 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 		}
 	}
 
-	// Calculate the total difficulty of the block
-	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
-	if ptd == nil {
+	// Check if the parent is canonical
+	if block.ParentHash() != bc.GetCanonicalHash(block.NumberU64()-1) {
 		return consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -1517,22 +1516,16 @@ func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*ty
 
 			// If we exceeded out time allowance, flush an entire trie to disk
 			if bc.gcproc > bc.cacheConfig.TrieTimeLimit {
-				// If the header is missing (canonical chain behind), we're reorging a low
-				// diff sidechain. Suspend committing until this operation is completed.
 				header := bc.GetHeaderByNumber(chosen)
-				if header == nil {
-					log.Warn("Reorg in progress, trie commit postponed", "number", chosen)
-				} else {
-					// If we're exceeding limits but haven't reached a large enough memory gap,
-					// warn the user that the system is becoming unstable.
-					if chosen < lastWrite+TriesInMemory && bc.gcproc >= 2*bc.cacheConfig.TrieTimeLimit {
-						log.Info("State in memory for too long, committing", "time", bc.gcproc, "allowance", bc.cacheConfig.TrieTimeLimit, "optimum", float64(chosen-lastWrite)/TriesInMemory)
-					}
-					// Flush an entire trie and restart the counters
-					triedb.Commit(header.Root, true)
-					lastWrite = chosen
-					bc.gcproc = 0
+				// If we're exceeding limits but haven't reached a large enough memory gap,
+				// warn the user that the system is becoming unstable.
+				if chosen < lastWrite+TriesInMemory && bc.gcproc >= 2*bc.cacheConfig.TrieTimeLimit {
+					log.Info("State in memory for too long, committing", "time", bc.gcproc, "allowance", bc.cacheConfig.TrieTimeLimit, "optimum", float64(chosen-lastWrite)/TriesInMemory)
 				}
+				// Flush an entire trie and restart the counters
+				triedb.Commit(header.Root, true)
+				lastWrite = chosen
+				bc.gcproc = 0
 			}
 			// Garbage collect anything below our required write retention
 			for !bc.triegc.Empty() {
@@ -1795,7 +1788,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 			// Write the block to the chain and get the status.
 			substart = time.Now()
-			err = bc.insertPreprocessedBlock(block, receipts, logs, statedb, false)
+			err = bc.writeBlockWithState(block, receipts, logs, statedb, false)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			if err != nil {
 				return it.index, err
