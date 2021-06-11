@@ -32,7 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
-	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -840,133 +839,14 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	return nil
 }
 
-// Used as a salt when signing versionCertificate. This is to account for
-// the unlikely case where a different signed struct with the same field types
-// is used elsewhere and shared with other nodes. If that were to happen, a
-// malicious node could try sending the other struct where this struct is used,
-// or vice versa. This ensures that the signature is only valid for this struct.
-var versionCertificateSalt = []byte("versionCertificate")
-
-// versionCertificate is a signed message from a validator indicating the most
-// recent version of its enode.
-type versionCertificate vet.VersionCertificateEntry
-
-func newVersionCertificateFromEntry(entry *vet.VersionCertificateEntry) *versionCertificate {
-	return &versionCertificate{
-		Address:   entry.Address,
-		PublicKey: entry.PublicKey,
-		Version:   entry.Version,
-		Signature: entry.Signature,
-	}
-}
-
-func (vc *versionCertificate) Sign(signingFn func(data []byte) ([]byte, error)) error {
-	payloadToSign, err := vc.payloadToSign()
-	if err != nil {
-		return err
-	}
-	vc.Signature, err = signingFn(payloadToSign)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RecoverPublicKeyAndAddress recovers the ECDSA public key and corresponding
-// address from the Signature
-func (vc *versionCertificate) RecoverPublicKeyAndAddress() error {
-	payloadToSign, err := vc.payloadToSign()
-	if err != nil {
-		return err
-	}
-	payloadHash := crypto.Keccak256(payloadToSign)
-	publicKey, err := crypto.SigToPub(payloadHash, vc.Signature)
-	if err != nil {
-		return err
-	}
-	address, err := crypto.PubkeyToAddress(*publicKey), nil
-	if err != nil {
-		return err
-	}
-	vc.PublicKey = publicKey
-	vc.Address = address
-	return nil
-}
-
-// EncodeRLP serializes versionCertificate into the Ethereum RLP format.
-// Only the Version and Signature are encoded, as the public key and address
-// can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (vc *versionCertificate) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{vc.Version, vc.Signature})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the versionCertificate fields from a RLP stream.
-// Only the Version and Signature are encoded/decoded, as the public key and address
-// can be recovered from the Signature using RecoverPublicKeyAndAddress
-func (vc *versionCertificate) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		Version   uint
-		Signature []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	vc.Version, vc.Signature = msg.Version, msg.Signature
-	return nil
-}
-
-func (vc *versionCertificate) Entry() *vet.VersionCertificateEntry {
-	return &vet.VersionCertificateEntry{
-		Address:   vc.Address,
-		PublicKey: vc.PublicKey,
-		Version:   vc.Version,
-		Signature: vc.Signature,
-	}
-}
-
-func (vc *versionCertificate) payloadToSign() ([]byte, error) {
-	signedContent := []interface{}{versionCertificateSalt, vc.Version}
-	payload, err := rlp.EncodeToBytes(signedContent)
-	if err != nil {
-		return nil, err
-	}
-	return payload, nil
-}
-
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
-	vc := &versionCertificate{
-		Address:   sb.Address(),
-		PublicKey: sb.publicKey,
-		Version:   version,
-	}
-	err := vc.Sign(sb.Sign)
-	if err != nil {
-		return nil, err
-	}
-	return vc, nil
-}
-
-func (sb *Backend) encodeVersionCertificatesMsg(versionCertificates []*versionCertificate) ([]byte, error) {
-	payload, err := rlp.EncodeToBytes(versionCertificates)
-	if err != nil {
-		return nil, err
-	}
-	msg := &istanbul.Message{
-		Code: istanbul.VersionCertificatesMsg,
-		Msg:  payload,
-	}
-	msgPayload, err := msg.Payload()
-	if err != nil {
-		return nil, err
-	}
-	return msgPayload, nil
+	return generateVersionCertificate(sb.Address(), sb.publicKey, version, sb.Sign)
 }
 
 func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
 	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := sb.encodeVersionCertificatesMsg(versionCertificates)
+	payload, err := encodeVersionCertificatesMsg(versionCertificates)
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -995,7 +875,7 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := sb.encodeVersionCertificatesMsg(allVersionCertificates)
+	payload, err := encodeVersionCertificatesMsg(allVersionCertificates)
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
