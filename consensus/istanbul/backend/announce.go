@@ -201,7 +201,7 @@ func (sb *Backend) announceThread() {
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allVersionCertificates, err := sb.getAllVersionCertificates()
+			allVersionCertificates, err := getAllVersionCertificates(sb.versionCertificateTable)
 			if err != nil {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
@@ -854,23 +854,19 @@ func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCe
 	return sb.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
-func (sb *Backend) getAllVersionCertificates() ([]*versionCertificate, error) {
-	allEntries, err := sb.versionCertificateTable.GetAll()
+func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
+	allEntries, err := vcTable.GetAll()
 	if err != nil {
 		return nil, err
 	}
-	allVersionCertificates := make([]*versionCertificate, len(allEntries))
-	for i, entry := range allEntries {
-		allVersionCertificates[i] = newVersionCertificateFromEntry(entry)
-	}
-	return allVersionCertificates, nil
+	return fromVCEntries(allEntries), nil
 }
 
 // sendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
 func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 	logger := sb.logger.New("func", "sendVersionCertificateTable")
-	allVersionCertificates, err := sb.getAllVersionCertificates()
+	allVersionCertificates, err := getAllVersionCertificates(sb.versionCertificateTable)
 	if err != nil {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err

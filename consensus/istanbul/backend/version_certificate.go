@@ -151,3 +151,11 @@ func generateVersionCertificate(address common.Address, publicKey *ecdsa.PublicK
 	}
 	return vc, nil
 }
+
+func fromVCEntries(allEntries []*vet.VersionCertificateEntry) []*versionCertificate {
+	allVersionCertificates := make([]*versionCertificate, len(allEntries))
+	for i, entry := range allEntries {
+		allVersionCertificates[i] = newVersionCertificateFromEntry(entry)
+	}
+	return allVersionCertificates
+}
