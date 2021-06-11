@@ -381,7 +381,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 		}
 	}
 
-	if err := sb.sendVersionCertificateTable(peer); err != nil {
+	if err := sb.announceManager.SendVersionCertificateTable(peer); err != nil {
 		logger.Debug("Error sending all version certificates", "err", err)
 	}
 

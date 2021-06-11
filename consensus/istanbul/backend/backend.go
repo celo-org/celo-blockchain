@@ -77,8 +77,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadWg:                   new(sync.WaitGroup),
 		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}, 1),
-		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
-		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -133,12 +131,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = valEnodeTable
 
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
-	if err != nil {
-		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
-	}
-	backend.versionCertificateTable = versionCertificateTable
-
 	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
 	if backend.IsProxy() {
 		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
@@ -151,6 +143,13 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 			logger.Crit("Can't create a new proxied validator engine", "err", err)
 		}
 	}
+
+	backend.announceManager = NewAnnounceManager(
+		backend,
+		backend,
+		backend,
+		backend.valEnodeTable,
+		config.VersionCertificateDBPath)
 
 	return backend
 }
@@ -198,14 +197,9 @@ type Backend struct {
 
 	gossipCache GossipCache
 
-	lastQueryEnodeGossiped   map[common.Address]time.Time
-	lastQueryEnodeGossipedMu sync.RWMutex
-
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	versionCertificateTable           *enodes.VersionCertificateDB
-	lastVersionCertificatesGossiped   map[common.Address]time.Time
-	lastVersionCertificatesGossipedMu sync.RWMutex
+	announceManager *AnnounceManager
 
 	announceRunning               bool
 	announceMu                    sync.RWMutex
@@ -216,17 +210,6 @@ type Backend struct {
 	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh chan struct{}
-
-	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
-	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -396,7 +379,7 @@ func (sb *Backend) Close() error {
 	if err := sb.valEnodeTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.versionCertificateTable.Close(); err != nil {
+	if err := sb.announceManager.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	if sb.replicaState != nil {
