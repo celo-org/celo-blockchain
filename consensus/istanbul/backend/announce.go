@@ -75,13 +75,21 @@ const (
 // GossipFn is the gossip function type used to gossip protocol messages
 type GossipFn func(payload []byte, ethMsgCode uint64) error
 
-// ValidatorAddressFn is a function that returns the validator address
-type ValidatorAddressFn func() common.Address
+// AddressProvider provides the different addresses the announce manager needs
+type AddressProvider interface {
+	Address() common.Address
+	ValidatorAddress() common.Address
+}
+
+// RetrieveValidatorConnSetFn is a function that returns the validator connection set
+type RetrieveValidatorConnSetFn func() (map[common.Address]bool, error)
 
 type AnnounceManager struct {
 	logger log.Logger
 
-	vAddrFn ValidatorAddressFn
+	connSetFn RetrieveValidatorConnSetFn
+
+	addrProvider AddressProvider
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -99,10 +107,11 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(gossip GossipFn, vAddrFn ValidatorAddressFn, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(connSetFn RetrieveValidatorConnSetFn, gossip GossipFn, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
-		vAddrFn:                         vAddrFn,
+		connSetFn:                       connSetFn,
+		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
@@ -114,10 +123,6 @@ func NewAnnounceManager(gossip GossipFn, vAddrFn ValidatorAddressFn, valEnodeTab
 	}
 	am.versionCertificateTable = versionCertificateTable
 	return am
-}
-
-func (m *AnnounceManager) ValidatorAddress() common.Address {
-	return m.vAddrFn()
 }
 
 func (m *AnnounceManager) Close() error {
@@ -184,7 +189,7 @@ func (sb *Backend) announceThread() {
 			logger.Trace("Checking if this node should announce it's enode")
 
 			var err error
-			shouldQuery, err = sb.shouldParticipateInAnnounce()
+			shouldQuery, err = sb.announceManager.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
@@ -315,14 +320,8 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
-			// retrieve the validator connection set
-			validatorConnSet, err := sb.RetrieveValidatorConnSet()
-			if err != nil {
+			if err := sb.announceManager.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
-			} else {
-				if err := sb.announceManager.pruneAnnounceDataStructures(validatorConnSet); err != nil {
-					logger.Warn("Error in pruning announce data structures", "err", err)
-				}
 			}
 
 		case <-sb.announceThreadQuit:
@@ -352,15 +351,15 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 }
 
 // shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.
-func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
+func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 
 	// Check if this node is in the validator connection set
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.connSetFn()
 	if err != nil {
 		return false, err
 	}
 
-	return validatorConnSet[sb.Address()], nil
+	return validatorConnSet[m.addrProvider.Address()], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -369,8 +368,14 @@ func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
 // 2)  valEnodeTable
 // 3)  lastVersionCertificatesGossiped
 // 4)  versionCertificateTable
-func (m *AnnounceManager) pruneAnnounceDataStructures(validatorConnSet map[common.Address]bool) error {
+func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 	logger := m.logger.New("func", "pruneAnnounceDataStructures")
+
+	// retrieve the validator connection set
+	validatorConnSet, err := m.connSetFn()
+	if err != nil {
+		logger.Warn("Error in pruning announce data structures", "err", err)
+	}
 
 	m.lastQueryEnodeGossipedMu.Lock()
 	for remoteAddress := range m.lastQueryEnodeGossiped {
@@ -745,7 +750,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Only elected or nearly elected validators processes the queryEnode message
-	shouldProcess, err := sb.shouldParticipateInAnnounce()
+	shouldProcess, err := sb.announceManager.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
@@ -878,7 +883,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
-	if msg.Address != m.ValidatorAddress() {
+	if msg.Address != m.addrProvider.ValidatorAddress() {
 		if lastGossiped, ok := m.lastQueryEnodeGossiped[msg.Address]; ok {
 			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
@@ -990,16 +995,16 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		validAddresses[versionCertificate.Address] = true
 		validEntries = append(validEntries, versionCertificate.Entry())
 	}
-	if err := sb.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
+	if err := sb.announceManager.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
 	return nil
 }
 
-func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
-	logger := sb.logger.New("func", "upsertAndGossipVersionCertificateEntries")
-	shouldProcess, err := sb.shouldParticipateInAnnounce()
+func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
+	logger := m.logger.New("func", "upsertAndGossipVersionCertificateEntries")
+	shouldProcess, err := m.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
@@ -1009,7 +1014,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 		var valEnodeEntries []*istanbul.AddressEntry
 		for _, entry := range entries {
 			// Don't add ourselves into the val enode table
-			if entry.Address == sb.Address() {
+			if entry.Address == m.addrProvider.Address() {
 				continue
 			}
 			// Update the HighestKnownVersion for this address. Upsert will
@@ -1022,12 +1027,12 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 				HighestKnownVersion: entry.Version,
 			})
 		}
-		if err := sb.valEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
+		if err := m.valEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
 			logger.Warn("Error upserting val enode table entries", "err", err)
 		}
 	}
 
-	newEntries, err := sb.announceManager.versionCertificateTable.Upsert(entries)
+	newEntries, err := m.versionCertificateTable.Upsert(entries)
 	if err != nil {
 		logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
@@ -1036,18 +1041,18 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
 	var versionCertificatesToRegossip []*versionCertificate
-	sb.announceManager.lastVersionCertificatesGossipedMu.Lock()
+	m.lastVersionCertificatesGossipedMu.Lock()
 	for _, entry := range newEntries {
-		lastGossipTime, ok := sb.announceManager.lastVersionCertificatesGossiped[entry.Address]
-		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
+		lastGossipTime, ok := m.lastVersionCertificatesGossiped[entry.Address]
+		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != m.addrProvider.ValidatorAddress() {
 			continue
 		}
 		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
-		sb.announceManager.lastVersionCertificatesGossiped[entry.Address] = time.Now()
+		m.lastVersionCertificatesGossiped[entry.Address] = time.Now()
 	}
-	sb.announceManager.lastVersionCertificatesGossipedMu.Unlock()
+	m.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
-		return sb.announceManager.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
+		return m.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
 	}
 	return nil
 }
@@ -1137,7 +1142,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	if err != nil {
 		return err
 	}
-	return sb.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
+	return sb.announceManager.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
 		newVersionCertificate.Entry(),
 	})
 }
@@ -1253,7 +1258,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	shouldSave, err := sb.shouldParticipateInAnnounce()
+	shouldSave, err := sb.announceManager.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
