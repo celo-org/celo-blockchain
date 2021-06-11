@@ -24,15 +24,18 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -68,6 +71,45 @@ const (
 	// LowFreqState will send out an query every config.AnnounceQueryEnodeGossipPeriod seconds
 	LowFreqState
 )
+
+type AnnounceManager struct {
+	logger log.Logger
+
+	valEnodeTable *enodes.ValidatorEnodeDB
+
+	versionCertificateTable *enodes.VersionCertificateDB
+
+	lastVersionCertificatesGossiped   map[common.Address]time.Time
+	lastVersionCertificatesGossipedMu sync.RWMutex
+
+	lastQueryEnodeGossiped   map[common.Address]time.Time
+	lastQueryEnodeGossipedMu sync.RWMutex
+}
+
+// NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
+// the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
+// not do it.
+func NewAnnounceManager(valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+	am := &AnnounceManager{
+		logger:                          log.New(),
+		valEnodeTable:                   valEnodeTable,
+		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
+		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+	}
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(vcDbPath)
+	if err != nil {
+		am.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", vcDbPath)
+	}
+	am.versionCertificateTable = versionCertificateTable
+	return am
+}
+
+func (m *AnnounceManager) Close() error {
+	// No need to close valEnodeTable since it's a reference,
+	// the creator of this announce manager is the responsible for
+	// closing it.
+	return m.versionCertificateTable.Close()
+}
 
 // The announceThread will:
 // 1) Periodically poll to see if this node should be announcing
@@ -201,7 +243,7 @@ func (sb *Backend) announceThread() {
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allVersionCertificates, err := getAllVersionCertificates(sb.versionCertificateTable)
+			allVersionCertificates, err := getAllVersionCertificates(sb.announceManager.versionCertificateTable)
 			if err != nil {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
@@ -257,8 +299,14 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
-			if err := sb.pruneAnnounceDataStructures(); err != nil {
+			// retrieve the validator connection set
+			validatorConnSet, err := sb.RetrieveValidatorConnSet()
+			if err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
+			} else {
+				if err := sb.announceManager.pruneAnnounceDataStructures(validatorConnSet); err != nil {
+					logger.Warn("Error in pruning announce data structures", "err", err)
+				}
 			}
 
 		case <-sb.announceThreadQuit:
@@ -305,39 +353,33 @@ func (sb *Backend) shouldParticipateInAnnounce() (bool, error) {
 // 2)  valEnodeTable
 // 3)  lastVersionCertificatesGossiped
 // 4)  versionCertificateTable
-func (sb *Backend) pruneAnnounceDataStructures() error {
-	logger := sb.logger.New("func", "pruneAnnounceDataStructures")
+func (m *AnnounceManager) pruneAnnounceDataStructures(validatorConnSet map[common.Address]bool) error {
+	logger := m.logger.New("func", "pruneAnnounceDataStructures")
 
-	// retrieve the validator connection set
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
-	if err != nil {
-		return err
-	}
-
-	sb.lastQueryEnodeGossipedMu.Lock()
-	for remoteAddress := range sb.lastQueryEnodeGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastQueryEnodeGossiped[remoteAddress]) >= queryEnodeGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastQueryEnodeGossiped", "address", remoteAddress, "gossip timestamp", sb.lastQueryEnodeGossiped[remoteAddress])
-			delete(sb.lastQueryEnodeGossiped, remoteAddress)
+	m.lastQueryEnodeGossipedMu.Lock()
+	for remoteAddress := range m.lastQueryEnodeGossiped {
+		if !validatorConnSet[remoteAddress] && time.Since(m.lastQueryEnodeGossiped[remoteAddress]) >= queryEnodeGossipCooldownDuration {
+			logger.Trace("Deleting entry from lastQueryEnodeGossiped", "address", remoteAddress, "gossip timestamp", m.lastQueryEnodeGossiped[remoteAddress])
+			delete(m.lastQueryEnodeGossiped, remoteAddress)
 		}
 	}
-	sb.lastQueryEnodeGossipedMu.Unlock()
+	m.lastQueryEnodeGossipedMu.Unlock()
 
-	if err := sb.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
+	if err := m.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
 		return err
 	}
 
-	sb.lastVersionCertificatesGossipedMu.Lock()
-	for remoteAddress := range sb.lastVersionCertificatesGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(sb.lastVersionCertificatesGossiped[remoteAddress]) >= versionCertificateGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastVersionCertificatesGossiped", "address", remoteAddress, "gossip timestamp", sb.lastVersionCertificatesGossiped[remoteAddress])
-			delete(sb.lastVersionCertificatesGossiped, remoteAddress)
+	m.lastVersionCertificatesGossipedMu.Lock()
+	for remoteAddress := range m.lastVersionCertificatesGossiped {
+		if !validatorConnSet[remoteAddress] && time.Since(m.lastVersionCertificatesGossiped[remoteAddress]) >= versionCertificateGossipCooldownDuration {
+			logger.Trace("Deleting entry from lastVersionCertificatesGossiped", "address", remoteAddress, "gossip timestamp", m.lastVersionCertificatesGossiped[remoteAddress])
+			delete(m.lastVersionCertificatesGossiped, remoteAddress)
 		}
 	}
-	sb.lastVersionCertificatesGossipedMu.Unlock()
+	m.lastVersionCertificatesGossipedMu.Unlock()
 
-	if err := sb.versionCertificateTable.Prune(validatorConnSet); err != nil {
+	if err := m.versionCertificateTable.Prune(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning versionCertificateTable", "err", err)
 		return err
 	}
@@ -815,13 +857,13 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 // with sb.selfRecentMessages to prevent future regossips.
 func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
 	logger := sb.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
-	sb.lastQueryEnodeGossipedMu.Lock()
-	defer sb.lastQueryEnodeGossipedMu.Unlock()
+	sb.announceManager.lastQueryEnodeGossipedMu.Lock()
+	defer sb.announceManager.lastQueryEnodeGossipedMu.Unlock()
 
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
 	if msg.Address != sb.ValidatorAddress() {
-		if lastGossiped, ok := sb.lastQueryEnodeGossiped[msg.Address]; ok {
+		if lastGossiped, ok := sb.announceManager.lastQueryEnodeGossiped[msg.Address]; ok {
 			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 				return nil
@@ -834,7 +876,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 		return err
 	}
 
-	sb.lastQueryEnodeGossiped[msg.Address] = time.Now()
+	sb.announceManager.lastQueryEnodeGossiped[msg.Address] = time.Now()
 
 	return nil
 }
@@ -862,11 +904,11 @@ func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCer
 	return fromVCEntries(allEntries), nil
 }
 
-// sendVersionCertificateTable sends all VersionCertificates this node
+// SendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
-func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
-	logger := sb.logger.New("func", "sendVersionCertificateTable")
-	allVersionCertificates, err := getAllVersionCertificates(sb.versionCertificateTable)
+func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error {
+	logger := m.logger.New("func", "sendVersionCertificateTable")
+	allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
 	if err != nil {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
@@ -969,7 +1011,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 		}
 	}
 
-	newEntries, err := sb.versionCertificateTable.Upsert(entries)
+	newEntries, err := sb.announceManager.versionCertificateTable.Upsert(entries)
 	if err != nil {
 		logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
@@ -978,16 +1020,16 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
 	var versionCertificatesToRegossip []*versionCertificate
-	sb.lastVersionCertificatesGossipedMu.Lock()
+	sb.announceManager.lastVersionCertificatesGossipedMu.Lock()
 	for _, entry := range newEntries {
-		lastGossipTime, ok := sb.lastVersionCertificatesGossiped[entry.Address]
+		lastGossipTime, ok := sb.announceManager.lastVersionCertificatesGossiped[entry.Address]
 		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != sb.ValidatorAddress() {
 			continue
 		}
 		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
-		sb.lastVersionCertificatesGossiped[entry.Address] = time.Now()
+		sb.announceManager.lastVersionCertificatesGossiped[entry.Address] = time.Now()
 	}
-	sb.lastVersionCertificatesGossipedMu.Unlock()
+	sb.announceManager.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
 		return sb.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
 	}
