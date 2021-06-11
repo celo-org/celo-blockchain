@@ -77,8 +77,14 @@ type GossipFn func(payload []byte, ethMsgCode uint64) error
 
 // AddressProvider provides the different addresses the announce manager needs
 type AddressProvider interface {
+	SelfNode() *enode.Node
 	Address() common.Address
 	ValidatorAddress() common.Address
+}
+
+type ProxyContext interface {
+	IsProxiedValidator() bool
+	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
 // RetrieveValidatorConnSetFn is a function that returns the validator connection set
@@ -90,6 +96,7 @@ type AnnounceManager struct {
 	connSetFn RetrieveValidatorConnSetFn
 
 	addrProvider AddressProvider
+	proxyContext ProxyContext
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -107,9 +114,10 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(connSetFn RetrieveValidatorConnSetFn, gossip GossipFn, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(proxyContext ProxyContext, connSetFn RetrieveValidatorConnSetFn, gossip GossipFn, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
+		proxyContext:                    proxyContext,
 		connSetFn:                       connSetFn,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
@@ -479,18 +487,18 @@ func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
 // getValProxyAssignments returns the remote validator -> external node assignments.
 // If this is a standalone validator, it will set the external node to itself.
 // If this is a proxied validator, it will set external node to the proxy's external node.
-func (sb *Backend) getValProxyAssignments(valAddresses []common.Address) (map[common.Address]*enode.Node, error) {
+func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) (map[common.Address]*enode.Node, error) {
 	var valProxyAssignments map[common.Address]*enode.Node = make(map[common.Address]*enode.Node)
-	var selfEnode *enode.Node = sb.SelfNode()
+	var selfEnode *enode.Node = m.addrProvider.SelfNode()
 	var proxies map[common.Address]*proxy.Proxy // This var is only used if this is a proxied validator
 
 	for _, valAddress := range valAddresses {
 		var externalNode *enode.Node
 
-		if sb.IsProxiedValidator() {
+		if m.proxyContext.IsProxiedValidator() {
 			if proxies == nil {
 				var err error
-				proxies, err = sb.proxiedValidatorEngine.GetValidatorProxyAssignments(nil)
+				proxies, err = m.proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments(nil)
 				if err != nil {
 					return nil, err
 				}
@@ -531,7 +539,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	for i, valEnodeEntry := range valEnodeEntries {
 		valAddresses[i] = valEnodeEntry.Address
 	}
-	valProxyAssignments, err := sb.getValProxyAssignments(valAddresses)
+	valProxyAssignments, err := sb.announceManager.getValProxyAssignments(valAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -797,7 +805,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	logger := sb.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
-	externalEnodeMap, err := sb.getValProxyAssignments([]common.Address{address})
+	externalEnodeMap, err := sb.announceManager.getValProxyAssignments([]common.Address{address})
 	if err != nil {
 		logger.Warn("Error in retrieving assigned proxy for remote validator", "address", address, "err", err)
 		return err
@@ -1133,8 +1141,8 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		}
 	}
 
-	if sb.IsProxiedValidator() {
-		sb.proxiedValidatorEngine.SendEnodeCertsToAllProxies(enodeCertificateMsgs)
+	if sb.announceManager.proxyContext.IsProxiedValidator() {
+		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
 	}
 
 	// Generate and gossip a new version certificate
@@ -1165,14 +1173,14 @@ func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.Enode
 // (one for each of it's proxies, or itself for standalone validators) for the purposes of generating enode certificates
 // for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
 // `nil` value, then that means that the associated enode certificate should be sent to all of the connected validators.
-func (sb *Backend) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
+func (m *AnnounceManager) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
 	var externalEnodes []*enode.Node
 	var valDestinations map[enode.ID][]common.Address
-	if sb.IsProxiedValidator() {
+	if m.proxyContext.IsProxiedValidator() {
 		var proxies []*proxy.Proxy
 		var err error
 
-		proxies, valDestinations, err = sb.proxiedValidatorEngine.GetProxiesAndValAssignments()
+		proxies, valDestinations, err = m.proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1183,7 +1191,7 @@ func (sb *Backend) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode
 		}
 	} else {
 		externalEnodes = make([]*enode.Node, 1)
-		externalEnodes[0] = sb.p2pserver.Self()
+		externalEnodes[0] = m.addrProvider.SelfNode()
 		valDestinations = make(map[enode.ID][]common.Address)
 		valDestinations[externalEnodes[0].ID()] = nil
 	}
@@ -1200,7 +1208,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	logger := sb.logger.New("func", "generateEnodeCertificateMsgs")
 
 	enodeCertificateMsgs := make(map[enode.ID]*istanbul.EnodeCertMsg)
-	externalEnodes, valDestinations, err := sb.getEnodeCertNodesAndDestAddresses()
+	externalEnodes, valDestinations, err := sb.announceManager.getEnodeCertNodesAndDestAddresses()
 	if err != nil {
 		return nil, err
 	}
@@ -1285,8 +1293,8 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if sb.IsProxiedValidator() && sb.IsValidating() {
-		sb.proxiedValidatorEngine.SendValEnodesShareMsgToAllProxies()
+	if sb.announceManager.proxyContext.IsProxiedValidator() && sb.IsValidating() {
+		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil
