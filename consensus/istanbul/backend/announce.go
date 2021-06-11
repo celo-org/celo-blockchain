@@ -72,8 +72,16 @@ const (
 	LowFreqState
 )
 
+// GossipFn is the gossip function type used to gossip protocol messages
+type GossipFn func(payload []byte, ethMsgCode uint64) error
+
+// ValidatorAddressFn is a function that returns the validator address
+type ValidatorAddressFn func() common.Address
+
 type AnnounceManager struct {
 	logger log.Logger
+
+	vAddrFn ValidatorAddressFn
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -84,17 +92,21 @@ type AnnounceManager struct {
 
 	lastQueryEnodeGossiped   map[common.Address]time.Time
 	lastQueryEnodeGossipedMu sync.RWMutex
+
+	gossip GossipFn
 }
 
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(gossip GossipFn, vAddrFn ValidatorAddressFn, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
+		vAddrFn:                         vAddrFn,
 		valEnodeTable:                   valEnodeTable,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+		gossip:                          gossip,
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(vcDbPath)
 	if err != nil {
@@ -102,6 +114,10 @@ func NewAnnounceManager(valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string)
 	}
 	am.versionCertificateTable = versionCertificateTable
 	return am
+}
+
+func (m *AnnounceManager) ValidatorAddress() common.Address {
+	return m.vAddrFn()
 }
 
 func (m *AnnounceManager) Close() error {
@@ -248,7 +264,7 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
 			}
-			if err := sb.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
+			if err := sb.announceManager.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
 				logger.Warn("Error gossiping all version certificates")
 			}
 
@@ -765,7 +781,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Regossip this queryEnode message
-	return sb.regossipQueryEnode(msg, qeData.Version, payload)
+	return sb.announceManager.regossipQueryEnode(msg, qeData.Version, payload)
 }
 
 // answerQueryEnodeMsg will answer a received queryEnode message from an origin
@@ -855,15 +871,15 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 // enforce the cooldown period for future messages originating from the origin validator.
 // This is circumvented by caching the hashes of messages that are regossiped
 // with sb.selfRecentMessages to prevent future regossips.
-func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
-	logger := sb.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
-	sb.announceManager.lastQueryEnodeGossipedMu.Lock()
-	defer sb.announceManager.lastQueryEnodeGossipedMu.Unlock()
+func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
+	logger := m.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
+	m.lastQueryEnodeGossipedMu.Lock()
+	defer m.lastQueryEnodeGossipedMu.Unlock()
 
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
-	if msg.Address != sb.ValidatorAddress() {
-		if lastGossiped, ok := sb.announceManager.lastQueryEnodeGossiped[msg.Address]; ok {
+	if msg.Address != m.ValidatorAddress() {
+		if lastGossiped, ok := m.lastQueryEnodeGossiped[msg.Address]; ok {
 			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 				return nil
@@ -872,11 +888,11 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+	if err := m.gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
-	sb.announceManager.lastQueryEnodeGossiped[msg.Address] = time.Now()
+	m.lastQueryEnodeGossiped[msg.Address] = time.Now()
 
 	return nil
 }
@@ -885,15 +901,15 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 	return generateVersionCertificate(sb.Address(), sb.publicKey, version, sb.Sign)
 }
 
-func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
-	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
+func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
+	logger := m.logger.New("func", "gossipVersionCertificatesMsg")
 
 	payload, err := encodeVersionCertificatesMsg(versionCertificates)
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return sb.Gossip(payload, istanbul.VersionCertificatesMsg)
+	return m.gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
 func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
@@ -1031,7 +1047,7 @@ func (sb *Backend) upsertAndGossipVersionCertificateEntries(entries []*vet.Versi
 	}
 	sb.announceManager.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
-		return sb.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
+		return sb.announceManager.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
 	}
 	return nil
 }

@@ -153,7 +153,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
-	backend.announceManager = NewAnnounceManager(backend.valEnodeTable, config.VersionCertificateDBPath)
+	backend.announceManager = NewAnnounceManager(backend.Gossip, backend.ValidatorAddress, backend.valEnodeTable, config.VersionCertificateDBPath)
 
 	return backend
 }
