@@ -37,6 +37,7 @@ import (
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/eth"
@@ -1711,7 +1712,17 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 		log.Info("Using developer account", "address", developer.Address)
 
+		// Create a new developer genesis block or reuse existing one
 		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
+		if ctx.GlobalIsSet(DataDirFlag.Name) {
+			// Check if we have an already initialized chain and fall back to
+			// that if so. Otherwise we need to generate a new genesis spec.
+			chaindb := MakeChainDatabase(ctx, stack)
+			if rawdb.ReadCanonicalHash(chaindb, 0) != (common.Hash{}) {
+				cfg.Genesis = nil // fallback to db content
+			}
+			chaindb.Close()
+		}
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
 			setDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
