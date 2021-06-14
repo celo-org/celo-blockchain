@@ -212,17 +212,6 @@ type Backend struct {
 
 	updateAnnounceVersionCh chan struct{}
 
-	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
-	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
-
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
 

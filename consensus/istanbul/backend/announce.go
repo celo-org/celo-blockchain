@@ -102,6 +102,17 @@ type AnnounceManager struct {
 
 	versionCertificateTable *enodes.VersionCertificateDB
 
+	// The enode certificate message map contains the most recently generated
+	// enode certificates for each external node ID (e.g. will have one entry per proxy
+	// for a proxied validator, or just one entry if it's a standalone validator).
+	// Each proxy will just have one entry for their own external node ID.
+	// Used for proving itself as a validator in the handshake for externally exposed nodes,
+	// or by saving latest generated certificate messages by proxied validators to send
+	// to their proxies.
+	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
+	enodeCertificateMsgVersion uint
+	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
+
 	lastVersionCertificatesGossiped   map[common.Address]time.Time
 	lastVersionCertificatesGossipedMu sync.RWMutex
 
@@ -813,7 +824,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 
 	// Only answer query when validating
 	if externalEnode := externalEnodeMap[address]; externalEnode != nil && sb.IsValidating() {
-		enodeCertificateMsgs := sb.RetrieveEnodeCertificateMsgMap()
+		enodeCertificateMsgs := sb.announceManager.RetrieveEnodeCertificateMsgMap()
 
 		enodeCertMsg := enodeCertificateMsgs[externalEnode.ID()]
 		if enodeCertMsg == nil {
@@ -1164,9 +1175,13 @@ func getTimestamp() uint {
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
 func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
-	sb.enodeCertificateMsgMapMu.Lock()
-	defer sb.enodeCertificateMsgMapMu.Unlock()
-	return sb.enodeCertificateMsgMap
+	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
+}
+
+func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
+	m.enodeCertificateMsgMapMu.Lock()
+	defer m.enodeCertificateMsgMapMu.Unlock()
+	return m.enodeCertificateMsgMap
 }
 
 // getEnodeCertNodesAndDestAddresses will retrieve all the external facing external nodes for this validator
@@ -1302,7 +1317,11 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 
 // SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
 func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
-	logger := sb.logger.New("func", "SetEnodeCertificateMsgMap")
+	return sb.announceManager.SetEnodeCertificateMsgMap(enodeCertMsgMap)
+}
+
+func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
+	logger := m.logger.New("func", "SetEnodeCertificateMsgMap")
 	var enodeCertVersion *uint
 
 	// Verify that all of the certificates have the same version
@@ -1322,22 +1341,22 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 		}
 	}
 
-	sb.enodeCertificateMsgMapMu.Lock()
-	defer sb.enodeCertificateMsgMapMu.Unlock()
+	m.enodeCertificateMsgMapMu.Lock()
+	defer m.enodeCertificateMsgMapMu.Unlock()
 
 	// Already have a more recent enodeCertificate
-	if *enodeCertVersion < sb.enodeCertificateMsgVersion {
-		logger.Error("Ignoring enode certificate msgs since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", sb.enodeCertificateMsgVersion)
+	if *enodeCertVersion < m.enodeCertificateMsgVersion {
+		logger.Error("Ignoring enode certificate msgs since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", m.enodeCertificateMsgVersion)
 		return istanbul.ErrInvalidEnodeCertMsgMapOldVersion
-	} else if *enodeCertVersion == sb.enodeCertificateMsgVersion {
+	} else if *enodeCertVersion == m.enodeCertificateMsgVersion {
 		// This function may be called with the same enode certificate.
 		// Proxied validators will periodically send the same enode certificate to it's proxies,
 		// to ensure that the proxies to eventually get their enode certificates.
 		logger.Trace("Attempting to set an enode certificate with the same version as the previous set enode certificate's")
 	} else {
 		logger.Debug("Setting enode certificate", "version", *enodeCertVersion)
-		sb.enodeCertificateMsgMap = enodeCertMsgMap
-		sb.enodeCertificateMsgVersion = *enodeCertVersion
+		m.enodeCertificateMsgMap = enodeCertMsgMap
+		m.enodeCertificateMsgVersion = *enodeCertVersion
 	}
 
 	return nil
