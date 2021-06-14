@@ -146,8 +146,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	backend.announceManager = NewAnnounceManager(
 		backend,
-		backend.RetrieveValidatorConnSet,
-		backend.Gossip,
+		backend,
 		backend,
 		backend.valEnodeTable,
 		config.VersionCertificateDBPath)

@@ -72,9 +72,6 @@ const (
 	LowFreqState
 )
 
-// GossipFn is the gossip function type used to gossip protocol messages
-type GossipFn func(payload []byte, ethMsgCode uint64) error
-
 // AddressProvider provides the different addresses the announce manager needs
 type AddressProvider interface {
 	SelfNode() *enode.Node
@@ -87,16 +84,18 @@ type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
-// RetrieveValidatorConnSetFn is a function that returns the validator connection set
-type RetrieveValidatorConnSetFn func() (map[common.Address]bool, error)
-
+type AnnounceSupport interface {
+	// Gossip gossips protocol messages
+	Gossip(payload []byte, ethMsgCode uint64) error
+	// RetrieveValidatorConnSet returns the validator connection set
+	RetrieveValidatorConnSet() (map[common.Address]bool, error)
+}
 type AnnounceManager struct {
 	logger log.Logger
 
-	connSetFn RetrieveValidatorConnSetFn
-
 	addrProvider AddressProvider
 	proxyContext ProxyContext
+	support      AnnounceSupport
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -118,23 +117,20 @@ type AnnounceManager struct {
 
 	lastQueryEnodeGossiped   map[common.Address]time.Time
 	lastQueryEnodeGossipedMu sync.RWMutex
-
-	gossip GossipFn
 }
 
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(proxyContext ProxyContext, connSetFn RetrieveValidatorConnSetFn, gossip GossipFn, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
+		support:                         support,
 		proxyContext:                    proxyContext,
-		connSetFn:                       connSetFn,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
-		gossip:                          gossip,
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(vcDbPath)
 	if err != nil {
@@ -373,7 +369,7 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 
 	// Check if this node is in the validator connection set
-	validatorConnSet, err := m.connSetFn()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -391,7 +387,7 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 	logger := m.logger.New("func", "pruneAnnounceDataStructures")
 
 	// retrieve the validator connection set
-	validatorConnSet, err := m.connSetFn()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Warn("Error in pruning announce data structures", "err", err)
 	}
@@ -912,7 +908,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := m.gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+	if err := m.support.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
@@ -933,7 +929,7 @@ func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*ve
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return m.gossip(payload, istanbul.VersionCertificatesMsg)
+	return m.support.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
 func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
