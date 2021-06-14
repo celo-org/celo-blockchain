@@ -65,14 +65,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	if err != nil {
 		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
-	peerRecentMessages, err := lru.NewARC(inmemoryPeers)
-	if err != nil {
-		logger.Crit("Failed to create recent messages cache", "err", err)
-	}
-	selfRecentMessages, err := lru.NewARC(inmemoryMessages)
-	if err != nil {
-		logger.Crit("Failed to create known messages cache", "err", err)
-	}
 	backend := &Backend{
 		config:                             config,
 		istanbulEventMux:                   new(event.TypeMux),
@@ -81,8 +73,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
-		peerRecentMessages:                 peerRecentMessages,
-		selfRecentMessages:                 selfRecentMessages,
+		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		announceThreadWg:                   new(sync.WaitGroup),
 		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}, 1),
@@ -205,8 +196,7 @@ type Backend struct {
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
 
-	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
-	selfRecentMessages *lru.ARCCache // the cache of self recent messages
+	gossipCache GossipCache
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
