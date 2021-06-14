@@ -46,16 +46,15 @@ func TestMainnetGenesisBlock(t *testing.T) {
 }
 
 func TestSetupGenesis(t *testing.T) {
-	var (
-		customghash = common.HexToHash("0xcffd352e3277fc3fed34ac56e5fb1ab866a55a3da52e87549e05be5500a9f01c")
-		customg     = Genesis{
-			Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3), Istanbul: &params.IstanbulConfig{}},
-			Alloc: GenesisAlloc{
-				{1}: {Balance: big.NewInt(1), Storage: map[common.Hash]common.Hash{{1}: {1}}},
-			},
-		}
-		oldcustomg = customg
-	)
+	customghash := common.HexToHash("0xade49833713207ecf7d4807ca34b1246b014ef3992ec231deb1e0ee56289c1c8")
+	alloc := &GenesisAlloc{}
+	alloc.UnmarshalJSON([]byte(devAllocJSON))
+	customg := Genesis{
+		Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3), Istanbul: &params.IstanbulConfig{}},
+		Alloc:  *alloc,
+	}
+	oldcustomg := customg
+
 	oldcustomg.Config = &params.ChainConfig{HomesteadBlock: big.NewInt(2)}
 	tests := []struct {
 		name       string
@@ -180,24 +179,36 @@ func TestSetupGenesis(t *testing.T) {
 // TestRegistryInGenesis tests if the params.RegistrySmartContract that defined in the genesis block sits in the blockchain
 func TestRegistryInGenesis(t *testing.T) {
 	tests := []struct {
-		name       string
-		genesis func() *Genesis
+		name     string
+		genesis  func() *Genesis
+		codeSize int
 	}{
 		{
-			name: "dev",
-			genesis: DeveloperGenesisBlock,
+			name:     "dev",
+			genesis:  DeveloperGenesisBlock,
+			codeSize: 2585, // According to core/***JsonAlloc
 		},
 		{
-			name: "alfajores",
-			genesis: DefaultAlfajoresGenesisBlock,
+			name:     "alfajores",
+			genesis:  DefaultAlfajoresGenesisBlock,
+			codeSize: 2585,
 		},
 		{
-			name: "baklava",
-			genesis: DefaultBaklavaGenesisBlock,
+			name:     "baklava",
+			genesis:  DefaultBaklavaGenesisBlock,
+			codeSize: 2585,
 		},
 		{
-			name: "mainnet",
-			genesis: MainnetGenesisBlock,
+			name:     "mainnet",
+			genesis:  MainnetGenesisBlock,
+			codeSize: 2585,
+		},
+		{
+			name: "emptyAlloc",
+			genesis: func() *Genesis {
+				return &Genesis{}
+			},
+			codeSize: 0,
 		},
 	}
 
@@ -206,8 +217,8 @@ func TestRegistryInGenesis(t *testing.T) {
 		test.genesis().MustCommit(db)
 		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		state, _ := chain.State()
-		if state.GetCodeSize(params.RegistrySmartContractAddress) != 2585 { // Hardcoded according to core/***AllocJSON
-			t.Errorf("Registry code size is %d, want %d", state.GetCodeSize(params.RegistrySmartContractAddress), 2585)
+		if state.GetCodeSize(params.RegistrySmartContractAddress) != test.codeSize {
+			t.Errorf("%s: Registry code size is %d, want %d", test.name, state.GetCodeSize(params.RegistrySmartContractAddress), test.codeSize)
 		}
 		chain.Stop()
 	}
