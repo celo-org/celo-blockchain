@@ -89,7 +89,10 @@ type AnnounceSupport interface {
 	Gossip(payload []byte, ethMsgCode uint64) error
 	// RetrieveValidatorConnSet returns the validator connection set
 	RetrieveValidatorConnSet() (map[common.Address]bool, error)
+	// Sign signs a message payload
+	Sign(data []byte) ([]byte, error)
 }
+
 type AnnounceManager struct {
 	logger log.Logger
 
@@ -1111,7 +1114,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		return nil
 	}
 
-	enodeCertificateMsgs, err := sb.generateEnodeCertificateMsgs(version)
+	enodeCertificateMsgs, err := sb.announceManager.generateEnodeCertificateMsgs(version)
 	if err != nil {
 		return err
 	}
@@ -1215,11 +1218,11 @@ func (m *AnnounceManager) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, ma
 // each external enode this node possesses. A unproxied validator will have one enode, while a
 // proxied validator may have one for each proxy.. Each enode is a key in the returned map, and the
 // value is the certificate message.
-func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
-	logger := sb.logger.New("func", "generateEnodeCertificateMsgs")
+func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
+	logger := m.logger.New("func", "generateEnodeCertificateMsgs")
 
 	enodeCertificateMsgs := make(map[enode.ID]*istanbul.EnodeCertMsg)
-	externalEnodes, valDestinations, err := sb.announceManager.getEnodeCertNodesAndDestAddresses()
+	externalEnodes, valDestinations, err := m.getEnodeCertNodesAndDestAddresses()
 	if err != nil {
 		return nil, err
 	}
@@ -1235,11 +1238,11 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 		}
 		msg := &istanbul.Message{
 			Code:    istanbul.EnodeCertificateMsg,
-			Address: sb.Address(),
+			Address: m.addrProvider.Address(),
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message
-		if err := msg.Sign(sb.Sign); err != nil {
+		if err := msg.Sign(m.support.Sign); err != nil {
 			return nil, err
 		}
 
