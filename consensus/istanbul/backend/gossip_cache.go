@@ -21,23 +21,53 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
-func (sb *Backend) markMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) {
-	ms, ok := sb.peerRecentMessages.Get(peerNodeAddr)
+type GossipCache interface {
+	MarkMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte)
+	CheckIfMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) bool
+
+	MarkMessageProcessedBySelf(payload []byte)
+	CheckIfMessageProcessedBySelf(payload []byte) bool
+}
+
+type LRUGossipCache struct {
+	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
+	selfRecentMessages *lru.ARCCache // the cache of self recent messages
+}
+
+func NewLRUGossipCache(peerCacheSize, selfCacheSize int) *LRUGossipCache {
+	logger := log.New()
+	peerRecentMessages, err := lru.NewARC(inmemoryPeers)
+	if err != nil {
+		logger.Crit("Failed to create recent messages cache", "err", err)
+	}
+	selfRecentMessages, err := lru.NewARC(inmemoryMessages)
+	if err != nil {
+		logger.Crit("Failed to create known messages cache", "err", err)
+	}
+	return &LRUGossipCache{
+		peerRecentMessages: peerRecentMessages,
+		selfRecentMessages: selfRecentMessages,
+	}
+}
+
+func (gc *LRUGossipCache) MarkMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) {
+	ms, ok := gc.peerRecentMessages.Get(peerNodeAddr)
 	var m *lru.ARCCache
 	if ok {
 		m, _ = ms.(*lru.ARCCache)
 	} else {
 		m, _ = lru.NewARC(inmemoryMessages)
-		sb.peerRecentMessages.Add(peerNodeAddr, m)
+		gc.peerRecentMessages.Add(peerNodeAddr, m)
 	}
 	payloadHash := istanbul.RLPHash(payload)
 	m.Add(payloadHash, true)
 }
 
-func (sb *Backend) checkIfMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) bool {
-	ms, ok := sb.peerRecentMessages.Get(peerNodeAddr)
+func (gc *LRUGossipCache) CheckIfMessageProcessedByPeer(peerNodeAddr common.Address, payload []byte) bool {
+	ms, ok := gc.peerRecentMessages.Get(peerNodeAddr)
 	var m *lru.ARCCache
 	if ok {
 		m, _ = ms.(*lru.ARCCache)
@@ -49,13 +79,13 @@ func (sb *Backend) checkIfMessageProcessedByPeer(peerNodeAddr common.Address, pa
 	return false
 }
 
-func (sb *Backend) markMessageProcessedBySelf(payload []byte) {
+func (gc *LRUGossipCache) MarkMessageProcessedBySelf(payload []byte) {
 	payloadHash := istanbul.RLPHash(payload)
-	sb.selfRecentMessages.Add(payloadHash, true)
+	gc.selfRecentMessages.Add(payloadHash, true)
 }
 
-func (sb *Backend) checkIfMessageProcessedBySelf(payload []byte) bool {
+func (gc *LRUGossipCache) CheckIfMessageProcessedBySelf(payload []byte) bool {
 	payloadHash := istanbul.RLPHash(payload)
-	_, ok := sb.selfRecentMessages.Get(payloadHash)
+	_, ok := gc.selfRecentMessages.Get(payloadHash)
 	return ok
 }
