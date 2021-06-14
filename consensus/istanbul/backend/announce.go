@@ -327,7 +327,7 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := sb.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := sb.announceManager.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -534,13 +534,13 @@ func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) 
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) (*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateAndGossipQueryEnode")
+func (m *AnnounceManager) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) (*istanbul.Message, error) {
+	logger := m.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	valEnodeEntries, err := sb.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
+	valEnodeEntries, err := m.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +549,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	for i, valEnodeEntry := range valEnodeEntries {
 		valAddresses[i] = valEnodeEntry.Address
 	}
-	valProxyAssignments, err := sb.announceManager.getValProxyAssignments(valAddresses)
+	valProxyAssignments, err := m.getValProxyAssignments(valAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +574,7 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	var qeMsg *istanbul.Message
 	if len(enodeQueries) > 0 {
 		var err error
-		qeMsg, err = sb.generateQueryEnodeMsg(version, enodeQueries)
+		qeMsg, err = m.generateQueryEnodeMsg(version, enodeQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -590,11 +590,11 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 			return nil, err
 		}
 
-		if err = sb.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+		if err = m.support.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 			return nil, err
 		}
 
-		if err = sb.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
+		if err = m.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
 			return nil, err
 		}
 	}
@@ -602,9 +602,9 @@ func (sb *Backend) generateAndGossipQueryEnode(version uint, enforceRetryBackoff
 	return qeMsg, err
 }
 
-func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*istanbul.AddressEntry, error) {
-	logger := sb.logger.New("func", "getQueryEnodeValEnodeEntries")
-	valEnodeEntries, err := sb.valEnodeTable.GetValEnodes(nil)
+func (m *AnnounceManager) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*istanbul.AddressEntry, error) {
+	logger := m.logger.New("func", "getQueryEnodeValEnodeEntries")
+	valEnodeEntries, err := m.valEnodeTable.GetValEnodes(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*is
 	var queryEnodeValEnodeEntries []*istanbul.AddressEntry
 	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
-		if address == sb.Address() {
+		if address == m.addrProvider.Address() {
 			continue
 		}
 
@@ -648,10 +648,10 @@ func (sb *Backend) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*is
 // public key, from which their validator signer address is derived.
 // Note: It is referred to as a "query" because the sender does not know the recipients enode.
 // The recipient is expected to respond by opening a direct connection with an enode certificate.
-func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
-	logger := sb.logger.New("func", "generateQueryEnodeMsg")
+func (m *AnnounceManager) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+	logger := m.logger.New("func", "generateQueryEnodeMsg")
 
-	encryptedEnodeURLs, err := sb.generateEncryptedEnodeURLs(enodeQueries)
+	encryptedEnodeURLs, err := m.generateEncryptedEnodeURLs(enodeQueries)
 	if err != nil {
 		logger.Warn("Error generating encrypted enodeURLs", "err", err)
 		return nil, err
@@ -675,12 +675,12 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
-		Address:   sb.Address(),
+		Address:   m.addrProvider.Address(),
 		Signature: []byte{},
 	}
 
 	// Sign the announce message
-	if err := msg.Sign(sb.Sign); err != nil {
+	if err := msg.Sign(m.support.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
@@ -697,8 +697,8 @@ type enodeQuery struct {
 }
 
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
-func (sb *Backend) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*encryptedEnodeURL, error) {
-	logger := sb.logger.New("func", "generateEncryptedEnodeURLs")
+func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*encryptedEnodeURL, error) {
+	logger := m.logger.New("func", "generateEncryptedEnodeURLs")
 
 	var encryptedEnodeURLs []*encryptedEnodeURL
 	for _, param := range enodeQueries {

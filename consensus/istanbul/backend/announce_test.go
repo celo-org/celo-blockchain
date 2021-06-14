@@ -67,7 +67,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeEntries, err := engine0.getQueryEnodeValEnodeEntries(false)
+	qeEntries, err := engine0.announceManager.getQueryEnodeValEnodeEntries(false)
 	if err != nil {
 		t.Errorf("Error in retrieving entries for queryEnode request")
 	}
@@ -92,7 +92,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Generate query enode message for engine0
-	qeMsg, err := engine0.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
+	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}
