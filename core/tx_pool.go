@@ -271,12 +271,11 @@ type TxPool struct {
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
 
-	pending  map[common.Address]*txList   // All currently processable transactions
-	queue    map[common.Address]*txList   // Queued but non-processable transactions
-	beats    map[common.Address]time.Time // Last heartbeat from each known account
-	queuedTs map[common.Hash]time.Time    // Timestamp for when queued transactions were added
-	all      *txLookup                    // All transactions to allow lookups
-	priced   *txPricedList                // All transactions sorted by price.  One heap per fee currency.
+	pending map[common.Address]*txList   // All currently processable transactions
+	queue   map[common.Address]*txList   // Queued but non-processable transactions
+	beats   map[common.Address]time.Time // Last heartbeat from each known account
+	all     *txLookup                    // All transactions to allow lookups
+	priced  *txPricedList                // All transactions sorted by price
 
 	chainHeadCh     chan ChainHeadEvent
 	chainHeadSub    event.Subscription
@@ -307,7 +306,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		pending:         make(map[common.Address]*txList),
 		queue:           make(map[common.Address]*txList),
 		beats:           make(map[common.Address]time.Time),
-		queuedTs:        make(map[common.Hash]time.Time),
 		all:             newTxLookup(),
 		chainHeadCh:     make(chan ChainHeadEvent, chainHeadChanSize),
 		reqResetCh:      make(chan *txpoolResetRequest),
@@ -407,10 +405,7 @@ func (pool *TxPool) loop() {
 				if time.Since(pool.beats[addr]) > pool.config.Lifetime {
 					list := pool.queue[addr].Flatten()
 					for _, tx := range list {
-						if time.Since(pool.queuedTs[tx.Hash()]) > pool.config.Lifetime {
-							queuedEvictionMeter.Mark(1)
-							pool.removeTx(tx.Hash(), true)
-						}
+						pool.removeTx(tx.Hash(), true)
 					}
 					queuedEvictionMeter.Mark(int64(len(list)))
 				}
@@ -717,7 +712,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		pool.all.Add(tx)
 		pool.priced.Put(tx)
 		pool.journalTx(from, tx)
-		pool.beats[from] = time.Now()
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
 
@@ -763,20 +757,20 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 	}
 	// Discard any previous transaction and mark this
 	if old != nil {
-		old_hash := old.Hash()
-		pool.all.Remove(old_hash)
+		pool.all.Remove(old.Hash())
 		pool.priced.Removed(1)
-		delete(pool.queuedTs, old_hash)
 		queuedReplaceMeter.Mark(1)
 	} else {
 		// Nothing was replaced, bump the queued counter
 		queuedGauge.Inc(1)
-		pool.queuedTs[hash] = time.Now()
 	}
 	if pool.all.Get(hash) == nil {
 		pool.all.Add(tx)
 		pool.priced.Put(tx)
-		pool.queuedTs[hash] = time.Now()
+	}
+	// If we never record the heartbeat, do it right now.
+	if _, exist := pool.beats[from]; !exist {
+		pool.beats[from] = time.Now()
 	}
 	// If we never record the heartbeat, do it right now.
 	if _, exist := pool.beats[from]; !exist {
@@ -813,7 +807,6 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 		// An older transaction was better, discard this
 		pool.all.Remove(hash)
 		pool.priced.Removed(1)
-		delete(pool.queuedTs, hash)
 		pendingDiscardMeter.Mark(1)
 		return false
 	}
@@ -836,8 +829,6 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 
 	// Successful promotion, bump the heartbeat
 	pool.beats[addr] = time.Now()
-	delete(pool.queuedTs, hash)
-
 	return true
 }
 
@@ -1027,7 +1018,6 @@ func (pool *TxPool) removeTx(hash common.Hash, outofbound bool) {
 		if removed, _ := future.Remove(tx); removed {
 			// Reduce the queued counter
 			queuedGauge.Dec(1)
-			delete(pool.queuedTs, hash)
 		}
 		if future.Empty() {
 			delete(pool.queue, addr)
@@ -1320,7 +1310,6 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		for _, tx := range forwards {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
-			delete(pool.queuedTs, hash)
 		}
 		log.Trace("Removed old queued transactions", "count", len(forwards))
 		// Get balances in each currency
@@ -1335,7 +1324,6 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
-			delete(pool.queuedTs, hash)
 		}
 		log.Trace("Removed unpayable queued transactions", "count", len(drops))
 		queuedNofundsMeter.Mark(int64(len(drops)))
@@ -1358,7 +1346,6 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			for _, tx := range caps {
 				hash := tx.Hash()
 				pool.all.Remove(hash)
-				delete(pool.queuedTs, hash)
 				log.Trace("Removed cap-exceeding queued transaction", "hash", hash)
 			}
 			queuedRateLimitMeter.Mark(int64(len(caps)))

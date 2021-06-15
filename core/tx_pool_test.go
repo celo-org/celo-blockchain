@@ -154,9 +154,6 @@ func validateTxPoolInternals(pool *TxPool) error {
 	if priced := pool.priced.Len() - pool.priced.stales; priced != pending+queued {
 		return fmt.Errorf("total priced transaction count %d != %d pending + %d queued", priced, pending, queued)
 	}
-	if queued != len(pool.queuedTs) {
-		return fmt.Errorf("total queued transaction count %d != %d queuedTs length", queued, len(pool.queuedTs))
-	}
 
 	// Ensure the next nonce to assign is the correct one
 	for addr, txs := range pool.pending {
