@@ -529,39 +529,40 @@ func (f *BlockFetcher) loop() {
 				return
 			}
 			bodyFilterInMeter.Mark(int64(len(task.transactions)))
-
 			blocks := []*types.Block{}
-			for i := 0; i < len(task.blockHashes) && i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
-				// Match up a body to any possible completion request
-				matched := false
-
-				for hash, announce := range f.completing {
-					if f.queued[hash] == nil {
-						if task.blockHashes[i] == announce.header.Hash() && announce.origin == task.peer {
-							// Mark the body matched, reassemble if still unknown
-							matched = true
-
-							if f.getBlock(hash) == nil {
-								block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.randomness[i], task.epochSnarkData[i])
-								block.ReceivedAt = task.time
-
-								blocks = append(blocks, block)
-							} else {
-								f.forgetHash(hash)
-							}
+			// abort early if there's nothing explicitly requested
+			if len(f.completing) > 0 {
+				for i := 0; i < len(task.blockHashes) && i < len(task.transactions) && i < len(task.randomness) && i < len(task.epochSnarkData); i++ {
+					// Match up a body to any possible completion request
+					var matched = false
+					for hash, announce := range f.completing {
+						if f.queued[hash] != nil || announce.origin != task.peer {
+							continue
 						}
+						if task.blockHashes[i] != announce.header.Hash() {
+							continue
+						}
+						// Mark the body matched, reassemble if still unknown
+						matched = true
+						if f.getBlock(hash) == nil {
+							block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.randomness[i], task.epochSnarkData[i])
+							block.ReceivedAt = task.time
+							blocks = append(blocks, block)
+						} else {
+							f.forgetHash(hash)
+						}
+
+					}
+					if matched {
+						task.blockHashes = append(task.blockHashes[:i], task.blockHashes[i+1:]...)
+						task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
+						task.randomness = append(task.randomness[:i], task.randomness[i+1:]...)
+						task.epochSnarkData = append(task.epochSnarkData[:i], task.epochSnarkData[i+1:]...)
+						i--
+						continue
 					}
 				}
-				if matched {
-					task.blockHashes = append(task.blockHashes[:i], task.blockHashes[i+1:]...)
-					task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
-					task.randomness = append(task.randomness[:i], task.randomness[i+1:]...)
-					task.epochSnarkData = append(task.epochSnarkData[:i], task.epochSnarkData[i+1:]...)
-					i--
-					continue
-				}
 			}
-
 			bodyFilterOutMeter.Mark(int64(len(task.transactions)))
 			select {
 			case filter <- task:

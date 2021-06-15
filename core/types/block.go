@@ -99,6 +99,17 @@ func (h *Header) SanityCheck() error {
 	return nil
 }
 
+// EmptyBody returns true if there is no additional 'body' to complete the header
+// that is: no transactions and no uncles.
+func (h *Header) EmptyBody() bool {
+	return h.TxHash == EmptyRootHash
+}
+
+// EmptyReceipts returns true if there are no receipts for this header/block.
+func (h *Header) EmptyReceipts() bool {
+	return h.ReceiptHash == EmptyRootHash
+}
+
 // hasherPool holds LegacyKeccak hashers.
 var hasherPool = sync.Pool{
 	New: func() interface{} {
