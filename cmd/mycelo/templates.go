@@ -186,6 +186,11 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 		BlockPeriod:    1,
 		RequestTimeout: 3000,
 	})
+	// To match the 'testing' config in monorepo
+	genesisConfig.EpochRewards.TargetVotingYieldInitial = fixed.MustNew("0.00016")
+	genesisConfig.EpochRewards.TargetVotingYieldMax = fixed.MustNew("0.0005")
+	genesisConfig.EpochRewards.TargetVotingYieldAdjustmentFactor = fixed.MustNew("0.1")
+	genesisConfig.Reserve.InitialBalance = common.MustBigInt("100000000000000000000000000") // 100M CELO
 
 	// Add balances to validator accounts instead of developer accounts
 	fundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
