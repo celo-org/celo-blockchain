@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 	"sync/atomic"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -44,6 +45,9 @@ var (
 
 type Transaction struct {
 	data txdata
+
+	// Time when the transaction was added to the txPool
+	receivedTime *time.Time
 	// caches
 	hash atomic.Value
 	size atomic.Value
@@ -297,6 +301,13 @@ func (tx *Transaction) EthCompatible() bool                  { return tx.data.Et
 func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.data.Price, tx.data.GasLimit, tx.data.GatewayFee)
 }
+func (tx *Transaction) ReceivedTime() (time.Time, bool) {
+	if tx.receivedTime == nil {
+		return time.Time{}, false
+	}
+
+	return *tx.receivedTime, true
+}
 
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
 func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
@@ -377,7 +388,7 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 	if err != nil {
 		return nil, err
 	}
-	cpy := &Transaction{data: tx.data}
+	cpy := &Transaction{data: tx.data, receivedTime: tx.receivedTime}
 	cpy.data.R, cpy.data.S, cpy.data.V = r, s, v
 	return cpy, nil
 }
@@ -394,6 +405,11 @@ func (tx *Transaction) Cost() *big.Int {
 // The return values should not be modified by the caller.
 func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 	return tx.data.V, tx.data.R, tx.data.S
+}
+
+// SetReceivedTime sets the time that this transaction was received at.
+func (tx *Transaction) SetReceivedTime(time time.Time) {
+	tx.receivedTime = &time
 }
 
 // Transactions is a Transaction slice type for basic sorting.
@@ -438,22 +454,37 @@ func (s TxByNonce) Len() int           { return len(s) }
 func (s TxByNonce) Less(i, j int) bool { return s[i].data.AccountNonce < s[j].data.AccountNonce }
 func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-// TxByPrice implements both the sort and the heap interface, making it useful
+// TxByPriceAndReceiveTime implements both the sort and the heap interface, making it useful
 // for all at once sorting as well as individually adding and removing elements.
-type TxByPrice struct {
+type TxByPriceAndReceiveTime struct {
 	txs       Transactions
 	txCmpFunc func(tx1, tx2 *Transaction) int
 }
 
-func (s TxByPrice) Len() int           { return len(s.txs) }
-func (s TxByPrice) Less(i, j int) bool { return s.txCmpFunc(s.txs[i], s.txs[j]) > 0 }
-func (s TxByPrice) Swap(i, j int)      { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
+func (s TxByPriceAndReceiveTime) Len() int { return len(s.txs) }
+func (s TxByPriceAndReceiveTime) Less(i, j int) bool {
+	// If the price is equal, use the time the tx was received for deterministic sorting
+	if s.txCmpFunc(s.txs[i], s.txs[j]) == 0 {
+		recvI, ok := s.txs[i].ReceivedTime()
+		if !ok {
+			return true
+		}
+		recvJ, ok := s.txs[j].ReceivedTime()
+		if !ok {
+			return true
+		}
+		return recvI.UnixNano() < recvJ.UnixNano()
+	}
 
-func (s *TxByPrice) Push(x interface{}) {
+	return s.txCmpFunc(s.txs[i], s.txs[j]) > 0
+}
+func (s TxByPriceAndReceiveTime) Swap(i, j int) { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
+
+func (s *TxByPriceAndReceiveTime) Push(x interface{}) {
 	s.txs = append(s.txs, x.(*Transaction))
 }
 
-func (s *TxByPrice) Pop() interface{} {
+func (s *TxByPriceAndReceiveTime) Pop() interface{} {
 	old := s.txs
 	n := len(old)
 	x := old[n-1]
@@ -461,11 +492,11 @@ func (s *TxByPrice) Pop() interface{} {
 	return x
 }
 
-func (s *TxByPrice) Peek() *Transaction {
+func (s *TxByPriceAndReceiveTime) Peek() *Transaction {
 	return s.txs[0]
 }
 
-func (s *TxByPrice) Add(tx *Transaction) {
+func (s *TxByPriceAndReceiveTime) Add(tx *Transaction) {
 	s.txs[0] = tx
 }
 
@@ -474,7 +505,7 @@ func (s *TxByPrice) Add(tx *Transaction) {
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
 	txs    map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads  TxByPrice                       // Next transaction for each unique account (price heap)
+	heads  TxByPriceAndReceiveTime         // Next transaction for each unique account (price heap)
 	signer Signer                          // Signer for the set of transactions
 }
 
@@ -485,7 +516,7 @@ type TransactionsByPriceAndNonce struct {
 // if after providing it to the constructor.
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, txCmpFunc func(tx1, tx2 *Transaction) int) *TransactionsByPriceAndNonce {
 	// Initialize a price based heap with the head transactions
-	heads := TxByPrice{
+	heads := TxByPriceAndReceiveTime{
 		txs:       make(Transactions, 0, len(txs)),
 		txCmpFunc: txCmpFunc,
 	}
@@ -510,7 +541,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	if t.heads.Len() == 0 {
+	if t.heads.txs.Len() == 0 {
 		return nil
 	}
 	return t.heads.Peek()
