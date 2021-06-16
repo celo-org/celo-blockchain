@@ -77,6 +77,7 @@ type AddressProvider interface {
 	SelfNode() *enode.Node
 	Address() common.Address
 	ValidatorAddress() common.Address
+	IsValidating() bool
 }
 
 type ProxyContext interface {
@@ -91,6 +92,9 @@ type AnnounceSupport interface {
 	RetrieveValidatorConnSet() (map[common.Address]bool, error)
 	// Sign signs a message payload
 	Sign(data []byte) ([]byte, error)
+	// Multicast will send the eth message (with the message's payload and msgCode field set to the params
+	// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
+	Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 }
 
 type AnnounceManager struct {
@@ -741,7 +745,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger.Trace("Handling a queryEnode message", "from", msg.Address)
 
 	// Check if the sender is within the validator connection set
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := sb.announceManager.support.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator connection set", "err", err)
 		return err
@@ -762,7 +766,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
 	// Do some validation checks on the queryEnodeData
-	if isValid, err := sb.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
+	if isValid, err := sb.announceManager.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -794,7 +798,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 
 			// queryEnode messages should only be processed once because selfRecentMessages
 			// will cache seen queryEnode messages, so it's safe to answer without any throttling
-			if err := sb.answerQueryEnodeMsg(msg.Address, node, qeData.Version); err != nil {
+			if err := sb.announceManager.answerQueryEnodeMsg(msg.Address, node, qeData.Version); err != nil {
 				logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
 				return err
 			}
@@ -811,19 +815,19 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 // node. If the origin node is already a peer of any kind, an enodeCertificate will be sent.
 // Regardless, the origin node will be upserted into the val enode table
 // to ensure this node designates the origin node as a ValidatorPurpose peer.
-func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
-	logger := sb.logger.New("func", "answerQueryEnodeMsg", "address", address)
+func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
+	logger := m.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
-	externalEnodeMap, err := sb.announceManager.getValProxyAssignments([]common.Address{address})
+	externalEnodeMap, err := m.getValProxyAssignments([]common.Address{address})
 	if err != nil {
 		logger.Warn("Error in retrieving assigned proxy for remote validator", "address", address, "err", err)
 		return err
 	}
 
 	// Only answer query when validating
-	if externalEnode := externalEnodeMap[address]; externalEnode != nil && sb.IsValidating() {
-		enodeCertificateMsgs := sb.announceManager.RetrieveEnodeCertificateMsgMap()
+	if externalEnode := externalEnodeMap[address]; externalEnode != nil && m.addrProvider.IsValidating() {
+		enodeCertificateMsgs := m.RetrieveEnodeCertificateMsgMap()
 
 		enodeCertMsg := enodeCertificateMsgs[externalEnode.ID()]
 		if enodeCertMsg == nil {
@@ -836,7 +840,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 			return err
 		}
 
-		if err := sb.Multicast([]common.Address{address}, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := m.support.Multicast([]common.Address{address}, payload, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}
@@ -846,7 +850,7 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 	// If the target is not a peer and should be a ValidatorPurpose peer, this
 	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
 	// during the istanbul handshake.
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+	if err := m.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
 		return err
 	}
 	return nil
@@ -856,8 +860,8 @@ func (sb *Backend) answerQueryEnodeMsg(address common.Address, node *enode.Node,
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
-	logger := sb.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
+func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
+	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
 	var encounteredAddresses = make(map[common.Address]bool)
@@ -872,7 +876,7 @@ func (sb *Backend) validateQueryEnode(msgAddress common.Address, qeData *queryEn
 
 	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -1120,7 +1124,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 	}
 
 	if len(enodeCertificateMsgs) > 0 {
-		if err := sb.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
+		if err := sb.announceManager.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
 			logger.Error("Error in SetEnodeCertificateMsgMap", "err", err)
 			return err
 		}
