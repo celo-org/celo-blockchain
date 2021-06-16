@@ -23,6 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -85,6 +86,12 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, R1]]))
 	receiptSha := types.DeriveSha(receipts)
 	if receiptSha != header.ReceiptHash {
+		log.Error("Invalid receipt root", "receipts len", len(receipts), "receipts", receipts)
+		for i, r := range receipts {
+			for j, l := range r.Logs {
+				log.Error("Log info", "receipt index", i, "log index", j, "Address", l.Address, "BlockHash", l.BlockHash, "Data", l.Data, "Topics", l.Topics, "TxHash", l.TxHash)
+			}
+		}
 		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
 	}
 	// Validate the state root against the received state root and throw
