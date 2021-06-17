@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -57,6 +58,16 @@ var (
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
+type AuthorizeInfo struct {
+	Address    common.Address        // Ethereum address of the ECDSA signing key
+	BlsAddress common.Address        // Ethereum address of the BLS signing key
+	PublicKey  *ecdsa.PublicKey      // The signer public key
+	DecryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	SignFn     istanbul.SignerFn     // Signer function to authorize hashes with
+	SignBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
+	SignHashFn istanbul.HashSignerFn // Signer function to create random seed
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -65,6 +76,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	if err != nil {
 		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
+
 	backend := &Backend{
 		config:                             config,
 		istanbulEventMux:                   new(event.TypeMux),
@@ -96,6 +108,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
+	backend.authorizeInfo.Store(&AuthorizeInfo{})
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
@@ -161,14 +174,7 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address    common.Address        // Ethereum address of the ECDSA signing key
-	blsAddress common.Address        // Ethereum address of the BLS signing key
-	publicKey  *ecdsa.PublicKey      // The signer public key
-	decryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	signFn     istanbul.SignerFn     // Signer function to authorize hashes with
-	signBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
-	signHashFn istanbul.HashSignerFn // Signer function to create random seed
-	signFnMu   sync.RWMutex          // Protects the signer fields
+	authorizeInfo atomic.Value
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -366,22 +372,22 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
-	sb.signFnMu.Lock()
-	defer sb.signFnMu.Unlock()
-
-	sb.address = ecdsaAddress
-	sb.blsAddress = blsAddress
-	sb.publicKey = publicKey
-	sb.decryptFn = decryptFn
-	sb.signFn = signFn
-	sb.signBLSFn = signBLSFn
-	sb.signHashFn = signHashFn
+	ai := &AuthorizeInfo{
+		Address:    ecdsaAddress,
+		BlsAddress: blsAddress,
+		PublicKey:  publicKey,
+		DecryptFn:  decryptFn,
+		SignFn:     signFn,
+		SignBLSFn:  signBLSFn,
+		SignHashFn: signHashFn,
+	}
+	sb.authorizeInfo.Store(ai)
 	sb.core.SetAddress(ecdsaAddress)
 }
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	return sb.address
+	return sb.authorizeInfo.Load().(*AuthorizeInfo).Address
 }
 
 // SelfNode returns the owner's node (if this is a proxy, it will return the external node)
@@ -650,22 +656,20 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	if sb.signFn == nil {
+	ai := sb.authorizeInfo.Load().(*AuthorizeInfo)
+	if ai.SignFn == nil {
 		return nil, errInvalidSigningFn
 	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, data)
+	return ai.SignFn(accounts.Account{Address: ai.Address}, accounts.MimetypeIstanbul, data)
 }
 
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	if sb.signBLSFn == nil {
+	ai := sb.authorizeInfo.Load().(*AuthorizeInfo)
+	if ai.SignBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite, cip22)
+	return ai.SignBLSFn(accounts.Account{Address: ai.BlsAddress}, data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature

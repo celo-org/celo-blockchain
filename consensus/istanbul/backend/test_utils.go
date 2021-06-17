@@ -217,7 +217,7 @@ func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	// The worker that calls Prepare is the one filling the Coinbase
-	header.Coinbase = engine.address
+	header.Coinbase = engine.authorizeInfo.Load().(*AuthorizeInfo).Address
 	engine.Prepare(chain, header)
 	time.Sleep(time.Until(time.Unix(int64(header.Time), 0)))
 

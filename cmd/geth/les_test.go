@@ -66,7 +66,7 @@ func startGethWithRpc(t *testing.T, name string, args ...string) *gethrpc {
 	t.Logf("Starting %v with rpc: %v", name, args)
 	g.geth = runGeth(t, args...)
 	// wait before we can attach to it. TODO: probe for it properly
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	var err error
 	ipcpath := filepath.Join(g.geth.Datadir, "geth.ipc")
 	g.rpc, err = rpc.Dial(ipcpath)

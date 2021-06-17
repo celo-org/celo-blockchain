@@ -207,7 +207,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	block := backend.currentBlock()
 	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
 	// set backend to a different validator
-	backend.address = valSet.GetByIndex(1).Address()
+	backend.authorizeInfo.Load().(*AuthorizeInfo).Address = valSet.GetByIndex(1).Address()
 
 	isValidator, err = backend.readValidatorHandshakeMessage(peer)
 	if err != nil {
