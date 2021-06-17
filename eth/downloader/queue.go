@@ -524,8 +524,12 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 			// There are no resultslots available. Leave it in the task queue
 			break
 		}
-		// All headers must be fetched so that the random beacon can be updated correctly (kind == bodyType don't skip).
-		if kind != bodyType && item.Done(kind) {
+		// Only required if the reserve is for a body type
+		if kind == bodyType {
+			// All headers must be fetched so that the random beacon can be updated correctly.
+			item.pending |= (1 << bodyType)
+		}
+		if item.Done(kind) {
 			// If it's a noop, we can skip this task
 			delete(taskPool, header.Hash())
 			taskQueue.PopItem()
@@ -854,7 +858,7 @@ func (q *queue) deliver(id string, taskPool map[common.Hash]*types.Header,
 	}
 
 	for _, header := range request.Headers[:i] {
-		if res, stale, err := q.resultCache.GetDeliverySlot(header.Number.Uint64()); err == nil && !stale {
+		if res, stale, err := q.resultCache.GetDeliverySlot(header.Number.Uint64()); err == nil {
 			reconstruct(accepted, res)
 		} else {
 			// else: betweeen here and above, some other peer filled this result,
