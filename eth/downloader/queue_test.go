@@ -224,7 +224,7 @@ func TestEmptyBlocks(t *testing.T) {
 			t.Fatal("there should be no body fetch tasks remaining")
 		}
 	}
-	if got, exp := q.resultCache.countCompleted(), 10; got != exp {
+	if got, exp := q.resultCache.countCompleted(), 0; got != exp {
 		t.Errorf("wrong processable count, got %d, exp %d", got, exp)
 	}
 }
@@ -289,8 +289,7 @@ func TestDelivery(t *testing.T) {
 				var txs [][]*types.Transaction
 				var randomnessList []*types.Randomness
 				var epochSnarkDataList []*types.EpochSnarkData
-				// numToSkip := rand.Intn(len(f.Headers))
-				numToSkip := 0 // no skip for reserveBodies
+				numToSkip := rand.Intn(len(f.Headers))
 				for _, hdr := range f.Headers[0 : len(f.Headers)-numToSkip] {
 					txs = append(txs, world.getTransactions(hdr.Number.Uint64()))
 					randomnessList = append(randomnessList, &types.Randomness{})
