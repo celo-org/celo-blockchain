@@ -716,10 +716,10 @@ func (sb *Backend) StartAnnouncing() error {
 		return istanbul.ErrStartedAnnounce
 	}
 
-	go sb.announceThread()
-
 	sb.announceThreadQuit = make(chan struct{})
 	sb.announceRunning = true
+
+	go sb.announceThread()
 
 	if err := sb.vph.startThread(); err != nil {
 		sb.StopAnnouncing()
