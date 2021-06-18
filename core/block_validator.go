@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -88,7 +89,11 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 		log.Error("Invalid receipt root", "receipts len", len(receipts), "receipts", receipts)
 		for i, r := range receipts {
 			for j, l := range r.Logs {
-				log.Error("Log info", "receipt index", i, "log index", j, "Address", l.Address, "BlockHash", l.BlockHash, "Data", l.Data, "Topics", l.Topics, "TxHash", l.TxHash)
+				var topics []string
+				for _, t := range l.Topics {
+					topics = append(topics, t.String())
+				}
+				log.Error("Log info", "receipt index", i, "log index", j, "Address", l.Address, "BlockHash", l.BlockHash.String(), "Data", hex.EncodeToString(l.Data), "Topics", topics, "TxHash", l.TxHash)
 			}
 		}
 		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
