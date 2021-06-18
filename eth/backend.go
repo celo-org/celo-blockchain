@@ -585,9 +585,9 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 		s.lesServer.Start(srvr)
 	}
 
-	if err := s.startAnnounce(); err != nil {
-		return err
-	}
+	// if err := s.startAnnounce(); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -596,7 +596,7 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
 	// Stop all the peer-related stuff first.
-	s.stopAnnounce()
+	// s.stopAnnounce()
 	s.protocolManager.Stop()
 	if s.lesServer != nil {
 		s.lesServer.Stop()

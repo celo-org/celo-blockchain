@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"time"
@@ -205,6 +206,7 @@ func (p *Peer) Disconnect(reason DiscReason) {
 	case p.disc <- reason:
 	case <-p.closed:
 	}
+	debug.PrintStack()
 }
 
 // String implements fmt.Stringer.

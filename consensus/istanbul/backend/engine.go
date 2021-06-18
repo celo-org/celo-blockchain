@@ -660,6 +660,10 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 func (sb *Backend) StartValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
+	err := sb.StartAnnouncing()
+	if err != nil {
+		return err
+	}
 	if sb.coreStarted {
 		return istanbul.ErrStartedEngine
 	}
@@ -696,6 +700,10 @@ func (sb *Backend) StartValidating() error {
 func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
+	err := sb.StopAnnouncing()
+	if err != nil {
+		return err
+	}
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
