@@ -184,10 +184,5 @@ func (tr *TransactionTracker) StopTracking() error {
 	close(tr.stopCh)
 	tr.wg.Wait()
 	tr.wg = sync.WaitGroup{}
-
-	// Free fields
-	tr.client = nil
-	tr.sub = nil
-	tr.stopCh = nil
 	return nil
 }
