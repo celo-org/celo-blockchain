@@ -83,7 +83,6 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	)
 	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
-	b.StartAnnouncing()
 
 	if !isProxy {
 		b.SetCallBacks(blockchain.HasBadBlock,
@@ -101,6 +100,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 		}
 		b.StartValidating()
 	}
+	b.StartAnnouncing()
 
 	return blockchain, b, &config
 }
