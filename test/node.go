@@ -58,6 +58,9 @@ var (
 		DatabaseCache:   256,
 		DatabaseHandles: 256,
 		TxPool:          core.DefaultTxPoolConfig,
+		Istanbul: istanbul.Config{
+			Validator: true,
+		},
 	}
 )
 
@@ -102,6 +105,8 @@ func NewNode(c *NodeConfig, genesis *core.Genesis) (*Node, error) {
 	}
 	ec.Genesis = genesis
 	ec.NetworkId = genesis.Config.ChainID.Uint64()
+	ec.Miner.Validator = c.ValidatorAccount.Address
+	ec.TxFeeRecipient = c.ValidatorAccount.Address
 
 	node := &Node{
 		Config:     c.Config,
@@ -152,17 +157,6 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	ethConfigCopy.Miner.Validator = n.Address
-	ethConfigCopy.TxFeeRecipient = n.Address
-	ethConfigCopy.Istanbul.AnnounceQueryEnodeGossipPeriod = 60
-	ethConfigCopy.Istanbul.Validator = true
-	// ethConfigCopy.Istanbul.BlockPeriod = 0
-	// Somehow this is not being honored, its being set to 3000
-	// ethConfigCopy.Istanbul.RequestTimeout = 100
-	ethConfigCopy.Istanbul.TimeoutBackoffFactor = 10
-	ethConfigCopy.Istanbul.MinResendRoundChangeTimeout = 15 * 1000
-	ethConfigCopy.Istanbul.MaxResendRoundChangeTimeout = 2 * 60 * 1000
-	// ethConfigCopy.Istanbul.Epoch = 100
 
 	// Register eth service
 	err = n.Register(func(ctx *node.ServiceContext) (node.Service, error) {
