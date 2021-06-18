@@ -223,6 +223,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 	if client.oracle != nil {
 		client.oracle.Start(backend)
 	}
+	client.handler.start()
 	return client.handler
 }
 

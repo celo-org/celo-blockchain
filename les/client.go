@@ -306,7 +306,7 @@ func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPoo
 // network protocols to start.
 func (s *LightEthereum) Protocols() []p2p.Protocol {
 	return s.makeProtocols(ClientProtocolVersions, s.handler.runPeer, func(id enode.ID) interface{} {
-		if p := s.peers.peer(peerIdToString(id)); p != nil {
+		if p := s.peers.peer(id.String()); p != nil {
 			return p.Info()
 		}
 		return nil
@@ -322,6 +322,7 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 	// Start bloom request workers.
 	s.wg.Add(bloomServiceThreads)
 	s.startBloomHandlers(params.BloomBitsBlocksClient)
+	s.handler.start()
 
 	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.config.NetworkId)
 	return nil
