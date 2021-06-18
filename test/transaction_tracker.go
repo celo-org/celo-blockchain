@@ -10,6 +10,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethclient"
+	"github.com/celo-org/celo-blockchain/event"
 )
 
 var (
@@ -25,9 +26,10 @@ type TransactionTracker struct {
 	sub    ethereum.Subscription
 	wg     sync.WaitGroup
 	// processed maps transaction hashes to the block they were processed in.
-	processed map[common.Hash]*types.Block
-	newTxs    *sync.Cond
-	stopCh    chan struct{}
+	processed   map[common.Hash]*types.Block
+	processedMu *sync.Mutex
+	stopCh      chan struct{}
+	newTxs      event.Feed
 }
 
 // NewTransactionTracker creates a new transaction tracker, it subscribes to
@@ -35,17 +37,17 @@ type TransactionTracker struct {
 // goroutine.
 func NewTransactionTracker() *TransactionTracker {
 	return &TransactionTracker{
-		heads:     make(chan *types.Header),
-		processed: make(map[common.Hash]*types.Block),
-		newTxs:    sync.NewCond(&sync.Mutex{}),
+		heads:       make(chan *types.Header),
+		processed:   make(map[common.Hash]*types.Block),
+		processedMu: &sync.Mutex{},
 	}
 }
 
 // GetProcessedTx returns the processed transaction with the given hash or nil
 // if the tracker has not seen a processed transaction with the given hash.
 func (tr *TransactionTracker) GetProcessedTx(hash common.Hash) *types.Transaction {
-	tr.newTxs.L.Lock()
-	defer tr.newTxs.L.Unlock()
+	tr.processedMu.Lock()
+	defer tr.processedMu.Unlock()
 	return tr.processed[hash].Transaction(hash)
 }
 
@@ -53,8 +55,8 @@ func (tr *TransactionTracker) GetProcessedTx(hash common.Hash) *types.Transactio
 // processed in or nil if the tracker has not seen a processed transaction with
 // the given hash.
 func (tr *TransactionTracker) GetProcessedBlock(hash common.Hash) *types.Block {
-	tr.newTxs.L.Lock()
-	defer tr.newTxs.L.Unlock()
+	tr.processedMu.Lock()
+	defer tr.processedMu.Unlock()
 	return tr.processed[hash]
 }
 
@@ -97,13 +99,14 @@ func (tr *TransactionTracker) trackTransactions() error {
 			}
 			// If we have transactions then process them
 			if len(b.Transactions()) > 0 {
-				tr.newTxs.L.Lock()
+				tr.processedMu.Lock()
 				for _, t := range b.Transactions() {
 					tr.processed[t.Hash()] = b
 				}
 				// signal
-				tr.newTxs.Signal()
-				tr.newTxs.L.Unlock()
+				// tr.newTxs.Signal()
+				tr.processedMu.Unlock()
+				tr.newTxs.Send(struct{}{})
 			}
 		case err := <-tr.sub.Err():
 			// Will be nil if closed by calling Unsubscribe()
@@ -123,38 +126,11 @@ func (tr *TransactionTracker) AwaitTransactions(ctx context.Context, hashes []co
 	for i := range hashes {
 		hashmap[hashes[i]] = struct{}{}
 	}
-	tr.newTxs.L.Lock()
-	defer tr.newTxs.L.Unlock()
-	txsFound := make(chan struct{})
-	var exitErr error
-	// This go-routine will either call Signal when the context expires or the
-	// tracker is closed, allowing us to wake from waiting on these events, or
-	// simply exit if the awaited transactions are processed before the context
-	// expires or the tracker is closed.
-	tr.wg.Add(1)
-	go func() {
-		defer tr.wg.Done()
-		// Note that we have already locked tr.newTxs.L in the creating
-		// go-routine and it will only be unlocked when Wait is called from the
-		// creating go-routine, this means Wait must have been called before we
-		// are able to send our signal.
-		select {
-		case <-ctx.Done():
-			tr.newTxs.L.Lock()
-			defer tr.newTxs.L.Unlock()
-			exitErr = ctx.Err()
-			tr.newTxs.Signal()
-		case <-tr.stopCh:
-			tr.newTxs.L.Lock()
-			defer tr.newTxs.L.Unlock()
-			exitErr = errStopped
-			tr.newTxs.Signal()
-		case <-txsFound:
-			return
-		}
-	}()
-
+	ch := make(chan struct{})
+	sub := tr.newTxs.Subscribe(ch)
+	defer sub.Unsubscribe()
 	for {
+		tr.processedMu.Lock()
 		// Delete processed transactions from hashmap
 		for hash := range hashmap {
 			_, ok := tr.processed[hash]
@@ -162,15 +138,18 @@ func (tr *TransactionTracker) AwaitTransactions(ctx context.Context, hashes []co
 				delete(hashmap, hash)
 			}
 		}
+		tr.processedMu.Unlock()
 		// If there are no transactions left then they have all been processed.
 		if len(hashmap) == 0 {
-			close(txsFound) // Signal to the go routine that it can exit
 			return nil
 		}
-		tr.newTxs.Wait()
-		// Check the exit error to see if the context expired.
-		if exitErr != nil {
-			return exitErr
+		select {
+		case <-ch:
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tr.stopCh:
+			return errStopped
 		}
 	}
 }
