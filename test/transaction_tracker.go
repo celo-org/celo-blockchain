@@ -104,7 +104,6 @@ func (tr *TransactionTracker) trackTransactions() error {
 					tr.processed[t.Hash()] = b
 				}
 				// signal
-				// tr.newTxs.Signal()
 				tr.processedMu.Unlock()
 				tr.newTxs.Send(struct{}{})
 			}
