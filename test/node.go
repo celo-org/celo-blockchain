@@ -388,14 +388,13 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
-	for i := range network {
-		en := enodes[i]
-		for j := range network {
+	for i, en := range enodes {
+		for j, n := range network {
 			if j == i {
 				continue
 			}
-			network[j].Server().AddPeer(en, p2p.ValidatorPurpose)
-			network[j].Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
+			n.Server().AddPeer(en, p2p.ValidatorPurpose)
+			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
