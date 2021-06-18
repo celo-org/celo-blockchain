@@ -561,9 +561,9 @@ func (s *Ethereum) Start() error {
 	// Start the networking layer and the light server if requested
 	s.protocolManager.Start(maxPeers)
 
-	if err := s.startAnnounce(); err != nil {
-		return err
-	}
+	// if err := s.startAnnounce(); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -572,7 +572,7 @@ func (s *Ethereum) Start() error {
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
 	// Stop all the peer-related stuff first.
-	s.stopAnnounce()
+	// s.stopAnnounce()
 	s.protocolManager.Stop()
 
 	// Then stop everything else.

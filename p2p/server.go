@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -411,6 +412,7 @@ func (srv *Server) inboundCount() int {
 // server is shut down. If the connection fails for any reason, the server will
 // attempt to reconnect the peer.
 func (srv *Server) AddPeer(node *enode.Node, purpose PurposeFlag) {
+	debug.PrintStack()
 	select {
 	case srv.addstatic <- &nodeArgs{node: node, purpose: purpose}:
 	case <-srv.quit:
