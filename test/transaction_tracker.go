@@ -27,7 +27,7 @@ type TransactionTracker struct {
 	wg     sync.WaitGroup
 	// processed maps transaction hashes to the block they were processed in.
 	processed   map[common.Hash]*types.Block
-	processedMu *sync.Mutex
+	processedMu sync.Mutex
 	stopCh      chan struct{}
 	newTxs      event.Feed
 }
@@ -37,9 +37,8 @@ type TransactionTracker struct {
 // goroutine.
 func NewTransactionTracker() *TransactionTracker {
 	return &TransactionTracker{
-		heads:       make(chan *types.Header),
-		processed:   make(map[common.Hash]*types.Block),
-		processedMu: &sync.Mutex{},
+		heads:     make(chan *types.Header),
+		processed: make(map[common.Hash]*types.Block),
 	}
 }
 
