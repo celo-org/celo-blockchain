@@ -37,7 +37,7 @@ type TransactionTracker struct {
 // goroutine.
 func NewTransactionTracker() *TransactionTracker {
 	return &TransactionTracker{
-		heads:     make(chan *types.Header),
+		heads:     make(chan *types.Header, 10),
 		processed: make(map[common.Hash]*types.Block),
 	}
 }
@@ -124,7 +124,7 @@ func (tr *TransactionTracker) AwaitTransactions(ctx context.Context, hashes []co
 	for i := range hashes {
 		hashmap[hashes[i]] = struct{}{}
 	}
-	ch := make(chan struct{})
+	ch := make(chan struct{}, 10)
 	sub := tr.newTxs.Subscribe(ch)
 	defer sub.Unsubscribe()
 	for {
