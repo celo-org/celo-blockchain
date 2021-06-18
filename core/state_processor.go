@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -129,7 +130,9 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	vmenv := vm.NewEVM(ctx, statedb, config, cfg)
 
 	// Apply the transaction to the current state (included in the env)
+	log.Error("Before ApplyMessage", "statedb", statedb.IntermediateRoot(true).Hex(), "msg.From", msg.From().Hex())
 	result, err := ApplyMessage(vmenv, msg, gp, vmRunner)
+	log.Error("After ApplyMessage", "statedb", statedb.IntermediateRoot(true).Hex(), "msg.From", msg.From().Hex())
 	if err != nil {
 		return nil, err
 	}
