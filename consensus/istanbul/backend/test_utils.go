@@ -186,7 +186,7 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	return header
 }
 
-func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
+func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 
 	// Set up block subscription

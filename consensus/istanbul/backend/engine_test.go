@@ -61,18 +61,22 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 
-	defer stopEngine(engine)
+	//defer stopEngine(engine)
 	defer chain.Stop()
 	genesis := chain.Genesis()
 
-	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := makeBlock(chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	block2, err := makeBlock(nodeKeys, chain, engine, block)
+	block2, err := makeBlock(chain, engine, block)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	_, err = makeBlock(nodeKeys, chain, engine, block2)
+	_, err = makeBlock(chain, engine, block2)
 	g.Expect(err).ToNot(HaveOccurred())
+
+	if err != nil {
+		stopEngine(engine)
+	}
 }
 
 func TestSealCommitted(t *testing.T) {
@@ -158,7 +162,7 @@ func TestVerifySeal(t *testing.T) {
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
 	// should verify
-	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := makeBlock(chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
 	err = engine.VerifySeal(header)
@@ -208,9 +212,9 @@ func TestVerifyHeaders(t *testing.T) {
 	for i := 0; i < size; i++ {
 		var b *types.Block
 		if i == 0 {
-			b, _ = makeBlock(nodeKeys, chain, engine, genesis)
+			b, _ = makeBlock(chain, engine, genesis)
 		} else {
-			b, _ = makeBlock(nodeKeys, chain, engine, blocks[i-1])
+			b, _ = makeBlock(chain, engine, blocks[i-1])
 		}
 
 		blocks = append(blocks, b)
