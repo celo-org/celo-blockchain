@@ -61,7 +61,6 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 
-	//defer stopEngine(engine)
 	defer chain.Stop()
 	genesis := chain.Genesis()
 

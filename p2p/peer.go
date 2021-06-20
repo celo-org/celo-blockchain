@@ -559,7 +559,9 @@ func (p *Peer) Info() *PeerInfo {
 		info.Protocols[proto.Name] = protoInfo
 	}
 
+	p.purposesMu.Lock()
 	info.Purposes = p.purposes.String()
+	p.purposesMu.Unlock()
 
 	return info
 }
