@@ -18,6 +18,7 @@ package client
 
 import (
 	"io"
+	"sync"
 
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -34,8 +35,9 @@ const basketFactor = 1000000 // reference basket amount and value scale factor
 // calculated as value / amount. The average reqValue of all used requests is 1.
 // In other words: SUM(refBasket[type].amount * reqValue[type]) = SUM(refBasket[type].amount)
 type referenceBasket struct {
-	basket    requestBasket
-	reqValues []float64 // contents are read only, new slice is created for each update
+	basket        requestBasket
+	reqValues     []float64 // contents are read only, new slice is created for each update
+	reqValuesLock sync.RWMutex
 }
 
 // serverBasket collects served request amount and value statistics for a single server.
@@ -175,6 +177,7 @@ func (r *referenceBasket) add(newBasket requestBasket) {
 // updateReqValues recalculates reqValues after adding transferred baskets. Note that
 // values should be normalized first.
 func (r *referenceBasket) updateReqValues() {
+	r.reqValuesLock.Lock()
 	r.reqValues = make([]float64, len(r.reqValues))
 	for i, b := range r.basket.items {
 		if b.amount > 0 {
@@ -183,6 +186,7 @@ func (r *referenceBasket) updateReqValues() {
 			r.reqValues[i] = 0
 		}
 	}
+	r.reqValuesLock.Unlock()
 }
 
 // normalize ensures that the sum of values equal the sum of amounts in the basket.

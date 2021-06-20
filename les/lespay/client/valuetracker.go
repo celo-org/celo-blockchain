@@ -481,9 +481,13 @@ func (vt *ValueTracker) Served(nv *NodeValueTracker, reqs []ServedRequest, respT
 	var value float64
 	for _, r := range reqs {
 		nv.basket.add(r.ReqType, r.Amount, nv.reqCosts[r.ReqType]*uint64(r.Amount), expFactor)
+		vt.refBasket.reqValuesLock.RLock()
 		value += (*nv.reqValues)[r.ReqType] * float64(r.Amount)
+		vt.refBasket.reqValuesLock.RUnlock()
 	}
+	vt.statsExpLock.RLock()
 	nv.rtStats.Add(respTime, value, vt.statsExpFactor)
+	vt.statsExpLock.RUnlock()
 }
 
 type RequestStatsItem struct {
