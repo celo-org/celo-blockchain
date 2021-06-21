@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contract_comm/errors"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -109,6 +110,8 @@ func GetGasPriceMinimum(currency *common.Address, header *types.Header, state vm
 	} else {
 		currencyAddress = *currency
 	}
+
+	log.Error("GPM info", "statedb", state.IntermediateRoot(true).Hex(), "currency", currencyAddress.String())
 
 	var gasPriceMinimum *big.Int
 	err = contract_comm.MakeStaticCall(
