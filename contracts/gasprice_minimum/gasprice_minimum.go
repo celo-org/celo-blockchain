@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -58,6 +59,8 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	} else {
 		currencyAddress = *currency
 	}
+
+	log.Error("GPM info", "statedb", vmRunner.GetStateDB().IntermediateRoot(true).Hex(), "currency", currencyAddress.String())
 
 	var gasPriceMinimum *big.Int
 	err = getGasPriceMinimumMethod.Query(vmRunner, &gasPriceMinimum, currencyAddress)
