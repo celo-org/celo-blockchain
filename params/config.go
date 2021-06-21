@@ -226,11 +226,16 @@ type ChainConfig struct {
 
 // IstanbulConfig is the consensus engine configs for Istanbul based sealing.
 type IstanbulConfig struct {
-	Epoch          uint64 `json:"epoch"`                    // Epoch length to reset votes and checkpoint
-	ProposerPolicy uint64 `json:"policy"`                   // The policy for proposer selection
-	LookbackWindow uint64 `json:"lookbackwindow"`           // The number of blocks to look back when calculating uptime
-	BlockPeriod    uint64 `json:"blockperiod,omitempty"`    // Default minimum difference between two consecutive block's timestamps in second
-	RequestTimeout uint64 `json:"requesttimeout,omitempty"` // The timeout for each Istanbul round in milliseconds.
+	Epoch          uint64 `json:"epoch"`                 // Epoch length to reset votes and checkpoint
+	ProposerPolicy uint64 `json:"policy"`                // The policy for proposer selection
+	LookbackWindow uint64 `json:"lookbackwindow"`        // The number of blocks to look back when calculating uptime
+	BlockPeriod    uint64 `json:"blockperiod,omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+
+	// The base timeout for each Istanbul round in milliseconds. The first
+	// round will have a timeout of exactly this and subsequent rounds will
+	// have timeouts of this + additional time that increases with round
+	// number.
+	RequestTimeout uint64 `json:"requesttimeout,omitempty"`
 }
 
 // String implements the stringer interface, returning the consensus engine details.
