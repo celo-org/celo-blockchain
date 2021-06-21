@@ -57,15 +57,16 @@ func NewPublicEthereumAPI(b Backend) *PublicEthereumAPI {
 
 // GasPrice returns a suggestion for a gas price.
 func (s *PublicEthereumAPI) GasPrice(ctx context.Context, feeCurrency *common.Address) (*hexutil.Big, error) {
-	if feeCurrency == nil {
-		price, err := s.b.SuggestPrice(ctx)
-		return (*hexutil.Big)(price), err
-	}
 
 	state, header, err := s.b.StateAndHeaderByNumber(ctx, rpc.LatestBlockNumber)
 	if err != nil {
 		return nil, err
 	}
+	if feeCurrency == nil {
+		price, err := s.b.SuggestPrice(ctx, header, state)
+		return (*hexutil.Big)(price), err
+	}
+
 	price, err := s.b.SuggestPriceInCurrency(ctx, feeCurrency, header, state)
 	return (*hexutil.Big)(price), err
 }

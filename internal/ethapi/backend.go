@@ -41,7 +41,7 @@ type Backend interface {
 	// General Ethereum API
 	Downloader() *downloader.Downloader
 	ProtocolVersion() int
-	SuggestPrice(ctx context.Context) (*big.Int, error)
+	SuggestPrice(ctx context.Context, header *types.Header, state *state.StateDB) (*big.Int, error)
 	SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error)
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
