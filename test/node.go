@@ -215,7 +215,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	return n.Eth.StartMining()
+	return n.Eth.StartMining(1)
 }
 
 // Close shuts down the node and releases all resources and removes the datadir
