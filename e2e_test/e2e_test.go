@@ -41,18 +41,27 @@ func TestSendCelo(t *testing.T) {
 // This test starts a network submits a transaction and waits for the whole
 // network to process the transaction.
 func TestUpdateOracleThenSendCUSD(t *testing.T) {
-	accounts := test.Accounts(3)
+	accounts := test.Accounts(1)
 	gc := test.GenesisConfig(accounts)
+
 	network, err := test.NewNetwork(accounts, gc)
 	require.NoError(t, err)
 	defer network.Shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	tx, err := network[0].SendOracleReport(ctx, &common.ZeroAddress, common.Big2)
+	oracleTx, err := network[0].SendOracleReport(ctx, &common.ZeroAddress, common.Big2)
+	require.NoError(t, err)
+
+	// Send 1 celo from the dev account attached to node 0 to the dev account
+	// attached to node 1.
+	cusdTx, err := network[0].SendCUSD(ctx, network[0].Address, 10)
 	require.NoError(t, err)
 
 	// Wait for the whole network to process the transaction.
-	err = network.AwaitTransactions(ctx, tx)
+	err = network.AwaitTransactions(ctx, cusdTx)
+	require.NoError(t, err)
+
+	err = network.AwaitTransactions(ctx, oracleTx)
 	require.NoError(t, err)
 }

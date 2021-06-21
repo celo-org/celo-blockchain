@@ -259,10 +259,46 @@ func (n *Node) SendOracleReport(ctx context.Context, tokenAddress *common.Addres
 	opts.Context = ctx
 	opts.ChainID = big.NewInt(int64(n.EthConfig.NetworkId))
 
-	tx, err := sortedOracles.Transact(opts, "report", stableTokenAddress, goldPrice, common.ZeroAddress, common.ZeroAddress)
+	tx, err := sortedOracles.TransactionFor(opts, "report", stableTokenAddress, goldPrice, common.ZeroAddress, common.ZeroAddress)
 	if err != nil {
 		return nil, fmt.Errorf("Error sending transaction: %w", err)
 	}
+
+	err = n.WsClient.SendTransaction(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	n.Nonce++
+	n.SentTxs = append(n.SentTxs, tx)
+	return tx, nil
+}
+
+// SendCUSD submits a ERC-20 transfer transaction for cUSD paying for fees in cUSD to
+// the recipient. The submitted transaction is returned.
+func (n *Node) SendCUSD(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
+	abi := contract.AbiFor("StableToken")
+	stableTokenAddress := env.MustProxyAddressFor("StableToken")
+
+	stableToken := bind_v2.NewBoundContract(stableTokenAddress, *abi, n.WsClient)
+
+	opts := bind_v2.NewKeyedTransactor(n.DevKey)
+	opts.From = n.DevAddress
+	opts.Nonce = big.NewInt(int64(n.Nonce))
+	opts.Context = ctx
+	opts.ChainID = big.NewInt(int64(n.EthConfig.NetworkId))
+	opts.FeeCurrency = &stableTokenAddress
+
+	tx, err := stableToken.TransactionFor(opts, "transfer", recipient, big.NewInt(value))
+	if err != nil {
+		return nil, fmt.Errorf("Error sending transaction: %w", err)
+	}
+
+	err = n.WsClient.SendTransaction(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	n.Nonce++
+	n.SentTxs = append(n.SentTxs, tx)
 	return tx, nil
 }
 
