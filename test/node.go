@@ -150,7 +150,7 @@ func (n *Node) Start() error {
 	// from this one, which means we still see a lot of output that is not
 	// attributable to a specific node.
 	nodeConfigCopy.Logger = log.New("node", n.Address.String()[2:7])
-	nodeConfigCopy.Logger.SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	nodeConfigCopy.Logger.SetHandler(log.LvlFilterHandler(log.LvlCrit, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	n.Node, err = node.New(nodeConfigCopy)
 	if err != nil {
@@ -387,6 +387,16 @@ func NewNodeConfig(validatorAccount, devAccount *env.Account) *NodeConfig {
 func Accounts(numValidators int) *env.AccountsConfig {
 	return &env.AccountsConfig{
 		Mnemonic:             env.MustNewMnemonic(),
+		NumValidators:        numValidators,
+		ValidatorsPerGroup:   1,
+		NumDeveloperAccounts: numValidators,
+		UseValidatorAsAdmin:  true,
+	}
+}
+
+func StableAccounts(numValidators int) *env.AccountsConfig {
+	return &env.AccountsConfig{
+		Mnemonic:             "miss fire behind decide egg buyer honey seven advance uniform profit renew",
 		NumValidators:        numValidators,
 		ValidatorsPerGroup:   1,
 		NumDeveloperAccounts: numValidators,

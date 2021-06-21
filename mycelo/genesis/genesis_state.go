@@ -999,7 +999,7 @@ func (ctx *deployContext) verifyState() error {
 	if _, err := ctx.contract("Reserve").Query(&reserveSpenders, "getExchangeSpenders"); err != nil {
 		return err
 	}
-	fmt.Printf("Checking getExchangeSpenders. spenders = %s\n", reserveSpenders)
+	// fmt.Printf("Checking getExchangeSpenders. spenders = %s\n", reserveSpenders)
 
 	var (
 		numerator   = new(*big.Int)
@@ -1012,13 +1012,13 @@ func (ctx *deployContext) verifyState() error {
 	if _, err := ctx.contract("SortedOracles").Query(out, "medianRate", env.MustProxyAddressFor("StableToken")); err != nil {
 		return err
 	}
-	fmt.Printf("Checking medianRate. numerator = %s  denominator = %s \n", (*numerator).String(), (*denominator).String())
+	// fmt.Printf("Checking medianRate. numerator = %s  denominator = %s \n", (*numerator).String(), (*denominator).String())
 
 	var gasPrice *big.Int
 	if _, err := ctx.contract("GasPriceMinimum").Query(&gasPrice, "getGasPriceMinimum", env.MustProxyAddressFor("StableToken")); err != nil {
 		return err
 	}
-	fmt.Printf("Checking gas price minimum. cusdValue = %s\n", gasPrice.String())
+	// fmt.Printf("Checking gas price minimum. cusdValue = %s\n", gasPrice.String())
 
 	return nil
 }

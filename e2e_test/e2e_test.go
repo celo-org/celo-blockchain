@@ -2,10 +2,13 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
+	_ "os"
 	"testing"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	_ "github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
 )
@@ -14,12 +17,13 @@ func init() {
 	// This statement is commented out but left here since its very useful for
 	// debugging problems and its non trivial to construct.
 	//
-	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 }
 
 // This test starts a network submits a transaction and waits for the whole
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
+	t.Skip("")
 	accounts := test.Accounts(3)
 	gc := test.GenesisConfig(accounts)
 	network, err := test.NewNetwork(accounts, gc)
@@ -41,8 +45,9 @@ func TestSendCelo(t *testing.T) {
 // This test starts a network submits a transaction and waits for the whole
 // network to process the transaction.
 func TestUpdateOracleThenSendCUSD(t *testing.T) {
-	accounts := test.Accounts(1)
+	accounts := test.StableAccounts(1)
 	gc := test.GenesisConfig(accounts)
+	gc.Istanbul.BlockPeriod = 2
 
 	network, err := test.NewNetwork(accounts, gc)
 	require.NoError(t, err)
@@ -61,5 +66,13 @@ func TestUpdateOracleThenSendCUSD(t *testing.T) {
 	// Wait for the whole network to process the transaction.
 	err = network.AwaitTransactions(ctx, cusdTx, oracleTx)
 	require.NoError(t, err)
+
+	oracleBlock := network[0].ProcessedTxBlock(oracleTx)
+	cUSDBlock := network[0].ProcessedTxBlock(cusdTx)
+
+	fmt.Printf("Block Hash: %v\n", oracleBlock.Hash().String())
+	fmt.Printf("Block root: %v\n", oracleBlock.Header().Root.String())
+
+	require.Equal(t, oracleBlock.NumberU64(), cUSDBlock.NumberU64())
 
 }
