@@ -15,6 +15,7 @@ import (
 
 	ethereum "github.com/celo-org/celo-blockchain"
 
+	"github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -26,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/mycelo/contract"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
@@ -244,6 +246,26 @@ func (n *Node) SendCeloTracked(ctx context.Context, recipient common.Address, va
 	return n.Tracker.GetProcessedTx(tx.Hash()), nil
 }
 
+// SendOracleReport submits an oracle report to the sorted oracles contract.
+// Note: This currently only supports 1 oracle and the node must be the admin node.
+func (n *Node) SendOracleReport(ctx context.Context, tokenAddress *common.Address, goldPrice *big.Int) (*types.Transaction, error) {
+	abi := contract.AbiFor("SortedOracles")
+	sortedOracles := bind_v2.NewBoundContract(env.MustProxyAddressFor("SortedOracles"), *abi, n.WsClient)
+
+	stableTokenAddress := env.MustProxyAddressFor("StableToken")
+	opts := bind_v2.NewKeyedTransactor(n.Key)
+	opts.From = n.Address
+	opts.Nonce = big.NewInt(int64(n.Nonce))
+	opts.Context = ctx
+	opts.ChainID = big.NewInt(int64(n.EthConfig.NetworkId))
+
+	tx, err := sortedOracles.Transact(opts, "report", stableTokenAddress, goldPrice, common.ZeroAddress, common.ZeroAddress)
+	if err != nil {
+		return nil, fmt.Errorf("Error sending transaction: %w", err)
+	}
+	return tx, nil
+}
+
 // SendCelo submits a value transfer transaction to the network to send celo to
 // the recipient. The submitted transaction is returned.
 func (n *Node) SendCelo(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
@@ -324,6 +346,7 @@ func Accounts(numValidators int) *env.AccountsConfig {
 		NumValidators:        numValidators,
 		ValidatorsPerGroup:   1,
 		NumDeveloperAccounts: numValidators,
+		UseValidatorAsAdmin:  true,
 	}
 }
 
