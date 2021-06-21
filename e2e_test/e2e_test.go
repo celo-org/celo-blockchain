@@ -53,15 +53,13 @@ func TestUpdateOracleThenSendCUSD(t *testing.T) {
 	oracleTx, err := network[0].SendOracleReport(ctx, &common.ZeroAddress, common.Big2)
 	require.NoError(t, err)
 
-	// Send 1 celo from the dev account attached to node 0 to the dev account
+	// Send 10 cUSD from the dev account attached to node 0 to the dev account
 	// attached to node 1.
-	cusdTx, err := network[0].SendCUSD(ctx, network[0].Address, 10)
+	cusdTx, err := network[0].SendCUSD(ctx, network[0].DevAddress, 10)
 	require.NoError(t, err)
 
 	// Wait for the whole network to process the transaction.
-	err = network.AwaitTransactions(ctx, cusdTx)
+	err = network.AwaitTransactions(ctx, cusdTx, oracleTx)
 	require.NoError(t, err)
 
-	err = network.AwaitTransactions(ctx, oracleTx)
-	require.NoError(t, err)
 }

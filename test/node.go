@@ -81,6 +81,7 @@ type Node struct {
 	EthConfig     *eth.Config
 	WsClient      *ethclient.Client
 	Nonce         uint64
+	AdminNonce    uint64
 	Key           *ecdsa.PrivateKey
 	Address       common.Address
 	DevKey        *ecdsa.PrivateKey
@@ -255,7 +256,7 @@ func (n *Node) SendOracleReport(ctx context.Context, tokenAddress *common.Addres
 	stableTokenAddress := env.MustProxyAddressFor("StableToken")
 	opts := bind_v2.NewKeyedTransactor(n.Key)
 	opts.From = n.Address
-	opts.Nonce = big.NewInt(int64(n.Nonce))
+	opts.Nonce = big.NewInt(int64(n.AdminNonce))
 	opts.Context = ctx
 	opts.ChainID = big.NewInt(int64(n.EthConfig.NetworkId))
 
@@ -268,7 +269,7 @@ func (n *Node) SendOracleReport(ctx context.Context, tokenAddress *common.Addres
 	if err != nil {
 		return nil, err
 	}
-	n.Nonce++
+	n.AdminNonce++
 	n.SentTxs = append(n.SentTxs, tx)
 	return tx, nil
 }
@@ -281,14 +282,21 @@ func (n *Node) SendCUSD(ctx context.Context, recipient common.Address, value int
 
 	stableToken := bind_v2.NewBoundContract(stableTokenAddress, *abi, n.WsClient)
 
-	opts := bind_v2.NewKeyedTransactor(n.DevKey)
-	opts.From = n.DevAddress
-	opts.Nonce = big.NewInt(int64(n.Nonce))
+	gasPrice, err := n.WsClient.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to suggest gas price: %v", err)
+	}
+
+	opts := bind_v2.NewKeyedTransactor(n.Key)
+	opts.From = n.Address
+	opts.Nonce = big.NewInt(int64(n.AdminNonce))
 	opts.Context = ctx
 	opts.ChainID = big.NewInt(int64(n.EthConfig.NetworkId))
 	opts.FeeCurrency = &stableTokenAddress
+	opts.GasPrice = gasPrice.Mul(gasPrice, big.NewInt(4))
 
 	tx, err := stableToken.TransactionFor(opts, "transfer", recipient, big.NewInt(value))
+
 	if err != nil {
 		return nil, fmt.Errorf("Error sending transaction: %w", err)
 	}
@@ -297,7 +305,7 @@ func (n *Node) SendCUSD(ctx context.Context, recipient common.Address, value int
 	if err != nil {
 		return nil, err
 	}
-	n.Nonce++
+	n.AdminNonce++
 	n.SentTxs = append(n.SentTxs, tx)
 	return tx, nil
 }
@@ -402,7 +410,10 @@ func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
 			RequestTimeout: 50,
 		},
 	)
-	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
+	var acts []env.Account
+	acts = append(acts, accounts.ValidatorAccounts()...)
+	acts = append(acts, accounts.DeveloperAccounts()...)
+	genesis.FundAccounts(gc, acts)
 	return gc
 }
 
