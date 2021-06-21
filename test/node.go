@@ -60,6 +60,11 @@ var (
 		TxPool:          core.DefaultTxPoolConfig,
 		Istanbul: istanbul.Config{
 			Validator: true,
+			// Set announce gossip period to 1 minute, if not set this results
+			// in a panic when trying to set a timer with a zero value. We
+			// don't actually rely on this mechanism in the tests because we
+			// pre share all the enode certificates.
+			AnnounceQueryEnodeGossipPeriod: 60,
 		},
 	}
 )
