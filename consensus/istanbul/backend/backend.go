@@ -82,7 +82,15 @@ func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
 
 type BlsInfo struct {
 	Address common.Address       // Ethereum address of the BLS signing key
-	Sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
+	sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
+}
+
+// Sign signs with the bls account
+func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
+	if bi.sign == nil {
+		return blscrypto.SerializedSignature{}, errInvalidSigningFn
+	}
+	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
 }
 
 type AuthorizeInfo struct {
@@ -396,7 +404,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
 	bls := BlsInfo{
 		Address: blsAddress,
-		Sign:    signBLSFn,
+		sign:    signBLSFn,
 	}
 	ecdsa := EcdsaInfo{
 		Address:   ecdsaAddress,
@@ -694,10 +702,7 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	ai := sb.auth()
-	if ai.Bls.Sign == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	return ai.Bls.Sign(accounts.Account{Address: ai.Bls.Address}, data, extra, useComposite, cip22)
+	return ai.Bls.Sign(data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
