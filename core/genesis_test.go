@@ -217,8 +217,9 @@ func TestRegistryInGenesis(t *testing.T) {
 		test.genesis().MustCommit(db)
 		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		state, _ := chain.State()
-		if state.GetCodeSize(params.RegistrySmartContractAddress) != test.codeSize {
-			t.Errorf("%s: Registry code size is %d, want %d", test.name, state.GetCodeSize(params.RegistrySmartContractAddress), test.codeSize)
+		codeSize := state.GetCodeSize(params.RegistrySmartContractAddress)
+		if codeSize != test.codeSize {
+			t.Errorf("%s: Registry code size is %d, want %d", test.name, codeSize, test.codeSize)
 		}
 		chain.Stop()
 	}
