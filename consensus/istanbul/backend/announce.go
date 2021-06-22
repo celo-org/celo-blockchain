@@ -591,16 +591,16 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
 		return nil, err
 	}
-
+	ai := sb.auth()
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
-		Address:   sb.Address(),
+		Address:   ai.Address,
 		Signature: []byte{},
 	}
 
 	// Sign the announce message
-	if err := msg.Sign(sb.Sign); err != nil {
+	if err := msg.Sign(nilCheckSignFn(ai)); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
@@ -941,7 +941,7 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 		PublicKey: ai.PublicKey,
 		Version:   version,
 	}
-	err := vc.Sign(sb.Sign)
+	err := vc.Sign(nilCheckSignFn(ai))
 	if err != nil {
 		return nil, err
 	}
@@ -1266,7 +1266,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	if err != nil {
 		return nil, err
 	}
-
+	ai := sb.auth()
 	for _, externalNode := range externalEnodes {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: externalNode.URLv4(),
@@ -1278,11 +1278,11 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 		}
 		msg := &istanbul.Message{
 			Code:    istanbul.EnodeCertificateMsg,
-			Address: sb.Address(),
+			Address: ai.Address,
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message
-		if err := msg.Sign(sb.Sign); err != nil {
+		if err := msg.Sign(nilCheckSignFn(ai)); err != nil {
 			return nil, err
 		}
 

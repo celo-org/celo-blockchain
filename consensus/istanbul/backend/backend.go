@@ -660,11 +660,18 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	ai := sb.auth()
-	if ai.SignFn == nil {
-		return nil, errInvalidSigningFn
+	fn := nilCheckSignFn(sb.auth())
+	return fn(data)
+}
+
+// nilCheckSignFn wraps the AuthorizeInfo.SignFn with a nil check
+func nilCheckSignFn(ai *AuthorizeInfo) func(data []byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		if ai.SignFn == nil {
+			return nil, errInvalidSigningFn
+		}
+		return ai.SignFn(accounts.Account{Address: ai.Address}, accounts.MimetypeIstanbul, data)
 	}
-	return ai.SignFn(accounts.Account{Address: ai.Address}, accounts.MimetypeIstanbul, data)
 }
 
 // Sign implements istanbul.Backend.SignBLS
