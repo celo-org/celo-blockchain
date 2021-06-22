@@ -78,7 +78,7 @@ func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	log.Error("Query", "statedb", evm.StateDB.IntermediateRoot(true).Hex())
+	log.Error("Query", "evm_statedb", evm.StateDB.IntermediateRoot(true).Hex(), "runner_state", ev.state.IntermediateRoot(true).Hex())
 	return evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
 }
 
