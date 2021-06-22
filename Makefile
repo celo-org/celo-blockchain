@@ -24,6 +24,11 @@ endif
 
 MONOREPO_COMMIT=celo-core-contracts-v3.rc0
 
+# We checkout the monorepo as a sibling to the celo-blockchain dir because the
+# huge amount of files in the monorepo interferes with tooling such as gopls,
+# which becomes very slow.
+MONOREPO_PATH=../monorepo
+
 # example NDK values
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
@@ -33,12 +38,17 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+# This rule checks out celo-monorepo under MONOREPO_PATH at commit
+# MONOREPO_COMMIT and compiles the system solidty contracts. A softlink is
+# created at ./monorepo so that code in this repo can always access the system
+# contracts with a consistent path.
 prepare-system-contracts: ./monorepo ./monorepo/packages/protocol/build
 
-# Clone the monorepo
+# Clone the monorepo and setup softlink.
 ./monorepo: 
 	@echo "Cloning monorepo at $(MONOREPO_COMMIT)"
-	@git clone --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git monorepo
+	@git clone --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH)
+	@ln -s $(MONOREPO_PATH) ./monorepo
 
 # If any of the source files found by the find command are more recent than the
 # build dir then we remove the build dir, yarn install and rebuild the contracts.
