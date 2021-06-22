@@ -7,6 +7,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/log"
 )
 
 // VMAddress is the address the VM uses to make internal calls to contracts
@@ -77,6 +78,7 @@ func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
+	log.Error("Query", "statedb", evm.StateDB.IntermediateRoot(true).Hex())
 	return evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
 }
 
