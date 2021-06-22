@@ -28,6 +28,11 @@ MONOREPO_COMMIT=celo-core-contracts-v3.rc0
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
 
+geth:
+	$(GORUN) build/ci.go install ./cmd/geth
+	@echo "Done building."
+	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
 prepare-system-contracts: ./monorepo ./monorepo/packages/protocol/build
 
 # Clone the monorepo
@@ -42,10 +47,6 @@ prepare-system-contracts: ./monorepo ./monorepo/packages/protocol/build
 	@echo Running yarn install and compiling contracts
 	@cd ./monorepo && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
-geth:
-	$(GORUN) build/ci.go install ./cmd/geth
-	@echo "Done building."
-	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 geth-musl:
 	$(GORUN) build/ci.go install -musl ./cmd/geth
