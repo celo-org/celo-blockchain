@@ -700,7 +700,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.authorizeInfo.Load().(*AuthorizeInfo).DecryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.auth().DecryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
 				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
@@ -935,9 +935,10 @@ func (vc *versionCertificate) payloadToSign() ([]byte, error) {
 }
 
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
+	ai := sb.auth()
 	vc := &versionCertificate{
-		Address:   sb.Address(),
-		PublicKey: sb.authorizeInfo.Load().(*AuthorizeInfo).PublicKey,
+		Address:   ai.Address,
+		PublicKey: ai.PublicKey,
 		Version:   version,
 	}
 	err := vc.Sign(sb.Sign)

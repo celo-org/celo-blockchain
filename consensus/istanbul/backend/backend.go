@@ -385,9 +385,13 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	sb.core.SetAddress(ecdsaAddress)
 }
 
+func (sb *Backend) auth() *AuthorizeInfo {
+	return sb.authorizeInfo.Load().(*AuthorizeInfo)
+}
+
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	return sb.authorizeInfo.Load().(*AuthorizeInfo).Address
+	return sb.auth().Address
 }
 
 // SelfNode returns the owner's node (if this is a proxy, it will return the external node)
@@ -656,7 +660,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	ai := sb.authorizeInfo.Load().(*AuthorizeInfo)
+	ai := sb.auth()
 	if ai.SignFn == nil {
 		return nil, errInvalidSigningFn
 	}
@@ -665,7 +669,7 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	ai := sb.authorizeInfo.Load().(*AuthorizeInfo)
+	ai := sb.auth()
 	if ai.SignBLSFn == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}

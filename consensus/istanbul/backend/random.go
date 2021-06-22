@@ -43,7 +43,7 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, comm
 	sb.randomSeedMu.Lock()
 	if sb.randomSeed == nil {
 		var err error
-		ai := sb.authorizeInfo.Load().(*AuthorizeInfo)
+		ai := sb.auth()
 		sb.randomSeed, err = ai.SignHashFn(accounts.Account{Address: ai.Address}, common.BytesToHash(randomSeedString).Bytes())
 		if err != nil {
 			logger.Error("Failed to create randomSeed", "err", err)
