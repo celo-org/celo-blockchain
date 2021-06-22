@@ -58,20 +58,23 @@ var (
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
+type EcdsaInfo struct {
+	Address   common.Address   // Ethereum address of the ECDSA signing key
+	PublicKey *ecdsa.PublicKey // The signer public key
+
+	Decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	Sign     istanbul.SignerFn     // Signer function to authorize hashes with
+	SignHash istanbul.HashSignerFn // Signer function to create random seed
+}
+
 type BlsInfo struct {
 	Address common.Address       // Ethereum address of the BLS signing key
 	Sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
 }
 
 type AuthorizeInfo struct {
-	Address common.Address // Ethereum address of the ECDSA signing key
-
-	PublicKey *ecdsa.PublicKey   // The signer public key
-	DecryptFn istanbul.DecryptFn // Decrypt function to decrypt ECIES ciphertext
-	SignFn    istanbul.SignerFn  // Signer function to authorize hashes with
-
-	SignHashFn istanbul.HashSignerFn // Signer function to create random seed
-	Bls        BlsInfo
+	Ecdsa EcdsaInfo
+	Bls   BlsInfo
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -382,13 +385,16 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 		Address: blsAddress,
 		Sign:    signBLSFn,
 	}
+	ecdsa := EcdsaInfo{
+		Address:   ecdsaAddress,
+		PublicKey: publicKey,
+		Decrypt:   decryptFn,
+		Sign:      signFn,
+		SignHash:  signHashFn,
+	}
 	ai := &AuthorizeInfo{
-		Address:    ecdsaAddress,
-		PublicKey:  publicKey,
-		DecryptFn:  decryptFn,
-		SignFn:     signFn,
-		SignHashFn: signHashFn,
-		Bls:        bls,
+		Ecdsa: ecdsa,
+		Bls:   bls,
 	}
 	sb.authorizeInfo.Store(ai)
 	sb.core.SetAddress(ecdsaAddress)
@@ -400,7 +406,7 @@ func (sb *Backend) auth() *AuthorizeInfo {
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	return sb.auth().Address
+	return sb.auth().Ecdsa.Address
 }
 
 // SelfNode returns the owner's node (if this is a proxy, it will return the external node)
@@ -676,10 +682,10 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 // nilCheckSignFn wraps the AuthorizeInfo.SignFn with a nil check
 func nilCheckSignFn(ai *AuthorizeInfo) func(data []byte) ([]byte, error) {
 	return func(data []byte) ([]byte, error) {
-		if ai.SignFn == nil {
+		if ai.Ecdsa.Sign == nil {
 			return nil, errInvalidSigningFn
 		}
-		return ai.SignFn(accounts.Account{Address: ai.Address}, accounts.MimetypeIstanbul, data)
+		return ai.Ecdsa.Sign(accounts.Account{Address: ai.Ecdsa.Address}, accounts.MimetypeIstanbul, data)
 	}
 }
 

@@ -595,7 +595,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
-		Address:   ai.Address,
+		Address:   ai.Ecdsa.Address,
 		Signature: []byte{},
 	}
 
@@ -700,7 +700,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.auth().DecryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.auth().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
 				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
@@ -937,8 +937,8 @@ func (vc *versionCertificate) payloadToSign() ([]byte, error) {
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
 	ai := sb.auth()
 	vc := &versionCertificate{
-		Address:   ai.Address,
-		PublicKey: ai.PublicKey,
+		Address:   ai.Ecdsa.Address,
+		PublicKey: ai.Ecdsa.PublicKey,
 		Version:   version,
 	}
 	err := vc.Sign(nilCheckSignFn(ai))
@@ -1278,7 +1278,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 		}
 		msg := &istanbul.Message{
 			Code:    istanbul.EnodeCertificateMsg,
-			Address: ai.Address,
+			Address: ai.Ecdsa.Address,
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message

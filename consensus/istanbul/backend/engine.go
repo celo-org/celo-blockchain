@@ -524,7 +524,7 @@ func (sb *Backend) checkIsValidSigner(chain consensus.ChainHeaderReader, header 
 		return err
 	}
 
-	_, v := snap.ValSet.GetByAddress(sb.auth().Address)
+	_, v := snap.ValSet.GetByAddress(sb.auth().Ecdsa.Address)
 	if v == nil {
 		return errUnauthorized
 	}
