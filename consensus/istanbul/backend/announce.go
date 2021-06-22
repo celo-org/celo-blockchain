@@ -600,7 +600,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 	}
 
 	// Sign the announce message
-	if err := msg.Sign(nilCheckSignFn(ai)); err != nil {
+	if err := msg.Sign(ai.Ecdsa.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
@@ -941,7 +941,7 @@ func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate
 		PublicKey: ai.Ecdsa.PublicKey,
 		Version:   version,
 	}
-	err := vc.Sign(nilCheckSignFn(ai))
+	err := vc.Sign(ai.Ecdsa.Sign)
 	if err != nil {
 		return nil, err
 	}
@@ -1282,7 +1282,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message
-		if err := msg.Sign(nilCheckSignFn(ai)); err != nil {
+		if err := msg.Sign(ai.Ecdsa.Sign); err != nil {
 			return nil, err
 		}
 

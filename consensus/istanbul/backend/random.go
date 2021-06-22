@@ -17,7 +17,6 @@
 package backend
 
 import (
-	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -44,7 +43,7 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, comm
 	if sb.randomSeed == nil {
 		var err error
 		ai := sb.auth()
-		sb.randomSeed, err = ai.Ecdsa.SignHash(accounts.Account{Address: ai.Ecdsa.Address}, common.BytesToHash(randomSeedString).Bytes())
+		sb.randomSeed, err = ai.Ecdsa.SignHash(common.BytesToHash(randomSeedString))
 		if err != nil {
 			logger.Error("Failed to create randomSeed", "err", err)
 			sb.randomSeedMu.Unlock()

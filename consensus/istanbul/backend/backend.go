@@ -63,8 +63,21 @@ type EcdsaInfo struct {
 	PublicKey *ecdsa.PublicKey // The signer public key
 
 	Decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	Sign     istanbul.SignerFn     // Signer function to authorize hashes with
-	SignHash istanbul.HashSignerFn // Signer function to create random seed
+	sign     istanbul.SignerFn     // Signer function to authorize hashes with
+	signHash istanbul.HashSignerFn // Signer function to create random seed
+}
+
+// Sign hashes and signs the data with the ecdsa account
+func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
+	if ei.sign == nil {
+		return nil, errInvalidSigningFn
+	}
+	return ei.sign(accounts.Account{Address: ei.Address}, accounts.MimetypeIstanbul, data)
+}
+
+// SignHash signs the given hash with the ecdsa account
+func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
+	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
 }
 
 type BlsInfo struct {
@@ -389,8 +402,8 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 		Address:   ecdsaAddress,
 		PublicKey: publicKey,
 		Decrypt:   decryptFn,
-		Sign:      signFn,
-		SignHash:  signHashFn,
+		sign:      signFn,
+		signHash:  signHashFn,
 	}
 	ai := &AuthorizeInfo{
 		Ecdsa: ecdsa,
@@ -675,18 +688,7 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	fn := nilCheckSignFn(sb.auth())
-	return fn(data)
-}
-
-// nilCheckSignFn wraps the AuthorizeInfo.SignFn with a nil check
-func nilCheckSignFn(ai *AuthorizeInfo) func(data []byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
-		if ai.Ecdsa.Sign == nil {
-			return nil, errInvalidSigningFn
-		}
-		return ai.Ecdsa.Sign(accounts.Account{Address: ai.Ecdsa.Address}, accounts.MimetypeIstanbul, data)
-	}
+	return sb.auth().Ecdsa.Sign(data)
 }
 
 // Sign implements istanbul.Backend.SignBLS
