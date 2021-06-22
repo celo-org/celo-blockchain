@@ -7,7 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: prepare-system-contracts
+.PHONY: prepare-system-contracts ./monorepo
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -29,6 +29,15 @@ MONOREPO_COMMIT=celo-core-contracts-v3.rc0
 # which becomes very slow.
 MONOREPO_PATH=../monorepo
 
+# This either evaluates to the contract source files if they exist or NOT_FOUND
+# if celo-monorepo has not been checked out yet.
+CONTRACT_SOURCE_FILES=$(shell 2>/dev/null find ./monorepo/packages/protocol \
+						   -not -path "*/node_modules*" \
+						   -not -path "./monorepo/packages/protocol/test*" \
+						   -not -path "./monorepo/packages/protocol/build*" \
+						   -not -path "./monorepo/packages/protocol/types*" \
+						   || echo "NOT_FOUND")
+
 # example NDK values
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
@@ -42,20 +51,47 @@ geth:
 # MONOREPO_COMMIT and compiles the system solidty contracts. A softlink is
 # created at ./monorepo so that code in this repo can always access the system
 # contracts with a consistent path.
-prepare-system-contracts: ./monorepo ./monorepo/packages/protocol/build
-
-# Clone the monorepo and setup softlink.
-./monorepo: 
-	@echo "Cloning monorepo at $(MONOREPO_COMMIT)"
-	@git clone --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH)
-	@ln -s $(MONOREPO_PATH) ./monorepo
+prepare-system-contracts: ./monorepo/packages/protocol/build
 
 # If any of the source files found by the find command are more recent than the
-# build dir then we remove the build dir, yarn install and rebuild the contracts.
-./monorepo/packages/protocol/build: $(shell 2>/dev/null find ./monorepo/packages/protocol -not -path "*/node_modules*" -not -path "./monorepo/packages/protocol/test*" -not -path "./monorepo/packages/protocol/build*" -not -path "./monorepo/packages/protocol/types*")
+# build dir or the build dir does not exist then we remove the build dir, yarn
+# install and rebuild the contracts.
+./monorepo/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
+	@echo $(FOUND)
 	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
 	@echo Running yarn install and compiling contracts
 	@cd ./monorepo && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
+
+# The source files depend on the ./monorepo rule to ensure that the monorepo is
+# checked out before we try to build.
+$(CONTRACT_SOURCE_FILES): ./monorepo
+
+# Clone the monorepo and setup softlink.
+#
+# If the repo has not been cloned then clone it at the MONOREPO_COMMIT store
+# that commit in a file and then add a symlink from ./monorepo to the checkout
+# location.
+#
+# Otherwise if the repo has been cloned and MONOREPO_COMMIT doesn't match the
+# contents of current_commit then checkout the new commit, and update the file
+# that stores the current commit.  This will fail if there are local changes.
+./monorepo:
+	@set -e; \
+	if  [ ! -e ./monorepo ]; \
+	then \
+		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
+		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
+		ln -s $(MONOREPO_PATH) ./monorepo; \
+		echo $(MONOREPO_COMMIT) > ./monorepo/current_commit; \
+	elif [ $(MONOREPO_COMMIT) != $(shell cat ./monorepo/current_commit || echo "") ]; \
+	then \
+		echo "Cheking out monorepo at $(MONOREPO_COMMIT)"; \
+		cd ./monorepo; \
+		git fetch --quiet --depth 1 origin $(MONOREPO_COMMIT); \
+		git checkout FETCH_HEAD; \
+		sleep 0.5; \
+		echo $(MONOREPO_COMMIT) > current_commit; \
+	fi
 
 
 geth-musl:

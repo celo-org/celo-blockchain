@@ -60,6 +60,17 @@ Prior to running tests you will need to run `make prepare-system-contracts`.
 This will checkout the celo-monorepo and compile the system contracts for use in
 full network tests.
 
+This make rule will shallow checkout
+[celo-monorepo](https://github.com/celo-org/celo-monorepo) under `../monorepo`
+relative to this project's root and it will checkout the commit defined in the
+variable MONOREPO_COMMIT in the Makefile.
+
+These values can be overridden if required by setting those variables in the
+make command, for example:
+```
+make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
+```
+
 Without first running this certain tests will fail with errors such as:
 
 ```
