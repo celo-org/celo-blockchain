@@ -58,14 +58,20 @@ var (
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
 )
 
+type BlsInfo struct {
+	Address common.Address       // Ethereum address of the BLS signing key
+	Sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
+}
+
 type AuthorizeInfo struct {
-	Address    common.Address        // Ethereum address of the ECDSA signing key
-	BlsAddress common.Address        // Ethereum address of the BLS signing key
-	PublicKey  *ecdsa.PublicKey      // The signer public key
-	DecryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	SignFn     istanbul.SignerFn     // Signer function to authorize hashes with
-	SignBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
+	Address common.Address // Ethereum address of the ECDSA signing key
+
+	PublicKey *ecdsa.PublicKey   // The signer public key
+	DecryptFn istanbul.DecryptFn // Decrypt function to decrypt ECIES ciphertext
+	SignFn    istanbul.SignerFn  // Signer function to authorize hashes with
+
 	SignHashFn istanbul.HashSignerFn // Signer function to create random seed
+	Bls        BlsInfo
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -372,14 +378,17 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
+	bls := BlsInfo{
+		Address: blsAddress,
+		Sign:    signBLSFn,
+	}
 	ai := &AuthorizeInfo{
 		Address:    ecdsaAddress,
-		BlsAddress: blsAddress,
 		PublicKey:  publicKey,
 		DecryptFn:  decryptFn,
 		SignFn:     signFn,
-		SignBLSFn:  signBLSFn,
 		SignHashFn: signHashFn,
+		Bls:        bls,
 	}
 	sb.authorizeInfo.Store(ai)
 	sb.core.SetAddress(ecdsaAddress)
@@ -677,10 +686,10 @@ func nilCheckSignFn(ai *AuthorizeInfo) func(data []byte) ([]byte, error) {
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
 	ai := sb.auth()
-	if ai.SignBLSFn == nil {
+	if ai.Bls.Sign == nil {
 		return blscrypto.SerializedSignature{}, errInvalidSigningFn
 	}
-	return ai.SignBLSFn(accounts.Account{Address: ai.BlsAddress}, data, extra, useComposite, cip22)
+	return ai.Bls.Sign(accounts.Account{Address: ai.Bls.Address}, data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
