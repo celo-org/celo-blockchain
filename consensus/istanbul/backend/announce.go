@@ -591,7 +591,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
 		return nil, err
 	}
-	ai := sb.auth()
+	ai := sb.wallets()
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
@@ -700,7 +700,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.auth().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.wallets().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
 				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
@@ -935,7 +935,7 @@ func (vc *versionCertificate) payloadToSign() ([]byte, error) {
 }
 
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
-	ai := sb.auth()
+	ai := sb.wallets()
 	vc := &versionCertificate{
 		Address:   ai.Ecdsa.Address,
 		PublicKey: ai.Ecdsa.PublicKey,
@@ -1266,7 +1266,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	if err != nil {
 		return nil, err
 	}
-	ai := sb.auth()
+	ai := sb.wallets()
 	for _, externalNode := range externalEnodes {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: externalNode.URLv4(),

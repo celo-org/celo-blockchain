@@ -93,7 +93,7 @@ func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (bl
 	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
 }
 
-type AuthorizeInfo struct {
+type Wallets struct {
 	Ecdsa EcdsaInfo
 	Bls   BlsInfo
 }
@@ -138,7 +138,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-	backend.authorizeInfo.Store(&AuthorizeInfo{})
+	backend.aWallets.Store(&Wallets{})
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
@@ -204,7 +204,7 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	authorizeInfo atomic.Value
+	aWallets atomic.Value
 
 	core         istanbulCore.Engine
 	logger       log.Logger
@@ -413,21 +413,21 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 		sign:      signFn,
 		signHash:  signHashFn,
 	}
-	ai := &AuthorizeInfo{
+	ai := &Wallets{
 		Ecdsa: ecdsa,
 		Bls:   bls,
 	}
-	sb.authorizeInfo.Store(ai)
+	sb.aWallets.Store(ai)
 	sb.core.SetAddress(ecdsaAddress)
 }
 
-func (sb *Backend) auth() *AuthorizeInfo {
-	return sb.authorizeInfo.Load().(*AuthorizeInfo)
+func (sb *Backend) wallets() *Wallets {
+	return sb.aWallets.Load().(*Wallets)
 }
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	return sb.auth().Ecdsa.Address
+	return sb.wallets().Ecdsa.Address
 }
 
 // SelfNode returns the owner's node (if this is a proxy, it will return the external node)
@@ -696,12 +696,12 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	return sb.auth().Ecdsa.Sign(data)
+	return sb.wallets().Ecdsa.Sign(data)
 }
 
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	ai := sb.auth()
+	ai := sb.wallets()
 	return ai.Bls.Sign(data, extra, useComposite, cip22)
 }
 
