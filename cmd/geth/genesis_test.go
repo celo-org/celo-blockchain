@@ -67,7 +67,7 @@ var customGenesisTests = []struct {
 		query:  "eth.getBlock(0).timestamp",
 		result: "11259376",
 	},
-	// Genesis file with specific chain configurations
+	// Genesis file with an empty chain configuration, and a deployed registry
 	{
 		genesis: `{
 			"alloc"      : {
