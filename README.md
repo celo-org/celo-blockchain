@@ -66,11 +66,14 @@ This make rule will shallow checkout
 relative to this project's root and it will checkout the commit defined in the
 variable MONOREPO_COMMIT in the Makefile. 
 
-These values can be overridden if required by setting those variables in the
+These values can be overridden if required, by setting those variables in the
 make command, for example:
 ```
 make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
 ```
+
+This is only required on the first invocation, as both the path and commit
+are then stored on disk.
 
 Without first running this certain tests will fail with errors such as:
 
