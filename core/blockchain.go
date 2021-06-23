@@ -2208,6 +2208,10 @@ func (bc *BlockChain) addBadBlock(block *types.Block) {
 func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, err error) {
 	bc.addBadBlock(block)
 
+	header := block.Header()
+	extra, _ := types.ExtractIstanbulExtra(header)
+	bitmap := extra.AggregatedSeal.Bitmap
+
 	var receiptString string
 	for i, receipt := range receipts {
 		receiptString += fmt.Sprintf("\t %d: cumulative: %v gas: %v contract: %v status: %v tx: %v logs: %v bloom: %x state: %x\n",
@@ -2220,11 +2224,12 @@ Chain config: %v
 
 Number: %v
 Hash: 0x%x
+Signer Bitmap: %b"
 %v
 
 Error: %v
 ##############################
-`, bc.chainConfig, block.Number(), block.Hash(), receiptString, err))
+`, bc.chainConfig, block.Number(), block.Hash(), bitmap, receiptString, err))
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local
