@@ -7,6 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
+.PHONY: prepare-system-contracts
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -21,9 +22,25 @@ else
 	OS = linux
 endif
 
+MONOREPO_COMMIT=celo-core-contracts-v3.rc0
+
 # example NDK values
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
+
+prepare-system-contracts: ./monorepo ./monorepo/packages/protocol/build
+
+# Clone the monorepo
+./monorepo: 
+	@echo "Cloning monorepo at $(MONOREPO_COMMIT)"
+	@git clone --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git monorepo
+
+# If any of the source files found by the find command are more recent than the
+# build dir then we remove the build dir, yarn install and rebuild the contracts.
+./monorepo/packages/protocol/build: $(shell 2>/dev/null find ./monorepo/packages/protocol -not -path "*/node_modules*" -not -path "./monorepo/packages/protocol/test*" -not -path "./monorepo/packages/protocol/build*" -not -path "./monorepo/packages/protocol/types*")
+	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
+	@echo Running yarn install and compiling contracts
+	@cd ./monorepo && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
 geth:
 	$(GORUN) build/ci.go install ./cmd/geth
