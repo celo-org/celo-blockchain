@@ -231,7 +231,7 @@ func TestStoreBacklog(t *testing.T) {
 	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
 	p2 := validator.New(common.BytesToAddress([]byte("47324349949")), blscrypto.SerializedPublicKey{})
 
-	mPreprepare := istanbul.NewMessage(
+	mPreprepare := istanbul.NewPreprepareMessage(
 		&istanbul.Preprepare{View: v10, Proposal: makeBlock(10)},
 		p1.Address(),
 	)
@@ -242,11 +242,11 @@ func TestStoreBacklog(t *testing.T) {
 		t.Errorf("message mismatch: have %v, want %v", msg, mPreprepare)
 	}
 
-	mPrepare := istanbul.NewMessage(
+	mPrepare := istanbul.NewPrepareMessage(
 		&istanbul.Subject{View: v10, Digest: common.BytesToHash([]byte("1234567890"))},
 		p1.Address(),
 	)
-	mPreprepare2 := istanbul.NewMessage(
+	mPreprepare2 := istanbul.NewPreprepareMessage(
 		&istanbul.Preprepare{View: v11, Proposal: makeBlock(11)},
 		p2.Address(),
 	)
@@ -259,7 +259,7 @@ func TestStoreBacklog(t *testing.T) {
 		t.Errorf("msgCountBySrc mismatch: have %v, want 3", backlog.msgCountBySrc[p1.Address()])
 	}
 
-	mCommit := istanbul.NewMessage(
+	mCommit := istanbul.NewCommitMessage(
 		&istanbul.CommittedSubject{Subject: mPrepare.Prepare(), CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}}, // celo in hex!},
 		p1.Address(),
 	)
@@ -300,7 +300,7 @@ func TestClearBacklogForSequence(t *testing.T) {
 	// The backlog's state is sequence number 1, round 0.  Store future messages with sequence number 2
 	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
 
-	mPreprepare := istanbul.NewMessage(
+	mPreprepare := istanbul.NewPreprepareMessage(
 		&istanbul.Preprepare{
 			View:     &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(2)},
 			Proposal: makeBlock(2),
@@ -347,7 +347,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 
 	// push a future msg
 	valSet := newTestValidatorSet(4)
-	mFuture := istanbul.NewMessage(
+	mFuture := istanbul.NewCommitMessage(
 		&istanbul.CommittedSubject{
 			Subject: &istanbul.Subject{
 				View:   &istanbul.View{Round: big.NewInt(10), Sequence: futureSequence},
@@ -360,7 +360,7 @@ func TestProcessFutureBacklog(t *testing.T) {
 	backlog.store(mFuture)
 
 	// push a message from the past and check we expire it
-	mPast := istanbul.NewMessage(&istanbul.RoundChange{
+	mPast := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 		View: &istanbul.View{
 			Round:    big.NewInt(0),
 			Sequence: oldSequence,
@@ -404,16 +404,16 @@ func TestProcessBacklog(t *testing.T) {
 	address := common.BytesToAddress([]byte("0xce10ce10"))
 
 	msgs := []*istanbul.Message{
-		istanbul.NewMessage(
+		istanbul.NewPreprepareMessage(
 			&istanbul.Preprepare{View: v, Proposal: makeBlock(1)},
 			address,
 		),
-		istanbul.NewMessage(subject, address),
-		istanbul.NewMessage(
+		istanbul.NewPrepareMessage(subject, address),
+		istanbul.NewCommitMessage(
 			&istanbul.CommittedSubject{Subject: subject, CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}},
 			address,
 		),
-		istanbul.NewMessage(
+		istanbul.NewRoundChangeMessage(
 			&istanbul.RoundChange{View: v, PreparedCertificate: istanbul.EmptyPreparedCertificate()},
 			address,
 		),

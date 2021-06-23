@@ -508,7 +508,7 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 		return nil, nil
 	}
 
-	msg := istanbul.NewMessage(&istanbul.QueryEnodeData{
+	msg := istanbul.NewQueryEnodeMessage(&istanbul.QueryEnodeData{
 		EncryptedEnodeURLs: encryptedEnodeURLs,
 		Version:            version,
 		Timestamp:          getTimestamp(),
@@ -751,7 +751,7 @@ func (sb *Backend) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, 
 func (sb *Backend) gossipVersionCertificatesMsg(versionCertificates []*istanbul.VersionCertificate) error {
 	logger := sb.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := istanbul.NewMessage(versionCertificates, sb.address).Payload()
+	payload, err := istanbul.NewVersionCeritifcatesMessage(versionCertificates, sb.address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -772,7 +772,7 @@ func (sb *Backend) sendVersionCertificateTable(peer consensus.Peer) error {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := istanbul.NewMessage(allVersionCertificates, sb.address).Payload()
+	payload, err := istanbul.NewVersionCeritifcatesMessage(allVersionCertificates, sb.address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -1035,7 +1035,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	}
 
 	for _, externalNode := range externalEnodes {
-		msg := istanbul.NewMessage(
+		msg := istanbul.NewEnodeCeritifcateMessage(
 			&istanbul.EnodeCertificate{EnodeURL: externalNode.URLv4(), Version: version},
 			sb.Address(),
 		)

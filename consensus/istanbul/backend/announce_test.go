@@ -49,7 +49,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 
 	// Have engine0 handle vCert messages from engine1 and engine2
 
-	vCert1MsgPayload, err := istanbul.NewMessage([]*istanbul.VersionCertificate{vCert1}, engine1Address).Payload()
+	vCert1MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert1}, engine1Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert1.  Error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 		t.Errorf("Error in handling vCert1.  Error: %v", err)
 	}
 
-	vCert2MsgPayload, err := istanbul.NewMessage([]*istanbul.VersionCertificate{vCert2}, engine2Address).Payload()
+	vCert2MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert2}, engine2Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert2.  Error: %v", err)
 	}

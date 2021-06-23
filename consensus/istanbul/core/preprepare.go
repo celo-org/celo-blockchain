@@ -29,7 +29,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 
 	// If I'm the proposer and I have the same sequence with the proposal
 	if c.current.Sequence().Cmp(request.Proposal.Number()) == 0 && c.isProposer() {
-		m := istanbul.NewMessage(&istanbul.Preprepare{
+		m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 			View:                   c.current.View(),
 			Proposal:               request.Proposal,
 			RoundChangeCertificate: roundChangeCertificate,

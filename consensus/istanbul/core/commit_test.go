@@ -214,7 +214,7 @@ OUTER:
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 
-			msg := istanbul.NewMessage(
+			msg := istanbul.NewCommitMessage(
 				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes},
 				validator.Address(),
 			)
@@ -430,7 +430,7 @@ func BenchmarkHandleCommit(b *testing.B) {
 		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 		defer signature.Destroy()
 		signatureBytes, _ := signature.Serialize()
-		im = istanbul.NewMessage(&istanbul.CommittedSubject{
+		im = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 			Subject:       v.engine.(*core).current.Subject(),
 			CommittedSeal: signatureBytes,
 		}, validator.Address())

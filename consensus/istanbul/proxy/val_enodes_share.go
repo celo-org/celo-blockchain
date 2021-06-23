@@ -51,7 +51,7 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		})
 	}
 
-	msg := istanbul.NewMessage(&istanbul.ValEnodesShareData{
+	msg := istanbul.NewValEnodesShareMessage(&istanbul.ValEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
 	}, pv.backend.Address())
 

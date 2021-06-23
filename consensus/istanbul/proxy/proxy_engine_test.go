@@ -187,7 +187,7 @@ func testEnodeCertFromRemoteVal(t *testing.T, valBE BackendForProxiedValidatorEn
 }
 
 func testEnodeCertFromUnelectedRemoteVal(t *testing.T, unelectedValBE BackendForProxiedValidatorEngine, unelectedValKey *ecdsa.PrivateKey, unelectedValPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {
-	ecMsg := istanbul.NewMessage(&istanbul.EnodeCertificate{
+	ecMsg := istanbul.NewEnodeCeritifcateMessage(&istanbul.EnodeCertificate{
 		EnodeURL: unelectedValBE.SelfNode().URLv4(),
 		Version:  1,
 	}, unelectedValBE.Address())
@@ -293,13 +293,13 @@ func TestHandleConsensusMsg(t *testing.T) {
 	}
 
 	// Test that the node will forward a consensus message from val within val connection set
-	testConsensusMsgFromRemoteVal(t, istanbul.NewMessage(subject, val1BE.Address()), val1BE, nodeKeys[1], val1Peer, proxyBEi)
+	testConsensusMsgFromRemoteVal(t, istanbul.NewPrepareMessage(subject, val1BE.Address()), val1BE, nodeKeys[1], val1Peer, proxyBEi)
 
 	// Test that the node will not forward a consensus message not within val connetion set
-	testConsensusMsgFromUnelectedRemoteVal(t, istanbul.NewMessage(subject, unelectedValBE.Address()), unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
+	testConsensusMsgFromUnelectedRemoteVal(t, istanbul.NewPrepareMessage(subject, unelectedValBE.Address()), unelectedValBE, unelectedValKey, unelectedValPeer, proxyBEi)
 
 	// Test that the proxy will not handle a consensus message from the proxied validator
-	testConsensusMsgFromProxiedVal(t, istanbul.NewMessage(subject, val0BE.Address()), val0BE, nodeKeys[0], val0Peer, proxyBEi)
+	testConsensusMsgFromProxiedVal(t, istanbul.NewPrepareMessage(subject, val0BE.Address()), val0BE, nodeKeys[0], val0Peer, proxyBEi)
 }
 
 func testConsensusMsgFromRemoteVal(t *testing.T, consMsg *istanbul.Message, valBE BackendForProxiedValidatorEngine, valKey *ecdsa.PrivateKey, valPeer consensus.Peer, proxyBEi backendtest.TestBackendInterface) {

@@ -38,7 +38,7 @@ func TestHandleMsg(t *testing.T) {
 	v0 := sys.backends[0]
 	r0 := v0.engine.(*core)
 
-	m := istanbul.NewMessage(&istanbul.Subject{
+	m := istanbul.NewPrepareMessage(&istanbul.Subject{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -55,7 +55,7 @@ func TestHandleMsg(t *testing.T) {
 	err = r0.handleMsg(payload)
 	assert.Error(t, err)
 
-	m = istanbul.NewMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -72,7 +72,7 @@ func TestHandleMsg(t *testing.T) {
 	err = r0.handleMsg(payload)
 	assert.Error(t, err)
 
-	m = istanbul.NewMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),
@@ -89,7 +89,7 @@ func TestHandleMsg(t *testing.T) {
 	err = r0.handleMsg(payload)
 	assert.Error(t, err)
 
-	m = istanbul.NewMessage(&istanbul.Preprepare{
+	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 		View: &istanbul.View{
 			Sequence: big.NewInt(0),
 			Round:    big.NewInt(0),

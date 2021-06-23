@@ -119,7 +119,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 			return
 		}
 	}
-	istMsg := istanbul.NewMessage(&istanbul.CommittedSubject{
+	istMsg := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 		Subject:               sub,
 		CommittedSeal:         committedSeal[:],
 		EpochValidatorSetSeal: epochValidatorSetSeal[:],

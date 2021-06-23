@@ -275,7 +275,7 @@ func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (
 }
 
 func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundChangeCertificate istanbul.RoundChangeCertificate, proposal istanbul.Proposal) (istanbul.Message, error) {
-	msg := istanbul.NewMessage(&istanbul.Preprepare{
+	msg := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 		View:                   &view,
 		RoundChangeCertificate: roundChangeCertificate,
 		Proposal:               proposal,
@@ -285,7 +285,7 @@ func (self *testSystemBackend) getPreprepareMessage(view istanbul.View, roundCha
 }
 
 func (self *testSystemBackend) getPrepareMessage(view istanbul.View, digest common.Hash) (istanbul.Message, error) {
-	msg := istanbul.NewMessage(&istanbul.Subject{
+	msg := istanbul.NewPrepareMessage(&istanbul.Subject{
 		View:   &view,
 		Digest: digest,
 	}, self.address)
@@ -303,7 +303,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		return istanbul.Message{}, err
 	}
 
-	msg := istanbul.NewMessage(&istanbul.CommittedSubject{
+	msg := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 		Subject:       subject,
 		CommittedSeal: committedSeal[:],
 	}, self.address)
@@ -322,7 +322,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 }
 
 func (self *testSystemBackend) getRoundChangeMessage(view istanbul.View, preparedCert istanbul.PreparedCertificate) (istanbul.Message, error) {
-	msg := istanbul.NewMessage(&istanbul.RoundChange{
+	msg := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 		View:                &view,
 		PreparedCertificate: preparedCert,
 	}, common.Address{})

@@ -27,7 +27,7 @@ import (
 func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
 	logger.Debug("Sending prepare")
-	c.broadcast(istanbul.NewMessage(c.current.Subject(), c.address))
+	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.

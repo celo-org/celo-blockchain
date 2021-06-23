@@ -101,7 +101,7 @@ func dummyBlock(number int64) *types.Block {
 	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
 }
 func dummyMessage(code uint64) *Message {
-	msg := NewMessage(dummySubject(), common.HexToAddress("AABB"))
+	msg := NewPrepareMessage(dummySubject(), common.HexToAddress("AABB"))
 	// Set empty rather than nil signature since this is how rlp decodes non
 	// existent slices.
 	msg.Signature = []byte{}

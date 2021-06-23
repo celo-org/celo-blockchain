@@ -35,7 +35,7 @@ func testPreprepare(t *testing.T) {
 		},
 		Proposal: makeBlock(1),
 	}
-	m := istanbul.NewMessage(pp, common.HexToAddress("0x1234567890"))
+	m := istanbul.NewPreprepareMessage(pp, common.HexToAddress("0x1234567890"))
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -72,7 +72,7 @@ func testSubject(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 
-	m := istanbul.NewMessage(s, common.HexToAddress("0x1234567890"))
+	m := istanbul.NewPrepareMessage(s, common.HexToAddress("0x1234567890"))
 
 	msgPayload, err := m.Payload()
 	if err != nil {
@@ -108,7 +108,7 @@ func testSubjectWithSignature(t *testing.T) {
 	spooferAddress := common.HexToAddress("0x2")
 
 	// 1. Encode test
-	m := istanbul.NewMessage(s, correctAddress)
+	m := istanbul.NewPrepareMessage(s, correctAddress)
 
 	err = m.Sign(signCorrect)
 	require.NoError(t, err)

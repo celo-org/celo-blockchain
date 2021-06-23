@@ -43,7 +43,7 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(c.current.View().Sequence),
 	}
-	return istanbul.NewMessage(&istanbul.RoundChange{
+	return istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 		View:                nextView,
 		PreparedCertificate: c.current.PreparedCertificate(),
 	}, c.address)

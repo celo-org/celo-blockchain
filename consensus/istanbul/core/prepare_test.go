@@ -374,7 +374,7 @@ func TestHandlePrepare(t *testing.T) {
 
 			for i, v := range test.system.backends {
 				validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-				msg := istanbul.NewMessage(v.engine.(*core).current.Subject(), validator.Address())
+				msg := istanbul.NewPrepareMessage(v.engine.(*core).current.Subject(), validator.Address())
 				err := r0.handlePrepare(msg)
 				if err != nil {
 					if err != test.expectedErr {

@@ -137,6 +137,19 @@ func (b *RoundChangeCertificate) IsEmpty() bool {
 
 // ## Preprepare ##############################################################
 
+// NewPreprepareMessage constructs a Message instance with the given sender and
+// prePrepare. Both the prePrepare instance and the serialized bytes of
+// prePrepare are part of the returned Message.
+func NewPreprepareMessage(prePrepare *Preprepare, sender common.Address) *Message {
+	message := &Message{
+		Address:    sender,
+		Code:       MsgPreprepare,
+		prePrepare: prePrepare,
+	}
+	setMessageBytes(message, prePrepare)
+	return message
+}
+
 type Preprepare struct {
 	View                   *View
 	Proposal               Proposal
@@ -274,6 +287,19 @@ func (pc *PreparedCertificate) DecodeRLP(s *rlp.Stream) error {
 
 // ## RoundChange #############################################################
 
+// NewRoundChangeMessage constructs a Message instance with the given sender and
+// roundChange. Both the roundChange instance and the serialized bytes of
+// roundChange are part of the returned Message.
+func NewRoundChangeMessage(roundChange *RoundChange, sender common.Address) *Message {
+	message := &Message{
+		Address:     sender,
+		Code:        MsgRoundChange,
+		roundChange: roundChange,
+	}
+	setMessageBytes(message, roundChange)
+	return message
+}
+
 type RoundChange struct {
 	View                *View
 	PreparedCertificate PreparedCertificate
@@ -304,6 +330,19 @@ func (b *RoundChange) DecodeRLP(s *rlp.Stream) error {
 
 // ## Subject #################################################################
 
+// NewPrepareMessage constructs a Message instance with the given sender and
+// subject. Both the subject instance and the serialized bytes of subject are
+// part of the returned Message.
+func NewPrepareMessage(subject *Subject, sender common.Address) *Message {
+	message := &Message{
+		Address: sender,
+		Code:    MsgPrepare,
+		prepare: subject,
+	}
+	setMessageBytes(message, subject)
+	return message
+}
+
 type Subject struct {
 	View   *View
 	Digest common.Hash
@@ -315,6 +354,19 @@ func (s *Subject) String() string {
 
 // ## CommittedSubject #################################################################
 
+// NewCommitMessage constructs a Message instance with the given sender and
+// commit. Both the commit instance and the serialized bytes of commit are
+// part of the returned Message.
+func NewCommitMessage(commit *CommittedSubject, sender common.Address) *Message {
+	message := &Message{
+		Address:          sender,
+		Code:             MsgCommit,
+		committedSubject: commit,
+	}
+	setMessageBytes(message, commit)
+	return message
+}
+
 type CommittedSubject struct {
 	Subject               *Subject
 	CommittedSeal         []byte
@@ -322,6 +374,19 @@ type CommittedSubject struct {
 }
 
 // ## ForwardMessage #################################################################
+
+// NewForwardMessage constructs a Message instance with the given sender and
+// forwardMessage. Both the forwardMessage instance and the serialized bytes of
+// fowardMessage are part of the returned Message.
+func NewForwardMessage(fowardMessage *ForwardMessage, sender common.Address) *Message {
+	message := &Message{
+		Address:        sender,
+		Code:           FwdMsg,
+		forwardMessage: fowardMessage,
+	}
+	setMessageBytes(message, fowardMessage)
+	return message
+}
 
 type ForwardMessage struct {
 	Code          uint64
@@ -332,6 +397,19 @@ type ForwardMessage struct {
 // ===============================================================
 //
 // define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
+
+// NewQueryEnodeMessage constructs a Message instance with the given sender and
+// queryEnode. Both the queryEnode instance and the serialized bytes of
+// queryEnode are part of the returned Message.
+func NewQueryEnodeMessage(queryEnode *QueryEnodeData, sender common.Address) *Message {
+	message := &Message{
+		Address:    sender,
+		Code:       QueryEnodeMsg,
+		queryEnode: queryEnode,
+	}
+	setMessageBytes(message, queryEnode)
+	return message
+}
 
 type EncryptedEnodeURL struct {
 	DestAddress       common.Address
@@ -406,15 +484,27 @@ const (
 	MsgRoundChange
 )
 
+// Message is a wrapper used for all istanbul communication. It encapsulates
+// the sender's address, a code that indicates the type of the wrapped message
+// and a signature. Message instances also hold a deserialised instance of the
+// inner message which can be retrieved by calling the corresponding function
+// (Commit(), Preprepare() ... etc).
+//
+// Messages should be initialised either through the use of one of the
+// NewXXXMessage constructors or by calling FromPayload on an empty Message
+// instance, these mechanisms ensure that the produced Message instances will
+// contain the deserialised inner message instance and the serialised bytes of
+// the inner message.
 type Message struct {
 	Code      uint64
-	Msg       []byte
+	Msg       []byte         // The serialised bytes of the innner message.
 	Address   common.Address // The sender address
 	Signature []byte         // Signature of the Message using the private key associated with the "Address" field
 
-	// The below fields are not serializable since they are private, they are
-	// set when calling Message.FromPayload, only one will be set in any
-	// instance, which is set depends on the Message.Code.
+	// The below fields are the potential inner message instances only one
+	// should be set for a message instance. These fields are not rlp
+	// serializable since they are private. They are set when calling
+	// Message.FromPayload, or at message construction time.
 	committedSubject    *CommittedSubject
 	prePrepare          *Preprepare
 	prepare             *Subject
@@ -426,53 +516,16 @@ type Message struct {
 	valEnodeShareData   *ValEnodesShareData
 }
 
-// NewMessage constructs a message with the innerMessage instance and the
-// sender address, it will panic if innerMessage is not a recognised inner
-// message type.
-func NewMessage(innerMessage interface{}, sender common.Address) *Message {
-	message := &Message{
-		Address: sender,
-	}
-	switch t := innerMessage.(type) {
-	case *Preprepare:
-		message.Code = MsgPreprepare
-		message.prePrepare = t
-	case *Subject:
-		message.Code = MsgPrepare
-		message.prepare = t
-	case *CommittedSubject:
-		message.Code = MsgCommit
-		message.committedSubject = t
-	case *RoundChange:
-		message.Code = MsgRoundChange
-		message.roundChange = t
-	case *QueryEnodeData:
-		message.Code = QueryEnodeMsg
-		message.queryEnode = t
-	case *ForwardMessage:
-		message.Code = FwdMsg
-		message.forwardMessage = t
-	case *EnodeCertificate:
-		message.Code = EnodeCertificateMsg
-		message.enodeCertificate = t
-	case []*VersionCertificate:
-		message.Code = VersionCertificatesMsg
-		message.versionCertificates = t
-	case *ValEnodesShareData:
-		message.Code = ValEnodesShareMsg
-		message.valEnodeShareData = t
-	default:
-		panic(fmt.Sprintf("attempt to construct Message unrecognised inner message type %T", t))
-	}
+// setMessageBytes sets the Msg field of msg to the rlp serialised bytes of
+// innerMessage. If innerMessage fails serialisation then this function
+// panics. This is intended for use by NewXXXMessage constructors only.
+func setMessageBytes(msg *Message, innerMessage interface{}) {
 	bytes, err := rlp.EncodeToBytes(innerMessage)
 	if err != nil {
-		panic(fmt.Sprintf("attempt to serialise inner messgae of type %T failed", innerMessage))
+		panic(fmt.Sprintf("attempt to serialise inner message of type %T failed", innerMessage))
 	}
-	message.Msg = bytes
-	return message
+	msg.Msg = bytes
 }
-
-// define the functions that needs to be provided for core.
 
 func (m *Message) Sign(signingFn func(data []byte) ([]byte, error)) error {
 	// Construct and encode a message with no signature
@@ -666,6 +719,20 @@ func MapMessagesToSenders(messages []Message) []common.Address {
 }
 
 // ## EnodeCertificate ######################################################################
+
+// NewValEnodesShareMessage constructs a Message instance with the given sender
+// and enodeCertificate. Both the enodeCertificate instance and the serialized
+// bytes of enodeCertificate are part of the returned Message.
+func NewEnodeCeritifcateMessage(enodeCertificate *EnodeCertificate, sender common.Address) *Message {
+	message := &Message{
+		Address:          sender,
+		Code:             EnodeCertificateMsg,
+		enodeCertificate: enodeCertificate,
+	}
+	setMessageBytes(message, enodeCertificate)
+	return message
+}
+
 type EnodeCertificate struct {
 	EnodeURL string
 	Version  uint
@@ -811,6 +878,19 @@ func (ae *AddressEntry) GetAddress() common.Address {
 
 // ## VersionCertificate ######################################################################
 
+// NewVersionCeritifcatesMessage constructs a Message instance with the given sender
+// and versionCertificates. Both the versionCertificates instance and the serialized
+// bytes of versionCertificates are part of the returned Message.
+func NewVersionCeritifcatesMessage(versionCertificates []*VersionCertificate, sender common.Address) *Message {
+	message := &Message{
+		Address:             sender,
+		Code:                VersionCertificatesMsg,
+		versionCertificates: versionCertificates,
+	}
+	setMessageBytes(message, versionCertificates)
+	return message
+}
+
 // VersionCertificate is an entry in the VersionCertificateDB.
 // It's a signed message from a registered or active validator indicating
 // the most recent version of its enode.
@@ -885,6 +965,19 @@ func (vc *VersionCertificate) recoverAddressAndPubKey() error {
 }
 
 // ## SharedValidatorEnode ######################################################################
+
+// NewValEnodesShareMessage constructs a Message instance with the given sender
+// and valEnodeShareData. Both the valEnodeShareData instance and the
+// serialized bytes of valEnodeShareData are part of the returned Message.
+func NewValEnodesShareMessage(valEnodeShareData *ValEnodesShareData, sender common.Address) *Message {
+	message := &Message{
+		Address:           sender,
+		Code:              ValEnodesShareMsg,
+		valEnodeShareData: valEnodeShareData,
+	}
+	setMessageBytes(message, valEnodeShareData)
+	return message
+}
 
 type SharedValidatorEnode struct {
 	Address  common.Address

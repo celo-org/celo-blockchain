@@ -32,7 +32,7 @@ func (pv *proxiedValidatorEngine) sendForwardMsg(ps *proxySet, destAddresses []c
 		if proxy.IsPeered() {
 
 			// Convert the message to a fwdMessage
-			msg := istanbul.NewMessage(&istanbul.ForwardMessage{
+			msg := istanbul.NewForwardMessage(&istanbul.ForwardMessage{
 				Code:          ethMsgCode,
 				DestAddresses: destAddresses,
 				Msg:           payload,

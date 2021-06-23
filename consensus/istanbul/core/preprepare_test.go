@@ -368,7 +368,7 @@ func TestHandlePreprepare(t *testing.T) {
 				preprepareView = &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(5)}
 			}
 
-			msg := istanbul.NewMessage(
+			msg := istanbul.NewPreprepareMessage(
 				&istanbul.Preprepare{
 					View:                   preprepareView,
 					Proposal:               test.expectedRequest,
