@@ -27,7 +27,7 @@ MONOREPO_COMMIT=celo-core-contracts-v3.rc0
 # We checkout the monorepo as a sibling to the celo-blockchain dir because the
 # huge amount of files in the monorepo interferes with tooling such as gopls,
 # which becomes very slow.
-MONOREPO_PATH=../monorepo
+MONOREPO_PATH=../.celo-blockchain-monorepo-checkout
 
 # This either evaluates to the contract source files if they exist or NOT_FOUND
 # if celo-monorepo has not been checked out yet.
