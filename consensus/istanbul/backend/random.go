@@ -42,8 +42,8 @@ func (sb *Backend) GenerateRandomness(parentHash common.Hash) (common.Hash, comm
 	sb.randomSeedMu.Lock()
 	if sb.randomSeed == nil {
 		var err error
-		ai := sb.wallets()
-		sb.randomSeed, err = ai.Ecdsa.SignHash(common.BytesToHash(randomSeedString))
+		w := sb.wallets()
+		sb.randomSeed, err = w.Ecdsa.SignHash(common.BytesToHash(randomSeedString))
 		if err != nil {
 			logger.Error("Failed to create randomSeed", "err", err)
 			sb.randomSeedMu.Unlock()

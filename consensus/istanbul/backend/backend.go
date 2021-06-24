@@ -413,11 +413,11 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 		sign:      signFn,
 		signHash:  signHashFn,
 	}
-	ai := &Wallets{
+	w := &Wallets{
 		Ecdsa: ecdsa,
 		Bls:   bls,
 	}
-	sb.aWallets.Store(ai)
+	sb.aWallets.Store(w)
 	sb.core.SetAddress(ecdsaAddress)
 }
 
@@ -701,8 +701,8 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	ai := sb.wallets()
-	return ai.Bls.Sign(data, extra, useComposite, cip22)
+	w := sb.wallets()
+	return w.Bls.Sign(data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
