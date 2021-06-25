@@ -50,6 +50,7 @@ func (vph *validatorPeerHandler) startThread() error {
 		return istanbul.ErrStartedVPHThread
 	}
 
+	vph.threadRunning = true
 	go vph.thread()
 
 	return nil
