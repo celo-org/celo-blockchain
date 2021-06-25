@@ -718,6 +718,7 @@ func (sb *Backend) StopValidating() error {
 
 // StartAnnouncing implements consensus.Istanbul.StartAnnouncing
 func (sb *Backend) StartAnnouncing() error {
+	println(sb.Address().String()[:6], "Start Announce")
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
 	if sb.announceRunning {
@@ -739,6 +740,7 @@ func (sb *Backend) StartAnnouncing() error {
 
 // StopAnnouncing implements consensus.Istanbul.StopAnnouncing
 func (sb *Backend) StopAnnouncing() error {
+	println(sb.Address().String()[:6], "Stop Announce")
 	sb.announceMu.Lock()
 	defer sb.announceMu.Unlock()
 
