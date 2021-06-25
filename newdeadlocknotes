@@ -1,0 +1,104 @@
+consensus/istanbul/backend/engine.go:660
+func (sb *Backend) StartValidating() error {
+
+Locs the mutex
+
+The calls
+consensus/istanbul/backend/engine.go:691
+		if err := sb.RefreshValPeers(); err != nil {
+
+
+Eventually calls remove peer
+goroutine 378 [chan receive, 1 minutes]:
+github.com/celo-org/celo-blockchain/p2p.(*Server).RemovePeer(0xc006c4a580, 0xc000260070, 0xffffffff00000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:427 +0x15c
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).RemoveValidatorPeer(0xc0006c3240, 0xc000260070)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:127 +0x4f
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).ReplaceValidatorPeers(0xc0006c3240, 0x1e3e690, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:140 +0x25c
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).RefreshValPeers(0xc0006c3500, 0xc012911b90, 0xd8f68e20d01866a1, 0x28f994d42c6a1710, 0xe078d480)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:470 +0x3d1
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).RefreshValPeers(0xc000258000, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/backend.go:818 +0x169
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).StartValidating(0xc000258000, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/engine.go:691 +0x1ed
+github.com/celo-org/celo-blockchain/miner.(*worker).start(0xc010f7fdc0)
+	/home/pierspowlesland/projects/celo-blockchain/miner/worker.go:206 +0x102
+github.com/celo-org/celo-blockchain/miner.(*Miner).update(0xc0001d02a0)
+	/home/pierspowlesland/projects/celo-blockchain/miner/miner.go:166 +0x228
+created by github.com/celo-org/celo-blockchain/miner.New
+	/home/pierspowlesland/projects/celo-blockchain/miner/miner.go:75 +0x1e9
+
+
+Remove peer is blocked on done channel
+p2p/server.go:427
+		<-done
+
+Which is waiting to be closed inside server.run
+
+But is stuck on this channel which is the peer feed.
+
+p2p/server.go:832
+					for ev := range ch {
+
+
+goroutine 337 [chan receive, 1 minutes]:
+github.com/celo-org/celo-blockchain/p2p.(*Server).run.func2.1(0xc006b7df80, 0xc000260070, 0x1708470, 0xc006b7ae80, 0xc000741ec0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:832 +0x47
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).run.func2
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:831 +0x29d
+
+
+The peer feed is written to twice in p2p.Server.runPeer() once at start and once running has finished.
+
+runPeer calls peer.Run which calls start protocols in a new goroutine.
+
+p2p/peer.go:265
+	p.startProtocols(writeStart, writeErr)
+
+runpeer has called startProtocols and is waiting for the peer to exit here:
+
+goroutine 441 [select, 1 minutes]:
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0001d0b60, 0x1231ba0, 0xc01258f380, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:270 +0x265
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc006c4a580, 0xc0001d0b60)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1232 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1215 +0xcd
+
+
+startProtocols eventually gets stuck at IsValidator
+
+goroutine 225 [semacquire, 1 minutes]:
+sync.runtime_SemacquireMutex(0xc000258108, 0x4b4a00, 0x0)
+	/usr/local/go/src/runtime/sema.go:71 +0x47
+sync.(*RWMutex).RLock(...)
+	/usr/local/go/src/sync/rwmutex.go:63
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).IsValidating(0xc000258000, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/backend.go:342 +0xae
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg(0xc000258000, 0x87ebb17b343bc637, 0x3d62a66133134cee, 0xc01eb416bf, 0x16, 0x1b, 0x16fd0e0, 0xc012b8a8a0, 0xc02d9ff7c798110c, 0x326a95a5, ...)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:94 +0x7ea
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).handleMsg(0xc010f39680, 0xc012988dd0, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:459 +0x5d54
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).handle(0xc010f39680, 0xc012988dd0, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:437 +0x8fb
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).runPeer(0xc010f39680, 0xc012988dd0, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:335 +0xbc
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).makeProtocol.func1(0xc000260230, 0x1708538, 0xc0129d01e0, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:235 +0xca
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols.func1(0xc000260230, 0xc0129d01e0, 0x1708538, 0xc0129d01e0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:442 +0x98
+created by github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:440 +0x28e
+
+So to summarise StartValidating locks the coreMu and tries to remove a peer in
+that same goroutine. RemovePeer waits for the peer in question to shutdown but
+as part of running peers also make calls to IsValidating which is also tries to
+acquire the coreMu, so if StartValidating tries to remove a peer that makes a
+call to IsValidating before sutting down we reach a deadlock.
+
+Solutions are don't have StartValidating wait for the peers to be removed (Run
+that in a separate goroutine) or unlock coreMu in StartValidating before trying
+to remove a peer. Make IsValidating not require the coreMu, or make peers not
+need to call IsValidating. Or just don't have StartValidating try to remove
+peers at all, why is it doing it?
