@@ -658,12 +658,12 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 
 // StartValidating implements consensus.Istanbul.StartValidating
 func (sb *Backend) StartValidating() error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
 	err := sb.StartAnnouncing()
 	if err != nil {
 		return err
 	}
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
 		return istanbul.ErrStartedEngine
 	}
@@ -698,12 +698,12 @@ func (sb *Backend) StartValidating() error {
 
 // StopValidating implements consensus.Istanbul.StopValidating
 func (sb *Backend) StopValidating() error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
 	err := sb.StopAnnouncing()
 	if err != nil {
 		return err
 	}
+	sb.coreMu.Lock()
+	defer sb.coreMu.Unlock()
 	if !sb.coreStarted {
 		return istanbul.ErrStoppedEngine
 	}
