@@ -19,8 +19,8 @@ package leveldb
 import (
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/ethdb/dbtest"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/dbtest"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/storage"
 )

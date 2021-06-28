@@ -5,12 +5,12 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
-	"github.com/celo-org/celo-blockchain/common/decimal/token"
-	"github.com/celo-org/celo-blockchain/mycelo/env"
-	"github.com/celo-org/celo-blockchain/mycelo/genesis"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/decimal/fixed"
+	"github.com/ethereum/go-ethereum/common/decimal/token"
+	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/ethereum/go-ethereum/mycelo/genesis"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type template interface {

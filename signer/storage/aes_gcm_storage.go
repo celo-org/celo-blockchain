@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type storedCredential struct {

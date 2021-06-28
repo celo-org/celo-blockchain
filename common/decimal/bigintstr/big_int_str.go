@@ -3,7 +3,7 @@ package bigintstr
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common/decimal"
+	"github.com/ethereum/go-ethereum/common/decimal"
 )
 
 // Since this is just a wrapper for big.Int, it's precision is 1 (10^0)

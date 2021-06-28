@@ -16,7 +16,7 @@
 
 package istanbul
 
-import "github.com/celo-org/celo-blockchain/p2p/enode"
+import "github.com/ethereum/go-ethereum/p2p/enode"
 
 // RequestEvent is posted to propose a proposal
 type RequestEvent struct {

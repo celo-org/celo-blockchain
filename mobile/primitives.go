@@ -22,7 +22,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Strings represents s slice of strs.

@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Tests that the account management snippets work correctly.

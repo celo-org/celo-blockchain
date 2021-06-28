@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestCUSD(t *testing.T) {

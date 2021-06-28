@@ -27,8 +27,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/p2p/enr"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var errMissingPrefix = errors.New("missing 'enr:' prefix for base64-encoded record")

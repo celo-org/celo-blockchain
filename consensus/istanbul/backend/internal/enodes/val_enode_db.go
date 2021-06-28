@@ -25,14 +25,14 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/internal/db"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Keys in the node database.
@@ -389,7 +389,7 @@ func (vet *ValidatorEnodeDB) UpdateQueryEnodeStats(valEnodeEntries []*istanbul.A
 // is older (determined by the version) than the new one
 // TODO - In addition to modifying the val_enode_db, this function also will disconnect
 //        and/or connect the corresponding validator connenctions.  The validator connections
-//        should be managed be a separate thread (see https://github.com/celo-org/celo-blockchain/issues/607)
+//        should be managed be a separate thread (see https://github.com/ethereum/go-ethereum/issues/607)
 func (vet *ValidatorEnodeDB) upsert(valEnodeEntries []*istanbul.AddressEntry,
 	onNewEntry func(batch *leveldb.Batch, entry db.GenericEntry) error,
 	onUpdatedEntry func(batch *leveldb.Batch, existingEntry db.GenericEntry, newEntry db.GenericEntry) error) error {

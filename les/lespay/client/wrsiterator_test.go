@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/p2p/nodestate"
+	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/p2p/nodestate"
 )
 
 var (

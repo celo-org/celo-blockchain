@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
-	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"gopkg.in/urfave/cli.v1"
 )
 

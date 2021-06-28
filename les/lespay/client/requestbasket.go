@@ -19,8 +19,8 @@ package client
 import (
 	"io"
 
-	"github.com/celo-org/celo-blockchain/les/utils"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/les/utils"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const basketFactor = 1000000 // reference basket amount and value scale factor

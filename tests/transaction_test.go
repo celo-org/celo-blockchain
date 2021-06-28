@@ -19,7 +19,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func TestTransaction(t *testing.T) {

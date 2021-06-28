@@ -17,8 +17,8 @@
 package les
 
 import (
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 var (

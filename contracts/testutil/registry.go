@@ -1,9 +1,9 @@
 package testutil
 
 import (
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contracts/abis"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type RegistryMock struct {

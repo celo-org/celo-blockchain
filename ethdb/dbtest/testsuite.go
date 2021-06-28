@@ -22,7 +22,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb"
 )
 
 // TestDatabaseSuite runs a suite of tests against a KeyValueStore database

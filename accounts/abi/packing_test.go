@@ -19,7 +19,7 @@ package abi
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type packUnpackTest struct {

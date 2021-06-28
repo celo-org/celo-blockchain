@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/params"
 	cli "gopkg.in/urfave/cli.v1"
 )
 

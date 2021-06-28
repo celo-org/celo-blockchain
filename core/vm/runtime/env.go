@@ -17,8 +17,8 @@
 package runtime
 
 import (
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/vm/vmcontext"
 )
 
 func NewEnv(cfg *Config) *vm.EVM {

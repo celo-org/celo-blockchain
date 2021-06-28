@@ -24,15 +24,15 @@ import (
 	"net"
 	"os"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/discover"
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
+	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/discv5"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
+	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
 func main() {
@@ -134,7 +134,7 @@ func main() {
 	// If v4 and v5 are both enabled, a packet is first tried as v4
 	// and then v5 if v4 decoding fails, following the same pattern as full
 	// nodes that use v4 and v5:
-	// https://github.com/celo-org/celo-blockchain/blob/7fbd6f3574f1c1c1e657c152fc63fb771adab3af/p2p/server.go#L588
+	// https://github.com/ethereum/go-ethereum/blob/7fbd6f3574f1c1c1e657c152fc63fb771adab3af/p2p/server.go#L588
 	var unhandled chan discover.ReadPacket
 	var sconn *p2p.SharedUDPConn
 	if *runv4 {

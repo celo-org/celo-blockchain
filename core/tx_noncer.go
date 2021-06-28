@@ -19,8 +19,8 @@ package core
 import (
 	"sync"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
 )
 
 // txNoncer is a tiny virtual state database to manage the executable nonces of

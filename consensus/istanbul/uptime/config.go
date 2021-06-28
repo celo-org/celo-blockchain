@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 // Check CIP-21 Spec (https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0021.md)

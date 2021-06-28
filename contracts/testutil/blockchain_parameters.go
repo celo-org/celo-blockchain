@@ -3,8 +3,8 @@ package testutil
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/contracts/abis"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/contracts/abis"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type BlockchainParametersMock struct {

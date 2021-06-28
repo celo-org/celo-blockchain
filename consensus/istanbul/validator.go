@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"math/big"
 
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (

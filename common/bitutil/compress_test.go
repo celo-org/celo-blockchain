@@ -21,7 +21,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // Tests that data bitset encoding and decoding works and is bijective.

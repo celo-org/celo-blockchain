@@ -1,10 +1,10 @@
 package core
 
 import (
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contracts/currency"
-	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contracts/blockchain_parameters"
+	"github.com/ethereum/go-ethereum/contracts/currency"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // BlockContext represents contextual information about the blockchain state

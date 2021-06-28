@@ -19,8 +19,8 @@ package client
 import (
 	"sync"
 
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nodestate"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nodestate"
 )
 
 // FillSet tries to read nodes from an input iterator and add them to a node set by

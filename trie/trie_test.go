@@ -28,11 +28,11 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/ethdb/leveldb"
-	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethdb/leveldb"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/davecgh/go-spew/spew"
 )
 

@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	bind "github.com/celo-org/celo-blockchain/accounts/abi/bind_v2"
-	"github.com/celo-org/celo-blockchain/common"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind_v2"
+	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/celo-org/celo-blockchain/ethclient"
-	"github.com/celo-org/celo-blockchain/mycelo/contract"
-	"github.com/celo-org/celo-blockchain/mycelo/env"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/mycelo/contract"
+	"github.com/ethereum/go-ethereum/mycelo/env"
 	"golang.org/x/sync/errgroup"
 )
 

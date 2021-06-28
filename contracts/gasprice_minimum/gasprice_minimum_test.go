@@ -6,9 +6,9 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/contracts/testutil"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/contracts/testutil"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func TestGetGasPriceSuggestion(t *testing.T) {

@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (

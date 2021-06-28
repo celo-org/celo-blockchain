@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/celo-org/celo-blockchain/common/fdlimit"
-	"github.com/celo-org/celo-blockchain/internal/flags"
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/ethereum/go-ethereum/common/fdlimit"
+	"github.com/ethereum/go-ethereum/internal/flags"
+	"github.com/ethereum/go-ethereum/log"
 	"gopkg.in/urfave/cli.v1"
 )
 

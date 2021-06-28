@@ -19,8 +19,8 @@
 package geth
 
 import (
-	"github.com/celo-org/celo-blockchain/whisper/shhclient"
-	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
+	"github.com/ethereum/go-ethereum/whisper/shhclient"
+	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 )
 
 // WhisperClient provides access to the Ethereum APIs.

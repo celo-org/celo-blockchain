@@ -18,8 +18,8 @@
 package consensus
 
 import (
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // Broadcaster defines the interface to enqueue blocks to fetcher, find peer

@@ -19,7 +19,7 @@ package rpc
 import (
 	"net"
 
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // StartIPCEndpoint starts an IPC endpoint.

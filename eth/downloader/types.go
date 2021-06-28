@@ -19,7 +19,7 @@ package downloader
 import (
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // peerDropFn is a callback type for dropping a peer detected as malicious.

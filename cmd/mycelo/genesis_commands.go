@@ -5,10 +5,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/celo-org/celo-blockchain/internal/fileutils"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/mycelo/env"
-	"github.com/celo-org/celo-blockchain/mycelo/genesis"
+	"github.com/ethereum/go-ethereum/internal/fileutils"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/ethereum/go-ethereum/mycelo/genesis"
 	"gopkg.in/urfave/cli.v1"
 )
 

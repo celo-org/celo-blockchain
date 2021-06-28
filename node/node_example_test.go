@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // SampleService is a trivial network service that can be attached to a node for

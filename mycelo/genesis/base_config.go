@@ -3,8 +3,8 @@ package genesis
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/decimal/fixed"
 	"github.com/shopspring/decimal"
 )
 

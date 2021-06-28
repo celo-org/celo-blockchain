@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 func TestState(t *testing.T) {

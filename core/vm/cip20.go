@@ -5,8 +5,8 @@ import (
 
 	"crypto/sha512"
 
-	"github.com/celo-org/celo-blockchain/crypto/blake2s"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/crypto/blake2s"
+	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/sha3"
 )
 

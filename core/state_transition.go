@@ -20,17 +20,17 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contracts"
-	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contracts/currency"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/contracts"
+	"github.com/ethereum/go-ethereum/contracts/blockchain_parameters"
+	"github.com/ethereum/go-ethereum/contracts/currency"
+	gpm "github.com/ethereum/go-ethereum/contracts/gasprice_minimum"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/vm/vmcontext"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 /*

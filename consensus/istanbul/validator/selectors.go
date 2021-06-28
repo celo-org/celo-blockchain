@@ -19,9 +19,9 @@ package validator
 import (
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator/random"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/validator/random"
 )
 
 func proposerIndex(valSet istanbul.ValidatorSet, proposer common.Address) uint64 {

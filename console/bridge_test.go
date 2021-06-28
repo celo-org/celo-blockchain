@@ -19,7 +19,7 @@ package console
 import (
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/internal/jsre"
+	"github.com/ethereum/go-ethereum/internal/jsre"
 	"github.com/dop251/goja"
 )
 

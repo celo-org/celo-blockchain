@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/ethereum/go-ethereum/log"
 	mapset "github.com/deckarep/golang-set"
 )
 

@@ -3,13 +3,13 @@ package genesis
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/types"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	blscrypto "github.com/ethereum/go-ethereum/crypto/bls"
 
-	"github.com/celo-org/celo-blockchain/mycelo/env"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/mycelo/env"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Keccak256 of "The Times 09/Apr/2020 With $2.3 Trillion Injection, Fed’s Plan Far Exceeds Its 2008 Rescue"

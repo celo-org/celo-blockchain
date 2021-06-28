@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/light"
+	"github.com/ethereum/go-ethereum/light"
 )
 
 var (

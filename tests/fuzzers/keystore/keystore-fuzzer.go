@@ -19,7 +19,7 @@ package keystore
 import (
 	"os"
 
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 )
 
 func Fuzz(input []byte) int {

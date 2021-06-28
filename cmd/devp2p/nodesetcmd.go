@@ -21,10 +21,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/p2p/enr"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"gopkg.in/urfave/cli.v1"
 )
 

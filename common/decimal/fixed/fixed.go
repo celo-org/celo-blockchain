@@ -3,7 +3,7 @@ package fixed
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common/decimal"
+	"github.com/ethereum/go-ethereum/common/decimal"
 )
 
 var precision = decimal.Precision(24)

@@ -26,7 +26,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/dop251/goja"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 )
 
 const jsonTypedData = `

@@ -24,9 +24,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/p2p/discover/v4wire"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/internal/utesting"
+	"github.com/ethereum/go-ethereum/p2p/discover/v4wire"
 )
 
 const (

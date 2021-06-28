@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/common/prque"
+	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/common/prque"
 )
 
 // cmNodeFields are ClientNode fields used by the client manager

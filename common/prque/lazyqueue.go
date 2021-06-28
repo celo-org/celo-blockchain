@@ -20,7 +20,7 @@ import (
 	"container/heap"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/ethereum/go-ethereum/common/mclock"
 )
 
 // LazyQueue is a priority queue data structure where priorities can change over

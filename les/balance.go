@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/ethereum/go-ethereum/common/mclock"
 )
 
 const (

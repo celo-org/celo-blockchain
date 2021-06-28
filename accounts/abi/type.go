@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Type enumerator

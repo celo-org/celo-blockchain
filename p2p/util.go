@@ -19,7 +19,7 @@ package p2p
 import (
 	"container/heap"
 
-	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/ethereum/go-ethereum/common/mclock"
 )
 
 // expHeap tracks strings and their expiry time.

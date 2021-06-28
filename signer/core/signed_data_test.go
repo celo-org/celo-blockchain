@@ -20,12 +20,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/shared/signer"
-	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/shared/signer"
+	"github.com/ethereum/go-ethereum/signer/core"
 )
 
 var typesStandard = signer.Types{

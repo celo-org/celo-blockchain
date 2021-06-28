@@ -17,8 +17,8 @@
 package proxy
 
 import (
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/istanbul"
 )
 
 // handleConsensusMsg is invoked by the proxy to forward valid consensus messages to

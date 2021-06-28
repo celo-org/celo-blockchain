@@ -2,7 +2,7 @@
 // 2021-02-23 16:02:29.096161 -0600 CST m=+0.252353841
 package contract
 
-import "github.com/celo-org/celo-blockchain/accounts/abi"
+import "github.com/ethereum/go-ethereum/accounts/abi"
 
 var abis map[string]*abi.ABI
 

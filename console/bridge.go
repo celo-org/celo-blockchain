@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/console/prompt"
-	"github.com/celo-org/celo-blockchain/internal/jsre"
-	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/ethereum/go-ethereum/accounts/usbwallet"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/console/prompt"
+	"github.com/ethereum/go-ethereum/internal/jsre"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/dop251/goja"
 )
 

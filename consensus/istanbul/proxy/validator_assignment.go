@@ -20,9 +20,9 @@ import (
 	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash/v2"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // This type stores the assignment of remote validators to proxies, as well as the

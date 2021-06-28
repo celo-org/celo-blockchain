@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/internal/cmdtest"
+	"github.com/ethereum/go-ethereum/internal/cmdtest"
 	"github.com/docker/docker/pkg/reexec"
 )
 

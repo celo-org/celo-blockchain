@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend"
+	"github.com/ethereum/go-ethereum/consensus/istanbul/backend/backendtest"
 )
 
 func TestMain(m *testing.M) {

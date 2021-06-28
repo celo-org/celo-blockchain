@@ -19,8 +19,8 @@ package p2p
 import (
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/enr"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 )
 
 // Protocol represents a P2P subprotocol implementation.

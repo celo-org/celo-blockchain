@@ -26,7 +26,7 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/celo-org/celo-blockchain/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (

@@ -25,7 +25,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (

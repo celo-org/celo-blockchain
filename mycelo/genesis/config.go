@@ -3,11 +3,11 @@ package genesis
 import (
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/decimal/bigintstr"
-	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
-	"github.com/celo-org/celo-blockchain/mycelo/internal/utils"
-	"github.com/celo-org/celo-blockchain/params"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/decimal/bigintstr"
+	"github.com/ethereum/go-ethereum/common/decimal/fixed"
+	"github.com/ethereum/go-ethereum/mycelo/internal/utils"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/shopspring/decimal"
 )
 

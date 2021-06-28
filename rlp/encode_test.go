@@ -26,7 +26,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/ethereum/go-ethereum/common/math"
 )
 
 type testEncoder struct {
