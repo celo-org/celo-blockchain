@@ -784,7 +784,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.wallets().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
 				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
@@ -925,7 +925,8 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 }
 
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
-	return generateVersionCertificate(sb.Address(), sb.publicKey, version, sb.Sign)
+	w := sb.wallets()
+	return generateVersionCertificate(w.Ecdsa.Address, w.Ecdsa.PublicKey, version, w.Ecdsa.Sign)
 }
 
 func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
