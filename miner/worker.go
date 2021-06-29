@@ -274,7 +274,6 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 			"fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
 
 	}
-
 }
 
 // constructPendingStateBlock constructs a new block and keeps applying new transactions to it.
