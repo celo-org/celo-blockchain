@@ -81,7 +81,6 @@ type AddressProvider interface {
 }
 
 type ProxyContext interface {
-	IsProxiedValidator() bool
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
@@ -95,10 +94,16 @@ type AnnounceSupport interface {
 	Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 }
 
+type AnnounceManagerConfig struct {
+	IsProxiedValidator bool
+	AWallets           *atomic.Value
+	VcDbPath           string
+}
+
 type AnnounceManager struct {
 	logger log.Logger
 
-	aWallets *atomic.Value
+	config AnnounceManagerConfig
 
 	addrProvider AddressProvider
 	proxyContext ProxyContext
@@ -129,10 +134,10 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(aWallets *atomic.Value, support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
-		aWallets:                        aWallets,
+		config:                          config,
 		support:                         support,
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
@@ -140,9 +145,9 @@ func NewAnnounceManager(aWallets *atomic.Value, support AnnounceSupport, proxyCo
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 	}
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(vcDbPath)
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
-		am.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", vcDbPath)
+		am.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VcDbPath)
 	}
 	am.versionCertificateTable = versionCertificateTable
 	return am
@@ -156,7 +161,7 @@ func (m *AnnounceManager) Close() error {
 }
 
 func (m *AnnounceManager) wallets() *Wallets {
-	return m.aWallets.Load().(*Wallets)
+	return m.config.AWallets.Load().(*Wallets)
 }
 
 // The announceThread will:
@@ -514,7 +519,7 @@ func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) 
 	for _, valAddress := range valAddresses {
 		var externalNode *enode.Node
 
-		if m.proxyContext.IsProxiedValidator() {
+		if m.config.IsProxiedValidator {
 			if proxies == nil {
 				var err error
 				proxies, err = m.proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments(nil)
@@ -1161,7 +1166,7 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 		}
 	}
 
-	if sb.announceManager.proxyContext.IsProxiedValidator() {
+	if sb.announceManager.config.IsProxiedValidator {
 		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
 	}
 
@@ -1200,7 +1205,7 @@ func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbu
 func (m *AnnounceManager) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
 	var externalEnodes []*enode.Node
 	var valDestinations map[enode.ID][]common.Address
-	if m.proxyContext.IsProxiedValidator() {
+	if m.config.IsProxiedValidator {
 		var proxies []*proxy.Proxy
 		var err error
 
@@ -1317,7 +1322,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if sb.announceManager.proxyContext.IsProxiedValidator() && sb.IsValidating() {
+	if sb.announceManager.config.IsProxiedValidator && sb.IsValidating() {
 		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 

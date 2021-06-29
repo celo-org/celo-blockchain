@@ -187,13 +187,18 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
+	announceConfig := AnnounceManagerConfig{
+		IsProxiedValidator: backend.IsProxiedValidator(),
+		AWallets:           &backend.aWallets,
+		VcDbPath:           config.VersionCertificateDBPath,
+	}
+
 	backend.announceManager = NewAnnounceManager(
-		&backend.aWallets,
+		announceConfig,
 		backend,
 		backend,
 		backend,
-		backend.valEnodeTable,
-		config.VersionCertificateDBPath)
+		backend.valEnodeTable)
 
 	return backend
 }
