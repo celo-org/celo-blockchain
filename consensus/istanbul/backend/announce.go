@@ -28,7 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -800,7 +799,7 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 			if encEnodeURL.DestAddress != w.Ecdsa.Address {
 				continue
 			}
-			enodeBytes, err := w.Ecdsa.Decrypt(accounts.Account{Address: w.Ecdsa.Address}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := w.Ecdsa.Decrypt(encEnodeURL.EncryptedEnodeURL)
 			if err != nil {
 				m.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err

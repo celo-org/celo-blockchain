@@ -62,7 +62,7 @@ type EcdsaInfo struct {
 	Address   common.Address   // Ethereum address of the ECDSA signing key
 	PublicKey *ecdsa.PublicKey // The signer public key
 
-	Decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
 	sign     istanbul.SignerFn     // Signer function to authorize hashes with
 	signHash istanbul.HashSignerFn // Signer function to create random seed
 }
@@ -78,6 +78,12 @@ func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
 // SignHash signs the given hash with the ecdsa account
 func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
 	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
+}
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
+	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
 }
 
 type BlsInfo struct {
@@ -399,7 +405,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	ecdsa := EcdsaInfo{
 		Address:   ecdsaAddress,
 		PublicKey: publicKey,
-		Decrypt:   decryptFn,
+		decrypt:   decryptFn,
 		sign:      signFn,
 		signHash:  signHashFn,
 	}
