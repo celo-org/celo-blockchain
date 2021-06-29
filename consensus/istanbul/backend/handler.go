@@ -79,7 +79,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			})
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)
@@ -114,7 +114,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)
@@ -147,7 +147,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)

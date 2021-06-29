@@ -113,6 +113,8 @@ type AnnounceManager struct {
 
 	versionCertificateTable *enodes.VersionCertificateDB
 
+	gossipCache GossipCache
+
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
 	// for a proxied validator, or just one entry if it's a standalone validator).
@@ -134,7 +136,9 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB) *AnnounceManager {
+func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, proxyContext ProxyContext,
+	addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB,
+	gossipCache GossipCache) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
 		config:                          config,
@@ -142,6 +146,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, p
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
+		gossipCache:                     gossipCache,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 	}
@@ -734,17 +739,17 @@ func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery)
 }
 
 // This function will handle a queryEnode message.
-func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleQueryEnodeMsg")
+func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "handleQueryEnodeMsg")
 
 	msg := new(istanbul.Message)
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
-	sb.gossipCache.MarkMessageProcessedByPeer(addr, payload)
-	if sb.gossipCache.CheckIfMessageProcessedBySelf(payload) {
+	m.gossipCache.MarkMessageProcessedByPeer(addr, payload)
+	if m.gossipCache.CheckIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.gossipCache.MarkMessageProcessedBySelf(payload)
+	defer m.gossipCache.MarkMessageProcessedBySelf(payload)
 
 	// Decode message
 	err := msg.FromPayload(payload, istanbul.GetSignatureAddress)
@@ -755,7 +760,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger.Trace("Handling a queryEnode message", "from", msg.Address)
 
 	// Check if the sender is within the validator connection set
-	validatorConnSet, err := sb.announceManager.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator connection set", "err", err)
 		return err
@@ -776,27 +781,28 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
 	// Do some validation checks on the queryEnodeData
-	if isValid, err := sb.announceManager.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
+	if isValid, err := m.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
 
 	// Only elected or nearly elected validators processes the queryEnode message
-	shouldProcess, err := sb.announceManager.shouldParticipateInAnnounce()
+	shouldProcess, err := m.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
 
 	if shouldProcess {
 		logger.Trace("Processing an queryEnode message", "queryEnode records", qeData.EncryptedEnodeURLs)
+		w := m.wallets()
 		for _, encEnodeURL := range qeData.EncryptedEnodeURLs {
 			// Only process an encEnodURL intended for this node
-			if encEnodeURL.DestAddress != sb.Address() {
+			if encEnodeURL.DestAddress != w.Ecdsa.Address {
 				continue
 			}
-			enodeBytes, err := sb.wallets().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := w.Ecdsa.Decrypt(accounts.Account{Address: w.Ecdsa.Address}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
-				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
+				m.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
 			}
 			enodeURL := string(enodeBytes)
@@ -808,7 +814,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 
 			// queryEnode messages should only be processed once because selfRecentMessages
 			// will cache seen queryEnode messages, so it's safe to answer without any throttling
-			if err := sb.announceManager.answerQueryEnodeMsg(msg.Address, node, qeData.Version); err != nil {
+			if err := m.answerQueryEnodeMsg(msg.Address, node, qeData.Version); err != nil {
 				logger.Warn("Error answering an announce msg", "target node", node.URLv4(), "error", err)
 				return err
 			}
@@ -818,7 +824,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 	}
 
 	// Regossip this queryEnode message
-	return sb.announceManager.regossipQueryEnode(msg, qeData.Version, payload)
+	return m.regossipQueryEnode(msg, qeData.Version, payload)
 }
 
 // answerQueryEnodeMsg will answer a received queryEnode message from an origin

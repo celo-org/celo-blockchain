@@ -104,12 +104,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Handle the qeMsg for both engine1 and engine2
-	err = engine1.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine1.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine1.  Error: %v", err)
 	}
 
-	err = engine2.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine2.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine2.  Error: %v", err)
 	}

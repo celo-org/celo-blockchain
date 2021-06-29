@@ -198,7 +198,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		backend,
 		backend,
 		backend,
-		backend.valEnodeTable)
+		backend.valEnodeTable,
+		backend.gossipCache)
 
 	return backend
 }
