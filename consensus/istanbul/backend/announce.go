@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -75,7 +76,6 @@ const (
 // AddressProvider provides the different addresses the announce manager needs
 type AddressProvider interface {
 	SelfNode() *enode.Node
-	Address() common.Address
 	ValidatorAddress() common.Address
 	IsValidating() bool
 }
@@ -99,6 +99,8 @@ type AnnounceSupport interface {
 
 type AnnounceManager struct {
 	logger log.Logger
+
+	aWallets *atomic.Value
 
 	addrProvider AddressProvider
 	proxyContext ProxyContext
@@ -129,9 +131,10 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
+func NewAnnounceManager(aWallets *atomic.Value, support AnnounceSupport, proxyContext ProxyContext, addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB, vcDbPath string) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
+		aWallets:                        aWallets,
 		support:                         support,
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
@@ -152,6 +155,10 @@ func (m *AnnounceManager) Close() error {
 	// the creator of this announce manager is the responsible for
 	// closing it.
 	return m.versionCertificateTable.Close()
+}
+
+func (m *AnnounceManager) wallets() *Wallets {
+	return m.aWallets.Load().(*Wallets)
 }
 
 // The announceThread will:
@@ -381,7 +388,7 @@ func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 		return false, err
 	}
 
-	return validatorConnSet[m.addrProvider.Address()], nil
+	return validatorConnSet[m.wallets().Ecdsa.Address], nil
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
@@ -616,7 +623,7 @@ func (m *AnnounceManager) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool)
 	var queryEnodeValEnodeEntries []*istanbul.AddressEntry
 	for address, valEnodeEntry := range valEnodeEntries {
 		// Don't generate an announce record for ourselves
-		if address == m.addrProvider.Address() {
+		if address == m.wallets().Ecdsa.Address {
 			continue
 		}
 
@@ -679,7 +686,7 @@ func (m *AnnounceManager) generateQueryEnodeMsg(version uint, enodeQueries []*en
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
-		Address:   m.addrProvider.Address(),
+		Address:   m.wallets().Ecdsa.Address,
 		Signature: []byte{},
 	}
 
@@ -1037,7 +1044,7 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 		var valEnodeEntries []*istanbul.AddressEntry
 		for _, entry := range entries {
 			// Don't add ourselves into the val enode table
-			if entry.Address == m.addrProvider.Address() {
+			if entry.Address == m.wallets().Ecdsa.Address {
 				continue
 			}
 			// Update the HighestKnownVersion for this address. Upsert will
@@ -1243,7 +1250,7 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 		}
 		msg := &istanbul.Message{
 			Code:    istanbul.EnodeCertificateMsg,
-			Address: m.addrProvider.Address(),
+			Address: m.wallets().Ecdsa.Address,
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message

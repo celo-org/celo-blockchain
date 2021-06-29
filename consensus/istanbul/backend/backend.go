@@ -188,6 +188,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 
 	backend.announceManager = NewAnnounceManager(
+		&backend.aWallets,
 		backend,
 		backend,
 		backend,
