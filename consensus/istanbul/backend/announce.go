@@ -90,8 +90,6 @@ type AnnounceSupport interface {
 	Gossip(payload []byte, ethMsgCode uint64) error
 	// RetrieveValidatorConnSet returns the validator connection set
 	RetrieveValidatorConnSet() (map[common.Address]bool, error)
-	// Sign signs a message payload
-	Sign(data []byte) ([]byte, error)
 	// Multicast will send the eth message (with the message's payload and msgCode field set to the params
 	// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
 	Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
@@ -691,7 +689,7 @@ func (m *AnnounceManager) generateQueryEnodeMsg(version uint, enodeQueries []*en
 	}
 
 	// Sign the announce message
-	if err := msg.Sign(m.support.Sign); err != nil {
+	if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
@@ -1254,7 +1252,7 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message
-		if err := msg.Sign(m.support.Sign); err != nil {
+		if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
 			return nil, err
 		}
 
