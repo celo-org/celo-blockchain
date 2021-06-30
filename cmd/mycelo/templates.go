@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"math/rand"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
