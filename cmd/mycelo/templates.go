@@ -3,11 +3,8 @@ package main
 import (
 	"math/big"
 	"math/rand"
-	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/decimal/fixed"
-	"github.com/celo-org/celo-blockchain/common/decimal/token"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/params"
@@ -28,52 +25,6 @@ func templateFromString(templateStr string) template {
 		return monorepoEnv{}
 	}
 	return localEnv{}
-}
-
-// createCommonGenesisConfig generates a config starting point which templates can then customize further
-func createCommonGenesisConfig(env *env.Environment, istanbulConfig params.IstanbulConfig) *genesis.Config {
-	genesisConfig := genesis.BaseConfig()
-	genesisConfig.ChainID = env.Config.ChainID
-	genesisConfig.GenesisTimestamp = uint64(time.Now().Unix())
-	genesisConfig.Istanbul = istanbulConfig
-	genesisConfig.Hardforks = genesis.HardforkConfig{
-		ChurritoBlock: common.Big0,
-		DonutBlock:    common.Big0,
-	}
-	genesisConfig.Blockchain.UptimeLookbackWindow = genesisConfig.Istanbul.LookbackWindow
-
-	// Make admin account manager of Governance & Reserve
-	adminMultisig := genesis.MultiSigParameters{
-		Signatories:                      []common.Address{env.Accounts().AdminAccount().Address},
-		NumRequiredConfirmations:         1,
-		NumInternalRequiredConfirmations: 1,
-	}
-
-	genesisConfig.ReserveSpenderMultiSig = adminMultisig
-	genesisConfig.GovernanceApproverMultiSig = adminMultisig
-
-	// Ensure nothing is frozen
-	genesisConfig.GoldToken.Frozen = false
-	genesisConfig.StableToken.Frozen = false
-	genesisConfig.Exchange.Frozen = false
-	genesisConfig.Reserve.FrozenAssetsDays = 0
-	genesisConfig.EpochRewards.Frozen = false
-
-	return genesisConfig
-}
-
-func fundAccounts(genesisConfig *genesis.Config, accounts []env.Account) {
-	cusdBalances := make([]genesis.Balance, len(accounts))
-	ceurBalances := make([]genesis.Balance, len(accounts))
-	goldBalances := make([]genesis.Balance, len(accounts))
-	for i, acc := range accounts {
-		cusdBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
-		ceurBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
-		goldBalances[i] = genesis.Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
-	}
-	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances
-	genesisConfig.StableToken.InitialBalances = cusdBalances
-	genesisConfig.GoldToken.InitialBalances = goldBalances
 }
 
 type localEnv struct{}
@@ -98,7 +49,7 @@ func (e localEnv) createEnv(workdir string) (*env.Environment, error) {
 
 func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
 
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -107,7 +58,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 	})
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
 
 	return genesisConfig, nil
 }
@@ -134,7 +85,7 @@ func (e loadtestEnv) createEnv(workdir string) (*env.Environment, error) {
 }
 
 func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          1000,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -146,7 +97,7 @@ func (e loadtestEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.Blockchain.BlockGasLimit = 1000000000
 
 	// Add balances to developer accounts
-	fundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
 
 	genesisConfig.StableToken.InflationFactorUpdatePeriod = 1 * genesis.Year
 
@@ -179,7 +130,7 @@ func (e monorepoEnv) createEnv(workdir string) (*env.Environment, error) {
 }
 
 func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, error) {
-	genesisConfig := createCommonGenesisConfig(env, params.IstanbulConfig{
+	genesisConfig := genesis.CreateCommonGenesisConfig(env.Config.ChainID, env.Accounts().AdminAccount().Address, params.IstanbulConfig{
 		Epoch:          10,
 		ProposerPolicy: 2,
 		LookbackWindow: 3,
@@ -193,7 +144,7 @@ func (e monorepoEnv) createGenesisConfig(env *env.Environment) (*genesis.Config,
 	genesisConfig.Reserve.InitialBalance = common.MustBigInt("100000000000000000000000000") // 100M CELO
 
 	// Add balances to validator accounts instead of developer accounts
-	fundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
+	genesis.FundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
 
 	return genesisConfig, nil
 }

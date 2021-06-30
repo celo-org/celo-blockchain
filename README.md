@@ -54,6 +54,33 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 | `gethrpctest` | Developer utility tool to support the [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [ethereum test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
 | `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Celo protocol both network as well as consensus wise) to user friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
 
+## Running tests
+
+Prior to running tests you will need to run `make prepare-system-contracts`.
+This will checkout the celo-monorepo and compile the system contracts for use
+in full network tests. If you subsequently edit the system contracts source,
+running the make rule again will re-compile them.
+
+This make rule will shallow checkout
+[celo-monorepo](https://github.com/celo-org/celo-monorepo) under `../monorepo`
+relative to this project's root and it will checkout the commit defined in the
+variable MONOREPO_COMMIT in the Makefile. 
+
+These values can be overridden if required, by setting those variables in the
+make command, for example:
+```
+make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
+```
+
+This is only required on the first invocation, as both the path and commit
+are then stored on disk.
+
+Without first running this certain tests will fail with errors such as:
+
+```
+panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
+```
+
 ## Running Celo
 
 Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.

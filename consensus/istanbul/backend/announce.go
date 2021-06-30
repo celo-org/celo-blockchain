@@ -591,16 +591,16 @@ func (sb *Backend) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuer
 		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
 		return nil, err
 	}
-
+	w := sb.wallets()
 	msg := &istanbul.Message{
 		Code:      istanbul.QueryEnodeMsg,
 		Msg:       queryEnodeBytes,
-		Address:   sb.Address(),
+		Address:   w.Ecdsa.Address,
 		Signature: []byte{},
 	}
 
 	// Sign the announce message
-	if err := msg.Sign(sb.Sign); err != nil {
+	if err := msg.Sign(w.Ecdsa.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
@@ -700,7 +700,7 @@ func (sb *Backend) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer,
 			if encEnodeURL.DestAddress != sb.Address() {
 				continue
 			}
-			enodeBytes, err := sb.decryptFn(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
+			enodeBytes, err := sb.wallets().Ecdsa.Decrypt(accounts.Account{Address: sb.Address()}, encEnodeURL.EncryptedEnodeURL, nil, nil)
 			if err != nil {
 				sb.logger.Warn("Error decrypting endpoint", "err", err, "encEnodeURL.EncryptedEnodeURL", encEnodeURL.EncryptedEnodeURL)
 				return err
@@ -935,12 +935,13 @@ func (vc *versionCertificate) payloadToSign() ([]byte, error) {
 }
 
 func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
+	w := sb.wallets()
 	vc := &versionCertificate{
-		Address:   sb.Address(),
-		PublicKey: sb.publicKey,
+		Address:   w.Ecdsa.Address,
+		PublicKey: w.Ecdsa.PublicKey,
 		Version:   version,
 	}
-	err := vc.Sign(sb.Sign)
+	err := vc.Sign(w.Ecdsa.Sign)
 	if err != nil {
 		return nil, err
 	}
@@ -1265,7 +1266,7 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 	if err != nil {
 		return nil, err
 	}
-
+	w := sb.wallets()
 	for _, externalNode := range externalEnodes {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: externalNode.URLv4(),
@@ -1277,11 +1278,11 @@ func (sb *Backend) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*ist
 		}
 		msg := &istanbul.Message{
 			Code:    istanbul.EnodeCertificateMsg,
-			Address: sb.Address(),
+			Address: w.Ecdsa.Address,
 			Msg:     enodeCertificateBytes,
 		}
 		// Sign the message
-		if err := msg.Sign(sb.Sign); err != nil {
+		if err := msg.Sign(w.Ecdsa.Sign); err != nil {
 			return nil, err
 		}
 
