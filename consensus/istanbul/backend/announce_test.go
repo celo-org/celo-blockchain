@@ -36,13 +36,14 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 
 	engine0Enode := engine0.SelfNode()
 
+	w1 := engine1.wallets()
 	// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
-	vCert1, err := engine1.generateVersionCertificate(engine1AnnounceVersion)
+	vCert1, err := generateVersionCertificate(w1.Ecdsa.Address, w1.Ecdsa.PublicKey, engine1AnnounceVersion, w1.Ecdsa.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine1.  Error: %v", err)
 	}
-
-	vCert2, err := engine2.generateVersionCertificate(engine2AnnounceVersion)
+	w2 := engine2.wallets()
+	vCert2, err := generateVersionCertificate(w2.Ecdsa.Address, w2.Ecdsa.PublicKey, engine2AnnounceVersion, w2.Ecdsa.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine2.  Error: %v", err)
 	}
@@ -206,7 +207,7 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
-	if err := engine.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
+	if err := engine.announceManager.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 

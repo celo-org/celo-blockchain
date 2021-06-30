@@ -209,7 +209,7 @@ func (sb *Backend) announceThread() {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
 			return
 		}
-		if err := sb.setAndShareUpdatedAnnounceVersion(version); err != nil {
+		if err := sb.announceManager.setAndShareUpdatedAnnounceVersion(version); err != nil {
 			logger.Warn("Error updating announce version", "err", err)
 			return
 		}
@@ -939,11 +939,6 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	return nil
 }
 
-func (sb *Backend) generateVersionCertificate(version uint) (*versionCertificate, error) {
-	w := sb.wallets()
-	return generateVersionCertificate(w.Ecdsa.Address, w.Ecdsa.PublicKey, version, w.Ecdsa.Sign)
-}
-
 func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
 	logger := m.logger.New("func", "gossipVersionCertificatesMsg")
 
@@ -1120,27 +1115,27 @@ func (sb *Backend) GetAnnounceVersion() uint {
 //       message to the proxy, which will in turn send the enode certificate to remote validators.
 //  3) Generate a new version certificate
 //  4) Gossip the new version certificate to all peers
-func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
-	logger := sb.logger.New("func", "setAndShareUpdatedAnnounceVersion")
+func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error {
+	logger := m.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
-
+	w := m.wallets()
 	// Don't send any of the following messages if this node is not in the validator conn set
-	if !validatorConnSet[sb.Address()] {
+	if !validatorConnSet[w.Ecdsa.Address] {
 		logger.Trace("Not in the validator conn set, not updating announce version")
 		return nil
 	}
 
-	enodeCertificateMsgs, err := sb.announceManager.generateEnodeCertificateMsgs(version)
+	enodeCertificateMsgs, err := m.generateEnodeCertificateMsgs(version)
 	if err != nil {
 		return err
 	}
 
 	if len(enodeCertificateMsgs) > 0 {
-		if err := sb.announceManager.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
+		if err := m.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
 			logger.Error("Error in SetEnodeCertificateMsgMap", "err", err)
 			return err
 		}
@@ -1166,21 +1161,21 @@ func (sb *Backend) setAndShareUpdatedAnnounceVersion(version uint) error {
 			return err
 		}
 
-		if err := sb.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := m.support.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}
 
-	if sb.announceManager.config.IsProxiedValidator {
-		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
+	if m.config.IsProxiedValidator {
+		m.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
 	}
 
 	// Generate and gossip a new version certificate
-	newVersionCertificate, err := sb.generateVersionCertificate(version)
+	newVersionCertificate, err := generateVersionCertificate(w.Ecdsa.Address, w.Ecdsa.PublicKey, version, w.Ecdsa.Sign)
 	if err != nil {
 		return err
 	}
-	return sb.announceManager.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
+	return m.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
 		newVersionCertificate.Entry(),
 	})
 }
