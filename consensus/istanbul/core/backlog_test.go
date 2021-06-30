@@ -260,7 +260,7 @@ func TestStoreBacklog(t *testing.T) {
 	}
 
 	mCommit := istanbul.NewCommitMessage(
-		&istanbul.CommittedSubject{Subject: mPrepare.Prepare(), CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}}, // celo in hex!},
+		&istanbul.CommittedSubject{Subject: mPrepare.Prepare(), CommittedSeal: []byte{0x63, 0x65, 0x6C, 0x6F}}, // celo in hex!
 		p1.Address(),
 	)
 
