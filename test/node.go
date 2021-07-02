@@ -64,7 +64,9 @@ var (
 			// in a panic when trying to set a timer with a zero value. We
 			// don't actually rely on this mechanism in the tests because we
 			// pre share all the enode certificates.
-			AnnounceQueryEnodeGossipPeriod: 60,
+			Announce: &istanbul.AnnounceConfig{
+				QueryEnodeGossipPeriod: 60,
+			},
 		},
 	}
 )

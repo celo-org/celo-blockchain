@@ -37,6 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
+	"github.com/celo-org/celo-blockchain/p2p"
 
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
@@ -193,6 +194,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		IsProxiedValidator: backend.IsProxiedValidator(),
 		AWallets:           &backend.aWallets,
 		VcDbPath:           config.VersionCertificateDBPath,
+		Announce:           backend.config.Announce,
+		Epoch:              backend.config.Epoch,
+	}
+
+	peerCounter := func(purpose p2p.PurposeFlag) int {
+		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
 
 	backend.announceManager = NewAnnounceManager(
@@ -201,7 +208,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		backend,
 		backend,
 		backend.valEnodeTable,
-		backend.gossipCache)
+		backend.gossipCache,
+		peerCounter)
 
 	return backend
 }
@@ -951,7 +959,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 		return nil, 0, time.Time{}, err
 	}
 	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
-	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.Announce.AdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.

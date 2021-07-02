@@ -95,7 +95,11 @@ type AnnounceManagerConfig struct {
 	IsProxiedValidator bool
 	AWallets           *atomic.Value
 	VcDbPath           string
+	Epoch              uint64 // The number of blocks after which to checkpoint and reset the pending votes
+	Announce           *istanbul.AnnounceConfig
 }
+
+type PeerCounterFn func(purpose p2p.PurposeFlag) int
 
 type AnnounceManager struct {
 	logger log.Logger
@@ -105,6 +109,7 @@ type AnnounceManager struct {
 	addrProvider AddressProvider
 	proxyContext ProxyContext
 	support      AnnounceSupport
+	peerCounter  PeerCounterFn
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -146,11 +151,13 @@ type AnnounceManager struct {
 // not do it.
 func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, proxyContext ProxyContext,
 	addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB,
-	gossipCache GossipCache) *AnnounceManager {
+	gossipCache GossipCache,
+	peerCounter PeerCounterFn) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New(),
 		config:                          config,
 		support:                         support,
+		peerCounter:                     peerCounter,
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
@@ -187,11 +194,11 @@ func (m *AnnounceManager) wallets() *Wallets {
 // 3) Periodically prune announce-related data structures
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
-func (sb *Backend) announceThread() {
-	logger := sb.logger.New("func", "announceThread")
+func (m *AnnounceManager) announceThread() {
+	logger := m.logger.New("func", "announceThread")
 
-	sb.announceManager.announceThreadWg.Add(1)
-	defer sb.announceManager.announceThreadWg.Done()
+	m.announceThreadWg.Add(1)
+	defer m.announceThreadWg.Done()
 
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
@@ -222,12 +229,12 @@ func (sb *Backend) announceThread() {
 			logger.Trace("Checking if this node should announce it's enode")
 
 			var err error
-			shouldQuery, err = sb.announceManager.shouldParticipateInAnnounce()
+			shouldQuery, err = m.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
 			}
-			shouldAnnounce = shouldQuery && sb.IsValidating()
+			shouldAnnounce = shouldQuery && m.addrProvider.IsValidating()
 
 			if shouldQuery && !querying {
 				logger.Info("Starting to query")
@@ -238,21 +245,21 @@ func (sb *Backend) announceThread() {
 				// hence more likely that they will be aware that this node is
 				// within that set.
 				waitPeriod := 1 * time.Minute
-				if sb.config.Epoch <= 10 {
+				if m.config.Epoch <= 10 {
 					waitPeriod = 5 * time.Second
 				}
 				time.AfterFunc(waitPeriod, func() {
-					sb.announceManager.startGossipQueryEnodeTask()
+					m.startGossipQueryEnodeTask()
 				})
 
-				if sb.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
+				if m.config.Announce.AggressiveQueryEnodeGossipOnEnablement {
 					queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
 					// Send an query enode message once a minute
 					currentQueryEnodeTickerDuration = 1 * time.Minute
 					numQueryEnodesInHighFreqAfterFirstPeerState = 0
 				} else {
 					queryEnodeFrequencyState = LowFreqState
-					currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
+					currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
 				}
 
 				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
@@ -275,7 +282,7 @@ func (sb *Backend) announceThread() {
 			if shouldAnnounce && !announcing {
 				logger.Info("Starting to announce")
 
-				sb.announceManager.updateAnnounceVersion()
+				m.updateAnnounceVersion()
 
 				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
 				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
@@ -297,28 +304,28 @@ func (sb *Backend) announceThread() {
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allVersionCertificates, err := getAllVersionCertificates(sb.announceManager.versionCertificateTable)
+			allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
 			if err != nil {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
 			}
-			if err := sb.announceManager.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
+			if err := m.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
 				logger.Warn("Error gossiping all version certificates")
 			}
 
 		case <-updateAnnounceVersionTickerCh:
 			if shouldAnnounce {
-				sb.announceManager.updateAnnounceVersion()
+				m.updateAnnounceVersion()
 			}
 
 		case <-queryEnodeTickerCh:
-			sb.announceManager.startGossipQueryEnodeTask()
+			m.startGossipQueryEnodeTask()
 
-		case <-sb.announceManager.generateAndGossipQueryEnodeCh:
+		case <-m.generateAndGossipQueryEnodeCh:
 			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
-					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+					if m.peerCounter(p2p.AnyPurpose) > 0 {
 						queryEnodeFrequencyState = HighFreqAfterFirstPeerState
 					}
 
@@ -329,9 +336,9 @@ func (sb *Backend) announceThread() {
 					numQueryEnodesInHighFreqAfterFirstPeerState++
 
 				case LowFreqState:
-					if currentQueryEnodeTickerDuration != time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod)*time.Second {
+					if currentQueryEnodeTickerDuration != time.Duration(m.config.Announce.QueryEnodeGossipPeriod)*time.Second {
 						// Reset the ticker
-						currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
+						currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
 						queryEnodeTicker.Stop()
 						queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
 						queryEnodeTickerCh = queryEnodeTicker.C
@@ -342,22 +349,22 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := sb.announceManager.generateAndGossipQueryEnode(sb.announceManager.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := m.generateAndGossipQueryEnode(m.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
 
-		case <-sb.announceManager.updateAnnounceVersionCh:
+		case <-m.updateAnnounceVersionCh:
 			if shouldAnnounce {
-				sb.announceManager.updateAnnounceVersion()
+				m.updateAnnounceVersion()
 			}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
-			if err := sb.announceManager.pruneAnnounceDataStructures(); err != nil {
+			if err := m.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-sb.announceManager.announceThreadQuit:
+		case <-m.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
 			if querying {
@@ -1321,7 +1328,7 @@ func (sb *Backend) StartAnnouncing() error {
 		return istanbul.ErrStartedAnnounce
 	}
 
-	go sb.announceThread()
+	go sb.announceManager.announceThread()
 
 	sb.announceManager.announceThreadQuit = make(chan struct{})
 	sb.announceManager.announceRunning = true
