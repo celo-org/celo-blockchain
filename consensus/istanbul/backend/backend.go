@@ -1066,6 +1066,39 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, g
 
 }
 
+func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
+	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
+
+	if err != nil {
+		return nil, err
+	}
+
+	returnMap := make(map[common.Address]*istanbul.AddressEntry)
+
+	for address, addressEntry := range addressEntries {
+		returnMap[address] = addressEntry
+	}
+
+	return returnMap, nil
+}
+
+func (sb *Backend) RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error {
+	addressesToKeep := make(map[common.Address]bool)
+	entriesToUpsert := make([]*istanbul.AddressEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		addressesToKeep[entry.GetAddress()] = true
+		entriesToUpsert = append(entriesToUpsert, entry)
+	}
+
+	sb.valEnodeTable.PruneEntries(addressesToKeep)
+	sb.valEnodeTable.UpsertVersionAndEnode(entriesToUpsert)
+
+	return nil
+}
+
+// AnnounceManager wrapping functions
+
 // GetAnnounceVersion will retrieve the current announce version.
 func (sb *Backend) GetAnnounceVersion() uint {
 	return sb.announceManager.GetAnnounceVersion()
@@ -1074,4 +1107,16 @@ func (sb *Backend) GetAnnounceVersion() uint {
 // UpdateAnnounceVersion will asynchronously update the announce version.
 func (sb *Backend) UpdateAnnounceVersion() {
 	sb.announceManager.UpdateAnnounceVersion()
+}
+
+// SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
+func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
+	return sb.announceManager.SetEnodeCertificateMsgMap(enodeCertMsgMap)
+}
+
+// RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
+func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
+	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
 }
