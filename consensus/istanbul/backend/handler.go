@@ -111,7 +111,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		case istanbul.EnodeCertificateMsg:
-			go sb.handleEnodeCertificateMsg(peer, data)
+			go sb.announceManager.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
 			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
@@ -144,7 +144,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			// Do not return an error, otherwise bad ethstat setup might cause disconnecting from proxy
 			return true, nil
 		case istanbul.EnodeCertificateMsg:
-			go sb.handleEnodeCertificateMsg(peer, data)
+			go sb.announceManager.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
 			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)

@@ -1201,8 +1201,8 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
-func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
+func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
 	// Decode payload into msg
@@ -1227,7 +1227,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	shouldSave, err := sb.announceManager.shouldParticipateInAnnounce()
+	shouldSave, err := m.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
@@ -1237,7 +1237,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 		return nil
 	}
 
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Debug("Error in retrieving registered/elected valset", "err", err)
 		return err
@@ -1248,14 +1248,14 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := m.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if sb.announceManager.config.IsProxiedValidator && sb.IsValidating() {
-		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
+	if m.config.IsProxiedValidator && m.addrProvider.IsValidating() {
+		m.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil
