@@ -1119,3 +1119,17 @@ func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istan
 func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
 	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
 }
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	return sb.announceManager.StartAnnouncing(func() error {
+		return sb.vph.startThread()
+	})
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	return sb.announceManager.StopAnnouncing(func() error {
+		return sb.vph.stopThread()
+	})
+}

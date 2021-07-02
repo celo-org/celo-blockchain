@@ -1320,40 +1320,38 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 	return nil
 }
 
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceManager.announceMu.Lock()
-	defer sb.announceManager.announceMu.Unlock()
-	if sb.announceManager.announceRunning {
+func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
+	m.announceMu.Lock()
+	defer m.announceMu.Unlock()
+	if m.announceRunning {
 		return istanbul.ErrStartedAnnounce
 	}
 
-	go sb.announceManager.announceThread()
+	go m.announceThread()
 
-	sb.announceManager.announceThreadQuit = make(chan struct{})
-	sb.announceManager.announceRunning = true
+	m.announceThreadQuit = make(chan struct{})
+	m.announceRunning = true
 
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
+	if err := onStart(); err != nil {
+		m.StopAnnouncing(func() error { return nil })
 		return err
 	}
 
 	return nil
 }
 
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceManager.announceMu.Lock()
-	defer sb.announceManager.announceMu.Unlock()
+func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
+	m.announceMu.Lock()
+	defer m.announceMu.Unlock()
 
-	if !sb.announceManager.announceRunning {
+	if !m.announceRunning {
 		return istanbul.ErrStoppedAnnounce
 	}
 
-	close(sb.announceManager.announceThreadQuit)
-	sb.announceManager.announceThreadWg.Wait()
+	close(m.announceThreadQuit)
+	m.announceThreadWg.Wait()
 
-	sb.announceManager.announceRunning = false
+	m.announceRunning = false
 
-	return sb.vph.stopThread()
+	return onStop()
 }
