@@ -142,6 +142,7 @@ type Service struct {
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
+
 }
 
 // connWrapper is a wrapper to prevent concurrent-write or concurrent-read on the
