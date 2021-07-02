@@ -912,16 +912,16 @@ func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error
 	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
-func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
+func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
-	sb.gossipCache.MarkMessageProcessedByPeer(addr, payload)
-	if sb.gossipCache.CheckIfMessageProcessedBySelf(payload) {
+	m.gossipCache.MarkMessageProcessedByPeer(addr, payload)
+	if m.gossipCache.CheckIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.gossipCache.MarkMessageProcessedBySelf(payload)
+	defer m.gossipCache.MarkMessageProcessedBySelf(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
@@ -937,7 +937,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	}
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator conn set", "err", err)
 		return err
@@ -964,7 +964,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		validAddresses[versionCertificate.Address] = true
 		validEntries = append(validEntries, versionCertificate.Entry())
 	}
-	if err := sb.announceManager.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
+	if err := m.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}

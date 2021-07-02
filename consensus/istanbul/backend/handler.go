@@ -82,7 +82,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.handleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
@@ -117,7 +117,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.handleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
@@ -150,7 +150,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
-			go sb.handleVersionCertificatesMsg(addr, peer, data)
+			go sb.announceManager.handleVersionCertificatesMsg(addr, peer, data)
 			return true, nil
 		case istanbul.ValidatorHandshakeMsg:
 			logger.Warn("Received unexpected Istanbul validator handshake message")
