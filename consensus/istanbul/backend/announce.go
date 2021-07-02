@@ -83,7 +83,7 @@ type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
-type AnnounceSupport interface {
+type AnnounceNetwork interface {
 	// Gossip gossips protocol messages
 	Gossip(payload []byte, ethMsgCode uint64) error
 	// RetrieveValidatorConnSet returns the validator connection set
@@ -106,7 +106,7 @@ type AnnounceManager struct {
 
 	addrProvider AddressProvider
 	proxyContext ProxyContext
-	support      AnnounceSupport
+	network      AnnounceNetwork
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
@@ -135,13 +135,13 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, proxyContext ProxyContext,
+func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, proxyContext ProxyContext,
 	addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB,
 	gossipCache GossipCache) *AnnounceManager {
 	am := &AnnounceManager{
-		logger:                          log.New(),
+		logger:                          log.New("module", "announceManager"),
 		config:                          config,
-		support:                         support,
+		network:                         network,
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
@@ -390,7 +390,7 @@ func (sb *Backend) startGossipQueryEnodeTask() {
 func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 
 	// Check if this node is in the validator connection set
-	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -408,7 +408,7 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 	logger := m.logger.New("func", "pruneAnnounceDataStructures")
 
 	// retrieve the validator connection set
-	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Warn("Error in pruning announce data structures", "err", err)
 	}
@@ -608,7 +608,7 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(version uint, enforceRetry
 			return nil, err
 		}
 
-		if err = m.support.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+		if err = m.network.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 			return nil, err
 		}
 
@@ -760,7 +760,7 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 	logger.Trace("Handling a queryEnode message", "from", msg.Address)
 
 	// Check if the sender is within the validator connection set
-	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator connection set", "err", err)
 		return err
@@ -856,7 +856,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 			return err
 		}
 
-		if err := m.support.Multicast([]common.Address{address}, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := m.network.Multicast([]common.Address{address}, payload, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}
@@ -892,7 +892,7 @@ func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *
 
 	// Check if the number of rows in the queryEnodePayload is at most 2 times the size of the current validator connection set.
 	// Note that this is a heuristic of the actual size of validator connection set at the time the validator constructed the announce message.
-	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		return false, err
 	}
@@ -931,7 +931,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	}
 
 	logger.Trace("Regossiping the istanbul queryEnode message", "IstanbulMsg", msg.String())
-	if err := m.support.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
+	if err := m.network.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
 		return err
 	}
 
@@ -948,7 +948,7 @@ func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*ve
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
 	}
-	return m.support.Gossip(payload, istanbul.VersionCertificatesMsg)
+	return m.network.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
 func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
@@ -1119,7 +1119,7 @@ func (sb *Backend) GetAnnounceVersion() uint {
 func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error {
 	logger := m.logger.New("func", "setAndShareUpdatedAnnounceVersion")
 	// Send new versioned enode msg to all other registered or elected validators
-	validatorConnSet, err := m.support.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		return err
 	}
@@ -1162,7 +1162,7 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 			return err
 		}
 
-		if err := m.support.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
+		if err := m.network.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
 			return err
 		}
 	}
@@ -1375,6 +1375,10 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 	}
 
 	return nil
+}
+
+func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
+	return m.versionCertificateTable.Info()
 }
 
 func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
