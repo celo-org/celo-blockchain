@@ -120,9 +120,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
-		announceRunning:                    false,
 		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
-		announceThreadWg:                   new(sync.WaitGroup),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -247,11 +245,6 @@ type Backend struct {
 	valEnodeTable *enodes.ValidatorEnodeDB
 
 	announceManager *AnnounceManager
-
-	announceRunning    bool
-	announceMu         sync.RWMutex
-	announceThreadWg   *sync.WaitGroup
-	announceThreadQuit chan struct{}
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope

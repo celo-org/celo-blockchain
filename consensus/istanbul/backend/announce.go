@@ -118,6 +118,11 @@ type AnnounceManager struct {
 
 	generateAndGossipQueryEnodeCh chan struct{}
 
+	announceRunning    bool
+	announceMu         sync.RWMutex
+	announceThreadWg   *sync.WaitGroup
+	announceThreadQuit chan struct{}
+
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
 	// for a proxied validator, or just one entry if it's a standalone validator).
@@ -154,6 +159,8 @@ func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, p
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
 		generateAndGossipQueryEnodeCh:   make(chan struct{}, 1),
+		announceThreadWg:                new(sync.WaitGroup),
+		announceRunning:                 false,
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
@@ -183,8 +190,8 @@ func (m *AnnounceManager) wallets() *Wallets {
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
-	sb.announceThreadWg.Add(1)
-	defer sb.announceThreadWg.Done()
+	sb.announceManager.announceThreadWg.Add(1)
+	defer sb.announceManager.announceThreadWg.Done()
 
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
@@ -350,7 +357,7 @@ func (sb *Backend) announceThread() {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-sb.announceThreadQuit:
+		case <-sb.announceManager.announceThreadQuit:
 			checkIfShouldAnnounceTicker.Stop()
 			pruneAnnounceDataStructuresTicker.Stop()
 			if querying {
@@ -1304,4 +1311,42 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 	}
 
 	return nil
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	sb.announceManager.announceMu.Lock()
+	defer sb.announceManager.announceMu.Unlock()
+	if sb.announceManager.announceRunning {
+		return istanbul.ErrStartedAnnounce
+	}
+
+	go sb.announceThread()
+
+	sb.announceManager.announceThreadQuit = make(chan struct{})
+	sb.announceManager.announceRunning = true
+
+	if err := sb.vph.startThread(); err != nil {
+		sb.StopAnnouncing()
+		return err
+	}
+
+	return nil
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	sb.announceManager.announceMu.Lock()
+	defer sb.announceManager.announceMu.Unlock()
+
+	if !sb.announceManager.announceRunning {
+		return istanbul.ErrStoppedAnnounce
+	}
+
+	close(sb.announceManager.announceThreadQuit)
+	sb.announceManager.announceThreadWg.Wait()
+
+	sb.announceManager.announceRunning = false
+
+	return sb.vph.stopThread()
 }
