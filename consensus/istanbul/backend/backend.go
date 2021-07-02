@@ -124,7 +124,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		announceThreadWg:                   new(sync.WaitGroup),
 		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
-		updateAnnounceVersionCh:            make(chan struct{}, 1),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -255,8 +254,6 @@ type Backend struct {
 	announceThreadWg              *sync.WaitGroup
 	announceThreadQuit            chan struct{}
 	generateAndGossipQueryEnodeCh chan struct{}
-
-	updateAnnounceVersionCh chan struct{}
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -1072,4 +1069,9 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, g
 // GetAnnounceVersion will retrieve the current announce version.
 func (sb *Backend) GetAnnounceVersion() uint {
 	return sb.announceManager.GetAnnounceVersion()
+}
+
+// UpdateAnnounceVersion will asynchronously update the announce version.
+func (sb *Backend) UpdateAnnounceVersion() {
+	sb.announceManager.UpdateAnnounceVersion()
 }

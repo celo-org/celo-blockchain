@@ -114,8 +114,9 @@ type AnnounceManager struct {
 
 	gossipCache GossipCache
 
-	announceVersion   uint
-	announceVersionMu sync.RWMutex
+	announceVersion         uint
+	announceVersionMu       sync.RWMutex
+	updateAnnounceVersionCh chan struct{}
 
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
@@ -151,6 +152,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, p
 		gossipCache:                     gossipCache,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+		updateAnnounceVersionCh:         make(chan struct{}, 1),
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
@@ -337,7 +339,7 @@ func (sb *Backend) announceThread() {
 				}
 			}
 
-		case <-sb.updateAnnounceVersionCh:
+		case <-sb.announceManager.updateAnnounceVersionCh:
 			if shouldAnnounce {
 				sb.announceManager.updateAnnounceVersion()
 			}
@@ -1095,10 +1097,10 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 }
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
-func (sb *Backend) UpdateAnnounceVersion() {
+func (m *AnnounceManager) UpdateAnnounceVersion() {
 	// Send to the channel iff it does not already have a message.
 	select {
-	case sb.updateAnnounceVersionCh <- struct{}{}:
+	case m.updateAnnounceVersionCh <- struct{}{}:
 	default:
 	}
 }
