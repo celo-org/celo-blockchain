@@ -116,6 +116,8 @@ type AnnounceManager struct {
 	announceVersionMu       sync.RWMutex
 	updateAnnounceVersionCh chan struct{}
 
+	generateAndGossipQueryEnodeCh chan struct{}
+
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
 	// for a proxied validator, or just one entry if it's a standalone validator).
@@ -151,6 +153,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, support AnnounceSupport, p
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
+		generateAndGossipQueryEnodeCh:   make(chan struct{}, 1),
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
@@ -232,7 +235,7 @@ func (sb *Backend) announceThread() {
 					waitPeriod = 5 * time.Second
 				}
 				time.AfterFunc(waitPeriod, func() {
-					sb.startGossipQueryEnodeTask()
+					sb.announceManager.startGossipQueryEnodeTask()
 				})
 
 				if sb.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
@@ -302,9 +305,9 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-queryEnodeTickerCh:
-			sb.startGossipQueryEnodeTask()
+			sb.announceManager.startGossipQueryEnodeTask()
 
-		case <-sb.generateAndGossipQueryEnodeCh:
+		case <-sb.announceManager.generateAndGossipQueryEnodeCh:
 			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
@@ -380,11 +383,11 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 
 // startGossipQueryEnodeTask will schedule a task for the announceThread to
 // generate and gossip a queryEnode message
-func (sb *Backend) startGossipQueryEnodeTask() {
+func (m *AnnounceManager) startGossipQueryEnodeTask() {
 	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
 	// already sent to the channel that has not been read from, don't block.
 	select {
-	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
+	case m.generateAndGossipQueryEnodeCh <- struct{}{}:
 	default:
 	}
 }
