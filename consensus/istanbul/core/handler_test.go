@@ -27,7 +27,7 @@ import (
 )
 
 // notice: the normal case have been tested in integration tests.
-func TestHandleMsg(t *testing.T) {
+func TestMalformedMessageDecoding(t *testing.T) {
 	N := uint64(4)
 	F := uint64(1)
 	sys := NewTestSystemWithBackend(N, F)
@@ -46,13 +46,14 @@ func TestHandleMsg(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}, v0.Address())
 
-	// with a matched payload. istanbul.MsgPreprepare should match with *istanbul.Preprepare in normal case.
+	// Prepare message but preprepare message code
 	m.Code = istanbul.MsgPreprepare
 
 	payload, err := m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg := &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
 	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
@@ -63,13 +64,14 @@ func TestHandleMsg(t *testing.T) {
 		Proposal: makeBlock(1),
 	}, v0.Address())
 
-	// with a unmatched payload. istanbul.MsgPrepare should match with *istanbul.Subject in normal case.
+	// Prepprepare message but prepare message code
 	m.Code = istanbul.MsgPrepare
 
 	payload, err = m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg = &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
 	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
@@ -80,13 +82,14 @@ func TestHandleMsg(t *testing.T) {
 		Proposal: makeBlock(2),
 	}, v0.Address())
 
-	// with a unmatched payload. istanbul.MsgCommit should match with *istanbul.Subject in normal case.
+	// Preprepare message but commit message code
 	m.Code = istanbul.MsgCommit
 
 	payload, err = m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg = &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
 	m = istanbul.NewPreprepareMessage(&istanbul.Preprepare{
@@ -103,10 +106,11 @@ func TestHandleMsg(t *testing.T) {
 	payload, err = m.Payload()
 	require.NoError(t, err)
 
-	err = r0.handleMsg(payload)
+	msg = &istanbul.Message{}
+	err = msg.FromPayload(payload, r0.validateFn)
 	assert.Error(t, err)
 
-	// with malicious payload
+	// check fails with garbage message
 	err = r0.handleMsg([]byte{1})
 	assert.Error(t, err)
 }
