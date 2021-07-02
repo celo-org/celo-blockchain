@@ -254,8 +254,6 @@ type Backend struct {
 	announceMu                    sync.RWMutex
 	announceThreadWg              *sync.WaitGroup
 	announceThreadQuit            chan struct{}
-	announceVersion               uint
-	announceVersionMu             sync.RWMutex
 	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh chan struct{}
@@ -1069,4 +1067,9 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, g
 		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
 		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 
+}
+
+// GetAnnounceVersion will retrieve the current announce version.
+func (sb *Backend) GetAnnounceVersion() uint {
+	return sb.announceManager.GetAnnounceVersion()
 }

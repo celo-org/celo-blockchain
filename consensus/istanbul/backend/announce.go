@@ -114,6 +114,9 @@ type AnnounceManager struct {
 
 	gossipCache GossipCache
 
+	announceVersion   uint
+	announceVersionMu sync.RWMutex
+
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
 	// for a proxied validator, or just one entry if it's a standalone validator).
@@ -203,22 +206,6 @@ func (sb *Backend) announceThread() {
 	var shouldQuery, shouldAnnounce bool
 	var querying, announcing bool
 
-	updateAnnounceVersionFunc := func() {
-		version := getTimestamp()
-		if version <= sb.GetAnnounceVersion() {
-			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
-			return
-		}
-		if err := sb.announceManager.setAndShareUpdatedAnnounceVersion(version); err != nil {
-			logger.Warn("Error updating announce version", "err", err)
-			return
-		}
-		sb.announceVersionMu.Lock()
-		logger.Debug("Updating announce version", "announceVersion", version)
-		sb.announceVersion = version
-		sb.announceVersionMu.Unlock()
-	}
-
 	for {
 		select {
 		case <-checkIfShouldAnnounceTicker.C:
@@ -278,7 +265,7 @@ func (sb *Backend) announceThread() {
 			if shouldAnnounce && !announcing {
 				logger.Info("Starting to announce")
 
-				updateAnnounceVersionFunc()
+				sb.announceManager.updateAnnounceVersion()
 
 				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
 				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
@@ -311,7 +298,7 @@ func (sb *Backend) announceThread() {
 
 		case <-updateAnnounceVersionTickerCh:
 			if shouldAnnounce {
-				updateAnnounceVersionFunc()
+				sb.announceManager.updateAnnounceVersion()
 			}
 
 		case <-queryEnodeTickerCh:
@@ -345,14 +332,14 @@ func (sb *Backend) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := sb.announceManager.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := sb.announceManager.generateAndGossipQueryEnode(sb.announceManager.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
 
 		case <-sb.updateAnnounceVersionCh:
 			if shouldAnnounce {
-				updateAnnounceVersionFunc()
+				sb.announceManager.updateAnnounceVersion()
 			}
 
 		case <-pruneAnnounceDataStructuresTicker.C:
@@ -373,6 +360,22 @@ func (sb *Backend) announceThread() {
 			return
 		}
 	}
+}
+
+func (m *AnnounceManager) updateAnnounceVersion() {
+	version := getTimestamp()
+	if version <= m.GetAnnounceVersion() {
+		m.logger.Debug("Announce version is not newer than the existing version", "existing version", m.announceVersion, "attempted new version", version)
+		return
+	}
+	if err := m.setAndShareUpdatedAnnounceVersion(version); err != nil {
+		m.logger.Warn("Error updating announce version", "err", err)
+		return
+	}
+	m.announceVersionMu.Lock()
+	m.logger.Debug("Updating announce version", "announceVersion", version)
+	m.announceVersion = version
+	m.announceVersionMu.Unlock()
 }
 
 // startGossipQueryEnodeTask will schedule a task for the announceThread to
@@ -1101,10 +1104,10 @@ func (sb *Backend) UpdateAnnounceVersion() {
 }
 
 // GetAnnounceVersion will retrieve the current announce version.
-func (sb *Backend) GetAnnounceVersion() uint {
-	sb.announceVersionMu.RLock()
-	defer sb.announceVersionMu.RUnlock()
-	return sb.announceVersion
+func (m *AnnounceManager) GetAnnounceVersion() uint {
+	m.announceVersionMu.RLock()
+	defer m.announceVersionMu.RUnlock()
+	return m.announceVersion
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
