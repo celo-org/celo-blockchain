@@ -62,7 +62,7 @@ type EcdsaInfo struct {
 	Address   common.Address   // Ethereum address of the ECDSA signing key
 	PublicKey *ecdsa.PublicKey // The signer public key
 
-	Decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
 	sign     istanbul.SignerFn     // Signer function to authorize hashes with
 	signHash istanbul.HashSignerFn // Signer function to create random seed
 }
@@ -78,6 +78,12 @@ func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
 // SignHash signs the given hash with the ecdsa account
 func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
 	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
+}
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
+	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
 }
 
 type BlsInfo struct {
@@ -119,8 +125,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		announceThreadWg:                   new(sync.WaitGroup),
 		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}, 1),
-		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
-		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -176,12 +180,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = valEnodeTable
 
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
-	if err != nil {
-		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
-	}
-	backend.versionCertificateTable = versionCertificateTable
-
 	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
 	if backend.IsProxy() {
 		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
@@ -194,6 +192,20 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 			logger.Crit("Can't create a new proxied validator engine", "err", err)
 		}
 	}
+
+	announceConfig := AnnounceManagerConfig{
+		IsProxiedValidator: backend.IsProxiedValidator(),
+		AWallets:           &backend.aWallets,
+		VcDbPath:           config.VersionCertificateDBPath,
+	}
+
+	backend.announceManager = NewAnnounceManager(
+		announceConfig,
+		backend,
+		backend,
+		backend,
+		backend.valEnodeTable,
+		backend.gossipCache)
 
 	return backend
 }
@@ -234,14 +246,9 @@ type Backend struct {
 
 	gossipCache GossipCache
 
-	lastQueryEnodeGossiped   map[common.Address]time.Time
-	lastQueryEnodeGossipedMu sync.RWMutex
-
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	versionCertificateTable           *enodes.VersionCertificateDB
-	lastVersionCertificatesGossiped   map[common.Address]time.Time
-	lastVersionCertificatesGossipedMu sync.RWMutex
+	announceManager *AnnounceManager
 
 	announceRunning               bool
 	announceMu                    sync.RWMutex
@@ -252,17 +259,6 @@ type Backend struct {
 	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh chan struct{}
-
-	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
-	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -409,7 +405,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	ecdsa := EcdsaInfo{
 		Address:   ecdsaAddress,
 		PublicKey: publicKey,
-		Decrypt:   decryptFn,
+		decrypt:   decryptFn,
 		sign:      signFn,
 		signHash:  signHashFn,
 	}
@@ -442,7 +438,7 @@ func (sb *Backend) Close() error {
 	if err := sb.valEnodeTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.versionCertificateTable.Close(); err != nil {
+	if err := sb.announceManager.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	if sb.replicaState != nil {
