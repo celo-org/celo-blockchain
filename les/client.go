@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
@@ -37,7 +36,6 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/les/checkpointoracle"
 	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -75,9 +73,11 @@ type LightEthereum struct {
 	netRPCService  *ethapi.PublicNetAPI
 
 	networkId uint64
+	p2pServer *p2p.Server
 }
 
-func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
+// New creates an instance of the light client.
+func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 	var chainName string
 	syncMode := config.SyncMode
 	var fullChainAvailable bool
@@ -91,11 +91,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}
 
-	chainDb, err := ctx.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/")
+	chainDb, err := stack.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/")
 	if err != nil {
 		return nil, err
 	}
-	lespayDb, err := ctx.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
+	lespayDb, err := stack.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
 	if err != nil {
 		return nil, err
 	}
@@ -117,17 +117,18 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 			closeCh:     make(chan struct{}),
 		},
 		peers:          peers,
-		eventMux:       ctx.EventMux,
+		eventMux:       stack.EventMux(),
 		reqDist:        newRequestDistributor(peers, &mclock.System{}),
-		accountManager: ctx.AccountManager,
-		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, chainDb),
+		accountManager: stack.AccountManager(),
+		engine:         eth.CreateConsensusEngine(stack, chainConfig, config, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		valueTracker:   lpc.NewValueTracker(lespayDb, &mclock.System{}, requestList, time.Minute, 1/float64(time.Hour), 1/float64(time.Hour*100), 1/float64(time.Hour*1000)),
+		p2pServer:      stack.Server(),
 	}
 	peers.subscribe((*vtSubscription)(leth.valueTracker))
 
-	dnsdisc, err := leth.setupDiscovery(&ctx.Config.P2P)
+	dnsdisc, err := leth.setupDiscovery(&stack.Config().P2P)
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +162,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
 
 	// Set up checkpoint oracle.
-	oracle := config.CheckpointOracle
-	if oracle == nil {
-		oracle = params.CheckpointOracles[genesisHash]
-	}
-	leth.oracle = checkpointoracle.New(oracle, leth.localCheckpoint)
+	leth.oracle = leth.setupOracle(stack, genesisHash, config)
 
 	// Note: AddChildIndexer starts the update process for the child
 	if leth.bloomIndexer != nil && leth.bloomTrieIndexer != nil {
@@ -186,7 +183,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.ApiBackend = &LesApiBackend{ctx.ExtRPCEnabled(), leth}
+	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), leth}
 
 	leth.chainreader = &LightChainReader{
 		config:     leth.chainConfig,
@@ -203,6 +200,14 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
 		leth.blockchain.DisableCheckFreq()
 	}
+
+	leth.netRPCService = ethapi.NewPublicNetAPI(leth.p2pServer, leth.config.NetworkId)
+
+	// Register the backend on the node
+	stack.RegisterAPIs(leth.APIs())
+	stack.RegisterProtocols(leth.Protocols())
+	stack.RegisterLifecycle(leth)
+
 	return leth, nil
 }
 
@@ -302,8 +307,7 @@ func (s *LightEthereum) Downloader() *downloader.Downloader { return s.handler.d
 func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPool }
 
-// Protocols implements node.Service, returning all the currently configured
-// network protocols to start.
+// Protocols returns all the currently configured network protocols to start.
 func (s *LightEthereum) Protocols() []p2p.Protocol {
 	return s.makeProtocols(ClientProtocolVersions, s.handler.runPeer, func(id enode.ID) interface{} {
 		if p := s.peers.peer(id.String()); p != nil {
@@ -313,9 +317,9 @@ func (s *LightEthereum) Protocols() []p2p.Protocol {
 	}, s.dialCandidates)
 }
 
-// Start implements node.Service, starting all internal goroutines needed by the
+// Start implements node.Lifecycle, starting all internal goroutines needed by the
 // light ethereum protocol implementation.
-func (s *LightEthereum) Start(srvr *p2p.Server) error {
+func (s *LightEthereum) Start() error {
 	log.Warn("Light client mode is an experimental feature")
 
 	s.serverPool.start()
@@ -324,7 +328,6 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 	s.startBloomHandlers(params.BloomBitsBlocksClient)
 	s.handler.start()
 
-	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.config.NetworkId)
 	return nil
 }
 
@@ -332,7 +335,7 @@ func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
 	return s.peers.randomPeerEtherbase()
 }
 
-// Stop implements node.Service, terminating all internal goroutines used by the
+// Stop implements node.Lifecycle, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
 	close(s.closeCh)
@@ -358,12 +361,4 @@ func (s *LightEthereum) Stop() error {
 	s.wg.Wait()
 	log.Info("Light ethereum stopped")
 	return nil
-}
-
-// SetClient sets the rpc client and binds the registrar contract.
-func (s *LightEthereum) SetContractBackend(backend bind.ContractBackend) {
-	if s.oracle == nil {
-		return
-	}
-	s.oracle.Start(backend)
 }
