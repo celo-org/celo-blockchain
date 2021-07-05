@@ -63,4 +63,4 @@ docs/_site
 docs/.jekyll-metadata
 
 # Ignore monorepo checkout
-./monorepo
+**/monorepo
