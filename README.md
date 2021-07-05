@@ -108,7 +108,7 @@ This command will:
 ### A Full node on the Alfajores test network
 
 Smart contract developers will be most interested in the Alfajores testnet.
-On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
+On Alfajores, you can receive testnet Celo through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
 More information about the Alfajores testnet can be found on [docs.celo.org](https://docs.celo.org/getting-started/alfajores-testnet).
 
 ```shell
@@ -172,7 +172,10 @@ HTTP based JSON-RPC API options:
   * `--ws.addr` WS-RPC server listening interface (default: `localhost`)
   * `--ws.port` WS-RPC server listening port (default: `8546`)
   * `--ws.api` API's offered over the WS-RPC interface (default: `eth,net,web3`)
-  * `--ws.origins` Origins from which to accept websockets requests
+  * `--ws.origins value` Origins from which to accept websockets requests
+  * `--graphql` Enable GraphQL on the HTTP-RPC server. Note that GraphQL can only be started if an HTTP server is started as well.
+  * `--graphql.corsdomain value` Comma separated list of domains from which to accept cross origin requests (browser enforced)
+  * `--graphql.vhosts value` Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (default: "localhost")
   * `--ipcdisable` Disable the IPC-RPC server
   * `--ipcapi` API's offered over the IPC-RPC interface (default: `admin,debug,eth,miner,net,personal,shh,txpool,web3`)
   * `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
@@ -224,7 +227,7 @@ merge a PR.
   * Build: `make`
   * End to end sync and transfer tests
   * Check imports: `./scripts/check_imports.sh`
- 
+
  `celo-blockchain` is based on `go-ethereum`, but the import path has been renamed from `github.com/ethereum/go-ethereum` to `github.com/celo-org/celo-blockchain`.
  Developers are encouraged to run `./scripts/setup_git_hooks.sh` to enable checking that import path has been changed to `celo-org` on `git merge` and `git commit`.
  Imports can automatically be renamed with `./scripts/rename_imports.sh`.
