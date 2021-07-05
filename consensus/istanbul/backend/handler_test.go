@@ -25,7 +25,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 type MockPeer struct {
@@ -121,18 +120,17 @@ func TestRecentMessageCaches(t *testing.T) {
 
 		// generate a msg that is not an Announce
 		data := []byte("data1")
-		hash := istanbul.RLPHash(data)
 		msg := makeMsg(tt.ethMsgCode, data)
 		addr := common.BytesToAddress([]byte("address"))
 
 		// 1. this message should not be in cache
 		// for peers
-		if _, ok := backend.peerRecentMessages.Get(addr); ok {
+		if backend.gossipCache.CheckIfMessageProcessedByPeer(addr, data) {
 			t.Fatalf("the cache of messages for this peer should be nil")
 		}
 
 		// for self
-		if _, ok := backend.selfRecentMessages.Get(hash); ok {
+		if backend.gossipCache.CheckIfMessageProcessedBySelf(data) {
 			t.Fatalf("the cache of messages should be nil")
 		}
 
@@ -146,17 +144,11 @@ func TestRecentMessageCaches(t *testing.T) {
 		time.Sleep(10 * time.Second)
 
 		// for peers
-		if ms, ok := backend.peerRecentMessages.Get(addr); tt.shouldCache != ok {
+		if ok := backend.gossipCache.CheckIfMessageProcessedByPeer(addr, data); tt.shouldCache != ok {
 			t.Fatalf("the cache of messages for this peer should be nil")
-		} else if tt.shouldCache {
-			if m, ok := ms.(*lru.ARCCache); !ok {
-				t.Fatalf("the cache of messages for this peer cannot be casted")
-			} else if _, ok := m.Get(hash); !ok {
-				t.Fatalf("the cache of messages for this peer cannot be found")
-			}
 		}
 		// for self
-		if _, ok := backend.selfRecentMessages.Get(hash); tt.shouldCache != ok {
+		if ok := backend.gossipCache.CheckIfMessageProcessedBySelf(data); tt.shouldCache != ok {
 			t.Fatalf("the cache of messages must be nil")
 		}
 
@@ -215,7 +207,7 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	block := backend.currentBlock()
 	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
 	// set backend to a different validator
-	backend.address = valSet.GetByIndex(1).Address()
+	backend.wallets().Ecdsa.Address = valSet.GetByIndex(1).Address()
 
 	isValidator, err = backend.readValidatorHandshakeMessage(peer)
 	if err != nil {

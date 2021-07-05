@@ -73,10 +73,11 @@ type Config struct {
 	Whitelist map[uint64]common.Hash `toml:"-"`
 
 	// Light client options
-	LightServ    int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
-	LightIngress int `toml:",omitempty"` // Incoming bandwidth limit for light servers
-	LightEgress  int `toml:",omitempty"` // Outgoing bandwidth limit for light servers
-	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
+	LightServ    int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
+	LightIngress int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
+	LightEgress  int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
+	LightPeers   int  `toml:",omitempty"` // Maximum number of LES client peers
+	LightNoPrune bool `toml:",omitempty"` // Whether to disable light chain pruning
 	// Minimum gateway fee value to serve a transaction from a light client
 	GatewayFee *big.Int `toml:",omitempty"`
 	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.

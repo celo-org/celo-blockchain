@@ -55,7 +55,7 @@ func testCheckpointSyncing(t *testing.T, protocol int, syncMode int) {
 		}
 	}
 	// Generate 512+4 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), protocol, waitIndexers, nil, 0, false, false)
+	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), protocol, waitIndexers, nil, 0, false, false, true)
 	defer tearDown()
 
 	expected := config.ChtSize + config.ChtConfirms
@@ -145,7 +145,7 @@ func testMissOracleBackend(t *testing.T, hasCheckpoint bool) {
 		}
 	}
 	// Generate 512+4 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), 3, waitIndexers, nil, 0, false, false)
+	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), 3, waitIndexers, nil, 0, false, false, true)
 	defer tearDown()
 
 	expected := config.ChtSize + config.ChtConfirms
