@@ -112,8 +112,6 @@ type Context struct {
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
 
-	Header *types.Header
-
 	EpochSize            uint64
 	GetValidators        GetValidatorsFunc
 	GetRegisteredAddress GetRegisteredAddressFunc
