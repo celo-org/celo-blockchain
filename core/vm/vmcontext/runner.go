@@ -25,7 +25,7 @@ type evmRunnerContext interface {
 }
 
 type evmRunner struct {
-	newEVM func() *vm.EVM
+	newEVM func(from common.Address) *vm.EVM
 	state  vm.StateDB
 
 	dontMeterGas bool
@@ -35,17 +35,17 @@ func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB
 
 	return &evmRunner{
 		state: state,
-		newEVM: func() *vm.EVM {
+		newEVM: func(from common.Address) *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-			// Putting in zero values.
-			context := New(VMAddress, common.Big0, header, chain, nil)
+			// Putting in zero values for gas price and tx fee recipient
+			context := New(from, common.Big0, header, chain, nil)
 			return vm.NewEVM(context, state, chain.Config(), *chain.GetVMConfig())
 		},
 	}
 }
 
 func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
-	evm := ev.newEVM()
+	evm := ev.newEVM(VMAddress)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -53,8 +53,17 @@ func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64,
 	return ret, err
 }
 
+func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	evm := ev.newEVM(sender)
+	if ev.dontMeterGas {
+		evm.StopGasMetering()
+	}
+	ret, _, err = evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
+	return ret, err
+}
+
 func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
-	evm := ev.newEVM()
+	evm := ev.newEVM(VMAddress)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
@@ -82,6 +91,11 @@ type SharedEVMRunner struct{ *vm.EVM }
 
 func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
 	ret, _, err = sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
+	return ret, err
+}
+
+func (sev *SharedEVMRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	ret, _, err = sev.Call(vm.AccountRef(sender), recipient, input, gas, value)
 	return ret, err
 }
 
