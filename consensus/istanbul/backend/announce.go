@@ -188,6 +188,31 @@ func (m *AnnounceManager) wallets() *Wallets {
 	return m.config.AWallets.Load().(*Wallets)
 }
 
+type announceTaskState struct {
+	// Create a ticker to poll if istanbul core is running and if this node is in
+	// the validator conn set. If both conditions are true, then this node should announce.
+	checkIfShouldAnnounceTicker *time.Ticker
+	// Occasionally share the entire version certificate table with all peers
+	shareVersionCertificatesTicker    *time.Ticker
+	pruneAnnounceDataStructuresTicker *time.Ticker
+
+	queryEnodeTicker                            *time.Ticker
+	queryEnodeTickerCh                          <-chan time.Time
+	queryEnodeFrequencyState                    QueryEnodeGossipFrequencyState
+	currentQueryEnodeTickerDuration             time.Duration
+	numQueryEnodesInHighFreqAfterFirstPeerState int
+	// TODO: this can be removed once we have more faith in this protocol
+	updateAnnounceVersionTicker   *time.Ticker
+	updateAnnounceVersionTickerCh <-chan time.Time
+
+	// Replica validators listen & query for enodes       (query true, announce false)
+	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
+	// Replicas need to query to populate their validator enode table, but don't want to
+	// update the proxie's validator assignments at the same time as the primary.
+	shouldQuery, shouldAnnounce bool
+	querying, announcing        bool
+}
+
 // The announceThread will:
 // 1) Periodically poll to see if this node should be announcing
 // 2) Periodically share the entire version certificate table with all peers
@@ -199,44 +224,25 @@ func (m *AnnounceManager) announceThread() {
 
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
-
-	// Create a ticker to poll if istanbul core is running and if this node is in
-	// the validator conn set. If both conditions are true, then this node should announce.
-	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
-	// Occasionally share the entire version certificate table with all peers
-	shareVersionCertificatesTicker := time.NewTicker(5 * time.Minute)
-	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
-
-	var queryEnodeTicker *time.Ticker
-	var queryEnodeTickerCh <-chan time.Time
-	var queryEnodeFrequencyState QueryEnodeGossipFrequencyState
-	var currentQueryEnodeTickerDuration time.Duration
-	var numQueryEnodesInHighFreqAfterFirstPeerState int
-	// TODO: this can be removed once we have more faith in this protocol
-	var updateAnnounceVersionTicker *time.Ticker
-	var updateAnnounceVersionTickerCh <-chan time.Time
-
-	// Replica validators listen & query for enodes       (query true, announce false)
-	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
-	// Replicas need to query to populate their validator enode table, but don't want to
-	// update the proxie's validator assignments at the same time as the primary.
-	var shouldQuery, shouldAnnounce bool
-	var querying, announcing bool
-
+	st := announceTaskState{
+		checkIfShouldAnnounceTicker:       time.NewTicker(5 * time.Second),
+		shareVersionCertificatesTicker:    time.NewTicker(5 * time.Minute),
+		pruneAnnounceDataStructuresTicker: time.NewTicker(10 * time.Minute),
+	}
 	for {
 		select {
-		case <-checkIfShouldAnnounceTicker.C:
+		case <-st.checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
 			var err error
-			shouldQuery, err = m.shouldParticipateInAnnounce()
+			st.shouldQuery, err = m.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
 			}
-			shouldAnnounce = shouldQuery && m.addrProvider.IsValidating()
+			st.shouldAnnounce = st.shouldQuery && m.addrProvider.IsValidating()
 
-			if shouldQuery && !querying {
+			if st.shouldQuery && !st.querying {
 				logger.Info("Starting to query")
 
 				// Gossip the announce after a minute.
@@ -253,54 +259,54 @@ func (m *AnnounceManager) announceThread() {
 				})
 
 				if m.config.Announce.AggressiveQueryEnodeGossipOnEnablement {
-					queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
+					st.queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
 					// Send an query enode message once a minute
-					currentQueryEnodeTickerDuration = 1 * time.Minute
-					numQueryEnodesInHighFreqAfterFirstPeerState = 0
+					st.currentQueryEnodeTickerDuration = 1 * time.Minute
+					st.numQueryEnodesInHighFreqAfterFirstPeerState = 0
 				} else {
-					queryEnodeFrequencyState = LowFreqState
-					currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
+					st.queryEnodeFrequencyState = LowFreqState
+					st.currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
 				}
 
 				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
-				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
-				queryEnodeTickerCh = queryEnodeTicker.C
+				st.queryEnodeTicker = time.NewTicker(st.currentQueryEnodeTickerDuration)
+				st.queryEnodeTickerCh = st.queryEnodeTicker.C
 
-				querying = true
+				st.querying = true
 				logger.Trace("Enabled periodic gossiping of announce message (query mode)")
 
-			} else if !shouldQuery && querying {
+			} else if !st.shouldQuery && st.querying {
 				logger.Info("Stopping querying")
 
 				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
-				queryEnodeTicker.Stop()
-				queryEnodeTickerCh = nil
-				querying = false
+				st.queryEnodeTicker.Stop()
+				st.queryEnodeTickerCh = nil
+				st.querying = false
 				logger.Trace("Disabled periodic gossiping of announce message (query mode)")
 			}
 
-			if shouldAnnounce && !announcing {
+			if st.shouldAnnounce && !st.announcing {
 				logger.Info("Starting to announce")
 
 				m.updateAnnounceVersion()
 
-				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
-				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
+				st.updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
+				st.updateAnnounceVersionTickerCh = st.updateAnnounceVersionTicker.C
 
-				announcing = true
+				st.announcing = true
 				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !shouldAnnounce && announcing {
+			} else if !st.shouldAnnounce && st.announcing {
 				logger.Info("Stopping announcing")
 
 				// Disable periodic updating of announce version
-				updateAnnounceVersionTicker.Stop()
-				updateAnnounceVersionTickerCh = nil
+				st.updateAnnounceVersionTicker.Stop()
+				st.updateAnnounceVersionTickerCh = nil
 
-				announcing = false
+				st.announcing = false
 				logger.Trace("Disabled periodic gossiping of announce message")
 			}
 
-		case <-shareVersionCertificatesTicker.C:
+		case <-st.shareVersionCertificatesTicker.C:
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
@@ -313,35 +319,35 @@ func (m *AnnounceManager) announceThread() {
 				logger.Warn("Error gossiping all version certificates")
 			}
 
-		case <-updateAnnounceVersionTickerCh:
-			if shouldAnnounce {
+		case <-st.updateAnnounceVersionTickerCh:
+			if st.shouldAnnounce {
 				m.updateAnnounceVersion()
 			}
 
-		case <-queryEnodeTickerCh:
+		case <-st.queryEnodeTickerCh:
 			m.startGossipQueryEnodeTask()
 
 		case <-m.generateAndGossipQueryEnodeCh:
-			if shouldQuery {
-				switch queryEnodeFrequencyState {
+			if st.shouldQuery {
+				switch st.queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
 					if m.peerCounter(p2p.AnyPurpose) > 0 {
-						queryEnodeFrequencyState = HighFreqAfterFirstPeerState
+						st.queryEnodeFrequencyState = HighFreqAfterFirstPeerState
 					}
 
 				case HighFreqAfterFirstPeerState:
-					if numQueryEnodesInHighFreqAfterFirstPeerState >= 10 {
-						queryEnodeFrequencyState = LowFreqState
+					if st.numQueryEnodesInHighFreqAfterFirstPeerState >= 10 {
+						st.queryEnodeFrequencyState = LowFreqState
 					}
-					numQueryEnodesInHighFreqAfterFirstPeerState++
+					st.numQueryEnodesInHighFreqAfterFirstPeerState++
 
 				case LowFreqState:
-					if currentQueryEnodeTickerDuration != time.Duration(m.config.Announce.QueryEnodeGossipPeriod)*time.Second {
+					if st.currentQueryEnodeTickerDuration != time.Duration(m.config.Announce.QueryEnodeGossipPeriod)*time.Second {
 						// Reset the ticker
-						currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
-						queryEnodeTicker.Stop()
-						queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
-						queryEnodeTickerCh = queryEnodeTicker.C
+						st.currentQueryEnodeTickerDuration = time.Duration(m.config.Announce.QueryEnodeGossipPeriod) * time.Second
+						st.queryEnodeTicker.Stop()
+						st.queryEnodeTicker = time.NewTicker(st.currentQueryEnodeTickerDuration)
+						st.queryEnodeTickerCh = st.queryEnodeTicker.C
 					}
 				}
 				// This node may have recently sent out an announce message within
@@ -349,30 +355,30 @@ func (m *AnnounceManager) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := m.generateAndGossipQueryEnode(m.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := m.generateAndGossipQueryEnode(m.GetAnnounceVersion(), st.queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
 
 		case <-m.updateAnnounceVersionCh:
-			if shouldAnnounce {
+			if st.shouldAnnounce {
 				m.updateAnnounceVersion()
 			}
 
-		case <-pruneAnnounceDataStructuresTicker.C:
+		case <-st.pruneAnnounceDataStructuresTicker.C:
 			if err := m.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
 		case <-m.announceThreadQuit:
-			checkIfShouldAnnounceTicker.Stop()
-			pruneAnnounceDataStructuresTicker.Stop()
-			if querying {
-				queryEnodeTicker.Stop()
+			st.checkIfShouldAnnounceTicker.Stop()
+			st.pruneAnnounceDataStructuresTicker.Stop()
+			if st.querying {
+				st.queryEnodeTicker.Stop()
 
 			}
-			if announcing {
-				updateAnnounceVersionTicker.Stop()
+			if st.announcing {
+				st.updateAnnounceVersionTicker.Stop()
 			}
 			return
 		}
