@@ -218,7 +218,7 @@ func (m *AnnounceManager) announceThread() {
 			}
 			st.shouldAnnounce = st.shouldQuery && m.addrProvider.IsValidating()
 
-			if st.shouldQuery && !st.querying {
+			if st.ShouldStartQuerying() {
 				logger.Info("Starting to query")
 
 				// Gossip the announce after a minute.
@@ -238,21 +238,21 @@ func (m *AnnounceManager) announceThread() {
 
 				logger.Trace("Enabled periodic gossiping of announce message (query mode)")
 
-			} else if !st.shouldQuery && st.querying {
+			} else if st.ShouldStopQuerying() {
 				logger.Info("Stopping querying")
 
 				st.OnStopQuerying()
 				logger.Trace("Disabled periodic gossiping of announce message (query mode)")
 			}
 
-			if st.shouldAnnounce && !st.announcing {
+			if st.ShouldStartAnnouncing() {
 				logger.Info("Starting to announce")
 
 				m.updateAnnounceVersion()
 
 				st.OnStartAnnouncing()
 				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !st.shouldAnnounce && st.announcing {
+			} else if st.ShouldStopAnnouncing() {
 				logger.Info("Stopping announcing")
 
 				st.OnStopAnnouncing()
