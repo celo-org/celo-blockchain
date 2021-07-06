@@ -18,6 +18,10 @@ func (fvm FailingVmRunner) Execute(recipient common.Address, input []byte, gas u
 	return nil, ErrFailingRunner
 }
 
+func (fvm FailingVmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	return nil, ErrFailingRunner
+}
+
 func (fvm FailingVmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
 	return nil, ErrFailingRunner
 }
