@@ -171,7 +171,8 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// We have the genesis block in database(perhaps in ancient database)
 	// but the corresponding state is missing.
 	header := rawdb.ReadHeader(db, stored, 0)
-	if _, err := state.New(header.Root, state.NewDatabaseWithCache(db, 0), nil); err != nil {
+	s, err := state.New(header.Root, state.NewDatabaseWithCache(db, 0), nil)
+	if err != nil {
 		if genesis == nil {
 			genesis = MainnetGenesisBlock()
 		}
@@ -193,6 +194,11 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		if hash != stored {
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}
+	}
+
+	// Check if Registry sits in genesis
+	if s.GetCodeSize(params.RegistrySmartContractAddress) != params.RegistryCodeSize {
+		return params.MainnetChainConfig, common.Hash{}, errors.New("no Registry Smart Contract deployed in genesis")
 	}
 
 	// Get the existing chain configuration.

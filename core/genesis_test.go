@@ -186,22 +186,22 @@ func TestRegistryInGenesis(t *testing.T) {
 		{
 			name:     "dev",
 			genesis:  DeveloperGenesisBlock,
-			codeSize: 2585, // According to core/***JsonAlloc
+			codeSize: params.RegistryCodeSize,
 		},
 		{
 			name:     "alfajores",
 			genesis:  DefaultAlfajoresGenesisBlock,
-			codeSize: 2585,
+			codeSize: params.RegistryCodeSize,
 		},
 		{
 			name:     "baklava",
 			genesis:  DefaultBaklavaGenesisBlock,
-			codeSize: 2585,
+			codeSize: params.RegistryCodeSize,
 		},
 		{
 			name:     "mainnet",
 			genesis:  MainnetGenesisBlock,
-			codeSize: 2585,
+			codeSize: params.RegistryCodeSize,
 		},
 		{
 			name: "emptyAlloc",
