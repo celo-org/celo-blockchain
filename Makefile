@@ -7,7 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
-.PHONY: prepare-system-contracts ./monorepo
+.PHONY: prepare-system-contracts $(MONOREPO_PATH)
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -31,11 +31,11 @@ MONOREPO_PATH=../.celo-blockchain-monorepo-checkout
 
 # This either evaluates to the contract source files if they exist or NOT_FOUND
 # if celo-monorepo has not been checked out yet.
-CONTRACT_SOURCE_FILES=$(shell 2>/dev/null find ./monorepo/packages/protocol \
+CONTRACT_SOURCE_FILES=$(shell 2>/dev/null find $(MONOREPO_PATH)/packages/protocol \
 						   -not -path "*/node_modules*" \
-						   -not -path "./monorepo/packages/protocol/test*" \
-						   -not -path "./monorepo/packages/protocol/build*" \
-						   -not -path "./monorepo/packages/protocol/types*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/test*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/build*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/types*" \
 						   || echo "NOT_FOUND")
 
 # example NDK values
@@ -48,44 +48,45 @@ geth:
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 # This rule checks out celo-monorepo under MONOREPO_PATH at commit
-# MONOREPO_COMMIT and compiles the system solidty contracts. A softlink is
-# created at ./monorepo so that code in this repo can always access the system
-# contracts with a consistent path.
-prepare-system-contracts: ./monorepo/packages/protocol/build
+# MONOREPO_COMMIT and compiles the system solidty contracts. It then creates a
+# symlink (compiled-system-contracts) pointing to the compiled contracts dir in
+# the monorepo, so that this repo can always access the contracts at a
+# consistent path.
+prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
+	@rm -f compiled-system-contracts
+	@ln -s $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
 
 # If any of the source files found by the find command are more recent than the
 # build dir or the build dir does not exist then we remove the build dir, yarn
 # install and rebuild the contracts.
-./monorepo/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
+$(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
 	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
 	@echo Running yarn install and compiling contracts
-	@cd ./monorepo && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
+	@cd $(MONOREPO_PATH) && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
 
-# The source files depend on the ./monorepo rule to ensure that the monorepo is
+
+# The source files depend on the MONOREPO_PATH rule to ensure that the monorepo is
 # checked out before we try to build.
-$(CONTRACT_SOURCE_FILES): ./monorepo
+$(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
 
-# Clone the monorepo and setup softlink.
+# Clone the monorepo.
 #
-# If the repo has not been cloned then clone it at the MONOREPO_COMMIT store
-# that commit in a file and then add a symlink from ./monorepo to the checkout
-# location.
-#
-# Otherwise if the repo has been cloned and MONOREPO_COMMIT doesn't match the
-# contents of current_commit then checkout the new commit, and update the file
-# that stores the current commit.  This will fail if there are local changes.
-./monorepo:
+# If the repo has not been cloned then clone it at the MONOREPO_COMMIT and
+# store that commit in a file.  Otherwise if the repo has been cloned and
+# MONOREPO_COMMIT doesn't match the contents of current_commit then checkout
+# the new commit, and update the file that stores the current commit.  This
+# will fail if there are local changes.
+$(MONOREPO_PATH):
 	@set -e; \
-	if  [ ! -e ./monorepo ]; \
+	if  [ ! -e $(MONOREPO_PATH) ]; \
 	then \
 		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
 		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
-		ln -s $(MONOREPO_PATH) ./monorepo; \
-		echo $(MONOREPO_COMMIT) > ./monorepo/current_commit; \
-	elif [ $(MONOREPO_COMMIT) != $(shell cat ./monorepo/current_commit || echo "") ]; \
+		echo $(MONOREPO_COMMIT) > $(MONOREPO_PATH)/current_commit; \
+	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit || echo "") ]; \
 	then \
-		echo "Cheking out monorepo at $(MONOREPO_COMMIT)"; \
-		cd ./monorepo; \
+		echo "Checking out monorepo at $(MONOREPO_COMMIT)"; \
+		cd $(MONOREPO_PATH); \
 		git fetch --quiet --depth 1 origin $(MONOREPO_COMMIT); \
 		git checkout FETCH_HEAD; \
 		sleep 0.5; \
