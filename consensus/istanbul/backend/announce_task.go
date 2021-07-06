@@ -7,6 +7,8 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 )
 
+// announceTaskState encapsulates the state needed to guide the behavior of the announce protocol
+// thread
 type announceTaskState struct {
 	config *istanbul.AnnounceConfig
 	// Create a ticker to poll if istanbul core is running and if this node is in
@@ -31,6 +33,15 @@ type announceTaskState struct {
 	// update the proxie's validator assignments at the same time as the primary.
 	shouldQuery, shouldAnnounce bool
 	querying, announcing        bool
+}
+
+func NewAnnounceTaskState(config *istanbul.AnnounceConfig) *announceTaskState {
+	return &announceTaskState{
+		config:                            config,
+		checkIfShouldAnnounceTicker:       time.NewTicker(5 * time.Second),
+		shareVersionCertificatesTicker:    time.NewTicker(5 * time.Minute),
+		pruneAnnounceDataStructuresTicker: time.NewTicker(10 * time.Minute),
+	}
 }
 
 func (st *announceTaskState) ShouldStartQuerying() bool {
@@ -116,9 +127,9 @@ func (st *announceTaskState) UpdateFrequencyOnGenerate(peerCounter PeerCounterFn
 func (st *announceTaskState) OnAnnounceThreadQuitting() {
 	st.checkIfShouldAnnounceTicker.Stop()
 	st.pruneAnnounceDataStructuresTicker.Stop()
+	st.shareVersionCertificatesTicker.Stop()
 	if st.querying {
 		st.queryEnodeTicker.Stop()
-
 	}
 	if st.announcing {
 		st.updateAnnounceVersionTicker.Stop()

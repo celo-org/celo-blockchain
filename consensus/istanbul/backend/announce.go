@@ -199,12 +199,7 @@ func (m *AnnounceManager) announceThread() {
 
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
-	st := &announceTaskState{
-		config:                            m.config.Announce,
-		checkIfShouldAnnounceTicker:       time.NewTicker(5 * time.Second),
-		shareVersionCertificatesTicker:    time.NewTicker(5 * time.Minute),
-		pruneAnnounceDataStructuresTicker: time.NewTicker(10 * time.Minute),
-	}
+	st := NewAnnounceTaskState(m.config.Announce)
 	for {
 		select {
 		case <-st.checkIfShouldAnnounceTicker.C:
