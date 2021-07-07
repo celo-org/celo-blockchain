@@ -37,6 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
+	"github.com/celo-org/celo-blockchain/p2p"
 
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
@@ -120,11 +121,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
-		announceRunning:                    false,
 		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
-		announceThreadWg:                   new(sync.WaitGroup),
-		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
-		updateAnnounceVersionCh:            make(chan struct{}, 1),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -197,6 +194,12 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		IsProxiedValidator: backend.IsProxiedValidator(),
 		AWallets:           &backend.aWallets,
 		VcDbPath:           config.VersionCertificateDBPath,
+		Announce:           backend.config.Announce,
+		Epoch:              backend.config.Epoch,
+	}
+
+	peerCounter := func(purpose p2p.PurposeFlag) int {
+		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
 
 	backend.announceManager = NewAnnounceManager(
@@ -205,7 +208,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		backend,
 		backend,
 		backend.valEnodeTable,
-		backend.gossipCache)
+		backend.gossipCache,
+		peerCounter)
 
 	return backend
 }
@@ -249,16 +253,6 @@ type Backend struct {
 	valEnodeTable *enodes.ValidatorEnodeDB
 
 	announceManager *AnnounceManager
-
-	announceRunning               bool
-	announceMu                    sync.RWMutex
-	announceThreadWg              *sync.WaitGroup
-	announceThreadQuit            chan struct{}
-	announceVersion               uint
-	announceVersionMu             sync.RWMutex
-	generateAndGossipQueryEnodeCh chan struct{}
-
-	updateAnnounceVersionCh chan struct{}
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -965,7 +959,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 		return nil, 0, time.Time{}, err
 	}
 	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
-	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.Announce.AdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
@@ -1069,4 +1063,73 @@ func (sb *Backend) recordBlockProductionTimes(blockNumber uint64, txCount int, g
 		cycle.Nanoseconds(), sleepGauge.Value(), consensusGauge.Value(), verifyGauge.Value(), blockConstructGauge.Value(),
 		cpuSysLoadGauge.Value(), cpuSysWaitGauge.Value(), cpuProcLoadGauge.Value())
 
+}
+
+func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
+	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
+
+	if err != nil {
+		return nil, err
+	}
+
+	returnMap := make(map[common.Address]*istanbul.AddressEntry)
+
+	for address, addressEntry := range addressEntries {
+		returnMap[address] = addressEntry
+	}
+
+	return returnMap, nil
+}
+
+func (sb *Backend) RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error {
+	addressesToKeep := make(map[common.Address]bool)
+	entriesToUpsert := make([]*istanbul.AddressEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		addressesToKeep[entry.GetAddress()] = true
+		entriesToUpsert = append(entriesToUpsert, entry)
+	}
+
+	sb.valEnodeTable.PruneEntries(addressesToKeep)
+	sb.valEnodeTable.UpsertVersionAndEnode(entriesToUpsert)
+
+	return nil
+}
+
+// AnnounceManager wrapping functions
+
+// GetAnnounceVersion will retrieve the current announce version.
+func (sb *Backend) GetAnnounceVersion() uint {
+	return sb.announceManager.GetAnnounceVersion()
+}
+
+// UpdateAnnounceVersion will asynchronously update the announce version.
+func (sb *Backend) UpdateAnnounceVersion() {
+	sb.announceManager.UpdateAnnounceVersion()
+}
+
+// SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
+func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
+	return sb.announceManager.SetEnodeCertificateMsgMap(enodeCertMsgMap)
+}
+
+// RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
+// May be nil if no message was generated as a result of the core not being
+// started, or if a proxy has not received a message from its proxied validator
+func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
+	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
+}
+
+// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
+func (sb *Backend) StartAnnouncing() error {
+	return sb.announceManager.StartAnnouncing(func() error {
+		return sb.vph.startThread()
+	})
+}
+
+// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
+func (sb *Backend) StopAnnouncing() error {
+	return sb.announceManager.StopAnnouncing(func() error {
+		return sb.vph.stopThread()
+	})
 }

@@ -21,8 +21,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -97,7 +95,11 @@ type AnnounceManagerConfig struct {
 	IsProxiedValidator bool
 	AWallets           *atomic.Value
 	VcDbPath           string
+	Epoch              uint64 // The number of blocks after which to checkpoint and reset the pending votes
+	Announce           *istanbul.AnnounceConfig
 }
+
+type PeerCounterFn func(purpose p2p.PurposeFlag) int
 
 type AnnounceManager struct {
 	logger log.Logger
@@ -107,12 +109,24 @@ type AnnounceManager struct {
 	addrProvider AddressProvider
 	proxyContext ProxyContext
 	network      AnnounceNetwork
+	peerCounter  PeerCounterFn
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
 	versionCertificateTable *enodes.VersionCertificateDB
 
 	gossipCache GossipCache
+
+	announceVersion         uint
+	announceVersionMu       sync.RWMutex
+	updateAnnounceVersionCh chan struct{}
+
+	generateAndGossipQueryEnodeCh chan struct{}
+
+	announceRunning    bool
+	announceMu         sync.RWMutex
+	announceThreadWg   *sync.WaitGroup
+	announceThreadQuit chan struct{}
 
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
@@ -137,17 +151,23 @@ type AnnounceManager struct {
 // not do it.
 func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, proxyContext ProxyContext,
 	addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB,
-	gossipCache GossipCache) *AnnounceManager {
+	gossipCache GossipCache,
+	peerCounter PeerCounterFn) *AnnounceManager {
 	am := &AnnounceManager{
 		logger:                          log.New("module", "announceManager"),
 		config:                          config,
 		network:                         network,
+		peerCounter:                     peerCounter,
 		proxyContext:                    proxyContext,
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
 		gossipCache:                     gossipCache,
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+		updateAnnounceVersionCh:         make(chan struct{}, 1),
+		generateAndGossipQueryEnodeCh:   make(chan struct{}, 1),
+		announceThreadWg:                new(sync.WaitGroup),
+		announceRunning:                 false,
 	}
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
@@ -174,214 +194,143 @@ func (m *AnnounceManager) wallets() *Wallets {
 // 3) Periodically prune announce-related data structures
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
-func (sb *Backend) announceThread() {
-	logger := sb.logger.New("func", "announceThread")
+func (m *AnnounceManager) announceThread() {
+	logger := m.logger.New("func", "announceThread")
 
-	sb.announceThreadWg.Add(1)
-	defer sb.announceThreadWg.Done()
-
-	// Create a ticker to poll if istanbul core is running and if this node is in
-	// the validator conn set. If both conditions are true, then this node should announce.
-	checkIfShouldAnnounceTicker := time.NewTicker(5 * time.Second)
-	// Occasionally share the entire version certificate table with all peers
-	shareVersionCertificatesTicker := time.NewTicker(5 * time.Minute)
-	pruneAnnounceDataStructuresTicker := time.NewTicker(10 * time.Minute)
-
-	var queryEnodeTicker *time.Ticker
-	var queryEnodeTickerCh <-chan time.Time
-	var queryEnodeFrequencyState QueryEnodeGossipFrequencyState
-	var currentQueryEnodeTickerDuration time.Duration
-	var numQueryEnodesInHighFreqAfterFirstPeerState int
-	// TODO: this can be removed once we have more faith in this protocol
-	var updateAnnounceVersionTicker *time.Ticker
-	var updateAnnounceVersionTickerCh <-chan time.Time
-
-	// Replica validators listen & query for enodes       (query true, announce false)
-	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
-	// Replicas need to query to populate their validator enode table, but don't want to
-	// update the proxie's validator assignments at the same time as the primary.
-	var shouldQuery, shouldAnnounce bool
-	var querying, announcing bool
-
-	updateAnnounceVersionFunc := func() {
-		version := getTimestamp()
-		if version <= sb.GetAnnounceVersion() {
-			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
-			return
-		}
-		if err := sb.announceManager.setAndShareUpdatedAnnounceVersion(version); err != nil {
-			logger.Warn("Error updating announce version", "err", err)
-			return
-		}
-		sb.announceVersionMu.Lock()
-		logger.Debug("Updating announce version", "announceVersion", version)
-		sb.announceVersion = version
-		sb.announceVersionMu.Unlock()
-	}
-
+	m.announceThreadWg.Add(1)
+	defer m.announceThreadWg.Done()
+	st := NewAnnounceTaskState(m.config.Announce)
 	for {
 		select {
-		case <-checkIfShouldAnnounceTicker.C:
+		case <-st.checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
 
 			var err error
-			shouldQuery, err = sb.announceManager.shouldParticipateInAnnounce()
+			st.shouldQuery, err = m.shouldParticipateInAnnounce()
 			if err != nil {
 				logger.Warn("Error in checking if should announce", err)
 				break
 			}
-			shouldAnnounce = shouldQuery && sb.IsValidating()
+			st.shouldAnnounce = st.shouldQuery && m.addrProvider.IsValidating()
+			m.updateAnnounceThreadStatus(logger, st)
 
-			if shouldQuery && !querying {
-				logger.Info("Starting to query")
-
-				// Gossip the announce after a minute.
-				// The delay allows for all receivers of the announce message to
-				// have a more up-to-date cached registered/elected valset, and
-				// hence more likely that they will be aware that this node is
-				// within that set.
-				waitPeriod := 1 * time.Minute
-				if sb.config.Epoch <= 10 {
-					waitPeriod = 5 * time.Second
-				}
-				time.AfterFunc(waitPeriod, func() {
-					sb.startGossipQueryEnodeTask()
-				})
-
-				if sb.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
-					queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
-					// Send an query enode message once a minute
-					currentQueryEnodeTickerDuration = 1 * time.Minute
-					numQueryEnodesInHighFreqAfterFirstPeerState = 0
-				} else {
-					queryEnodeFrequencyState = LowFreqState
-					currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
-				}
-
-				// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
-				queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
-				queryEnodeTickerCh = queryEnodeTicker.C
-
-				querying = true
-				logger.Trace("Enabled periodic gossiping of announce message (query mode)")
-
-			} else if !shouldQuery && querying {
-				logger.Info("Stopping querying")
-
-				// Disable periodic queryEnode msgs by setting queryEnodeTickerCh to nil
-				queryEnodeTicker.Stop()
-				queryEnodeTickerCh = nil
-				querying = false
-				logger.Trace("Disabled periodic gossiping of announce message (query mode)")
-			}
-
-			if shouldAnnounce && !announcing {
-				logger.Info("Starting to announce")
-
-				updateAnnounceVersionFunc()
-
-				updateAnnounceVersionTicker = time.NewTicker(5 * time.Minute)
-				updateAnnounceVersionTickerCh = updateAnnounceVersionTicker.C
-
-				announcing = true
-				logger.Trace("Enabled periodic gossiping of announce message")
-			} else if !shouldAnnounce && announcing {
-				logger.Info("Stopping announcing")
-
-				// Disable periodic updating of announce version
-				updateAnnounceVersionTicker.Stop()
-				updateAnnounceVersionTickerCh = nil
-
-				announcing = false
-				logger.Trace("Disabled periodic gossiping of announce message")
-			}
-
-		case <-shareVersionCertificatesTicker.C:
+		case <-st.shareVersionCertificatesTicker.C:
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allVersionCertificates, err := getAllVersionCertificates(sb.announceManager.versionCertificateTable)
+			allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
 			if err != nil {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
 			}
-			if err := sb.announceManager.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
+			if err := m.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
 				logger.Warn("Error gossiping all version certificates")
 			}
 
-		case <-updateAnnounceVersionTickerCh:
-			if shouldAnnounce {
-				updateAnnounceVersionFunc()
+		case <-st.updateAnnounceVersionTickerCh:
+			if st.shouldAnnounce {
+				m.updateAnnounceVersion()
 			}
 
-		case <-queryEnodeTickerCh:
-			sb.startGossipQueryEnodeTask()
+		case <-st.queryEnodeTickerCh:
+			m.startGossipQueryEnodeTask()
 
-		case <-sb.generateAndGossipQueryEnodeCh:
-			if shouldQuery {
-				switch queryEnodeFrequencyState {
-				case HighFreqBeforeFirstPeerState:
-					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
-						queryEnodeFrequencyState = HighFreqAfterFirstPeerState
-					}
-
-				case HighFreqAfterFirstPeerState:
-					if numQueryEnodesInHighFreqAfterFirstPeerState >= 10 {
-						queryEnodeFrequencyState = LowFreqState
-					}
-					numQueryEnodesInHighFreqAfterFirstPeerState++
-
-				case LowFreqState:
-					if currentQueryEnodeTickerDuration != time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod)*time.Second {
-						// Reset the ticker
-						currentQueryEnodeTickerDuration = time.Duration(sb.config.AnnounceQueryEnodeGossipPeriod) * time.Second
-						queryEnodeTicker.Stop()
-						queryEnodeTicker = time.NewTicker(currentQueryEnodeTickerDuration)
-						queryEnodeTickerCh = queryEnodeTicker.C
-					}
-				}
+		case <-m.generateAndGossipQueryEnodeCh:
+			if st.shouldQuery {
+				st.UpdateFrequencyOnGenerate(m.peerCounter)
 				// This node may have recently sent out an announce message within
 				// the gossip cooldown period imposed by other nodes.
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := sb.announceManager.generateAndGossipQueryEnode(sb.GetAnnounceVersion(), queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := m.generateAndGossipQueryEnode(m.GetAnnounceVersion(), st.queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
 
-		case <-sb.updateAnnounceVersionCh:
-			if shouldAnnounce {
-				updateAnnounceVersionFunc()
+		case <-m.updateAnnounceVersionCh:
+			if st.shouldAnnounce {
+				m.updateAnnounceVersion()
 			}
 
-		case <-pruneAnnounceDataStructuresTicker.C:
-			if err := sb.announceManager.pruneAnnounceDataStructures(); err != nil {
+		case <-st.pruneAnnounceDataStructuresTicker.C:
+			if err := m.pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
-		case <-sb.announceThreadQuit:
-			checkIfShouldAnnounceTicker.Stop()
-			pruneAnnounceDataStructuresTicker.Stop()
-			if querying {
-				queryEnodeTicker.Stop()
-
-			}
-			if announcing {
-				updateAnnounceVersionTicker.Stop()
-			}
+		case <-m.announceThreadQuit:
+			st.OnAnnounceThreadQuitting()
 			return
 		}
 	}
 }
 
+func (m *AnnounceManager) updateAnnounceThreadStatus(logger log.Logger, st *announceTaskState) {
+	if st.ShouldStartQuerying() {
+		logger.Info("Starting to query")
+
+		// Gossip the announce after a minute.
+		// The delay allows for all receivers of the announce message to
+		// have a more up-to-date cached registered/elected valset, and
+		// hence more likely that they will be aware that this node is
+		// within that set.
+		waitPeriod := 1 * time.Minute
+		if m.config.Epoch <= 10 {
+			waitPeriod = 5 * time.Second
+		}
+		time.AfterFunc(waitPeriod, func() {
+			m.startGossipQueryEnodeTask()
+		})
+
+		st.OnStartQuerying()
+
+		logger.Trace("Enabled periodic gossiping of announce message (query mode)")
+
+	} else if st.ShouldStopQuerying() {
+		logger.Info("Stopping querying")
+
+		st.OnStopQuerying()
+		logger.Trace("Disabled periodic gossiping of announce message (query mode)")
+	}
+
+	if st.ShouldStartAnnouncing() {
+		logger.Info("Starting to announce")
+
+		m.updateAnnounceVersion()
+
+		st.OnStartAnnouncing()
+		logger.Trace("Enabled periodic gossiping of announce message")
+	} else if st.ShouldStopAnnouncing() {
+		logger.Info("Stopping announcing")
+
+		st.OnStopAnnouncing()
+		logger.Trace("Disabled periodic gossiping of announce message")
+	}
+}
+
+func (m *AnnounceManager) updateAnnounceVersion() {
+	version := getTimestamp()
+	if version <= m.GetAnnounceVersion() {
+		m.logger.Debug("Announce version is not newer than the existing version", "existing version", m.announceVersion, "attempted new version", version)
+		return
+	}
+	if err := m.setAndShareUpdatedAnnounceVersion(version); err != nil {
+		m.logger.Warn("Error updating announce version", "err", err)
+		return
+	}
+	m.announceVersionMu.Lock()
+	m.logger.Debug("Updating announce version", "announceVersion", version)
+	m.announceVersion = version
+	m.announceVersionMu.Unlock()
+}
+
 // startGossipQueryEnodeTask will schedule a task for the announceThread to
 // generate and gossip a queryEnode message
-func (sb *Backend) startGossipQueryEnodeTask() {
+func (m *AnnounceManager) startGossipQueryEnodeTask() {
 	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
 	// already sent to the channel that has not been read from, don't block.
 	select {
-	case sb.generateAndGossipQueryEnodeCh <- struct{}{}:
+	case m.generateAndGossipQueryEnodeCh <- struct{}{}:
 	default:
 	}
 }
@@ -441,74 +390,6 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	return nil
-}
-
-// ===============================================================
-//
-// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
-
-type encryptedEnodeURL struct {
-	DestAddress       common.Address
-	EncryptedEnodeURL []byte
-}
-
-func (ee *encryptedEnodeURL) String() string {
-	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
-}
-
-type queryEnodeData struct {
-	EncryptedEnodeURLs []*encryptedEnodeURL
-	Version            uint
-	// The timestamp of the node when the message is generated.
-	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
-	Timestamp uint
-}
-
-func (qed *queryEnodeData) String() string {
-	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes ar into the Ethereum RLP format.
-func (ee *encryptedEnodeURL) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (ee *encryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		DestAddress       common.Address
-		EncryptedEnodeURL []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
-	return nil
-}
-
-// EncodeRLP serializes ad into the Ethereum RLP format.
-func (qed *queryEnodeData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		EncryptedEnodeURLs []*encryptedEnodeURL
-		Version            uint
-		Timestamp          uint
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
 	return nil
 }
 
@@ -977,16 +858,16 @@ func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error
 	return peer.Send(istanbul.VersionCertificatesMsg, payload)
 }
 
-func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleVersionCertificatesMsg")
+func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "handleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
-	sb.gossipCache.MarkMessageProcessedByPeer(addr, payload)
-	if sb.gossipCache.CheckIfMessageProcessedBySelf(payload) {
+	m.gossipCache.MarkMessageProcessedByPeer(addr, payload)
+	if m.gossipCache.CheckIfMessageProcessedBySelf(payload) {
 		return nil
 	}
-	defer sb.gossipCache.MarkMessageProcessedBySelf(payload)
+	defer m.gossipCache.MarkMessageProcessedBySelf(payload)
 
 	var msg istanbul.Message
 	if err := msg.FromPayload(payload, nil); err != nil {
@@ -1002,7 +883,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	}
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Trace("Error in retrieving validator conn set", "err", err)
 		return err
@@ -1029,7 +910,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		validAddresses[versionCertificate.Address] = true
 		validEntries = append(validEntries, versionCertificate.Entry())
 	}
-	if err := sb.announceManager.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
+	if err := m.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
@@ -1092,19 +973,19 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 }
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
-func (sb *Backend) UpdateAnnounceVersion() {
+func (m *AnnounceManager) UpdateAnnounceVersion() {
 	// Send to the channel iff it does not already have a message.
 	select {
-	case sb.updateAnnounceVersionCh <- struct{}{}:
+	case m.updateAnnounceVersionCh <- struct{}{}:
 	default:
 	}
 }
 
 // GetAnnounceVersion will retrieve the current announce version.
-func (sb *Backend) GetAnnounceVersion() uint {
-	sb.announceVersionMu.RLock()
-	defer sb.announceVersionMu.RUnlock()
-	return sb.announceVersion
+func (m *AnnounceManager) GetAnnounceVersion() uint {
+	m.announceVersionMu.RLock()
+	defer m.announceVersionMu.RUnlock()
+	return m.announceVersion
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
@@ -1189,10 +1070,6 @@ func getTimestamp() uint {
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
-func (sb *Backend) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
-	return sb.announceManager.RetrieveEnodeCertificateMsgMap()
-}
-
 func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
 	m.enodeCertificateMsgMapMu.Lock()
 	defer m.enodeCertificateMsgMapMu.Unlock()
@@ -1270,8 +1147,8 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
-func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
-	logger := sb.logger.New("func", "handleEnodeCertificateMsg")
+func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "handleEnodeCertificateMsg")
 
 	var msg istanbul.Message
 	// Decode payload into msg
@@ -1296,7 +1173,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	shouldSave, err := sb.announceManager.shouldParticipateInAnnounce()
+	shouldSave, err := m.shouldParticipateInAnnounce()
 	if err != nil {
 		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
@@ -1306,7 +1183,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 		return nil
 	}
 
-	validatorConnSet, err := sb.RetrieveValidatorConnSet()
+	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
 	if err != nil {
 		logger.Debug("Error in retrieving registered/elected valset", "err", err)
 		return err
@@ -1317,22 +1194,17 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := sb.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := m.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if sb.announceManager.config.IsProxiedValidator && sb.IsValidating() {
-		sb.announceManager.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
+	if m.config.IsProxiedValidator && m.addrProvider.IsValidating() {
+		m.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 
 	return nil
-}
-
-// SetEnodeCertificateMsgMap will verify the given enode certificate message map, then update it on this struct.
-func (sb *Backend) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
-	return sb.announceManager.SetEnodeCertificateMsgMap(enodeCertMsgMap)
 }
 
 func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
@@ -1377,37 +1249,42 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 	return nil
 }
 
-func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
-	return m.versionCertificateTable.Info()
-}
-
-func (sb *Backend) GetValEnodeTableEntries(valAddresses []common.Address) (map[common.Address]*istanbul.AddressEntry, error) {
-	addressEntries, err := sb.valEnodeTable.GetValEnodes(valAddresses)
-
-	if err != nil {
-		return nil, err
+func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
+	m.announceMu.Lock()
+	defer m.announceMu.Unlock()
+	if m.announceRunning {
+		return istanbul.ErrStartedAnnounce
 	}
 
-	returnMap := make(map[common.Address]*istanbul.AddressEntry)
+	go m.announceThread()
 
-	for address, addressEntry := range addressEntries {
-		returnMap[address] = addressEntry
+	m.announceThreadQuit = make(chan struct{})
+	m.announceRunning = true
+
+	if err := onStart(); err != nil {
+		m.StopAnnouncing(func() error { return nil })
+		return err
 	}
-
-	return returnMap, nil
-}
-
-func (sb *Backend) RewriteValEnodeTableEntries(entries map[common.Address]*istanbul.AddressEntry) error {
-	addressesToKeep := make(map[common.Address]bool)
-	entriesToUpsert := make([]*istanbul.AddressEntry, 0, len(entries))
-
-	for _, entry := range entries {
-		addressesToKeep[entry.GetAddress()] = true
-		entriesToUpsert = append(entriesToUpsert, entry)
-	}
-
-	sb.valEnodeTable.PruneEntries(addressesToKeep)
-	sb.valEnodeTable.UpsertVersionAndEnode(entriesToUpsert)
 
 	return nil
+}
+
+func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
+	m.announceMu.Lock()
+	defer m.announceMu.Unlock()
+
+	if !m.announceRunning {
+		return istanbul.ErrStoppedAnnounce
+	}
+
+	close(m.announceThreadQuit)
+	m.announceThreadWg.Wait()
+
+	m.announceRunning = false
+
+	return onStop()
+}
+
+func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
+	return m.versionCertificateTable.Info()
 }

@@ -53,7 +53,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error in encoding vCert1.  Error: %v", err)
 	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
+	err = engine0.announceManager.handleVersionCertificatesMsg(common.Address{}, nil, vCert1MsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling vCert1.  Error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error in encoding vCert2.  Error: %v", err)
 	}
-	err = engine0.handleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
+	err = engine0.announceManager.handleVersionCertificatesMsg(common.Address{}, nil, vCert2MsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling vCert2.  Error: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	enodeCertMsgPayload, _ := enodeCerts[engine0Node.ID()].Msg.Payload()
 
 	// Handle the enodeCertMsg in engine1
-	err := engine1.handleEnodeCertificateMsg(nil, enodeCertMsgPayload)
+	err := engine1.announceManager.handleEnodeCertificateMsg(nil, enodeCertMsgPayload)
 	if err != nil {
 		t.Errorf("Error in handling an enode certificate message. Error: %v", err)
 	}

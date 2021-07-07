@@ -708,44 +708,6 @@ func (sb *Backend) StopValidating() error {
 	return nil
 }
 
-// StartAnnouncing implements consensus.Istanbul.StartAnnouncing
-func (sb *Backend) StartAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-	if sb.announceRunning {
-		return istanbul.ErrStartedAnnounce
-	}
-
-	go sb.announceThread()
-
-	sb.announceThreadQuit = make(chan struct{})
-	sb.announceRunning = true
-
-	if err := sb.vph.startThread(); err != nil {
-		sb.StopAnnouncing()
-		return err
-	}
-
-	return nil
-}
-
-// StopAnnouncing implements consensus.Istanbul.StopAnnouncing
-func (sb *Backend) StopAnnouncing() error {
-	sb.announceMu.Lock()
-	defer sb.announceMu.Unlock()
-
-	if !sb.announceRunning {
-		return istanbul.ErrStoppedAnnounce
-	}
-
-	close(sb.announceThreadQuit)
-	sb.announceThreadWg.Wait()
-
-	sb.announceRunning = false
-
-	return sb.vph.stopThread()
-}
-
 // StartProxiedValidatorEngine implements consensus.Istanbul.StartProxiedValidatorEngine
 func (sb *Backend) StartProxiedValidatorEngine() error {
 	sb.proxiedValidatorEngineMu.Lock()

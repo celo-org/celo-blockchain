@@ -64,12 +64,15 @@ type Config struct {
 	ProxyConfigs []*ProxyConfig `toml:",omitempty"` // The set of proxy configs for this proxied validator at startup
 
 	// Announce Configs
-	AnnounceQueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
-	AnnounceAggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
-	AnnounceAdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
-
+	Announce *AnnounceConfig
 	// Load test config
 	LoadTestCSVFile string `toml:",omitempty"` // If non-empty, specifies the file to write out csv metrics about the block production cycle to.
+}
+
+type AnnounceConfig struct {
+	QueryEnodeGossipPeriod                 uint64 `toml:",omitempty"` // Time duration (in seconds) between gossiped query enode messages
+	AggressiveQueryEnodeGossipOnEnablement bool   `toml:",omitempty"` // Specifies if this node should aggressively query enodes on announce enablement
+	AdditionalValidatorsToGossip           int64  `toml:",omitempty"` // Specifies the number of additional non-elected validators to gossip an announce
 }
 
 // ProxyConfig represents the configuration for validator's proxies
@@ -80,26 +83,28 @@ type ProxyConfig struct {
 
 // DefaultConfig for istanbul consensus engine
 var DefaultConfig = &Config{
-	RequestTimeout:                 3000,
-	TimeoutBackoffFactor:           1000,
-	MinResendRoundChangeTimeout:    15 * 1000,
-	MaxResendRoundChangeTimeout:    2 * 60 * 1000,
-	BlockPeriod:                    5,
-	ProposerPolicy:                 ShuffledRoundRobin,
-	Epoch:                          30000,
-	DefaultLookbackWindow:          12,
-	ReplicaStateDBPath:             "replicastate",
-	ValidatorEnodeDBPath:           "validatorenodes",
-	VersionCertificateDBPath:       "versioncertificates",
-	RoundStateDBPath:               "roundstates",
-	Validator:                      false,
-	Replica:                        false,
-	Proxy:                          false,
-	Proxied:                        false,
-	AnnounceQueryEnodeGossipPeriod: 300, // 5 minutes
-	AnnounceAggressiveQueryEnodeGossipOnEnablement: true,
-	AnnounceAdditionalValidatorsToGossip:           10,
-	LoadTestCSVFile:                                "", // disable by default
+	RequestTimeout:              3000,
+	TimeoutBackoffFactor:        1000,
+	MinResendRoundChangeTimeout: 15 * 1000,
+	MaxResendRoundChangeTimeout: 2 * 60 * 1000,
+	BlockPeriod:                 5,
+	ProposerPolicy:              ShuffledRoundRobin,
+	Epoch:                       30000,
+	DefaultLookbackWindow:       12,
+	ReplicaStateDBPath:          "replicastate",
+	ValidatorEnodeDBPath:        "validatorenodes",
+	VersionCertificateDBPath:    "versioncertificates",
+	RoundStateDBPath:            "roundstates",
+	Validator:                   false,
+	Replica:                     false,
+	Proxy:                       false,
+	Proxied:                     false,
+	Announce: &AnnounceConfig{
+		QueryEnodeGossipPeriod:                 300, // 5 minutes
+		AggressiveQueryEnodeGossipOnEnablement: true,
+		AdditionalValidatorsToGossip:           10,
+	},
+	LoadTestCSVFile: "", // disable by default
 }
 
 //ApplyParamsChainConfigToConfig applies the istanbul config values from params.chainConfig to the istanbul.Config config
