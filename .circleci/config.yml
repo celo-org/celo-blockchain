@@ -6,10 +6,7 @@ parameters:
     default: "celo-core-contracts-v3.rc0"
   system-contracts-path:
     type: string
-    default: "compiled-system-contracts"
-  monorepo-checkout-path:
-    type: string
-    default: "monorepo"
+    default: "geth/monorepo/packages/protocol/build"
 executors:
   golang:
     docker:
@@ -55,7 +52,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-<<pipeline.parameters.monorepo-checkout-path>>
+            - system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
       - attach_workspace:
           at: ~/repos
       - run:
@@ -66,20 +63,18 @@ jobs:
           # work. We only do this if the cache has not been restored.
           command: |
             set -e
-            if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
+            if [ ! -d ~/repos/<<pipeline.parameters.system-contracts-path>> ]; then
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-              make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>> MONOREPO_PATH=../<<pipeline.parameters.monorepo-checkout-path>>
+              make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
             fi
       - save_cache:
-          key: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-<<pipeline.parameters.monorepo-checkout-path>>
+          key: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
           paths:
-            - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
-            - ~/repos/<<pipeline.parameters.monorepo-checkout-path>>/packages/protocol/build/contracts
+            - ~/repos/<<pipeline.parameters.system-contracts-path>>
       - persist_to_workspace:
           root: ~/repos
           paths:
-            - geth/<<pipeline.parameters.system-contracts-path>>
-            - <<pipeline.parameters.monorepo-checkout-path>>/packages/protocol/build/contracts
+            - <<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
     executor: golang
