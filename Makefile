@@ -82,7 +82,7 @@ $(MONOREPO_PATH):
 		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
 		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
 		echo $(MONOREPO_COMMIT) > $(MONOREPO_PATH)/current_commit; \
-	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit || echo "") ]; \
+	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
 	then \
 		echo "Checking out monorepo at $(MONOREPO_COMMIT)"; \
 		cd $(MONOREPO_PATH); \
