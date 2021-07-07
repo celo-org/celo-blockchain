@@ -48,15 +48,14 @@ geth:
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
 # This rule checks out celo-monorepo under MONOREPO_PATH at commit
-# MONOREPO_COMMIT and compiles the system solidty contracts. It then creates a
-# symlink (compiled-system-contracts) pointing to the compiled contracts dir in
-# the monorepo, so that this repo can always access the contracts at a
-# consistent path.
+# MONOREPO_COMMIT and compiles the system solidty contracts. It then copies the
+# compiled contracts from the monorepo to the compiled-system-contracts, so
+# that this repo can always access the contracts at a consistent path.
 prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
-	@rm -f compiled-system-contracts
-	@ln -s $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
+	@rm -rf compiled-system-contracts
+	@cp -ar $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
 
-# If any of the source files found by the find command are more recent than the
+# If any of the source files in CONTRACT_SOURCE_FILES are more recent than the
 # build dir or the build dir does not exist then we remove the build dir, yarn
 # install and rebuild the contracts.
 $(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)

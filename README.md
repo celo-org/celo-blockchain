@@ -58,10 +58,9 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 
 Prior to running tests you will need to run `make prepare-system-contracts`.
 This will checkout the celo-monorepo and compile the system contracts for use
-in full network tests. The rule will create the symlink
-(`compiled-system-contracts`) linking to the directory in celo-monorepo
-containing the compiled contracts. If you subsequently edit the system
-contracts source, running the make rule again will re-compile them.
+in full network tests. The rule will copy the compiled contracts from
+celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
+system contracts source, running the make rule again will re-compile them.
 
 This make rule will shallow checkout
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
