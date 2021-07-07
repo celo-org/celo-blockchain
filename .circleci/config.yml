@@ -1,5 +1,9 @@
 version: 2.1
 parameters:
+  # Increment this to force cache rebuilding
+  system-contracts-cache-version:
+    type: integer
+    default: 1
   # Use this git tag or commit of the monorepo to build the system contracts. 
   system-contracts-monorepo-version:
     type: string
@@ -46,13 +50,17 @@ jobs:
             - geth
 
   prepare-system-contracts:
+    parameters:
+      cache-key:
+        type: string
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
     executor: node-v10
     resource_class: medium+
     steps:
       - checkout
       - restore_cache:
           keys:
-            - system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>
+            - <<parameters.cache-key>>
       - attach_workspace:
           at: ~/repos
       - run:
@@ -68,7 +76,7 @@ jobs:
               make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
             fi
       - save_cache:
-          key: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>
+          key: <<parameters.cache-key>>
           paths:
             - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
       - persist_to_workspace:
