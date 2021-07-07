@@ -8,7 +8,7 @@ import (
 )
 
 // announceTaskState encapsulates the state needed to guide the behavior of the announce protocol
-// thread
+// thread. This type is designed to be used from A SINGLE THREAD only.
 type announceTaskState struct {
 	config *istanbul.AnnounceConfig
 	// Create a ticker to poll if istanbul core is running and if this node is in
