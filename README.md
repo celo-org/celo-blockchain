@@ -60,7 +60,8 @@ Prior to running tests you will need to run `make prepare-system-contracts`.
 This will checkout the celo-monorepo and compile the system contracts for use
 in full network tests. The rule will copy the compiled contracts from
 celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
-system contracts source, running the make rule again will re-compile them.
+system contracts source, running the make rule again will re-compile them and
+copy them into place.
 
 This make rule will shallow checkout
 [celo-monorepo](https://github.com/celo-org/celo-monorepo) under
