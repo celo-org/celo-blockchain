@@ -70,6 +70,9 @@ jobs:
           # to our known hosts in order for the monorepo post install script to
           # work. We only do this if the cache has not been restored.
           command: |
+            pwd
+            ls 
+            ls compiled-system-contracts
             set -e
             if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
