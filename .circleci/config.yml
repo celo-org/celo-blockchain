@@ -83,9 +83,9 @@ jobs:
           paths:
             - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
       - persist_to_workspace:
-          root: ~/repos/geth
+          root: ~/repos
           paths:
-            - <<pipeline.parameters.system-contracts-path>>
+            - geth/<<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
     executor: golang
