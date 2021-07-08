@@ -97,6 +97,9 @@ jobs:
       - run:
           name: Run Tests
           command: |
+            pwd
+            ls 
+            ls compiled-system-contracts
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
             go run build/ci.go test -v | tee /tmp/test-results/go-test.out
