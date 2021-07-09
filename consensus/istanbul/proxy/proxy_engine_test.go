@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/davecgh/go-spew/spew"
 )
 
 func TestHandleValEnodeShare(t *testing.T) {
@@ -109,9 +108,6 @@ func TestHandleValEnodeShare(t *testing.T) {
 	}
 
 	expectedVetEntry := istanbul.AddressEntry{Address: val1BE.Address(), Node: val1BE.SelfNode()}
-	spew.Dump(expectedVetEntry)
-	spew.Dump(vetEntries)
-	spew.Dump(val1BE.Address())
 	if vetEntries[val1BE.Address()].Address != expectedVetEntry.Address || vetEntries[val1BE.Address()].Node.URLv4() != expectedVetEntry.Node.URLv4() {
 		t.Errorf("Proxy has incorrect val enode table entry.  Want: %v, Have: %v", expectedVetEntry, vetEntries[val1BE.Address()])
 	}
