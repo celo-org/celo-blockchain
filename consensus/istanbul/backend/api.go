@@ -185,7 +185,7 @@ func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
 }
 
 func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
-	return api.istanbul.versionCertificateTable.Info()
+	return api.istanbul.announceManager.GetVersionCertificateTableInfo()
 }
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
