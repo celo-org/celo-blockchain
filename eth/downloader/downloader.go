@@ -1690,26 +1690,22 @@ func (d *Downloader) processHeaders(origin uint64, pivot uint64, td *big.Int) er
 						frequency = 1
 					}
 					log.Error("Inserting header chain within process Headers", "First header", chunk[0], "last Header", chunk[len(chunk)-1])
-					difference := big.NewInt(0).Sub(chunk[0].Number, d.lightchain.CurrentHeader().Number).Uint64()
-					log.Error("Checking difference", "Difference", difference, "epoch", d.epoch, "chunk first", chunk[0].Number, "current header", d.lightchain.CurrentHeader().Number)
-					if difference <= d.epoch {
-						if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
-							rollbackErr = err
+					if n, err := d.lightchain.InsertHeaderChain(chunk, frequency, d.Mode.SyncFullHeaderChain()); err != nil {
+						rollbackErr = err
 
-							// If some headers were inserted, track them as uncertain
-							if n > 0 && rollback == 0 {
-								rollback = chunk[0].Number.Uint64()
-							}
-							log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
-							return fmt.Errorf("%w: %v", errInvalidChain, err)
+						// If some headers were inserted, track them as uncertain
+						if n > 0 && rollback == 0 {
+							rollback = chunk[0].Number.Uint64()
 						}
-						// All verifications passed, track all headers within the alloted limits
-						head := chunk[len(chunk)-1].Number.Uint64()
-						if head-rollback > uint64(fsHeaderSafetyNet) {
-							rollback = head - uint64(fsHeaderSafetyNet)
-						} else {
-							rollback = 1
-						}
+						log.Debug("Invalid header encountered", "number", chunk[n].Number, "hash", chunk[n].Hash(), "err", err)
+						return fmt.Errorf("%w: %v", errInvalidChain, err)
+					}
+					// All verifications passed, track all headers within the alloted limits
+					head := chunk[len(chunk)-1].Number.Uint64()
+					if head-rollback > uint64(fsHeaderSafetyNet) {
+						rollback = head - uint64(fsHeaderSafetyNet)
+					} else {
+						rollback = 1
 					}
 				}
 				// Unless we're doing light chains, schedule the headers for associated content retrieval

@@ -436,12 +436,12 @@ func (lc *LightChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) 
 	lc.engine.VerifyLightPlumoProofs(lightProofs)
 	start := time.Now()
 	lastProof := lightProofs[len(lightProofs)-1]
-	blockNumber := istanbul.GetEpochLastBlockNumber(uint64(lastProof.LastEpoch.Index), lc.engine.EpochSize())
-	headers := []*types.Header{
-		{
-			Number: big.NewInt(int64(blockNumber)),
-		},
-	}
+	// blockNumber := istanbul.GetEpochLastBlockNumber(uint64(lastProof.LastEpoch.Index), lc.engine.EpochSize())
+	// headers := []*types.Header{
+	// 	{
+	// 		Number: big.NewInt(int64(blockNumber)),
+	// 	},
+	// }
 	whFunc := func(header *types.Header) error {
 		_, err := lc.hc.WriteHeader(header)
 
@@ -456,6 +456,11 @@ func (lc *LightChain) InsertPlumoProofs(lightProofs []istanbul.LightPlumoProof) 
 		// }
 		return err
 	}
+	headers := []*types.Header{
+		&lastProof.LastEpoch.ParentHeader,
+		&lastProof.LastEpoch.Header,
+	}
+	log.Error("Inserting last proofs header", "headers", headers, "lastheader", lastProof.LastEpoch.Header, "lastParentHeader", lastProof.LastEpoch.ParentHeader)
 	lc.hc.InsertHeaderChain(headers, whFunc, start)
 }
 

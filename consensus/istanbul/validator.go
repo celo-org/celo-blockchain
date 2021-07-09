@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
-	"github.com/celo-org/celo-bls-go/bls"
 
 	"github.com/celo-org/celo-blockchain/common"
 )
@@ -205,10 +205,12 @@ func SeparateValidatorDataIntoIstanbulExtra(validators []ValidatorData) ([]commo
 
 // LightEpochBlock stores the minimal info needed to construct a snark.EpochBlock
 type LightEpochBlock struct { // 48 bytes
-	Index              uint             // 8 bytes
-	MaxNonSigners      uint             // 8 bytes
-	EpochEntropy       bls.EpochEntropy // 16 bytes
-	ParentEpochEntropy bls.EpochEntropy // 16 bytes
+	Index         uint // 8 bytes
+	MaxNonSigners uint // 8 bytes
+	// EpochEntropy       bls.EpochEntropy // 16 bytes
+	// ParentEpochEntropy bls.EpochEntropy // 16 bytes
+	ParentHeader types.Header
+	Header       types.Header
 }
 
 // LightPlumoProof encapsulates all data needed by a light client to verify and utilize a Plumo proof.

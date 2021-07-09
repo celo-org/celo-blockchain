@@ -34,7 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -950,15 +949,15 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
 					lastEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch), backend.EpochSize())
 					lastBlockHeader := h.blockchain.GetHeaderByNumber(lastEpochBlockNumber)
-					lastEpochEntropy := blscrypto.EpochEntropyFromHash(lastBlockHeader.Hash())
+					// lastEpochEntropy := blscrypto.EpochEntropyFromHash(lastBlockHeader.Hash())
 					parentEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch)-1, backend.EpochSize())
 					parentBlockHeader := h.blockchain.GetHeaderByNumber(parentEpochBlockNumber)
-					parentEpochEntropy := blscrypto.EpochEntropyFromHash(parentBlockHeader.Hash())
+					// parentEpochEntropy := blscrypto.EpochEntropyFromHash(parentBlockHeader.Hash())
 					lastEpochBlock := istanbul.LightEpochBlock{
-						Index:              metadata.LastEpoch,
-						MaxNonSigners:      uint(lastEpochValSet.MinQuorumSize()),
-						EpochEntropy:       lastEpochEntropy,
-						ParentEpochEntropy: parentEpochEntropy,
+						Index:         metadata.LastEpoch,
+						MaxNonSigners: uint(lastEpochValSet.MinQuorumSize()),
+						Header:        *lastBlockHeader,
+						ParentHeader:  *parentBlockHeader,
 					}
 					var firstEpochValData []istanbul.ValidatorData
 					var lastEpochValData []istanbul.ValidatorData
