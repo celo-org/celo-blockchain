@@ -62,5 +62,5 @@ docs/Gemfile.lock
 docs/_site
 docs/.jekyll-metadata
 
-# Ignore monorepo checkout
-**/monorepo
+# Ignore compiled contracts
+compiled-system-contracts
