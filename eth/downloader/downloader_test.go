@@ -272,19 +272,6 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 	// Do a quick check, as the blockchain.InsertHeaderChain doesn't insert anything in case of errors
-	coveredByProof := false
-	// TODO(lucas): race condition here with header/proof responses
-	if dl.getHeaderByHash(headers[0].ParentHash) == nil {
-		for _, lightProof := range dl.ownPlumoProofs {
-			if uint64(lightProof.LastEpoch.Index) == headers[0].Number.Uint64() {
-				coveredByProof = true
-				break
-			}
-		}
-		if !coveredByProof {
-			return 0, fmt.Errorf("InsertHeaderChain: unknown parent at first position, parent of number %d", headers[0].Number)
-		}
-	}
 	var hashes []common.Hash
 	for i := 1; i < len(headers); i++ {
 		hash := headers[i-1].Hash()
@@ -293,6 +280,7 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 		}
 		hashes = append(hashes, hash)
 	}
+	coveredByProof := true
 	hashes = append(hashes, headers[len(headers)-1].Hash())
 	// Do a full insert if pre-checks passed
 	for i, header := range headers {
@@ -1740,6 +1728,21 @@ func TestPivot(t *testing.T) {
 func (dl *downloadTester) newPlumoPeer(id string, version int, chain *testChain, proofs []types.PlumoProofMetadata) error {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
+	// var lightProofs []istanbul.LightPlumoProof
+	// for _, proof := range proofs {
+	// 	lightProof := istanbul.LightPlumoProof{
+	// 		FirstEpoch: proof.FirstEpoch,
+	// 		LastEpoch: istanbul.LightEpochBlock{
+	// 			Index: proof.LastEpoch,
+	// 		},
+	// 	}
+	// 	lightProofs = append(lightProofs, lightProof)
+	// }
+	// fmt.Printf("Light Proofs %v", lightProofs)
+
+	// Some progress here, now just need to fix the syncing
+
+	// dl.ownPlumoProofs = lightProofs
 
 	peer := &downloadTesterPeer{dl: dl, id: id, chain: chain, knownPlumoProofs: proofs}
 	dl.peers[id] = peer
@@ -1819,6 +1822,7 @@ func (dl *downloadTester) InsertPlumoProofs(lightProofs []istanbul.LightPlumoPro
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
+	fmt.Println("Inserting plumo proofs")
 	for _, lightProof := range lightProofs {
 		dl.ownPlumoProofs = append(dl.ownPlumoProofs, lightProof)
 	}
