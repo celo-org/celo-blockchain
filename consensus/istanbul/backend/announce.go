@@ -212,17 +212,7 @@ func (m *AnnounceManager) announceThread() {
 			m.updateAnnounceThreadStatus(logger, st)
 
 		case <-st.shareVersionCertificatesTicker.C:
-			// Send all version certificates to every peer. Only the entries
-			// that are new to a node will end up being regossiped throughout the
-			// network.
-			allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
-			if err != nil {
-				logger.Warn("Error getting all version certificates", "err", err)
-				break
-			}
-			if err := m.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
-				logger.Warn("Error gossiping all version certificates")
-			}
+			m.gossipAllVersionCertificates()
 
 		case <-st.updateAnnounceVersionTickerCh:
 			if st.shouldAnnounce {
@@ -805,6 +795,20 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	m.lastQueryEnodeGossiped[msg.Address] = time.Now()
 
 	return nil
+}
+
+// gossipAllVersionCertificates sends all version certificates to every peer. Only the entries
+// that are new to a node will end up being regossiped throughout the
+// network.
+func (m *AnnounceManager) gossipAllVersionCertificates() {
+	allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
+	if err != nil {
+		m.logger.Warn("Error getting all version certificates", "err", err)
+		return
+	}
+	if err := m.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
+		m.logger.Warn("Error gossiping all version certificates")
+	}
 }
 
 func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
