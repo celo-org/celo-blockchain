@@ -170,7 +170,6 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		announceThreadWg:                new(sync.WaitGroup),
 		announceRunning:                 false,
 	}
-	am.announceVersion.Store(uint(0))
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
 		am.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VcDbPath)
@@ -922,7 +921,11 @@ func (m *AnnounceManager) UpdateAnnounceVersion() {
 
 // GetAnnounceVersion will retrieve the current announce version.
 func (m *AnnounceManager) GetAnnounceVersion() uint {
-	return m.announceVersion.Load().(uint)
+	v := m.announceVersion.Load()
+	if v == nil {
+		return 0
+	}
+	return v.(uint)
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
