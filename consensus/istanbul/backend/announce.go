@@ -121,8 +121,6 @@ type AnnounceManager struct {
 	announceVersionMu       sync.RWMutex
 	updateAnnounceVersionCh chan struct{}
 
-	generateAndGossipQueryEnodeCh chan struct{}
-
 	announceRunning    bool
 	announceMu         sync.RWMutex
 	announceThreadWg   *sync.WaitGroup
@@ -165,7 +163,6 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
-		generateAndGossipQueryEnodeCh:   make(chan struct{}, 1),
 		announceThreadWg:                new(sync.WaitGroup),
 		announceRunning:                 false,
 	}
@@ -233,9 +230,9 @@ func (m *AnnounceManager) announceThread() {
 			}
 
 		case <-st.queryEnodeTickerCh:
-			m.startGossipQueryEnodeTask()
+			st.startGossipQueryEnodeTask()
 
-		case <-m.generateAndGossipQueryEnodeCh:
+		case <-st.generateAndGossipQueryEnodeCh:
 			if st.shouldQuery {
 				st.UpdateFrequencyOnGenerate(m.peerCounter)
 				// This node may have recently sent out an announce message within
@@ -279,7 +276,7 @@ func (m *AnnounceManager) updateAnnounceThreadStatus(logger log.Logger, st *anno
 			waitPeriod = 5 * time.Second
 		}
 		time.AfterFunc(waitPeriod, func() {
-			m.startGossipQueryEnodeTask()
+			st.startGossipQueryEnodeTask()
 		})
 
 		st.OnStartQuerying()
@@ -322,17 +319,6 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 	m.logger.Debug("Updating announce version", "announceVersion", version)
 	m.announceVersion = version
 	m.announceVersionMu.Unlock()
-}
-
-// startGossipQueryEnodeTask will schedule a task for the announceThread to
-// generate and gossip a queryEnode message
-func (m *AnnounceManager) startGossipQueryEnodeTask() {
-	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
-	// already sent to the channel that has not been read from, don't block.
-	select {
-	case m.generateAndGossipQueryEnodeCh <- struct{}{}:
-	default:
-	}
 }
 
 // shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.

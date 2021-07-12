@@ -27,6 +27,8 @@ type announceTaskState struct {
 	updateAnnounceVersionTicker   *time.Ticker
 	updateAnnounceVersionTickerCh <-chan time.Time
 
+	generateAndGossipQueryEnodeCh chan struct{}
+
 	// Replica validators listen & query for enodes       (query true, announce false)
 	// Primary validators annouce (updateAnnounceVersion) (query true, announce true)
 	// Replicas need to query to populate their validator enode table, but don't want to
@@ -41,6 +43,7 @@ func NewAnnounceTaskState(config *istanbul.AnnounceConfig) *announceTaskState {
 		checkIfShouldAnnounceTicker:       time.NewTicker(5 * time.Second),
 		shareVersionCertificatesTicker:    time.NewTicker(5 * time.Minute),
 		pruneAnnounceDataStructuresTicker: time.NewTicker(10 * time.Minute),
+		generateAndGossipQueryEnodeCh:     make(chan struct{}, 1),
 	}
 }
 
@@ -133,5 +136,16 @@ func (st *announceTaskState) OnAnnounceThreadQuitting() {
 	}
 	if st.announcing {
 		st.updateAnnounceVersionTicker.Stop()
+	}
+}
+
+// startGossipQueryEnodeTask will schedule a task for the announceThread to
+// generate and gossip a queryEnode message
+func (st *announceTaskState) startGossipQueryEnodeTask() {
+	// sb.generateAndGossipQueryEnodeCh has a buffer of 1. If there is a value
+	// already sent to the channel that has not been read from, don't block.
+	select {
+	case st.generateAndGossipQueryEnodeCh <- struct{}{}:
+	default:
 	}
 }
