@@ -64,7 +64,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 		Proposal: makeBlock(1),
 	}, v0.Address())
 
-	// Prepprepare message but prepare message code
+	// Preprepare message but prepare message code
 	m.Code = istanbul.MsgPrepare
 
 	payload, err = m.Payload()
