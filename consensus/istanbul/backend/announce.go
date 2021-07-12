@@ -201,6 +201,7 @@ func (m *AnnounceManager) announceThread() {
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
 	st := NewAnnounceTaskState(m.config.Announce)
+	updateAnnounceVersion := m.updateAnnounceVersion
 	for {
 		select {
 		case <-st.checkIfShouldAnnounceTicker.C:
@@ -213,7 +214,16 @@ func (m *AnnounceManager) announceThread() {
 				break
 			}
 			st.shouldAnnounce = st.shouldQuery && m.addrProvider.IsValidating()
-			m.updateAnnounceThreadStatus(logger, st)
+			// Gossip the announce after a minute.
+			// The delay allows for all receivers of the announce message to
+			// have a more up-to-date cached registered/elected valset, and
+			// hence more likely that they will be aware that this node is
+			// within that set.
+			waitPeriod := 1 * time.Minute
+			if m.config.Epoch <= 10 {
+				waitPeriod = 5 * time.Second
+			}
+			st.updateAnnounceThreadStatus(logger, waitPeriod, updateAnnounceVersion)
 
 		case <-st.shareVersionCertificatesTicker.C:
 			if err := m.vcGossiper.GossipAllFrom(m.versionCertificateTable); err != nil {
@@ -222,7 +232,7 @@ func (m *AnnounceManager) announceThread() {
 
 		case <-st.updateAnnounceVersionTickerCh:
 			if st.shouldAnnounce {
-				m.updateAnnounceVersion()
+				updateAnnounceVersion()
 			}
 
 		case <-st.queryEnodeTickerCh:
@@ -243,7 +253,7 @@ func (m *AnnounceManager) announceThread() {
 
 		case <-m.updateAnnounceVersionCh:
 			if st.shouldAnnounce {
-				m.updateAnnounceVersion()
+				updateAnnounceVersion()
 			}
 
 		case <-st.pruneAnnounceDataStructuresTicker.C:
@@ -255,49 +265,6 @@ func (m *AnnounceManager) announceThread() {
 			st.OnAnnounceThreadQuitting()
 			return
 		}
-	}
-}
-
-func (m *AnnounceManager) updateAnnounceThreadStatus(logger log.Logger, st *announceTaskState) {
-	if st.ShouldStartQuerying() {
-		logger.Info("Starting to query")
-
-		// Gossip the announce after a minute.
-		// The delay allows for all receivers of the announce message to
-		// have a more up-to-date cached registered/elected valset, and
-		// hence more likely that they will be aware that this node is
-		// within that set.
-		waitPeriod := 1 * time.Minute
-		if m.config.Epoch <= 10 {
-			waitPeriod = 5 * time.Second
-		}
-		time.AfterFunc(waitPeriod, func() {
-			st.startGossipQueryEnodeTask()
-		})
-
-		st.OnStartQuerying()
-
-		logger.Trace("Enabled periodic gossiping of announce message (query mode)")
-
-	} else if st.ShouldStopQuerying() {
-		logger.Info("Stopping querying")
-
-		st.OnStopQuerying()
-		logger.Trace("Disabled periodic gossiping of announce message (query mode)")
-	}
-
-	if st.ShouldStartAnnouncing() {
-		logger.Info("Starting to announce")
-
-		m.updateAnnounceVersion()
-
-		st.OnStartAnnouncing()
-		logger.Trace("Enabled periodic gossiping of announce message")
-	} else if st.ShouldStopAnnouncing() {
-		logger.Info("Stopping announcing")
-
-		st.OnStopAnnouncing()
-		logger.Trace("Disabled periodic gossiping of announce message")
 	}
 }
 

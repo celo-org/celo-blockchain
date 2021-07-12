@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 )
 
@@ -147,5 +148,39 @@ func (st *announceTaskState) startGossipQueryEnodeTask() {
 	select {
 	case st.generateAndGossipQueryEnodeCh <- struct{}{}:
 	default:
+	}
+}
+
+func (st *announceTaskState) updateAnnounceThreadStatus(logger log.Logger, startWaitPeriod time.Duration, updateAnnounceVersion func()) {
+	if st.ShouldStartQuerying() {
+		logger.Info("Starting to query")
+
+		time.AfterFunc(startWaitPeriod, func() {
+			st.startGossipQueryEnodeTask()
+		})
+
+		st.OnStartQuerying()
+
+		logger.Trace("Enabled periodic gossiping of announce message (query mode)")
+
+	} else if st.ShouldStopQuerying() {
+		logger.Info("Stopping querying")
+
+		st.OnStopQuerying()
+		logger.Trace("Disabled periodic gossiping of announce message (query mode)")
+	}
+
+	if st.ShouldStartAnnouncing() {
+		logger.Info("Starting to announce")
+
+		updateAnnounceVersion()
+
+		st.OnStartAnnouncing()
+		logger.Trace("Enabled periodic gossiping of announce message")
+	} else if st.ShouldStopAnnouncing() {
+		logger.Info("Stopping announcing")
+
+		st.OnStopAnnouncing()
+		logger.Trace("Disabled periodic gossiping of announce message")
 	}
 }
