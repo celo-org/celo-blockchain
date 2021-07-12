@@ -198,31 +198,26 @@ func (m *AnnounceManager) wallets() *Wallets {
 func (m *AnnounceManager) announceThread() {
 	logger := m.logger.New("func", "announceThread")
 
+	// Gossip the announce after a minute.
+	// The delay allows for all receivers of the announce message to
+	// have a more up-to-date cached registered/elected valset, and
+	// hence more likely that they will be aware that this node is
+	// within that set.
+	waitPeriod := 1 * time.Minute
+	if m.config.Epoch <= 10 {
+		waitPeriod = 5 * time.Second
+	}
+
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
 	st := NewAnnounceTaskState(m.config.Announce)
+	shouldQueryAndAnnounce := m.shouldQueryAndAnnounce
 	updateAnnounceVersion := m.updateAnnounceVersion
 	for {
 		select {
 		case <-st.checkIfShouldAnnounceTicker.C:
 			logger.Trace("Checking if this node should announce it's enode")
-
-			var err error
-			st.shouldQuery, err = m.shouldParticipateInAnnounce()
-			if err != nil {
-				logger.Warn("Error in checking if should announce", err)
-				break
-			}
-			st.shouldAnnounce = st.shouldQuery && m.addrProvider.IsValidating()
-			// Gossip the announce after a minute.
-			// The delay allows for all receivers of the announce message to
-			// have a more up-to-date cached registered/elected valset, and
-			// hence more likely that they will be aware that this node is
-			// within that set.
-			waitPeriod := 1 * time.Minute
-			if m.config.Epoch <= 10 {
-				waitPeriod = 5 * time.Second
-			}
+			st.shouldQuery, st.shouldAnnounce = shouldQueryAndAnnounce()
 			st.updateAnnounceThreadStatus(logger, waitPeriod, updateAnnounceVersion)
 
 		case <-st.shareVersionCertificatesTicker.C:
@@ -266,6 +261,17 @@ func (m *AnnounceManager) announceThread() {
 			return
 		}
 	}
+}
+
+func (m *AnnounceManager) shouldQueryAndAnnounce() (bool, bool) {
+	var err error
+	shouldQuery, err := m.shouldParticipateInAnnounce()
+	if err != nil {
+		m.logger.Warn("Error in checking if should announce", err)
+		return false, false
+	}
+	shouldAnnounce := shouldQuery && m.addrProvider.IsValidating()
+	return shouldQuery, shouldAnnounce
 }
 
 func (m *AnnounceManager) updateAnnounceVersion() {
