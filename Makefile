@@ -53,7 +53,7 @@ geth:
 # that this repo can always access the contracts at a consistent path.
 prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
 	@rm -rf compiled-system-contracts
-	@cp -ar $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
+	@cp -a $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
 
 # If any of the source files in CONTRACT_SOURCE_FILES are more recent than the
 # build dir or the build dir does not exist then we remove the build dir, yarn
