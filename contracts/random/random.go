@@ -69,10 +69,6 @@ func RevealAndCommit(vmRunner vm.EVMRunner, randomness, newCommitment common.Has
 	log.Trace("Revealing and committing randomness", "randomness", randomness.Hex(), "commitment", newCommitment.Hex())
 	err := revealAndCommitMethod.Execute(vmRunner, nil, common.Big0, randomness, newCommitment, proposer)
 
-	// FIXME this should be done by the caller, remove from here after
-	if err == nil {
-		vmRunner.GetStateDB().Finalise(true)
-	}
 	return err
 }
 
