@@ -218,7 +218,7 @@ func (e *MockEngine) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 		return nil
 	}
 	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
+	if parent == nil && chain.Config().FullHeaderChainAvailable {
 		return consensus.ErrUnknownAncestor
 	}
 	// Sanity checks passed, do a proper verification
@@ -235,12 +235,14 @@ func (e *MockEngine) verifyHeader(chain consensus.ChainHeaderReader, header, par
 	if header.Time > uint64(time.Now().Add(allowedFutureBlockTime).Unix()) {
 		return consensus.ErrFutureBlock
 	}
-	if header.Time <= parent.Time {
-		return errZeroBlockTime
-	}
-	// Verify that the block number is parent's +1
-	if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(big.NewInt(1)) != 0 {
-		return consensus.ErrInvalidNumber
+	if parent != nil {
+		if header.Time <= parent.Time {
+			return errZeroBlockTime
+		}
+		// Verify that the block number is parent's +1
+		if diff := new(big.Int).Sub(header.Number, parent.Number); diff.Cmp(big.NewInt(1)) != 0 {
+			return consensus.ErrInvalidNumber
+		}
 	}
 	// Verify the engine specific seal securing the block
 	if seal {
@@ -334,7 +336,7 @@ func (e *MockEngine) verifyHeaderWorker(chain consensus.ChainHeaderReader, heade
 	} else if headers[index-1].Hash() == headers[index].ParentHash {
 		parent = headers[index-1]
 	}
-	if parent == nil {
+	if parent == nil && chain.Config().FullHeaderChainAvailable {
 		return consensus.ErrUnknownAncestor
 	}
 	if chain.GetHeader(headers[index].Hash(), headers[index].Number.Uint64()) != nil {

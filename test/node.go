@@ -164,9 +164,7 @@ func (n *Node) Start() error {
 	}
 
 	// Register eth service
-	err = n.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		return eth.New(ctx, ethConfigCopy)
-	})
+	n.Eth, err = eth.New(n.Node, ethConfigCopy)
 	if err != nil {
 		return err
 	}
@@ -191,16 +189,11 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	// Get the eth service back from the node for easy access.
-	err = n.Service(&n.Eth)
-	if err != nil {
-		return err
-	}
 	_, _, err = core.SetupGenesisBlock(n.Eth.ChainDb(), n.EthConfig.Genesis)
 	if err != nil {
 		return err
 	}
-	n.WsClient, err = ethclient.Dial("ws://" + n.HTTPEndpoint())
+	n.WsClient, err = ethclient.Dial(n.WSEndpoint())
 	if err != nil {
 		return err
 	}
