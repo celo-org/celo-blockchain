@@ -1429,6 +1429,21 @@ func (s *serverSet) register(peer *clientPeer) error {
 	return nil
 }
 
+func (s *serverSet) unregister(peer *clientPeer) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.closed {
+		return errClosed
+	}
+	if _, exist := s.set[peer.id]; !exist {
+		return errNotRegistered
+	}
+	delete(s.set, peer.id)
+	peer.Peer.Disconnect(p2p.DiscQuitting)
+	return nil
+}
+
 func (s *serverSet) close() {
 	s.lock.Lock()
 	defer s.lock.Unlock()

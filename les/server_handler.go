@@ -138,6 +138,8 @@ func (h *serverHandler) handle(p *clientPeer) error {
 		}
 		// connected to another server, no messages expected, just wait for disconnection
 		_, err := p.rw.ReadMsg()
+		// after that wait, unregister the peer (otherwise a re-entry here will fail)
+		h.server.serverset.unregister(p)
 		return err
 	}
 	// Reject light clients if server is not synced.
