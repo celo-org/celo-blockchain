@@ -93,7 +93,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Generate query enode message for engine0
-	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
+	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}

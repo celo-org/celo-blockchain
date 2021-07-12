@@ -236,7 +236,7 @@ func (m *AnnounceManager) announceThread() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := m.generateAndGossipQueryEnode(m.GetAnnounceVersion(), st.queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := m.generateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -404,9 +404,11 @@ func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) 
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (m *AnnounceManager) generateAndGossipQueryEnode(version uint, enforceRetryBackoff bool) (*istanbul.Message, error) {
+func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error) {
 	logger := m.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
+
+	version := m.GetAnnounceVersion()
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
