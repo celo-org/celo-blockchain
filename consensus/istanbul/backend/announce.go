@@ -111,6 +111,8 @@ type AnnounceManager struct {
 	network      AnnounceNetwork
 	peerCounter  PeerCounterFn
 
+	vcGossiper VersionCertificateGossiper
+
 	valEnodeTable *enodes.ValidatorEnodeDB
 
 	versionCertificateTable *enodes.VersionCertificateDB
@@ -151,6 +153,9 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 	addrProvider AddressProvider, valEnodeTable *enodes.ValidatorEnodeDB,
 	gossipCache GossipCache,
 	peerCounter PeerCounterFn) *AnnounceManager {
+	vcGossipFunction := func(payload []byte) error {
+		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
+	}
 	am := &AnnounceManager{
 		logger:                          log.New("module", "announceManager"),
 		config:                          config,
@@ -160,6 +165,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		addrProvider:                    addrProvider,
 		valEnodeTable:                   valEnodeTable,
 		gossipCache:                     gossipCache,
+		vcGossiper:                      NewVcGossiper(vcGossipFunction),
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
 		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
@@ -212,7 +218,9 @@ func (m *AnnounceManager) announceThread() {
 			m.updateAnnounceThreadStatus(logger, st)
 
 		case <-st.shareVersionCertificatesTicker.C:
-			m.gossipAllVersionCertificates()
+			if err := m.vcGossiper.GossipAllFrom(m.versionCertificateTable); err != nil {
+				m.logger.Warn("Error gossiping all version certificates")
+			}
 
 		case <-st.updateAnnounceVersionTickerCh:
 			if st.shouldAnnounce {
@@ -797,55 +805,10 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	return nil
 }
 
-// gossipAllVersionCertificates sends all version certificates to every peer. Only the entries
-// that are new to a node will end up being regossiped throughout the
-// network.
-func (m *AnnounceManager) gossipAllVersionCertificates() {
-	allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
-	if err != nil {
-		m.logger.Warn("Error getting all version certificates", "err", err)
-		return
-	}
-	if err := m.gossipVersionCertificatesMsg(allVersionCertificates); err != nil {
-		m.logger.Warn("Error gossiping all version certificates")
-	}
-}
-
-func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
-	logger := m.logger.New("func", "gossipVersionCertificatesMsg")
-
-	payload, err := encodeVersionCertificatesMsg(versionCertificates)
-	if err != nil {
-		logger.Warn("Error encoding version certificate msg", "err", err)
-		return err
-	}
-	return m.network.Gossip(payload, istanbul.VersionCertificatesMsg)
-}
-
-func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
-	allEntries, err := vcTable.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	return fromVCEntries(allEntries), nil
-}
-
 // SendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
 func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error {
-	logger := m.logger.New("func", "sendVersionCertificateTable")
-	allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
-	if err != nil {
-		logger.Warn("Error getting all version certificates", "err", err)
-		return err
-	}
-	payload, err := encodeVersionCertificatesMsg(allVersionCertificates)
-	if err != nil {
-		logger.Warn("Error encoding version certificate msg", "err", err)
-		return err
-	}
-
-	return peer.Send(istanbul.VersionCertificatesMsg, payload)
+	return m.vcGossiper.SendAllFrom(m.versionCertificateTable, peer)
 }
 
 func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
@@ -957,7 +920,7 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 	}
 	m.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
-		return m.gossipVersionCertificatesMsg(versionCertificatesToRegossip)
+		return m.vcGossiper.Gossip(versionCertificatesToRegossip)
 	}
 	return nil
 }
