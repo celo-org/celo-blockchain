@@ -368,11 +368,14 @@ func TestHandlePreprepare(t *testing.T) {
 				preprepareView = &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(5)}
 			}
 
-			preprepare := &istanbul.Preprepare{
-				View:                   preprepareView,
-				Proposal:               test.expectedRequest,
-				RoundChangeCertificate: test.getCert(sys),
-			}
+			msg := istanbul.NewPreprepareMessage(
+				&istanbul.Preprepare{
+					View:                   preprepareView,
+					Proposal:               test.expectedRequest,
+					RoundChangeCertificate: test.getCert(sys),
+				},
+				v0.Address(),
+			)
 
 			for i, v := range sys.backends {
 				// i == 0 is primary backend, it is responsible for send PRE-PREPARE messages to others.
@@ -382,13 +385,8 @@ func TestHandlePreprepare(t *testing.T) {
 
 				c := v.engine.(*core)
 
-				m, _ := Encode(preprepare)
 				// run each backends and verify handlePreprepare function.
-				if err := c.handlePreprepare(&istanbul.Message{
-					Code:    istanbul.MsgPreprepare,
-					Msg:     m,
-					Address: v0.Address(),
-				}); err != nil {
+				if err := c.handlePreprepare(msg); err != nil {
 					if err != test.expectedErr {
 						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 					}
@@ -424,14 +422,9 @@ func TestHandlePreprepare(t *testing.T) {
 					t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, expectedCode)
 				}
 
-				var subject *istanbul.Subject
-				var committedSubject *istanbul.CommittedSubject
-
-				if decodedMsg.Code == istanbul.MsgPrepare {
-					err = decodedMsg.Decode(&subject)
-				} else if decodedMsg.Code == istanbul.MsgCommit {
-					err = decodedMsg.Decode(&committedSubject)
-					subject = committedSubject.Subject
+				subject := decodedMsg.Prepare()
+				if decodedMsg.Code == istanbul.MsgCommit {
+					subject = decodedMsg.Commit().Subject
 				}
 
 				if err != nil {
@@ -451,8 +444,8 @@ func TestHandlePreprepare(t *testing.T) {
 				if expectedCode == istanbul.MsgCommit {
 					srcValidator := c.current.GetValidatorByAddress(v.address)
 
-					if err := c.verifyCommittedSeal(committedSubject, srcValidator); err != nil {
-						t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, committedSubject.CommittedSeal)
+					if err := c.verifyCommittedSeal(decodedMsg.Commit(), srcValidator); err != nil {
+						t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, decodedMsg.Commit().CommittedSeal)
 					}
 				}
 			}

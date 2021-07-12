@@ -213,17 +213,13 @@ OUTER:
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
-			committedSubject := &istanbul.CommittedSubject{
-				Subject:       v.engine.(*core).current.Subject(),
-				CommittedSeal: signatureBytes,
-			}
-			m, _ := Encode(committedSubject)
-			if err := r0.handleCommit(&istanbul.Message{
-				Code:      istanbul.MsgCommit,
-				Msg:       m,
-				Address:   validator.Address(),
-				Signature: []byte{},
-			}); err != nil {
+
+			msg := istanbul.NewCommitMessage(
+				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes},
+				validator.Address(),
+			)
+
+			if err := r0.handleCommit(msg); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -434,17 +430,10 @@ func BenchmarkHandleCommit(b *testing.B) {
 		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 		defer signature.Destroy()
 		signatureBytes, _ := signature.Serialize()
-		committedSubject := &istanbul.CommittedSubject{
+		im = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 			Subject:       v.engine.(*core).current.Subject(),
 			CommittedSeal: signatureBytes,
-		}
-		m, _ := Encode(committedSubject)
-		im = &istanbul.Message{
-			Code:      istanbul.MsgCommit,
-			Msg:       m,
-			Address:   validator.Address(),
-			Signature: []byte{},
-		}
+		}, validator.Address())
 	}
 	// benchmarked portion
 	b.ResetTimer()

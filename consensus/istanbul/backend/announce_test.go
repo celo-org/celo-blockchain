@@ -36,20 +36,20 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 
 	engine0Enode := engine0.SelfNode()
 
-	w1 := engine1.wallets()
 	// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
-	vCert1, err := generateVersionCertificate(w1.Ecdsa.Address, w1.Ecdsa.PublicKey, engine1AnnounceVersion, w1.Ecdsa.Sign)
+	vCert1, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine1.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine1.  Error: %v", err)
 	}
-	w2 := engine2.wallets()
-	vCert2, err := generateVersionCertificate(w2.Ecdsa.Address, w2.Ecdsa.PublicKey, engine2AnnounceVersion, w2.Ecdsa.Sign)
+
+	vCert2, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine2.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine2.  Error: %v", err)
 	}
 
 	// Have engine0 handle vCert messages from engine1 and engine2
-	vCert1MsgPayload, err := encodeVersionCertificatesMsg([]*versionCertificate{vCert1})
+
+	vCert1MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert1}, engine1Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert1.  Error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 		t.Errorf("Error in handling vCert1.  Error: %v", err)
 	}
 
-	vCert2MsgPayload, err := encodeVersionCertificatesMsg([]*versionCertificate{vCert2})
+	vCert2MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert2}, engine2Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert2.  Error: %v", err)
 	}

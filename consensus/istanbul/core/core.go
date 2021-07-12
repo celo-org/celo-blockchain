@@ -234,12 +234,7 @@ func GetAggregatedSeal(seals MessageSet, round *big.Int) (types.IstanbulAggregat
 	committedSeals := make([][]byte, seals.Size())
 	for i, v := range seals.Values() {
 		committedSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
-
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
+		commit := v.Commit()
 		copy(committedSeals[i][:], commit.CommittedSeal[:])
 
 		j, err := seals.GetAddressIndex(v.Address)
@@ -273,17 +268,11 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 			return types.IstanbulAggregatedSeal{}, err
 		}
 
-		var commit *istanbul.CommittedSubject
-		err = v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulAggregatedSeal{}, err
-		}
-
 		// if the bit was not set, this means we should add this signature to
 		// the batch
 		if newBitmap.Bit(int(valIndex)) == 0 {
 			newBitmap.SetBit(newBitmap, (int(valIndex)), 1)
-			committedSeals = append(committedSeals, commit.CommittedSeal)
+			committedSeals = append(committedSeals, v.Commit().CommittedSeal)
 		}
 	}
 
@@ -421,12 +410,7 @@ func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals Message
 	for i, v := range seals.Values() {
 		epochSeals[i] = make([]byte, types.IstanbulExtraBlsSignature)
 
-		var commit *istanbul.CommittedSubject
-		err := v.Decode(&commit)
-		if err != nil {
-			return types.IstanbulEpochValidatorSetSeal{}, err
-		}
-		copy(epochSeals[i], commit.EpochValidatorSetSeal[:])
+		copy(epochSeals[i], v.Commit().EpochValidatorSetSeal[:])
 
 		j, err := seals.GetAddressIndex(v.Address)
 		if err != nil {
@@ -457,17 +441,12 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	// All prepared certificates from the same round are assumed to be the same proposal or no proposal (guaranteed by quorum intersection)
 	maxRound := big.NewInt(-1)
 	for _, message := range roundChangeCertificate.RoundChangeMessages {
-		var roundChangeMsg *istanbul.RoundChange
-		if err := message.Decode(&roundChangeMsg); err != nil {
-			logger.Error("Unexpected: could not decode a previously received RoundChange message")
-			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
-		}
-
-		if !roundChangeMsg.HasPreparedCertificate() {
+		roundChange := message.RoundChange()
+		if !roundChange.HasPreparedCertificate() {
 			continue
 		}
 
-		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChangeMsg.PreparedCertificate)
+		preparedCertificateView, err := c.getViewFromVerifiedPreparedCertificate(roundChange.PreparedCertificate)
 		if err != nil {
 			logger.Error("Unexpected: could not verify a previously received PreparedCertificate message", "src_m", message)
 			return &istanbul.Request{}, istanbul.RoundChangeCertificate{}, err
@@ -476,7 +455,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 		if preparedCertificateView != nil && preparedCertificateView.Round.Cmp(maxRound) > 0 {
 			maxRound = preparedCertificateView.Round
 			request = &istanbul.Request{
-				Proposal: roundChangeMsg.PreparedCertificate.Proposal,
+				Proposal: roundChange.PreparedCertificate.Proposal,
 			}
 		}
 	}

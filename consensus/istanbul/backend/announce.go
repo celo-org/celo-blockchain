@@ -21,8 +21,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -32,13 +30,11 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
-	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // ==============================================
@@ -300,7 +296,7 @@ func (sb *Backend) announceThread() {
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
-			allVersionCertificates, err := getAllVersionCertificates(sb.announceManager.versionCertificateTable)
+			allVersionCertificates, err := sb.announceManager.versionCertificateTable.GetAll()
 			if err != nil {
 				logger.Warn("Error getting all version certificates", "err", err)
 				break
@@ -441,74 +437,6 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	return nil
-}
-
-// ===============================================================
-//
-// define the IstanbulQueryEnode message format, the QueryEnodeMsgCache entries, the queryEnode send function (both the gossip version and the "retrieve from cache" version), and the announce get function
-
-type encryptedEnodeURL struct {
-	DestAddress       common.Address
-	EncryptedEnodeURL []byte
-}
-
-func (ee *encryptedEnodeURL) String() string {
-	return fmt.Sprintf("{DestAddress: %s, EncryptedEnodeURL length: %d}", ee.DestAddress.String(), len(ee.EncryptedEnodeURL))
-}
-
-type queryEnodeData struct {
-	EncryptedEnodeURLs []*encryptedEnodeURL
-	Version            uint
-	// The timestamp of the node when the message is generated.
-	// This results in a new hash for a newly generated message so it gets regossiped by other nodes
-	Timestamp uint
-}
-
-func (qed *queryEnodeData) String() string {
-	return fmt.Sprintf("{Version: %v, Timestamp: %v, EncryptedEnodeURLs: %v}", qed.Version, qed.Timestamp, qed.EncryptedEnodeURLs)
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes ar into the Ethereum RLP format.
-func (ee *encryptedEnodeURL) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{ee.DestAddress, ee.EncryptedEnodeURL})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ar fields from a RLP stream.
-func (ee *encryptedEnodeURL) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		DestAddress       common.Address
-		EncryptedEnodeURL []byte
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	ee.DestAddress, ee.EncryptedEnodeURL = msg.DestAddress, msg.EncryptedEnodeURL
-	return nil
-}
-
-// EncodeRLP serializes ad into the Ethereum RLP format.
-func (qed *queryEnodeData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ad fields from a RLP stream.
-func (qed *queryEnodeData) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		EncryptedEnodeURLs []*encryptedEnodeURL
-		Version            uint
-		Timestamp          uint
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	qed.EncryptedEnodeURLs, qed.Version, qed.Timestamp = msg.EncryptedEnodeURLs, msg.Version, msg.Timestamp
 	return nil
 }
 
@@ -678,33 +606,19 @@ func (m *AnnounceManager) generateQueryEnodeMsg(version uint, enodeQueries []*en
 		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
 		return nil, nil
 	}
-	queryEnodeData := &queryEnodeData{
+
+	msg := istanbul.NewQueryEnodeMessage(&istanbul.QueryEnodeData{
 		EncryptedEnodeURLs: encryptedEnodeURLs,
 		Version:            version,
 		Timestamp:          getTimestamp(),
-	}
-
-	queryEnodeBytes, err := rlp.EncodeToBytes(queryEnodeData)
-	if err != nil {
-		logger.Error("Error encoding queryEnode content", "QueryEnodeData", queryEnodeData.String(), "err", err)
-		return nil, err
-	}
-	w := m.wallets()
-
-	msg := &istanbul.Message{
-		Code:      istanbul.QueryEnodeMsg,
-		Msg:       queryEnodeBytes,
-		Address:   w.Ecdsa.Address,
-		Signature: []byte{},
-	}
-
+	}, m.wallets().Ecdsa.Address)
 	// Sign the announce message
-	if err := msg.Sign(w.Ecdsa.Sign); err != nil {
+	if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
 		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
 		return nil, err
 	}
 
-	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", queryEnodeData.String())
+	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", msg.QueryEnodeMsg().String())
 
 	return msg, nil
 }
@@ -716,10 +630,10 @@ type enodeQuery struct {
 }
 
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
-func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*encryptedEnodeURL, error) {
+func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*istanbul.EncryptedEnodeURL, error) {
 	logger := m.logger.New("func", "generateEncryptedEnodeURLs")
 
-	var encryptedEnodeURLs []*encryptedEnodeURL
+	var encryptedEnodeURLs []*istanbul.EncryptedEnodeURL
 	for _, param := range enodeQueries {
 		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
 		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
@@ -729,7 +643,7 @@ func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery)
 			return nil, err
 		}
 
-		encryptedEnodeURLs = append(encryptedEnodeURLs, &encryptedEnodeURL{
+		encryptedEnodeURLs = append(encryptedEnodeURLs, &istanbul.EncryptedEnodeURL{
 			DestAddress:       param.recipientAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
@@ -771,17 +685,11 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 		return errUnauthorizedAnnounceMessage
 	}
 
-	var qeData queryEnodeData
-	err = rlp.DecodeBytes(msg.Msg, &qeData)
-	if err != nil {
-		logger.Warn("Error in decoding received Istanbul QueryEnode message content", "err", err, "IstanbulMsg", msg.String())
-		return err
-	}
-
+	qeData := msg.QueryEnodeMsg()
 	logger = logger.New("msgAddress", msg.Address, "msgVersion", qeData.Version)
 
-	// Do some validation checks on the queryEnodeData
-	if isValid, err := m.validateQueryEnode(msg.Address, &qeData); !isValid || err != nil {
+	// Do some validation checks on the istanbul.QueryEnodeData
+	if isValid, err := m.validateQueryEnode(msg.Address, msg.QueryEnodeMsg()); !isValid || err != nil {
 		logger.Warn("Validation of queryEnode message failed", "isValid", isValid, "err", err)
 		return err
 	}
@@ -876,7 +784,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *queryEnodeData) (bool, error) {
+func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
 	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
@@ -940,10 +848,10 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	return nil
 }
 
-func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*versionCertificate) error {
+func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*istanbul.VersionCertificate) error {
 	logger := m.logger.New("func", "gossipVersionCertificatesMsg")
 
-	payload, err := encodeVersionCertificatesMsg(versionCertificates)
+	payload, err := istanbul.NewVersionCeritifcatesMessage(versionCertificates, m.wallets().Ecdsa.Address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -951,24 +859,16 @@ func (m *AnnounceManager) gossipVersionCertificatesMsg(versionCertificates []*ve
 	return m.network.Gossip(payload, istanbul.VersionCertificatesMsg)
 }
 
-func getAllVersionCertificates(vcTable *vet.VersionCertificateDB) ([]*versionCertificate, error) {
-	allEntries, err := vcTable.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	return fromVCEntries(allEntries), nil
-}
-
 // SendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
 func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error {
 	logger := m.logger.New("func", "sendVersionCertificateTable")
-	allVersionCertificates, err := getAllVersionCertificates(m.versionCertificateTable)
+	allVersionCertificates, err := m.versionCertificateTable.GetAll()
 	if err != nil {
 		logger.Warn("Error getting all version certificates", "err", err)
 		return err
 	}
-	payload, err := encodeVersionCertificatesMsg(allVersionCertificates)
+	payload, err := istanbul.NewVersionCeritifcatesMessage(allVersionCertificates, m.wallets().Ecdsa.Address).Payload()
 	if err != nil {
 		logger.Warn("Error encoding version certificate msg", "err", err)
 		return err
@@ -988,18 +888,14 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	}
 	defer sb.gossipCache.MarkMessageProcessedBySelf(payload)
 
-	var msg istanbul.Message
+	msg := &istanbul.Message{}
 	if err := msg.FromPayload(payload, nil); err != nil {
 		logger.Error("Error in decoding version certificates message", "err", err, "payload", hex.EncodeToString(payload))
 		return err
 	}
 	logger = logger.New("msg address", msg.Address)
 
-	var versionCertificates []*versionCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &versionCertificates); err != nil {
-		logger.Warn("Error in decoding received version certificates msg", "err", err)
-		return err
-	}
+	versionCertificates := msg.VersionCertificates()
 
 	// If the announce's valAddress is not within the validator connection set, then ignore it
 	validatorConnSet, err := sb.RetrieveValidatorConnSet()
@@ -1008,26 +904,21 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 		return err
 	}
 
-	var validEntries []*vet.VersionCertificateEntry
+	var validEntries []*istanbul.VersionCertificate
 	validAddresses := make(map[common.Address]bool)
 	// Verify all entries are valid and remove duplicates
 	for _, versionCertificate := range versionCertificates {
-		// The public key and address are not RLP encoded/decoded and must be
-		// explicitly recovered.
-		if err := versionCertificate.RecoverPublicKeyAndAddress(); err != nil {
-			logger.Warn("Error recovering version certificates public key and address from signature", "err", err)
+		address := versionCertificate.Address()
+		if !validatorConnSet[address] {
+			logger.Debug("Found version certificate from an address not in the validator conn set", "address", address)
 			continue
 		}
-		if !validatorConnSet[versionCertificate.Address] {
-			logger.Debug("Found version certificate from an address not in the validator conn set", "address", versionCertificate.Address)
+		if _, ok := validAddresses[address]; ok {
+			logger.Debug("Found duplicate version certificate in message", "address", address)
 			continue
 		}
-		if _, ok := validAddresses[versionCertificate.Address]; ok {
-			logger.Debug("Found duplicate version certificate in message", "address", versionCertificate.Address)
-			continue
-		}
-		validAddresses[versionCertificate.Address] = true
-		validEntries = append(validEntries, versionCertificate.Entry())
+		validAddresses[address] = true
+		validEntries = append(validEntries, versionCertificate)
 	}
 	if err := sb.announceManager.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
@@ -1036,7 +927,7 @@ func (sb *Backend) handleVersionCertificatesMsg(addr common.Address, peer consen
 	return nil
 }
 
-func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
+func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(versionCertificates []*istanbul.VersionCertificate) error {
 	logger := m.logger.New("func", "upsertAndGossipVersionCertificateEntries")
 	shouldProcess, err := m.shouldParticipateInAnnounce()
 	if err != nil {
@@ -1046,9 +937,9 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 	if shouldProcess {
 		// Update entries in val enode db
 		var valEnodeEntries []*istanbul.AddressEntry
-		for _, entry := range entries {
+		for _, entry := range versionCertificates {
 			// Don't add ourselves into the val enode table
-			if entry.Address == m.wallets().Ecdsa.Address {
+			if entry.Address() == m.wallets().Ecdsa.Address {
 				continue
 			}
 			// Update the HighestKnownVersion for this address. Upsert will
@@ -1056,8 +947,8 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 			// than the existing one.
 			// Also store the PublicKey for future encryption in queryEnode msgs
 			valEnodeEntries = append(valEnodeEntries, &istanbul.AddressEntry{
-				Address:             entry.Address,
-				PublicKey:           entry.PublicKey,
+				Address:             entry.Address(),
+				PublicKey:           entry.PublicKey(),
 				HighestKnownVersion: entry.Version,
 			})
 		}
@@ -1066,7 +957,7 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 		}
 	}
 
-	newEntries, err := m.versionCertificateTable.Upsert(entries)
+	newVersionCertificates, err := m.versionCertificateTable.Upsert(versionCertificates)
 	if err != nil {
 		logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
@@ -1074,15 +965,15 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 	// Only regossip entries that do not originate from an address that we have
 	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
-	var versionCertificatesToRegossip []*versionCertificate
+	var versionCertificatesToRegossip []*istanbul.VersionCertificate
 	m.lastVersionCertificatesGossipedMu.Lock()
-	for _, entry := range newEntries {
-		lastGossipTime, ok := m.lastVersionCertificatesGossiped[entry.Address]
-		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != m.addrProvider.ValidatorAddress() {
+	for _, entry := range newVersionCertificates {
+		lastGossipTime, ok := m.lastVersionCertificatesGossiped[entry.Address()]
+		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address() != m.addrProvider.ValidatorAddress() {
 			continue
 		}
-		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
-		m.lastVersionCertificatesGossiped[entry.Address] = time.Now()
+		versionCertificatesToRegossip = append(versionCertificatesToRegossip, entry)
+		m.lastVersionCertificatesGossiped[entry.Address()] = time.Now()
 	}
 	m.lastVersionCertificatesGossipedMu.Unlock()
 	if len(versionCertificatesToRegossip) > 0 {
@@ -1172,12 +1063,12 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 	}
 
 	// Generate and gossip a new version certificate
-	newVersionCertificate, err := generateVersionCertificate(w.Ecdsa.Address, w.Ecdsa.PublicKey, version, w.Ecdsa.Sign)
+	newVersionCertificate, err := istanbul.NewVersionCertificate(version, w.Ecdsa.Sign)
 	if err != nil {
 		return err
 	}
-	return m.upsertAndGossipVersionCertificateEntries([]*vet.VersionCertificateEntry{
-		newVersionCertificate.Entry(),
+	return m.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificate{
+		newVersionCertificate,
 	})
 }
 
@@ -1244,19 +1135,10 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 	}
 
 	for _, externalNode := range externalEnodes {
-		enodeCertificate := &istanbul.EnodeCertificate{
-			EnodeURL: externalNode.URLv4(),
-			Version:  version,
-		}
-		enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
-		if err != nil {
-			return nil, err
-		}
-		msg := &istanbul.Message{
-			Code:    istanbul.EnodeCertificateMsg,
-			Address: m.wallets().Ecdsa.Address,
-			Msg:     enodeCertificateBytes,
-		}
+		msg := istanbul.NewEnodeCeritifcateMessage(
+			&istanbul.EnodeCertificate{EnodeURL: externalNode.URLv4(), Version: version},
+			m.wallets().Ecdsa.Address,
+		)
 		// Sign the message
 		if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
 			return nil, err
@@ -1282,11 +1164,7 @@ func (sb *Backend) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) e
 	}
 	logger = logger.New("msg address", msg.Address)
 
-	var enodeCertificate istanbul.EnodeCertificate
-	if err := rlp.DecodeBytes(msg.Msg, &enodeCertificate); err != nil {
-		logger.Warn("Error in decoding received Istanbul Enode Certificate message content", "err", err, "IstanbulMsg", msg.String())
-		return err
-	}
+	enodeCertificate := msg.EnodeCertificate()
 	logger.Trace("Received Istanbul Enode Certificate message", "enodeCertificate", enodeCertificate)
 
 	parsedNode, err := enode.ParseV4(enodeCertificate.EnodeURL)
@@ -1341,10 +1219,7 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 
 	// Verify that all of the certificates have the same version
 	for _, enodeCertMsg := range enodeCertMsgMap {
-		var enodeCert istanbul.EnodeCertificate
-		if err := rlp.DecodeBytes(enodeCertMsg.Msg.Msg, &enodeCert); err != nil {
-			return err
-		}
+		enodeCert := enodeCertMsg.Msg.EnodeCertificate()
 
 		if enodeCertVersion == nil {
 			enodeCertVersion = &enodeCert.Version
@@ -1377,7 +1252,7 @@ func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID
 	return nil
 }
 
-func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
+func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*enodes.VersionCertificateEntryInfo, error) {
 	return m.versionCertificateTable.Info()
 }
 

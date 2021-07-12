@@ -19,14 +19,12 @@ package proxy
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 var (
@@ -182,52 +180,4 @@ type ProxiedValidatorInfo struct {
 	Address  common.Address `json:"address"`
 	IsPeered bool           `json:"isPeered"`
 	Node     *enode.Node    `json:"enodeURL"`
-}
-
-// ==============================================
-//
-// define the validator enode share message
-
-type sharedValidatorEnode struct {
-	Address  common.Address
-	EnodeURL string
-	Version  uint
-}
-
-type valEnodesShareData struct {
-	ValEnodes []sharedValidatorEnode
-}
-
-func (sve *sharedValidatorEnode) String() string {
-	return fmt.Sprintf("{Address: %s, EnodeURL: %v, Version: %v}", sve.Address.Hex(), sve.EnodeURL, sve.Version)
-}
-
-func (sd *valEnodesShareData) String() string {
-	outputStr := "{ValEnodes:"
-	for _, valEnode := range sd.ValEnodes {
-		outputStr = fmt.Sprintf("%s %s", outputStr, valEnode.String())
-	}
-	return fmt.Sprintf("%s}", outputStr)
-}
-
-// ==============================================
-//
-// define the functions that needs to be provided for rlp Encoder/Decoder.
-
-// EncodeRLP serializes sd into the Ethereum RLP format.
-func (sd *valEnodesShareData) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{sd.ValEnodes})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the sd fields from a RLP stream.
-func (sd *valEnodesShareData) DecodeRLP(s *rlp.Stream) error {
-	var msg struct {
-		ValEnodes []sharedValidatorEnode
-	}
-
-	if err := s.Decode(&msg); err != nil {
-		return err
-	}
-	sd.ValEnodes = msg.ValEnodes
-	return nil
 }
