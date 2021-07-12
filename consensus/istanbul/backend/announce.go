@@ -142,8 +142,7 @@ type AnnounceManager struct {
 
 	lastVersionCertificatesGossiped *announce.AddressTime
 
-	lastQueryEnodeGossiped   map[common.Address]time.Time
-	lastQueryEnodeGossipedMu sync.RWMutex
+	lastQueryEnodeGossiped *announce.AddressTime
 }
 
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
@@ -166,7 +165,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		valEnodeTable:                   valEnodeTable,
 		gossipCache:                     gossipCache,
 		vcGossiper:                      NewVcGossiper(vcGossipFunction),
-		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
+		lastQueryEnodeGossiped:          announce.NewAddressTime(),
 		lastVersionCertificatesGossiped: announce.NewAddressTime(),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
 		announceThreadWg:                new(sync.WaitGroup),
@@ -346,14 +345,9 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 		logger.Warn("Error in pruning announce data structures", "err", err)
 	}
 
-	m.lastQueryEnodeGossipedMu.Lock()
-	for remoteAddress := range m.lastQueryEnodeGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(m.lastQueryEnodeGossiped[remoteAddress]) >= queryEnodeGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastQueryEnodeGossiped", "address", remoteAddress, "gossip timestamp", m.lastQueryEnodeGossiped[remoteAddress])
-			delete(m.lastQueryEnodeGossiped, remoteAddress)
-		}
-	}
-	m.lastQueryEnodeGossipedMu.Unlock()
+	m.lastQueryEnodeGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
+		return !validatorConnSet[remoteAddress] && time.Since(t) >= queryEnodeGossipCooldownDuration
+	})
 
 	if err := m.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning valEnodeTable", "err", err)
@@ -776,13 +770,11 @@ func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *
 // with sb.selfRecentMessages to prevent future regossips.
 func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
 	logger := m.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
-	m.lastQueryEnodeGossipedMu.Lock()
-	defer m.lastQueryEnodeGossipedMu.Unlock()
 
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
 	if msg.Address != m.addrProvider.ValidatorAddress() {
-		if lastGossiped, ok := m.lastQueryEnodeGossiped[msg.Address]; ok {
+		if lastGossiped, ok := m.lastQueryEnodeGossiped.Get(msg.Address); ok {
 			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 				return nil
@@ -795,7 +787,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 		return err
 	}
 
-	m.lastQueryEnodeGossiped[msg.Address] = time.Now()
+	m.lastQueryEnodeGossiped.Set(msg.Address, time.Now())
 
 	return nil
 }
