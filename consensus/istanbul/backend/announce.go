@@ -29,6 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
@@ -139,8 +140,7 @@ type AnnounceManager struct {
 	enodeCertificateMsgVersion uint
 	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
-	lastVersionCertificatesGossiped   map[common.Address]time.Time
-	lastVersionCertificatesGossipedMu sync.RWMutex
+	lastVersionCertificatesGossiped *announce.AddressTime
 
 	lastQueryEnodeGossiped   map[common.Address]time.Time
 	lastQueryEnodeGossipedMu sync.RWMutex
@@ -167,7 +167,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		gossipCache:                     gossipCache,
 		vcGossiper:                      NewVcGossiper(vcGossipFunction),
 		lastQueryEnodeGossiped:          make(map[common.Address]time.Time),
-		lastVersionCertificatesGossiped: make(map[common.Address]time.Time),
+		lastVersionCertificatesGossiped: announce.NewAddressTime(),
 		updateAnnounceVersionCh:         make(chan struct{}, 1),
 		announceThreadWg:                new(sync.WaitGroup),
 		announceRunning:                 false,
@@ -360,14 +360,9 @@ func (m *AnnounceManager) pruneAnnounceDataStructures() error {
 		return err
 	}
 
-	m.lastVersionCertificatesGossipedMu.Lock()
-	for remoteAddress := range m.lastVersionCertificatesGossiped {
-		if !validatorConnSet[remoteAddress] && time.Since(m.lastVersionCertificatesGossiped[remoteAddress]) >= versionCertificateGossipCooldownDuration {
-			logger.Trace("Deleting entry from lastVersionCertificatesGossiped", "address", remoteAddress, "gossip timestamp", m.lastVersionCertificatesGossiped[remoteAddress])
-			delete(m.lastVersionCertificatesGossiped, remoteAddress)
-		}
-	}
-	m.lastVersionCertificatesGossipedMu.Unlock()
+	m.lastVersionCertificatesGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
+		return !validatorConnSet[remoteAddress] && time.Since(t) >= versionCertificateGossipCooldownDuration
+	})
 
 	if err := m.versionCertificateTable.Prune(validatorConnSet); err != nil {
 		logger.Trace("Error in pruning versionCertificateTable", "err", err)
@@ -909,16 +904,16 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*ve
 	// gossiped a version certificate for within the last 5 minutes, excluding
 	// our own address.
 	var versionCertificatesToRegossip []*versionCertificate
-	m.lastVersionCertificatesGossipedMu.Lock()
+
 	for _, entry := range newEntries {
-		lastGossipTime, ok := m.lastVersionCertificatesGossiped[entry.Address]
+		lastGossipTime, ok := m.lastVersionCertificatesGossiped.Get(entry.Address)
 		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address != m.addrProvider.ValidatorAddress() {
 			continue
 		}
 		versionCertificatesToRegossip = append(versionCertificatesToRegossip, newVersionCertificateFromEntry(entry))
-		m.lastVersionCertificatesGossiped[entry.Address] = time.Now()
+		m.lastVersionCertificatesGossiped.Set(entry.Address, time.Now())
 	}
-	m.lastVersionCertificatesGossipedMu.Unlock()
+
 	if len(versionCertificatesToRegossip) > 0 {
 		return m.vcGossiper.Gossip(versionCertificatesToRegossip)
 	}
