@@ -26,18 +26,8 @@ import (
 
 func (c *core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
-
-	sub := c.current.Subject()
-	encodedSubject, err := Encode(sub)
-	if err != nil {
-		logger.Error("Failed to encode", "subject", sub)
-		return
-	}
 	logger.Debug("Sending prepare")
-	c.broadcast(&istanbul.Message{
-		Code: istanbul.MsgPrepare,
-		Msg:  encodedSubject,
-	})
+	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.
@@ -82,19 +72,13 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			return nil, errInvalidPreparedCertificateMsgCode
 		}
 
-		var subject *istanbul.Subject
-
+		// Assume prepare but overwrite if commit
+		subject := message.Prepare()
 		if message.Code == istanbul.MsgCommit {
-			var committedSubject *istanbul.CommittedSubject
-			err := message.Decode(&committedSubject)
-			if err != nil {
-				logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
-				return nil, err
-			}
-
+			commit := message.Commit()
 			// Verify the committedSeal
 			src := c.current.GetValidatorByAddress(signer)
-			err = c.verifyCommittedSeal(committedSubject, src)
+			err = c.verifyCommittedSeal(commit, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
 				return nil, err
@@ -104,18 +88,13 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 			if err != nil {
 				return nil, err
 			}
-			err = c.verifyEpochValidatorSetSeal(committedSubject, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
+			err = c.verifyEpochValidatorSetSeal(commit, preparedCertificate.Proposal.Number().Uint64(), newValSet, src)
 			if err != nil {
 				logger.Error("Epoch validator set seal seal did not contain signature from message signer.", "err", err)
 				return nil, err
 			}
 
-			subject = committedSubject.Subject
-		} else {
-			if err := message.Decode(&subject); err != nil {
-				logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-				return nil, err
-			}
+			subject = commit.Subject
 		}
 
 		msgLogger := logger.New("msg_round", subject.View.Round, "msg_seq", subject.View.Sequence, "msg_digest", subject.Digest.String())
@@ -145,42 +124,24 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 // Extract the view from a PreparedCertificate that has already been verified.
 func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
-	logger := c.newLogger("func", "getViewFromVerifiedPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
-
 	if len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
 
 	message := preparedCertificate.PrepareOrCommitMessages[0]
 
-	var subject *istanbul.Subject
-
+	// Assume prepare but overwrite if commit
+	subject := message.Prepare()
 	if message.Code == istanbul.MsgCommit {
-		var committedSubject *istanbul.CommittedSubject
-		err := message.Decode(&committedSubject)
-		if err != nil {
-			logger.Error("Failed to decode committedSubject in PREPARED certificate", "err", err)
-			return nil, err
-		}
-		subject = committedSubject.Subject
-	} else {
-		if err := message.Decode(&subject); err != nil {
-			logger.Error("Failed to decode message in PREPARED certificate", "err", err)
-			return nil, err
-		}
+		subject = message.Commit().Subject
 	}
-
 	return subject.View, nil
 }
 
 func (c *core) handlePrepare(msg *istanbul.Message) error {
 	defer c.handlePrepareTimer.UpdateSince(time.Now())
 	// Decode PREPARE message
-	var prepare *istanbul.Subject
-	err := msg.Decode(&prepare)
-	if err != nil {
-		return errFailedDecodePrepare
-	}
+	prepare := msg.Prepare()
 	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
 
 	if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {

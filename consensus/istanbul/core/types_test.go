@@ -23,6 +23,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func testPreprepare(t *testing.T) {
@@ -33,14 +35,7 @@ func testPreprepare(t *testing.T) {
 		},
 		Proposal: makeBlock(1),
 	}
-	prepreparePayload, _ := Encode(pp)
-
-	m := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     prepreparePayload,
-		Address: common.HexToAddress("0x1234567890"),
-	}
-
+	m := istanbul.NewPreprepareMessage(pp, common.HexToAddress("0x1234567890"))
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
@@ -52,12 +47,7 @@ func testPreprepare(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	var decodedPP *istanbul.Preprepare
-	err = decodedMsg.Decode(&decodedPP)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-
+	decodedPP := decodedMsg.Preprepare()
 	// if block is encoded/decoded by rlp, we cannot to compare interface data type using reflect.DeepEqual. (like istanbul.Proposal)
 	// so individual comparison here.
 	if !reflect.DeepEqual(pp.Proposal.Hash(), decodedPP.Proposal.Hash()) {
@@ -82,13 +72,7 @@ func testSubject(t *testing.T) {
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
 
-	subjectPayload, _ := Encode(s)
-
-	m := &istanbul.Message{
-		Code:    istanbul.MsgPreprepare,
-		Msg:     subjectPayload,
-		Address: common.HexToAddress("0x1234567890"),
-	}
+	m := istanbul.NewPrepareMessage(s, common.HexToAddress("0x1234567890"))
 
 	msgPayload, err := m.Payload()
 	if err != nil {
@@ -101,14 +85,8 @@ func testSubject(t *testing.T) {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 
-	var decodedSub *istanbul.Subject
-	err = decodedMsg.Decode(&decodedSub)
-	if err != nil {
-		t.Errorf("error mismatch: have %v, want nil", err)
-	}
-
-	if !reflect.DeepEqual(s, decodedSub) {
-		t.Errorf("subject mismatch: have %v, want %v", decodedSub, s)
+	if !reflect.DeepEqual(s, decodedMsg.Prepare()) {
+		t.Errorf("subject mismatch: have %v, want %v", decodedMsg.Prepare(), s)
 	}
 }
 
@@ -120,20 +98,20 @@ func testSubjectWithSignature(t *testing.T) {
 		},
 		Digest: common.BytesToHash([]byte("1234567890")),
 	}
-	expectedSig := []byte{0x01}
-
-	correctAddress := common.HexToAddress("0x1")
-	spooferAddress := common.HexToAddress("0x2")
-
-	subjectPayload, _ := Encode(s)
-	// 1. Encode test
-	m := &istanbul.Message{
-		Code:      istanbul.MsgPreprepare,
-		Msg:       subjectPayload,
-		Address:   correctAddress,
-		Signature: expectedSig,
+	correctKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	correctAddress := crypto.PubkeyToAddress(correctKey.PublicKey)
+	signCorrect := func(data []byte) ([]byte, error) {
+		return crypto.Sign(crypto.Keccak256(data), correctKey)
 	}
 
+	spooferAddress := common.HexToAddress("0x2")
+
+	// 1. Encode test
+	m := istanbul.NewPrepareMessage(s, correctAddress)
+
+	err = m.Sign(signCorrect)
+	require.NoError(t, err)
 	msgPayload, err := m.Payload()
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)

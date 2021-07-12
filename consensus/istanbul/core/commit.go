@@ -119,35 +119,18 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 			return
 		}
 	}
-
-	committedSub := &istanbul.CommittedSubject{
+	istMsg := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 		Subject:               sub,
 		CommittedSeal:         committedSeal[:],
 		EpochValidatorSetSeal: epochValidatorSetSeal[:],
-	}
-	encodedCommittedSubject, err := Encode(committedSub)
-	if err != nil {
-		logger.Error("Failed to encode committedSubject", committedSub)
-	}
-
-	istMsg := istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  encodedCommittedSubject,
-	}
-	c.broadcast(&istMsg)
+	}, c.address)
+	c.broadcast(istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
 	defer c.handleCommitTimer.UpdateSince(time.Now())
-	// Decode COMMIT message
-	var commit *istanbul.CommittedSubject
-	err := msg.Decode(&commit)
-	if err != nil {
-		return errFailedDecodeCommit
-	}
-
-	err = c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
-
+	commit := msg.Commit()
+	err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
 	if err == errOldMessage {
 		// Discard messages from previous views, unless they are commits from the previous sequence,
 		// with the same round as what we wound up finalizing, as we would be able to include those
