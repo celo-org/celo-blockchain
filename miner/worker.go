@@ -383,8 +383,12 @@ func (w *worker) mainLoop() {
 		case ev := <-w.txsCh:
 			// Drain tx sub channel as a validator,
 			// otherwise pass it to the full node loop
-			if w.isRunning() {
-				txsCh <- ev
+			// if the full node loop's channel is full, just drop the transaction
+			if !w.isRunning() {
+				select {
+				case txsCh <- ev:
+				default:
+				}
 			}
 		// System stopped
 		case <-w.exitCh:
