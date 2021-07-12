@@ -120,8 +120,7 @@ type AnnounceManager struct {
 
 	gossipCache GossipCache
 
-	announceVersion         uint
-	announceVersionMu       sync.RWMutex
+	announceVersion         atomic.Value // uint
 	updateAnnounceVersionCh chan struct{}
 
 	announceRunning    bool
@@ -171,6 +170,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		announceThreadWg:                new(sync.WaitGroup),
 		announceRunning:                 false,
 	}
+	am.announceVersion.Store(uint(0))
 	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VcDbPath)
 	if err != nil {
 		am.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VcDbPath)
@@ -304,18 +304,17 @@ func (m *AnnounceManager) updateAnnounceThreadStatus(logger log.Logger, st *anno
 
 func (m *AnnounceManager) updateAnnounceVersion() {
 	version := getTimestamp()
-	if version <= m.GetAnnounceVersion() {
-		m.logger.Debug("Announce version is not newer than the existing version", "existing version", m.announceVersion, "attempted new version", version)
+	currVersion := m.GetAnnounceVersion()
+	if version <= currVersion {
+		m.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
 		return
 	}
 	if err := m.setAndShareUpdatedAnnounceVersion(version); err != nil {
 		m.logger.Warn("Error updating announce version", "err", err)
 		return
 	}
-	m.announceVersionMu.Lock()
 	m.logger.Debug("Updating announce version", "announceVersion", version)
-	m.announceVersion = version
-	m.announceVersionMu.Unlock()
+	m.announceVersion.Store(version)
 }
 
 // shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.
@@ -923,9 +922,7 @@ func (m *AnnounceManager) UpdateAnnounceVersion() {
 
 // GetAnnounceVersion will retrieve the current announce version.
 func (m *AnnounceManager) GetAnnounceVersion() uint {
-	m.announceVersionMu.RLock()
-	defer m.announceVersionMu.RUnlock()
-	return m.announceVersion
+	return m.announceVersion.Load().(uint)
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
