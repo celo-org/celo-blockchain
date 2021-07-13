@@ -225,7 +225,7 @@ func (m *AnnounceManager) announceThread() {
 			st.updateAnnounceThreadStatus(logger, waitPeriod, updateAnnounceVersion)
 
 		case <-st.shareVersionCertificatesTicker.C:
-			if err := gossipAllVCs; err != nil {
+			if err := gossipAllVCs(); err != nil {
 				m.logger.Warn("Error gossiping all version certificates")
 			}
 
