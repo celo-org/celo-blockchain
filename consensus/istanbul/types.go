@@ -901,6 +901,9 @@ type VersionCertificate struct {
 	pubKey    *ecdsa.PublicKey
 }
 
+// NewVersionCeritifcate constructs a Message instance with the given version.
+// It uses the signingFn to generate a version signature and then builds a
+// version certificate from the version and its signature.
 func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error)) (*VersionCertificate, error) {
 	vc := &VersionCertificate{Version: version}
 	payloadToSign, err := vc.signaturePayload()
@@ -911,6 +914,13 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 	if err != nil {
 		return nil, err
 	}
+	return vc, vc.recoverAddressAndPubKey()
+}
+
+// NewVersionCeritifcate constructs a Message instance with the given version
+// and signature, using them to build a VersionCertificate instance.
+func NewVersionCertificateFromVersionAndSignature(version uint, signature []byte) (*VersionCertificate, error) {
+	vc := &VersionCertificate{Version: version, Signature: signature}
 	return vc, vc.recoverAddressAndPubKey()
 }
 

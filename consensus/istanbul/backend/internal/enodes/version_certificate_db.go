@@ -107,7 +107,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 		if err != nil {
 			return err
 		}
-		savEntryBytes, err := rlp.EncodeToBytes(savEntry)
+		savEntryBytes, err := encodeVersionCertificate(savEntry)
 		if err != nil {
 			return err
 		}
@@ -149,15 +149,11 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 // Get gets the istanbul.VersionCertificateEntry entry with address `address`.
 // Returns an error if no entry exists.
 func (svdb *VersionCertificateDB) Get(address common.Address) (*istanbul.VersionCertificate, error) {
-	var entry istanbul.VersionCertificate
 	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
-	if err = rlp.DecodeBytes(entryBytes, &entry); err != nil {
-		return nil, err
-	}
-	return &entry, nil
+	return decodeVersionCertificate(entryBytes)
 }
 
 // GetVersion gets the version for the entry with address `address`
@@ -206,6 +202,38 @@ func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool)
 	return svdb.gdb.Write(batch)
 }
 
+// Historically version certificates were stored differently in the db from how
+// they were serialised over the network. The content struct defined inside
+// this method shows the old storage structure. Since the public key and
+// address are derivable from the version and signature we don't actually need
+// to store them. So now we load using the content struct to ensure backwards
+// compatibility, but we only make use of the Version and Signature fields and
+// use them to recover the public key and address. When we persist we now do
+// not include the address and public key.
+func decodeVersionCertificate(value []byte) (*istanbul.VersionCertificate,
+	error) {
+	var content struct {
+		Address   common.Address
+		PublicKey []byte
+		Version   uint
+		Signature []byte
+	}
+	if err := rlp.DecodeBytes(value, &content); err != nil {
+		return nil, err
+	}
+	return istanbul.NewVersionCertificateFromVersionAndSignature(content.Version, content.Signature)
+}
+
+// Historically version certificates were stored differently in the db from how
+// they were serialised over the network. Since the public key and address are
+// derivable from the version and signature we don't actually need to store
+// them. When we persist we now do not include the address and public key but
+// we maintain the previous structure so that all db entries can be
+// deserialised in a consistent manner.
+func encodeVersionCertificate(vc *istanbul.VersionCertificate) ([]byte, error) {
+	return rlp.EncodeToBytes([]interface{}{common.ZeroAddress, []byte{}, vc.Version, vc.Signature})
+}
+
 // iterate will call `onEntry` for each entry in the db
 func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul.VersionCertificate) error) error {
 	logger := svdb.logger.New("func", "iterate")
@@ -213,12 +241,13 @@ func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-		var entry istanbul.VersionCertificate
-		if err := rlp.DecodeBytes(value, &entry); err != nil {
+		entry, err := decodeVersionCertificate(value)
+		if err != nil {
 			return err
 		}
+
 		address := common.BytesToAddress(key)
-		if err := onEntry(address, &entry); err != nil {
+		if err := onEntry(address, entry); err != nil {
 			return err
 		}
 		return nil
