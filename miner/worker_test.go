@@ -380,3 +380,26 @@ func TestRegenerateMiningBlockIstanbul(t *testing.T) {
 	case <-time.NewTimer(time.Second).C:
 	}
 }
+
+func TestNoTxChDeadLockValidator(t *testing.T)    { testNoTxChDeadlock(t, true) }
+func TestNoTxChDeadLockNonValidator(t *testing.T) { testNoTxChDeadlock(t, false) }
+
+func testNoTxChDeadlock(t *testing.T, validating bool) {
+	chainConfig := params.IstanbulTestChainConfig
+	engine := mockEngine.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
+	defer w.close()
+	if validating {
+		w.start()
+	}
+	for i := 0; i < txChanSize+1; i++ {
+		b.txPool.AddLocal(b.newRandomTx(false))
+	}
+	select {
+	case w.exitCh <- struct{}{}:
+		// exitCh is unbuffered, so if the send succeeds it means mainLoop isn't deadlocked
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Deadlock in mainLoop's select statement")
+	}
+}
