@@ -113,7 +113,8 @@ type AnnounceManager struct {
 
 	gossipCache GossipCache
 
-	state *AnnounceState
+	state  *AnnounceState
+	pruner AnnounceStatePruner
 
 	announceVersion         atomic.Value // uint
 	updateAnnounceVersionCh chan struct{}
@@ -141,7 +142,8 @@ type AnnounceManager struct {
 func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, proxyContext ProxyContext,
 	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache GossipCache,
-	peerCounter PeerCounterFn) *AnnounceManager {
+	peerCounter PeerCounterFn,
+	pruner AnnounceStatePruner) *AnnounceManager {
 	vcGossipFunction := func(payload []byte) error {
 		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
 	}
@@ -155,6 +157,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		gossipCache:             gossipCache,
 		vcGossiper:              NewVcGossiper(vcGossipFunction),
 		state:                   state,
+		pruner:                  pruner,
 		updateAnnounceVersionCh: make(chan struct{}, 1),
 		announceThreadWg:        new(sync.WaitGroup),
 		announceRunning:         false,
@@ -197,7 +200,9 @@ func (m *AnnounceManager) announceThread() {
 	shouldQueryAndAnnounce := m.shouldQueryAndAnnounce
 	updateAnnounceVersion := m.updateAnnounceVersion
 	generateAndGossipQueryEnode := m.generateAndGossipQueryEnode
-	pruneAnnounceDataStructures := m.pruneAnnounceDataStructures
+	prune := func() error {
+		return m.pruner.Prune(m.state)
+	}
 	gossipAllVCs := m.gossipAllVCs
 	countPeers := m.peerCounter
 	st := NewAnnounceTaskState(m.config.Announce)
@@ -241,7 +246,7 @@ func (m *AnnounceManager) announceThread() {
 			}
 
 		case <-st.pruneAnnounceDataStructuresTicker.C:
-			if err := pruneAnnounceDataStructures(); err != nil {
+			if err := prune(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
@@ -292,42 +297,6 @@ func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 
 func (m *AnnounceManager) gossipAllVCs() error {
 	return m.vcGossiper.GossipAllFrom(m.state.versionCertificateTable)
-}
-
-// pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
-// The data structures that it prunes are:
-// 1)  lastQueryEnodeGossiped
-// 2)  valEnodeTable
-// 3)  lastVersionCertificatesGossiped
-// 4)  versionCertificateTable
-func (m *AnnounceManager) pruneAnnounceDataStructures() error {
-	logger := m.logger.New("func", "pruneAnnounceDataStructures")
-
-	// retrieve the validator connection set
-	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
-	if err != nil {
-		logger.Warn("Error in pruning announce data structures", "err", err)
-	}
-
-	m.state.lastQueryEnodeGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
-		return !validatorConnSet[remoteAddress] && time.Since(t) >= queryEnodeGossipCooldownDuration
-	})
-
-	if err := m.state.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
-		logger.Trace("Error in pruning valEnodeTable", "err", err)
-		return err
-	}
-
-	m.state.lastVersionCertificatesGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
-		return !validatorConnSet[remoteAddress] && time.Since(t) >= versionCertificateGossipCooldownDuration
-	})
-
-	if err := m.state.versionCertificateTable.Prune(validatorConnSet); err != nil {
-		logger.Trace("Error in pruning versionCertificateTable", "err", err)
-		return err
-	}
-
-	return nil
 }
 
 // getValProxyAssignments returns the remote validator -> external node assignments.

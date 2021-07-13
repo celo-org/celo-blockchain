@@ -215,7 +215,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		backend,
 		state,
 		backend.gossipCache,
-		peerCounter)
+		peerCounter,
+		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet))
 
 	return backend
 }
