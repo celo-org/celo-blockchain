@@ -5,7 +5,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p"
 )
 
 // announceTaskState encapsulates the state needed to guide the behavior of the announce protocol
@@ -104,10 +103,10 @@ func (st *announceTaskState) OnStopAnnouncing() {
 	st.announcing = false
 }
 
-func (st *announceTaskState) UpdateFrequencyOnGenerate(peerCounter PeerCounterFn) {
+func (st *announceTaskState) UpdateFrequencyOnGenerate(peers int) {
 	switch st.queryEnodeFrequencyState {
 	case HighFreqBeforeFirstPeerState:
-		if peerCounter(p2p.AnyPurpose) > 0 {
+		if peers > 0 {
 			st.queryEnodeFrequencyState = HighFreqAfterFirstPeerState
 		}
 

@@ -210,9 +210,13 @@ func (m *AnnounceManager) announceThread() {
 
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
-	st := NewAnnounceTaskState(m.config.Announce)
 	shouldQueryAndAnnounce := m.shouldQueryAndAnnounce
 	updateAnnounceVersion := m.updateAnnounceVersion
+	generateAndGossipQueryEnode := m.generateAndGossipQueryEnode
+	pruneAnnounceDataStructures := m.pruneAnnounceDataStructures
+	gossipAllVCs := m.gossipAllVCs
+	countPeers := m.peerCounter
+	st := NewAnnounceTaskState(m.config.Announce)
 	for {
 		select {
 		case <-st.checkIfShouldAnnounceTicker.C:
@@ -221,7 +225,7 @@ func (m *AnnounceManager) announceThread() {
 			st.updateAnnounceThreadStatus(logger, waitPeriod, updateAnnounceVersion)
 
 		case <-st.shareVersionCertificatesTicker.C:
-			if err := m.vcGossiper.GossipAllFrom(m.versionCertificateTable); err != nil {
+			if err := gossipAllVCs; err != nil {
 				m.logger.Warn("Error gossiping all version certificates")
 			}
 
@@ -235,13 +239,14 @@ func (m *AnnounceManager) announceThread() {
 
 		case <-st.generateAndGossipQueryEnodeCh:
 			if st.shouldQuery {
-				st.UpdateFrequencyOnGenerate(m.peerCounter)
+				peers := countPeers(p2p.AnyPurpose)
+				st.UpdateFrequencyOnGenerate(peers)
 				// This node may have recently sent out an announce message within
 				// the gossip cooldown period imposed by other nodes.
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := m.generateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := generateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
 					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -252,7 +257,7 @@ func (m *AnnounceManager) announceThread() {
 			}
 
 		case <-st.pruneAnnounceDataStructuresTicker.C:
-			if err := m.pruneAnnounceDataStructures(); err != nil {
+			if err := pruneAnnounceDataStructures(); err != nil {
 				logger.Warn("Error in pruning announce data structures", "err", err)
 			}
 
@@ -299,6 +304,10 @@ func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
 	}
 
 	return validatorConnSet[m.wallets().Ecdsa.Address], nil
+}
+
+func (m *AnnounceManager) gossipAllVCs() error {
+	return m.vcGossiper.GossipAllFrom(m.versionCertificateTable)
 }
 
 // pruneAnnounceDataStructures will remove entries that are not in the validator connection set from all announce related data structures.
