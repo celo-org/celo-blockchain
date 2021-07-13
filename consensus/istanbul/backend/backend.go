@@ -193,7 +193,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	announceConfig := AnnounceManagerConfig{
 		IsProxiedValidator: backend.IsProxiedValidator(),
 		AWallets:           &backend.aWallets,
-		VcDbPath:           config.VersionCertificateDBPath,
 		Announce:           backend.config.Announce,
 		Epoch:              backend.config.Epoch,
 	}
@@ -202,12 +201,19 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
 
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
+	if err != nil {
+		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
+	}
+
+	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
+
 	backend.announceManager = NewAnnounceManager(
 		announceConfig,
 		backend,
 		backend,
 		backend,
-		backend.valEnodeTable,
+		state,
 		backend.gossipCache,
 		peerCounter)
 
