@@ -179,6 +179,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 		}
 		oracle *checkpointoracle.CheckpointOracle
 	)
+	gspec.Config.FullHeaderChainAvailable = syncMode.SyncFullHeaderChain()
 	genesis := gspec.MustCommit(db)
 	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
 	if indexers != nil {
@@ -223,6 +224,7 @@ func newTestClientHandler(syncMode downloader.SyncMode, backend *backends.Simula
 	if client.oracle != nil {
 		client.oracle.Start(backend)
 	}
+	client.handler.start()
 	return client.handler
 }
 
