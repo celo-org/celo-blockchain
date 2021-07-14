@@ -31,7 +31,7 @@ func TobinTax(vmRunner vm.EVMRunner, sender common.Address) (tax Ratio, reserveA
 		return Ratio{}, common.ZeroAddress, err
 	}
 
-	ret, err := vmRunner.Execute(reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
+	ret, err := vmRunner.ExecuteFrom(sender, reserveAddress, params.TobinTaxFunctionSelector, params.MaxGasForGetOrComputeTobinTax, big.NewInt(0))
 	if err != nil {
 		return Ratio{}, common.ZeroAddress, err
 	}

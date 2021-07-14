@@ -19,6 +19,9 @@ target
 
 # created when running tests
 /miner/validatorenodes/
+/graphql/roundstates/
+/graphql/validatorenodes/
+/graphql/versioncertificates/
 
 #*
 .#*
@@ -63,4 +66,4 @@ docs/_site
 docs/.jekyll-metadata
 
 # Ignore monorepo checkout
-./monorepo
+**/monorepo

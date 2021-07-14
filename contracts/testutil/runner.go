@@ -45,6 +45,11 @@ func (ev *MockEVMRunner) Execute(recipient common.Address, input []byte, gas uin
 	return mock.Call(input)
 }
 
+func (ev *MockEVMRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	// No difference necessary for the mock runner between Execute() and ExecuteFrom()
+	return ev.Execute(recipient, input, gas, value)
+}
+
 func (ev *MockEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
 	mock, ok := ev.contracts[recipient]
 	if !ok {
