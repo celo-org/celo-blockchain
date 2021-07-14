@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -202,16 +203,14 @@ func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool)
 	return svdb.gdb.Write(batch)
 }
 
-// Historically version certificates were stored differently in the db from how
-// they were serialised over the network. The content struct defined inside
-// this method shows the old storage structure. Since the public key and
-// address are derivable from the version and signature we don't actually need
-// to store them. So now we load using the content struct to ensure backwards
-// compatibility, but we only make use of the Version and Signature fields and
-// use them to recover the public key and address. When we persist we now do
-// not include the address and public key.
-func decodeVersionCertificate(value []byte) (*istanbul.VersionCertificate,
-	error) {
+// Version certificates are serialised differently to network serialisation for
+// storage in the version certificate db. Instead of storing just the version
+// and signature, all fields are stored. It's not clear why this approach was
+// chosen since it is not necessary to store the public key and address because
+// they can be derived from the version and signature. Nevertheless we continue
+// to use this approach because we can't easily change it without changing the
+// storage format and breaking backwards compatibility.
+func decodeVersionCertificate(value []byte) (*istanbul.VersionCertificate, error) {
 	var content struct {
 		Address   common.Address
 		PublicKey []byte
@@ -221,17 +220,23 @@ func decodeVersionCertificate(value []byte) (*istanbul.VersionCertificate,
 	if err := rlp.DecodeBytes(value, &content); err != nil {
 		return nil, err
 	}
-	return istanbul.NewVersionCertificateFromVersionAndSignature(content.Version, content.Signature)
+	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	return istanbul.NewVersionCertificateFromFields(content.Version, content.Signature, content.Address, decodedPublicKey), nil
 }
 
-// Historically version certificates were stored differently in the db from how
-// they were serialised over the network. Since the public key and address are
-// derivable from the version and signature we don't actually need to store
-// them. When we persist we now do not include the address and public key but
-// we maintain the previous structure so that all db entries can be
-// deserialised in a consistent manner.
+// Version certificates are serialised differently to network serialisation for
+// storage in the version certificate db. Instead of storing just the version
+// and signature, all fields are stored. It's not clear why this approach was
+// chosen since it is not necessary to store the public key and address because
+// they can be derived from the version and signature. Nevertheless we continue
+// to use this approach because we can't easily change it without changing the
+// storage format and breaking backwards compatibility.
 func encodeVersionCertificate(vc *istanbul.VersionCertificate) ([]byte, error) {
-	return rlp.EncodeToBytes([]interface{}{common.ZeroAddress, []byte{}, vc.Version, vc.Signature})
+	encodedPublicKey := crypto.FromECDSAPub(vc.PublicKey())
+	return rlp.EncodeToBytes([]interface{}{vc.Address(), encodedPublicKey, vc.Version, vc.Signature})
 }
 
 // iterate will call `onEntry` for each entry in the db
