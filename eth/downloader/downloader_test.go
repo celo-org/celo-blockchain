@@ -280,17 +280,12 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 		}
 		hashes = append(hashes, hash)
 	}
-	coveredByProof := true
 	hashes = append(hashes, headers[len(headers)-1].Hash())
 	// Do a full insert if pre-checks passed
 	for i, header := range headers {
 		hash := hashes[i]
 		if dl.getHeaderByHash(hash) != nil {
 			continue
-		}
-		if dl.getHeaderByHash(header.ParentHash) == nil && !coveredByProof {
-			// This _should_ be impossible, due to precheck and induction
-			return i, fmt.Errorf("InsertHeaderChain: unknown parent at position %d", i)
 		}
 		dl.ownHashes = append(dl.ownHashes, hash)
 		dl.ownHeaders[hash] = header
