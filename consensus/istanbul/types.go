@@ -914,7 +914,12 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 	if err != nil {
 		return nil, err
 	}
-	return vc, vc.recoverAddressAndPubKey()
+	err = vc.recoverAddressAndPubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	return vc, nil
 }
 
 // NewVersionCeritifcateFrom fields constructs a VersionCertificate instance
