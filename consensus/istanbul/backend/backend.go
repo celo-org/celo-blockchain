@@ -207,6 +207,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
+	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
 
 	backend.announceManager = NewAnnounceManager(
 		announceConfig,
@@ -216,7 +217,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		state,
 		backend.gossipCache,
 		peerCounter,
-		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet))
+		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet),
+		checker)
 
 	return backend
 }

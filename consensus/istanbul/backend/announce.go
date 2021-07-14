@@ -73,7 +73,6 @@ const (
 type AddressProvider interface {
 	SelfNode() *enode.Node
 	ValidatorAddress() common.Address
-	IsValidating() bool
 }
 
 type ProxyContext interface {
@@ -116,6 +115,8 @@ type AnnounceManager struct {
 	state  *AnnounceState
 	pruner AnnounceStatePruner
 
+	checker ValidatorChecker
+
 	announceVersion         atomic.Value // uint
 	updateAnnounceVersionCh chan struct{}
 
@@ -143,7 +144,8 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache GossipCache,
 	peerCounter PeerCounterFn,
-	pruner AnnounceStatePruner) *AnnounceManager {
+	pruner AnnounceStatePruner,
+	checker ValidatorChecker) *AnnounceManager {
 	vcGossipFunction := func(payload []byte) error {
 		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
 	}
@@ -158,6 +160,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		vcGossiper:              NewVcGossiper(vcGossipFunction),
 		state:                   state,
 		pruner:                  pruner,
+		checker:                 checker,
 		updateAnnounceVersionCh: make(chan struct{}, 1),
 		announceThreadWg:        new(sync.WaitGroup),
 		announceRunning:         false,
@@ -197,12 +200,23 @@ func (m *AnnounceManager) announceThread() {
 
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
-	shouldQueryAndAnnounce := m.shouldQueryAndAnnounce
+	shouldQueryAndAnnounce := func() (bool, bool) {
+		var err error
+		shouldQuery, err := m.checker.IsElectedOrNearValidator()
+		if err != nil {
+			logger.Warn("Error in checking if should announce", err)
+			return false, false
+		}
+		shouldAnnounce := shouldQuery && m.checker.IsValidating()
+		return shouldQuery, shouldAnnounce
+	}
+
 	updateAnnounceVersion := m.updateAnnounceVersion
 	generateAndGossipQueryEnode := m.generateAndGossipQueryEnode
 	prune := func() error {
 		return m.pruner.Prune(m.state)
 	}
+
 	gossipAllVCs := m.gossipAllVCs
 	countPeers := m.peerCounter
 	st := NewAnnounceTaskState(m.config.Announce)
@@ -257,17 +271,6 @@ func (m *AnnounceManager) announceThread() {
 	}
 }
 
-func (m *AnnounceManager) shouldQueryAndAnnounce() (bool, bool) {
-	var err error
-	shouldQuery, err := m.shouldParticipateInAnnounce()
-	if err != nil {
-		m.logger.Warn("Error in checking if should announce", err)
-		return false, false
-	}
-	shouldAnnounce := shouldQuery && m.addrProvider.IsValidating()
-	return shouldQuery, shouldAnnounce
-}
-
 func (m *AnnounceManager) updateAnnounceVersion() {
 	version := getTimestamp()
 	currVersion := m.GetAnnounceVersion()
@@ -281,18 +284,6 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 	}
 	m.logger.Debug("Updating announce version", "announceVersion", version)
 	m.announceVersion.Store(version)
-}
-
-// shouldParticipateInAnnounce returns true if instance is an elected or nearly elected validator.
-func (m *AnnounceManager) shouldParticipateInAnnounce() (bool, error) {
-
-	// Check if this node is in the validator connection set
-	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
-	if err != nil {
-		return false, err
-	}
-
-	return validatorConnSet[m.wallets().Ecdsa.Address], nil
 }
 
 func (m *AnnounceManager) gossipAllVCs() error {
@@ -576,7 +567,7 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 	}
 
 	// Only elected or nearly elected validators processes the queryEnode message
-	shouldProcess, err := m.shouldParticipateInAnnounce()
+	shouldProcess, err := m.checker.IsElectedOrNearValidator()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
@@ -631,7 +622,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 	}
 
 	// Only answer query when validating
-	if externalEnode := externalEnodeMap[address]; externalEnode != nil && m.addrProvider.IsValidating() {
+	if externalEnode := externalEnodeMap[address]; externalEnode != nil && m.checker.IsValidating() {
 		enodeCertificateMsgs := m.RetrieveEnodeCertificateMsgMap()
 
 		enodeCertMsg := enodeCertificateMsgs[externalEnode.ID()]
@@ -794,7 +785,7 @@ func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer
 
 func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(entries []*vet.VersionCertificateEntry) error {
 	logger := m.logger.New("func", "upsertAndGossipVersionCertificateEntries")
-	shouldProcess, err := m.shouldParticipateInAnnounce()
+	shouldProcess, err := m.checker.IsElectedOrNearValidator()
 	if err != nil {
 		logger.Warn("Error in checking if should process queryEnode", err)
 	}
@@ -1050,7 +1041,7 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 	}
 
 	// Ensure this node is a validator in the validator conn set
-	shouldSave, err := m.shouldParticipateInAnnounce()
+	shouldSave, err := m.checker.IsElectedOrNearValidator()
 	if err != nil {
 		logger.Error("Error checking if should save received validator enode url", "err", err)
 		return err
@@ -1077,7 +1068,7 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if m.config.IsProxiedValidator && m.addrProvider.IsValidating() {
+	if m.config.IsProxiedValidator && m.checker.IsValidating() {
 		m.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 
