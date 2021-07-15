@@ -169,8 +169,8 @@ func TestForkIDSplit(t *testing.T) {
 		dbNoFork  = rawdb.NewMemoryDatabase()
 		dbProFork = rawdb.NewMemoryDatabase()
 
-		gspecNoFork  = &core.Genesis{Config: configNoFork}
-		gspecProFork = &core.Genesis{Config: configProFork}
+		gspecNoFork  = core.DeveloperGenesisBlock()
+		gspecProFork = core.DeveloperGenesisBlock()
 
 		genesisNoFork  = gspecNoFork.MustCommit(dbNoFork)
 		genesisProFork = gspecProFork.MustCommit(dbProFork)
@@ -184,6 +184,10 @@ func TestForkIDSplit(t *testing.T) {
 		ethNoFork, _  = NewProtocolManager(configNoFork, nil, downloader.FullSync, 1, new(event.TypeMux), &testTxPool{pool: make(map[common.Hash]*types.Transaction)}, engine, chainNoFork, dbNoFork, 1, nil, nil, nil)
 		ethProFork, _ = NewProtocolManager(configProFork, nil, downloader.FullSync, 1, new(event.TypeMux), &testTxPool{pool: make(map[common.Hash]*types.Transaction)}, engine, chainProFork, dbProFork, 1, nil, nil, nil)
 	)
+
+	gspecNoFork.Config = configNoFork
+	gspecProFork.Config = configProFork
+
 	ethNoFork.Start(1000)
 	ethProFork.Start(1000)
 

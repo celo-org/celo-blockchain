@@ -61,7 +61,7 @@ var (
 		Value: eth.DefaultConfig.LightPeers,
 	}
 
-	// (Deprecated April 2020)
+	// (Deprecated May 2020, shown in aliased flags section)
 	LegacyRPCEnabledFlag = cli.BoolFlag{
 		Name:  "rpc",
 		Usage: "Enable the HTTP-RPC server (deprecated, use --http)",
@@ -164,6 +164,17 @@ var (
 		Name:  "miner.gasprice",
 		Usage: "Minimum gas price for mining a transaction",
 		Value: big.NewInt(1),
+	}
+
+	// (Deprecated July 2020, shown in aliased flags section)
+	LegacyGraphQLListenAddrFlag = cli.StringFlag{
+		Name:  "graphql.addr",
+		Usage: "GraphQL server listening interface (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
+	}
+	LegacyGraphQLPortFlag = cli.IntFlag{
+		Name:  "graphql.port",
+		Usage: "GraphQL server listening port (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
+		Value: node.DefaultHTTPPort,
 	}
 )
 
