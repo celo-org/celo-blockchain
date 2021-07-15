@@ -116,13 +116,13 @@ type AnnounceManager struct {
 
 	checker ValidatorChecker
 
-	announceVersion         atomic.Value // uint
-	updateAnnounceVersionCh chan struct{}
+	worker AnnounceWorker
 
-	announceRunning    bool
-	announceMu         sync.RWMutex
-	announceThreadWg   *sync.WaitGroup
-	announceThreadQuit chan struct{}
+	announceVersion atomic.Value // uint
+
+	announceRunning  bool
+	announceMu       sync.RWMutex
+	announceThreadWg *sync.WaitGroup
 
 	// The enode certificate message map contains the most recently generated
 	// enode certificates for each external node ID (e.g. will have one entry per proxy
@@ -148,22 +148,32 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 	vcGossipFunction := func(payload []byte) error {
 		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
 	}
+	vcGossiper := NewVcGossiper(vcGossipFunction)
 	am := &AnnounceManager{
-		logger:                  log.New("module", "announceManager"),
-		config:                  config,
-		network:                 network,
-		peerCounter:             peerCounter,
-		proxyContext:            proxyContext,
-		addrProvider:            addrProvider,
-		gossipCache:             gossipCache,
-		vcGossiper:              NewVcGossiper(vcGossipFunction),
-		state:                   state,
-		pruner:                  pruner,
-		checker:                 checker,
-		updateAnnounceVersionCh: make(chan struct{}, 1),
-		announceThreadWg:        new(sync.WaitGroup),
-		announceRunning:         false,
+		logger:           log.New("module", "announceManager"),
+		config:           config,
+		network:          network,
+		peerCounter:      peerCounter,
+		proxyContext:     proxyContext,
+		addrProvider:     addrProvider,
+		gossipCache:      gossipCache,
+		vcGossiper:       vcGossiper,
+		state:            state,
+		pruner:           pruner,
+		checker:          checker,
+		announceThreadWg: new(sync.WaitGroup),
+		announceRunning:  false,
 	}
+	// Gossip the announce after a minute.
+	// The delay allows for all receivers of the announce message to
+	// have a more up-to-date cached registered/elected valset, and
+	// hence more likely that they will be aware that this node is
+	// within that set.
+	waitPeriod := 1 * time.Minute
+	if am.config.Epoch <= 10 {
+		waitPeriod = 5 * time.Second
+	}
+	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config.Announce, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
 	return am
 }
 
@@ -185,89 +195,9 @@ func (m *AnnounceManager) wallets() *Wallets {
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
 func (m *AnnounceManager) announceThread() {
-	logger := m.logger.New("func", "announceThread")
-
-	// Gossip the announce after a minute.
-	// The delay allows for all receivers of the announce message to
-	// have a more up-to-date cached registered/elected valset, and
-	// hence more likely that they will be aware that this node is
-	// within that set.
-	waitPeriod := 1 * time.Minute
-	if m.config.Epoch <= 10 {
-		waitPeriod = 5 * time.Second
-	}
-
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
-	shouldQueryAndAnnounce := func() (bool, bool) {
-		var err error
-		shouldQuery, err := m.checker.IsElectedOrNearValidator()
-		if err != nil {
-			logger.Warn("Error in checking if should announce", err)
-			return false, false
-		}
-		shouldAnnounce := shouldQuery && m.checker.IsValidating()
-		return shouldQuery, shouldAnnounce
-	}
-
-	updateAnnounceVersion := m.updateAnnounceVersion
-	generateAndGossipQueryEnode := m.generateAndGossipQueryEnode
-	prune := func() error {
-		return m.pruner.Prune(m.state)
-	}
-
-	gossipAllVCs := m.gossipAllVCs
-	countPeers := m.peerCounter
-	st := NewAnnounceTaskState(m.config.Announce)
-	for {
-		select {
-		case <-st.checkIfShouldAnnounceTicker.C:
-			logger.Trace("Checking if this node should announce it's enode")
-			st.shouldQuery, st.shouldAnnounce = shouldQueryAndAnnounce()
-			st.updateAnnounceThreadStatus(logger, waitPeriod, updateAnnounceVersion)
-
-		case <-st.shareVersionCertificatesTicker.C:
-			if err := gossipAllVCs(); err != nil {
-				m.logger.Warn("Error gossiping all version certificates")
-			}
-
-		case <-st.updateAnnounceVersionTickerCh:
-			if st.shouldAnnounce {
-				updateAnnounceVersion()
-			}
-
-		case <-st.queryEnodeTickerCh:
-			st.startGossipQueryEnodeTask()
-
-		case <-st.generateAndGossipQueryEnodeCh:
-			if st.shouldQuery {
-				peers := countPeers(p2p.AnyPurpose)
-				st.UpdateFrequencyOnGenerate(peers)
-				// This node may have recently sent out an announce message within
-				// the gossip cooldown period imposed by other nodes.
-				// Regardless, send the queryEnode so that it will at least be
-				// processed by this node's peers. This is especially helpful when a network
-				// is first starting up.
-				if _, err := generateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
-					logger.Warn("Error in generating and gossiping queryEnode", "err", err)
-				}
-			}
-
-		case <-m.updateAnnounceVersionCh:
-			if st.shouldAnnounce {
-				updateAnnounceVersion()
-			}
-
-		case <-st.pruneAnnounceDataStructuresTicker.C:
-			if err := prune(); err != nil {
-				logger.Warn("Error in pruning announce data structures", "err", err)
-			}
-
-		case <-m.announceThreadQuit:
-			st.OnAnnounceThreadQuitting()
-			return
-		}
-	}
+	m.worker.Run()
 }
 
 func (m *AnnounceManager) updateAnnounceVersion() {
@@ -283,10 +213,6 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 	}
 	m.logger.Debug("Updating announce version", "announceVersion", version)
 	m.announceVersion.Store(version)
-}
-
-func (m *AnnounceManager) gossipAllVCs() error {
-	return m.vcGossiper.GossipAllFrom(m.state.versionCertificateTable)
 }
 
 // getValProxyAssignments returns the remote validator -> external node assignments.
@@ -811,11 +737,7 @@ func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(versionCertif
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
 func (m *AnnounceManager) UpdateAnnounceVersion() {
-	// Send to the channel iff it does not already have a message.
-	select {
-	case m.updateAnnounceVersionCh <- struct{}{}:
-	default:
-	}
+	m.worker.UpdateVersion()
 }
 
 // GetAnnounceVersion will retrieve the current announce version.
@@ -1081,7 +1003,6 @@ func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
 
 	go m.announceThread()
 
-	m.announceThreadQuit = make(chan struct{})
 	m.announceRunning = true
 
 	if err := onStart(); err != nil {
@@ -1100,7 +1021,7 @@ func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
 		return istanbul.ErrStoppedAnnounce
 	}
 
-	close(m.announceThreadQuit)
+	m.worker.Stop()
 	m.announceThreadWg.Wait()
 
 	m.announceRunning = false
