@@ -1335,28 +1335,56 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	if err != nil {
 		return nil, nil
 	}
+	if tx == nil {
+		// There is no such transaction, so we check whether it's a block hash, so that
+		// we can return the "system calls receipt" for the block if that's the case.
+		// Note that for blocks without any logs from system calls we don't actually
+		// generate a receipt, but for the API we will return an empty receipt in such cases.
+		// And we may choose to add empty receipts to the block itself as well, though that
+		// would be a hard fork change.
+		if block, _ := s.b.BlockByHash(ctx, hash); block != nil {
+			blockHash = hash
+			blockNumber = block.NumberU64()
+			index = uint64(block.Transactions().Len())
+		} else {
+			return nil, nil
+		}
+	}
+
 	receipts, err := s.b.GetReceipts(ctx, blockHash)
-	if err != nil {
+	// GetReceipts() doesn't return an error if things go wrong, so we also check len(receipts)
+	if err != nil || len(receipts) < int(index) {
 		return nil, err
 	}
-	if len(receipts) <= int(index) {
-		return nil, nil
-	}
-	receipt := receipts[index]
 
-	var signer types.Signer = types.FrontierSigner{}
-	if tx.Protected() {
-		signer = types.NewEIP155Signer(tx.ChainId())
+	var receipt *types.Receipt
+	if len(receipts) == int(index) {
+		// The block didn't have any logs from system calls and no receipt was created.
+		// So we create an empty receipt to return, similarly to how system receipts are created.
+		receipt = types.NewReceipt(nil, false, 0)
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	} else {
+		receipt = receipts[index]
 	}
-	from, _ := types.Sender(signer, tx)
 
+	var from common.Address
+	// use a pointer for `to` because it's nil for contract creation transactions and the system call receipt
+	var to *common.Address
+	if tx != nil {
+		var signer types.Signer = types.FrontierSigner{}
+		if tx.Protected() {
+			signer = types.NewEIP155Signer(tx.ChainId())
+		}
+		from, _ = types.Sender(signer, tx)
+		to = tx.To()
+	}
 	fields := map[string]interface{}{
 		"blockHash":         blockHash,
 		"blockNumber":       hexutil.Uint64(blockNumber),
 		"transactionHash":   hash,
 		"transactionIndex":  hexutil.Uint64(index),
 		"from":              from,
-		"to":                tx.To(),
+		"to":                to,
 		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
 		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
 		"contractAddress":   nil,
