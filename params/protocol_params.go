@@ -185,7 +185,6 @@ var Bls12381MultiExpDiscountTable = [128]uint64{1200, 888, 764, 641, 594, 547, 5
 
 var (
 	RegistrySmartContractAddress = common.HexToAddress("0x000000000000000000000000000000000000ce10")
-	RegistryCodeSize             = 2585 // According to core/***AllocJSON
 
 	// Celo registered contract IDs.
 	// The names are taken from celo-monorepo/packages/protocol/lib/registry-utils.ts
