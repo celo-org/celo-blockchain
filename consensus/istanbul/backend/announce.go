@@ -113,7 +113,8 @@ type AnnounceManager struct {
 
 	checker ValidatorChecker
 
-	worker AnnounceWorker
+	ecertGenerator EnodeCertificateMsgGenerator
+	worker         AnnounceWorker
 
 	announceVersion atomic.Value // uint
 
@@ -171,6 +172,14 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 		waitPeriod = 5 * time.Second
 	}
 	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config.Announce, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
+
+	var efeg ExternalFacingEnodeGetter
+	if config.IsProxiedValidator {
+		efeg = NewProxiedExternalFacingEnodeGetter(proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
+	} else {
+		efeg = NewSelfExternalFacingEnodeGetter(addrProvider.SelfNode)
+	}
+	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
 	return am
 }
 
@@ -704,7 +713,7 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 		return nil
 	}
 
-	enodeCertificateMsgs, err := m.generateEnodeCertificateMsgs(version)
+	enodeCertificateMsgs, err := m.ecertGenerator.GenerateEnodeCertificateMsgs(&w.Ecdsa, version)
 	if err != nil {
 		return err
 	}
@@ -767,52 +776,6 @@ func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbu
 	m.enodeCertificateMsgMapMu.Lock()
 	defer m.enodeCertificateMsgMapMu.Unlock()
 	return m.enodeCertificateMsgMap
-}
-
-// getEnodeCertNodesAndDestAddresses will retrieve all the external facing external nodes for this validator
-// (one for each of it's proxies, or itself for standalone validators) for the purposes of generating enode certificates
-// for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
-// `nil` value, then that means that the associated enode certificate should be sent to all of the connected validators.
-func (m *AnnounceManager) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
-	var efeg ExternalFacingEnodeGetter
-	if m.config.IsProxiedValidator {
-		efeg = NewProxiedExternalFacingEnodeGetter(m.proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
-	} else {
-		efeg = NewSelfExternalFacingEnodeGetter(m.addrProvider.SelfNode)
-	}
-
-	return efeg.GetEnodeCertNodesAndDestAddresses()
-}
-
-// generateEnodeCertificateMsgs generates a map of enode certificate messages.
-// One certificate message is generated for each external enode this node possesses generated for
-// each external enode this node possesses. A unproxied validator will have one enode, while a
-// proxied validator may have one for each proxy.. Each enode is a key in the returned map, and the
-// value is the certificate message.
-func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
-	logger := m.logger.New("func", "generateEnodeCertificateMsgs")
-
-	enodeCertificateMsgs := make(map[enode.ID]*istanbul.EnodeCertMsg)
-	externalEnodes, valDestinations, err := m.getEnodeCertNodesAndDestAddresses()
-	if err != nil {
-		return nil, err
-	}
-	w := m.wallets()
-	for _, externalNode := range externalEnodes {
-		msg := istanbul.NewEnodeCeritifcateMessage(
-			&istanbul.EnodeCertificate{EnodeURL: externalNode.URLv4(), Version: version},
-			w.Ecdsa.Address,
-		)
-		// Sign the message
-		if err := msg.Sign(w.Ecdsa.Sign); err != nil {
-			return nil, err
-		}
-
-		enodeCertificateMsgs[externalNode.ID()] = &istanbul.EnodeCertMsg{Msg: msg, DestAddresses: valDestinations[externalNode.ID()]}
-	}
-
-	logger.Trace("Generated Istanbul Enode Certificate messages", "enodeCertificateMsgs", enodeCertificateMsgs)
-	return enodeCertificateMsgs, nil
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.

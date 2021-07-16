@@ -7,6 +7,10 @@ import (
 )
 
 type ExternalFacingEnodeGetter interface {
+	// GetEnodeCertNodesAndDestAddresses will retrieve all the external facing external nodes for this validator
+	// (one for each of it's proxies, or itself for standalone validators) for the purposes of generating enode certificates
+	// for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
+	// `nil` value, then that means that the associated enode certificate should be sent to all of the connected validators.
 	GetEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error)
 }
 
