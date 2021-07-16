@@ -880,14 +880,14 @@ func (m *AnnounceManager) generateEnodeCertificateMsgs(version uint) (map[enode.
 	if err != nil {
 		return nil, err
 	}
-
+	w := m.wallets()
 	for _, externalNode := range externalEnodes {
 		msg := istanbul.NewEnodeCeritifcateMessage(
 			&istanbul.EnodeCertificate{EnodeURL: externalNode.URLv4(), Version: version},
-			m.wallets().Ecdsa.Address,
+			w.Ecdsa.Address,
 		)
 		// Sign the message
-		if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
+		if err := msg.Sign(w.Ecdsa.Sign); err != nil {
 			return nil, err
 		}
 
