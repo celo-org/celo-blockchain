@@ -217,7 +217,7 @@ func TestRegistryInGenesis(t *testing.T) {
 				t.Errorf("%s: Registry code size is %d, want 0", test.name, codeSize)
 			}
 		} else if codeSize == 0 {
-			t.Errorf("%s: Registry code size should not be 0, actual %d", test.name, codeSize)
+			t.Errorf("%s: Registry code size should not be 0", test.name)
 		}
 		chain.Stop()
 	}
