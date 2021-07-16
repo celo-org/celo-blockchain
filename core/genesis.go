@@ -197,7 +197,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	}
 
 	// Check if Registry sits in genesis
-	if s.GetCodeSize(params.RegistrySmartContractAddress) != params.RegistryCodeSize {
+	if s.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return params.MainnetChainConfig, common.Hash{}, errors.New("no Registry Smart Contract deployed in genesis")
 	}
 
