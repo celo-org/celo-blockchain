@@ -842,29 +842,14 @@ func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbu
 // for those enodes.  It will also return the destination validators for each enode certificate.  If the destAddress is a
 // `nil` value, then that means that the associated enode certificate should be sent to all of the connected validators.
 func (m *AnnounceManager) getEnodeCertNodesAndDestAddresses() ([]*enode.Node, map[enode.ID][]common.Address, error) {
-	var externalEnodes []*enode.Node
-	var valDestinations map[enode.ID][]common.Address
+	var efeg ExternalFacingEnodeGetter
 	if m.config.IsProxiedValidator {
-		var proxies []*proxy.Proxy
-		var err error
-
-		proxies, valDestinations, err = m.proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		externalEnodes = make([]*enode.Node, len(proxies))
-		for i, proxy := range proxies {
-			externalEnodes[i] = proxy.ExternalNode()
-		}
+		efeg = NewProxiedExternalFacingEnodeGetter(m.proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
 	} else {
-		externalEnodes = make([]*enode.Node, 1)
-		externalEnodes[0] = m.addrProvider.SelfNode()
-		valDestinations = make(map[enode.ID][]common.Address)
-		valDestinations[externalEnodes[0].ID()] = nil
+		efeg = NewSelfExternalFacingEnodeGetter(m.addrProvider.SelfNode)
 	}
 
-	return externalEnodes, valDestinations, nil
+	return efeg.GetEnodeCertNodesAndDestAddresses()
 }
 
 // generateEnodeCertificateMsgs generates a map of enode certificate messages.
