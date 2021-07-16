@@ -17,8 +17,6 @@
 package backend
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"math"
@@ -31,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
-	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -297,7 +294,7 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 	var qeMsg *istanbul.Message
 	if len(enodeQueries) > 0 {
 		var err error
-		qeMsg, err = m.generateQueryEnodeMsg(version, enodeQueries)
+		qeMsg, err = generateQueryEnodeMsg(m.logger, &m.wallets().Ecdsa, version, enodeQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -362,71 +359,6 @@ func (m *AnnounceManager) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool)
 	}
 
 	return queryEnodeValEnodeEntries, nil
-}
-
-// generateQueryEnodeMsg returns a queryEnode message from this node with a given version.
-// A query enode message contains a number of individual enode queries, each of which is intended
-// for a single recipient validator. A query contains of this nodes external enode URL, to which
-// the recipient validator is intended to connect, and is ECIES encrypted with the recipient's
-// public key, from which their validator signer address is derived.
-// Note: It is referred to as a "query" because the sender does not know the recipients enode.
-// The recipient is expected to respond by opening a direct connection with an enode certificate.
-func (m *AnnounceManager) generateQueryEnodeMsg(version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
-	logger := m.logger.New("func", "generateQueryEnodeMsg")
-
-	encryptedEnodeURLs, err := m.generateEncryptedEnodeURLs(enodeQueries)
-	if err != nil {
-		logger.Warn("Error generating encrypted enodeURLs", "err", err)
-		return nil, err
-	}
-	if len(encryptedEnodeURLs) == 0 {
-		logger.Trace("No encrypted enodeURLs were generated, will not generate encryptedEnodeMsg")
-		return nil, nil
-	}
-
-	msg := istanbul.NewQueryEnodeMessage(&istanbul.QueryEnodeData{
-		EncryptedEnodeURLs: encryptedEnodeURLs,
-		Version:            version,
-		Timestamp:          getTimestamp(),
-	}, m.wallets().Ecdsa.Address)
-	// Sign the announce message
-	if err := msg.Sign(m.wallets().Ecdsa.Sign); err != nil {
-		logger.Error("Error in signing a QueryEnode Message", "QueryEnodeMsg", msg.String(), "err", err)
-		return nil, err
-	}
-
-	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", msg.QueryEnodeMsg().String())
-
-	return msg, nil
-}
-
-type enodeQuery struct {
-	recipientAddress   common.Address
-	recipientPublicKey *ecdsa.PublicKey
-	enodeURL           string
-}
-
-// generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
-func (m *AnnounceManager) generateEncryptedEnodeURLs(enodeQueries []*enodeQuery) ([]*istanbul.EncryptedEnodeURL, error) {
-	logger := m.logger.New("func", "generateEncryptedEnodeURLs")
-
-	var encryptedEnodeURLs []*istanbul.EncryptedEnodeURL
-	for _, param := range enodeQueries {
-		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
-		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
-		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
-		if err != nil {
-			logger.Error("Error in encrypting enodeURL", "enodeURL", param.enodeURL, "publicKey", publicKey)
-			return nil, err
-		}
-
-		encryptedEnodeURLs = append(encryptedEnodeURLs, &istanbul.EncryptedEnodeURL{
-			DestAddress:       param.recipientAddress,
-			EncryptedEnodeURL: encEnodeURL,
-		})
-	}
-
-	return encryptedEnodeURLs, nil
 }
 
 // This function will handle a queryEnode message.
