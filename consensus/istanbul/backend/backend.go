@@ -190,13 +190,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
-	announceConfig := AnnounceManagerConfig{
-		IsProxiedValidator: backend.IsProxiedValidator(),
-		AWallets:           &backend.aWallets,
-		Announce:           backend.config.Announce,
-		Epoch:              backend.config.Epoch,
-	}
-
 	peerCounter := func(purpose p2p.PurposeFlag) int {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
@@ -210,7 +203,8 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
 
 	backend.announceManager = NewAnnounceManager(
-		announceConfig,
+		config,
+		&backend.aWallets,
 		backend,
 		backend,
 		backend,
@@ -968,7 +962,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 		return nil, 0, time.Time{}, err
 	}
 	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
-	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.Announce.AdditionalValidatorsToGossip)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.

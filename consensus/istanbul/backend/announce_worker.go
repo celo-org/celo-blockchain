@@ -21,7 +21,7 @@ type worker struct {
 	state             *AnnounceState
 	pruner            AnnounceStatePruner
 	vcGossiper        VersionCertificateGossiper
-	config            *istanbul.AnnounceConfig
+	config            *istanbul.Config
 	countPeers        PeerCounterFn
 
 	updateAnnounceVersion       func()
@@ -36,7 +36,7 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	checker ValidatorChecker,
 	pruner AnnounceStatePruner,
 	vcGossiper VersionCertificateGossiper,
-	config *istanbul.AnnounceConfig,
+	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
 	updateAnnounceVersion func(),
 	generateAndGossipQueryEnode func(bool) (*istanbul.Message, error)) AnnounceWorker {

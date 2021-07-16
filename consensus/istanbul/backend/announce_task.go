@@ -10,7 +10,7 @@ import (
 // announceTaskState encapsulates the state needed to guide the behavior of the announce protocol
 // thread. This type is designed to be used from A SINGLE THREAD only.
 type announceTaskState struct {
-	config *istanbul.AnnounceConfig
+	config *istanbul.Config
 	// Create a ticker to poll if istanbul core is running and if this node is in
 	// the validator conn set. If both conditions are true, then this node should announce.
 	checkIfShouldAnnounceTicker *time.Ticker
@@ -37,7 +37,7 @@ type announceTaskState struct {
 	querying, announcing        bool
 }
 
-func NewAnnounceTaskState(config *istanbul.AnnounceConfig) *announceTaskState {
+func NewAnnounceTaskState(config *istanbul.Config) *announceTaskState {
 	return &announceTaskState{
 		config:                            config,
 		checkIfShouldAnnounceTicker:       time.NewTicker(5 * time.Second),

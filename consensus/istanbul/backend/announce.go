@@ -85,19 +85,14 @@ type AnnounceNetwork interface {
 	Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
 }
 
-type AnnounceManagerConfig struct {
-	IsProxiedValidator bool
-	AWallets           *atomic.Value
-	Epoch              uint64 // The number of blocks after which to checkpoint and reset the pending votes
-	Announce           *istanbul.AnnounceConfig
-}
-
 type PeerCounterFn func(purpose p2p.PurposeFlag) int
 
 type AnnounceManager struct {
 	logger log.Logger
 
-	config AnnounceManagerConfig
+	config *istanbul.Config
+
+	aWallets *atomic.Value
 
 	addrProvider AddressProvider
 	proxyContext ProxyContext
@@ -137,7 +132,9 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, proxyContext ProxyContext,
+func NewAnnounceManager(config *istanbul.Config,
+	aWallets *atomic.Value,
+	network AnnounceNetwork, proxyContext ProxyContext,
 	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache GossipCache,
 	peerCounter PeerCounterFn,
@@ -149,6 +146,7 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 	vcGossiper := NewVcGossiper(vcGossipFunction)
 	am := &AnnounceManager{
 		logger:           log.New("module", "announceManager"),
+		aWallets:         aWallets,
 		config:           config,
 		network:          network,
 		peerCounter:      peerCounter,
@@ -171,16 +169,20 @@ func NewAnnounceManager(config AnnounceManagerConfig, network AnnounceNetwork, p
 	if am.config.Epoch <= 10 {
 		waitPeriod = 5 * time.Second
 	}
-	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config.Announce, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
+	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
 
 	var efeg ExternalFacingEnodeGetter
-	if config.IsProxiedValidator {
+	if am.isProxiedValidator() {
 		efeg = NewProxiedExternalFacingEnodeGetter(proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
 	} else {
 		efeg = NewSelfExternalFacingEnodeGetter(addrProvider.SelfNode)
 	}
 	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
 	return am
+}
+
+func (m *AnnounceManager) isProxiedValidator() bool {
+	return m.config.Proxied && m.config.Validator
 }
 
 func (m *AnnounceManager) Close() error {
@@ -191,7 +193,7 @@ func (m *AnnounceManager) Close() error {
 }
 
 func (m *AnnounceManager) wallets() *Wallets {
-	return m.config.AWallets.Load().(*Wallets)
+	return m.aWallets.Load().(*Wallets)
 }
 
 // The announceThread will:
@@ -232,7 +234,7 @@ func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) 
 	for _, valAddress := range valAddresses {
 		var externalNode *enode.Node
 
-		if m.config.IsProxiedValidator {
+		if m.isProxiedValidator() {
 			if proxies == nil {
 				var err error
 				proxies, err = m.proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments(nil)
@@ -750,7 +752,7 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 		}
 	}
 
-	if m.config.IsProxiedValidator {
+	if m.isProxiedValidator() {
 		m.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
 	}
 
@@ -828,7 +830,7 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 	}
 
 	// Send a valEnodesShare message to the proxy when it's the primary
-	if m.config.IsProxiedValidator && m.checker.IsValidating() {
+	if m.isProxiedValidator() && m.checker.IsValidating() {
 		m.proxyContext.GetProxiedValidatorEngine().SendValEnodesShareMsgToAllProxies()
 	}
 

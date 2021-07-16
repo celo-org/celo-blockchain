@@ -22,7 +22,7 @@ func TestShouldStartStopAnnouncing(t *testing.T) {
 
 func TestShouldStartStopQuerying(t *testing.T) {
 	st := &announceTaskState{
-		config: &istanbul.AnnounceConfig{
+		config: &istanbul.Config{
 			AggressiveQueryEnodeGossipOnEnablement: true,
 		},
 	}
