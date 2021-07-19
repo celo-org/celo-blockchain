@@ -223,7 +223,7 @@ func (sb *Backend) announceThread() {
 			var err error
 			shouldQuery, err = sb.announceManager.shouldParticipateInAnnounce()
 			if err != nil {
-				logger.Warn("Error in checking if should announce", err)
+				logger.Warn("Error in checking if should announce", "err", err)
 				break
 			}
 			shouldAnnounce = shouldQuery && sb.IsValidating()
