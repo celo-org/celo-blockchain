@@ -156,6 +156,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 
 // selectAndApplyTransactions selects and applies transactions to the in flight block state.
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
+	defer func(start time.Time) { w.blockConstructTxsGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
@@ -314,6 +315,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 
 // finalizeAndAssemble runs post-transaction state modification and assembles the final block.
 func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
+	defer func(start time.Time) { w.blockConstructFinalizeGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	// Need to copy the state here otherwise block production stalls. Not sure why.
 	b.state = b.state.Copy()
 

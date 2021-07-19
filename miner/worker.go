@@ -104,23 +104,27 @@ type worker struct {
 	// Needed for randomness
 	db ethdb.Database
 
-	blockConstructGauge metrics.Gauge
+	blockConstructGauge         metrics.Gauge
+	blockConstructTxsGauge      metrics.Gauge
+	blockConstructFinalizeGauge metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, db ethdb.Database) *worker {
 	worker := &worker{
-		config:              config,
-		chainConfig:         chainConfig,
-		engine:              engine,
-		eth:                 eth,
-		mux:                 mux,
-		chain:               eth.BlockChain(),
-		txsCh:               make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
-		exitCh:              make(chan struct{}),
-		startCh:             make(chan struct{}, 1),
-		db:                  db,
-		blockConstructGauge: metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
+		config:                      config,
+		chainConfig:                 chainConfig,
+		engine:                      engine,
+		eth:                         eth,
+		mux:                         mux,
+		chain:                       eth.BlockChain(),
+		txsCh:                       make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:                 make(chan core.ChainHeadEvent, chainHeadChanSize),
+		exitCh:                      make(chan struct{}),
+		startCh:                     make(chan struct{}, 1),
+		db:                          db,
+		blockConstructGauge:         metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
+		blockConstructTxsGauge:      metrics.NewRegisteredGauge("miner/worker/block_construct_txs", nil),
+		blockConstructFinalizeGauge: metrics.NewRegisteredGauge("miner/worker/block_construct_finalize", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -231,6 +235,7 @@ func (w *worker) close() {
 // constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
 // a task to the engine
 func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
+	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	start := time.Now()
 
 	// Initialize the block.
