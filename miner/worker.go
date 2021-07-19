@@ -235,7 +235,6 @@ func (w *worker) close() {
 // constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
 // a task to the engine
 func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
-	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	start := time.Now()
 
 	// Initialize the block.
@@ -255,6 +254,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		return
 	}
 
+	defer func(start time.Time) { w.blockConstructGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	err = b.selectAndApplyTransactions(ctx, w)
 	if err != nil {
 		log.Error("Failed to apply transactions to the block", "err", err)
