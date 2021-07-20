@@ -111,6 +111,8 @@ type AnnounceManager struct {
 	ecertGenerator EnodeCertificateMsgGenerator
 	worker         AnnounceWorker
 
+	vpap ValProxyAssigmnentProvider
+
 	announceVersion announce.Version
 
 	announceRunning  bool
@@ -174,12 +176,16 @@ func NewAnnounceManager(
 	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
 
 	var efeg ExternalFacingEnodeGetter
+	var vpap ValProxyAssigmnentProvider
 	if am.isProxiedValidator() {
 		efeg = NewProxiedExternalFacingEnodeGetter(proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
+		vpap = NewProxiedValProxyAssigmentProvider(proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments)
 	} else {
 		efeg = NewSelfExternalFacingEnodeGetter(addrProvider.SelfNode)
+		vpap = NewSelfValProxyAssigmentProvider(addrProvider.SelfNode)
 	}
 	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
+	am.vpap = vpap
 	return am
 }
 
@@ -225,41 +231,6 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 	m.announceVersion.Set(version)
 }
 
-// getValProxyAssignments returns the remote validator -> external node assignments.
-// If this is a standalone validator, it will set the external node to itself.
-// If this is a proxied validator, it will set external node to the proxy's external node.
-func (m *AnnounceManager) getValProxyAssignments(valAddresses []common.Address) (map[common.Address]*enode.Node, error) {
-	var valProxyAssignments map[common.Address]*enode.Node = make(map[common.Address]*enode.Node)
-	var selfEnode *enode.Node = m.addrProvider.SelfNode()
-	var proxies map[common.Address]*proxy.Proxy // This var is only used if this is a proxied validator
-
-	for _, valAddress := range valAddresses {
-		var externalNode *enode.Node
-
-		if m.isProxiedValidator() {
-			if proxies == nil {
-				var err error
-				proxies, err = m.proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments(nil)
-				if err != nil {
-					return nil, err
-				}
-			}
-			proxyObj := proxies[valAddress]
-			if proxyObj == nil {
-				continue
-			}
-
-			externalNode = proxyObj.ExternalNode()
-		} else {
-			externalNode = selfEnode
-		}
-
-		valProxyAssignments[valAddress] = externalNode
-	}
-
-	return valProxyAssignments, nil
-}
-
 // generateAndGossipAnnounce will generate the lastest announce msg from this node
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
@@ -283,7 +254,7 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 	for i, valEnodeEntry := range valEnodeEntries {
 		valAddresses[i] = valEnodeEntry.Address
 	}
-	valProxyAssignments, err := m.getValProxyAssignments(valAddresses)
+	valProxyAssignments, err := m.vpap.GetValProxyAssignments(valAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +398,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 	logger := m.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
-	externalEnodeMap, err := m.getValProxyAssignments([]common.Address{address})
+	externalEnodeMap, err := m.vpap.GetValProxyAssignments([]common.Address{address})
 	if err != nil {
 		logger.Warn("Error in retrieving assigned proxy for remote validator", "address", address, "err", err)
 		return err
