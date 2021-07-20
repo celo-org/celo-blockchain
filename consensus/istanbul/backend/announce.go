@@ -97,14 +97,12 @@ type AnnounceManager struct {
 	addrProvider AddressProvider
 	proxyContext ProxyContext
 	network      AnnounceNetwork
-	peerCounter  PeerCounterFn
 
 	vcGossiper VersionCertificateGossiper
 
 	gossipCache GossipCache
 
-	state  *AnnounceState
-	pruner AnnounceStatePruner
+	state *AnnounceState
 
 	checker ValidatorChecker
 
@@ -154,14 +152,12 @@ func NewAnnounceManager(
 		aWallets:         aWallets,
 		config:           config,
 		network:          network,
-		peerCounter:      peerCounter,
 		proxyContext:     proxyContext,
 		addrProvider:     addrProvider,
 		gossipCache:      gossipCache,
 		vcGossiper:       vcGossiper,
 		state:            state,
 		announceVersion:  announceVersion,
-		pruner:           pruner,
 		checker:          checker,
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
