@@ -240,8 +240,6 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 	logger := m.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
-	version := m.GetAnnounceVersion()
-
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
 	qeep := NewQueryEnodeEntryProvider(m.state.valEnodeTable)
@@ -278,27 +276,12 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 
 	var qeMsg *istanbul.Message
 	if len(enodeQueries) > 0 {
-		var err error
-		qeMsg, err = generateQueryEnodeMsg(m.logger, &m.wallets().Ecdsa, version, enodeQueries)
-		if err != nil {
+		enodeGossiper := NewEnodeQueryGossiper(m.announceVersion, func(payload []byte) error {
+			return m.network.Gossip(payload, istanbul.QueryEnodeMsg)
+		})
+		if qeMsg, err = enodeGossiper.GossipEnodeQueries(&m.wallets().Ecdsa, enodeQueries); err != nil {
 			return nil, err
 		}
-
-		if qeMsg == nil {
-			return nil, nil
-		}
-
-		// Convert to payload
-		payload, err := qeMsg.Payload()
-		if err != nil {
-			logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", qeMsg.String(), "err", err)
-			return nil, err
-		}
-
-		if err = m.network.Gossip(payload, istanbul.QueryEnodeMsg); err != nil {
-			return nil, err
-		}
-
 		if err = m.state.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
 			return nil, err
 		}

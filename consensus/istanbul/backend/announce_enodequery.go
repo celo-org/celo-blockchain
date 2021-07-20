@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -73,4 +74,47 @@ func generateQueryEnodeMsg(plogger log.Logger, ei *EcdsaInfo, version uint, enod
 	logger.Debug("Generated a queryEnode message", "IstanbulMsg", msg.String(), "QueryEnodeData", msg.QueryEnodeMsg().String())
 
 	return msg, nil
+}
+
+type EnodeQueryGossiper interface {
+	GossipEnodeQueries(*EcdsaInfo, []*enodeQuery) (*istanbul.Message, error)
+}
+
+type eqg struct {
+	logger          log.Logger
+	announceVersion announce.VersionReader
+	gossip          func([]byte) error
+}
+
+func NewEnodeQueryGossiper(announceVersion announce.VersionReader, gossipFn func([]byte) error) EnodeQueryGossiper {
+	return &eqg{
+		logger:          log.New("module", "enodeQueryGossiper"),
+		announceVersion: announceVersion,
+		gossip:          gossipFn,
+	}
+}
+
+func (e *eqg) GossipEnodeQueries(ei *EcdsaInfo, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+	version := e.announceVersion.Get()
+	var err error
+	qeMsg, err := generateQueryEnodeMsg(e.logger, ei, version, enodeQueries)
+	if err != nil {
+		return nil, err
+	}
+
+	if qeMsg == nil {
+		return nil, nil
+	}
+
+	// Convert to payload
+	payload, err := qeMsg.Payload()
+	if err != nil {
+		e.logger.Error("Error in converting Istanbul QueryEnode Message to payload", "QueryEnodeMsg", qeMsg.String(), "err", err)
+		return nil, err
+	}
+
+	if err = e.gossip(payload); err != nil {
+		return nil, err
+	}
+	return qeMsg, nil
 }
