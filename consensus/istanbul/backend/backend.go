@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
@@ -201,7 +202,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
 	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
-
+	announceVersion := announce.NewAtomicVersion()
 	backend.announceManager = NewAnnounceManager(
 		config,
 		&backend.aWallets,
@@ -209,6 +210,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		backend,
 		backend,
 		state,
+		announceVersion,
 		backend.gossipCache,
 		peerCounter,
 		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet),

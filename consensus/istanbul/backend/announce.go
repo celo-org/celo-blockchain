@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
@@ -110,7 +111,7 @@ type AnnounceManager struct {
 	ecertGenerator EnodeCertificateMsgGenerator
 	worker         AnnounceWorker
 
-	announceVersion atomic.Value // uint
+	announceVersion announce.Version
 
 	announceRunning  bool
 	announceMu       sync.RWMutex
@@ -131,10 +132,11 @@ type AnnounceManager struct {
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
 // the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
 // not do it.
-func NewAnnounceManager(config *istanbul.Config,
+func NewAnnounceManager(
+	config *istanbul.Config,
 	aWallets *atomic.Value,
 	network AnnounceNetwork, proxyContext ProxyContext,
-	addrProvider AddressProvider, state *AnnounceState,
+	addrProvider AddressProvider, state *AnnounceState, announceVersion announce.Version,
 	gossipCache GossipCache,
 	peerCounter PeerCounterFn,
 	pruner AnnounceStatePruner,
@@ -154,6 +156,7 @@ func NewAnnounceManager(config *istanbul.Config,
 		gossipCache:      gossipCache,
 		vcGossiper:       vcGossiper,
 		state:            state,
+		announceVersion:  announceVersion,
 		pruner:           pruner,
 		checker:          checker,
 		announceThreadWg: new(sync.WaitGroup),
@@ -209,7 +212,7 @@ func (m *AnnounceManager) announceThread() {
 
 func (m *AnnounceManager) updateAnnounceVersion() {
 	version := getTimestamp()
-	currVersion := m.GetAnnounceVersion()
+	currVersion := m.announceVersion.Get()
 	if version <= currVersion {
 		m.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
 		return
@@ -219,7 +222,7 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 		return
 	}
 	m.logger.Debug("Updating announce version", "announceVersion", version)
-	m.announceVersion.Store(version)
+	m.announceVersion.Set(version)
 }
 
 // getValProxyAssignments returns the remote validator -> external node assignments.
@@ -646,11 +649,7 @@ func (m *AnnounceManager) UpdateAnnounceVersion() {
 
 // GetAnnounceVersion will retrieve the current announce version.
 func (m *AnnounceManager) GetAnnounceVersion() uint {
-	v := m.announceVersion.Load()
-	if v == nil {
-		return 0
-	}
-	return v.(uint)
+	return m.announceVersion.Get()
 }
 
 // setAndShareUpdatedAnnounceVersion generates announce data structures and
