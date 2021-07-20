@@ -1342,13 +1342,20 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		// generate a receipt, but for the API we will return an empty receipt in such cases.
 		// And we may choose to add empty receipts to the block itself as well, though that
 		// would be a hard fork change.
-		if block, _ := s.b.BlockByHash(ctx, hash); block != nil {
-			blockHash = hash
-			blockNumber = block.NumberU64()
-			index = uint64(block.Transactions().Len())
-		} else {
+
+		// We first do a quick check to see if the hash corresponds to a block or not, since
+		// on light clients this does not involve an ODR request over the p2p network
+		header, _ := s.b.HeaderByHash(ctx, hash)
+		if header == nil {
 			return nil, nil
 		}
+		blockHash = hash
+		blockNumber = header.Number.Uint64()
+		block, _ := s.b.BlockByNumber(ctx, rpc.BlockNumber(blockNumber))
+		if block == nil {
+			return nil, nil
+		}
+		index = uint64(block.Transactions().Len())
 	}
 
 	receipts, err := s.b.GetReceipts(ctx, blockHash)
