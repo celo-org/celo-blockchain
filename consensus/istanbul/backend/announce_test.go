@@ -68,7 +68,8 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeEntries, err := engine0.announceManager.getQueryEnodeValEnodeEntries(false)
+	qeep := NewQueryEnodeEntryProvider(engine0.valEnodeTable)
+	qeEntries, err := qeep.GetQueryEnodeValEnodeEntries(false, engine0.wallets().Ecdsa.Address)
 	if err != nil {
 		t.Errorf("Error in retrieving entries for queryEnode request")
 	}

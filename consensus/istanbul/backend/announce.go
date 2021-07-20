@@ -19,7 +19,6 @@ package backend
 import (
 	"encoding/hex"
 	"errors"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -271,7 +270,8 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	valEnodeEntries, err := m.getQueryEnodeValEnodeEntries(enforceRetryBackoff)
+	qeep := NewQueryEnodeEntryProvider(m.state.valEnodeTable)
+	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, m.wallets().Ecdsa.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -331,45 +331,6 @@ func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) 
 	}
 
 	return qeMsg, err
-}
-
-func (m *AnnounceManager) getQueryEnodeValEnodeEntries(enforceRetryBackoff bool) ([]*istanbul.AddressEntry, error) {
-	logger := m.logger.New("func", "getQueryEnodeValEnodeEntries")
-	valEnodeEntries, err := m.state.valEnodeTable.GetValEnodes(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var queryEnodeValEnodeEntries []*istanbul.AddressEntry
-	for address, valEnodeEntry := range valEnodeEntries {
-		// Don't generate an announce record for ourselves
-		if address == m.wallets().Ecdsa.Address {
-			continue
-		}
-
-		if valEnodeEntry.Version == valEnodeEntry.HighestKnownVersion {
-			continue
-		}
-
-		if valEnodeEntry.PublicKey == nil {
-			logger.Warn("Cannot generate encrypted enode URL for a val enode entry without a PublicKey", "address", address)
-			continue
-		}
-
-		if enforceRetryBackoff && valEnodeEntry.NumQueryAttemptsForHKVersion > 0 {
-			timeoutFactorPow := math.Min(float64(valEnodeEntry.NumQueryAttemptsForHKVersion-1), 5)
-			timeoutMinutes := int64(math.Pow(1.5, timeoutFactorPow) * 5)
-			timeoutForQuery := time.Duration(timeoutMinutes) * time.Minute
-
-			if time.Since(*valEnodeEntry.LastQueryTimestamp) < timeoutForQuery {
-				continue
-			}
-		}
-
-		queryEnodeValEnodeEntries = append(queryEnodeValEnodeEntries, valEnodeEntry)
-	}
-
-	return queryEnodeValEnodeEntries, nil
 }
 
 // This function will handle a queryEnode message.
