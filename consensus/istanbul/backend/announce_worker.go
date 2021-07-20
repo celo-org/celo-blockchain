@@ -1,8 +1,10 @@
 package backend
 
 import (
+	"sync/atomic"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
@@ -16,44 +18,54 @@ type AnnounceWorker interface {
 
 type worker struct {
 	logger            log.Logger
+	aWallets          *atomic.Value
 	initialWaitPeriod time.Duration
 	checker           ValidatorChecker
 	state             *AnnounceState
 	pruner            AnnounceStatePruner
 	vcGossiper        VersionCertificateGossiper
+	enodeGossiper     EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
+	vpap              ValProxyAssigmnentProvider
 
-	updateAnnounceVersion       func()
-	generateAndGossipQueryEnode func(bool) (*istanbul.Message, error)
+	updateAnnounceVersion func()
 
 	updateAnnounceVersionCh chan struct{}
 	announceThreadQuit      chan struct{}
 }
 
 func NewAnnounceWorker(initialWaitPeriod time.Duration,
+	aWallets *atomic.Value,
 	state *AnnounceState,
 	checker ValidatorChecker,
 	pruner AnnounceStatePruner,
 	vcGossiper VersionCertificateGossiper,
+	enodeGossiper EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
-	updateAnnounceVersion func(),
-	generateAndGossipQueryEnode func(bool) (*istanbul.Message, error)) AnnounceWorker {
+	vpap ValProxyAssigmnentProvider,
+	updateAnnounceVersion func()) AnnounceWorker {
 	return &worker{
 		logger:            log.New("module", "announceWorker"),
+		aWallets:          aWallets,
 		initialWaitPeriod: initialWaitPeriod,
 		checker:           checker,
 		state:             state,
 		pruner:            pruner,
 		vcGossiper:        vcGossiper,
+		enodeGossiper:     enodeGossiper,
 		config:            config,
 		countPeers:        countPeersFn,
+		vpap:              vpap,
 
-		updateAnnounceVersion:       updateAnnounceVersion,
-		generateAndGossipQueryEnode: generateAndGossipQueryEnode,
-		updateAnnounceVersionCh:     make(chan struct{}, 1),
+		updateAnnounceVersion:   updateAnnounceVersion,
+		updateAnnounceVersionCh: make(chan struct{}, 1),
 	}
+}
+
+func (m *worker) wallets() *Wallets {
+	return m.aWallets.Load().(*Wallets)
 }
 
 func (w *worker) Stop() {
@@ -131,4 +143,61 @@ func (w *worker) Run() {
 			return
 		}
 	}
+}
+
+// generateAndGossipAnnounce will generate the lastest announce msg from this node
+// and then broadcast it to it's peers, which should then gossip the announce msg
+// message throughout the p2p network if there has not been a message sent from
+// this node within the last announceGossipCooldownDuration.
+// Note that this function must ONLY be called by the announceThread.
+func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error) {
+	logger := w.logger.New("func", "generateAndGossipQueryEnode")
+	logger.Trace("generateAndGossipQueryEnode called")
+
+	wts := w.wallets()
+	// Retrieve the set valEnodeEntries (and their publicKeys)
+	// for the queryEnode message
+	qeep := NewQueryEnodeEntryProvider(w.state.valEnodeTable)
+	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, wts.Ecdsa.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	valAddresses := make([]common.Address, len(valEnodeEntries))
+	for i, valEnodeEntry := range valEnodeEntries {
+		valAddresses[i] = valEnodeEntry.Address
+	}
+	valProxyAssignments, err := w.vpap.GetValProxyAssignments(valAddresses)
+	if err != nil {
+		return nil, err
+	}
+
+	var enodeQueries []*enodeQuery
+	for _, valEnodeEntry := range valEnodeEntries {
+		if valEnodeEntry.PublicKey != nil {
+			externalEnode := valProxyAssignments[valEnodeEntry.Address]
+			if externalEnode == nil {
+				continue
+			}
+
+			externalEnodeURL := externalEnode.URLv4()
+			enodeQueries = append(enodeQueries, &enodeQuery{
+				recipientAddress:   valEnodeEntry.Address,
+				recipientPublicKey: valEnodeEntry.PublicKey,
+				enodeURL:           externalEnodeURL,
+			})
+		}
+	}
+
+	var qeMsg *istanbul.Message
+	if len(enodeQueries) > 0 {
+		if qeMsg, err = w.enodeGossiper.GossipEnodeQueries(&wts.Ecdsa, enodeQueries); err != nil {
+			return nil, err
+		}
+		if err = w.state.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
+			return nil, err
+		}
+	}
+
+	return qeMsg, err
 }

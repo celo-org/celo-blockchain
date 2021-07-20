@@ -94,7 +94,9 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Generate query enode message for engine0
-	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(false)
+	// TODO: refactor this test to remove the hard dependency on the generate&gossip fn
+	wk := engine0.announceManager.worker.(*worker)
+	qeMsg, err := wk.generateAndGossipQueryEnode(false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}

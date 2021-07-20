@@ -143,10 +143,12 @@ func NewAnnounceManager(
 	peerCounter PeerCounterFn,
 	pruner AnnounceStatePruner,
 	checker ValidatorChecker) *AnnounceManager {
-	vcGossipFunction := func(payload []byte) error {
+	vcGossiper := NewVcGossiper(func(payload []byte) error {
 		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
-	}
-	vcGossiper := NewVcGossiper(vcGossipFunction)
+	})
+	enodeGossiper := NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
+		return network.Gossip(payload, istanbul.QueryEnodeMsg)
+	})
 	am := &AnnounceManager{
 		logger:           log.New("module", "announceManager"),
 		aWallets:         aWallets,
@@ -164,16 +166,6 @@ func NewAnnounceManager(
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
 	}
-	// Gossip the announce after a minute.
-	// The delay allows for all receivers of the announce message to
-	// have a more up-to-date cached registered/elected valset, and
-	// hence more likely that they will be aware that this node is
-	// within that set.
-	waitPeriod := 1 * time.Minute
-	if am.config.Epoch <= 10 {
-		waitPeriod = 5 * time.Second
-	}
-	am.worker = NewAnnounceWorker(waitPeriod, state, checker, pruner, vcGossiper, config, peerCounter, am.updateAnnounceVersion, am.generateAndGossipQueryEnode)
 
 	var efeg ExternalFacingEnodeGetter
 	var vpap ValProxyAssigmnentProvider
@@ -186,6 +178,29 @@ func NewAnnounceManager(
 	}
 	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
 	am.vpap = vpap
+	// Gossip the announce after a minute.
+	// The delay allows for all receivers of the announce message to
+	// have a more up-to-date cached registered/elected valset, and
+	// hence more likely that they will be aware that this node is
+	// within that set.
+	waitPeriod := 1 * time.Minute
+	if am.config.Epoch <= 10 {
+		waitPeriod = 5 * time.Second
+	}
+	am.worker = NewAnnounceWorker(
+		waitPeriod,
+		aWallets,
+		state,
+		checker,
+		pruner,
+		vcGossiper,
+		enodeGossiper,
+		config,
+		peerCounter,
+		vpap,
+		am.updateAnnounceVersion,
+	)
+
 	return am
 }
 
@@ -229,65 +244,6 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 	}
 	m.logger.Debug("Updating announce version", "announceVersion", version)
 	m.announceVersion.Set(version)
-}
-
-// generateAndGossipAnnounce will generate the lastest announce msg from this node
-// and then broadcast it to it's peers, which should then gossip the announce msg
-// message throughout the p2p network if there has not been a message sent from
-// this node within the last announceGossipCooldownDuration.
-// Note that this function must ONLY be called by the announceThread.
-func (m *AnnounceManager) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error) {
-	logger := m.logger.New("func", "generateAndGossipQueryEnode")
-	logger.Trace("generateAndGossipQueryEnode called")
-
-	// Retrieve the set valEnodeEntries (and their publicKeys)
-	// for the queryEnode message
-	qeep := NewQueryEnodeEntryProvider(m.state.valEnodeTable)
-	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, m.wallets().Ecdsa.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	valAddresses := make([]common.Address, len(valEnodeEntries))
-	for i, valEnodeEntry := range valEnodeEntries {
-		valAddresses[i] = valEnodeEntry.Address
-	}
-	valProxyAssignments, err := m.vpap.GetValProxyAssignments(valAddresses)
-	if err != nil {
-		return nil, err
-	}
-
-	var enodeQueries []*enodeQuery
-	for _, valEnodeEntry := range valEnodeEntries {
-		if valEnodeEntry.PublicKey != nil {
-			externalEnode := valProxyAssignments[valEnodeEntry.Address]
-			if externalEnode == nil {
-				continue
-			}
-
-			externalEnodeURL := externalEnode.URLv4()
-			enodeQueries = append(enodeQueries, &enodeQuery{
-				recipientAddress:   valEnodeEntry.Address,
-				recipientPublicKey: valEnodeEntry.PublicKey,
-				enodeURL:           externalEnodeURL,
-			})
-		}
-	}
-
-	var qeMsg *istanbul.Message
-	if len(enodeQueries) > 0 {
-		enodeGossiper := NewEnodeQueryGossiper(m.announceVersion, func(payload []byte) error {
-			return m.network.Gossip(payload, istanbul.QueryEnodeMsg)
-		})
-		if qeMsg, err = enodeGossiper.GossipEnodeQueries(&m.wallets().Ecdsa, enodeQueries); err != nil {
-			return nil, err
-		}
-		if err = m.state.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
-			return nil, err
-		}
-	}
-
-	return qeMsg, err
 }
 
 // This function will handle a queryEnode message.
