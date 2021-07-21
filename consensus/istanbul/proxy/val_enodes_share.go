@@ -39,34 +39,21 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		return nil, err
 	}
 
-	sharedValidatorEnodes := make([]sharedValidatorEnode, 0, len(vetEntries))
+	sharedValidatorEnodes := make([]istanbul.SharedValidatorEnode, 0, len(vetEntries))
 	for address, vetEntry := range vetEntries {
 		if vetEntry.GetNode() == nil {
 			continue
 		}
-		sharedValidatorEnodes = append(sharedValidatorEnodes, sharedValidatorEnode{
+		sharedValidatorEnodes = append(sharedValidatorEnodes, istanbul.SharedValidatorEnode{
 			Address:  address,
 			EnodeURL: vetEntry.GetNode().String(),
 			Version:  vetEntry.GetVersion(),
 		})
 	}
 
-	valEnodesShareData := &valEnodesShareData{
+	msg := istanbul.NewValEnodesShareMessage(&istanbul.ValEnodesShareData{
 		ValEnodes: sharedValidatorEnodes,
-	}
-
-	valEnodesShareBytes, err := rlp.EncodeToBytes(valEnodesShareData)
-	if err != nil {
-		logger.Error("Error encoding Istanbul Validator Enodes Share message content", "ValEnodesShareData", valEnodesShareData.String(), "err", err)
-		return nil, err
-	}
-
-	msg := &istanbul.Message{
-		Code:      istanbul.ValEnodesShareMsg,
-		Msg:       valEnodesShareBytes,
-		Address:   pv.backend.Address(),
-		Signature: []byte{},
-	}
+	}, pv.backend.Address())
 
 	// Sign the validator enode share message
 	if err := msg.Sign(pv.backend.Sign); err != nil {
@@ -74,7 +61,7 @@ func (pv *proxiedValidatorEngine) generateValEnodesShareMsg(remoteValidators []c
 		return nil, err
 	}
 
-	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "ValEnodesShareData", valEnodesShareData.String())
+	logger.Trace("Generated a Istanbul Validator Enodes Share message", "IstanbulMsg", msg.String(), "istanbul.ValEnodesShareData", msg.ValEnodesShareData().String())
 
 	return msg, nil
 }
@@ -140,7 +127,7 @@ func (p *proxyEngine) handleValEnodesShareMsg(peer consensus.Peer, payload []byt
 		return true, errUnauthorizedMessageFromProxiedValidator
 	}
 
-	var valEnodesShareData valEnodesShareData
+	var valEnodesShareData istanbul.ValEnodesShareData
 	err = rlp.DecodeBytes(msg.Msg, &valEnodesShareData)
 	if err != nil {
 		logger.Error("Error in decoding received Istanbul Validator Enodes Share message content", "err", err, "IstanbulMsg", msg.String())

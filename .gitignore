@@ -19,6 +19,9 @@ target
 
 # created when running tests
 /miner/validatorenodes/
+/graphql/roundstates/
+/graphql/validatorenodes/
+/graphql/versioncertificates/
 
 #*
 .#*
