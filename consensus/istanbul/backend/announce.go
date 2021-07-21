@@ -117,16 +117,7 @@ type AnnounceManager struct {
 	announceMu       sync.RWMutex
 	announceThreadWg *sync.WaitGroup
 
-	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
-	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
+	ecertHolder EnodeCertificateMsgHolder
 }
 
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
@@ -159,6 +150,7 @@ func NewAnnounceManager(
 		state:            state,
 		announceVersion:  announceVersion,
 		checker:          checker,
+		ecertHolder:      NewLockedHolder(),
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
 	}
@@ -641,9 +633,7 @@ func getTimestamp() uint {
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
 func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
-	m.enodeCertificateMsgMapMu.Lock()
-	defer m.enodeCertificateMsgMapMu.Unlock()
-	return m.enodeCertificateMsgMap
+	return m.ecertHolder.Get()
 }
 
 // handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
@@ -704,42 +694,7 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 }
 
 func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
-	logger := m.logger.New("func", "SetEnodeCertificateMsgMap")
-	var enodeCertVersion *uint
-
-	// Verify that all of the certificates have the same version
-	for _, enodeCertMsg := range enodeCertMsgMap {
-		enodeCert := enodeCertMsg.Msg.EnodeCertificate()
-
-		if enodeCertVersion == nil {
-			enodeCertVersion = &enodeCert.Version
-		} else {
-			if enodeCert.Version != *enodeCertVersion {
-				logger.Error("enode certificate messages within enode certificate msgs array don't all have the same version")
-				return errInvalidEnodeCertMsgMapInconsistentVersion
-			}
-		}
-	}
-
-	m.enodeCertificateMsgMapMu.Lock()
-	defer m.enodeCertificateMsgMapMu.Unlock()
-
-	// Already have a more recent enodeCertificate
-	if *enodeCertVersion < m.enodeCertificateMsgVersion {
-		logger.Error("Ignoring enode certificate msgs since it's an older version", "enodeCertVersion", *enodeCertVersion, "sb.enodeCertificateMsgVersion", m.enodeCertificateMsgVersion)
-		return istanbul.ErrInvalidEnodeCertMsgMapOldVersion
-	} else if *enodeCertVersion == m.enodeCertificateMsgVersion {
-		// This function may be called with the same enode certificate.
-		// Proxied validators will periodically send the same enode certificate to it's proxies,
-		// to ensure that the proxies to eventually get their enode certificates.
-		logger.Trace("Attempting to set an enode certificate with the same version as the previous set enode certificate's")
-	} else {
-		logger.Debug("Setting enode certificate", "version", *enodeCertVersion)
-		m.enodeCertificateMsgMap = enodeCertMsgMap
-		m.enodeCertificateMsgVersion = *enodeCertVersion
-	}
-
-	return nil
+	return m.ecertHolder.Set(enodeCertMsgMap)
 }
 
 func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
