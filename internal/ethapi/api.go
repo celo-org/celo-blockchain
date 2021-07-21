@@ -1335,30 +1335,30 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	if err != nil {
 		return nil, nil
 	}
-	if tx == nil {
-		// There is no such transaction, so we check whether it's a block hash, so that
-		// we can return the "system calls receipt" for the block if that's the case.
-		// Note that for blocks without any logs from system calls we don't actually
-		// generate a receipt, but for the API we will return an empty receipt in such cases.
-		// And we may choose to add empty receipts to the block itself as well, though that
-		// would be a hard fork change.
-
-		// We first do a quick check to see if the hash corresponds to a block or not, since
-		// on light clients this does not involve an ODR request over the p2p network
-		header, _ := s.b.HeaderByHash(ctx, hash)
-		if header == nil {
-			return nil, nil
-		}
-		blockHash = hash
-		blockNumber = header.Number.Uint64()
-		block, _ := s.b.BlockByNumber(ctx, rpc.BlockNumber(blockNumber))
-		if block == nil {
-			return nil, nil
-		}
-		index = uint64(block.Transactions().Len())
-	}
-
 	receipts, err := s.b.GetReceipts(ctx, blockHash)
+	if err != nil {
+		return nil, err
+	}
+	if len(receipts) <= int(index) {
+		return nil, nil
+	}
+	receipt := receipts[index]
+	fields := generateReceiptResponse(receipt, tx, blockHash, blockNumber, index)
+	return fields, nil
+}
+
+// GetTransactionReceipt returns the transaction receipt for the given transaction hash.
+func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (map[string]interface{}, error) {
+	block, err := s.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+	if block == nil || err != nil {
+		// If specifying a hash and no block is found, err gives "header for hash not found".
+		// But we return nil with no error, to match the behavior of eth_getBlock and eth_getTransactionReceipt in these cases.
+		return nil, nil
+	}
+	index := uint64(block.Transactions().Len())
+	blockHash := block.Hash()
+	blockNumber := block.NumberU64()
+	receipts, err := s.b.GetReceipts(ctx, block.Hash())
 	// GetReceipts() doesn't return an error if things go wrong, so we also check len(receipts)
 	if err != nil || len(receipts) < int(index) {
 		return nil, err
@@ -1373,45 +1373,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	} else {
 		receipt = receipts[index]
 	}
-
-	var from common.Address
-	// use a pointer for `to` because it's nil for contract creation transactions and the system call receipt
-	var to *common.Address
-	if tx != nil {
-		var signer types.Signer = types.FrontierSigner{}
-		if tx.Protected() {
-			signer = types.NewEIP155Signer(tx.ChainId())
-		}
-		from, _ = types.Sender(signer, tx)
-		to = tx.To()
-	}
-	fields := map[string]interface{}{
-		"blockHash":         blockHash,
-		"blockNumber":       hexutil.Uint64(blockNumber),
-		"transactionHash":   hash,
-		"transactionIndex":  hexutil.Uint64(index),
-		"from":              from,
-		"to":                to,
-		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
-		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
-		"contractAddress":   nil,
-		"logs":              receipt.Logs,
-		"logsBloom":         receipt.Bloom,
-	}
-
-	// Assign receipt status or post state.
-	if len(receipt.PostState) > 0 {
-		fields["root"] = hexutil.Bytes(receipt.PostState)
-	} else {
-		fields["status"] = hexutil.Uint(receipt.Status)
-	}
-	if receipt.Logs == nil {
-		fields["logs"] = [][]*types.Log{}
-	}
-	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
-	if receipt.ContractAddress != (common.Address{}) {
-		fields["contractAddress"] = receipt.ContractAddress
-	}
+	fields := generateReceiptResponse(receipt, nil, blockHash, blockNumber, index)
 	return fields, nil
 }
 
@@ -1902,4 +1864,47 @@ func checkTxFee(cm *currency.CurrencyManager, feeCurrency *common.Address, fee *
 		return fmt.Errorf("tx fee (%.2f ether) exceeds the configured cap (%.2f celo)", feeFloat, cap)
 	}
 	return nil
+}
+
+// generateReceiptResponse is a helper function which generates the response for GetTransactionReceipt() and GetBlockReceipt()
+func generateReceiptResponse(receipt *types.Receipt, tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) map[string]interface{} {
+	fields := map[string]interface{}{
+		"blockHash":         blockHash,
+		"blockNumber":       hexutil.Uint64(blockNumber),
+		"transactionHash":   common.Hash{},
+		"transactionIndex":  hexutil.Uint64(index),
+		"from":              common.Address{},
+		"to":                nil,
+		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
+		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
+		"contractAddress":   nil,
+		"logs":              receipt.Logs,
+		"logsBloom":         receipt.Bloom,
+	}
+
+	// Assign receipt status or post state.
+	if len(receipt.PostState) > 0 {
+		fields["root"] = hexutil.Bytes(receipt.PostState)
+	} else {
+		fields["status"] = hexutil.Uint(receipt.Status)
+	}
+	if receipt.Logs == nil {
+		fields["logs"] = [][]*types.Log{}
+	}
+	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
+	if receipt.ContractAddress != (common.Address{}) {
+		fields["contractAddress"] = receipt.ContractAddress
+	}
+	if tx == nil {
+		fields["transactionHash"] = blockHash
+	} else {
+		fields["transactionHash"] = tx.Hash()
+		var signer types.Signer = types.FrontierSigner{}
+		if tx.Protected() {
+			signer = types.NewEIP155Signer(tx.ChainId())
+		}
+		fields["from"], _ = types.Sender(signer, tx)
+		fields["to"] = tx.To()
+	}
+	return fields
 }

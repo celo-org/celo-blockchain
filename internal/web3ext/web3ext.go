@@ -445,6 +445,13 @@ web3._extend({
 			params: 2
 		}),
 		new web3._extend.Method({
+			name: 'getBlockReceipt',
+			call: 'eth_getBlockReceipt',
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter],
+			outputFormatter: web3._extend.formatters.outputTransactionReceiptFormatter
+		}),
+		new web3._extend.Method({
 			name: 'getRawTransaction',
 			call: 'eth_getRawTransactionByHash',
 			params: 1
