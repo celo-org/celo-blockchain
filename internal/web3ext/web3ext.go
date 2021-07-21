@@ -448,7 +448,6 @@ web3._extend({
 			name: 'getBlockReceipt',
 			call: 'eth_getBlockReceipt',
 			params: 1,
-			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter],
 			outputFormatter: web3._extend.formatters.outputTransactionReceiptFormatter
 		}),
 		new web3._extend.Method({

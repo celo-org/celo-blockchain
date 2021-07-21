@@ -1347,16 +1347,15 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	return fields, nil
 }
 
-// GetTransactionReceipt returns the transaction receipt for the given transaction hash.
-func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (map[string]interface{}, error) {
-	block, err := s.b.BlockByNumberOrHash(ctx, blockNrOrHash)
+// GetBlockReceipt returns "system calls" receipt for the block with the given block hash.
+func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
+	block, err := s.b.BlockByHash(ctx, hash)
 	if block == nil || err != nil {
-		// If specifying a hash and no block is found, err gives "header for hash not found".
-		// But we return nil with no error, to match the behavior of eth_getBlock and eth_getTransactionReceipt in these cases.
+		// If no header with that hash is found, err gives "header for hash not found".
+		// But we return nil with no error, to match the behavior of eth_getBlockByHash and eth_getTransactionReceipt in these cases.
 		return nil, nil
 	}
 	index := uint64(block.Transactions().Len())
-	blockHash := block.Hash()
 	blockNumber := block.NumberU64()
 	receipts, err := s.b.GetReceipts(ctx, block.Hash())
 	// GetReceipts() doesn't return an error if things go wrong, so we also check len(receipts)
@@ -1373,7 +1372,7 @@ func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, blockNrO
 	} else {
 		receipt = receipts[index]
 	}
-	fields := generateReceiptResponse(receipt, nil, blockHash, blockNumber, index)
+	fields := generateReceiptResponse(receipt, nil, hash, blockNumber, index)
 	return fields, nil
 }
 
