@@ -127,6 +127,8 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		blockConstructGauge:         metrics.NewRegisteredGauge("miner/worker/block_construct", nil),
 		blockConstructTxsGauge:      metrics.NewRegisteredGauge("miner/worker/block_construct_txs", nil),
 		blockConstructFinalizeGauge: metrics.NewRegisteredGauge("miner/worker/block_construct_finalize", nil),
+		blockConstructRestGauge:     metrics.NewRegisteredGauge("miner/worker/block_construct_rest", nil),
+		blockUpdatePendingGauge:     metrics.NewRegisteredGauge("miner/worker/block_update_pending", nil),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
