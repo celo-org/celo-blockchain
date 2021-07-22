@@ -107,6 +107,8 @@ type worker struct {
 	blockConstructGauge         metrics.Gauge
 	blockConstructTxsGauge      metrics.Gauge
 	blockConstructFinalizeGauge metrics.Gauge
+	blockConstructRestGauge     metrics.Gauge
+	blockUpdatePendingGauge     metrics.Gauge
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, db ethdb.Database) *worker {
@@ -268,6 +270,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		return
 	}
 	w.updatePendingBlock(b)
+	defer func(start time.Time) { w.blockConstructRestGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	if w.isRunning() {
 		if w.fullTaskHook != nil {
 			w.fullTaskHook()
@@ -431,6 +434,7 @@ func (w *worker) submitTaskToEngine(task *task) {
 
 // updatePendingBlock updates pending snapshot block and state.
 func (w *worker) updatePendingBlock(b *blockState) {
+	defer func(start time.Time) { w.blockUpdatePendingGauge.Update(time.Since(start).Nanoseconds()) }(time.Now())
 	w.snapshotMu.Lock()
 	defer w.snapshotMu.Unlock()
 
