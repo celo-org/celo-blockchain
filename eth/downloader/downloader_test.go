@@ -1723,21 +1723,6 @@ func TestPivot(t *testing.T) {
 func (dl *downloadTester) newPlumoPeer(id string, version int, chain *testChain, proofs []types.PlumoProofMetadata) error {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
-	// var lightProofs []istanbul.LightPlumoProof
-	// for _, proof := range proofs {
-	// 	lightProof := istanbul.LightPlumoProof{
-	// 		FirstEpoch: proof.FirstEpoch,
-	// 		LastEpoch: istanbul.LightEpochBlock{
-	// 			Index: proof.LastEpoch,
-	// 		},
-	// 	}
-	// 	lightProofs = append(lightProofs, lightProof)
-	// }
-	// fmt.Printf("Light Proofs %v", lightProofs)
-
-	// Some progress here, now just need to fix the syncing
-
-	// dl.ownPlumoProofs = lightProofs
 
 	peer := &downloadTesterPeer{dl: dl, id: id, chain: chain, knownPlumoProofs: proofs}
 	dl.peers[id] = peer
@@ -1757,6 +1742,7 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 	var headerGaps []headerGap
 	knownPlumoProofs := dlp.knownPlumoProofs
 	var currFrom uint = uint(from)
+	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch)) - 1
 	// Outer loop finding the path
 	for {
 		// Inner loop adding the next proof
@@ -1764,7 +1750,7 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 		var maxRange uint = 0
 		var chosenProofMetadata types.PlumoProofMetadata
 		for _, proofMetadata := range knownPlumoProofs {
-			if proofMetadata.FirstEpoch >= currFrom {
+			if proofMetadata.FirstEpoch >= currEpoch {
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
 					earliestMatch = uint(proofMetadata.FirstEpoch)
@@ -1774,14 +1760,14 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 			}
 		}
 		// No more proofs to add, break
-		if maxRange == 0 && currFrom < earliestMatch {
+		if maxRange == 0 && currEpoch < earliestMatch {
 			// TODO check height
-			amount := int(earliestMatch - currFrom)
+			amount := int(earliestMatch - currEpoch)
 			if amount > maxEpochHeaderFetch {
 				amount = maxEpochHeaderFetch
 			}
 			gap := headerGap{
-				FirstEpoch: currFrom,
+				FirstEpoch: currEpoch,
 				Amount:     amount,
 			}
 			headerGaps = append(headerGaps, gap)
@@ -1789,8 +1775,8 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 		}
 		if currFrom < earliestMatch {
 			gap := headerGap{
-				FirstEpoch: currFrom,
-				Amount:     int(earliestMatch - currFrom),
+				FirstEpoch: currEpoch + 1,
+				Amount:     int(earliestMatch - currEpoch),
 			}
 			headerGaps = append(headerGaps, gap)
 		}
@@ -1798,7 +1784,7 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 		if len(proofsToRequest) >= maxPlumoProofFetch {
 			break
 		}
-		currFrom = chosenProofMetadata.LastEpoch
+		currEpoch = chosenProofMetadata.LastEpoch
 	}
 
 	for _, proofsMetadata := range proofsToRequest {
@@ -1817,7 +1803,6 @@ func (dl *downloadTester) InsertPlumoProofs(lightProofs []istanbul.LightPlumoPro
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	fmt.Println("Inserting plumo proofs")
 	for _, lightProof := range lightProofs {
 		dl.ownPlumoProofs = append(dl.ownPlumoProofs, lightProof)
 	}

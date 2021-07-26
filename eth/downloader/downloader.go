@@ -1238,6 +1238,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 					return errCanceled
 				}
 				// TODO(lucas): This will need work
+
 				// lastFetchedEpochNumber := uint64(lightProofs[len(lightProofs)-1].LastEpoch.Index)
 				// moreEpochFetchesPending := getEpochOrNormalHeaders(lastFetchedEpochNumber)
 				// if !moreEpochFetchesPending {
@@ -1773,9 +1774,7 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			}
 			// gotProofs = true
 
-			log.Error("Getting progress")
-			progress := d.Progress()
-			log.Error("Got progress")
+			currentProgress := d.lightchain.CurrentHeader().Number.Uint64()
 			// for len(lightProofs) > 0 {
 			// Terminate if something failed in between processing chunks
 			select {
@@ -1795,24 +1794,17 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			log.Error("CHecking sanity of loop in downloader", "limit", limit, "light proofs", lightProofs)
 			for i := 0; i < limit; i++ {
 				lightProof := lightProofs[i]
-				log.Error("Iterating over light proofs", "Light proof", lightProof, "i", i, "progress current block", progress.CurrentBlock, "first Epoch", lightProof.FirstEpoch)
-				if uint64(lightProof.FirstEpoch) <= progress.CurrentBlock {
+				if uint64(lightProof.FirstEpoch) <= currentProgress {
 					chunks = append(chunks, lightProof)
 				} else {
-					log.Error("Ignoring proof", "proof", lightProof, "current progress", progress)
 					rejects = append(rejects, lightProof)
 				}
 				lightProofs = lightProofs[i:]
-				origin += 1
+				// origin += 1
 			}
 			if len(rejects) > 0 {
 				log.Error("Sending rejects to delay channel")
-				d.plumoProofDelayCh <- rejects[:1]
-				// if len(d.plumoProofProcCh) != 0 {
-				// 	proofsFromChannel := <-d.plumoProofProcCh
-				// 	rejects = append(rejects, proofsFromChannel...)
-				// }
-				// d.plumoProofProcCh <- rejects
+				// 	d.plumoProofDelayCh <- rejects[:1]
 			}
 			log.Error("Rejects sent", "rejects", rejects)
 			// d.DeliverPlumoProofs("1", rejects)
