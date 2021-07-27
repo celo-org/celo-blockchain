@@ -1774,7 +1774,6 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			}
 			// gotProofs = true
 
-			currentProgress := d.lightchain.CurrentHeader().Number.Uint64()
 			// for len(lightProofs) > 0 {
 			// Terminate if something failed in between processing chunks
 			select {
@@ -1784,43 +1783,22 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 			default:
 			}
 
-			// TODO
-			limit := maxHeadersProcess
-			if limit > len(lightProofs) {
-				limit = len(lightProofs)
-			}
-			var chunks []istanbul.LightPlumoProof
-			var rejects []istanbul.LightPlumoProof
-			log.Error("CHecking sanity of loop in downloader", "limit", limit, "light proofs", lightProofs)
-			for i := 0; i < limit; i++ {
-				lightProof := lightProofs[i]
-				if uint64(lightProof.FirstEpoch) <= currentProgress {
-					chunks = append(chunks, lightProof)
-				} else {
-					rejects = append(rejects, lightProof)
+			for {
+				currentProgress := d.lightchain.CurrentHeader().Number.Uint64()
+				earliestProof := lightProofs[0].FirstEpoch
+				for _, lightProof := range lightProofs {
+					if lightProof.FirstEpoch < earliestProof {
+						earliestProof = lightProof.FirstEpoch
+					}
 				}
-				lightProofs = lightProofs[i:]
-				// origin += 1
+				if uint64(earliestProof) <= currentProgress {
+					break
+				} else {
+					// TODO: add some exponential backoff or abort
+					time.Sleep(200 * time.Millisecond)
+				}
 			}
-			if len(rejects) > 0 {
-				log.Error("Sending rejects to delay channel")
-				// 	d.plumoProofDelayCh <- rejects[:1]
-			}
-			log.Error("Rejects sent", "rejects", rejects)
-			// d.DeliverPlumoProofs("1", rejects)
-			// unknown := make([]istanbul.LightPlumoProof, 0, len(chunk))
-			// for _, lightProof := range chunk {
-			// 	unknown = append(unknown, lightProof)
-			// }
-			if len(chunks) > 0 {
-				log.Error("Inserting plumo proof chunks", "chunks", chunks)
-				d.lightchain.InsertPlumoProofs(chunks)
-				log.Error("Finished inserting plumo proofs")
-				// lightProofs = lightProofs[limit:]
-				// origin += uint64(limit)
-			}
-			log.Error("No more proofs", "rejects", rejects)
-			// }
+			d.lightchain.InsertPlumoProofs(lightProofs)
 		}
 		log.Error("Iterating process plumo proofs")
 	}
