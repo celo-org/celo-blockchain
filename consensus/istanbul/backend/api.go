@@ -190,22 +190,21 @@ func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertifi
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
-	if !api.istanbul.coreStarted {
+	if !api.istanbul.coreStarted.Load().(bool) {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
-// GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) ForceRoundChange() (bool, error) {
-	if !api.istanbul.coreStarted {
+	if !api.istanbul.coreStarted.Load().(bool) {
 		return false, istanbul.ErrStoppedEngine
 	}
 	api.istanbul.core.ForceRoundChange()
 	return true, nil
 }
 
-// Proxies retrieves all the proxied validator's proxies' info
+// GetProxiesInfo retrieves all the proxied validator's proxies' info
 func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 	if api.istanbul.IsProxiedValidator() {
 		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()

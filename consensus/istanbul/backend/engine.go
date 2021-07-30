@@ -627,7 +627,7 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	for {
 		select {
 		case chainEvent := <-chainEventCh:
-			if !sb.coreStarted && sb.replicaState != nil {
+			if !sb.coreStarted.Load().(bool) && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
@@ -643,9 +643,7 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	processBlock func(*types.Block, *state.StateDB) (types.Receipts, []*types.Log, uint64, error),
 	validateState func(*types.Block, *state.StateDB, types.Receipts, uint64) error,
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if sb.coreStarted.Load().(bool) {
 		return istanbul.ErrStartedEngine
 	}
 
@@ -658,14 +656,12 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 
 // StartValidating implements consensus.Istanbul.StartValidating
 func (sb *Backend) StartValidating() error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if sb.coreStarted.Load().(bool) {
 		return istanbul.ErrStartedEngine
 	}
 
 	if sb.hasBadBlock == nil || sb.processBlock == nil || sb.validateState == nil {
-		return errors.New("Must SetBlockProcessors prior to StartValidating")
+		return errors.New("Must SetCallBacks prior to StartValidating")
 	}
 
 	sb.logger.Info("Starting istanbul.Engine validating")
@@ -680,7 +676,7 @@ func (sb *Backend) StartValidating() error {
 		sb.UpdateAnnounceVersion()
 	}
 
-	sb.coreStarted = true
+	sb.coreStarted.Store(true)
 
 	// coreStarted must be true by this point for validator peers to be successfully added
 	if !sb.config.Proxied {
@@ -694,16 +690,14 @@ func (sb *Backend) StartValidating() error {
 
 // StopValidating implements consensus.Istanbul.StopValidating
 func (sb *Backend) StopValidating() error {
-	sb.coreMu.Lock()
-	defer sb.coreMu.Unlock()
-	if !sb.coreStarted {
+	if !sb.coreStarted.Load().(bool) {
 		return istanbul.ErrStoppedEngine
 	}
 	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
-	sb.coreStarted = false
+	sb.coreStarted.Store(false)
 
 	return nil
 }

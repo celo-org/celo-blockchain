@@ -201,9 +201,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 func (sb *Backend) NewWork() error {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
+	if !sb.coreStarted.Load().(bool) {
 		return istanbul.ErrStoppedEngine
 	}
 
@@ -221,9 +219,6 @@ func (sb *Backend) NewWork() error {
 // the parent block, because different nodes circulate different versions.
 // The bitmap of signed validators only becomes canonical when the child block is proposed.
 func (sb *Backend) UpdateMetricsForParentOfBlock(child *types.Block) {
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-
 	// Check the parent is not the genesis block.
 	number := child.Number().Uint64()
 	if number <= 1 {
@@ -337,10 +332,6 @@ func (sb *Backend) newChainHead(newBlock *types.Block) {
 	// * If this is a node maintaining validator connections (e.g. a proxy or a standalone validator), refresh the validator enode table.
 	// * If this is a proxied validator, notify the proxied validator engine of a new epoch.
 	if istanbul.IsLastBlockOfEpoch(newBlock.Number().Uint64(), sb.config.Epoch) {
-
-		sb.coreMu.RLock()
-		defer sb.coreMu.RUnlock()
-
 		valSet := sb.getValidators(newBlock.Number().Uint64(), newBlock.Hash())
 		valSetIndex, _ := valSet.GetByAddress(sb.ValidatorAddress())
 
