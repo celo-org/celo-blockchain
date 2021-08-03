@@ -647,10 +647,10 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 
 	sb.coreStartedMu.RLock()
+	defer sb.coreStartedMu.RUnlock()
 	if sb.coreStarted {
 		return istanbul.ErrStartedEngine
 	}
-	sb.coreStartedMu.RUnlock()
 
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
