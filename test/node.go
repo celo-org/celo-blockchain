@@ -397,10 +397,32 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 	// wait for snapshotBlock to be set. Therefore there is currently no way to
 	// know when it is safe to call estimate gas.  What we do here is sleep a
 	// bit and cross our fingers.
+	//
+	// It looks like there is another race condition as well, we need to ensure
+	// that all nodes are connected or maybe that all nodes protocols have
+	// started before sending enode certificates.
 	time.Sleep(25 * time.Millisecond)
 
-	version := uint(time.Now().Unix())
+	start := time.Now()
+	for {
+		all2 := true
+		for _, n := range network {
+			b := n.Eth.Engine().(*backend.Backend)
+			ps := len(b.GetPeers())
+			if ps > 2 {
+				panic("more than 2 peers")
+			}
+			if ps < 2 {
+				all2 = false
+			}
+		}
+		if all2 {
+			break
+		}
+	}
+	println("--------------------- peer finding took ", time.Since(start).String())
 
+	version := uint(time.Now().Unix())
 	// Share enode certificates between nodes, nodes wont consider other nodes
 	// valid validators without seeing an enode certificate message from them.
 	for i := range network {

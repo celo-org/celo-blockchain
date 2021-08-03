@@ -78,6 +78,10 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 	return err
 }
 
+func (sb *Backend) GetPeers() map[enode.ID]consensus.Peer {
+	return sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
+}
+
 // Gossip implements istanbul.Backend.Gossip
 // Gossip will gossip the eth message to all connected peers
 func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
@@ -103,6 +107,9 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 		}
 	}
 
+	if ethMsgCode == istanbul.EnodeCertificateMsg {
+		println("---------------------------- gossiping to", len(peersToSendMsg))
+	}
 	sb.asyncMulticast(peersToSendMsg, payload, ethMsgCode)
 
 	return nil

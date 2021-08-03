@@ -535,6 +535,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return errors.New("nil StateProcessResult")
 	}
 
+	println(" --------------------------------- Committed", "address", sb.Address().String(), "number", proposal.Number().Uint64())
 	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 
 	// If caller didn't provide a result, try verifying the block to produce one
