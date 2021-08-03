@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -79,7 +80,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger:                             logger,
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
-		coreStarted:                        false,
+		coreStarted:                        0,
 		announceRunning:                    false,
 		peerRecentMessages:                 peerRecentMessages,
 		selfRecentMessages:                 selfRecentMessages,
@@ -192,9 +193,10 @@ type Backend struct {
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	// the channels for istanbul engine notifications
-	coreStarted bool
-	coreMu      sync.RWMutex
+	// This is accessed atomically through the use of atomic.XXX methods.
+	coreStarted uint32
+
+	coreMu sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -339,9 +341,7 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
 	// TODO: Maybe a little laggy, but primary / replica should track the core
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	return sb.coreStarted
+	return atomic.LoadUint32(&sb.coreStarted) == 1
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)

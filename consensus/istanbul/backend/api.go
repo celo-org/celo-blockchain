@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
@@ -190,7 +191,7 @@ func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertifi
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
-	if !api.istanbul.coreStarted {
+	if atomic.LoadUint32(&api.istanbul.coreStarted) == 0 {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
@@ -198,7 +199,7 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) ForceRoundChange() (bool, error) {
-	if !api.istanbul.coreStarted {
+	if atomic.LoadUint32(&api.istanbul.coreStarted) == 0 {
 		return false, istanbul.ErrStoppedEngine
 	}
 	api.istanbul.core.ForceRoundChange()
