@@ -688,11 +688,11 @@ func (sb *Backend) StartValidating() error {
 	atomic.StoreUint32(&sb.coreStarted, 1)
 
 	// coreStarted must be true by this point for validator peers to be successfully added
-	if !sb.config.Proxied {
-		if err := sb.RefreshValPeers(); err != nil {
-			sb.logger.Warn("Error refreshing validator peers", "err", err)
-		}
-	}
+	// if !sb.config.Proxied {
+	// 	if err := sb.RefreshValPeers(); err != nil {
+	// 		sb.logger.Warn("Error refreshing validator peers", "err", err)
+	// 	}
+	// }
 
 	return nil
 }

@@ -85,7 +85,7 @@ func (vph *validatorPeerHandler) thread() {
 		}
 	}
 
-	refreshValPeersFunc()
+	//refreshValPeersFunc()
 	// Every 5 minute, check to see if we need to refresh the validator peers
 	for {
 		select {
