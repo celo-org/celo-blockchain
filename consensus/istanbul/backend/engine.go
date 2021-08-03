@@ -628,12 +628,11 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 		select {
 		case chainEvent := <-chainEventCh:
 			sb.coreStartedMu.RLock()
-			coreStarted := sb.coreStarted
-			sb.coreStartedMu.RUnlock()
-			if !coreStarted && sb.replicaState != nil {
+			if !sb.coreStarted && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
+			sb.coreStartedMu.RUnlock()
 		case err := <-chainEventSub.Err():
 			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
 			return
@@ -648,11 +647,10 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 
 	sb.coreStartedMu.RLock()
-	coreStarted := sb.coreStarted
-	sb.coreStartedMu.RUnlock()
-	if coreStarted {
+	if sb.coreStarted {
 		return istanbul.ErrStartedEngine
 	}
+	sb.coreStartedMu.RUnlock()
 
 	sb.hasBadBlock = hasBadBlock
 	sb.processBlock = processBlock
