@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -627,7 +628,7 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	for {
 		select {
 		case chainEvent := <-chainEventCh:
-			if !sb.coreStarted && sb.replicaState != nil {
+			if atomic.LoadUint32(&sb.coreStarted) == 0 && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
@@ -645,7 +646,7 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if atomic.LoadUint32(&sb.coreStarted) == 1 {
 		return istanbul.ErrStartedEngine
 	}
 
@@ -664,7 +665,7 @@ func (sb *Backend) StartValidating() error {
 	}
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if atomic.LoadUint32(&sb.coreStarted) == 1 {
 		return istanbul.ErrStartedEngine
 	}
 
@@ -684,7 +685,7 @@ func (sb *Backend) StartValidating() error {
 		sb.UpdateAnnounceVersion()
 	}
 
-	sb.coreStarted = true
+	atomic.StoreUint32(&sb.coreStarted, 1)
 
 	// coreStarted must be true by this point for validator peers to be successfully added
 	if !sb.config.Proxied {
@@ -704,14 +705,15 @@ func (sb *Backend) StopValidating() error {
 	}
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if !sb.coreStarted {
+	if atomic.LoadUint32(&sb.coreStarted) == 0 {
 		return istanbul.ErrStoppedEngine
 	}
 	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
-	sb.coreStarted = false
+
+	atomic.StoreUint32(&sb.coreStarted, 0)
 
 	return nil
 }

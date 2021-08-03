@@ -18,6 +18,7 @@ package backend
 
 import (
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -203,7 +204,7 @@ func (sb *Backend) NewWork() error {
 
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
+	if atomic.LoadUint32(&sb.coreStarted) == 0 {
 		return istanbul.ErrStoppedEngine
 	}
 
