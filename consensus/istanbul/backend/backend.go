@@ -119,6 +119,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger:                             logger,
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
+		coreStarted:                        false,
 		announceRunning:                    false,
 		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		announceThreadWg:                   new(sync.WaitGroup),
@@ -141,11 +142,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-
-	// Initialize atomic values
 	backend.aWallets.Store(&Wallets{})
-	backend.coreStarted.Store(false)
-
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
@@ -234,7 +231,8 @@ type Backend struct {
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	coreStarted atomic.Value
+	coreStarted   bool
+	coreStartedMu sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -361,7 +359,9 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
-	return sb.coreStarted.Load().(bool)
+	sb.coreStartedMu.RLock()
+	defer sb.coreStartedMu.RUnlock()
+	return sb.coreStarted
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)
