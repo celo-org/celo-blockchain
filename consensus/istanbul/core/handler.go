@@ -93,9 +93,7 @@ func (c *core) unsubscribeEvents() {
 
 func (c *core) handleEvents() {
 	// Clear state
-	defer func() {
-		c.handlerWg.Done()
-	}()
+	defer c.handlerWg.Done()
 
 	c.handlerWg.Add(1)
 

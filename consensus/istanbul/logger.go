@@ -39,7 +39,7 @@ func (l *istLogger) New(ctx ...interface{}) log.Logger {
 }
 
 func (l *istLogger) Trace(msg string, ctx ...interface{}) {
-	// If the current round > 1, then upgrade this message to Info
+	// If the current round > 0, then upgrade this message to Info
 	if l.round != nil && l.round() != nil && l.round().Cmp(common.Big1) > 0 {
 		l.Info(msg, ctx...)
 	} else {
