@@ -388,6 +388,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 			n.Server().AddPeer(en, p2p.ValidatorPurpose)
 			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Give nodes some time to connect. Also there is a race condition in
@@ -407,6 +408,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 	for {
 		all2 := true
 		for _, n := range network {
+			n.Node.Server().PeerCount()
 			b := n.Eth.Engine().(*backend.Backend)
 			ps := len(b.GetPeers())
 			if ps > 2 {
@@ -419,6 +421,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 		if all2 {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 	println("--------------------- peer finding took ", time.Since(start).String())
 
