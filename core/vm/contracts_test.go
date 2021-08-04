@@ -161,6 +161,7 @@ func loadJSONFail(name string) ([]precompiledFailureTest, error) {
 // precompiledTest defines the input/output pairs for precompiled contract tests.
 type precompiledTest struct {
 	Input, Expected string
+	Gas             uint64
 	Name            string
 	NoBenchmark     bool // Benchmark primarily the worst-cases
 	ErrorExpected   bool
@@ -891,6 +892,9 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 				t.Errorf("Expected %v, got %v", test.Expected, common.Bytes2Hex(res))
 			}
 		}
+		if expGas := test.Gas; expGas != gas {
+			t.Errorf("%v: gas wrong, expected %d, got %d", test.Name, expGas, gas)
+		}
 		// Verify that the precompile did not touch the input buffer
 		exp := common.Hex2Bytes(test.Input)
 		if !bytes.Equal(in, exp) {
@@ -949,20 +953,22 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 
 	bench.Run(fmt.Sprintf("%s-Gas=%d", test.Name, reqGas), func(bench *testing.B) {
 		bench.ReportAllocs()
-		start := time.Now().Nanosecond()
+		start := time.Now()
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
 			res, _, err = RunPrecompiledContract(p, data, reqGas, common.HexToAddress("1337"), mockEVM)
 		}
 		bench.StopTimer()
-		elapsed := float64(time.Now().Nanosecond() - start)
+		elapsed := uint64(time.Since(start))
 		if elapsed < 1 {
 			elapsed = 1
 		}
 		gasUsed := reqGas * uint64(bench.N)
 		bench.ReportMetric(float64(reqGas), "gas/op")
-		bench.ReportMetric(float64(gasUsed*1000)/elapsed, "mgas/s")
+		// Keep it as uint64, multiply 100 to get two digit float later
+		mgasps := (100 * 1000 * gasUsed) / elapsed
+		bench.ReportMetric(float64(mgasps)/100, "mgas/s")
 		//Check if it is correct
 		if err != nil {
 			bench.Error(err)
@@ -1028,6 +1034,9 @@ func BenchmarkPrecompiledModExp(bench *testing.B) {
 		benchmarkPrecompiled("05", test, bench)
 	}
 }
+
+func TestPrecompiledModExpEip2565(t *testing.T)      { testJSON("modexp_eip2565", "f5", t) }
+func BenchmarkPrecompiledModExpEip2565(b *testing.B) { benchJSON("modexp_eip2565", "f5", b) }
 
 // Tests the sample inputs from the elliptic curve addition EIP 213.
 func TestPrecompiledBn256Add(t *testing.T) {

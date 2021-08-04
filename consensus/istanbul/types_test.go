@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 func TestViewCompare(t *testing.T) {
@@ -98,7 +99,7 @@ func dummyBlock(number int64) *types.Block {
 	feeCurrencyAddr := common.HexToAddress("02")
 	gatewayFeeRecipientAddr := common.HexToAddress("03")
 	tx := types.NewTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, &gatewayFeeRecipientAddr, big.NewInt(34), []byte{04})
-	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
+	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil, new(trie.Trie))
 }
 func dummyMessage(code uint64) *Message {
 	msg := NewPrepareMessage(dummySubject(), common.HexToAddress("AABB"))

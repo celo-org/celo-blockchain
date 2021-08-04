@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 
@@ -347,11 +348,13 @@ func (st *StateTransition) debitFee(from common.Address, amount *big.Int, feeCur
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
-		nonce := st.state.GetNonce(st.msg.From())
-		if nonce < st.msg.Nonce() {
-			return ErrNonceTooHigh
-		} else if nonce > st.msg.Nonce() {
-			return ErrNonceTooLow
+		stNonce := st.state.GetNonce(st.msg.From())
+		if msgNonce := st.msg.Nonce(); stNonce < msgNonce {
+			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooHigh,
+				st.msg.From().Hex(), msgNonce, stNonce)
+		} else if stNonce > msgNonce {
+			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooLow,
+				st.msg.From().Hex(), msgNonce, stNonce)
 		}
 	}
 
@@ -392,7 +395,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 7. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Clause 0
-	if st.msg.EthCompatible() && !st.evm.ChainConfig().IsDonut(st.evm.BlockNumber) {
+	if st.msg.EthCompatible() && !st.evm.ChainConfig().IsDonut(st.evm.Context.BlockNumber) {
 		return nil, ErrEthCompatibleTransactionsNotSupported
 	}
 	if err := CheckEthCompatibility(st.msg); err != nil {
@@ -405,7 +408,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
-	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
+	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
@@ -421,7 +424,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// If the intrinsic gas is more than provided in the tx, return without failing.
 	if gas > st.msg.Gas() {
-		return nil, ErrIntrinsicGas
+		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.msg.Gas(), gas)
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
 	err = st.payFees()
@@ -432,8 +435,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	st.gas -= gas
 
 	// Check clause 7
-	if msg.Value().Sign() > 0 && !st.evm.CanTransfer(st.state, msg.From(), msg.Value()) {
-		return nil, ErrInsufficientFundsForTransfer
+	if msg.Value().Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) {
+		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
 	}
 	var (
 		ret   []byte
@@ -499,7 +502,7 @@ func (st *StateTransition) distributeTxFees() error {
 
 	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
-		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
+		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
 		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
@@ -508,11 +511,11 @@ func (st *StateTransition) distributeTxFees() error {
 		if governanceAddress != common.ZeroAddress {
 			st.state.AddBalance(governanceAddress, baseTxFee)
 		}
-		st.state.AddBalance(st.evm.Coinbase, tipTxFee)
+		st.state.AddBalance(st.evm.Context.Coinbase, tipTxFee)
 		st.state.AddBalance(from, refund)
 	} else {
-		if err = st.creditGasFees(from, st.evm.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
-			log.Error("Error crediting", "from", from, "coinbase", st.evm.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
+		if err = st.creditGasFees(from, st.evm.Context.Coinbase, gatewayFeeRecipient, governanceAddress, refund, tipTxFee, st.msg.GatewayFee(), baseTxFee, feeCurrency); err != nil {
+			log.Error("Error crediting", "from", from, "coinbase", st.evm.Context.Coinbase, "gateway", gatewayFeeRecipient, "fund", governanceAddress)
 			return err
 		}
 

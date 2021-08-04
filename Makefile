@@ -134,9 +134,11 @@ android:
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
 	@echo "Done building."
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
+	@echo "Import \"$(GOBIN)/geth-sources.jar\" to add javadocs"
+	@echo "For more info see https://stackoverflow.com/questions/20994336/android-studio-how-to-attach-javadoc"
 	@echo "Remove patch for mobile libs..."
 	git apply -R patches/mobileLibsForBuild.patch
-
+	
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd

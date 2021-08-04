@@ -170,8 +170,8 @@ func (typedData *TypedData) EncodeData(primaryType string, data map[string]inter
 	buffer := bytes.Buffer{}
 
 	// Verify extra data
-	if len(typedData.Types[primaryType]) < len(data) {
-		return nil, errors.New("there is extra data provided in the message")
+	if exp, got := len(typedData.Types[primaryType]), len(data); exp < got {
+		return nil, fmt.Errorf("there is extra data provided in the message (%d < %d)", exp, got)
 	}
 
 	// Add typehash
@@ -237,7 +237,7 @@ func parseBytes(encType interface{}) ([]byte, bool) {
 	case []byte:
 		return v, true
 	case hexutil.Bytes:
-		return []byte(v), true
+		return v, true
 	case string:
 		bytes, err := hexutil.Decode(v)
 		if err != nil {
@@ -519,7 +519,11 @@ func (nvt *NameValueType) Pprint(depth int) string {
 			output.WriteString(sublevel)
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("%q\n", nvt.Value))
+		if nvt.Value != nil {
+			output.WriteString(fmt.Sprintf("%q\n", nvt.Value))
+		} else {
+			output.WriteString("\n")
+		}
 	}
 	return output.String()
 }

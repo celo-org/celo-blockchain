@@ -30,7 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/p2p/dnsdisc"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (

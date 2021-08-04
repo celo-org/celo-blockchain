@@ -38,7 +38,7 @@ import (
 
 func TestSimulatedBackend(t *testing.T) {
 	key, _ := crypto.GenerateKey() // nolint: gosec
-	auth := bind.NewKeyedTransactor(key)
+	auth, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
 
@@ -128,8 +128,8 @@ func TestNewSimulatedBackend(t *testing.T) {
 		t.Errorf("expected sim blockchain config to equal params.IstanbulTestChainConfig, got %v", sim.config)
 	}
 
-	statedb, _ := sim.blockchain.State()
-	bal := statedb.GetBalance(testAddr)
+	stateDB, _ := sim.blockchain.State()
+	bal := stateDB.GetBalance(testAddr)
 	if bal.Cmp(expectedBal) != 0 {
 		t.Errorf("expected balance for test address not received. expected: %v actual: %v", expectedBal, bal)
 	}
@@ -140,14 +140,51 @@ func TestSimulatedBackend_AdjustTime(t *testing.T) {
 	defer sim.Close()
 
 	prevTime := sim.pendingBlock.Time()
-	err := sim.AdjustTime(time.Second)
-	if err != nil {
+	if err := sim.AdjustTime(time.Second); err != nil {
 		t.Error(err)
 	}
 	newTime := sim.pendingBlock.Time()
 
 	if newTime-prevTime != uint64(time.Second.Seconds()) {
 		t.Errorf("adjusted time not equal to a second. prev: %v, new: %v", prevTime, newTime)
+	}
+}
+
+func TestNewSimulatedBackend_AdjustTimeFail(t *testing.T) {
+	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
+	sim := simTestBackend(testAddr)
+	// Create tx and send
+	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
+	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
+	if err != nil {
+		t.Errorf("could not sign tx: %v", err)
+	}
+	sim.SendTransaction(context.Background(), signedTx)
+	// AdjustTime should fail on non-empty block
+	if err := sim.AdjustTime(time.Second); err == nil {
+		t.Error("Expected adjust time to error on non-empty block")
+	}
+	sim.Commit()
+
+	prevTime := sim.pendingBlock.Time()
+	if err := sim.AdjustTime(time.Minute); err != nil {
+		t.Error(err)
+	}
+	newTime := sim.pendingBlock.Time()
+	if newTime-prevTime != uint64(time.Minute.Seconds()) {
+		t.Errorf("adjusted time not equal to a minute. prev: %v, new: %v", prevTime, newTime)
+	}
+	// Put a transaction after adjusting time
+	tx2 := types.NewTransaction(1, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
+	signedTx2, err := types.SignTx(tx2, types.HomesteadSigner{}, testKey)
+	if err != nil {
+		t.Errorf("could not sign tx: %v", err)
+	}
+	sim.SendTransaction(context.Background(), signedTx2)
+	sim.Commit()
+	newTime = sim.pendingBlock.Time()
+	if newTime-prevTime >= uint64(time.Minute.Seconds()) {
+		t.Errorf("time adjusted, but shouldn't be: prev: %v, new: %v", prevTime, newTime)
 	}
 }
 
@@ -367,7 +404,7 @@ func TestSimulatedBackend_EstimateGas(t *testing.T) {
 
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
-	opts := bind.NewKeyedTransactor(key)
+	opts, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 
 	sim := NewSimulatedBackend(core.GenesisAlloc{addr: {Balance: big.NewInt(params.Ether)}})
 	defer sim.Close()
@@ -774,7 +811,7 @@ func TestSimulatedBackend_PendingCodeAt(t *testing.T) {
 	if err != nil {
 		t.Errorf("could not get code at test addr: %v", err)
 	}
-	auth := bind.NewKeyedTransactor(testKey)
+	auth, _ := bind.NewKeyedTransactorWithChainID(testKey, big.NewInt(1337))
 	contractAddr, tx, contract, err := bind.DeployContract(auth, parsed, common.FromHex(abiBin), sim)
 	if err != nil {
 		t.Errorf("could not deploy contract: %v tx: %v contract: %v", err, tx, contract)
@@ -810,7 +847,7 @@ func TestSimulatedBackend_CodeAt(t *testing.T) {
 	if err != nil {
 		t.Errorf("could not get code at test addr: %v", err)
 	}
-	auth := bind.NewKeyedTransactor(testKey)
+	auth, _ := bind.NewKeyedTransactorWithChainID(testKey, big.NewInt(1337))
 	contractAddr, tx, contract, err := bind.DeployContract(auth, parsed, common.FromHex(abiBin), sim)
 	if err != nil {
 		t.Errorf("could not deploy contract: %v tx: %v contract: %v", err, tx, contract)
@@ -842,7 +879,7 @@ func TestSimulatedBackend_PendingAndCallContract(t *testing.T) {
 	if err != nil {
 		t.Errorf("could not get code at test addr: %v", err)
 	}
-	contractAuth := bind.NewKeyedTransactor(testKey)
+	contractAuth, _ := bind.NewKeyedTransactorWithChainID(testKey, big.NewInt(1337))
 	addr, _, _, err := bind.DeployContract(contractAuth, parsed, common.FromHex(abiBin), sim)
 	if err != nil {
 		t.Errorf("could not deploy contract: %v", err)
@@ -929,7 +966,7 @@ func TestSimulatedBackend_CallContractRevert(t *testing.T) {
 	if err != nil {
 		t.Errorf("could not get code at test addr: %v", err)
 	}
-	contractAuth := bind.NewKeyedTransactor(testKey)
+	contractAuth, _ := bind.NewKeyedTransactorWithChainID(testKey, big.NewInt(1337))
 	addr, _, _, err := bind.DeployContract(contractAuth, parsed, common.FromHex(reverterBin), sim)
 	if err != nil {
 		t.Errorf("could not deploy contract: %v", err)

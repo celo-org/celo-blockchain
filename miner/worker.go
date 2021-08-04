@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 const (
@@ -225,6 +226,7 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
+	atomic.StoreInt32(&w.running, 0)
 	close(w.exitCh)
 }
 
@@ -430,6 +432,7 @@ func (w *worker) updatePendingBlock(b *blockState) {
 		b.txs,
 		b.receipts,
 		b.randomness,
+		new(trie.Trie),
 	)
 
 	w.snapshotState = b.state.Copy()

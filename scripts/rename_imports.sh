@@ -3,4 +3,4 @@ find . \
      -not -path "./monorepo/*" \
      -type f \
      -name '*.go' \
-     -exec sed -i "" "s|github.com/ethereum/go-ethereum|github.com/celo-org/celo-blockchain|" {} \;
+     -exec sed -i "" "/https\:\/\//! s|github.com/ethereum/go-ethereum|github.com/celo-org/celo-blockchain|" {} \;

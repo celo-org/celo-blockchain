@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/celo-org/celo-blockchain/params"
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (

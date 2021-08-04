@@ -918,6 +918,7 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 			nilSlot++
 		}
 		errs[nilSlot] = err
+		nilSlot++
 	}
 	// Reorg the pool internals if needed and return
 	done := pool.requestPromoteExecutables(dirtyAddrs)
@@ -1550,6 +1551,8 @@ func (pool *TxPool) demoteUnexecutables() {
 				pool.enqueueTx(hash, tx)
 			}
 			pendingGauge.Dec(int64(len(gapped)))
+			// This might happen in a reorg, so log it to the metering
+			blockReorgInvalidatedTx.Mark(int64(len(gapped)))
 		}
 		// Delete the entire pending entry if it became empty.
 		if list.Empty() {

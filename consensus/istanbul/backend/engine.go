@@ -38,6 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -512,7 +513,7 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	}
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
 	return block, nil
 }
 

@@ -59,8 +59,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
 	"github.com/celo-org/celo-blockchain/params"
-	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 func init() {
@@ -146,7 +145,7 @@ var (
 	DocRootFlag = DirectoryFlag{
 		Name:  "docroot",
 		Usage: "Document Root for HTTPClient file scheme",
-		Value: DirectoryString(homeDir()),
+		Value: DirectoryString(HomeDir()),
 	}
 	ExitWhenSyncedFlag = cli.BoolFlag{
 		Name:  "exitwhensynced",
@@ -364,7 +363,10 @@ var (
 		Name:  "cache.noprefetch",
 		Usage: "Disable heuristic state prefetch during block import (less CPU and disk IO, more time waiting for data)",
 	}
-
+	CachePreimagesFlag = cli.BoolTFlag{
+		Name:  "cache.preimages",
+		Usage: "Enable recording the SHA3/keccak preimages of trie keys (default: true)",
+	}
 	// Miner settings
 
 	MiningEnabledFlag = cli.BoolFlag{
@@ -406,12 +408,12 @@ var (
 		Name:  "allow-insecure-unlock",
 		Usage: "Allow insecure account unlocking when account-related RPCs are exposed by http",
 	}
-	RPCGlobalGasCap = cli.Uint64Flag{
+	RPCGlobalGasCapFlag = cli.Uint64Flag{
 		Name:  "rpc.gascap",
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas (0=infinite)",
 		Value: eth.DefaultConfig.RPCGasCap,
 	}
-	RPCGlobalTxFeeCap = cli.Float64Flag{
+	RPCGlobalTxFeeCapFlag = cli.Float64Flag{
 		Name:  "rpc.txfeecap",
 		Usage: "Sets a cap on transaction fee (in celo) that can be sent via the RPC APIs (0 = no cap)",
 		Value: eth.DefaultConfig.RPCTxFeeCap,
@@ -591,12 +593,12 @@ var (
 	WhisperMaxMessageSizeFlag = cli.IntFlag{
 		Name:  "shh.maxmessagesize",
 		Usage: "Max message size accepted",
-		Value: int(whisper.DefaultMaxMessageSize),
+		Value: 1024 * 1024,
 	}
 	WhisperMinPOWFlag = cli.Float64Flag{
 		Name:  "shh.pow",
 		Usage: "Minimum POW accepted",
-		Value: whisper.DefaultMinimumPoW,
+		Value: 0.2,
 	}
 	WhisperRestrictConnectionBetweenLightClientsFlag = cli.BoolFlag{
 		Name:  "shh.restrict-light",
@@ -783,9 +785,9 @@ func GetBootstrapNodes(ctx *cli.Context) []string {
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name):
 		if ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name) {
-			urls = splitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
+			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
 		} else {
-			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
+			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
@@ -823,9 +825,9 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
 		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
-			urls = splitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
+			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
 		} else {
-			urls = splitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
+			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 		}
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
@@ -867,13 +869,12 @@ func setNAT(ctx *cli.Context, cfg *p2p.Config) {
 	}
 }
 
-// splitAndTrim splits input separated by a comma
+// SplitAndTrim splits input separated by a comma
 // and trims excessive white space from the substrings.
-func splitAndTrim(input string) (ret []string) {
+func SplitAndTrim(input string) (ret []string) {
 	l := strings.Split(input, ",")
 	for _, r := range l {
-		r = strings.TrimSpace(r)
-		if len(r) > 0 {
+		if r = strings.TrimSpace(r); r != "" {
 			ret = append(ret, r)
 		}
 	}
@@ -907,27 +908,27 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 	}
 
 	if ctx.GlobalIsSet(LegacyRPCCORSDomainFlag.Name) {
-		cfg.HTTPCors = splitAndTrim(ctx.GlobalString(LegacyRPCCORSDomainFlag.Name))
+		cfg.HTTPCors = SplitAndTrim(ctx.GlobalString(LegacyRPCCORSDomainFlag.Name))
 		log.Warn("The flag --rpccorsdomain is deprecated and will be removed in the future, please use --http.corsdomain")
 	}
 	if ctx.GlobalIsSet(HTTPCORSDomainFlag.Name) {
-		cfg.HTTPCors = splitAndTrim(ctx.GlobalString(HTTPCORSDomainFlag.Name))
+		cfg.HTTPCors = SplitAndTrim(ctx.GlobalString(HTTPCORSDomainFlag.Name))
 	}
 
 	if ctx.GlobalIsSet(LegacyRPCApiFlag.Name) {
-		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(LegacyRPCApiFlag.Name))
+		cfg.HTTPModules = SplitAndTrim(ctx.GlobalString(LegacyRPCApiFlag.Name))
 		log.Warn("The flag --rpcapi is deprecated and will be removed in the future, please use --http.api")
 	}
 	if ctx.GlobalIsSet(HTTPApiFlag.Name) {
-		cfg.HTTPModules = splitAndTrim(ctx.GlobalString(HTTPApiFlag.Name))
+		cfg.HTTPModules = SplitAndTrim(ctx.GlobalString(HTTPApiFlag.Name))
 	}
 
 	if ctx.GlobalIsSet(LegacyRPCVirtualHostsFlag.Name) {
-		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(LegacyRPCVirtualHostsFlag.Name))
+		cfg.HTTPVirtualHosts = SplitAndTrim(ctx.GlobalString(LegacyRPCVirtualHostsFlag.Name))
 		log.Warn("The flag --rpcvhosts is deprecated and will be removed in the future, please use --http.vhosts")
 	}
 	if ctx.GlobalIsSet(HTTPVirtualHostsFlag.Name) {
-		cfg.HTTPVirtualHosts = splitAndTrim(ctx.GlobalString(HTTPVirtualHostsFlag.Name))
+		cfg.HTTPVirtualHosts = SplitAndTrim(ctx.GlobalString(HTTPVirtualHostsFlag.Name))
 	}
 }
 
@@ -935,10 +936,10 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 // command line flags, returning empty if the GraphQL endpoint is disabled.
 func setGraphQL(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(GraphQLCORSDomainFlag.Name) {
-		cfg.GraphQLCors = splitAndTrim(ctx.GlobalString(GraphQLCORSDomainFlag.Name))
+		cfg.GraphQLCors = SplitAndTrim(ctx.GlobalString(GraphQLCORSDomainFlag.Name))
 	}
 	if ctx.GlobalIsSet(GraphQLVirtualHostsFlag.Name) {
-		cfg.GraphQLVirtualHosts = splitAndTrim(ctx.GlobalString(GraphQLVirtualHostsFlag.Name))
+		cfg.GraphQLVirtualHosts = SplitAndTrim(ctx.GlobalString(GraphQLVirtualHostsFlag.Name))
 	}
 }
 
@@ -964,19 +965,19 @@ func setWS(ctx *cli.Context, cfg *node.Config) {
 	}
 
 	if ctx.GlobalIsSet(LegacyWSAllowedOriginsFlag.Name) {
-		cfg.WSOrigins = splitAndTrim(ctx.GlobalString(LegacyWSAllowedOriginsFlag.Name))
+		cfg.WSOrigins = SplitAndTrim(ctx.GlobalString(LegacyWSAllowedOriginsFlag.Name))
 		log.Warn("The flag --wsorigins is deprecated and will be removed in the future, please use --ws.origins")
 	}
 	if ctx.GlobalIsSet(WSAllowedOriginsFlag.Name) {
-		cfg.WSOrigins = splitAndTrim(ctx.GlobalString(WSAllowedOriginsFlag.Name))
+		cfg.WSOrigins = SplitAndTrim(ctx.GlobalString(WSAllowedOriginsFlag.Name))
 	}
 
 	if ctx.GlobalIsSet(LegacyWSApiFlag.Name) {
-		cfg.WSModules = splitAndTrim(ctx.GlobalString(LegacyWSApiFlag.Name))
+		cfg.WSModules = SplitAndTrim(ctx.GlobalString(LegacyWSApiFlag.Name))
 		log.Warn("The flag --wsapi is deprecated and will be removed in the future, please use --ws.api")
 	}
 	if ctx.GlobalIsSet(WSApiFlag.Name) {
-		cfg.WSModules = splitAndTrim(ctx.GlobalString(WSApiFlag.Name))
+		cfg.WSModules = SplitAndTrim(ctx.GlobalString(WSApiFlag.Name))
 	}
 }
 
@@ -1535,15 +1536,12 @@ func CheckExclusive(ctx *cli.Context, args ...interface{}) {
 }
 
 // SetShhConfig applies shh-related command line flags to the config.
-func SetShhConfig(ctx *cli.Context, stack *node.Node, cfg *whisper.Config) {
-	if ctx.GlobalIsSet(WhisperMaxMessageSizeFlag.Name) {
-		cfg.MaxMessageSize = uint32(ctx.GlobalUint(WhisperMaxMessageSizeFlag.Name))
-	}
-	if ctx.GlobalIsSet(WhisperMinPOWFlag.Name) {
-		cfg.MinimumAcceptedPOW = ctx.GlobalFloat64(WhisperMinPOWFlag.Name)
-	}
-	if ctx.GlobalIsSet(WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
-		cfg.RestrictConnectionBetweenLightClients = true
+func SetShhConfig(ctx *cli.Context, stack *node.Node) {
+	if ctx.GlobalIsSet(WhisperEnabledFlag.Name) ||
+		ctx.GlobalIsSet(WhisperMaxMessageSizeFlag.Name) ||
+		ctx.GlobalIsSet(WhisperMinPOWFlag.Name) ||
+		ctx.GlobalIsSet(WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
+		log.Warn("Whisper support has been deprecated and the code has been moved to github.com/ethereum/whisper")
 	}
 }
 
@@ -1611,6 +1609,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(CacheNoPrefetchFlag.Name) {
 		cfg.NoPrefetch = ctx.GlobalBool(CacheNoPrefetchFlag.Name)
 	}
+	// Read the value from the flag no matter if it's set or not.
+	cfg.Preimages = ctx.GlobalBool(CachePreimagesFlag.Name)
+	if cfg.NoPruning && !cfg.Preimages {
+		cfg.Preimages = true
+		log.Info("Enabling recording of key preimages since archive mode is used")
+	}
 	if ctx.GlobalIsSet(TxLookupLimitFlag.Name) {
 		cfg.TxLookupLimit = ctx.GlobalUint64(TxLookupLimitFlag.Name)
 	}
@@ -1648,28 +1652,28 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(EVMInterpreterFlag.Name) {
 		cfg.EVMInterpreter = ctx.GlobalString(EVMInterpreterFlag.Name)
 	}
-
-	if ctx.GlobalIsSet(RPCGlobalGasCap.Name) {
-		cfg.RPCGasCap = ctx.GlobalUint64(RPCGlobalGasCap.Name)
+	if ctx.GlobalIsSet(RPCGlobalGasCapFlag.Name) {
+		cfg.RPCGasCap = ctx.GlobalUint64(RPCGlobalGasCapFlag.Name)
 	}
 	if cfg.RPCGasCap != 0 {
 		log.Info("Set global gas cap", "cap", cfg.RPCGasCap)
 	} else {
 		log.Info("Global gas cap disabled")
 	}
-
-	if ctx.GlobalIsSet(RPCGlobalTxFeeCap.Name) {
-		cfg.RPCTxFeeCap = ctx.GlobalFloat64(RPCGlobalTxFeeCap.Name)
+	if ctx.GlobalIsSet(RPCGlobalTxFeeCapFlag.Name) {
+		cfg.RPCTxFeeCap = ctx.GlobalFloat64(RPCGlobalTxFeeCapFlag.Name)
 	}
 
 	// Disable DNS discovery by default (by using the flag's value even if it hasn't been set and so
 	// has the default value ""), since we don't have DNS discovery set up for Celo.
 	// Note that passing --discovery.dns "" is the way the Geth docs specify for disabling DNS discovery,
 	// so here we just make that be the default.
-	if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
+	if ctx.GlobalIsSet(NoDiscoverFlag.Name) {
+		cfg.DiscoveryURLs = []string{}
+	} else if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
 		cfg.DiscoveryURLs = []string{}
 	} else {
-		cfg.DiscoveryURLs = splitAndTrim(urls)
+		cfg.DiscoveryURLs = SplitAndTrim(urls)
 	}
 
 	// Override any default configs for hard coded networks.
@@ -1680,13 +1684,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.NetworkId = params.BaklavaNetworkId
 		}
 		cfg.Genesis = core.DefaultBaklavaGenesisBlock()
-		setDNSDiscoveryDefaults(cfg, params.BaklavaGenesisHash)
+		SetDNSDiscoveryDefaults(cfg, params.BaklavaGenesisHash)
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.AlfajoresNetworkId
 		}
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
-		setDNSDiscoveryDefaults(cfg, params.AlfajoresGenesisHash)
+		SetDNSDiscoveryDefaults(cfg, params.AlfajoresGenesisHash)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1733,14 +1737,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
-			setDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
+			SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 		}
 	}
 }
 
-// setDNSDiscoveryDefaults configures DNS discovery with the given URL if
+// SetDNSDiscoveryDefaults configures DNS discovery with the given URL if
 // no URLs are set.
-func setDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
+func SetDNSDiscoveryDefaults(cfg *eth.Config, genesis common.Hash) {
 	if cfg.DiscoveryURLs != nil {
 		return // already set through flags/config
 	}
@@ -1762,26 +1766,18 @@ func RegisterEthService(stack *node.Node, cfg *eth.Config) ethapi.Backend {
 			Fatalf("Failed to register the Ethereum service: %v", err)
 		}
 		return backend.ApiBackend
-	} else {
-		backend, err := eth.New(stack, cfg)
+	}
+	backend, err := eth.New(stack, cfg)
+	if err != nil {
+		Fatalf("Failed to register the Ethereum service: %v", err)
+	}
+	if cfg.LightServ > 0 {
+		_, err := les.NewLesServer(stack, backend, cfg)
 		if err != nil {
-			Fatalf("Failed to register the Ethereum service: %v", err)
+			Fatalf("Failed to create the LES server: %v", err)
 		}
-		if cfg.LightServ > 0 {
-			_, err := les.NewLesServer(stack, backend, cfg)
-			if err != nil {
-				Fatalf("Failed to create the LES server: %v", err)
-			}
-		}
-		return backend.APIBackend
 	}
-}
-
-// RegisterShhService configures Whisper and adds it to the given node.
-func RegisterShhService(stack *node.Node, cfg *whisper.Config) {
-	if _, err := whisper.New(stack, cfg); err != nil {
-		Fatalf("Failed to register the Whisper service: %v", err)
-	}
+	return backend.APIBackend
 }
 
 // RegisterEthStatsService configures the Ethereum Stats daemon and adds it to
@@ -1903,6 +1899,11 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readOnly bool) (chain *core.B
 		TrieDirtyDisabled:   ctx.GlobalString(GCModeFlag.Name) == "archive",
 		TrieTimeLimit:       eth.DefaultConfig.TrieTimeout,
 		SnapshotLimit:       eth.DefaultConfig.SnapshotCache,
+		Preimages:           ctx.GlobalBool(CachePreimagesFlag.Name),
+	}
+	if cache.TrieDirtyDisabled && !cache.Preimages {
+		cache.Preimages = true
+		log.Info("Enabling recording of key preimages since archive mode is used")
 	}
 	if !ctx.GlobalBool(SnapshotFlag.Name) {
 		cache.SnapshotLimit = 0 // Disabled
