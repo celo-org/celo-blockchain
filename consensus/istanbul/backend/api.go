@@ -190,8 +190,8 @@ func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertifi
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
-	api.istanbul.coreStartedMu.RLock()
-	defer api.istanbul.coreStartedMu.RUnlock()
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
 
 	if !api.istanbul.coreStarted {
 		return nil, istanbul.ErrStoppedEngine
@@ -200,8 +200,8 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 }
 
 func (api *API) ForceRoundChange() (bool, error) {
-	api.istanbul.coreStartedMu.RLock()
-	defer api.istanbul.coreStartedMu.RUnlock()
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
 
 	if !api.istanbul.coreStarted {
 		return false, istanbul.ErrStoppedEngine

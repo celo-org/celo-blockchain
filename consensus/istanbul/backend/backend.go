@@ -231,8 +231,8 @@ type Backend struct {
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	coreStarted   bool
-	coreStartedMu sync.RWMutex
+	coreStarted bool
+	coreMu      sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -359,8 +359,8 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
-	sb.coreStartedMu.RLock()
-	defer sb.coreStartedMu.RUnlock()
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
 	return sb.coreStarted
 }
 
