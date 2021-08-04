@@ -359,6 +359,7 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
+	// TODO: Maybe a little laggy, but primary / replica should track the core
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	return sb.coreStarted
