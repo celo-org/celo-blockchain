@@ -1100,7 +1100,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Attestations ABI
+  ]`) // Attestations ABI
 	abis["Attestations"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -2528,7 +2528,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// BlockchainParameters ABI
+  ]`) // BlockchainParameters ABI
 	abis["BlockchainParameters"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -3259,7 +3259,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// DoubleSigningSlasher ABI
+  ]`) // DoubleSigningSlasher ABI
 	abis["DoubleSigningSlasher"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -3993,7 +3993,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// DowntimeSlasher ABI
+  ]`) // DowntimeSlasher ABI
 	abis["DowntimeSlasher"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -4963,7 +4963,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// Election ABI
+  ]`) // Election ABI
 	abis["Election"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -6614,7 +6614,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// EpochRewards ABI
+  ]`) // EpochRewards ABI
 	abis["EpochRewards"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -7747,7 +7747,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Escrow ABI
+  ]`) // Escrow ABI
 	abis["Escrow"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -8300,7 +8300,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Exchange ABI
+  ]`) // Exchange ABI
 	abis["Exchange"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -8984,7 +8984,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// ExchangeEUR ABI
+  ]`) // ExchangeEUR ABI
 	abis["ExchangeEUR"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -9668,7 +9668,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// FeeCurrencyWhitelist ABI
+  ]`) // FeeCurrencyWhitelist ABI
 	abis["FeeCurrencyWhitelist"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -9818,7 +9818,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Freezer ABI
+  ]`) // Freezer ABI
 	abis["Freezer"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -9968,7 +9968,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// GasPriceMinimum ABI
+  ]`) // GasPriceMinimum ABI
 	abis["GasPriceMinimum"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -10391,7 +10391,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GoldToken ABI
+  ]`) // GoldToken ABI
 	abis["GoldToken"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -10946,7 +10946,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Governance ABI
+  ]`) // Governance ABI
 	abis["Governance"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -13316,7 +13316,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GovernanceApproverMultiSig ABI
+  ]`) // GovernanceApproverMultiSig ABI
 	abis["GovernanceApproverMultiSig"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -13964,7 +13964,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// GovernanceSlasher ABI
+  ]`) // GovernanceSlasher ABI
 	abis["GovernanceSlasher"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -14227,7 +14227,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// LockedGold ABI
+  ]`) // LockedGold ABI
 	abis["LockedGold"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -14962,7 +14962,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// Proxy ABI
+  ]`) // Proxy ABI
 	abis["Proxy"] = mustParseABI(`[
     {
       "inputs": [],
@@ -15081,7 +15081,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Random ABI
+  ]`) // Random ABI
 	abis["Random"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -15698,7 +15698,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Registry ABI
+  ]`) // Registry ABI
 	abis["Registry"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -15973,7 +15973,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// Reserve ABI
+  ]`) // Reserve ABI
 	abis["Reserve"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -17227,7 +17227,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// ReserveSpenderMultiSig ABI
+  ]`) // ReserveSpenderMultiSig ABI
 	abis["ReserveSpenderMultiSig"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -17875,7 +17875,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// SortedOracles ABI
+  ]`) // SortedOracles ABI
 	abis["SortedOracles"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -18586,7 +18586,7 @@ func init() {
       "stateMutability": "view",
       "type": "function"
     }
-  ]`)// StableToken ABI
+  ]`) // StableToken ABI
 	abis["StableToken"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -19744,7 +19744,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// StableTokenEUR ABI
+  ]`) // StableTokenEUR ABI
 	abis["StableTokenEUR"] = mustParseABI(`[
     {
       "anonymous": false,
@@ -20902,7 +20902,7 @@ func init() {
       "stateMutability": "pure",
       "type": "function"
     }
-  ]`)// TransferWhitelist ABI
+  ]`) // TransferWhitelist ABI
 	abis["TransferWhitelist"] = mustParseABI(`[
     {
       "inputs": [
@@ -21211,7 +21211,7 @@ func init() {
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ]`)// Validators ABI
+  ]`) // Validators ABI
 	abis["Validators"] = mustParseABI(`[
     {
       "anonymous": false,
