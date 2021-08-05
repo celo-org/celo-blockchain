@@ -480,15 +480,11 @@ func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer
 		validAddresses[address] = true
 		validEntries = append(validEntries, versionCertificate)
 	}
-	if err := m.upsertAndGossipVersionCertificateEntries(validEntries); err != nil {
+	if err := m.ovcp.Process(m.state, validEntries, m.wallets().Ecdsa.Address); err != nil {
 		logger.Warn("Error upserting and gossiping entries", "err", err)
 		return err
 	}
 	return nil
-}
-
-func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(versionCertificates []*istanbul.VersionCertificate) error {
-	return m.ovcp.Process(m.state, versionCertificates, m.wallets().Ecdsa.Address)
 }
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
@@ -530,7 +526,7 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 	}
 
 	if len(enodeCertificateMsgs) > 0 {
-		if err := m.SetEnodeCertificateMsgMap(enodeCertificateMsgs); err != nil {
+		if err := m.ecertHolder.Set(enodeCertificateMsgs); err != nil {
 			logger.Error("Error in SetEnodeCertificateMsgMap", "err", err)
 			return err
 		}
@@ -570,9 +566,13 @@ func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error 
 	if err != nil {
 		return err
 	}
-	return m.upsertAndGossipVersionCertificateEntries([]*istanbul.VersionCertificate{
-		newVersionCertificate,
-	})
+	return m.ovcp.Process(
+		m.state,
+		[]*istanbul.VersionCertificate{
+			newVersionCertificate,
+		},
+		w.Ecdsa.Address,
+	)
 }
 
 func getTimestamp() uint {
