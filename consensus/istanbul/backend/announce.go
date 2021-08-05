@@ -106,6 +106,8 @@ type AnnounceManager struct {
 
 	checker ValidatorChecker
 
+	ovcp OutboundVersionCertificateProcessor
+
 	ecertGenerator EnodeCertificateMsgGenerator
 	worker         AnnounceWorker
 
@@ -150,6 +152,7 @@ func NewAnnounceManager(
 		state:            state,
 		announceVersion:  announceVersion,
 		checker:          checker,
+		ovcp:             NewOutboundVCProcessor(checker, addrProvider, vcGossiper),
 		ecertHolder:      NewLockedHolder(),
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
@@ -485,59 +488,7 @@ func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer
 }
 
 func (m *AnnounceManager) upsertAndGossipVersionCertificateEntries(versionCertificates []*istanbul.VersionCertificate) error {
-	logger := m.logger.New("func", "upsertAndGossipVersionCertificateEntries")
-	shouldProcess, err := m.checker.IsElectedOrNearValidator()
-	if err != nil {
-		logger.Warn("Error in checking if should process queryEnode", err)
-	}
-
-	if shouldProcess {
-		w := m.wallets()
-		// Update entries in val enode db
-		var valEnodeEntries []*istanbul.AddressEntry
-		for _, entry := range versionCertificates {
-			// Don't add ourselves into the val enode table
-			if entry.Address() == w.Ecdsa.Address {
-				continue
-			}
-			// Update the HighestKnownVersion for this address. Upsert will
-			// only update this entry if the HighestKnownVersion is greater
-			// than the existing one.
-			// Also store the PublicKey for future encryption in queryEnode msgs
-			valEnodeEntries = append(valEnodeEntries, &istanbul.AddressEntry{
-				Address:             entry.Address(),
-				PublicKey:           entry.PublicKey(),
-				HighestKnownVersion: entry.Version,
-			})
-		}
-		if err := m.state.valEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
-			logger.Warn("Error upserting val enode table entries", "err", err)
-		}
-	}
-
-	newVCs, err := m.state.versionCertificateTable.Upsert(versionCertificates)
-	if err != nil {
-		logger.Warn("Error upserting version certificate table entries", "err", err)
-	}
-
-	// Only regossip entries that do not originate from an address that we have
-	// gossiped a version certificate for within the last 5 minutes, excluding
-	// our own address.
-	var versionCertificatesToRegossip []*istanbul.VersionCertificate
-
-	for _, entry := range newVCs {
-		lastGossipTime, ok := m.state.lastVersionCertificatesGossiped.Get(entry.Address())
-		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address() != m.addrProvider.ValidatorAddress() {
-			continue
-		}
-		versionCertificatesToRegossip = append(versionCertificatesToRegossip, entry)
-		m.state.lastVersionCertificatesGossiped.Set(entry.Address(), time.Now())
-	}
-
-	if len(versionCertificatesToRegossip) > 0 {
-		return m.vcGossiper.Gossip(versionCertificatesToRegossip)
-	}
-	return nil
+	return m.ovcp.Process(m.state, versionCertificates, m.wallets().Ecdsa.Address)
 }
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
