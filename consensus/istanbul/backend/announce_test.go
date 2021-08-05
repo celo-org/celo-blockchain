@@ -210,7 +210,7 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
-	if err := engine.announceManager.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
+	if err := engine.announceManager.avs.ShareVersion(announceVersion); err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 

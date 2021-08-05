@@ -108,6 +108,8 @@ type AnnounceManager struct {
 
 	ovcp OutboundVersionCertificateProcessor
 
+	avs AnnounceVersionSharer
+
 	ecertGenerator EnodeCertificateMsgGenerator
 	worker         AnnounceWorker
 
@@ -160,14 +162,18 @@ func NewAnnounceManager(
 
 	var efeg ExternalFacingEnodeGetter
 	var vpap ValProxyAssigmnentProvider
+	var onNewEnodeMsgs OnNewEnodeCertsMsgSentFn
 	if am.isProxiedValidator() {
 		efeg = NewProxiedExternalFacingEnodeGetter(proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
 		vpap = NewProxiedValProxyAssigmentProvider(proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments)
+		onNewEnodeMsgs = proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies
 	} else {
 		efeg = NewSelfExternalFacingEnodeGetter(addrProvider.SelfNode)
 		vpap = NewSelfValProxyAssigmentProvider(addrProvider.SelfNode)
+		onNewEnodeMsgs = nil
 	}
 	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
+	am.avs = NewAnnounceVersionSharer(aWallets, network, state, am.ovcp, am.ecertGenerator, am.ecertHolder, onNewEnodeMsgs)
 	am.vpap = vpap
 	// Gossip the announce after a minute.
 	// The delay allows for all receivers of the announce message to
@@ -229,7 +235,7 @@ func (m *AnnounceManager) updateAnnounceVersion() {
 		m.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
 		return
 	}
-	if err := m.setAndShareUpdatedAnnounceVersion(version); err != nil {
+	if err := m.avs.ShareVersion(version); err != nil {
 		m.logger.Warn("Error updating announce version", "err", err)
 		return
 	}
@@ -495,84 +501,6 @@ func (m *AnnounceManager) UpdateAnnounceVersion() {
 // GetAnnounceVersion will retrieve the current announce version.
 func (m *AnnounceManager) GetAnnounceVersion() uint {
 	return m.announceVersion.Get()
-}
-
-// setAndShareUpdatedAnnounceVersion generates announce data structures and
-// and shares them with relevant nodes.
-// It will:
-//  1) Generate a new enode certificate
-//  2) Multicast the new enode certificate to all peers in the validator conn set
-//	   * Note: If this is a proxied validator, it's multicast message will be wrapped within a forward
-//       message to the proxy, which will in turn send the enode certificate to remote validators.
-//  3) Generate a new version certificate
-//  4) Gossip the new version certificate to all peers
-func (m *AnnounceManager) setAndShareUpdatedAnnounceVersion(version uint) error {
-	logger := m.logger.New("func", "setAndShareUpdatedAnnounceVersion")
-	// Send new versioned enode msg to all other registered or elected validators
-	validatorConnSet, err := m.network.RetrieveValidatorConnSet()
-	if err != nil {
-		return err
-	}
-	w := m.wallets()
-	// Don't send any of the following messages if this node is not in the validator conn set
-	if !validatorConnSet[w.Ecdsa.Address] {
-		logger.Trace("Not in the validator conn set, not updating announce version")
-		return nil
-	}
-
-	enodeCertificateMsgs, err := m.ecertGenerator.GenerateEnodeCertificateMsgs(&w.Ecdsa, version)
-	if err != nil {
-		return err
-	}
-
-	if len(enodeCertificateMsgs) > 0 {
-		if err := m.ecertHolder.Set(enodeCertificateMsgs); err != nil {
-			logger.Error("Error in SetEnodeCertificateMsgMap", "err", err)
-			return err
-		}
-	}
-
-	valConnArray := make([]common.Address, 0, len(validatorConnSet))
-	for address := range validatorConnSet {
-		valConnArray = append(valConnArray, address)
-	}
-
-	for _, enodeCertMsg := range enodeCertificateMsgs {
-		var destAddresses []common.Address
-		if enodeCertMsg.DestAddresses != nil {
-			destAddresses = enodeCertMsg.DestAddresses
-		} else {
-			// Send to all of the addresses in the validator connection set
-			destAddresses = valConnArray
-		}
-
-		payload, err := enodeCertMsg.Msg.Payload()
-		if err != nil {
-			logger.Error("Error getting payload of enode certificate message", "err", err)
-			return err
-		}
-
-		if err := m.network.Multicast(destAddresses, payload, istanbul.EnodeCertificateMsg, false); err != nil {
-			return err
-		}
-	}
-
-	if m.isProxiedValidator() {
-		m.proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies(enodeCertificateMsgs)
-	}
-
-	// Generate and gossip a new version certificate
-	newVersionCertificate, err := istanbul.NewVersionCertificate(version, w.Ecdsa.Sign)
-	if err != nil {
-		return err
-	}
-	return m.ovcp.Process(
-		m.state,
-		[]*istanbul.VersionCertificate{
-			newVersionCertificate,
-		},
-		w.Ecdsa.Address,
-	)
 }
 
 func getTimestamp() uint {
