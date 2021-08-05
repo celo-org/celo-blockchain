@@ -1,0 +1,648 @@
+Checking getExchangeSpenders. spenders = []
+Checking medianRate. numerator = 1000000000000000000000000  denominator = 1000000000000000000000000 
+Checking gas price minimum. cusdValue = 100000000
+INFO [08-05|11:49:24.139] Starting peer-to-peer node               node=BA69F instance=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.199] TCP listener up                          node=BA69F addr=[::]:44911
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=admin
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=admin
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=debug
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=web3
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=txpool
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=debug
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=debug
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+INFO [08-05|11:49:24.199] Started P2P networking                   node=BA69F self="enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@127.0.0.1:44911?discport=0"
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=personal
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=istanbul
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=miner
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=eth
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=admin
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=debug
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=debug
+DEBUG[08-05|11:49:24.199] InProc registered                        node=BA69F namespace=net
+INFO [08-05|11:49:24.200] HTTP endpoint opened                     node=BA69F url=http://[::]:42915/ cors= vhosts=
+INFO [08-05|11:49:24.200] WebSocket endpoint opened                node=BA69F url=ws://[::]:42915
+0xBA69 Start Announce
+INFO [08-05|11:49:24.244] Starting peer-to-peer node               node=a94A7 instance=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.279] TCP listener up                          node=a94A7 addr=[::]:40249
+DEBUG[08-05|11:49:24.279] InProc registered                        node=a94A7 namespace=admin
+DEBUG[08-05|11:49:24.279] InProc registered                        node=a94A7 namespace=admin
+DEBUG[08-05|11:49:24.279] InProc registered                        node=a94A7 namespace=debug
+DEBUG[08-05|11:49:24.279] InProc registered                        node=a94A7 namespace=web3
+DEBUG[08-05|11:49:24.279] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=txpool
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=debug
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=debug
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+INFO [08-05|11:49:24.280] Started P2P networking                   node=a94A7 self="enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@127.0.0.1:40249?discport=0"
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=personal
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=istanbul
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=miner
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=eth
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=admin
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=debug
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=debug
+DEBUG[08-05|11:49:24.280] InProc registered                        node=a94A7 namespace=net
+INFO [08-05|11:49:24.280] HTTP endpoint opened                     node=a94A7 url=http://[::]:35893/ cors= vhosts=
+INFO [08-05|11:49:24.280] WebSocket endpoint opened                node=a94A7 url=ws://[::]:35893
+0xa94A Start Announce
+INFO [08-05|11:49:24.324] Starting peer-to-peer node               node=4E2FF instance=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.380] TCP listener up                          node=4E2FF addr=[::]:34983
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=admin
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=admin
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=debug
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=web3
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.381] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=txpool
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=debug
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=debug
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+INFO [08-05|11:49:24.382] Started P2P networking                   node=4E2FF self="enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@127.0.0.1:34983?discport=0"
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=personal
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=istanbul
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=miner
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=eth
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=admin
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=debug
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=debug
+DEBUG[08-05|11:49:24.382] InProc registered                        node=4E2FF namespace=net
+INFO [08-05|11:49:24.383] HTTP endpoint opened                     node=4E2FF url=http://[::]:35789/ cors= vhosts=
+INFO [08-05|11:49:24.383] WebSocket endpoint opened                node=4E2FF url=ws://[::]:35789
+0x4E2F Start Announce
+goroutine 3304 [running]:
+runtime/debug.Stack(0xc000f35cb8, 0x84a14a, 0xc000329470)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc000fb9b80, 0xc000329340, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.399] Adding static node                       node=a94A7 node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.399] Adding trusted node                      node=a94A7 node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.399] Adding static node                       node=a94A7 id=f3e3ed3704025597 ip=:: added=true
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x4b4a78)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc00315f8c0, 0xc000329340, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.399] Starting p2p dial                        node=a94A7 id=f3e3ed3704025597 ip=:: flag=staticdial
+TRACE[08-05|11:49:24.399] Adding static node                       node=4E2FF node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.399] Adding trusted node                      node=4E2FF node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.399] Adding static node                       node=4E2FF id=f3e3ed3704025597 ip=:: added=true
+TRACE[08-05|11:49:24.399] Accepted connection                      node=BA69F addr=[::1]:57784
+TRACE[08-05|11:49:24.399] Starting p2p dial                        node=4E2FF id=f3e3ed3704025597 ip=:: flag=staticdial
+TRACE[08-05|11:49:24.400] Accepted connection                      node=BA69F addr=[::1]:57786
+DEBUG[08-05|11:49:24.401] Adding p2p peer                          node=BA69F peercount=1 id=f25e2d4b4f256228 conn=inbound            addr=[::1]:57786 name=celo/v1.0.0/linux-am...
+DEBUG[08-05|11:49:24.401] Adding p2p peer                          node=4E2FF peercount=1 id=f3e3ed3704025597 conn=trusted-staticdial addr=[::1]:44911 name=celo/v1.0.0/linux-am...
+TRACE[08-05|11:49:24.401] Starting protocol istanbul/66            node=BA69F id=f25e2d4b4f256228 conn=inbound
+TRACE[08-05|11:49:24.401] Starting protocol istanbul/66            node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial
+starting protocol goroutine 3640 [running]:
+runtime/debug.Stack(0xc0069b6f80, 0xc012accaa0, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0002dd3b0, 0xc0042cd980, 0xc013cc0360)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0002dd3b0, 0x1232bc0, 0xc004c68900, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc011d7b340, 0xc0002dd3b0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+starting protocol goroutine 3719 [running]:
+runtime/debug.Stack(0xc0050b4dc0, 0xc0140d00c0, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0004ccaf0, 0xc003ab5da0, 0xc0008214a0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0004ccaf0, 0x1232bc0, 0xc00024f900, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc00315f8c0, 0xc0004ccaf0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+INFO [08-05|11:49:24.402] Ethereum peer connected                  node=BA69F id=f25e2d4b4f256228 conn=inbound            name=celo/v1.0.0/linux-amd64/go1.16.5
+INFO [08-05|11:49:24.402] Ethereum peer connected                  node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial name=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.402] Adding p2p peer                          node=a94A7 peercount=1 id=f3e3ed3704025597 conn=trusted-staticdial addr=[::1]:44911 name=celo/v1.0.0/linux-am...
+DEBUG[08-05|11:49:24.402] Adding p2p peer                          node=BA69F peercount=2 id=a00d632657df12f9 conn=inbound            addr=[::1]:57784 name=celo/v1.0.0/linux-am...
+TRACE[08-05|11:49:24.402] Starting protocol istanbul/66            node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial
+TRACE[08-05|11:49:24.402] Starting protocol istanbul/66            node=BA69F id=a00d632657df12f9 conn=inbound
+starting protocol goroutine 3328 [running]:
+runtime/debug.Stack(0xc01244a400, 0xc000748000, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0002e2620, 0xc00433a000, 0xc001062c60)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0002e2620, 0x1232bc0, 0xc01389a400, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc000fb9b80, 0xc0002e2620)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+starting protocol goroutine 3657 [running]:
+runtime/debug.Stack(0xc0074082e0, 0xc004cd7f60, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc000377260, 0xc00521ac00, 0xc0055205a0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc000377260, 0x1232bc0, 0xc012b5a880, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc011d7b340, 0xc000377260)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+INFO [08-05|11:49:24.402] Ethereum peer connected                  node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial name=celo/v1.0.0/linux-amd64/go1.16.5
+INFO [08-05|11:49:24.402] Ethereum peer connected                  node=BA69F id=a00d632657df12f9 conn=inbound            name=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.402] Peer completed Istanbul handshake        node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial forcePeer=true
+DEBUG[08-05|11:49:24.402] Peer completed Istanbul handshake        node=BA69F id=f25e2d4b4f256228 conn=inbound            forcePeer=false
+DEBUG[08-05|11:49:24.402] Peer completed Istanbul handshake        node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial forcePeer=true
+DEBUG[08-05|11:49:24.402] Peer completed Istanbul handshake        node=BA69F id=a00d632657df12f9 conn=inbound            forcePeer=false
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x7fa185445800, 0x30)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc011d7b340, 0xc0003293b0, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.410] Adding static node                       node=BA69F node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.410] Adding trusted node                      node=BA69F node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x4b4a78)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc00315f8c0, 0xc0003293b0, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.410] Adding static node                       node=BA69F id=a00d632657df12f9 ip=:: added=true
+TRACE[08-05|11:49:24.410] Adding static node                       node=4E2FF node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.410] Adding trusted node                      node=4E2FF node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.410] Adding static node                       node=4E2FF id=a00d632657df12f9 ip=:: added=true
+TRACE[08-05|11:49:24.410] Starting p2p dial                        node=4E2FF id=a00d632657df12f9 ip=:: flag=staticdial
+TRACE[08-05|11:49:24.410] Accepted connection                      node=a94A7 addr=[::1]:48004
+DEBUG[08-05|11:49:24.412] Adding p2p peer                          node=4E2FF peercount=2 id=a00d632657df12f9 conn=trusted-staticdial addr=[::1]:40249 name=celo/v1.0.0/linux-am...
+TRACE[08-05|11:49:24.412] Starting protocol istanbul/66            node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial
+DEBUG[08-05|11:49:24.412] Adding p2p peer                          node=a94A7 peercount=2 id=f25e2d4b4f256228 conn=inbound            addr=[::1]:48004 name=celo/v1.0.0/linux-am...
+starting protocol goroutine 3503 [running]:
+runtime/debug.Stack(0xc0038b3d80, 0xc004cc2f80, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0004c4f50, 0xc0049c2c60, 0xc006a950e0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0004c4f50, 0x1232bc0, 0xc012d2b680, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc00315f8c0, 0xc0004c4f50)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+INFO [08-05|11:49:24.412] Ethereum peer connected                  node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial name=celo/v1.0.0/linux-amd64/go1.16.5
+TRACE[08-05|11:49:24.412] Starting protocol istanbul/66            node=a94A7 id=f25e2d4b4f256228 conn=inbound
+starting protocol goroutine 3796 [running]:
+runtime/debug.Stack(0xc013c478a0, 0xc013699800, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc004e2a070, 0xc004354de0, 0xc0130f9ec0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc004e2a070, 0x1232bc0, 0xc01250bb00, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc000fb9b80, 0xc004e2a070)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+INFO [08-05|11:49:24.412] Ethereum peer connected                  node=a94A7 id=f25e2d4b4f256228 conn=inbound            name=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.412] Peer completed Istanbul handshake        node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial forcePeer=true
+DEBUG[08-05|11:49:24.412] Peer completed Istanbul handshake        node=a94A7 id=f25e2d4b4f256228 conn=inbound            forcePeer=false
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x4b4a78)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc011d7b340, 0xc000329420, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.421] Adding static node                       node=BA69F node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.421] Adding trusted node                      node=BA69F node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x4b4a78)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc000fb9b80, 0xc000329420, 0x4)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/test.NewNetwork(0xc005650540, 0xc0004d3900, 0x24, 0x438, 0x5cdcc0, 0x1b0d5d0, 0x1d301e0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:397 +0x60e
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:32 +0x77
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+TRACE[08-05|11:49:24.421] Adding static node                       node=BA69F id=f25e2d4b4f256228 ip=:: added=true
+TRACE[08-05|11:49:24.421] Adding static node                       node=a94A7 node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.421] Adding trusted node                      node=a94A7 node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.421] Adding static node                       node=a94A7 id=f25e2d4b4f256228 ip=:: added=true
+--------------------- peer finding took  94.248µs
+---------------------------- gossiping to 2
+---------------------------- gossiping to 2
+---------------------------- gossiping to 2
+goroutine 3767 [running]:
+runtime/debug.Stack(0xc012acdf60, 0xc003ad0300, 0xc004b4ffe0)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc000fb9b80, 0xc0002dd6c0, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc0051499c0, 0xc0002dd6c0, 0x3cdae99ec2f769ba, 0x16007fd74dc4f08d, 0xc099bc9125)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc005149cc0, 0xc00556ff08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc000437900, 0x1717bf0, 0xc013dd12b0, 0xc004156300, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+goroutine 3751 [running]:
+runtime/debug.Stack(0xc006976a20, 0xc012893c80, 0xc00541e740)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc00315f8c0, 0xc000377500, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc00426a3c0, 0xc000377500, 0x3cdae99ec2f769ba, 0x16007fd74dc4f08d, 0xc099bc9125)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc00426a6c0, 0xc000d11f08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc0003a4000, 0x1717bf0, 0xc0124791e0, 0xc012b90c00, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+TRACE[08-05|11:49:24.459] Adding static node                       node=a94A7 node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.459] Adding trusted node                      node=a94A7 node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.459] Adding static node                       node=4E2FF node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.459] Adding static node                       node=a94A7 id=f3e3ed3704025597 ip=:: added=false
+TRACE[08-05|11:49:24.459] Adding trusted node                      node=4E2FF node=enode://ed03521487c00b73826dfc36051856aaec9538d326fff7eaa81ce1ad9ff1aa1cbc6b71f7e138f0e6d12028898d85bd5851570f80c617cdb5068b4dd52fed219d@[::]:44911 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.459] Adding static node                       node=4E2FF id=f3e3ed3704025597 ip=:: added=false
+goroutine 3535 [running]:
+runtime/debug.Stack(0xc0012a9360, 0xc003208240, 0xc01244bf80)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc011d7b340, 0xc0004d53b0, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc004c9d280, 0xc0004d53b0, 0x5a42bdc61a764aa9, 0xcca9b4add2501857, 0xc0388e6dd2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc004c9d540, 0xc002250f08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc02093d400, 0x1717bf0, 0xc000133110, 0xc00010cd00, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+goroutine 3783 [running]:
+runtime/debug.Stack(0xc000a60f40, 0xc00367b380, 0xc00541e740)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc00315f8c0, 0xc000329730, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc00426a3c0, 0xc000329730, 0x5a42bdc61a764aa9, 0xcca9b4add2501857, 0xc0388e6dd2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc00426a6c0, 0xc004bd1f08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc0003a4000, 0x1717bf0, 0xc01bcbb110, 0xc00062c400, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+TRACE[08-05|11:49:24.460] Adding static node                       node=4E2FF node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.460] Adding static node                       node=BA69F node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.460] Adding trusted node                      node=4E2FF node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.460] Adding trusted node                      node=BA69F node=enode://b3bc8d763c6b77f0ad4882583788aec2dcb2a634a87ff59cc67460acd9e2fe5c7cde138254e73d3b6b7521ba6dcccd920205ed01b6ce893937c056a9394b2505@[::]:40249 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.460] Adding static node                       node=4E2FF id=a00d632657df12f9 ip=:: added=false
+TRACE[08-05|11:49:24.460] Adding static node                       node=BA69F id=a00d632657df12f9 ip=:: added=false
+goroutine 3813 [running]:
+runtime/debug.Stack(0xc004cc3700, 0xc0128312c0, 0xc01244bf80)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc011d7b340, 0xc0004c50a0, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc004c9d280, 0xc0004c50a0, 0xbaa25b1052fc2f4e, 0x5a8fccc7e660acc, 0xc0d40e7658)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc004c9d540, 0xc005574f08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc02093d400, 0x1717bf0, 0xc0127f75f0, 0xc000196900, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+goroutine 3831 [running]:
+runtime/debug.Stack(0xc013f40ca0, 0xc012cdd980, 0xc004b4ffe0)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Server).AddPeer(0xc000fb9b80, 0xc004e2a310, 0xc000000004)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:415 +0x26
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*validatorPeerHandler).AddValidatorPeer(0xc0051499c0, 0xc004e2a310, 0xbaa25b1052fc2f4e, 0x5a8fccc7e660acc, 0xc0d40e7658)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/peer_handler.go:121 +0x26b
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes.(*ValidatorEnodeDB).UpsertVersionAndEnode(0xc005149cc0, 0xc001c3df08, 0x1, 0x1, 0x0, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/internal/enodes/val_enode_db.go:326 +0x36e
+github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).handleEnodeCertificateMsg(0xc000437900, 0x1717bf0, 0xc012572410, 0xc003452700, 0xf9, 0xf9, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/announce.go:1343 +0xaf4
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).HandleMsg
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/handler.go:115 +0xea6
+TRACE[08-05|11:49:24.460] Adding static node                       node=BA69F node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.460] Adding static node                       node=a94A7 node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.461] Adding trusted node                      node=a94A7 node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.461] Adding trusted node                      node=BA69F node=enode://42c4763f84f28f679400729efa4fe68e2227ac60c42e456e45bd52f23d4e8ad9c4a2b48dede8a9428159825826ebaa8baed423e5d963ba762eb118adaf1ca111@[::]:34983 purpose=ValidatorPurpose
+TRACE[08-05|11:49:24.461] Adding static node                       node=a94A7 id=f25e2d4b4f256228 ip=:: added=false
+TRACE[08-05|11:49:24.461] Adding static node                       node=BA69F id=f25e2d4b4f256228 ip=:: added=false
+TRACE[08-05|11:49:24.494] Sent transaction announcements           node=BA69F id=a00d632657df12f9 conn=inbound            count=1
+TRACE[08-05|11:49:24.494] Sent transactions                        node=BA69F id=f25e2d4b4f256228 conn=inbound            count=1
+TRACE[08-05|11:49:24.495] Sent transactions                        node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial count=1
+ --------------------------------- Committed address 0xa94A761AC6BD425a571850d2AdB4a9CcD26d8E38 number 1
+ --------------------------------- Committed address 0x4E2FFc52105ba2BaCc0A667ecCFCa80558760Ed4 number 1
+ --------------------------------- Committed address 0xBA69F7C29Ee9DA3c8dF0c44Dd77f00162591Bc99 number 1
+TRACE[08-05|11:49:24.514] Announced block                          node=a94A7 id=f25e2d4b4f256228 conn=inbound            number=1 hash="588008…750c44"
+TRACE[08-05|11:49:24.514] Announced block                          node=BA69F id=a00d632657df12f9 conn=inbound            number=1 hash="588008…750c44"
+TRACE[08-05|11:49:24.514] Propagated block                         node=BA69F id=f25e2d4b4f256228 conn=inbound            number=1 hash="588008…750c44" td=2
+TRACE[08-05|11:49:24.514] Announced block                          node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial number=1 hash="588008…750c44"
+TRACE[08-05|11:49:24.514] Propagated block                         node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial number=1 hash="588008…750c44" td=2
+TRACE[08-05|11:49:24.514] Propagated block                         node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial number=1 hash="588008…750c44" td=2
+ --------------------------------- Committed address 0xa94A761AC6BD425a571850d2AdB4a9CcD26d8E38 number 2
+TRACE[08-05|11:49:24.563] Announced block                          node=a94A7 id=f25e2d4b4f256228 conn=inbound            number=2 hash="8dae9a…174a23"
+TRACE[08-05|11:49:24.563] Propagated block                         node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial number=2 hash="8dae9a…174a23" td=3
+ --------------------------------- Committed address 0xBA69F7C29Ee9DA3c8dF0c44Dd77f00162591Bc99 number 2
+ --------------------------------- Committed address 0x4E2FFc52105ba2BaCc0A667ecCFCa80558760Ed4 number 2
+TRACE[08-05|11:49:24.569] Propagated block                         node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial number=2 hash="8dae9a…174a23" td=3
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+INFO [08-05|11:49:24.572] HTTP endpoint closed                     node=BA69F url=http://[::]:42915/
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x511440)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Peer).Disconnect(0xc0002dd3b0, 0x9)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:209 +0xaa
+github.com/celo-org/celo-blockchain/eth.(*peerSet).Close(0xc0138b0ab0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/peer.go:847 +0xf2
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).Stop(0xc0001c27e0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:319 +0x92
+github.com/celo-org/celo-blockchain/eth.(*Ethereum).Stop(0xc0001c26c0, 0xc012423a10, 0xc000f35c60)
+	/home/pierspowlesland/projects/celo-blockchain/eth/backend.go:600 +0x33
+github.com/celo-org/celo-blockchain/node.(*Node).Stop(0xc011dac400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:519 +0x1e3
+github.com/celo-org/celo-blockchain/node.(*Node).Close(0xc011dac400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:138 +0x45
+github.com/celo-org/celo-blockchain/test.(*Node).Close(0xc0049c5360, 0x44, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:229 +0xcf
+github.com/celo-org/celo-blockchain/test.Network.Shutdown(0xc012076858, 0x3, 0x3)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:490 +0x6b
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:51 +0x46f
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x511440)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Peer).Disconnect(0xc000377260, 0x9)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:209 +0xaa
+github.com/celo-org/celo-blockchain/eth.(*peerSet).Close(0xc0138b0ab0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/peer.go:847 +0xf2
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).Stop(0xc0001c27e0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:319 +0x92
+github.com/celo-org/celo-blockchain/eth.(*Ethereum).Stop(0xc0001c26c0, 0xc012423a10, 0xc000f35c60)
+	/home/pierspowlesland/projects/celo-blockchain/eth/backend.go:600 +0x33
+github.com/celo-org/celo-blockchain/node.(*Node).Stop(0xc011dac400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:519 +0x1e3
+github.com/celo-org/celo-blockchain/node.(*Node).Close(0xc011dac400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:138 +0x45
+github.com/celo-org/celo-blockchain/test.(*Node).Close(0xc0049c5360, 0x44, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:229 +0xcf
+github.com/celo-org/celo-blockchain/test.Network.Shutdown(0xc012076858, 0x3, 0x3)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:490 +0x6b
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:51 +0x46f
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+INFO [08-05|11:49:24.572] Disconnecting from static or trusted peer node=BA69F id=a00d632657df12f9 conn=inbound            purpose=ValidatorPurpose reason="client quitting" remoteRequested=false err="client quitting"
+INFO [08-05|11:49:24.572] Disconnecting from static or trusted peer node=BA69F id=f25e2d4b4f256228 conn=inbound            purpose=ValidatorPurpose reason="client quitting" remoteRequested=false err="client quitting"
+DEBUG[08-05|11:49:24.572] Ethereum message handling failed         node=BA69F id=a00d632657df12f9 conn=inbound            err=EOF
+INFO [08-05|11:49:24.572] Disconnecting from static or trusted peer node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial purpose=ValidatorPurpose reason="client quitting" remoteRequested=true  err="client quitting"
+DEBUG[08-05|11:49:24.572] Ethereum message handling failed         node=BA69F id=f25e2d4b4f256228 conn=inbound            err=EOF
+INFO [08-05|11:49:24.572] Disconnecting from static or trusted peer node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial purpose=ValidatorPurpose reason="client quitting" remoteRequested=true  err="client quitting"
+DEBUG[08-05|11:49:24.572] Ethereum message handling failed         node=a94A7 id=f3e3ed3704025597 conn=trusted-staticdial err=EOF
+DEBUG[08-05|11:49:24.572] Removing p2p peer                        node=BA69F peercount=1 id=a00d632657df12f9 duration=170.089ms   req=false err="client quitting"
+DEBUG[08-05|11:49:24.572] Ethereum message handling failed         node=4E2FF id=f3e3ed3704025597 conn=trusted-staticdial err=EOF
+DEBUG[08-05|11:49:24.572] Removing p2p peer                        node=BA69F peercount=0 id=f25e2d4b4f256228 duration=170.491ms   req=false err="client quitting"
+DEBUG[08-05|11:49:24.572] Removing p2p peer                        node=a94A7 peercount=1 id=f3e3ed3704025597 duration=170.175ms   req=true  err="client quitting"
+DEBUG[08-05|11:49:24.572] Removing p2p peer                        node=4E2FF peercount=1 id=f3e3ed3704025597 duration=170.532ms   req=true  err="client quitting"
+0xBA69TRACE[08-05|11:49:24.572] Starting p2p dial                        node=BA69F id=a00d632657df12f9 ip=:: flag=staticdial
+ Stop Announce
+TRACE[08-05|11:49:24.572] Starting p2p dial                        node=BA69F id=f25e2d4b4f256228 ip=:: flag=staticdial
+TRACE[08-05|11:49:24.572] Accepted connection                      node=a94A7 addr=[::1]:48006
+TRACE[08-05|11:49:24.572] Accepted connection                      node=4E2FF addr=[::1]:47918
+DEBUG[08-05|11:49:24.573] Adding p2p peer                          node=BA69F peercount=1 id=f25e2d4b4f256228 conn=trusted-staticdial addr=[::1]:34983 name=celo/v1.0.0/linux-am...
+DEBUG[08-05|11:49:24.573] Adding p2p peer                          node=4E2FF peercount=2 id=f3e3ed3704025597 conn=trusted-inbound    addr=[::1]:47918 name=celo/v1.0.0/linux-am...
+TRACE[08-05|11:49:24.573] Starting protocol istanbul/66            node=BA69F id=f25e2d4b4f256228 conn=trusted-staticdial
+starting protocol goroutine 3958 [running]:
+runtime/debug.Stack(0xc0049e9060, 0xc004c2cac0, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0004c5e30, 0xc004987560, 0xc003e53260)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0004c5e30, 0x1232bc0, 0xc00447b980, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc011d7b340, 0xc0004c5e30)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+TRACE[08-05|11:49:24.573] Protocol istanbul/66 failed              node=BA69F id=f25e2d4b4f256228 conn=trusted-staticdial err="client quitting"
+TRACE[08-05|11:49:24.573] Starting protocol istanbul/66            node=4E2FF id=f3e3ed3704025597 conn=trusted-inbound
+INFO [08-05|11:49:24.573] Disconnecting from static or trusted peer node=BA69F id=f25e2d4b4f256228 conn=trusted-staticdial purpose=ValidatorPurpose reason="client quitting" remoteRequested=false err="client quitting"
+starting protocol goroutine 4002 [running]:
+runtime/debug.Stack(0xc0045d2500, 0xc0052ccdc0, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0004d5b20, 0xc003df18c0, 0xc004a7c0c0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0004d5b20, 0x1232bc0, 0xc010d57880, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc00315f8c0, 0xc0004d5b20)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+INFO [08-05|11:49:24.573] Ethereum peer connected                  node=4E2FF id=f3e3ed3704025597 conn=trusted-inbound    name=celo/v1.0.0/linux-amd64/go1.16.5
+DEBUG[08-05|11:49:24.573] Removing p2p peer                        node=BA69F peercount=0 id=f25e2d4b4f256228 duration="170.727µs" req=false err="client quitting"
+INFO [08-05|11:49:24.573] Disconnecting from static or trusted peer node=4E2FF id=f3e3ed3704025597 conn=trusted-inbound    purpose=ValidatorPurpose reason="client quitting" remoteRequested=true  err="client quitting"
+INFO [08-05|11:49:24.573] Ethereum handshake failed                node=4E2FF id=f3e3ed3704025597 conn=trusted-inbound    err=EOF
+DEBUG[08-05|11:49:24.574] Adding p2p peer                          node=BA69F peercount=1 id=a00d632657df12f9 conn=trusted-staticdial addr=[::1]:40249 name=celo/v1.0.0/linux-am...
+DEBUG[08-05|11:49:24.574] Adding p2p peer                          node=a94A7 peercount=2 id=f3e3ed3704025597 conn=trusted-inbound    addr=[::1]:48006 name=celo/v1.0.0/linux-am...
+DEBUG[08-05|11:49:24.574] Removing p2p peer                        node=4E2FF peercount=1 id=f3e3ed3704025597 duration="296.154µs" req=true  err="client quitting"
+TRACE[08-05|11:49:24.574] Starting protocol istanbul/66            node=BA69F id=a00d632657df12f9 conn=trusted-staticdial
+TRACE[08-05|11:49:24.574] Starting protocol istanbul/66            node=a94A7 id=f3e3ed3704025597 conn=trusted-inbound
+starting protocol goroutine 3963 [running]:
+runtime/debug.Stack(0xc0049e9180, 0xc004c2d0c0, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc0004c5f80, 0xc004987800, 0xc003e53920)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc0004c5f80, 0x1232bc0, 0xc00447bc00, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc011d7b340, 0xc0004c5f80)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+starting protocol goroutine 4019 [running]:
+runtime/debug.Stack(0xc010d556c0, 0xc01bdd0520, 0x1d)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+github.com/celo-org/celo-blockchain/p2p.(*Peer).startProtocols(0xc004e2b340, 0xc0040bfce0, 0xc0032134a0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:439 +0x1bd
+github.com/celo-org/celo-blockchain/p2p.(*Peer).run(0xc004e2b340, 0x1232bc0, 0xc004af5c00, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:265 +0x165
+github.com/celo-org/celo-blockchain/p2p.(*Server).runPeer(0xc000fb9b80, 0xc004e2b340)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1233 +0x1de
+created by github.com/celo-org/celo-blockchain/p2p.(*Server).launchPeer
+	/home/pierspowlesland/projects/celo-blockchain/p2p/server.go:1216 +0xcd
+
+TRACE[08-05|11:49:24.574] Protocol istanbul/66 failed              node=BA69F id=a00d632657df12f9 conn=trusted-staticdial err="client quitting"
+INFO [08-05|11:49:24.574] Disconnecting from static or trusted peer node=BA69F id=a00d632657df12f9 conn=trusted-staticdial purpose=ValidatorPurpose reason="client quitting" remoteRequested=false err="client quitting"
+INFO [08-05|11:49:24.574] Ethereum peer connected                  node=a94A7 id=f3e3ed3704025597 conn=trusted-inbound    name=celo/v1.0.0/linux-amd64/go1.16.5
+INFO [08-05|11:49:24.574] Disconnecting from static or trusted peer node=a94A7 id=f3e3ed3704025597 conn=trusted-inbound    purpose=ValidatorPurpose reason="client quitting" remoteRequested=true  err="client quitting"
+DEBUG[08-05|11:49:24.574] Removing p2p peer                        node=BA69F peercount=0 id=a00d632657df12f9 duration="148.483µs" req=false err="client quitting"
+INFO [08-05|11:49:24.574] Ethereum handshake failed                node=a94A7 id=f3e3ed3704025597 conn=trusted-inbound    err=EOF
+DEBUG[08-05|11:49:24.574] Removing p2p peer                        node=a94A7 peercount=1 id=f3e3ed3704025597 duration="189.648µs" req=true  err="client quitting"
+DEBUG[08-05|11:49:24.578] Read error                               node=BA69F err="accept tcp [::]:44911: use of closed network connection"
+TRACE[08-05|11:49:24.578] P2P networking is spinning down          node=BA69F
+INFO [08-05|11:49:24.580] HTTP endpoint closed                     node=a94A7 url=http://[::]:35893/
+goroutine 3304 [running]:
+runtime/debug.Stack(0x2, 0x2, 0x511440)
+	/usr/local/go/src/runtime/debug/stack.go:24 +0x9f
+runtime/debug.PrintStack()
+	/usr/local/go/src/runtime/debug/stack.go:16 +0x25
+github.com/celo-org/celo-blockchain/p2p.(*Peer).Disconnect(0xc004e2a070, 0x9)
+	/home/pierspowlesland/projects/celo-blockchain/p2p/peer.go:209 +0xaa
+github.com/celo-org/celo-blockchain/eth.(*peerSet).Close(0xc012d79080)
+	/home/pierspowlesland/projects/celo-blockchain/eth/peer.go:847 +0xf2
+github.com/celo-org/celo-blockchain/eth.(*ProtocolManager).Stop(0xc0025bd9e0)
+	/home/pierspowlesland/projects/celo-blockchain/eth/handler.go:319 +0x92
+github.com/celo-org/celo-blockchain/eth.(*Ethereum).Stop(0xc0025bd8c0, 0xc013de6b40, 0xc000f35c60)
+	/home/pierspowlesland/projects/celo-blockchain/eth/backend.go:600 +0x33
+github.com/celo-org/celo-blockchain/node.(*Node).Stop(0xc004579400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:519 +0x1e3
+github.com/celo-org/celo-blockchain/node.(*Node).Close(0xc004579400, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/node/node.go:138 +0x45
+github.com/celo-org/celo-blockchain/test.(*Node).Close(0xc004a2d5e0, 0x0, 0x0)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:229 +0xcf
+github.com/celo-org/celo-blockchain/test.Network.Shutdown(0xc012076858, 0x3, 0x3)
+	/home/pierspowlesland/projects/celo-blockchain/test/node.go:490 +0x6b
+github.com/celo-org/celo-blockchain/e2e_test_test.TestSendCelo(0xc005167680)
+	/home/pierspowlesland/projects/celo-blockchain/e2e_test/e2e_test.go:51 +0x46f
+testing.tRunner(0xc005167680, 0x15f41b8)
+	/usr/local/go/src/testing/testing.go:1193 +0xef
+created by testing.(*T).Run
+	/usr/local/go/src/testing/testing.go:1238 +0x2b3
+INFO [08-05|11:49:24.580] Disconnecting from static or trusted peer node=a94A7 id=f25e2d4b4f256228 conn=inbound            purpose=ValidatorPurpose reason="client quitting" remoteRequested=false err="client quitting"
+DEBUG[08-05|11:49:24.580] Ethereum message handling failed         node=a94A7 id=f25e2d4b4f256228 conn=inbound            err=EOF
+INFO [08-05|11:49:24.580] Disconnecting from static or trusted peer node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial purpose=ValidatorPurpose reason="client quitting" remoteRequested=true  err="client quitting"
+DEBUG[08-05|11:49:24.581] Removing p2p peer                        node=a94A7 peercount=0 id=f25e2d4b4f256228 duration=168.766ms   req=false err="client quitting"
+TRACE[08-05|11:49:24.581] Starting p2p dial                        node=a94A7 id=f25e2d4b4f256228 ip=:: flag=staticdial
+DEBUG[08-05|11:49:24.581] Ethereum message handling failed         node=4E2FF id=a00d632657df12f9 conn=trusted-staticdial err=EOF
+0xa94A Stop Announce
+DEBUG[08-05|11:49:24.581] Removing p2p peer                        node=4E2FF peercount=0 id=a00d632657df12f9 duration=168.880ms   req=true  err="client quitting"
+TRACE[08-05|11:49:24.581] Accepted connection                      node=4E2FF addr=[::1]:47922
+DEBUG[08-05|11:49:24.581] Read error                               node=a94A7 err="accept tcp [::]:40249: use of closed network connection"
+TRACE[08-05|11:49:24.581] P2P networking is spinning down          node=a94A7
+TRACE[08-05|11:49:24.582] Rejected peer                            node=a94A7 id=f25e2d4b4f256228 addr=[::1]:34983 conn=staticdial         err="server stopped"
+TRACE[08-05|11:49:24.582] Failed p2p handshake                     node=4E2FF id=a00d632657df12f9 addr=[::1]:47922 conn=inbound            err="read tcp [::1]:34983->[::1]:47922: read: connection reset by peer"
+INFO [08-05|11:49:24.583] HTTP endpoint closed                     node=4E2FF url=http://[::]:35789/
+0x4E2F Stop Announce
+DEBUG[08-05|11:49:24.584] Read error                               node=4E2FF err="accept tcp [::]:34983: use of closed network connection"
+TRACE[08-05|11:49:24.584] P2P networking is spinning down          node=4E2FF
+ --------------------------------- Committed address 0x4E2FFc52105ba2BaCc0A667ecCFCa80558760Ed4 number 3
+----------------------------------------- someone called exit goroutine 4031 [running]:
+os.Stack(0x1df8aa0, 0xa2abb0, 0x1bb9638)
+	/usr/local/go/src/os/proc.go:62 +0x9f
+os.Exit(0x1)
+	/usr/local/go/src/os/proc.go:76 +0x26
+github.com/celo-org/celo-blockchain/log.Crit(0x13f34e0, 0x1e, 0xc00314b4f8, 0x2, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/log/root.go:60 +0x7e
+github.com/celo-org/celo-blockchain/core/rawdb.WriteAccumulatedEpochUptime(0x7fa187723700, 0xc005644120, 0x1, 0xc00532a520)
+	/home/pierspowlesland/projects/celo-blockchain/core/rawdb/accessors_chain.go:537 +0x1b1
+github.com/celo-org/celo-blockchain/consensus/istanbul/uptime/store.(*uptimeStoreImpl).WriteAccumulatedEpochUptime(0xc00532c100, 0x1, 0xc00532a520)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/uptime/store/store.go:23 +0x71
+github.com/celo-org/celo-blockchain/consensus/istanbul/uptime.(*Monitor).ProcessBlock(0xc00314bac0, 0xc003cc9200, 0x2, 0x2)
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/uptime/monitor.go:133 +0x3a3
+github.com/celo-org/celo-blockchain/core.(*BlockChain).insertPreprocessedBlock(0xc0034f8000, 0xc003cc9200, 0xc00020f278, 0x1, 0x1, 0x0, 0x0, 0x0, 0xc003ccc000, 0xc001734401, ...)
+	/home/pierspowlesland/projects/celo-blockchain/core/blockchain.go:1471 +0x42f
+github.com/celo-org/celo-blockchain/core.(*BlockChain).InsertPreprocessedBlock(0xc0034f8000, 0xc003cc9200, 0xc00020f278, 0x1, 0x1, 0x0, 0x0, 0x0, 0xc003ccc000, 0x0, ...)
+	/home/pierspowlesland/projects/celo-blockchain/core/blockchain.go:1451 +0x1e5
+github.com/celo-org/celo-blockchain/miner.(*worker).start.func2(0xc003cc9200, 0xc00020f278, 0x1, 0x1, 0x0, 0x0, 0x0, 0xc003ccc000)
+	/home/pierspowlesland/projects/celo-blockchain/miner/worker.go:187 +0xb3
+created by github.com/celo-org/celo-blockchain/consensus/istanbul/backend.(*Backend).Commit
+	/home/pierspowlesland/projects/celo-blockchain/consensus/istanbul/backend/backend.go:519 +0x6da
+
+FAIL	github.com/celo-org/celo-blockchain/e2e_test	5.088s
+FAIL
