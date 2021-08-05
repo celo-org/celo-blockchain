@@ -86,7 +86,7 @@ func (w *worker) Run() {
 		var err error
 		shouldQuery, err := w.checker.IsElectedOrNearValidator()
 		if err != nil {
-			w.logger.Warn("Error in checking if should announce", err)
+			w.logger.Warn("Error in checking if should announce", "err", err)
 			return false, false
 		}
 		shouldAnnounce := shouldQuery && w.checker.IsValidating()
