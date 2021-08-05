@@ -115,8 +115,6 @@ type AnnounceManager struct {
 
 	vpap ValProxyAssigmnentProvider
 
-	announceVersion announce.Version
-
 	announceRunning  bool
 	announceMu       sync.RWMutex
 	announceThreadWg *sync.WaitGroup
@@ -152,7 +150,6 @@ func NewAnnounceManager(
 		gossipCache:      gossipCache,
 		vcGossiper:       vcGossiper,
 		state:            state,
-		announceVersion:  announceVersion,
 		checker:          checker,
 		ovcp:             NewOutboundVCProcessor(checker, addrProvider, vcGossiper),
 		ecertHolder:      NewLockedHolder(),
@@ -187,6 +184,7 @@ func NewAnnounceManager(
 	am.worker = NewAnnounceWorker(
 		waitPeriod,
 		aWallets,
+		announceVersion,
 		state,
 		checker,
 		pruner,
@@ -195,7 +193,7 @@ func NewAnnounceManager(
 		config,
 		peerCounter,
 		vpap,
-		am.updateAnnounceVersion,
+		am.avs,
 	)
 
 	return am
@@ -226,21 +224,6 @@ func (m *AnnounceManager) announceThread() {
 	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
 	m.worker.Run()
-}
-
-func (m *AnnounceManager) updateAnnounceVersion() {
-	version := getTimestamp()
-	currVersion := m.announceVersion.Get()
-	if version <= currVersion {
-		m.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
-		return
-	}
-	if err := m.avs.ShareVersion(version); err != nil {
-		m.logger.Warn("Error updating announce version", "err", err)
-		return
-	}
-	m.logger.Debug("Updating announce version", "announceVersion", version)
-	m.announceVersion.Set(version)
 }
 
 // This function will handle a queryEnode message.
@@ -500,7 +483,7 @@ func (m *AnnounceManager) UpdateAnnounceVersion() {
 
 // GetAnnounceVersion will retrieve the current announce version.
 func (m *AnnounceManager) GetAnnounceVersion() uint {
-	return m.announceVersion.Get()
+	return m.worker.GetVersion()
 }
 
 func getTimestamp() uint {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 )
@@ -13,12 +14,14 @@ import (
 type AnnounceWorker interface {
 	Run()
 	UpdateVersion()
+	GetVersion() uint
 	Stop()
 }
 
 type worker struct {
 	logger            log.Logger
 	aWallets          *atomic.Value
+	version           announce.Version
 	initialWaitPeriod time.Duration
 	checker           ValidatorChecker
 	state             *AnnounceState
@@ -28,8 +31,7 @@ type worker struct {
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
 	vpap              ValProxyAssigmnentProvider
-
-	updateAnnounceVersion func()
+	avs               AnnounceVersionSharer
 
 	updateAnnounceVersionCh chan struct{}
 	announceThreadQuit      chan struct{}
@@ -37,6 +39,7 @@ type worker struct {
 
 func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	aWallets *atomic.Value,
+	version announce.Version,
 	state *AnnounceState,
 	checker ValidatorChecker,
 	pruner AnnounceStatePruner,
@@ -45,21 +48,21 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
 	vpap ValProxyAssigmnentProvider,
-	updateAnnounceVersion func()) AnnounceWorker {
+	avs AnnounceVersionSharer) AnnounceWorker {
 	return &worker{
-		logger:            log.New("module", "announceWorker"),
-		aWallets:          aWallets,
-		initialWaitPeriod: initialWaitPeriod,
-		checker:           checker,
-		state:             state,
-		pruner:            pruner,
-		vcGossiper:        vcGossiper,
-		enodeGossiper:     enodeGossiper,
-		config:            config,
-		countPeers:        countPeersFn,
-		vpap:              vpap,
-
-		updateAnnounceVersion:   updateAnnounceVersion,
+		logger:                  log.New("module", "announceWorker"),
+		aWallets:                aWallets,
+		version:                 version,
+		initialWaitPeriod:       initialWaitPeriod,
+		checker:                 checker,
+		state:                   state,
+		pruner:                  pruner,
+		vcGossiper:              vcGossiper,
+		enodeGossiper:           enodeGossiper,
+		config:                  config,
+		countPeers:              countPeersFn,
+		vpap:                    vpap,
+		avs:                     avs,
 		updateAnnounceVersionCh: make(chan struct{}, 1),
 	}
 }
@@ -70,6 +73,10 @@ func (m *worker) wallets() *Wallets {
 
 func (w *worker) Stop() {
 	close(w.announceThreadQuit)
+}
+
+func (w *worker) GetVersion() uint {
+	return w.version.Get()
 }
 
 func (w *worker) UpdateVersion() {
@@ -200,4 +207,19 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 	}
 
 	return qeMsg, err
+}
+
+func (w *worker) updateAnnounceVersion() {
+	version := getTimestamp()
+	currVersion := w.version.Get()
+	if version <= currVersion {
+		w.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
+		return
+	}
+	if err := w.avs.ShareVersion(version); err != nil {
+		w.logger.Warn("Error updating announce version", "err", err)
+		return
+	}
+	w.logger.Debug("Updating announce version", "announceVersion", version)
+	w.version.Set(version)
 }
