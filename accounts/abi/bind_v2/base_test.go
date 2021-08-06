@@ -59,7 +59,7 @@ func TestPassingBlockNumber(t *testing.T) {
 			},
 		},
 	}, mc, nil, nil)
-	var ret string
+	var ret []interface{}
 
 	blockNumber := big.NewInt(42)
 

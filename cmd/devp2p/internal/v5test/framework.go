@@ -62,8 +62,8 @@ type conn struct {
 
 	log           logger
 	codec         *v5wire.Codec
-	lastRequest   v5wire.Packet
-	lastChallenge *v5wire.Whoareyou
+	lastRequest   v5wire.Packet     //nolint:unused
+	lastChallenge *v5wire.Whoareyou //nolint:unused
 	idCounter     uint32
 }
 

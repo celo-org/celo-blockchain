@@ -233,7 +233,7 @@ func (c *committer) commitLoop(db *Database) {
 	}
 }
 
-func (c *committer) makeHashNode(data []byte) hashNode {
+func (c *committer) makeHashNode(data []byte) hashNode { //nolint:unused
 	n := make(hashNode, c.sha.Size())
 	c.sha.Reset()
 	c.sha.Write(data)

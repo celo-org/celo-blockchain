@@ -17,6 +17,7 @@
 package runtime
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts/abi"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/core/asm"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"

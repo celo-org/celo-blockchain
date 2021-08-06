@@ -61,31 +61,31 @@ func TestStateProcessorErrors(t *testing.T) {
 				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
 				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
 			},
-			want: "could not apply tx 1 [0x36bfa6d14f1cd35a1be8cc2322982a595fabc0e799f09c1de3bad7bd5b1f7626]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
+			want: "could not apply tx 1 [0xd7d4ec936b98af7dfe88835c151ae30d6c1a1aec02a6165443927349928666d7]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
 		},
 		{
 			txs: []*types.Transaction{
 				makeTx(100, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
 			},
-			want: "could not apply tx 0 [0x51cd272d41ef6011d8138e18bf4043797aca9b713c7d39a97563f9bbe6bdbe6f]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
+			want: "could not apply tx 0 [0xc6fe0942985c8bd3727ed0705d156880b1fe5f12d8f53a7691bee4322357abf7]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
 		},
 		{
 			txs: []*types.Transaction{
 				makeTx(0, common.Address{}, big.NewInt(0), 21000000, nil, nil, nil, nil, nil),
 			},
-			want: "could not apply tx 0 [0x54c58b530824b0bb84b7a98183f08913b5d74e1cebc368515ef3c65edf8eb56a]: gas limit reached",
+			want: "could not apply tx 0 [0x3ae48e34b0a5bbc796eadee31de3a5d89f64976cc36400b467ec542ebbfa5967]: gas limit reached",
 		},
 		{
 			txs: []*types.Transaction{
 				makeTx(0, common.Address{}, big.NewInt(1), params.TxGas, nil, nil, nil, nil, nil),
 			},
-			want: "could not apply tx 0 [0x3094b17498940d92b13baccf356ce8bfd6f221e926abc903d642fa1466c5b50e]: insufficient funds for transfer: address 0x71562b71999873DB5b286dF957af199Ec94617F7",
+			want: "could not apply tx 0 [0x58e8ab3dd574583c5195687aae5e9a3f8c3680801422b8ecdb73ca0ba0f0c200]: insufficient funds for transfer (after fees): address 0x71562b71999873DB5b286dF957af199Ec94617F7",
 		},
 		{
 			txs: []*types.Transaction{
 				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(0xffffff), nil, nil, nil, nil),
 			},
-			want: "could not apply tx 0 [0xaa3f7d86802b1f364576d9071bf231e31d61b392d306831ac9cf706ff5371ce0]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 0 want 352321515000",
+			want: "could not apply tx 0 [0x1dd95c056fa099d248f03edebd6de39d65e99f6eb3944bd03dab86296b1cf962]: insufficient funds to pay for fees",
 		},
 		{
 			txs: []*types.Transaction{
@@ -94,7 +94,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				makeTx(2, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
 				makeTx(3, common.Address{}, big.NewInt(0), params.TxGas-1000, big.NewInt(0), nil, nil, nil, nil),
 			},
-			want: "could not apply tx 3 [0x836fab5882205362680e49b311a20646de03b630920f18ec6ee3b111a2cf6835]: intrinsic gas too low: have 20000, want 21000",
+			want: "could not apply tx 3 [0x28ef3bcf5511bc6073ce432d806cbf86e1e4556fc2006a4f4ca4398eb94113dd]: intrinsic gas too low: have 20000, want 21000",
 		},
 		// The last 'core' error is ErrGasUintOverflow: "gas uint64 overflow", but in order to
 		// trigger that one, we'd have to allocate a _huge_ chunk of data, such that the

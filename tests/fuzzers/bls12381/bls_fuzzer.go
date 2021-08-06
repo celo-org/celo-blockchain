@@ -18,10 +18,20 @@ package bls
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -35,6 +45,92 @@ const (
 	blsMapG1      = byte(17)
 	blsMapG2      = byte(18)
 )
+
+func getValidators(number *big.Int, _ common.Hash) []istanbul.Validator {
+	preimage := append([]byte("fakevalidators"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	hash := sha3.Sum256(preimage)
+	var validators []istanbul.Validator
+	for i := 0; i < 16; i, hash = i+1, sha3.Sum256(hash[:]) {
+		key, _ := crypto.ToECDSA(hash[:])
+		blsPrivateKey, _ := blscrypto.ECDSAToBLS(key)
+		blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		validators = append(validators, validator.New(addr, blsPublicKey))
+	}
+	return validators
+}
+
+func makeTestSeal(number *big.Int) types.IstanbulAggregatedSeal {
+	preimage := append([]byte("fakeseal"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	hash := sha3.Sum256(preimage)
+	return types.IstanbulAggregatedSeal{Bitmap: new(big.Int).SetBytes(hash[:2])}
+}
+
+func makeTestHeaderHash(number *big.Int) common.Hash {
+	preimage := append([]byte("fakeheader"), common.LeftPadBytes(number.Bytes()[:], 32)...)
+	return common.Hash(sha3.Sum256(preimage))
+}
+
+func makeTestHeaderExtra(number *big.Int) *types.IstanbulExtra {
+	return &types.IstanbulExtra{
+		AggregatedSeal:       makeTestSeal(number),
+		ParentAggregatedSeal: makeTestSeal(new(big.Int).Sub(number, common.Big1)),
+	}
+}
+
+func makeTestHeader(number *big.Int) *types.Header {
+	extra, err := rlp.EncodeToBytes(makeTestHeaderExtra(number))
+	if err != nil {
+		panic(err)
+	}
+	return &types.Header{
+		ParentHash: makeTestHeaderHash(new(big.Int).Sub(number, common.Big1)),
+		Number:     number,
+		GasUsed:    params.DefaultGasLimit / 2,
+		Extra:      append(make([]byte, types.IstanbulExtraVanity), extra...),
+		Time:       number.Uint64() * 5,
+	}
+}
+
+func getHeaderByNumber(number uint64) *types.Header {
+	return makeTestHeader(new(big.Int).SetUint64(number))
+}
+
+var testHeader = makeTestHeader(big.NewInt(10000))
+
+var vmBlockCtx = vm.BlockContext{
+	CanTransfer: func(db vm.StateDB, addr common.Address, amount *big.Int) bool {
+		return db.GetBalance(addr).Cmp(amount) >= 0
+	},
+	Transfer: func(e *vm.EVM, a1, a2 common.Address, i *big.Int) { panic("transfer: not implemented") },
+	GetHash:  func(u uint64) common.Hash { panic("getHash: not implemented") },
+	VerifySeal: func(header *types.Header) bool {
+		// If the block is later than the unsealed reference block, return false.
+		return !(header.Number.Cmp(testHeader.Number) > 0)
+	},
+	Coinbase:    common.Address{},
+	BlockNumber: new(big.Int).Set(testHeader.Number),
+	Time:        new(big.Int).SetUint64(testHeader.Time),
+
+	GetRegisteredAddress: func(evm *vm.EVM, registryId common.Hash) (common.Address, error) {
+		return common.ZeroAddress, errors.New("not implemented: GetAddressFromRegistry")
+	},
+
+	EpochSize:         100,
+	GetValidators:     getValidators,
+	GetHeaderByNumber: getHeaderByNumber,
+}
+
+var vmTxCtx = vm.TxContext{
+	GasPrice: common.Big1,
+	Origin:   common.HexToAddress("a11ce"),
+}
+
+// Create a global mock EVM for use in the following tests.
+var mockEVM = &vm.EVM{
+	Context:   vmBlockCtx,
+	TxContext: vmTxCtx,
+}
 
 func FuzzG1Add(data []byte) int      { return fuzz(blsG1Add, data) }
 func FuzzG1Mul(data []byte) int      { return fuzz(blsG1Mul, data) }
@@ -79,7 +175,8 @@ func checkInput(id byte, inputLen int) bool {
 // other values are reserved for future use.
 func fuzz(id byte, data []byte) int {
 	// Even on bad input, it should not crash, so we still test the gas calc
-	precompile := vm.PrecompiledContractsYoloV2[common.BytesToAddress([]byte{id})]
+	// precompile := vm.PrecompiledContractsYoloV2[common.BytesToAddress([]byte{id})] //?
+	precompile := vm.PrecompiledContractsDonut[common.BytesToAddress([]byte{id})]
 	gas := precompile.RequiredGas(data)
 	if !checkInput(id, len(data)) {
 		return 0
@@ -90,7 +187,7 @@ func fuzz(id byte, data []byte) int {
 	}
 	cpy := make([]byte, len(data))
 	copy(cpy, data)
-	_, err := precompile.Run(cpy)
+	_, err := precompile.Run(cpy, common.HexToAddress("1337"), mockEVM)
 	if !bytes.Equal(cpy, data) {
 		panic(fmt.Sprintf("input data modified, precompile %d: %x %x", id, data, cpy))
 	}

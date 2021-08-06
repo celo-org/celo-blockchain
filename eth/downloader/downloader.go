@@ -514,16 +514,14 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 
 	// Ensure our origin point is below any fast sync pivot point
 	if mode == FastSync {
-		if height <= uint64(fsMinFullBlocks) {
+		pivotNumber := d.calcPivot(height)
+		// Write out the pivot into the database so a rollback beyond it will
+		// reenable fast sync
+		rawdb.WriteLastPivotNumber(d.stateDB, pivotNumber)
+		if pivotNumber == 0 {
 			origin = 0
-		} else {
-			pivotNumber := pivot.Number.Uint64()
-			if pivotNumber <= origin {
-				origin = pivotNumber - 1
-			}
-			// Write out the pivot into the database so a rollback beyond it will
-			// reenable fast sync
-			rawdb.WriteLastPivotNumber(d.stateDB, pivotNumber)
+		} else if pivotNumber <= origin {
+			origin = pivotNumber - 1
 		}
 	}
 	d.committed = 1
@@ -703,7 +701,7 @@ func (d *Downloader) fetchHead(p *peerConnection) (head *types.Header, pivot *ty
 				return nil, nil, fmt.Errorf("%w: remote head %d below checkpoint %d", errUnsyncedPeer, head.Number, d.checkpoint)
 			}
 			if len(headers) == 1 {
-				if mode == FastSync && head.Number.Uint64() > uint64(fsMinFullBlocks) {
+				if mode == FastSync && head.Number.Uint64() > fsMinFullBlocks {
 					return nil, nil, fmt.Errorf("%w: no pivot included along head header", errBadPeer)
 				}
 				p.log.Debug("Remote head identified, no pivot", "number", head.Number, "hash", head.Hash())
@@ -712,8 +710,8 @@ func (d *Downloader) fetchHead(p *peerConnection) (head *types.Header, pivot *ty
 			// At this point we have 2 headers in total and the first is the
 			// validated head of the chian. Check the pivot number and return,
 			pivot := headers[1]
-			if pivot.Number.Uint64() != head.Number.Uint64()-uint64(fsMinFullBlocks) {
-				return nil, nil, fmt.Errorf("%w: remote pivot %d != requested %d", errInvalidChain, pivot.Number, head.Number.Uint64()-uint64(fsMinFullBlocks))
+			if pivot.Number.Uint64() != head.Number.Uint64()-fsMinFullBlocks {
+				return nil, nil, fmt.Errorf("%w: remote pivot %d != requested %d", errInvalidChain, pivot.Number, head.Number.Uint64()-fsMinFullBlocks)
 			}
 			return head, pivot, nil
 
@@ -1094,8 +1092,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 		pivot := d.pivotHeader.Number.Uint64()
 		d.pivotLock.RUnlock()
 
-		p.log.Trace("Fetching next pivot header", "number", pivot+uint64(fsMinFullBlocks))
-		go p.peer.RequestHeadersByNumber(pivot+uint64(fsMinFullBlocks), 2, int(fsMinFullBlocks-9), false) // move +64 when it's 2x64-8 deep
+		p.log.Trace("Fetching next pivot header", "number", pivot+fsMinFullBlocks)
+		go p.peer.RequestHeadersByNumber(pivot+fsMinFullBlocks, 2, int(fsMinFullBlocks-9), false) // move +64 when it's 2x64-8 deep
 	}
 	// Start pulling the header chain skeleton until all is done
 	ancestor := from
@@ -1140,11 +1138,11 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 					// Retrieve the headers and do some sanity checks, just in case
 					headers := packet.(*headerPack).headers
 
-					if have, want := headers[0].Number.Uint64(), pivot+uint64(fsMinFullBlocks); have != want {
+					if have, want := headers[0].Number.Uint64(), pivot+fsMinFullBlocks; have != want {
 						log.Warn("Peer sent invalid next pivot", "have", have, "want", want)
 						return fmt.Errorf("%w: next pivot number %d != requested %d", errInvalidChain, have, want)
 					}
-					if have, want := headers[1].Number.Uint64(), pivot+2*uint64(fsMinFullBlocks)-8; have != want {
+					if have, want := headers[1].Number.Uint64(), pivot+2*fsMinFullBlocks-8; have != want {
 						log.Warn("Peer sent invalid pivot confirmer", "have", have, "want", want)
 						return fmt.Errorf("%w: next pivot confirmer number %d != requested %d", errInvalidChain, have, want)
 					}

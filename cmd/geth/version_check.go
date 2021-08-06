@@ -114,6 +114,8 @@ func fetch(url string) ([]byte, error) {
 	if filep := strings.TrimPrefix(url, "file://"); filep != url {
 		return ioutil.ReadFile(filep)
 	}
+	// gosec/G107. This function is called with a node/validator flag, no need to run gosec.
+	//nolint:gosec
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, err

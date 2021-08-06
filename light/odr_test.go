@@ -243,7 +243,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false)}
+		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, nil, data, false, false)}
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(header, chain, nil)
 		vmenv := vm.NewEVM(context, txContext, st, config, vm.Config{})
@@ -413,6 +413,12 @@ func testLightestChainOdr(t *testing.T, protocol int, fn odrTestFnNum) {
 				}
 				headers := []*types.Header{header}
 
+				externTd := lightchain.GetTd(header.Hash(), header.Number.Uint64())
+				localTd := lightchain.GetTd(lightchain.CurrentHeader().Hash(), lightchain.CurrentHeader().Number.Uint64())
+				if externTd != nil && externTd.Cmp(localTd) <= 0 {
+					// If it has no difficulty, it wasn't stored properly (ignored)
+					continue
+				}
 				if _, err := lightchain.InsertHeaderChain(headers, 1, true); err != nil {
 					t.Errorf("ODR test for tryHash %t block %d could not insert header to headerchain", tryHash, i)
 				}

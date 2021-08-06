@@ -75,7 +75,6 @@ type clientPool struct {
 	bt         *lps.BalanceTracker
 
 	defaultPosFactors, defaultNegFactors lps.PriceFactors
-	posExpTC, negExpTC                   uint64
 	minCap                               uint64 // The minimal capacity value allowed for any client
 	connectedBias                        time.Duration
 	capLimit                             uint64
@@ -336,7 +335,7 @@ func (f *clientPool) setCapacity(node *enode.Node, freeID string, capacity uint6
 }
 
 // setCapacityLocked is the equivalent of setCapacity used when f.lock is already locked
-func (f *clientPool) setCapacityLocked(node *enode.Node, freeID string, capacity uint64, minConnTime time.Duration, setCap bool) (uint64, error) {
+func (f *clientPool) setCapacityLocked(node *enode.Node, freeID string, capacity uint64, minConnTime time.Duration, setCap bool) (uint64, error) { //nolint:unused
 	f.lock.Lock()
 	defer f.lock.Unlock()
 

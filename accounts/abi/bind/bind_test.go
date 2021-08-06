@@ -1350,7 +1350,7 @@ var bindTests = []struct {
 		`
 		// Initialize test accounts
 		key, _ := crypto.GenerateKey()
-		auth := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
+		auth, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 		sim := backends.NewSimulatedBackend(core.GenesisAlloc{auth.From: {Balance: big.NewInt(10000000000)}})
 		defer sim.Close()
 

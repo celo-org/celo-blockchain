@@ -1027,7 +1027,7 @@ func (p *clientPeer) updateCapacity(cap uint64) {
 // after a short time if the client's buffer value is at least in the slightly positive
 // region. The client is also notified about being frozen/unfrozen with a Stop/Resume
 // message.
-func (p *clientPeer) freezeClient() {
+func (p *clientPeer) freezeClient() { //nolint:unused
 	if p.version < lpv3 {
 		// if Stop/Resume is not supported then just drop the peer after setting
 		// its frozen status permanently
@@ -1136,7 +1136,7 @@ type serverPeerSubscriber interface {
 
 // clientPeerSubscriber is an interface to notify services about added or
 // removed client peers
-type clientPeerSubscriber interface {
+type clientPeerSubscriber interface { //nolint:unused
 	registerPeer(*clientPeer)
 	unregisterPeer(*clientPeer)
 }
@@ -1148,7 +1148,7 @@ type clientPeerSet struct {
 	// subscribers is a batch of subscribers and peerset will notify
 	// these subscribers when the peerset changes(new client peer is
 	// added or removed)
-	subscribers []clientPeerSubscriber
+	subscribers []clientPeerSubscriber //nolint:unused
 	closed      bool
 	lock        sync.RWMutex
 }
@@ -1185,7 +1185,7 @@ func (ps *clientPeerSet) unSubscribe(sub clientPeerSubscriber) { // nolint:unuse
 
 // register adds a new peer into the peer set, or returns an error if the
 // peer is already known.
-func (ps *clientPeerSet) register(peer *clientPeer) error {
+func (ps *clientPeerSet) register(peer *clientPeer) error { //nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1205,7 +1205,7 @@ func (ps *clientPeerSet) register(peer *clientPeer) error {
 // unregister removes a remote peer from the peer set, disabling any further
 // actions to/from that particular entity. It also initiates disconnection
 // at the networking layer.
-func (ps *clientPeerSet) unregister(id enode.ID) error {
+func (ps *clientPeerSet) unregister(id enode.ID) error { //nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1242,7 +1242,7 @@ func (ps *clientPeerSet) peer(id enode.ID) *clientPeer {
 }
 
 // len returns if the current number of peers in the set.
-func (ps *clientPeerSet) len() int {
+func (ps *clientPeerSet) len() int { //nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -1444,13 +1444,13 @@ func (ps *serverPeerSet) close() {
 // also run the LES protocol. We can't drop them although they are useless
 // for us(server) but for other protocols(e.g. ETH) upon the devp2p they
 // may be useful.
-type serverSet struct {
+type serverSet struct { //nolint:unused
 	lock   sync.Mutex
 	set    map[string]*clientPeer
 	closed bool
 }
 
-func newServerSet() *serverSet {
+func newServerSet() *serverSet { //nolint:unused
 	return &serverSet{set: make(map[string]*clientPeer)}
 }
 
@@ -1468,7 +1468,7 @@ func (s *serverSet) register(peer *clientPeer) error {
 	return nil
 }
 
-func (s *serverSet) unregister(peer *clientPeer) error {
+func (s *serverSet) unregister(peer *clientPeer) error { //nolint:unused
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -1483,7 +1483,7 @@ func (s *serverSet) unregister(peer *clientPeer) error {
 	return nil
 }
 
-func (s *serverSet) close() {
+func (s *serverSet) close() { //nolint:unused
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

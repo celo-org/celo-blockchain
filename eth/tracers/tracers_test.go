@@ -20,7 +20,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"math/big"
-	"reflect"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -83,6 +82,37 @@ var makeTest = function(tx, rewind) {
 }
 */
 
+/*
+// callTrace is the result of a callTracer run.
+type callTrace struct {
+	Type    string          `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Input   hexutil.Bytes   `json:"input"`
+	Output  hexutil.Bytes   `json:"output"`
+	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
+	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
+	Value   *hexutil.Big    `json:"value,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	Calls   []callTrace     `json:"calls,omitempty"`
+}
+
+type callContext struct {
+	Number     math.HexOrDecimal64   `json:"number"`
+	Difficulty *math.HexOrDecimal256 `json:"difficulty"`
+	Time       math.HexOrDecimal64   `json:"timestamp"`
+	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
+	Miner      common.Address        `json:"miner"`
+}
+
+// callTracerTest defines a single test to check the call tracer against.
+type callTracerTest struct {
+	Genesis *core.Genesis `json:"genesis"`
+	Context *callContext  `json:"context"`
+	Input   string        `json:"input"`
+	Result  *callTrace    `json:"result"`
+}
+*/
 func TestPrestateTracerCreate2(t *testing.T) {
 	celoMock := testutil.NewCeloMock()
 
@@ -251,7 +281,6 @@ func TestCallTracer(t *testing.T) {
 		})
 	}
 }
-*/
 
 // jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
 // comparison
@@ -270,3 +299,4 @@ func jsonEqual(x, y interface{}) bool {
 	}
 	return reflect.DeepEqual(xTrace, yTrace)
 }
+*/
