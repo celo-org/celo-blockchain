@@ -26,7 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
@@ -108,8 +107,6 @@ type AnnounceManager struct {
 
 	ovcp OutboundVersionCertificateProcessor
 
-	avs AnnounceVersionSharer
-
 	worker AnnounceWorker
 
 	vpap ValProxyAssigmnentProvider
@@ -128,17 +125,15 @@ func NewAnnounceManager(
 	config *istanbul.Config,
 	aWallets *atomic.Value,
 	network AnnounceNetwork, proxyContext ProxyContext,
-	addrProvider AddressProvider, state *AnnounceState, announceVersion announce.Version,
+	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache GossipCache,
-	peerCounter PeerCounterFn,
-	pruner AnnounceStatePruner,
-	checker ValidatorChecker) *AnnounceManager {
-	vcGossiper := NewVcGossiper(func(payload []byte) error {
-		return network.Gossip(payload, istanbul.VersionCertificatesMsg)
-	})
-	enodeGossiper := NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
-		return network.Gossip(payload, istanbul.QueryEnodeMsg)
-	})
+	checker ValidatorChecker,
+	ovcp OutboundVersionCertificateProcessor,
+	ecertHolder EnodeCertificateMsgHolder,
+	vcGossiper VersionCertificateGossiper,
+	vpap ValProxyAssigmnentProvider,
+	worker AnnounceWorker) *AnnounceManager {
+
 	am := &AnnounceManager{
 		logger:           log.New("module", "announceManager"),
 		aWallets:         aWallets,
@@ -150,50 +145,13 @@ func NewAnnounceManager(
 		vcGossiper:       vcGossiper,
 		state:            state,
 		checker:          checker,
-		ovcp:             NewOutboundVCProcessor(checker, addrProvider, vcGossiper),
-		ecertHolder:      NewLockedHolder(),
+		ovcp:             ovcp,
+		ecertHolder:      ecertHolder,
+		vpap:             vpap,
+		worker:           worker,
 		announceThreadWg: new(sync.WaitGroup),
 		announceRunning:  false,
 	}
-
-	var efeg ExternalFacingEnodeGetter
-	var vpap ValProxyAssigmnentProvider
-	var onNewEnodeMsgs OnNewEnodeCertsMsgSentFn
-	if am.isProxiedValidator() {
-		efeg = NewProxiedExternalFacingEnodeGetter(proxyContext.GetProxiedValidatorEngine().GetProxiesAndValAssignments)
-		vpap = NewProxiedValProxyAssigmentProvider(proxyContext.GetProxiedValidatorEngine().GetValidatorProxyAssignments)
-		onNewEnodeMsgs = proxyContext.GetProxiedValidatorEngine().SendEnodeCertsToAllProxies
-	} else {
-		efeg = NewSelfExternalFacingEnodeGetter(addrProvider.SelfNode)
-		vpap = NewSelfValProxyAssigmentProvider(addrProvider.SelfNode)
-		onNewEnodeMsgs = nil
-	}
-	ecertGenerator := NewEnodeCertificateMsgGenerator(efeg)
-	am.avs = NewAnnounceVersionSharer(aWallets, network, state, am.ovcp, ecertGenerator, am.ecertHolder, onNewEnodeMsgs)
-	am.vpap = vpap
-	// Gossip the announce after a minute.
-	// The delay allows for all receivers of the announce message to
-	// have a more up-to-date cached registered/elected valset, and
-	// hence more likely that they will be aware that this node is
-	// within that set.
-	waitPeriod := 1 * time.Minute
-	if am.config.Epoch <= 10 {
-		waitPeriod = 5 * time.Second
-	}
-	am.worker = NewAnnounceWorker(
-		waitPeriod,
-		aWallets,
-		announceVersion,
-		state,
-		checker,
-		pruner,
-		vcGossiper,
-		enodeGossiper,
-		config,
-		peerCounter,
-		vpap,
-		am.avs,
-	)
 
 	return am
 }

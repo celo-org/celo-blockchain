@@ -201,14 +201,33 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 	if err != nil {
 		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
 	}
-
-	peerCounter := func(purpose p2p.PurposeFlag) int {
-		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
-	}
+	vcGossiper := NewVcGossiper(func(payload []byte) error {
+		return backend.Gossip(payload, istanbul.VersionCertificatesMsg)
+	})
 
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
 	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
-	announceVersion := announce.NewAtomicVersion()
+	ovcp := NewOutboundVCProcessor(checker, backend, vcGossiper)
+	ecertHolder := NewLockedHolder()
+	pruner := NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
+
+	var vpap ValProxyAssigmnentProvider
+	var ecertGenerator EnodeCertificateMsgGenerator
+	var onNewEnodeMsgs OnNewEnodeCertsMsgSentFn
+	if backend.IsProxiedValidator() {
+		ecertGenerator = NewEnodeCertificateMsgGenerator(
+			NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
+		)
+		vpap = NewProxiedValProxyAssigmentProvider(backend.proxiedValidatorEngine.GetValidatorProxyAssignments)
+		onNewEnodeMsgs = backend.proxiedValidatorEngine.SendEnodeCertsToAllProxies
+	} else {
+		ecertGenerator = NewEnodeCertificateMsgGenerator(NewSelfExternalFacingEnodeGetter(backend.SelfNode))
+		vpap = NewSelfValProxyAssigmentProvider(backend.SelfNode)
+		onNewEnodeMsgs = nil
+	}
+
+	avs := NewAnnounceVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
+	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
 	return NewAnnounceManager(
 		backend.config,
 		&backend.aWallets,
@@ -216,11 +235,50 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 		backend,
 		backend,
 		state,
-		announceVersion,
 		backend.gossipCache,
+		checker,
+		ovcp,
+		ecertHolder,
+		vcGossiper,
+		vpap,
+		worker)
+}
+
+func createAnnounceWorker(backend *Backend, state *AnnounceState, ovcp OutboundVersionCertificateProcessor,
+	vcGossiper VersionCertificateGossiper,
+	checker ValidatorChecker, pruner AnnounceStatePruner,
+	vpap ValProxyAssigmnentProvider, avs AnnounceVersionSharer) AnnounceWorker {
+	announceVersion := announce.NewAtomicVersion()
+	peerCounter := func(purpose p2p.PurposeFlag) int {
+		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
+	}
+
+	enodeGossiper := NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
+		return backend.Gossip(payload, istanbul.QueryEnodeMsg)
+	})
+	// Gossip the announce after a minute.
+	// The delay allows for all receivers of the announce message to
+	// have a more up-to-date cached registered/elected valset, and
+	// hence more likely that they will be aware that this node is
+	// within that set.
+	waitPeriod := 1 * time.Minute
+	if backend.config.Epoch <= 10 {
+		waitPeriod = 5 * time.Second
+	}
+	return NewAnnounceWorker(
+		waitPeriod,
+		&backend.aWallets,
+		announceVersion,
+		state,
+		checker,
+		pruner,
+		vcGossiper,
+		enodeGossiper,
+		backend.config,
 		peerCounter,
-		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet),
-		checker)
+		vpap,
+		avs,
+	)
 }
 
 // ----------------------------------------------------------------------------
