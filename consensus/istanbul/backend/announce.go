@@ -110,8 +110,7 @@ type AnnounceManager struct {
 
 	avs AnnounceVersionSharer
 
-	ecertGenerator EnodeCertificateMsgGenerator
-	worker         AnnounceWorker
+	worker AnnounceWorker
 
 	vpap ValProxyAssigmnentProvider
 
@@ -169,8 +168,8 @@ func NewAnnounceManager(
 		vpap = NewSelfValProxyAssigmentProvider(addrProvider.SelfNode)
 		onNewEnodeMsgs = nil
 	}
-	am.ecertGenerator = NewEnodeCertificateMsgGenerator(efeg)
-	am.avs = NewAnnounceVersionSharer(aWallets, network, state, am.ovcp, am.ecertGenerator, am.ecertHolder, onNewEnodeMsgs)
+	ecertGenerator := NewEnodeCertificateMsgGenerator(efeg)
+	am.avs = NewAnnounceVersionSharer(aWallets, network, state, am.ovcp, ecertGenerator, am.ecertHolder, onNewEnodeMsgs)
 	am.vpap = vpap
 	// Gossip the announce after a minute.
 	// The delay allows for all receivers of the announce message to
