@@ -191,20 +191,26 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
-	peerCounter := func(purpose p2p.PurposeFlag) int {
-		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
+	backend.announceManager = createAnnounceManager(backend)
+
+	return backend
+}
+
+func createAnnounceManager(backend *Backend) *AnnounceManager {
+	versionCertificateTable, err := enodes.OpenVersionCertificateDB(backend.config.VersionCertificateDBPath)
+	if err != nil {
+		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
 	}
 
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
-	if err != nil {
-		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
+	peerCounter := func(purpose p2p.PurposeFlag) int {
+		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
 
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
 	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
 	announceVersion := announce.NewAtomicVersion()
-	backend.announceManager = NewAnnounceManager(
-		config,
+	return NewAnnounceManager(
+		backend.config,
 		&backend.aWallets,
 		backend,
 		backend,
@@ -215,8 +221,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		peerCounter,
 		NewAnnounceStatePruner(backend.RetrieveValidatorConnSet),
 		checker)
-
-	return backend
 }
 
 // ----------------------------------------------------------------------------
