@@ -339,7 +339,7 @@ func Filter(vs []string, pred func(string) bool) []string {
 
 func doTest(cmdline []string) {
 	coverage := flag.Bool("coverage", false, "Whether to record code coverage")
-	race := flag.Bool("race", false, "Whether to record race")
+	race := flag.Bool("race", false, "Whether to enable data race detection")
 	verbose := flag.Bool("v", false, "Whether to log verbosely")
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
