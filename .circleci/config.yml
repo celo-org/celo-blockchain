@@ -119,6 +119,17 @@ jobs:
       - run: go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
+  race:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go run build/ci.go test -race
+
   lint:
     executor: golang
     steps:
