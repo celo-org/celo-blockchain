@@ -178,7 +178,6 @@ func (m *AnnounceManager) wallets() *Wallets {
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
 func (m *AnnounceManager) announceThread() {
-	m.announceThreadWg.Add(1)
 	defer m.announceThreadWg.Done()
 	m.worker.Run()
 }
@@ -523,9 +522,9 @@ func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
 		return istanbul.ErrStartedAnnounce
 	}
 
-	go m.announceThread()
-
 	m.announceRunning = true
+	m.announceThreadWg.Add(1)
+	go m.announceThread()
 
 	if err := onStart(); err != nil {
 		m.StopAnnouncing(func() error { return nil })
