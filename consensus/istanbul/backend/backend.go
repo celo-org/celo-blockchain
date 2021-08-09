@@ -221,7 +221,6 @@ type Backend struct {
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	// the channels for istanbul engine notifications
 	coreStarted bool
 	coreMu      sync.RWMutex
 
