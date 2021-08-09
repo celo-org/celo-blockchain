@@ -690,7 +690,7 @@ var (
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
 		Name:  "announce.queryenodegossipperiod",
 		Usage: "Time duration (in seconds) between gossiped query enode messages",
-		Value: eth.DefaultConfig.Istanbul.QueryEnodeGossipPeriod,
+		Value: eth.DefaultConfig.Istanbul.AnnounceQueryEnodeGossipPeriod,
 	}
 	AnnounceAggressiveQueryEnodeGossipOnEnablementFlag = cli.BoolFlag{
 		Name:  "announce.aggressivequeryenodegossiponenablement",

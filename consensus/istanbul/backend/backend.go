@@ -1025,7 +1025,7 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 		return nil, 0, time.Time{}, err
 	}
 	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
-	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AdditionalValidatorsToGossip)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.

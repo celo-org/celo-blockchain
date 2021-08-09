@@ -52,14 +52,14 @@ func (st *announceTaskState) ShouldStartQuerying() bool {
 }
 
 func (st *announceTaskState) OnStartQuerying() {
-	if st.config.AggressiveQueryEnodeGossipOnEnablement {
+	if st.config.AnnounceAggressiveQueryEnodeGossipOnEnablement {
 		st.queryEnodeFrequencyState = HighFreqBeforeFirstPeerState
 		// Send an query enode message once a minute
 		st.currentQueryEnodeTickerDuration = 1 * time.Minute
 		st.numQueryEnodesInHighFreqAfterFirstPeerState = 0
 	} else {
 		st.queryEnodeFrequencyState = LowFreqState
-		st.currentQueryEnodeTickerDuration = time.Duration(st.config.QueryEnodeGossipPeriod) * time.Second
+		st.currentQueryEnodeTickerDuration = time.Duration(st.config.AnnounceQueryEnodeGossipPeriod) * time.Second
 	}
 
 	// Enable periodic gossiping by setting announceGossipTickerCh to non nil value
@@ -117,9 +117,9 @@ func (st *announceTaskState) UpdateFrequencyOnGenerate(peers int) {
 		st.numQueryEnodesInHighFreqAfterFirstPeerState++
 
 	case LowFreqState:
-		if st.currentQueryEnodeTickerDuration != time.Duration(st.config.QueryEnodeGossipPeriod)*time.Second {
+		if st.currentQueryEnodeTickerDuration != time.Duration(st.config.AnnounceQueryEnodeGossipPeriod)*time.Second {
 			// Reset the ticker
-			st.currentQueryEnodeTickerDuration = time.Duration(st.config.QueryEnodeGossipPeriod) * time.Second
+			st.currentQueryEnodeTickerDuration = time.Duration(st.config.AnnounceQueryEnodeGossipPeriod) * time.Second
 			st.queryEnodeTicker.Stop()
 			st.queryEnodeTicker = time.NewTicker(st.currentQueryEnodeTickerDuration)
 			st.queryEnodeTickerCh = st.queryEnodeTicker.C
