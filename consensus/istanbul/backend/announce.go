@@ -173,7 +173,6 @@ func (m *AnnounceManager) wallets() *Wallets {
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
-	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
 	// Create a ticker to poll if istanbul core is running and if this node is in
