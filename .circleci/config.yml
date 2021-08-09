@@ -129,6 +129,12 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: go run build/ci.go test -race
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+
+      - store_test_results:
+          path: /tmp/test-results
 
   lint:
     executor: golang
