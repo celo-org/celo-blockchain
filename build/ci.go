@@ -338,6 +338,7 @@ func Filter(vs []string, pred func(string) bool) []string {
 // "tests" also includes static analysis tools such as vet.
 
 func doTest(cmdline []string) {
+	coverpkg := flag.String("coverpkg", "", "Target package to record coverage from")
 	coverage := flag.Bool("coverage", false, "Whether to record code coverage")
 	verbose := flag.Bool("v", false, "Whether to log verbosely")
 	flag.CommandLine.Parse(cmdline)
@@ -355,6 +356,9 @@ func doTest(cmdline []string) {
 	gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.out")
+		if *coverpkg != "" {
+			gotest.Args = append(gotest.Args, []string{"-coverpkg=", *coverpkg}...)
+		}
 	}
 	if *verbose {
 		gotest.Args = append(gotest.Args, "-v")
