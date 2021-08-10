@@ -337,6 +337,11 @@ workflows:
           requires:
             - build-geth
             - prepare-system-contracts
+      - coverage_istanbul:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+            - coverage
       - android
       - ios
       - publish-mobile-client:
