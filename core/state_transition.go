@@ -274,7 +274,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	if err != nil {
 		return false
 	}
-	return balanceOf.Cmp(fee) > 0
+	return balanceOf.Cmp(fee) >= 0
 }
 
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
