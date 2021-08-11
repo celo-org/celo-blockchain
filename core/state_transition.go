@@ -266,6 +266,7 @@ func (st *StateTransition) payFees() error {
 
 func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
+		// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
