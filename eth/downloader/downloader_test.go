@@ -422,6 +422,7 @@ type downloadTesterPeer struct {
 	chain            *testChain
 	missingStates    map[common.Hash]bool // State entries that fast sync should not return
 	knownPlumoProofs []types.PlumoProofMetadata
+	requestedProofs  []types.PlumoProofMetadata
 }
 
 // Head constructs a function to retrieve a peer's current head hash
@@ -523,6 +524,7 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 	if tester.downloader.Mode == LightSync || tester.downloader.Mode == LightestSync {
 		blocks, receipts = 1, 1
 		for _, lightProof := range tester.ownPlumoProofs {
+			fmt.Printf("Adding to num plumo epochs, firstEpoch: %v, last epoch %v\n", lightProof.FirstEpoch, lightProof.LastEpoch.Index)
 			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch)
 			numPlumoProofEpochs += proofRange
 		}
@@ -1724,7 +1726,7 @@ func (dl *downloadTester) newPlumoPeer(id string, version int, chain *testChain,
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	peer := &downloadTesterPeer{dl: dl, id: id, chain: chain, knownPlumoProofs: proofs}
+	peer := &downloadTesterPeer{dl: dl, id: id, chain: chain, knownPlumoProofs: proofs, requestedProofs: []types.PlumoProofMetadata{}}
 	dl.peers[id] = peer
 	return dl.downloader.RegisterPeer(id, version, peer)
 }
@@ -1776,7 +1778,7 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 		if currFrom < earliestMatch {
 			gap := headerGap{
 				FirstEpoch: currEpoch + 1,
-				Amount:     int(earliestMatch - currEpoch),
+				Amount:     int(earliestMatch - (currEpoch + 1)),
 			}
 			headerGaps = append(headerGaps, gap)
 		}
@@ -1788,8 +1790,17 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 	}
 
 	for _, proofsMetadata := range proofsToRequest {
-		result := proofs[proofsMetadata]
-		go dlp.dl.downloader.DeliverPlumoProofs(dlp.id, []istanbul.LightPlumoProof{result})
+		var requested = false
+		for _, requestedProof := range dlp.requestedProofs {
+			if proofsMetadata == requestedProof {
+				requested = true
+			}
+		}
+		if !requested {
+			result := proofs[proofsMetadata]
+			dlp.requestedProofs = append(dlp.requestedProofs, proofsMetadata)
+			go dlp.dl.downloader.DeliverPlumoProofs(dlp.id, []istanbul.LightPlumoProof{result})
+		}
 	}
 
 	for _, headerGap := range headerGaps {
@@ -1816,6 +1827,18 @@ var (
 			VersionNumber: 0,
 		},
 	}
+	proofsMetadataGaps = []types.PlumoProofMetadata{
+		{
+			FirstEpoch:    2,
+			LastEpoch:     25,
+			VersionNumber: 0,
+		},
+		// {
+		// 	FirstEpoch:    45,
+		// 	LastEpoch:     54,
+		// 	VersionNumber: 0,
+		// },
+	}
 	// TODO
 	proofs = map[types.PlumoProofMetadata]istanbul.LightPlumoProof{
 		proofsMetadata[0]: {
@@ -1830,6 +1853,30 @@ var (
 			NewValidators:      []istanbul.ValidatorData{},
 			ValidatorPositions: []byte{},
 		},
+		proofsMetadataGaps[0]: {
+			Proof:      []byte{0},
+			FirstEpoch: 2,
+			LastEpoch: istanbul.LightEpochBlock{
+				Index:         25,
+				MaxNonSigners: 0,
+			},
+			VersionNumber:      0,
+			FirstHashToField:   []byte{},
+			NewValidators:      []istanbul.ValidatorData{},
+			ValidatorPositions: []byte{},
+		},
+		// proofsMetadataGaps[1]: {
+		// 	Proof:      []byte{0},
+		// 	FirstEpoch: 45,
+		// 	LastEpoch: istanbul.LightEpochBlock{
+		// 		Index:         54,
+		// 		MaxNonSigners: 0,
+		// 	},
+		// 	VersionNumber:      0,
+		// 	FirstHashToField:   []byte{},
+		// 	NewValidators:      []istanbul.ValidatorData{},
+		// 	ValidatorPositions: []byte{},
+		// },
 	}
 )
 
@@ -1859,6 +1906,23 @@ func TestPlumoSync(t *testing.T) {
 	// Create a small enough block chain to download
 	chain := testChainBase.shorten(blockCacheItems - 15)
 	tester.newPlumoPeer("peer", 67, chain, proofsMetadata)
+
+	// Synchronise with the peer and make sure all relevant data was retrieved
+	if err := tester.sync("peer", nil, LightestSync); err != nil {
+		t.Fatalf("failed to synchronise blocks: %v", err)
+	}
+	assertOwnChain(t, tester, chain.len())
+}
+
+func TestPlumoSyncWithGaps(t *testing.T) {
+	t.Parallel()
+
+	tester := newTester()
+	defer tester.terminate()
+
+	// Create a small enough block chain to download
+	chain := testChainBase.shorten(blockCacheItems - 15)
+	tester.newPlumoPeer("peer", 67, chain, proofsMetadataGaps)
 
 	// Synchronise with the peer and make sure all relevant data was retrieved
 	if err := tester.sync("peer", nil, LightestSync); err != nil {
