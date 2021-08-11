@@ -269,3 +269,7 @@ geth-windows-amd64:
 	$(GORUN) build/ci.go xgo -- --go=$(GO) --targets=windows/amd64 -v ./cmd/geth
 	@echo "Windows amd64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-windows-* | grep amd64
+
+
+e2e_istanbul_coverage:
+	$(GORUN) build/ci.go test -coverage -coverpkg=./consensus/istanbul/... ./e2e_test/...
