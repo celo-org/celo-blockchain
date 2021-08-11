@@ -1574,8 +1574,8 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			return err
 		}
 
-		// To match the logic in canPayFee() state_transition.go, we require the balance to be strictly greater than the fee,
-		// which means we reject the transaction if balance <= fee
+		// To match the logic in canPayFee() state_transition.go, we require the balance to be greater than or equal to the fee,
+		// which means we reject the transaction if balance < fee
 		fee := tx.Fee()
 		if feeCurrencyBalance.Cmp(fee) < 0 {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
