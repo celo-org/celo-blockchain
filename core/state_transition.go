@@ -266,16 +266,20 @@ func (st *StateTransition) payFees() error {
 
 func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
-		// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
 	balanceOf, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
-
 	if err != nil {
 		return false
 	}
-	return balanceOf.Cmp(fee) >= 0
+
+	// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
+	if st.evm.ChainConfig().IsEHardfork(st.evm.BlockNumber) {
+		return balanceOf.Cmp(fee) >= 0
+	} else {
+		return balanceOf.Cmp(fee) > 0
+	}
 }
 
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
