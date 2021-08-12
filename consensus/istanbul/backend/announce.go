@@ -173,7 +173,6 @@ func (m *AnnounceManager) wallets() *Wallets {
 func (sb *Backend) announceThread() {
 	logger := sb.logger.New("func", "announceThread")
 
-	sb.announceThreadWg.Add(1)
 	defer sb.announceThreadWg.Done()
 
 	// Create a ticker to poll if istanbul core is running and if this node is in
@@ -223,7 +222,7 @@ func (sb *Backend) announceThread() {
 			var err error
 			shouldQuery, err = sb.announceManager.shouldParticipateInAnnounce()
 			if err != nil {
-				logger.Warn("Error in checking if should announce", err)
+				logger.Warn("Error in checking if should announce", "err", err)
 				break
 			}
 			shouldAnnounce = shouldQuery && sb.IsValidating()

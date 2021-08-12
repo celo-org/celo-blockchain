@@ -197,7 +197,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 
-// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
+// NewWork is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 

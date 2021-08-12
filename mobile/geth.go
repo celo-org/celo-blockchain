@@ -323,7 +323,7 @@ func (n *Node) GetNodeInfo() *NodeInfo {
 	return &NodeInfo{n.node.Server().NodeInfo()}
 }
 
-// GetPeersInfo returns an array of metadata objects describing connected peers.
+// GetPeerInfos returns an array of metadata objects describing connected peers.
 func (n *Node) GetPeerInfos() *PeerInfos {
 	return &PeerInfos{n.node.Server().PeersInfo()}
 }
