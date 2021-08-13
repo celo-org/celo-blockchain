@@ -119,18 +119,6 @@ jobs:
       - run: go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
-  coverage_istanbul:
-    executor: golang
-    resource_class: medium+
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go run build/ci.go test -coverage -coverpkg=./consensus/istanbul/... ./e2e_test/...
-      - run: bash <(curl -s https://codecov.io/bash)
-
   lint:
     executor: golang
     steps:
