@@ -103,7 +103,6 @@ jobs:
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-
       - store_test_results:
           path: /tmp/test-results
 
@@ -116,11 +115,16 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go run build/ci.go test -race
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run Tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go run build/ci.go test -v | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-
       - store_test_results:
           path: /tmp/test-results
 
