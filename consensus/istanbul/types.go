@@ -901,6 +901,9 @@ type VersionCertificate struct {
 	pubKey    *ecdsa.PublicKey
 }
 
+// NewVersionCeritifcate constructs a VersionCertificate instance with the
+// given version.  It uses the signingFn to generate a version signature and
+// then builds a version certificate from the version and its signature.
 func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error)) (*VersionCertificate, error) {
 	vc := &VersionCertificate{Version: version}
 	payloadToSign, err := vc.signaturePayload()
@@ -911,7 +914,27 @@ func NewVersionCertificate(version uint, signingFn func([]byte) ([]byte, error))
 	if err != nil {
 		return nil, err
 	}
-	return vc, vc.recoverAddressAndPubKey()
+	err = vc.recoverAddressAndPubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	return vc, nil
+}
+
+// NewVersionCeritifcateFrom fields constructs a VersionCertificate instance
+// with the given fields, using them to build a VersionCertificate instance.
+// No validation is done on the provided fields. It
+// is assumed that the fields are valid, meaning that the signature was
+// generated using the given version and the private part of the given public
+// key, and also that the address corresponds to the given public key.
+func NewVersionCertificateFromFields(version uint, signature []byte, address common.Address, key *ecdsa.PublicKey) *VersionCertificate {
+	return &VersionCertificate{
+		Version:   version,
+		Signature: signature,
+		address:   address,
+		pubKey:    key,
+	}
 }
 
 // Used as a salt when signing versionCertificate. This is to account for

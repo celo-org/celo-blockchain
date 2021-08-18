@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-grep --exclude-dir=monorepo --files-with-matches "[^https://]github.com/ethereum/go-ethereum" --recursive . --include="*.go"
+grep --exclude-dir=compiled-system-contracts --files-with-matches "[^https://]github.com/ethereum/go-ethereum" --recursive . --include="*.go"
 if [ "$?" -gt "0" ]; then
     exit 0
 else

@@ -212,13 +212,9 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideChurritoFlag = cli.Uint64Flag{
-		Name:  "override.churrito",
-		Usage: "Manually specify Churrito fork-block, overriding the bundled setting",
-	}
-	OverrideDonutFlag = cli.Uint64Flag{
-		Name:  "override.donut",
-		Usage: "Manually specify Donut fork-block, overriding the bundled setting",
+	OverrideEHardforkFlag = cli.Uint64Flag{
+		Name:  "override.eHardfork",
+		Usage: "Manually specify E fork-block, overriding the bundled setting",
 	}
 
 	// Light server and client settings
@@ -1725,7 +1721,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		log.Info("Using developer account", "address", developer.Address)
 
 		// Create a new developer genesis block or reuse existing one
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.GlobalInt(DeveloperPeriodFlag.Name)), developer.Address)
+		cfg.Genesis = core.DeveloperGenesisBlock()
 		if ctx.GlobalIsSet(DataDirFlag.Name) {
 			// Check if we have an already initialized chain and fall back to
 			// that if so. Otherwise we need to generate a new genesis spec.

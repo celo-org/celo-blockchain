@@ -114,7 +114,4 @@ type EVMRunner interface {
 	// StartGasMetering backward compatibility method to start gas metering
 	// Deprecated. DO NOT USE
 	StartGasMetering()
-
-	// GetStateDB retrieves current stateDB within the runner
-	GetStateDB() StateDB
 }

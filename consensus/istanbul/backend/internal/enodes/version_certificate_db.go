@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/db"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -107,7 +108,7 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 		if err != nil {
 			return err
 		}
-		savEntryBytes, err := rlp.EncodeToBytes(savEntry)
+		savEntryBytes, err := encodeVersionCertificate(savEntry)
 		if err != nil {
 			return err
 		}
@@ -149,15 +150,11 @@ func (svdb *VersionCertificateDB) Upsert(savEntries []*istanbul.VersionCertifica
 // Get gets the istanbul.VersionCertificateEntry entry with address `address`.
 // Returns an error if no entry exists.
 func (svdb *VersionCertificateDB) Get(address common.Address) (*istanbul.VersionCertificate, error) {
-	var entry istanbul.VersionCertificate
 	entryBytes, err := svdb.gdb.Get(addressKey(address))
 	if err != nil {
 		return nil, err
 	}
-	if err = rlp.DecodeBytes(entryBytes, &entry); err != nil {
-		return nil, err
-	}
-	return &entry, nil
+	return decodeVersionCertificate(entryBytes)
 }
 
 // GetVersion gets the version for the entry with address `address`
@@ -206,6 +203,42 @@ func (svdb *VersionCertificateDB) Prune(addressesToKeep map[common.Address]bool)
 	return svdb.gdb.Write(batch)
 }
 
+// Version certificates are serialised differently to network serialisation for
+// storage in the version certificate db. Instead of storing just the version
+// and signature, all fields are stored. It's not clear why this approach was
+// chosen since it is not necessary to store the public key and address because
+// they can be derived from the version and signature. Nevertheless we continue
+// to use this approach because we can't easily change it without changing the
+// storage format and breaking backwards compatibility.
+func decodeVersionCertificate(value []byte) (*istanbul.VersionCertificate, error) {
+	var content struct {
+		Address   common.Address
+		PublicKey []byte
+		Version   uint
+		Signature []byte
+	}
+	if err := rlp.DecodeBytes(value, &content); err != nil {
+		return nil, err
+	}
+	decodedPublicKey, err := crypto.UnmarshalPubkey(content.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	return istanbul.NewVersionCertificateFromFields(content.Version, content.Signature, content.Address, decodedPublicKey), nil
+}
+
+// Version certificates are serialised differently to network serialisation for
+// storage in the version certificate db. Instead of storing just the version
+// and signature, all fields are stored. It's not clear why this approach was
+// chosen since it is not necessary to store the public key and address because
+// they can be derived from the version and signature. Nevertheless we continue
+// to use this approach because we can't easily change it without changing the
+// storage format and breaking backwards compatibility.
+func encodeVersionCertificate(vc *istanbul.VersionCertificate) ([]byte, error) {
+	encodedPublicKey := crypto.FromECDSAPub(vc.PublicKey())
+	return rlp.EncodeToBytes([]interface{}{vc.Address(), encodedPublicKey, vc.Version, vc.Signature})
+}
+
 // iterate will call `onEntry` for each entry in the db
 func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul.VersionCertificate) error) error {
 	logger := svdb.logger.New("func", "iterate")
@@ -213,12 +246,13 @@ func (svdb *VersionCertificateDB) iterate(onEntry func(common.Address, *istanbul
 	keyPrefix := []byte(dbAddressPrefix)
 
 	onDBEntry := func(key []byte, value []byte) error {
-		var entry istanbul.VersionCertificate
-		if err := rlp.DecodeBytes(value, &entry); err != nil {
+		entry, err := decodeVersionCertificate(value)
+		if err != nil {
 			return err
 		}
+
 		address := common.BytesToAddress(key)
-		if err := onEntry(address, &entry); err != nil {
+		if err := onEntry(address, entry); err != nil {
 			return err
 		}
 		return nil

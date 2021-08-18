@@ -64,6 +64,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
+		EBlock:              nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -88,6 +89,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
+		EBlock:              nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -97,7 +99,7 @@ var (
 		},
 	}
 
-	// AlfajoresChainConfig contains the chain parameters to run a node on the Baklava test network.
+	// AlfajoresChainConfig contains the chain parameters to run a node on the Alfajores test network.
 	AlfajoresChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(int64(AlfajoresNetworkId)),
 		HomesteadBlock:      big.NewInt(0),
@@ -112,6 +114,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
+		EBlock:              nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -121,21 +124,21 @@ var (
 		},
 	}
 
-	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), &IstanbulConfig{
+	DeveloperChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), nil, &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
 		BlockPeriod:    1,
 	}, true, false}
 
-	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, &IstanbulConfig{
+	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
 		BlockPeriod:    1,
 	}, true, false}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, &IstanbulConfig{
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
 	}, true, true}
@@ -213,6 +216,7 @@ type ChainConfig struct {
 	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
 	ChurritoBlock       *big.Int `json:"churritoBlock,omitempty"`       // Churrito switch block (nil = no fork, 0 = already activated)
 	DonutBlock          *big.Int `json:"donutBlock,omitempty"`          // Donut switch block (nil = no fork, 0 = already activated)
+	EBlock              *big.Int `json:"dBlock,omitempty"`              // E switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
 
@@ -255,7 +259,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, EHardfork: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -269,6 +273,7 @@ func (c *ChainConfig) String() string {
 		c.IstanbulBlock,
 		c.ChurritoBlock,
 		c.DonutBlock,
+		c.EBlock,
 		engine,
 	)
 }
@@ -335,6 +340,11 @@ func (c *ChainConfig) IsDonut(num *big.Int) bool {
 	return isForked(c.DonutBlock, num)
 }
 
+// IsEHardfork returns whether num represents a block number after the E fork
+func (c *ChainConfig) IsEHardfork(num *big.Int) bool {
+	return isForked(c.EBlock, num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -373,6 +383,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "istanbulBlock", block: c.IstanbulBlock},
 		{name: "churritoBlock", block: c.ChurritoBlock},
 		{name: "donutBlock", block: c.DonutBlock},
+		{name: "eBlock", block: c.EBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -442,6 +453,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.DonutBlock, newcfg.DonutBlock, head) {
 		return newCompatError("Donut fork block", c.DonutBlock, newcfg.DonutBlock)
 	}
+	if isForkIncompatible(c.EBlock, newcfg.EBlock, head) {
+		return newCompatError("E fork block", c.EBlock, newcfg.EBlock)
+	}
 	return nil
 }
 
@@ -509,7 +523,7 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	IsChurrito, IsDonut                                     bool
+	IsChurrito, IsDonut, IsEHardfork                        bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -530,5 +544,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIstanbul:       c.IsIstanbul(num),
 		IsChurrito:       c.IsChurrito(num),
 		IsDonut:          c.IsDonut(num),
+		IsEHardfork:      c.IsEHardfork(num),
 	}
 }
