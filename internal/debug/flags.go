@@ -138,16 +138,6 @@ var (
 
 // Flags holds all command-line flags required for debugging.
 var Flags = []cli.Flag{
-<<<<<<< HEAD
-	verbosityFlag, vmoduleFlag, backtraceAtFlag, debugFlag,
-	pprofFlag, pprofAddrFlag, pprofPortFlag, memprofilerateFlag,
-	blockprofilerateFlag, cpuprofileFlag, traceFlag,
-	consoleFormatFlag, consoleOutputFlag,
-||||||| e78727290
-	verbosityFlag, vmoduleFlag, backtraceAtFlag, debugFlag,
-	pprofFlag, pprofAddrFlag, pprofPortFlag, memprofilerateFlag,
-	blockprofilerateFlag, cpuprofileFlag, traceFlag,
-=======
 	verbosityFlag,
 	vmoduleFlag,
 	logjsonFlag,
@@ -160,7 +150,6 @@ var Flags = []cli.Flag{
 	blockprofilerateFlag,
 	cpuprofileFlag,
 	traceFlag,
->>>>>>> v1.10.7
 }
 
 // This is the list of deprecated debugging flags.
@@ -203,22 +192,9 @@ func (this StdoutStderrHandler) Log(r *log.Record) error {
 }
 
 func init() {
-<<<<<<< HEAD
-	ostream = log.StreamHandler(io.Writer(os.Stderr), log.TerminalFormat(false))
-	glogger = log.NewGlogHandler(ostream)
-||||||| e78727290
-	usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
-	output := io.Writer(os.Stderr)
-	if usecolor {
-		output = colorable.NewColorableStderr()
-	}
-	ostream = log.StreamHandler(output, log.TerminalFormat(usecolor))
-	glogger = log.NewGlogHandler(ostream)
-=======
 	glogger = log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.LvlInfo)
 	log.Root().SetHandler(glogger)
->>>>>>> v1.10.7
 }
 
 // Setup initializes profiling and logging based on the CLI flags.
@@ -238,24 +214,6 @@ func Setup(ctx *cli.Context) error {
 	glogger.SetHandler(ostream)
 
 	// logging
-<<<<<<< HEAD
-
-	consoleFormat := ctx.GlobalString(consoleFormatFlag.Name)
-	consoleOutputMode := ctx.GlobalString(consoleOutputFlag.Name)
-
-	ostream := CreateStreamHandler(consoleFormat, consoleOutputMode)
-	glogger = log.NewGlogHandler(ostream)
-
-	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
-	glogger.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
-	glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
-	glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
-||||||| e78727290
-	log.PrintOrigins(ctx.GlobalBool(debugFlag.Name))
-	glogger.Verbosity(log.Lvl(ctx.GlobalInt(verbosityFlag.Name)))
-	glogger.Vmodule(ctx.GlobalString(vmoduleFlag.Name))
-	glogger.BacktraceAt(ctx.GlobalString(backtraceAtFlag.Name))
-=======
 	verbosity := ctx.GlobalInt(verbosityFlag.Name)
 	glogger.Verbosity(log.Lvl(verbosity))
 	vmodule := ctx.GlobalString(vmoduleFlag.Name)
@@ -281,7 +239,6 @@ func Setup(ctx *cli.Context) error {
 	}
 	glogger.BacktraceAt(backtrace)
 
->>>>>>> v1.10.7
 	log.Root().SetHandler(glogger)
 
 	// profiling, tracing
