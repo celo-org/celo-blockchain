@@ -125,18 +125,8 @@ func (b *SimulatedBackend) Rollback() {
 	b.rollback(b.blockchain.CurrentBlock())
 }
 
-<<<<<<< HEAD
-func (b *SimulatedBackend) rollback() {
-	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), mockEngine.NewFaker(), b.database, 1, func(int, *core.BlockGen) {})
-	stateDB, _ := b.blockchain.State()
-||||||| e78727290
-func (b *SimulatedBackend) rollback() {
-	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), ethash.NewFaker(), b.database, 1, func(int, *core.BlockGen) {})
-	stateDB, _ := b.blockchain.State()
-=======
 func (b *SimulatedBackend) rollback(parent *types.Block) {
-	blocks, _ := core.GenerateChain(b.config, parent, ethash.NewFaker(), b.database, 1, func(int, *core.BlockGen) {})
->>>>>>> v1.10.7
+	blocks, _ := core.GenerateChain(b.config, parent, mockEngine.NewFaker(), b.database, 1, func(int, *core.BlockGen) {})
 
 	b.pendingBlock = blocks[0]
 	b.pendingState, _ = state.New(b.pendingBlock.Root(), b.blockchain.StateCache(), nil)
@@ -496,67 +486,8 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call ethereum.CallMs
 	if call.Gas >= params.TxGas {
 		hi = call.Gas
 	} else {
-<<<<<<< HEAD
 		vmRunner := b.blockchain.NewEVMRunner(b.pendingBlock.Header(), b.pendingState)
 		hi = blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
-||||||| e78727290
-		hi = b.pendingBlock.GasLimit()
-	}
-	// Recap the highest gas allowance with account's balance.
-	if call.GasPrice != nil && call.GasPrice.BitLen() != 0 {
-		balance := b.pendingState.GetBalance(call.From) // from can't be nil
-		available := new(big.Int).Set(balance)
-		if call.Value != nil {
-			if call.Value.Cmp(available) >= 0 {
-				return 0, errors.New("insufficient funds for transfer")
-			}
-			available.Sub(available, call.Value)
-		}
-		allowance := new(big.Int).Div(available, call.GasPrice)
-		if allowance.IsUint64() && hi > allowance.Uint64() {
-			transfer := call.Value
-			if transfer == nil {
-				transfer = new(big.Int)
-			}
-			log.Warn("Gas estimation capped by limited funds", "original", hi, "balance", balance,
-				"sent", transfer, "gasprice", call.GasPrice, "fundable", allowance)
-			hi = allowance.Uint64()
-		}
-=======
-		hi = b.pendingBlock.GasLimit()
-	}
-	// Normalize the max fee per gas the call is willing to spend.
-	var feeCap *big.Int
-	if call.GasPrice != nil && (call.GasFeeCap != nil || call.GasTipCap != nil) {
-		return 0, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
-	} else if call.GasPrice != nil {
-		feeCap = call.GasPrice
-	} else if call.GasFeeCap != nil {
-		feeCap = call.GasFeeCap
-	} else {
-		feeCap = common.Big0
-	}
-	// Recap the highest gas allowance with account's balance.
-	if feeCap.BitLen() != 0 {
-		balance := b.pendingState.GetBalance(call.From) // from can't be nil
-		available := new(big.Int).Set(balance)
-		if call.Value != nil {
-			if call.Value.Cmp(available) >= 0 {
-				return 0, errors.New("insufficient funds for transfer")
-			}
-			available.Sub(available, call.Value)
-		}
-		allowance := new(big.Int).Div(available, feeCap)
-		if allowance.IsUint64() && hi > allowance.Uint64() {
-			transfer := call.Value
-			if transfer == nil {
-				transfer = new(big.Int)
-			}
-			log.Warn("Gas estimation capped by limited funds", "original", hi, "balance", balance,
-				"sent", transfer, "feecap", feeCap, "fundable", allowance)
-			hi = allowance.Uint64()
-		}
->>>>>>> v1.10.7
 	}
 	cap = hi
 
@@ -693,16 +624,8 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 	if tx.Nonce() != nonce {
 		panic(fmt.Errorf("invalid transaction nonce: got %d, want %d", tx.Nonce(), nonce))
 	}
-<<<<<<< HEAD
-
-	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), mockEngine.NewFaker(), b.database, 1, func(number int, block *core.BlockGen) {
-||||||| e78727290
-
-	blocks, _ := core.GenerateChain(b.config, b.blockchain.CurrentBlock(), ethash.NewFaker(), b.database, 1, func(number int, block *core.BlockGen) {
-=======
 	// Include tx in chain
-	blocks, _ := core.GenerateChain(b.config, block, ethash.NewFaker(), b.database, 1, func(number int, block *core.BlockGen) {
->>>>>>> v1.10.7
+	blocks, _ := core.GenerateChain(b.config, block, mockEngine.NewFaker(), b.database, 1, func(number int, block *core.BlockGen) {
 		for _, tx := range b.pendingBlock.Transactions() {
 			block.AddTxWithChain(b.blockchain, tx)
 		}
@@ -841,12 +764,13 @@ type callMsg struct {
 	ethereum.CallMsg
 }
 
-<<<<<<< HEAD
 func (m callMsg) From() common.Address                 { return m.CallMsg.From }
 func (m callMsg) Nonce() uint64                        { return 0 }
 func (m callMsg) CheckNonce() bool                     { return false }
 func (m callMsg) To() *common.Address                  { return m.CallMsg.To }
 func (m callMsg) GasPrice() *big.Int                   { return m.CallMsg.GasPrice }
+func (m callMsg) GasFeeCap() *big.Int                  { return m.CallMsg.GasFeeCap }
+func (m callMsg) GasTipCap() *big.Int                  { return m.CallMsg.GasTipCap }
 func (m callMsg) FeeCurrency() *common.Address         { return m.CallMsg.FeeCurrency }
 func (m callMsg) GatewayFeeRecipient() *common.Address { return m.CallMsg.GatewayFeeRecipient }
 func (m callMsg) GatewayFee() *big.Int                 { return m.CallMsg.GatewayFee }
@@ -854,28 +778,7 @@ func (m callMsg) Gas() uint64                          { return m.CallMsg.Gas }
 func (m callMsg) Value() *big.Int                      { return m.CallMsg.Value }
 func (m callMsg) Data() []byte                         { return m.CallMsg.Data }
 func (m callMsg) EthCompatible() bool                  { return m.CallMsg.EthCompatible }
-||||||| e78727290
-func (m callMsg) From() common.Address { return m.CallMsg.From }
-func (m callMsg) Nonce() uint64        { return 0 }
-func (m callMsg) CheckNonce() bool     { return false }
-func (m callMsg) To() *common.Address  { return m.CallMsg.To }
-func (m callMsg) GasPrice() *big.Int   { return m.CallMsg.GasPrice }
-func (m callMsg) Gas() uint64          { return m.CallMsg.Gas }
-func (m callMsg) Value() *big.Int      { return m.CallMsg.Value }
-func (m callMsg) Data() []byte         { return m.CallMsg.Data }
-=======
-func (m callMsg) From() common.Address         { return m.CallMsg.From }
-func (m callMsg) Nonce() uint64                { return 0 }
-func (m callMsg) CheckNonce() bool             { return false }
-func (m callMsg) To() *common.Address          { return m.CallMsg.To }
-func (m callMsg) GasPrice() *big.Int           { return m.CallMsg.GasPrice }
-func (m callMsg) GasFeeCap() *big.Int          { return m.CallMsg.GasFeeCap }
-func (m callMsg) GasTipCap() *big.Int          { return m.CallMsg.GasTipCap }
-func (m callMsg) Gas() uint64                  { return m.CallMsg.Gas }
-func (m callMsg) Value() *big.Int              { return m.CallMsg.Value }
-func (m callMsg) Data() []byte                 { return m.CallMsg.Data }
-func (m callMsg) AccessList() types.AccessList { return m.CallMsg.AccessList }
->>>>>>> v1.10.7
+func (m callMsg) AccessList() types.AccessList         { return m.CallMsg.AccessList }
 
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.

@@ -51,24 +51,14 @@ type TransactOpts struct {
 	Nonce  *big.Int       // Nonce to use for the transaction execution (nil = use pending state)
 	Signer SignerFn       // Method to use for signing the transaction (mandatory)
 
-<<<<<<< HEAD
 	Value               *big.Int        // Funds to transfer along the transaction (nil = 0 = no funds)
 	GasPrice            *big.Int        // Gas price to use for the transaction execution (nil = gas price oracle)
 	FeeCurrency         *common.Address // Fee currency to be used for transaction (nil = default currency = Celo Gold)
 	GatewayFeeRecipient *common.Address // Address to which gateway fees should be paid (nil = no gateway fees are paid)
 	GatewayFee          *big.Int        // Value of gateway fees to be paid (nil = no gateway fees are paid)
+	GasFeeCap           *big.Int        // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	GasTipCap           *big.Int        // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	GasLimit            uint64          // Gas limit to set for the transaction execution (0 = estimate)
-||||||| e78727290
-	Value    *big.Int // Funds to transfer along the transaction (nil = 0 = no funds)
-	GasPrice *big.Int // Gas price to use for the transaction execution (nil = gas price oracle)
-	GasLimit uint64   // Gas limit to set for the transaction execution (0 = estimate)
-=======
-	Value     *big.Int // Funds to transfer along the transaction (nil = 0 = no funds)
-	GasPrice  *big.Int // Gas price to use for the transaction execution (nil = gas price oracle)
-	GasFeeCap *big.Int // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
-	GasTipCap *big.Int // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
-	GasLimit  uint64   // Gas limit to set for the transaction execution (0 = estimate)
->>>>>>> v1.10.7
 
 	Context context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 
@@ -331,7 +321,18 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 			}
 		}
 		// If the contract surely has code (or code is not needed), estimate the transaction
-		msg := ethereum.CallMsg{From: opts.From, To: contract, GasPrice: opts.GasPrice, GasTipCap: opts.GasTipCap, GasFeeCap: opts.GasFeeCap, Value: value, Data: input}
+		msg := ethereum.CallMsg{
+			From:                opts.From,
+			To:                  contract,
+			GasPrice:            opts.GasPrice,
+			GasTipCap:           opts.GasTipCap,
+			GasFeeCap:           opts.GasFeeCap,
+			Value:               value,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			Data:                input,
+		}
 		gasLimit, err = c.transactor.EstimateGas(ensureContext(opts.Context), msg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
@@ -339,45 +340,37 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	}
 	// Create the transaction, sign it and schedule it for execution
 	var rawTx *types.Transaction
-<<<<<<< HEAD
-	if contract == nil {
-		rawTx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, input)
-||||||| e78727290
-	if contract == nil {
-		rawTx = types.NewContractCreation(nonce, value, gasLimit, gasPrice, input)
-=======
 	if opts.GasFeeCap == nil {
 		baseTx := &types.LegacyTx{
-			Nonce:    nonce,
-			GasPrice: opts.GasPrice,
-			Gas:      gasLimit,
-			Value:    value,
-			Data:     input,
+			Nonce:               nonce,
+			GasPrice:            opts.GasPrice,
+			Gas:                 gasLimit,
+			Value:               value,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			Data:                input,
 		}
 		if contract != nil {
 			baseTx.To = &c.address
 		}
 		rawTx = types.NewTx(baseTx)
->>>>>>> v1.10.7
 	} else {
-<<<<<<< HEAD
-		rawTx = types.NewTransaction(nonce, c.address, value, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, input)
-||||||| e78727290
-		rawTx = types.NewTransaction(nonce, c.address, value, gasLimit, gasPrice, input)
-=======
 		baseTx := &types.DynamicFeeTx{
-			Nonce:     nonce,
-			GasFeeCap: opts.GasFeeCap,
-			GasTipCap: opts.GasTipCap,
-			Gas:       gasLimit,
-			Value:     value,
-			Data:      input,
+			Nonce:               nonce,
+			GasFeeCap:           opts.GasFeeCap,
+			GasTipCap:           opts.GasTipCap,
+			Gas:                 gasLimit,
+			Value:               value,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			Data:                input,
 		}
 		if contract != nil {
 			baseTx.To = &c.address
 		}
 		rawTx = types.NewTx(baseTx)
->>>>>>> v1.10.7
 	}
 	if opts.Signer == nil {
 		return nil, errors.New("no signer to authorize the transaction with")

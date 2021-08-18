@@ -63,13 +63,7 @@ func TestSimulatedBackend(t *testing.T) {
 
 	code := `6060604052600a8060106000396000f360606040526008565b00`
 	var gas uint64 = 3000000
-<<<<<<< HEAD
-	tx := types.NewContractCreation(0, big.NewInt(0), gas, big.NewInt(1), nil, nil, nil, common.FromHex(code))
-||||||| e78727290
-	tx := types.NewContractCreation(0, big.NewInt(0), gas, big.NewInt(1), common.FromHex(code))
-=======
-	tx := types.NewContractCreation(0, big.NewInt(0), gas, gasPrice, common.FromHex(code))
->>>>>>> v1.10.7
+	tx := types.NewContractCreation(0, big.NewInt(0), gas, gasPrice, nil, nil, nil, common.FromHex(code))
 	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, key)
 
 	err = sim.SendTransaction(context.Background(), tx)
@@ -119,16 +113,8 @@ var expectedReturn = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 func simTestBackend(testAddr common.Address) *SimulatedBackend {
 	return NewSimulatedBackend(
 		core.GenesisAlloc{
-<<<<<<< HEAD
-			testAddr: {Balance: big.NewInt(10000000000)},
-		},
-||||||| e78727290
-			testAddr: {Balance: big.NewInt(10000000000)},
-		}, 10000000,
-=======
 			testAddr: {Balance: big.NewInt(10000000000000000)},
-		}, 10000000,
->>>>>>> v1.10.7
+		},
 	)
 }
 
@@ -153,20 +139,8 @@ func TestNewSimulatedBackend(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-func TestSimulatedBackend_AdjustTime(t *testing.T) {
-	sim := NewSimulatedBackend(core.GenesisAlloc{})
-||||||| e78727290
-func TestSimulatedBackend_AdjustTime(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
-=======
 func TestAdjustTime(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
->>>>>>> v1.10.7
+	sim := NewSimulatedBackend(core.GenesisAlloc{})
 	defer sim.Close()
 
 	prevTime := sim.pendingBlock.Time()
@@ -185,16 +159,10 @@ func TestNewAdjustTimeFail(t *testing.T) {
 	sim := simTestBackend(testAddr)
 
 	// Create tx and send
-<<<<<<< HEAD
-	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -215,13 +183,7 @@ func TestNewAdjustTimeFail(t *testing.T) {
 		t.Errorf("adjusted time not equal to a minute. prev: %v, new: %v", prevTime, newTime)
 	}
 	// Put a transaction after adjusting time
-<<<<<<< HEAD
-	tx2 := types.NewTransaction(1, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx2 := types.NewTransaction(1, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
-	tx2 := types.NewTransaction(1, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx2 := types.NewTransaction(1, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx2, err := types.SignTx(tx2, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -251,20 +213,8 @@ func TestBalanceAt(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-func TestSimulatedBackend_BlockByHash(t *testing.T) {
-	sim := NewSimulatedBackend(core.GenesisAlloc{})
-||||||| e78727290
-func TestSimulatedBackend_BlockByHash(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
-=======
 func TestBlockByHash(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
->>>>>>> v1.10.7
+	sim := NewSimulatedBackend(core.GenesisAlloc{})
 	defer sim.Close()
 	bgCtx := context.Background()
 
@@ -282,20 +232,8 @@ func TestBlockByHash(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-func TestSimulatedBackend_BlockByNumber(t *testing.T) {
-	sim := NewSimulatedBackend(core.GenesisAlloc{})
-||||||| e78727290
-func TestSimulatedBackend_BlockByNumber(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
-=======
 func TestBlockByNumber(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{}, 10000000,
-	)
->>>>>>> v1.10.7
+	sim := NewSimulatedBackend(core.GenesisAlloc{})
 	defer sim.Close()
 	bgCtx := context.Background()
 
@@ -344,16 +282,10 @@ func TestNonceAt(t *testing.T) {
 	}
 
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(nonce, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(nonce, testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(nonce, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(nonce, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -394,16 +326,10 @@ func TestSendTransaction(t *testing.T) {
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -431,31 +357,17 @@ func TestTransactionByHash(t *testing.T) {
 
 	sim := NewSimulatedBackend(
 		core.GenesisAlloc{
-<<<<<<< HEAD
-			testAddr: {Balance: big.NewInt(10000000000)},
-		},
-||||||| e78727290
-			testAddr: {Balance: big.NewInt(10000000000)},
-		}, 10000000,
-=======
 			testAddr: {Balance: big.NewInt(10000000000000000)},
-		}, 10000000,
->>>>>>> v1.10.7
+		},
 	)
 	defer sim.Close()
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -612,170 +524,7 @@ func TestEstimateGas(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-func TestSimulatedBackend_HeaderByHash(t *testing.T) {
-||||||| e78727290
-func TestSimulatedBackend_EstimateGasWithPrice(t *testing.T) {
-	key, _ := crypto.GenerateKey()
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-
-	sim := NewSimulatedBackend(core.GenesisAlloc{addr: {Balance: big.NewInt(params.Ether*2 + 2e17)}}, 10000000)
-	defer sim.Close()
-
-	recipient := common.HexToAddress("deadbeef")
-	var cases = []struct {
-		name        string
-		message     ethereum.CallMsg
-		expect      uint64
-		expectError error
-	}{
-		{"EstimateWithoutPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(0),
-			Value:    big.NewInt(1000),
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(1000),
-			Value:    big.NewInt(1000),
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithVeryHighPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(1e14), // gascost = 2.1ether
-			Value:    big.NewInt(1e17), // the remaining balance for fee is 2.1ether
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithSuperhighPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(2e14), // gascost = 4.2ether
-			Value:    big.NewInt(1000),
-			Data:     nil,
-		}, 21000, errors.New("gas required exceeds allowance (10999)")}, // 10999=(2.2ether-1000wei)/(2e14)
-	}
-	for _, c := range cases {
-		got, err := sim.EstimateGas(context.Background(), c.message)
-		if c.expectError != nil {
-			if err == nil {
-				t.Fatalf("Expect error, got nil")
-			}
-			if c.expectError.Error() != err.Error() {
-				t.Fatalf("Expect error, want %v, got %v", c.expectError, err)
-			}
-			continue
-		}
-		if got != c.expect {
-			t.Fatalf("Gas estimation mismatch, want %d, got %d", c.expect, got)
-		}
-	}
-}
-
-func TestSimulatedBackend_HeaderByHash(t *testing.T) {
-=======
-func TestEstimateGasWithPrice(t *testing.T) {
-	key, _ := crypto.GenerateKey()
-	addr := crypto.PubkeyToAddress(key.PublicKey)
-
-	sim := NewSimulatedBackend(core.GenesisAlloc{addr: {Balance: big.NewInt(params.Ether*2 + 2e17)}}, 10000000)
-	defer sim.Close()
-
-	recipient := common.HexToAddress("deadbeef")
-	var cases = []struct {
-		name        string
-		message     ethereum.CallMsg
-		expect      uint64
-		expectError error
-	}{
-		{"EstimateWithoutPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(0),
-			Value:    big.NewInt(100000000000),
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(100000000000),
-			Value:    big.NewInt(100000000000),
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithVeryHighPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(1e14), // gascost = 2.1ether
-			Value:    big.NewInt(1e17), // the remaining balance for fee is 2.1ether
-			Data:     nil,
-		}, 21000, nil},
-
-		{"EstimateWithSuperhighPrice", ethereum.CallMsg{
-			From:     addr,
-			To:       &recipient,
-			Gas:      0,
-			GasPrice: big.NewInt(2e14), // gascost = 4.2ether
-			Value:    big.NewInt(100000000000),
-			Data:     nil,
-		}, 21000, errors.New("gas required exceeds allowance (10999)")}, // 10999=(2.2ether-1000wei)/(2e14)
-
-		{"EstimateEIP1559WithHighFees", ethereum.CallMsg{
-			From:      addr,
-			To:        &addr,
-			Gas:       0,
-			GasFeeCap: big.NewInt(1e14), // maxgascost = 2.1ether
-			GasTipCap: big.NewInt(1),
-			Value:     big.NewInt(1e17), // the remaining balance for fee is 2.1ether
-			Data:      nil,
-		}, params.TxGas, nil},
-
-		{"EstimateEIP1559WithSuperHighFees", ethereum.CallMsg{
-			From:      addr,
-			To:        &addr,
-			Gas:       0,
-			GasFeeCap: big.NewInt(1e14), // maxgascost = 2.1ether
-			GasTipCap: big.NewInt(1),
-			Value:     big.NewInt(1e17 + 1), // the remaining balance for fee is 2.1ether
-			Data:      nil,
-		}, params.TxGas, errors.New("gas required exceeds allowance (20999)")}, // 20999=(2.2ether-0.1ether-1wei)/(1e14)
-	}
-	for i, c := range cases {
-		got, err := sim.EstimateGas(context.Background(), c.message)
-		if c.expectError != nil {
-			if err == nil {
-				t.Fatalf("test %d: expect error, got nil", i)
-			}
-			if c.expectError.Error() != err.Error() {
-				t.Fatalf("test %d: expect error, want %v, got %v", i, c.expectError, err)
-			}
-			continue
-		}
-		if c.expectError == nil && err != nil {
-			t.Fatalf("test %d: didn't expect error, got %v", i, err)
-		}
-		if got != c.expect {
-			t.Fatalf("test %d: gas estimation mismatch, want %d, got %d", i, c.expect, got)
-		}
-	}
-}
-
 func TestHeaderByHash(t *testing.T) {
->>>>>>> v1.10.7
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 
 	sim := simTestBackend(testAddr)
@@ -863,16 +612,10 @@ func TestTransactionCount(t *testing.T) {
 		t.Errorf("expected transaction count of %v does not match actual count of %v", 0, count)
 	}
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -926,16 +669,10 @@ func TestTransactionInBlock(t *testing.T) {
 		t.Errorf("expected pending nonce of 0 got %v", pendingNonce)
 	}
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -990,16 +727,10 @@ func TestPendingNonceAt(t *testing.T) {
 	}
 
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -1022,13 +753,7 @@ func TestPendingNonceAt(t *testing.T) {
 	}
 
 	// make a new transaction with a nonce of 1
-<<<<<<< HEAD
-	tx = types.NewTransaction(uint64(1), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx = types.NewTransaction(uint64(1), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
-	tx = types.NewTransaction(uint64(1), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx = types.NewTransaction(uint64(1), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -1057,16 +782,10 @@ func TestTransactionReceipt(t *testing.T) {
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-<<<<<<< HEAD
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil, nil, nil, nil)
-||||||| e78727290
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
-=======
 	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
->>>>>>> v1.10.7
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	if err != nil {
 		t.Errorf("could not sign tx: %v", err)
@@ -1089,22 +808,8 @@ func TestTransactionReceipt(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-func TestSimulatedBackend_SuggestGasPrice(t *testing.T) {
-	sim := NewSimulatedBackend(core.GenesisAlloc{})
-||||||| e78727290
-func TestSimulatedBackend_SuggestGasPrice(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{},
-		10000000,
-	)
-=======
 func TestSuggestGasPrice(t *testing.T) {
-	sim := NewSimulatedBackend(
-		core.GenesisAlloc{},
-		10000000,
-	)
->>>>>>> v1.10.7
+	sim := NewSimulatedBackend(core.GenesisAlloc{})
 	defer sim.Close()
 	bgCtx := context.Background()
 	gasPrice, err := sim.SuggestGasPrice(bgCtx)

@@ -54,21 +54,18 @@ const (
 	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Celo address for a given BIP 32 path
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
-<<<<<<< HEAD
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
 	ledgerOpProvideERC20     ledgerOpcode = 0x0A // Provides ERC20 information for tokens
-||||||| e78727290
-=======
-	ledgerOpSignTypedMessage ledgerOpcode = 0x0c // Signs an Ethereum message following the EIP 712 specification
->>>>>>> v1.10.7
 
-	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
-<<<<<<< HEAD
-	ledgerP1ShowFetchAddress        ledgerParam1 = 0x01 // Return address from the wallet after showing it
-||||||| e78727290
-=======
+	/* TODO: add functionality to the Ledger's Celo app
+	ledgerOpSignTypedMessage ledgerOpcode = 0x0c // Signs a Celo message following the EIP 712 specification
+	*/
+
+	ledgerP1DirectlyFetchAddress ledgerParam1 = 0x00 // Return address directly from the wallet
+	ledgerP1ShowFetchAddress     ledgerParam1 = 0x01 // Return address from the wallet after showing it
+	/* TODO: add functionality to the Ledger's Celo app
 	ledgerP1InitTypedMessageData    ledgerParam1 = 0x00 // First chunk of Typed Message data
->>>>>>> v1.10.7
+	*/
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
@@ -206,7 +203,6 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	return w.ledgerSign(path, tx, chainID)
 }
 
-<<<<<<< HEAD
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to confirm or deny the message.
 func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
@@ -219,10 +215,7 @@ func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message
 	return w.ledgerSignData(path, message)
 }
 
-// ledgerVersion retrieves the current version of the Celo wallet app running
-||||||| e78727290
-// ledgerVersion retrieves the current version of the Ethereum wallet app running
-=======
+/* TODO: add functionality to the Ledger's Celo app
 // SignTypedMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to sign or deny the transaction.
 //
@@ -240,9 +233,12 @@ func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash
 	// All infos gathered and metadata checks out, request signing
 	return w.ledgerSignTypedMessage(path, domainHash, messageHash)
 }
+*/
+func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
 
 // ledgerVersion retrieves the current version of the Ethereum wallet app running
->>>>>>> v1.10.7
 // on the Ledger wallet.
 //
 // The version retrieval protocol is defined as follows:
@@ -460,7 +456,6 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	return sender, signed, nil
 }
 
-<<<<<<< HEAD
 // ledgerProvideERC20 provides ERC20 information for tokens.
 //
 // The data protocol is defined as follows:
@@ -588,8 +583,7 @@ func (w *ledgerDriver) ledgerSignData(derivationPath []uint32, data []byte) (com
 	return addr, pubkey, signature, nil
 }
 
-||||||| e78727290
-=======
+/* TODO: add functionality to the Ledger's Celo app
 // ledgerSignTypedMessage sends the transaction to the Ledger wallet, and waits for the user
 // to confirm or deny the transaction.
 //
@@ -651,8 +645,8 @@ func (w *ledgerDriver) ledgerSignTypedMessage(derivationPath []uint32, domainHas
 	signature := append(reply[1:], reply[0])
 	return signature, nil
 }
+*/
 
->>>>>>> v1.10.7
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a
 // message and retrieving the response.
 //

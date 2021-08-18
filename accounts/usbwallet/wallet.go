@@ -73,16 +73,12 @@ type driver interface {
 	// SignTx sends the transaction to the USB device and waits for the user to confirm
 	// or deny the transaction.
 	SignTx(path accounts.DerivationPath, tx *types.Transaction, chainID *big.Int) (common.Address, *types.Transaction, error)
-<<<<<<< HEAD
 
 	// SignPersonalMessage sends the message to the USB device and waits for the user to confirm
 	// or deny the message.
 	SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error)
-||||||| e78727290
-=======
 
 	SignTypedMessage(path accounts.DerivationPath, messageHash []byte, domainHash []byte) ([]byte, error)
->>>>>>> v1.10.7
 }
 
 // wallet represents the common functionality shared by all USB hardware
