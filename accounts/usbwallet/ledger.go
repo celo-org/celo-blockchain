@@ -54,11 +54,18 @@ const (
 	ledgerOpRetrieveAddress  ledgerOpcode = 0x02 // Returns the public key and Celo address for a given BIP 32 path
 	ledgerOpSignTransaction  ledgerOpcode = 0x04 // Signs a Celo transaction after having the user validate the parameters
 	ledgerOpGetConfiguration ledgerOpcode = 0x06 // Returns specific wallet application configuration
+<<<<<<< HEAD
 	ledgerOpSignMessage      ledgerOpcode = 0x08 // Signs a Celo message after having the user validate the parameters
 	ledgerOpProvideERC20     ledgerOpcode = 0x0A // Provides ERC20 information for tokens
 
 	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
 	ledgerP1ShowFetchAddress        ledgerParam1 = 0x01 // Return address from the wallet after showing it
+=======
+	ledgerOpSignTypedMessage ledgerOpcode = 0x0c // Signs an Ethereum message following the EIP 712 specification
+
+	ledgerP1DirectlyFetchAddress    ledgerParam1 = 0x00 // Return address directly from the wallet
+	ledgerP1InitTypedMessageData    ledgerParam1 = 0x00 // First chunk of Typed Message data
+>>>>>>> v1.10.7
 	ledgerP1InitTransactionData     ledgerParam1 = 0x00 // First transaction data block for signing
 	ledgerP1ContTransactionData     ledgerParam1 = 0x80 // Subsequent transaction data block for signing
 	ledgerP2DiscardAddressChainCode ledgerParam2 = 0x00 // Do not return the chain code along with the address
@@ -196,6 +203,7 @@ func (w *ledgerDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	return w.ledgerSign(path, tx, chainID)
 }
 
+<<<<<<< HEAD
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Ledger and
 // waiting for the user to confirm or deny the message.
 func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
@@ -209,6 +217,27 @@ func (w *ledgerDriver) SignPersonalMessage(path accounts.DerivationPath, message
 }
 
 // ledgerVersion retrieves the current version of the Celo wallet app running
+=======
+// SignTypedMessage implements usbwallet.driver, sending the message to the Ledger and
+// waiting for the user to sign or deny the transaction.
+//
+// Note: this was introduced in the ledger 1.5.0 firmware
+func (w *ledgerDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
+	// If the Ethereum app doesn't run, abort
+	if w.offline() {
+		return nil, accounts.ErrWalletClosed
+	}
+	// Ensure the wallet is capable of signing the given transaction
+	if w.version[0] < 1 && w.version[1] < 5 {
+		//lint:ignore ST1005 brand name displayed on the console
+		return nil, fmt.Errorf("Ledger version >= 1.5.0 required for EIP-712 signing (found version v%d.%d.%d)", w.version[0], w.version[1], w.version[2])
+	}
+	// All infos gathered and metadata checks out, request signing
+	return w.ledgerSignTypedMessage(path, domainHash, messageHash)
+}
+
+// ledgerVersion retrieves the current version of the Ethereum wallet app running
+>>>>>>> v1.10.7
 // on the Ledger wallet.
 //
 // The version retrieval protocol is defined as follows:
@@ -426,6 +455,7 @@ func (w *ledgerDriver) ledgerSign(derivationPath []uint32, tx *types.Transaction
 	return sender, signed, nil
 }
 
+<<<<<<< HEAD
 // ledgerProvideERC20 provides ERC20 information for tokens.
 //
 // The data protocol is defined as follows:
@@ -474,6 +504,18 @@ func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainI
 //                  | 00 | variable | variable
 //
 // Where the input for the first message block (first 255 bytes) is:
+=======
+// ledgerSignTypedMessage sends the transaction to the Ledger wallet, and waits for the user
+// to confirm or deny the transaction.
+//
+// The signing protocol is defined as follows:
+//
+//   CLA | INS | P1 | P2                          | Lc  | Le
+//   ----+-----+----+-----------------------------+-----+---
+//    E0 | 0C  | 00 | implementation version : 00 | variable | variable
+//
+// Where the input is:
+>>>>>>> v1.10.7
 //
 //   Description                                      | Length
 //   -------------------------------------------------+----------
@@ -481,6 +523,7 @@ func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainI
 //   First derivation index (big endian)              | 4 bytes
 //   ...                                              | 4 bytes
 //   Last derivation index (big endian)               | 4 bytes
+<<<<<<< HEAD
 //   data chunk                                       | arbitrary
 //
 // And the input for subsequent message blocks (first 255 bytes) are:
@@ -488,6 +531,12 @@ func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainI
 //   Description           | Length
 //   ----------------------+----------
 //   data chunk | arbitrary
+=======
+//   domain hash                                      | 32 bytes
+//   message hash                                     | 32 bytes
+//
+//
+>>>>>>> v1.10.7
 //
 // And the output data is:
 //
@@ -496,16 +545,21 @@ func (w *ledgerDriver) ledgerProvideERC20(contractAddress common.Address, chainI
 //   signature V | 1 byte
 //   signature R | 32 bytes
 //   signature S | 32 bytes
+<<<<<<< HEAD
 func (w *ledgerDriver) ledgerSignData(derivationPath []uint32, data []byte) (common.Address, []byte, []byte, error) {
 	hashMessage := sha256.Sum256(data)
 	w.log.Info("Signing message on Ledger with hash", "message", hex.EncodeToString(data), "hash", hex.EncodeToString(hashMessage[:]))
 
+=======
+func (w *ledgerDriver) ledgerSignTypedMessage(derivationPath []uint32, domainHash []byte, messageHash []byte) ([]byte, error) {
+>>>>>>> v1.10.7
 	// Flatten the derivation path into the Ledger request
 	path := make([]byte, 1+4*len(derivationPath))
 	path[0] = byte(len(derivationPath))
 	for i, component := range derivationPath {
 		binary.BigEndian.PutUint32(path[1+4*i:], component)
 	}
+<<<<<<< HEAD
 
 	dataLen := make([]byte, 4)
 	binary.BigEndian.PutUint32(dataLen, uint32(len(data)))
@@ -551,6 +605,32 @@ func (w *ledgerDriver) ledgerSignData(derivationPath []uint32, data []byte) (com
 	}
 
 	return addr, pubkey, signature, nil
+=======
+	// Create the 712 message
+	payload := append(path, domainHash...)
+	payload = append(payload, messageHash...)
+
+	// Send the request and wait for the response
+	var (
+		op    = ledgerP1InitTypedMessageData
+		reply []byte
+		err   error
+	)
+
+	// Send the message over, ensuring it's processed correctly
+	reply, err = w.ledgerExchange(ledgerOpSignTypedMessage, op, 0, payload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the Ethereum signature and do a sanity validation
+	if len(reply) != crypto.SignatureLength {
+		return nil, errors.New("reply lacks signature")
+	}
+	signature := append(reply[1:], reply[0])
+	return signature, nil
+>>>>>>> v1.10.7
 }
 
 // ledgerExchange performs a data exchange with the Ledger wallet, sending it a

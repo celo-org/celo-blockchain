@@ -70,7 +70,14 @@ var (
 	pendingTxs []*types.Transaction
 	newTxs     []*types.Transaction
 
+<<<<<<< HEAD
 	testConfig = &Config{}
+=======
+	testConfig = &Config{
+		Recommit: time.Second,
+		GasCeil:  params.GenesisGasLimit,
+	}
+>>>>>>> v1.10.7
 )
 
 func init() {
@@ -82,10 +89,32 @@ func init() {
 		ProposerPolicy: 0,
 	}
 
+<<<<<<< HEAD
 	tx1, _ := types.SignTx(types.NewTransaction(0, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
 	pendingTxs = append(pendingTxs, tx1)
 	tx2, _ := types.SignTx(types.NewTransaction(1, testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+=======
+	signer := types.LatestSigner(params.TestChainConfig)
+	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
+		ChainID:  params.TestChainConfig.ChainID,
+		Nonce:    0,
+		To:       &testUserAddress,
+		Value:    big.NewInt(1000),
+		Gas:      params.TxGas,
+		GasPrice: big.NewInt(params.InitialBaseFee),
+	})
+	pendingTxs = append(pendingTxs, tx1)
+
+	tx2 := types.MustSignNewTx(testBankKey, signer, &types.LegacyTx{
+		Nonce:    1,
+		To:       &testUserAddress,
+		Value:    big.NewInt(1000),
+		Gas:      params.TxGas,
+		GasPrice: big.NewInt(params.InitialBaseFee),
+	})
+>>>>>>> v1.10.7
 	newTxs = append(newTxs, tx2)
+
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -160,10 +189,17 @@ func (b *testWorkerBackend) TxPool() *core.TxPool              { return b.txPool
 
 func (b *testWorkerBackend) newRandomTx(creation bool) *types.Transaction {
 	var tx *types.Transaction
+	gasPrice := big.NewInt(10 * params.InitialBaseFee)
 	if creation {
+<<<<<<< HEAD
 		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, nil, nil, nil, nil, common.FromHex(testCode)), types.HomesteadSigner{}, testBankKey)
 	} else {
 		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
+=======
+		tx, _ = types.SignTx(types.NewContractCreation(b.txPool.Nonce(testBankAddress), big.NewInt(0), testGas, gasPrice, common.FromHex(testCode)), types.HomesteadSigner{}, testBankKey)
+	} else {
+		tx, _ = types.SignTx(types.NewTransaction(b.txPool.Nonce(testBankAddress), testUserAddress, big.NewInt(1000), params.TxGas, gasPrice, nil), types.HomesteadSigner{}, testBankKey)
+>>>>>>> v1.10.7
 	}
 	return tx
 }
@@ -190,7 +226,12 @@ func TestGenerateBlockAndImport(t *testing.T) {
 	chainConfig = params.IstanbulTestChainConfig
 	engine = mockEngine.NewFaker()
 
+<<<<<<< HEAD
 	w, b := newTestWorker(t, chainConfig, engine, db, 0, true)
+=======
+	chainConfig.LondonBlock = big.NewInt(0)
+	w, b := newTestWorker(t, chainConfig, engine, db, 0)
+>>>>>>> v1.10.7
 	defer w.close()
 
 	// This test chain imports the mined blocks.

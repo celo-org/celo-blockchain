@@ -19,6 +19,7 @@ package les
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -29,11 +30,20 @@ import (
 )
 
 type lesTxRelay struct {
+<<<<<<< HEAD
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}
 	peerList  []*serverPeer
 	lock      sync.Mutex
 	stop      chan struct{}
+=======
+	txSent       map[common.Hash]*types.Transaction
+	txPending    map[common.Hash]struct{}
+	peerList     []*serverPeer
+	peerStartPos int
+	lock         sync.Mutex
+	stop         chan struct{}
+>>>>>>> v1.10.7
 
 	retriever *retrieveManager
 }
@@ -77,9 +87,15 @@ func (ltrx *lesTxRelay) unregisterPeer(p *serverPeer) {
 	}
 }
 
+<<<<<<< HEAD
 func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 	ltrx.lock.Lock()
 	defer ltrx.lock.Unlock()
+=======
+// send sends a list of transactions to at most a given number of peers.
+func (ltrx *lesTxRelay) send(txs types.Transactions, count int) {
+	sendTo := make(map[*serverPeer]types.Transactions)
+>>>>>>> v1.10.7
 
 	for _, p := range ltrx.peerList {
 		if p.WillAcceptTransaction(tx) {
@@ -94,12 +110,40 @@ func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 func (ltrx *lesTxRelay) send(txs types.Transactions) {
 	for _, tx := range txs {
 		hash := tx.Hash()
+<<<<<<< HEAD
 		if _, ok := ltrx.txSent[hash]; ok {
 			continue
 		}
 
 		ltrx.txSent[hash] = tx
 		ltrx.txPending[hash] = struct{}{}
+=======
+		_, ok := ltrx.txSent[hash]
+		if !ok {
+			ltrx.txSent[hash] = tx
+			ltrx.txPending[hash] = struct{}{}
+		}
+		if len(ltrx.peerList) > 0 {
+			cnt := count
+			pos := ltrx.peerStartPos
+			for {
+				peer := ltrx.peerList[pos]
+				sendTo[peer] = append(sendTo[peer], tx)
+				cnt--
+				if cnt == 0 {
+					break // sent it to the desired number of peers
+				}
+				pos++
+				if pos == len(ltrx.peerList) {
+					pos = 0
+				}
+				if pos == ltrx.peerStartPos {
+					break // tried all available peers
+				}
+			}
+		}
+	}
+>>>>>>> v1.10.7
 
 		// Send a single transaction per request to avoid failure coupling and
 		// because the expected base cost of a SendTxV2 request is 0, so it
@@ -107,8 +151,12 @@ func (ltrx *lesTxRelay) send(txs types.Transactions) {
 		list := types.Transactions{tx}
 		enc, _ := rlp.EncodeToBytes(list)
 
+<<<<<<< HEAD
 		// Assemble the request object with callbacks for the distributor.
 		reqID := genReqID()
+=======
+		reqID := rand.Uint64()
+>>>>>>> v1.10.7
 		rq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				return dp.(*serverPeer).getTxRelayCost(len(list), len(enc))

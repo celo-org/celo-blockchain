@@ -40,6 +40,7 @@ var (
 
 // Environment contains metadata provided by the build environment.
 type Environment struct {
+	CI                        bool
 	Name                      string // name of the environment
 	Repo                      string // name of GitHub repo
 	Commit, Date, Branch, Tag string // Git info
@@ -65,6 +66,7 @@ func Env() Environment {
 			commit = os.Getenv("TRAVIS_COMMIT")
 		}
 		return Environment{
+<<<<<<< HEAD
 			Name:           "travis",
 			Repo:           os.Getenv("TRAVIS_REPO_SLUG"),
 			Commit:         commit,
@@ -76,6 +78,18 @@ func Env() Environment {
 			IsCronJob:      os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
 			IsMusl:         stringToBool(os.Getenv("MUSL")),
 			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
+=======
+			CI:            true,
+			Name:          "travis",
+			Repo:          os.Getenv("TRAVIS_REPO_SLUG"),
+			Commit:        commit,
+			Date:          getDate(commit),
+			Branch:        os.Getenv("TRAVIS_BRANCH"),
+			Tag:           os.Getenv("TRAVIS_TAG"),
+			Buildnum:      os.Getenv("TRAVIS_BUILD_NUMBER"),
+			IsPullRequest: os.Getenv("TRAVIS_PULL_REQUEST") != "false",
+			IsCronJob:     os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
+>>>>>>> v1.10.7
 		}
 	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("APPVEYOR")):
 		commit := os.Getenv("APPVEYOR_PULL_REQUEST_HEAD_COMMIT")
@@ -83,6 +97,7 @@ func Env() Environment {
 			commit = os.Getenv("APPVEYOR_REPO_COMMIT")
 		}
 		return Environment{
+<<<<<<< HEAD
 			Name:           "appveyor",
 			Repo:           os.Getenv("APPVEYOR_REPO_NAME"),
 			Commit:         commit,
@@ -113,6 +128,18 @@ func Env() Environment {
 			IsCronJob:      false,
 			IsMusl:         stringToBool(os.Getenv("MUSL")),
 			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
+=======
+			CI:            true,
+			Name:          "appveyor",
+			Repo:          os.Getenv("APPVEYOR_REPO_NAME"),
+			Commit:        commit,
+			Date:          getDate(commit),
+			Branch:        os.Getenv("APPVEYOR_REPO_BRANCH"),
+			Tag:           os.Getenv("APPVEYOR_REPO_TAG_NAME"),
+			Buildnum:      os.Getenv("APPVEYOR_BUILD_NUMBER"),
+			IsPullRequest: os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
+			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
+>>>>>>> v1.10.7
 		}
 	default:
 		return LocalEnv()

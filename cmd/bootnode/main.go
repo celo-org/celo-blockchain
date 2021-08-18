@@ -33,6 +33,13 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
+	"github.com/celo-org/celo-blockchain/cmd/utils"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p/discover"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/p2p/nat"
+	"github.com/celo-org/celo-blockchain/p2p/netutil"
 )
 
 func main() {
@@ -131,6 +138,7 @@ func main() {
 
 	printNotice(&nodeKey.PublicKey, *realaddr)
 
+<<<<<<< HEAD
 	// If v4 and v5 are both enabled, a packet is first tried as v4
 	// and then v5 if v4 decoding fails, following the same pattern as full
 	// nodes that use v4 and v5:
@@ -150,6 +158,19 @@ func main() {
 			PingIPFromPacket: *pingIPFromPacket,
 			Unhandled:        unhandled,
 		}
+=======
+	db, _ := enode.OpenDB("")
+	ln := enode.NewLocalNode(db, nodeKey)
+	cfg := discover.Config{
+		PrivateKey:  nodeKey,
+		NetRestrict: restrictList,
+	}
+	if *runv5 {
+		if _, err := discover.ListenV5(conn, ln, cfg); err != nil {
+			utils.Fatalf("%v", err)
+		}
+	} else {
+>>>>>>> v1.10.7
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}

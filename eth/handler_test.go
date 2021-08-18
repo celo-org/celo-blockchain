@@ -17,12 +17,9 @@
 package eth
 
 import (
-	"fmt"
-	"math"
 	"math/big"
-	"math/rand"
-	"testing"
-	"time"
+	"sort"
+	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
@@ -42,12 +39,30 @@ import (
 // Tests that block headers can be retrieved from a remote chain based on user queries.
 func TestGetBlockHeaders64(t *testing.T) { testGetBlockHeaders(t, 64) }
 func TestGetBlockHeaders65(t *testing.T) { testGetBlockHeaders(t, 65) }
+=======
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/ethash"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/params"
+)
 
-func testGetBlockHeaders(t *testing.T, protocol int) {
-	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, downloader.MaxHashFetch+15, nil, nil)
-	peer, _ := newTestPeer("peer", protocol, pm, true)
-	defer peer.close()
+var (
+	// testKey is a private key to use for funding a tester account.
+	testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+>>>>>>> v1.10.7
 
+	// testAddr is the Ethereum address of the tester account.
+	testAddr = crypto.PubkeyToAddress(testKey.PublicKey)
+)
+
+<<<<<<< HEAD
 	// Create a "random" unknown hash for testing
 	var unknown common.Hash
 	for i := range unknown {
@@ -417,72 +432,67 @@ func testGetReceipt(t *testing.T, protocol int) {
 	if err := p2p.ExpectMsg(peer.app, 0x10, receipts); err != nil {
 		t.Fatalf("receipts mismatch: %v", err)
 	}
+=======
+// testTxPool is a mock transaction pool that blindly accepts all transactions.
+// Its goal is to get around setting up a valid statedb for the balance and nonce
+// checks.
+type testTxPool struct {
+	pool map[common.Hash]*types.Transaction // Hash map of collected transactions
+
+	txFeed event.Feed   // Notification feed to allow waiting for inclusion
+	lock   sync.RWMutex // Protects the transaction pool
 }
 
-// Tests that post eth protocol handshake, clients perform a mutual checkpoint
-// challenge to validate each other's chains. Hash mismatches, or missing ones
-// during a fast sync should lead to the peer getting dropped.
-func TestCheckpointChallenge(t *testing.T) {
-	tests := []struct {
-		syncmode   downloader.SyncMode
-		checkpoint bool
-		timeout    bool
-		empty      bool
-		match      bool
-		drop       bool
-	}{
-		// If checkpointing is not enabled locally, don't challenge and don't drop
-		{downloader.FullSync, false, false, false, false, false},
-		{downloader.FastSync, false, false, false, false, false},
-
-		// If checkpointing is enabled locally and remote response is empty, only drop during fast sync
-		{downloader.FullSync, true, false, true, false, false},
-		{downloader.FastSync, true, false, true, false, true}, // Special case, fast sync, unsynced peer
-
-		// If checkpointing is enabled locally and remote response mismatches, always drop
-		{downloader.FullSync, true, false, false, false, true},
-		{downloader.FastSync, true, false, false, false, true},
-
-		// If checkpointing is enabled locally and remote response matches, never drop
-		{downloader.FullSync, true, false, false, true, false},
-		{downloader.FastSync, true, false, false, true, false},
-
-		// If checkpointing is enabled locally and remote times out, always drop
-		{downloader.FullSync, true, true, false, true, true},
-		{downloader.FastSync, true, true, false, true, true},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("sync %v checkpoint %v timeout %v empty %v match %v", tt.syncmode, tt.checkpoint, tt.timeout, tt.empty, tt.match), func(t *testing.T) {
-			testCheckpointChallenge(t, tt.syncmode, tt.checkpoint, tt.timeout, tt.empty, tt.match, tt.drop)
-		})
+// newTestTxPool creates a mock transaction pool.
+func newTestTxPool() *testTxPool {
+	return &testTxPool{
+		pool: make(map[common.Hash]*types.Transaction),
 	}
 }
 
-func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpoint bool, timeout bool, empty bool, match bool, drop bool) {
-	// Reduce the checkpoint handshake challenge timeout
-	defer func(old time.Duration) { syncChallengeTimeout = old }(syncChallengeTimeout)
-	syncChallengeTimeout = 250 * time.Millisecond
+// Has returns an indicator whether txpool has a transaction
+// cached with the given hash.
+func (p *testTxPool) Has(hash common.Hash) bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	// Initialize a chain and generate a fake CHT if checkpointing is enabled
-	var (
-		db     = rawdb.NewMemoryDatabase()
-		config = new(params.ChainConfig)
-	)
-	(&core.Genesis{Config: config}).MustCommit(db) // Commit genesis block
-	// If checkpointing is enabled, create and inject a fake CHT and the corresponding
-	// chllenge response.
-	var response *types.Header
-	var cht *params.TrustedCheckpoint
-	if checkpoint {
-		index := uint64(rand.Intn(500))
-		number := (index+1)*params.CHTFrequency - 1
-		response = &types.Header{Number: big.NewInt(int64(number)), Extra: []byte("valid")}
+	return p.pool[hash] != nil
+}
 
-		cht = &params.TrustedCheckpoint{
-			SectionIndex: index,
-			SectionHead:  response.Hash(),
-		}
+// Get retrieves the transaction from local txpool with given
+// tx hash.
+func (p *testTxPool) Get(hash common.Hash) *types.Transaction {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.pool[hash]
+>>>>>>> v1.10.7
+}
+
+// AddRemotes appends a batch of transactions to the pool, and notifies any
+// listeners if the addition channel is non nil
+func (p *testTxPool) AddRemotes(txs []*types.Transaction) []error {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	for _, tx := range txs {
+		p.pool[tx.Hash()] = tx
 	}
+	p.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	return make([]error, len(txs))
+}
+
+// Pending returns all the transactions known to the pool
+func (p *testTxPool) Pending(enforceTips bool) (map[common.Address]types.Transactions, error) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	batches := make(map[common.Address]types.Transactions)
+	for _, tx := range p.pool {
+		from, _ := types.Sender(types.HomesteadSigner{}, tx)
+		batches[from] = append(batches[from], tx)
+	}
+<<<<<<< HEAD
 	// Create a checkpoint aware protocol manager
 	blockchain, err := core.NewBlockChain(db, nil, config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 	if err != nil {
@@ -538,30 +548,21 @@ func testCheckpointChallenge(t *testing.T, syncmode downloader.SyncMode, checkpo
 		if peers := pm.peers.Len(); peers != 1 {
 			t.Fatalf("peer count mismatch: have %d, want %d", peers, 1)
 		}
+=======
+	for _, batch := range batches {
+		sort.Sort(types.TxByNonce(batch))
+>>>>>>> v1.10.7
 	}
+	return batches, nil
 }
 
-func TestBroadcastBlock(t *testing.T) {
-	var tests = []struct {
-		totalPeers        int
-		broadcastExpected int
-	}{
-		{1, 1},
-		{2, 1},
-		{3, 1},
-		{4, 2},
-		{5, 2},
-		{9, 3},
-		{12, 3},
-		{16, 4},
-		{26, 5},
-		{100, 10},
-	}
-	for _, test := range tests {
-		testBroadcastBlock(t, test.totalPeers, test.broadcastExpected)
-	}
+// SubscribeNewTxsEvent should return an event subscription of NewTxsEvent and
+// send events to the given channel.
+func (p *testTxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
+	return p.txFeed.Subscribe(ch)
 }
 
+<<<<<<< HEAD
 func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 	var (
 		evmux   = new(event.TypeMux)
@@ -621,9 +622,24 @@ func testBroadcastBlock(t *testing.T, totalPeers, broadcastExpected int) {
 			t.Fatalf("broadcast failed: %v", err)
 		}
 	}
+=======
+// testHandler is a live implementation of the Ethereum protocol handler, just
+// preinitialized with some sane testing defaults and the transaction pool mocked
+// out.
+type testHandler struct {
+	db      ethdb.Database
+	chain   *core.BlockChain
+	txpool  *testTxPool
+	handler *handler
+}
+>>>>>>> v1.10.7
 
+// newTestHandler creates a new handler for testing purposes with no blocks.
+func newTestHandler() *testHandler {
+	return newTestHandlerWithBlocks(0)
 }
 
+<<<<<<< HEAD
 // Tests that a propagated malformed block (uncles or transactions don't match
 // with the hashes in the header) gets discarded and not broadcast forward.
 func TestBroadcastMalformedBlock(t *testing.T) {
@@ -679,4 +695,46 @@ func TestBroadcastMalformedBlock(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+=======
+// newTestHandlerWithBlocks creates a new handler for testing purposes, with a
+// given number of initial blocks.
+func newTestHandlerWithBlocks(blocks int) *testHandler {
+	// Create a database pre-initialize with a genesis block
+	db := rawdb.NewMemoryDatabase()
+	(&core.Genesis{
+		Config: params.TestChainConfig,
+		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+	}).MustCommit(db)
+
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+
+	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, nil)
+	if _, err := chain.InsertChain(bs); err != nil {
+		panic(err)
+	}
+	txpool := newTestTxPool()
+
+	handler, _ := newHandler(&handlerConfig{
+		Database:   db,
+		Chain:      chain,
+		TxPool:     txpool,
+		Network:    1,
+		Sync:       downloader.FastSync,
+		BloomCache: 1,
+	})
+	handler.Start(1000)
+
+	return &testHandler{
+		db:      db,
+		chain:   chain,
+		txpool:  txpool,
+		handler: handler,
+	}
+}
+
+// close tears down the handler and all its internal constructs.
+func (b *testHandler) close() {
+	b.handler.Stop()
+	b.chain.Stop()
+>>>>>>> v1.10.7
 }

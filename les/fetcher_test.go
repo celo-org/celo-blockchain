@@ -76,8 +76,18 @@ func TestSequentialAnnouncementsUltraLes3(t *testing.T) {
 	testSequentialAnnouncements(t, downloader.LightestSync, 3)
 }
 
+<<<<<<< HEAD
 func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
 	s, c, teardown := newClientServerEnv(t, syncMode, 4, protocol, nil, nil, 0, false, false, true)
+=======
+func testSequentialAnnouncements(t *testing.T, protocol int) {
+	netconfig := testnetConfig{
+		blocks:    4,
+		protocol:  protocol,
+		nopruning: true,
+	}
+	s, c, teardown := newClientServerEnv(t, netconfig)
+>>>>>>> v1.10.7
 	defer teardown()
 
 	// Create connected peer pair.
@@ -110,6 +120,7 @@ func testSequentialAnnouncements(t *testing.T, syncMode downloader.SyncMode, pro
 
 func TestGappedAnnouncementsLes2(t *testing.T) { testGappedAnnouncements(t, downloader.LightSync, 2) }
 
+<<<<<<< HEAD
 func TestGappedAnnouncementsUltraLes2(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
 	testGappedAnnouncements(t, downloader.LightestSync, 2)
@@ -125,6 +136,15 @@ func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protoco
 	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
 	s, c, teardown := newClientServerEnv(t, syncMode, 4, protocol, nil, nil, 0, false, false, true)
+=======
+func testGappedAnnouncements(t *testing.T, protocol int) {
+	netconfig := testnetConfig{
+		blocks:    4,
+		protocol:  protocol,
+		nopruning: true,
+	}
+	s, c, teardown := newClientServerEnv(t, netconfig)
+>>>>>>> v1.10.7
 	defer teardown()
 
 	// Create connected peer pair.
@@ -216,7 +236,17 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 			ids = append(ids, n.String())
 		}
 	}
+<<<<<<< HEAD
 	_, c, teardown := newClientServerEnv(t, syncMode, 0, protocol, nil, ids, 60, false, false, true)
+=======
+	netconfig := testnetConfig{
+		protocol:    protocol,
+		nopruning:   true,
+		ulcServers:  ids,
+		ulcFraction: 60,
+	}
+	_, c, teardown := newClientServerEnv(t, netconfig)
+>>>>>>> v1.10.7
 	defer teardown()
 	defer func() {
 		for i := 0; i < len(teardowns); i++ {
@@ -266,9 +296,23 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 	check([]uint64{10}, 10, func() { <-newHead }) // Sync the whole chain.
 }
 
+<<<<<<< HEAD
 func TestInvalidAnnounces(t *testing.T) {
 	t.Skip("Validates through a smaller td for the same header number. We verify this using the header number")
 	s, c, teardown := newClientServerEnv(t, downloader.LightSync, 4, lpv3, nil, nil, 0, false, false, true)
+=======
+func TestInvalidAnnouncesLES2(t *testing.T) { testInvalidAnnounces(t, lpv2) }
+func TestInvalidAnnouncesLES3(t *testing.T) { testInvalidAnnounces(t, lpv3) }
+func TestInvalidAnnouncesLES4(t *testing.T) { testInvalidAnnounces(t, lpv4) }
+
+func testInvalidAnnounces(t *testing.T, protocol int) {
+	netconfig := testnetConfig{
+		blocks:    4,
+		protocol:  protocol,
+		nopruning: true,
+	}
+	s, c, teardown := newClientServerEnv(t, netconfig)
+>>>>>>> v1.10.7
 	defer teardown()
 
 	// Create connected peer pair.

@@ -26,6 +26,8 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 var testNetworkId = uint64(1)
@@ -42,8 +44,11 @@ var testPackets = []struct {
 			From:       Endpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
 			To:         Endpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
+<<<<<<< HEAD
 			NetworkId:  testNetworkId,
 			Rest:       []rlp.RawValue{},
+=======
+>>>>>>> v1.10.7
 		},
 	},
 	{
@@ -53,6 +58,7 @@ var testPackets = []struct {
 			From:       Endpoint{net.ParseIP("127.0.0.1").To4(), 3322, 5544},
 			To:         Endpoint{net.ParseIP("::1"), 2222, 3333},
 			Expiration: 1136239445,
+<<<<<<< HEAD
 			NetworkId:  testNetworkId,
 			Rest:       []rlp.RawValue{{0x01}, {0x02}},
 		},
@@ -75,6 +81,10 @@ var testPackets = []struct {
 			ReplyTok:   common.Hex2Bytes("fbc914b16819237dcd8801d7e53f69e9719adecb3cc0e790c57e91ca4461c954"),
 			Expiration: 1136239445,
 			Rest:       []rlp.RawValue{{0xC6, 0x01, 0x02, 0x03, 0xC2, 0x04, 0x05}, {0x06}},
+=======
+			ENRSeq:     1,
+			Rest:       []rlp.RawValue{{0x02}},
+>>>>>>> v1.10.7
 		},
 	},
 	{

@@ -45,8 +45,37 @@ type ChainContext interface {
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
+<<<<<<< HEAD
 func NewEVMBlockContext(header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.BlockContext {
 	return vmcontext.NewBlockContext(header, chain, txFeeRecipient)
+=======
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address) vm.BlockContext {
+	var (
+		beneficiary common.Address
+		baseFee     *big.Int
+	)
+
+	// If we don't have an explicit author (i.e. not mining), extract from the header
+	if author == nil {
+		beneficiary, _ = chain.Engine().Author(header) // Ignore error, we're past header validation
+	} else {
+		beneficiary = *author
+	}
+	if header.BaseFee != nil {
+		baseFee = new(big.Int).Set(header.BaseFee)
+	}
+	return vm.BlockContext{
+		CanTransfer: CanTransfer,
+		Transfer:    Transfer,
+		GetHash:     GetHashFn(header, chain),
+		Coinbase:    beneficiary,
+		BlockNumber: new(big.Int).Set(header.Number),
+		Time:        new(big.Int).SetUint64(header.Time),
+		Difficulty:  new(big.Int).Set(header.Difficulty),
+		BaseFee:     baseFee,
+		GasLimit:    header.GasLimit,
+	}
+>>>>>>> v1.10.7
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.

@@ -24,13 +24,15 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 )
 
 // ValidateTransaction does a number of checks on the supplied transaction, and
 // returns either a list of warnings, or an error (indicating that the transaction
 // should be immediately rejected).
-func (db *Database) ValidateTransaction(selector *string, tx *core.SendTxArgs) (*core.ValidationMessages, error) {
-	messages := new(core.ValidationMessages)
+func (db *Database) ValidateTransaction(selector *string, tx *apitypes.SendTxArgs) (*apitypes.ValidationMessages, error) {
+	messages := new(apitypes.ValidationMessages)
 
 	// Reject if EthCompatible is true but the transaction has non-nil-or-0 values for the non-eth-compatible fields
 	if err := tx.CheckEthCompatibility(); err != nil {
@@ -77,6 +79,16 @@ func (db *Database) ValidateTransaction(selector *string, tx *core.SendTxArgs) (
 	if bytes.Equal(tx.To.Address().Bytes(), common.Address{}.Bytes()) {
 		messages.Crit("Transaction recipient is the zero address")
 	}
+	switch {
+	case tx.GasPrice == nil && tx.MaxFeePerGas == nil:
+		messages.Crit("Neither 'gasPrice' nor 'maxFeePerGas' specified.")
+	case tx.GasPrice == nil && tx.MaxPriorityFeePerGas == nil:
+		messages.Crit("Neither 'gasPrice' nor 'maxPriorityFeePerGas' specified.")
+	case tx.GasPrice != nil && tx.MaxFeePerGas != nil:
+		messages.Crit("Both 'gasPrice' and 'maxFeePerGas' specified.")
+	case tx.GasPrice != nil && tx.MaxPriorityFeePerGas != nil:
+		messages.Crit("Both 'gasPrice' and 'maxPriorityFeePerGas' specified.")
+	}
 	// Semantic fields validated, try to make heads or tails of the call data
 	db.ValidateCallData(selector, data, messages)
 	return messages, nil
@@ -84,7 +96,7 @@ func (db *Database) ValidateTransaction(selector *string, tx *core.SendTxArgs) (
 
 // ValidateCallData checks if the ABI call-data + method selector (if given) can
 // be parsed and seems to match.
-func (db *Database) ValidateCallData(selector *string, data []byte, messages *core.ValidationMessages) {
+func (db *Database) ValidateCallData(selector *string, data []byte, messages *apitypes.ValidationMessages) {
 	// If the data is empty, we have a plain value transfer, nothing more to do
 	if len(data) == 0 {
 		return

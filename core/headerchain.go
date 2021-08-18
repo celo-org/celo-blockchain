@@ -167,6 +167,7 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 	)
 
 	batch := hc.chainDb.NewBatch()
+	parentKnown := true // Set to true to force hc.HasHeader check the first iteration
 	for i, header := range headers {
 		var hash common.Hash
 		// The headers have already been validated at this point, so we already
@@ -180,8 +181,10 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 		number := header.Number.Uint64()
 		newTD = big.NewInt(int64(number + 1))
 
+		// If the parent was not present, store it
 		// If the header is already known, skip it, otherwise store
-		if !hc.HasHeader(hash, number) {
+		alreadyKnown := parentKnown && hc.HasHeader(hash, number)
+		if !alreadyKnown {
 			// Irrelevant of the canonical status, write the TD and header to the database.
 			rawdb.WriteTd(batch, hash, number, newTD)
 			hc.tdCache.Add(hash, new(big.Int).Set(newTD))
@@ -194,6 +197,7 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 				firstInserted = i
 			}
 		}
+		parentKnown = alreadyKnown
 		lastHeader, lastHash, lastNumber = header, hash, number
 	}
 
@@ -308,6 +312,7 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 
 func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int, contiguousHeaders bool) (int, error) {
 	// Do a sanity check that the provided chain is actually ordered and linked
+<<<<<<< HEAD
 	if contiguousHeaders {
 		for i := 1; i < len(chain); i++ {
 			parentHash := chain[i-1].Hash()
@@ -327,13 +332,33 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int,
 			if i == len(chain)-1 && BadHashes[chain[i].Hash()] {
 				return i, ErrBlacklistedHash
 			}
+=======
+	for i := 1; i < len(chain); i++ {
+		if chain[i].Number.Uint64() != chain[i-1].Number.Uint64()+1 {
+			hash := chain[i].Hash()
+			parentHash := chain[i-1].Hash()
+			// Chain broke ancestry, log a message (programming error) and skip insertion
+			log.Error("Non contiguous header insert", "number", chain[i].Number, "hash", hash,
+				"parent", chain[i].ParentHash, "prevnumber", chain[i-1].Number, "prevhash", parentHash)
+
+			return 0, fmt.Errorf("non contiguous insert: item %d is #%d [%x..], item %d is #%d [%x..] (parent [%x..])", i-1, chain[i-1].Number,
+				parentHash.Bytes()[:4], i, chain[i].Number, hash.Bytes()[:4], chain[i].ParentHash[:4])
+		}
+		// If the header is a banned one, straight out abort
+		if BadHashes[chain[i].ParentHash] {
+			return i - 1, ErrBannedHash
+		}
+		// If it's the last header in the cunk, we need to check it too
+		if i == len(chain)-1 && BadHashes[chain[i].Hash()] {
+			return i, ErrBannedHash
+>>>>>>> v1.10.7
 		}
 	}
 	// Generate the list of seal verification requests, and start the parallel verifier
 	seals := make([]bool, len(chain))
 	if checkFreq != 0 {
 		// In case of checkFreq == 0 all seals are left false.
-		for i := 0; i < len(seals)/checkFreq; i++ {
+		for i := 0; i <= len(seals)/checkFreq; i++ {
 			index := i*checkFreq + hc.rand.Intn(checkFreq)
 			if index >= len(seals) {
 				index = len(seals) - 1
@@ -588,7 +613,7 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 			}
 			parent = hc.genesisHeader
 		}
-		parentHash = hdr.ParentHash
+		parentHash = parent.Hash()
 
 		// Notably, since geth has the possibility for setting the head to a low
 		// height which is even lower than ancient head.

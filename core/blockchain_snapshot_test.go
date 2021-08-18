@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
@@ -36,11 +37,21 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/ethash"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // snapshotTestBasic wraps the common testing fields in the snapshot tests.
 type snapshotTestBasic struct {
+<<<<<<< HEAD
 	legacy        bool   // Wether write the snapshot journal in legacy format
+=======
+>>>>>>> v1.10.7
 	chainBlocks   int    // Number of blocks to generate for the canonical chain
 	snapshotBlock uint64 // Block number of the relevant snapshot disk layer
 	commitBlock   uint64 // Block number for which to commit the state to disk
@@ -66,14 +77,23 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 	}
 	os.RemoveAll(datadir)
 
+<<<<<<< HEAD
 	db, err := rawdb.NewLevelDBDatabaseWithFreezer(datadir, 0, 0, datadir, "")
+=======
+	db, err := rawdb.NewLevelDBDatabaseWithFreezer(datadir, 0, 0, datadir, "", false)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to create persistent database: %v", err)
 	}
 	// Initialize a fresh chain
 	var (
+<<<<<<< HEAD
 		genesis = new(Genesis).MustCommit(db)
 		engine  = mockEngine.NewFaker()
+=======
+		genesis = (&Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
+		engine  = ethash.NewFullFaker()
+>>>>>>> v1.10.7
 		gendb   = rawdb.NewMemoryDatabase()
 
 		// Snapshot is enabled, the first snapshot is created from the Genesis.
@@ -81,7 +101,11 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 		// will happen during the block insertion.
 		cacheConfig = defaultCacheConfig
 	)
+<<<<<<< HEAD
 	chain, err := NewBlockChain(db, cacheConfig, params.IstanbulTestChainConfig, engine, vm.Config{}, nil, nil)
+=======
+	chain, err := NewBlockChain(db, cacheConfig, params.AllEthashProtocolChanges, engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -105,6 +129,7 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 			chain.stateCache.TrieDB().Commit(blocks[point-1].Root(), true, nil)
 		}
 		if basic.snapshotBlock > 0 && basic.snapshotBlock == point {
+<<<<<<< HEAD
 			if basic.legacy {
 				// Here we commit the snapshot disk root to simulate
 				// committing the legacy snapshot.
@@ -118,6 +143,15 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 				if !bytes.Equal(diskRoot.Bytes(), blockRoot.Bytes()) {
 					t.Fatalf("Failed to flush disk layer change, want %x, got %x", blockRoot, diskRoot)
 				}
+=======
+			// Flushing the entire snap tree into the disk, the
+			// relavant (a) snapshot root and (b) snapshot generator
+			// will be persisted atomically.
+			chain.snaps.Cap(blocks[point-1].Root(), 0)
+			diskRoot, blockRoot := chain.snaps.DiskRoot(), blocks[point-1].Root()
+			if !bytes.Equal(diskRoot.Bytes(), blockRoot.Bytes()) {
+				t.Fatalf("Failed to flush disk layer change, want %x, got %x", blockRoot, diskRoot)
+>>>>>>> v1.10.7
 			}
 		}
 	}
@@ -130,12 +164,15 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 	basic.db = db
 	basic.gendb = gendb
 	basic.engine = engine
+<<<<<<< HEAD
 
 	// Ugly hack, notify the chain to flush the journal in legacy format
 	// if it's requested.
 	if basic.legacy {
 		chain.writeLegacyJournal = true
 	}
+=======
+>>>>>>> v1.10.7
 	return chain, blocks
 }
 
@@ -163,12 +200,20 @@ func (basic *snapshotTestBasic) verify(t *testing.T, chain *BlockChain, blocks [
 	}
 
 	// Check the snapshot, ensure it's integrated
+<<<<<<< HEAD
 	if err := snapshot.VerifyState(chain.snaps, block.Root()); err != nil {
+=======
+	if err := chain.snaps.Verify(block.Root()); err != nil {
+>>>>>>> v1.10.7
 		t.Errorf("The disk layer is not integrated %v", err)
 	}
 }
 
+<<<<<<< HEAD
 func (basic *snapshotTestBasic) Dump() string {
+=======
+func (basic *snapshotTestBasic) dump() string {
+>>>>>>> v1.10.7
 	buffer := new(strings.Builder)
 
 	fmt.Fprint(buffer, "Chain:\n  G")
@@ -236,7 +281,11 @@ func (snaptest *snapshotTest) test(t *testing.T) {
 
 	// Restart the chain normally
 	chain.Stop()
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -262,7 +311,11 @@ func (snaptest *crashSnapshotTest) test(t *testing.T) {
 	db.Close()
 
 	// Start a new blockchain back up and see where the repair leads us
+<<<<<<< HEAD
 	newdb, err := rawdb.NewLevelDBDatabaseWithFreezer(snaptest.datadir, 0, 0, snaptest.datadir, "")
+=======
+	newdb, err := rawdb.NewLevelDBDatabaseWithFreezer(snaptest.datadir, 0, 0, snaptest.datadir, "", false)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to reopen persistent database: %v", err)
 	}
@@ -272,13 +325,21 @@ func (snaptest *crashSnapshotTest) test(t *testing.T) {
 	// the crash, we do restart twice here: one after the crash and one
 	// after the normal stop. It's used to ensure the broken snapshot
 	// can be detected all the time.
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(newdb, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(newdb, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	newchain.Stop()
 
+<<<<<<< HEAD
 	newchain, err = NewBlockChain(newdb, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err = NewBlockChain(newdb, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -314,7 +375,11 @@ func (snaptest *gappedSnapshotTest) test(t *testing.T) {
 		TrieTimeLimit:  5 * time.Minute,
 		SnapshotLimit:  0,
 	}
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(snaptest.db, cacheConfig, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(snaptest.db, cacheConfig, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -322,7 +387,11 @@ func (snaptest *gappedSnapshotTest) test(t *testing.T) {
 	newchain.Stop()
 
 	// Restart the chain with enabling the snapshot
+<<<<<<< HEAD
 	newchain, err = NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err = NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -350,7 +419,11 @@ func (snaptest *setHeadSnapshotTest) test(t *testing.T) {
 	chain.SetHead(snaptest.setHead)
 	chain.Stop()
 
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -381,7 +454,11 @@ func (snaptest *restartCrashSnapshotTest) test(t *testing.T) {
 	// and state committed.
 	chain.Stop()
 
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -398,7 +475,11 @@ func (snaptest *restartCrashSnapshotTest) test(t *testing.T) {
 	// journal and latest state will be committed
 
 	// Restart the chain after the crash
+<<<<<<< HEAD
 	newchain, err = NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err = NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -433,7 +514,11 @@ func (snaptest *wipeCrashSnapshotTest) test(t *testing.T) {
 		TrieTimeLimit:  5 * time.Minute,
 		SnapshotLimit:  0,
 	}
+<<<<<<< HEAD
 	newchain, err := NewBlockChain(snaptest.db, config, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err := NewBlockChain(snaptest.db, config, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -449,13 +534,21 @@ func (snaptest *wipeCrashSnapshotTest) test(t *testing.T) {
 		SnapshotLimit:  256,
 		SnapshotWait:   false, // Don't wait rebuild
 	}
+<<<<<<< HEAD
 	_, err = NewBlockChain(snaptest.db, config, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err = NewBlockChain(snaptest.db, config, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	// Simulate the blockchain crash.
 
+<<<<<<< HEAD
 	newchain, err = NewBlockChain(snaptest.db, nil, params.IstanbulTestChainConfig, snaptest.engine, vm.Config{}, nil, nil)
+=======
+	newchain, err = NewBlockChain(snaptest.db, nil, params.AllEthashProtocolChanges, snaptest.engine, vm.Config{}, nil, nil)
+>>>>>>> v1.10.7
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -485,6 +578,7 @@ func TestRestartWithNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : G
 	test := &snapshotTest{
 		snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
 			chainBlocks:        8,
 			snapshotBlock:      0,
@@ -525,6 +619,8 @@ func TestRestartWithLegacySnapshot(t *testing.T) {
 	test := &snapshotTest{
 		snapshotTestBasic{
 			legacy:             true,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      0,
 			commitBlock:        0,
@@ -564,7 +660,10 @@ func TestNoCommitCrashWithNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : C4
 	test := &crashSnapshotTest{
 		snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      4,
 			commitBlock:        0,
@@ -604,7 +703,10 @@ func TestLowCommitCrashWithNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : C4
 	test := &crashSnapshotTest{
 		snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      4,
 			commitBlock:        2,
@@ -644,7 +746,10 @@ func TestHighCommitCrashWithNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : C4
 	test := &crashSnapshotTest{
 		snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      4,
 			commitBlock:        6,
@@ -657,6 +762,7 @@ func TestHighCommitCrashWithNewSnapshot(t *testing.T) {
 	}
 	test.test(t)
 	test.teardown()
+<<<<<<< HEAD
 }
 
 // Tests a Geth was crashed and restarts with a broken and "legacy format"
@@ -782,6 +888,8 @@ func TestHighCommitCrashWithLegacySnapshot(t *testing.T) {
 	}
 	test.test(t)
 	test.teardown()
+=======
+>>>>>>> v1.10.7
 }
 
 // Tests a Geth was running with snapshot enabled. Then restarts without
@@ -807,6 +915,7 @@ func TestGappedNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : C10
 	test := &gappedSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
 			chainBlocks:        8,
 			snapshotBlock:      0,
@@ -848,6 +957,8 @@ func TestGappedLegacySnapshot(t *testing.T) {
 	test := &gappedSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
 			legacy:             true,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      0,
 			commitBlock:        0,
@@ -886,6 +997,7 @@ func TestSetHeadWithNewSnapshot(t *testing.T) {
 	// Expected snapshot disk  : G
 	test := &setHeadSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
+<<<<<<< HEAD
 			legacy:             false,
 			chainBlocks:        8,
 			snapshotBlock:      0,
@@ -927,6 +1039,8 @@ func TestSetHeadWithLegacySnapshot(t *testing.T) {
 	test := &setHeadSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
 			legacy:             true,
+=======
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      0,
 			commitBlock:        0,
@@ -942,12 +1056,10 @@ func TestSetHeadWithLegacySnapshot(t *testing.T) {
 	test.teardown()
 }
 
-// Tests the Geth was running with snapshot(legacy-format) enabled and upgrades
-// the disk layer journal(journal generator) to latest format. After that the Geth
-// is restarted from a crash. In this case Geth will find the new-format disk layer
-// journal but with legacy-format diff journal(the new-format is never committed),
-// and the invalid diff journal is expected to be dropped.
-func TestRecoverSnapshotFromCrashWithLegacyDiffJournal(t *testing.T) {
+// Tests the Geth was running with a complete snapshot and then imports a few
+// more new blocks on top without enabling the snapshot. After the restart,
+// crash happens. Check everything is ok after the restart.
+func TestRecoverSnapshotFromWipingCrash(t *testing.T) {
 	// Chain:
 	//   G->C1->C2->C3->C4->C5->C6->C7->C8 (HEAD)
 	//
@@ -965,6 +1077,7 @@ func TestRecoverSnapshotFromCrashWithLegacyDiffJournal(t *testing.T) {
 	// Expected head fast block: C10
 	// Expected head block     : C8
 	// Expected snapshot disk  : C10
+<<<<<<< HEAD
 	t.Skip("Legacy format testing is not supported")
 	test := &restartCrashSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
@@ -1008,6 +1121,10 @@ func TestRecoverSnapshotFromWipingCrash(t *testing.T) {
 	test := &wipeCrashSnapshotTest{
 		snapshotTestBasic: snapshotTestBasic{
 			legacy:             false,
+=======
+	test := &wipeCrashSnapshotTest{
+		snapshotTestBasic: snapshotTestBasic{
+>>>>>>> v1.10.7
 			chainBlocks:        8,
 			snapshotBlock:      4,
 			commitBlock:        0,

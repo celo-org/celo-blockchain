@@ -5,7 +5,11 @@ jobs:
   allow_failures:
     - stage: build
       os: osx
+<<<<<<< HEAD
       go: 1.16.x
+=======
+      go: 1.15.x
+>>>>>>> v1.10.7
       env:
         - azure-osx
         - azure-ios
@@ -15,7 +19,11 @@ jobs:
     # This builder only tests code linters on latest version of Go
     - stage: lint
       os: linux
+<<<<<<< HEAD
       dist: xenial
+=======
+      dist: bionic
+>>>>>>> v1.10.7
       go: 1.16.x
       env:
         - lint
@@ -24,6 +32,7 @@ jobs:
       script:
         - go run build/ci.go lint
 
+<<<<<<< HEAD
     - stage: build
       os: linux
       dist: xenial
@@ -96,12 +105,53 @@ jobs:
         - unset -f cd # workaround for https://github.com/travis-ci/travis-ci/issues/8703
         - go run build/ci.go install
         - go run build/ci.go test -coverage $TEST_PACKAGES
+=======
+    # These builders create the Docker sub-images for multi-arch push and each
+    # will attempt to push the multi-arch image if they are the last builder
+    - stage: build
+      if: type = push
+      os: linux
+      arch: amd64
+      dist: bionic
+      go: 1.16.x
+      env:
+        - docker
+      services:
+        - docker
+      git:
+        submodules: false # avoid cloning ethereum/tests
+      before_install:
+        - export DOCKER_CLI_EXPERIMENTAL=enabled
+      script:
+        - go run build/ci.go docker -image -manifest amd64,arm64 -upload ethereum/client-go
+
+    - stage: build
+      if: type = push
+      os: linux
+      arch: arm64
+      dist: bionic
+      go: 1.16.x
+      env:
+        - docker
+      services:
+        - docker
+      git:
+        submodules: false # avoid cloning ethereum/tests
+      before_install:
+        - export DOCKER_CLI_EXPERIMENTAL=enabled
+      script:
+        - go run build/ci.go docker -image -manifest amd64,arm64 -upload ethereum/client-go
+>>>>>>> v1.10.7
 
     # This builder does the Ubuntu PPA upload
     - stage: build
       if: type = push
       os: linux
+<<<<<<< HEAD
       dist: xenial
+=======
+      dist: bionic
+>>>>>>> v1.10.7
       go: 1.16.x
       env:
         - ubuntu-ppa
@@ -125,7 +175,7 @@ jobs:
     - stage: build
       if: type = push
       os: linux
-      dist: xenial
+      dist: bionic
       sudo: required
       go: 1.16.x
       env:
@@ -161,7 +211,7 @@ jobs:
     - stage: build
       if: type = push
       os: linux
-      dist: xenial
+      dist: bionic
       services:
         - docker
       go: 1.16.x
@@ -191,20 +241,11 @@ jobs:
     - stage: build
       if: type = push
       os: linux
-      dist: xenial
+      dist: bionic
       addons:
         apt:
           packages:
-            - oracle-java8-installer
-            - oracle-java8-set-default
-      language: android
-      android:
-        components:
-          - platform-tools
-          - tools
-          - android-15
-          - android-19
-          - android-24
+            - openjdk-8-jdk
       env:
         - azure-android
         - maven-android
@@ -212,16 +253,27 @@ jobs:
       git:
         submodules: false # avoid cloning ethereum/tests
       before_install:
+<<<<<<< HEAD
+=======
+        # Install Android and it's dependencies manually, Travis is stale
+        - export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+        - curl https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip -o android.zip
+        - unzip -q android.zip -d $HOME/sdk && rm android.zip
+        - mv $HOME/sdk/cmdline-tools $HOME/sdk/latest && mkdir $HOME/sdk/cmdline-tools && mv $HOME/sdk/latest $HOME/sdk/cmdline-tools
+        - export PATH=$PATH:$HOME/sdk/cmdline-tools/latest/bin
+        - export ANDROID_HOME=$HOME/sdk
+
+        - yes | sdkmanager --licenses >/dev/null
+        - sdkmanager "platform-tools" "platforms;android-15" "platforms;android-19" "platforms;android-24" "ndk-bundle"
+
+        # Install Go to allow building with
+>>>>>>> v1.10.7
         - curl https://dl.google.com/go/go1.16.linux-amd64.tar.gz | tar -xz
         - export PATH=`pwd`/go/bin:$PATH
         - export GOROOT=`pwd`/go
         - export GOPATH=$HOME/go
       script:
         # Build the Android archive and upload it to Maven Central and Azure
-        - curl https://dl.google.com/android/repository/android-ndk-r19b-linux-x86_64.zip -o android-ndk-r19b.zip
-        - unzip -q android-ndk-r19b.zip && rm android-ndk-r19b.zip
-        - mv android-ndk-r19b $ANDROID_HOME/ndk-bundle
-
         - mkdir -p $GOPATH/src/github.com/ethereum
         - ln -s `pwd` $GOPATH/src/github.com/celo-org/celo-blockchain
         - go run build/ci.go aar -signer ANDROID_SIGNING_KEY -signify SIGNIFY_KEY  -deploy https://oss.sonatype.org -upload gethstore/builds
@@ -261,8 +313,8 @@ jobs:
     - stage: build
       os: linux
       arch: amd64
-      dist: xenial
-      go: 1.15.x
+      dist: bionic
+      go: 1.16.x
       env:
         - GO111MODULE=on
       script:
@@ -272,8 +324,8 @@ jobs:
       if: type = pull_request
       os: linux
       arch: arm64
-      dist: xenial
-      go: 1.15.x
+      dist: bionic
+      go: 1.16.x
       env:
         - GO111MODULE=on
       script:
@@ -281,8 +333,8 @@ jobs:
 
     - stage: build
       os: linux
-      dist: xenial
-      go: 1.14.x
+      dist: bionic
+      go: 1.15.x
       env:
         - GO111MODULE=on
       script:
@@ -292,7 +344,11 @@ jobs:
     - stage: build
       if: type = cron
       os: linux
+<<<<<<< HEAD
       dist: xenial
+=======
+      dist: bionic
+>>>>>>> v1.10.7
       go: 1.16.x
       env:
         - azure-purge

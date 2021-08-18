@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"context"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -27,6 +26,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/common/bitutil"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 )
 
 const (
@@ -78,6 +79,7 @@ func (eth *Ethereum) startBloomHandlers(sectionSize uint64) {
 		}()
 	}
 }
+<<<<<<< HEAD
 
 const (
 	// bloomThrottling is the time to wait between processing two consecutive index
@@ -141,3 +143,5 @@ func (b *BloomIndexer) Commit() error {
 func (b *BloomIndexer) Prune(threshold uint64) error {
 	return nil
 }
+=======
+>>>>>>> v1.10.7

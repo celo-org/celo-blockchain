@@ -25,6 +25,12 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/rlpx"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/cmd/devp2p/internal/ethtest"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/internal/utesting"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/rlpx"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -94,6 +100,14 @@ func rlpxEthTest(ctx *cli.Context) error {
 	if ctx.NArg() < 3 {
 		exit("missing path to chain.rlp as command-line argument")
 	}
-	suite := ethtest.NewSuite(getNodeArg(ctx), ctx.Args()[1], ctx.Args()[2])
-	return runTests(ctx, suite.AllTests())
+	suite, err := ethtest.NewSuite(getNodeArg(ctx), ctx.Args()[1], ctx.Args()[2])
+	if err != nil {
+		exit(err)
+	}
+	// check if given node supports eth66, and if so, run eth66 protocol tests as well
+	is66Failed, _ := utesting.Run(utesting.Test{Name: "Is_66", Fn: suite.Is_66})
+	if is66Failed {
+		return runTests(ctx, suite.EthTests())
+	}
+	return runTests(ctx, suite.AllEthTests())
 }

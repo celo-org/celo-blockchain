@@ -17,8 +17,6 @@
 package eth
 
 import (
-	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -30,271 +28,40 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/rlp"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
+	"github.com/celo-org/celo-blockchain/eth/protocols/snap"
 )
 
-var (
-	errClosed            = errors.New("peer set is closed")
-	errAlreadyRegistered = errors.New("peer is already registered")
-	errNotRegistered     = errors.New("peer is not registered")
-)
-
-const (
-	maxKnownTxs    = 32768 // Maximum transactions hashes to keep in the known list (prevent DOS)
-	maxKnownBlocks = 1024  // Maximum block hashes to keep in the known list (prevent DOS)
-
-	// maxQueuedTxs is the maximum number of transactions to queue up before dropping
-	// older broadcasts.
-	maxQueuedTxs = 4096
-
-	// maxQueuedTxAnns is the maximum number of transaction announcements to queue up
-	// before dropping older announcements.
-	maxQueuedTxAnns = 4096
-
-	// maxQueuedBlocks is the maximum number of block propagations to queue up before
-	// dropping broadcasts. There's not much point in queueing stale blocks, so a few
-	// that might cover uncles should be enough.
-	maxQueuedBlocks = 4
-
-	// maxQueuedBlockAnns is the maximum number of block announcements to queue up before
-	// dropping broadcasts. Similarly to block propagations, there's no point to queue
-	// above some healthy uncle limit, so use that.
-	maxQueuedBlockAnns = 4
-
-	handshakeTimeout = 5 * time.Second
-)
-
-// max is a helper function which returns the larger of the two given integers.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// PeerInfo represents a short summary of the Ethereum sub-protocol metadata known
+// ethPeerInfo represents a short summary of the `eth` sub-protocol metadata known
 // about a connected peer.
-type PeerInfo struct {
-	Version    int      `json:"version"`    // Ethereum protocol version negotiated
+type ethPeerInfo struct {
+	Version    uint     `json:"version"`    // Ethereum protocol version negotiated
 	Difficulty *big.Int `json:"difficulty"` // Total difficulty of the peer's blockchain
-	Head       string   `json:"head"`       // SHA3 hash of the peer's best owned block
+	Head       string   `json:"head"`       // Hex hash of the peer's best owned block
 }
 
-// propEvent is a block propagation, waiting for its turn in the broadcast queue.
-type propEvent struct {
-	block *types.Block
-	td    *big.Int
+// ethPeer is a wrapper around eth.Peer to maintain a few extra metadata.
+type ethPeer struct {
+	*eth.Peer
+	snapExt *snapPeer // Satellite `snap` connection
+
+	syncDrop *time.Timer   // Connection dropper if `eth` sync progress isn't validated in time
+	snapWait chan struct{} // Notification channel for snap connections
+	lock     sync.RWMutex  // Mutex protecting the internal fields
 }
 
-type peer struct {
-	id string
-
-	*p2p.Peer
-	rw p2p.MsgReadWriter
-
-	version  int         // Protocol version negotiated
-	syncDrop *time.Timer // Timed connection dropper if sync progress isn't validated in time
-
-	head common.Hash
-	td   *big.Int
-	lock sync.RWMutex
-
-	knownBlocks     mapset.Set        // Set of block hashes known to be known by this peer
-	queuedBlocks    chan *propEvent   // Queue of blocks to broadcast to the peer
-	queuedBlockAnns chan *types.Block // Queue of blocks to announce to the peer
-
-	knownTxs    mapset.Set                           // Set of transaction hashes known to be known by this peer
-	txBroadcast chan []common.Hash                   // Channel used to queue transaction propagation requests
-	txAnnounce  chan []common.Hash                   // Channel used to queue transaction announcement requests
-	getPooledTx func(common.Hash) *types.Transaction // Callback used to retrieve transaction from txpool
-
-	term chan struct{} // Termination channel to stop the broadcaster
-}
-
-func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter, getPooledTx func(hash common.Hash) *types.Transaction) *peer {
-	return &peer{
-		Peer:            p,
-		rw:              rw,
-		version:         version,
-		id:              fmt.Sprintf("%x", p.ID().Bytes()[:8]),
-		knownTxs:        mapset.NewSet(),
-		knownBlocks:     mapset.NewSet(),
-		queuedBlocks:    make(chan *propEvent, maxQueuedBlocks),
-		queuedBlockAnns: make(chan *types.Block, maxQueuedBlockAnns),
-		txBroadcast:     make(chan []common.Hash),
-		txAnnounce:      make(chan []common.Hash),
-		getPooledTx:     getPooledTx,
-		term:            make(chan struct{}),
-	}
-}
-
-// broadcastBlocks is a write loop that multiplexes blocks and block accouncements
-// to the remote peer. The goal is to have an async writer that does not lock up
-// node internals and at the same time rate limits queued data.
-func (p *peer) broadcastBlocks(removePeer func(string)) {
-	for {
-		select {
-		case prop := <-p.queuedBlocks:
-			if err := p.SendNewBlock(prop.block, prop.td); err != nil {
-				removePeer(p.id)
-				return
-			}
-			p.Log().Trace("Propagated block", "number", prop.block.Number(), "hash", prop.block.Hash(), "td", prop.td)
-
-		case block := <-p.queuedBlockAnns:
-			if err := p.SendNewBlockHashes([]common.Hash{block.Hash()}, []uint64{block.NumberU64()}); err != nil {
-				removePeer(p.id)
-				return
-			}
-			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
-
-		case <-p.term:
-			return
-		}
-	}
-}
-
-// broadcastTransactions is a write loop that schedules transaction broadcasts
-// to the remote peer. The goal is to have an async writer that does not lock up
-// node internals and at the same time rate limits queued data.
-func (p *peer) broadcastTransactions(removePeer func(string)) {
-	var (
-		queue []common.Hash         // Queue of hashes to broadcast as full transactions
-		done  chan struct{}         // Non-nil if background broadcaster is running
-		fail  = make(chan error, 1) // Channel used to receive network error
-	)
-	for {
-		// If there's no in-flight broadcast running, check if a new one is needed
-		if done == nil && len(queue) > 0 {
-			// Pile transaction until we reach our allowed network limit
-			var (
-				hashes []common.Hash
-				txs    []*types.Transaction
-				size   common.StorageSize
-			)
-			for i := 0; i < len(queue) && size < txsyncPackSize; i++ {
-				if tx := p.getPooledTx(queue[i]); tx != nil {
-					txs = append(txs, tx)
-					size += tx.Size()
-				}
-				hashes = append(hashes, queue[i])
-			}
-			queue = queue[:copy(queue, queue[len(hashes):])]
-
-			// If there's anything available to transfer, fire up an async writer
-			if len(txs) > 0 {
-				done = make(chan struct{})
-				go func() {
-					if err := p.sendTransactions(txs); err != nil {
-						fail <- err
-						return
-					}
-					close(done)
-					p.Log().Trace("Sent transactions", "count", len(txs))
-				}()
-			}
-		}
-		// Transfer goroutine may or may not have been started, listen for events
-		select {
-		case hashes := <-p.txBroadcast:
-			// New batch of transactions to be broadcast, queue them (with cap)
-			queue = append(queue, hashes...)
-			if len(queue) > maxQueuedTxs {
-				// Fancy copy and resize to ensure buffer doesn't grow indefinitely
-				queue = queue[:copy(queue, queue[len(queue)-maxQueuedTxs:])]
-			}
-
-		case <-done:
-			done = nil
-
-		case <-fail:
-			removePeer(p.id)
-			return
-
-		case <-p.term:
-			return
-		}
-	}
-}
-
-// announceTransactions is a write loop that schedules transaction broadcasts
-// to the remote peer. The goal is to have an async writer that does not lock up
-// node internals and at the same time rate limits queued data.
-func (p *peer) announceTransactions(removePeer func(string)) {
-	var (
-		queue []common.Hash         // Queue of hashes to announce as transaction stubs
-		done  chan struct{}         // Non-nil if background announcer is running
-		fail  = make(chan error, 1) // Channel used to receive network error
-	)
-	for {
-		// If there's no in-flight announce running, check if a new one is needed
-		if done == nil && len(queue) > 0 {
-			// Pile transaction hashes until we reach our allowed network limit
-			var (
-				hashes  []common.Hash
-				pending []common.Hash
-				size    common.StorageSize
-			)
-			for i := 0; i < len(queue) && size < txsyncPackSize; i++ {
-				if p.getPooledTx(queue[i]) != nil {
-					pending = append(pending, queue[i])
-					size += common.HashLength
-				}
-				hashes = append(hashes, queue[i])
-			}
-			queue = queue[:copy(queue, queue[len(hashes):])]
-
-			// If there's anything available to transfer, fire up an async writer
-			if len(pending) > 0 {
-				done = make(chan struct{})
-				go func() {
-					if err := p.sendPooledTransactionHashes(pending); err != nil {
-						fail <- err
-						return
-					}
-					close(done)
-					p.Log().Trace("Sent transaction announcements", "count", len(pending))
-				}()
-			}
-		}
-		// Transfer goroutine may or may not have been started, listen for events
-		select {
-		case hashes := <-p.txAnnounce:
-			// New batch of transactions to be broadcast, queue them (with cap)
-			queue = append(queue, hashes...)
-			if len(queue) > maxQueuedTxAnns {
-				// Fancy copy and resize to ensure buffer doesn't grow indefinitely
-				queue = queue[:copy(queue, queue[len(queue)-maxQueuedTxAnns:])]
-			}
-
-		case <-done:
-			done = nil
-
-		case <-fail:
-			removePeer(p.id)
-			return
-
-		case <-p.term:
-			return
-		}
-	}
-}
-
-// close signals the broadcast goroutine to terminate.
-func (p *peer) close() {
-	close(p.term)
-}
-
-// Info gathers and returns a collection of metadata known about a peer.
-func (p *peer) Info() *PeerInfo {
+// info gathers and returns some `eth` protocol metadata known about a peer.
+func (p *ethPeer) info() *ethPeerInfo {
 	hash, td := p.Head()
 
-	return &PeerInfo{
-		Version:    p.version,
+	return &ethPeerInfo{
+		Version:    p.Version(),
 		Difficulty: td,
 		Head:       hash.Hex(),
 	}
 }
 
+<<<<<<< HEAD
 // Head retrieves a copy of the current head hash and total difficulty of the
 // peer.
 func (p *peer) Head() (hash common.Hash, td *big.Int) {
@@ -818,33 +585,22 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 		}
 	}
 	return list
+=======
+// snapPeerInfo represents a short summary of the `snap` sub-protocol metadata known
+// about a connected peer.
+type snapPeerInfo struct {
+	Version uint `json:"version"` // Snapshot protocol version negotiated
+>>>>>>> v1.10.7
 }
 
-// BestPeer retrieves the known peer with the currently highest total difficulty.
-func (ps *peerSet) BestPeer() *peer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	var (
-		bestPeer *peer
-		bestTd   *big.Int
-	)
-	for _, p := range ps.peers {
-		if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
-			bestPeer, bestTd = p, td
-		}
-	}
-	return bestPeer
+// snapPeer is a wrapper around snap.Peer to maintain a few extra metadata.
+type snapPeer struct {
+	*snap.Peer
 }
 
-// Close disconnects all peers.
-// No new peers can be registered after Close has returned.
-func (ps *peerSet) Close() {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	for _, p := range ps.peers {
-		p.Disconnect(p2p.DiscQuitting)
+// info gathers and returns some `snap` protocol metadata known about a peer.
+func (p *snapPeer) info() *snapPeerInfo {
+	return &snapPeerInfo{
+		Version: p.Version(),
 	}
-	ps.closed = true
 }

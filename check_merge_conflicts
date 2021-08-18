@@ -1,0 +1,11 @@
+#!/bin/bash
+
+for file in $(cat files.txt); do
+	grep -q "<<<<<<< HEAD" $file
+	if [ "$?" -gt "0" ]; then
+		echo no conflict in $file
+		git add $file
+	else
+		echo conflict in $file		
+	fi
+done

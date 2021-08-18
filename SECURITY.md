@@ -2,6 +2,7 @@
 
 ## Security Announcements
 
+<<<<<<< HEAD
 Public announcements of new releases with security fixes and of disclosure of any vulnerabilities will be made in the Celo Forum's [Security Announcements](https://forum.celo.org/c/security-announcements/) channel.
 
 ## Reporting a Vulnerability
@@ -9,17 +10,40 @@ Public announcements of new releases with security fixes and of disclosure of an
 We’re extremely grateful for security researchers and users that report vulnerabilities to the Celo community. All reports are thoroughly investigated.
 
 **Please do not file a public ticket** mentioning any vulnerability.
+=======
+Please see [Releases](https://github.com/ethereum/go-ethereum/releases). We recommend using the [most recently released version](https://github.com/ethereum/go-ethereum/releases/latest).
+
+## Audit reports
+
+Audit reports are published in the `docs` folder: https://github.com/ethereum/go-ethereum/tree/master/docs/audits 
+
+| Scope | Date | Report Link |
+| ------- | ------- | ----------- |
+| `geth` | 20170425 | [pdf](https://github.com/ethereum/go-ethereum/blob/master/docs/audits/2017-04-25_Geth-audit_Truesec.pdf) |
+| `clef` | 20180914 | [pdf](https://github.com/ethereum/go-ethereum/blob/master/docs/audits/2018-09-14_Clef-audit_NCC.pdf) |
+
+## Reporting a Vulnerability
+>>>>>>> v1.10.7
 
 The Celo community asks that all suspected vulnerabilities be privately and responsibly disclosed.
 
+<<<<<<< HEAD
 To make a report, submit your vulnerability to [Celo on HackerOne](https://hackerone.com/celo).
+=======
+To find out how to disclose a vulnerability in Ethereum visit [https://bounty.ethereum.org](https://bounty.ethereum.org) or email bounty@ethereum.org. Please read the [disclosure page](https://github.com/ethereum/go-ethereum/security/advisories?state=published) for more information about publically disclosed security vulnerabilities.
+
+Use the built-in `geth version-check` feature to check whether the software is affected by any known vulnerability. This command will fetch the latest [`vulnerabilities.json`](https://geth.ethereum.org/docs/vulnerabilities/vulnerabilities.json) file which contains known security vulnerabilities concerning `geth`, and cross-check the data against its own version number.
+>>>>>>> v1.10.7
 
 You can also email the [security@celo.org](mailto:security@celo.org) list with the details of reproducing the vulnerability as well as the usual details expected for all bug reports.
 
 While the primary focus of this disclosure program is the Celo protocol and the Celo wallet, the team may be able to assist in coordinating a response to a vulnerability in the third-party apps or tools in the Celo ecosystem.
 
+<<<<<<< HEAD
 You may encrypt your email to this list using this GPG key (but encryption using GPG is NOT required to make a disclosure):  
 
+=======
+>>>>>>> v1.10.7
 ```
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 

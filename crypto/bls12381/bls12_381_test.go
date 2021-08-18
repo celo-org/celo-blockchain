@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+<<<<<<< HEAD
 var fuz int
 
 func TestMain(m *testing.M) {
@@ -18,6 +19,9 @@ func TestMain(m *testing.M) {
 	fuz = *_fuz
 	os.Exit(m.Run())
 }
+=======
+var fuz = 10
+>>>>>>> v1.10.7
 
 func randScalar(max *big.Int) *big.Int {
 	a, err := rand.Int(rand.Reader, max)

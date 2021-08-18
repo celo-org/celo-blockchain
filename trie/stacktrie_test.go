@@ -2,14 +2,15 @@ package trie
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
-	mrand "math/rand"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
 )
@@ -78,6 +79,7 @@ func TestValLength56(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
 func genTxs(num uint64) (types.Transactions, error) {
 	key, err := crypto.HexToECDSA("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
 	if err != nil {
@@ -241,6 +243,8 @@ func TestDerivableList(t *testing.T) {
 	}
 }
 
+=======
+>>>>>>> v1.10.7
 // TestUpdateSmallNodes tests a case where the leaves are small (both key and value),
 // which causes a lot of node-within-node. This case was found via fuzzing.
 func TestUpdateSmallNodes(t *testing.T) {
@@ -287,5 +291,98 @@ func TestUpdateVariableKeys(t *testing.T) {
 	}
 	if nt.Hash() != st.Hash() {
 		t.Fatalf("error %x != %x", st.Hash(), nt.Hash())
+	}
+}
+
+// TestStacktrieNotModifyValues checks that inserting blobs of data into the
+// stacktrie does not mutate the blobs
+func TestStacktrieNotModifyValues(t *testing.T) {
+	st := NewStackTrie(nil)
+	{ // Test a very small trie
+		// Give it the value as a slice with large backing alloc,
+		// so if the stacktrie tries to append, it won't have to realloc
+		value := make([]byte, 1, 100)
+		value[0] = 0x2
+		want := common.CopyBytes(value)
+		st.TryUpdate([]byte{0x01}, value)
+		st.Hash()
+		if have := value; !bytes.Equal(have, want) {
+			t.Fatalf("tiny trie: have %#x want %#x", have, want)
+		}
+		st = NewStackTrie(nil)
+	}
+	// Test with a larger trie
+	keyB := big.NewInt(1)
+	keyDelta := big.NewInt(1)
+	var vals [][]byte
+	getValue := func(i int) []byte {
+		if i%2 == 0 { // large
+			return crypto.Keccak256(big.NewInt(int64(i)).Bytes())
+		} else { //small
+			return big.NewInt(int64(i)).Bytes()
+		}
+	}
+	for i := 0; i < 1000; i++ {
+		key := common.BigToHash(keyB)
+		value := getValue(i)
+		st.TryUpdate(key.Bytes(), value)
+		vals = append(vals, value)
+		keyB = keyB.Add(keyB, keyDelta)
+		keyDelta.Add(keyDelta, common.Big1)
+	}
+	st.Hash()
+	for i := 0; i < 1000; i++ {
+		want := getValue(i)
+
+		have := vals[i]
+		if !bytes.Equal(have, want) {
+			t.Fatalf("item %d, have %#x want %#x", i, have, want)
+		}
+
+	}
+}
+
+// TestStacktrieSerialization tests that the stacktrie works well if we
+// serialize/unserialize it a lot
+func TestStacktrieSerialization(t *testing.T) {
+	var (
+		st       = NewStackTrie(nil)
+		nt, _    = New(common.Hash{}, NewDatabase(memorydb.New()))
+		keyB     = big.NewInt(1)
+		keyDelta = big.NewInt(1)
+		vals     [][]byte
+		keys     [][]byte
+	)
+	getValue := func(i int) []byte {
+		if i%2 == 0 { // large
+			return crypto.Keccak256(big.NewInt(int64(i)).Bytes())
+		} else { //small
+			return big.NewInt(int64(i)).Bytes()
+		}
+	}
+	for i := 0; i < 10; i++ {
+		vals = append(vals, getValue(i))
+		keys = append(keys, common.BigToHash(keyB).Bytes())
+		keyB = keyB.Add(keyB, keyDelta)
+		keyDelta.Add(keyDelta, common.Big1)
+	}
+	for i, k := range keys {
+		nt.TryUpdate(k, common.CopyBytes(vals[i]))
+	}
+
+	for i, k := range keys {
+		blob, err := st.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+		newSt, err := NewFromBinary(blob, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st = newSt
+		st.TryUpdate(k, common.CopyBytes(vals[i]))
+	}
+	if have, want := st.Hash(), nt.Hash(); have != want {
+		t.Fatalf("have %#x want %#x", have, want)
 	}
 }

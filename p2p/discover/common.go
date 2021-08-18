@@ -41,6 +41,7 @@ type Config struct {
 	PrivateKey *ecdsa.PrivateKey
 
 	// These settings are optional:
+<<<<<<< HEAD
 	NetRestrict      *netutil.Netlist  // network whitelist
 	Bootnodes        []*enode.Node     // list of bootstrap nodes
 	Unhandled        chan<- ReadPacket // unhandled packets are sent on this channel
@@ -48,6 +49,14 @@ type Config struct {
 	PingIPFromPacket bool
 	ValidSchemes     enr.IdentityScheme // allowed identity schemes
 	Clock            mclock.Clock
+=======
+	NetRestrict  *netutil.Netlist   // list of allowed IP networks
+	Bootnodes    []*enode.Node      // list of bootstrap nodes
+	Unhandled    chan<- ReadPacket  // unhandled packets are sent on this channel
+	Log          log.Logger         // if set, log messages go here
+	ValidSchemes enr.IdentityScheme // allowed identity schemes
+	Clock        mclock.Clock
+>>>>>>> v1.10.7
 }
 
 func (cfg Config) withDefaults() Config {

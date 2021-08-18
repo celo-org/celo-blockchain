@@ -319,9 +319,14 @@ func TestBadHeaderHashes(t *testing.T) {
 	var err error
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
+<<<<<<< HEAD
 	defer func() { delete(core.BadHashes, headers[2].Hash()) }()
 	if _, err = bc.InsertHeaderChain(headers, 1, true); !errors.Is(err, core.ErrBlacklistedHash) {
 		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
+=======
+	if _, err = bc.InsertHeaderChain(headers, 1); !errors.Is(err, core.ErrBannedHash) {
+		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBannedHash)
+>>>>>>> v1.10.7
 	}
 }
 

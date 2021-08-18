@@ -23,6 +23,8 @@ import (
 
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	"github.com/celo-org/celo-blockchain/node"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -36,6 +38,7 @@ var ShowDeprecated = cli.Command{
 }
 
 var DeprecatedFlags = []cli.Flag{
+<<<<<<< HEAD
 	LegacyLightServFlag,
 	LegacyLightPeersFlag,
 	LegacyMinerExtraDataFlag,
@@ -61,33 +64,40 @@ var (
 		Value: eth.DefaultConfig.LightPeers,
 	}
 
+=======
+	LegacyMinerGasTargetFlag,
+}
+
+var (
+>>>>>>> v1.10.7
 	// (Deprecated May 2020, shown in aliased flags section)
 	LegacyRPCEnabledFlag = cli.BoolFlag{
 		Name:  "rpc",
-		Usage: "Enable the HTTP-RPC server (deprecated, use --http)",
+		Usage: "Enable the HTTP-RPC server (deprecated and will be removed June 2021, use --http)",
 	}
 	LegacyRPCListenAddrFlag = cli.StringFlag{
 		Name:  "rpcaddr",
-		Usage: "HTTP-RPC server listening interface (deprecated, use --http.addr)",
+		Usage: "HTTP-RPC server listening interface (deprecated and will be removed June 2021, use --http.addr)",
 		Value: node.DefaultHTTPHost,
 	}
 	LegacyRPCPortFlag = cli.IntFlag{
 		Name:  "rpcport",
-		Usage: "HTTP-RPC server listening port (deprecated, use --http.port)",
+		Usage: "HTTP-RPC server listening port (deprecated and will be removed June 2021, use --http.port)",
 		Value: node.DefaultHTTPPort,
 	}
 	LegacyRPCCORSDomainFlag = cli.StringFlag{
 		Name:  "rpccorsdomain",
-		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced) (deprecated, use --http.corsdomain)",
+		Usage: "Comma separated list of domains from which to accept cross origin requests (browser enforced) (deprecated and will be removed June 2021, use --http.corsdomain)",
 		Value: "",
 	}
 	LegacyRPCVirtualHostsFlag = cli.StringFlag{
 		Name:  "rpcvhosts",
-		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (deprecated, use --http.vhosts)",
+		Usage: "Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (deprecated and will be removed June 2021, use --http.vhosts)",
 		Value: strings.Join(node.DefaultConfig.HTTPVirtualHosts, ","),
 	}
 	LegacyRPCApiFlag = cli.StringFlag{
 		Name:  "rpcapi",
+<<<<<<< HEAD
 		Usage: "API's offered over the HTTP-RPC interface (deprecated, use --http.api)",
 		Value: "",
 	}
@@ -175,6 +185,16 @@ var (
 		Name:  "graphql.port",
 		Usage: "GraphQL server listening port (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
 		Value: node.DefaultHTTPPort,
+=======
+		Usage: "API's offered over the HTTP-RPC interface (deprecated and will be removed June 2021, use --http.api)",
+		Value: "",
+	}
+	// (Deprecated July 2021, shown in aliased flags section)
+	LegacyMinerGasTargetFlag = cli.Uint64Flag{
+		Name:  "miner.gastarget",
+		Usage: "Target gas floor for mined blocks (deprecated)",
+		Value: ethconfig.Defaults.Miner.GasFloor,
+>>>>>>> v1.10.7
 	}
 )
 
@@ -184,8 +204,8 @@ func showDeprecated(*cli.Context) {
 	fmt.Println("The following flags are deprecated and will be removed in the future!")
 	fmt.Println("--------------------------------------------------------------------")
 	fmt.Println()
-
 	for _, flag := range DeprecatedFlags {
 		fmt.Println(flag.String())
 	}
+	fmt.Println()
 }

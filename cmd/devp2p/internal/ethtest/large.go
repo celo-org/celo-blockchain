@@ -67,6 +67,11 @@ func largeHeader() *types.Header {
 		Bloom:       types.Bloom{},
 		GasUsed:     0,
 		Coinbase:    common.Address{},
+<<<<<<< HEAD
+=======
+		GasLimit:    0,
+		UncleHash:   types.EmptyUncleHash,
+>>>>>>> v1.10.7
 		Time:        1337,
 		ParentHash:  randHash(),
 		Root:        randHash(),

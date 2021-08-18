@@ -129,13 +129,9 @@ var (
 		Name:  "noreturndata",
 		Usage: "disable return data output",
 	}
-	EVMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.evm",
-		Usage: "External EVM configuration (default = built-in interpreter)",
-		Value: "",
-	}
 )
 
+<<<<<<< HEAD
 // FIXME broken command
 // var stateTransitionCommand = cli.Command{
 // 	Name:    "transition",
@@ -159,6 +155,31 @@ var (
 // 		t8ntool.VerbosityFlag,
 // 	},
 // }
+=======
+var stateTransitionCommand = cli.Command{
+	Name:    "transition",
+	Aliases: []string{"t8n"},
+	Usage:   "executes a full state transition",
+	Action:  t8ntool.Main,
+	Flags: []cli.Flag{
+		t8ntool.TraceFlag,
+		t8ntool.TraceDisableMemoryFlag,
+		t8ntool.TraceDisableStackFlag,
+		t8ntool.TraceDisableReturnDataFlag,
+		t8ntool.OutputBasedir,
+		t8ntool.OutputAllocFlag,
+		t8ntool.OutputResultFlag,
+		t8ntool.OutputBodyFlag,
+		t8ntool.InputAllocFlag,
+		t8ntool.InputEnvFlag,
+		t8ntool.InputTxsFlag,
+		t8ntool.ForknameFlag,
+		t8ntool.ChainIDFlag,
+		t8ntool.RewardFlag,
+		t8ntool.VerbosityFlag,
+	},
+}
+>>>>>>> v1.10.7
 
 func init() {
 	app.Flags = []cli.Flag{
@@ -185,7 +206,6 @@ func init() {
 		DisableStackFlag,
 		DisableStorageFlag,
 		DisableReturnDataFlag,
-		EVMInterpreterFlag,
 	}
 	app.Commands = []cli.Command{
 		compileCommand,

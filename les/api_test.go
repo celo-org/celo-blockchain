@@ -39,6 +39,19 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/simulations"
 	"github.com/celo-org/celo-blockchain/p2p/simulations/adapters"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/consensus/ethash"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	"github.com/celo-org/celo-blockchain/les/flowcontrol"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/p2p/simulations"
+	"github.com/celo-org/celo-blockchain/p2p/simulations/adapters"
+	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/mattn/go-colorable"
 )
 
@@ -491,13 +504,13 @@ func testSim(t *testing.T, serverCount, clientCount int, serverDir, clientDir []
 }
 
 func newLesClientService(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-	config := eth.DefaultConfig
+	config := ethconfig.Defaults
 	config.SyncMode = downloader.LightSync
 	return New(stack, &config)
 }
 
 func newLesServerService(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-	config := eth.DefaultConfig
+	config := ethconfig.Defaults
 	config.SyncMode = downloader.FullSync
 	config.LightServ = testServerCapacity
 	config.LightPeers = testMaxClients

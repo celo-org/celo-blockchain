@@ -35,7 +35,7 @@ import (
 
 var (
 	testdb  = rawdb.NewMemoryDatabase()
-	genesis = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000))
+	genesis = core.GenesisBlockForTesting(testdb, testAddress, big.NewInt(1000000000000000))
 )
 
 // makeChain creates a chain of n blocks starting at and including parent.
@@ -48,7 +48,11 @@ func makeChain(n int, seed byte, parent *types.Block, empty bool) ([]*types.Bloc
 		// Add one tx to every secondblock
 		if !empty && i%2 == 0 {
 			signer := types.MakeSigner(params.TestChainConfig, block.Number())
+<<<<<<< HEAD
 			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
+=======
+			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, block.BaseFee(), nil), signer, testKey)
+>>>>>>> v1.10.7
 			if err != nil {
 				panic(err)
 			}
@@ -97,6 +101,9 @@ func dummyPeer(id string) *peerConnection {
 }
 
 func TestBasics(t *testing.T) {
+	numOfBlocks := len(emptyChain.blocks)
+	numOfReceipts := len(emptyChain.blocks) / 2
+
 	q := newQueue(10, 10)
 	if !q.Idle() {
 		t.Errorf("new queue should be idle")
@@ -135,6 +142,12 @@ func TestBasics(t *testing.T) {
 			t.Fatalf("expected header %d, got %d", exp, got)
 		}
 	}
+	if exp, got := q.blockTaskQueue.Size(), numOfBlocks-10; exp != got {
+		t.Errorf("expected block task queue to be %d, got %d", exp, got)
+	}
+	if exp, got := q.receiptTaskQueue.Size(), numOfReceipts; exp != got {
+		t.Errorf("expected receipt task queue to be %d, got %d", exp, got)
+	}
 	{
 		peer := dummyPeer("peer-2")
 		fetchReq, _, throttle := q.ReserveBodies(peer, 50)
@@ -148,8 +161,12 @@ func TestBasics(t *testing.T) {
 			t.Fatalf("should have no fetches, got %d", len(fetchReq.Headers))
 		}
 	}
-	//fmt.Printf("blockTaskQueue len: %d\n", q.blockTaskQueue.Size())
-	//fmt.Printf("receiptTaskQueue len: %d\n", q.receiptTaskQueue.Size())
+	if exp, got := q.blockTaskQueue.Size(), numOfBlocks-10; exp != got {
+		t.Errorf("expected block task queue to be %d, got %d", exp, got)
+	}
+	if exp, got := q.receiptTaskQueue.Size(), numOfReceipts; exp != got {
+		t.Errorf("expected receipt task queue to be %d, got %d", exp, got)
+	}
 	{
 		// The receipt delivering peer should not be affected
 		// by the throttling of body deliveries
@@ -168,12 +185,20 @@ func TestBasics(t *testing.T) {
 		}
 
 	}
-	//fmt.Printf("blockTaskQueue len: %d\n", q.blockTaskQueue.Size())
-	//fmt.Printf("receiptTaskQueue len: %d\n", q.receiptTaskQueue.Size())
-	//fmt.Printf("processable: %d\n", q.resultCache.countCompleted())
+	if exp, got := q.blockTaskQueue.Size(), numOfBlocks-10; exp != got {
+		t.Errorf("expected block task queue to be %d, got %d", exp, got)
+	}
+	if exp, got := q.receiptTaskQueue.Size(), numOfReceipts-5; exp != got {
+		t.Errorf("expected receipt task queue to be %d, got %d", exp, got)
+	}
+	if got, exp := q.resultCache.countCompleted(), 0; got != exp {
+		t.Errorf("wrong processable count, got %d, exp %d", got, exp)
+	}
 }
 
 func TestEmptyBlocks(t *testing.T) {
+	numOfBlocks := len(emptyChain.blocks)
+
 	q := newQueue(10, 10)
 
 	q.Prepare(1, FastSync)
@@ -208,13 +233,12 @@ func TestEmptyBlocks(t *testing.T) {
 		}
 
 	}
-	if q.blockTaskQueue.Size() != len(emptyChain.blocks)-10 {
-		t.Errorf("expected block task queue to be 0, got %d", q.blockTaskQueue.Size())
+	if q.blockTaskQueue.Size() != numOfBlocks-10 {
+		t.Errorf("expected block task queue to be %d, got %d", numOfBlocks-10, q.blockTaskQueue.Size())
 	}
 	if q.receiptTaskQueue.Size() != 0 {
-		t.Errorf("expected receipt task queue to be 0, got %d", q.receiptTaskQueue.Size())
+		t.Errorf("expected receipt task queue to be %d, got %d", 0, q.receiptTaskQueue.Size())
 	}
-	//fmt.Printf("receiptTaskQueue len: %d\n", q.receiptTaskQueue.Size())
 	{
 		peer := dummyPeer("peer-3")
 		fetchReq, _, _ := q.ReserveReceipts(peer, 50)
@@ -224,7 +248,17 @@ func TestEmptyBlocks(t *testing.T) {
 			t.Fatal("there should be no body fetch tasks remaining")
 		}
 	}
+<<<<<<< HEAD
 	if got, exp := q.resultCache.countCompleted(), 0; got != exp {
+=======
+	if q.blockTaskQueue.Size() != numOfBlocks-10 {
+		t.Errorf("expected block task queue to be %d, got %d", numOfBlocks-10, q.blockTaskQueue.Size())
+	}
+	if q.receiptTaskQueue.Size() != 0 {
+		t.Errorf("expected receipt task queue to be %d, got %d", 0, q.receiptTaskQueue.Size())
+	}
+	if got, exp := q.resultCache.countCompleted(), 10; got != exp {
+>>>>>>> v1.10.7
 		t.Errorf("wrong processable count, got %d, exp %d", got, exp)
 	}
 }
