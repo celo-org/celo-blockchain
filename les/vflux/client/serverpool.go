@@ -26,7 +26,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/ethdb"
-	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -35,7 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/ethdb"
-	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"

@@ -22,12 +22,6 @@ import (
 	"encoding/json"
 
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 )

@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/celo-org/celo-blockchain/consensus/ethash"
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 

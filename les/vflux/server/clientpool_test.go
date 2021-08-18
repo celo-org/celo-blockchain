@@ -24,13 +24,11 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
-	lps "github.com/celo-org/celo-blockchain/les/lespay/server"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/enr"
 	"github.com/celo-org/celo-blockchain/p2p/nodestate"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
-	lps "github.com/celo-org/celo-blockchain/les/lespay/server"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/enr"
 	"github.com/celo-org/celo-blockchain/p2p/nodestate"

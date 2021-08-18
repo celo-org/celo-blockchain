@@ -20,7 +20,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/consensus/ethash"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"

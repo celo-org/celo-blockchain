@@ -22,8 +22,6 @@ package geth
 import (
 	"errors"
 
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
-	"github.com/celo-org/celo-blockchain/p2p/discv5"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
