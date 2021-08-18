@@ -43,7 +43,7 @@ func TestDialSchedDynDial(t *testing.T) {
 		maxDialPeers:   4,
 	}
 	runDialTest(t, config, []dialTestRound{
-		// 3 out of 4 peers are connected, leaving 1 dial slots.
+		// 3 out of 4 peers are connected, leaving 1 dial slot.
 		// 9 nodes are discovered, but only 1 is dialed.
 		{
 			update: func(d *dialScheduler) {
@@ -58,8 +58,8 @@ func TestDialSchedDynDial(t *testing.T) {
 				newNode(uintID(0x01), "127.0.0.1:30303"), // not dialed because already connected as static peer
 				newNode(uintID(0x03), "127.0.0.1:30303"), // ...
 				newNode(uintID(0x04), "127.0.0.1:30303"),
-				newNode(uintID(0x05), "127.0.0.1:30303"), // not dialed because there are only two slots
-				newNode(uintID(0x06), "127.0.0.1:30303"), // ..
+				newNode(uintID(0x05), "127.0.0.1:30303"), // not dialed because there is only one slot
+				newNode(uintID(0x06), "127.0.0.1:30303"), // ...
 				newNode(uintID(0x07), "127.0.0.1:30303"), // ...
 				newNode(uintID(0x08), "127.0.0.1:30303"), // ...
 				newNode(uintID(0x09), "127.0.0.1:30303"), // ...
