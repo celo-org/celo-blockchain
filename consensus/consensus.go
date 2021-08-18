@@ -80,10 +80,26 @@ type Engine interface {
 	// the input slice).
 	VerifyHeaders(chain ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error)
 
+<<<<<<< HEAD
 	// VerifySeal checks whether the crypto seal on a header is valid according to
 	// the consensus rules of the given engine.
 	VerifySeal(header *types.Header) error
 
+||||||| e78727290
+	// VerifyUncles verifies that the given block's uncles conform to the consensus
+	// rules of a given engine.
+	VerifyUncles(chain ChainReader, block *types.Block) error
+
+	// VerifySeal checks whether the crypto seal on a header is valid according to
+	// the consensus rules of the given engine.
+	VerifySeal(chain ChainHeaderReader, header *types.Header) error
+
+=======
+	// VerifyUncles verifies that the given block's uncles conform to the consensus
+	// rules of a given engine.
+	VerifyUncles(chain ChainReader, block *types.Block) error
+
+>>>>>>> v1.10.7
 	// Prepare initializes the consensus fields of a block header according to the
 	// rules of a particular engine. The changes are executed inline.
 	Prepare(chain ChainHeaderReader, header *types.Header) error

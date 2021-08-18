@@ -29,19 +29,34 @@ import (
 )
 
 func TestLightPruner(t *testing.T) {
-	config := light.TestClientIndexerConfig
-
-	waitIndexers := func(cIndexer, bIndexer, btIndexer *core.ChainIndexer) {
-		for {
-			cs, _, _ := cIndexer.Sections()
-			bts, _, _ := btIndexer.Sections()
-			if cs >= 3 && bts >= 3 {
-				break
+	var (
+		waitIndexers = func(cIndexer, bIndexer, btIndexer *core.ChainIndexer) {
+			for {
+				cs, _, _ := cIndexer.Sections()
+				bts, _, _ := btIndexer.Sections()
+				if cs >= 3 && bts >= 3 {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
+<<<<<<< HEAD
 	}
 	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(3*config.ChtSize+config.ChtConfirms), 2, waitIndexers, nil, 0, false, true, false)
+||||||| e78727290
+	}
+	server, client, tearDown := newClientServerEnv(t, int(3*config.ChtSize+config.ChtConfirms), 2, waitIndexers, nil, 0, false, true, false)
+=======
+		config    = light.TestClientIndexerConfig
+		netconfig = testnetConfig{
+			blocks:   int(3*config.ChtSize + config.ChtConfirms),
+			protocol: 3,
+			indexFn:  waitIndexers,
+			connect:  true,
+		}
+	)
+	server, client, tearDown := newClientServerEnv(t, netconfig)
+>>>>>>> v1.10.7
 	defer tearDown()
 
 	// checkDB iterates the chain with given prefix, resolves the block number

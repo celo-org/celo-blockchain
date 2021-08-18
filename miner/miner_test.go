@@ -64,7 +64,17 @@ type testBlockChain struct {
 }
 
 func (bc *testBlockChain) CurrentBlock() *types.Block {
+<<<<<<< HEAD
 	return types.NewBlock(&types.Header{}, nil, nil, nil, new(trie.Trie))
+||||||| e78727290
+	return types.NewBlock(&types.Header{
+		GasLimit: bc.gasLimit,
+	}, nil, nil, nil, new(trie.Trie))
+=======
+	return types.NewBlock(&types.Header{
+		GasLimit: bc.gasLimit,
+	}, nil, nil, nil, trie.NewStackTrie(nil))
+>>>>>>> v1.10.7
 }
 
 func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {

@@ -175,6 +175,7 @@ func TestSetupGenesis(t *testing.T) {
 		}
 	}
 }
+<<<<<<< HEAD
 
 // TestRegistryInGenesis tests if the params.RegistrySmartContract that defined in the genesis block sits in the blockchain
 func TestRegistryInGenesis(t *testing.T) {
@@ -222,3 +223,41 @@ func TestRegistryInGenesis(t *testing.T) {
 		chain.Stop()
 	}
 }
+||||||| e78727290
+=======
+
+// TestGenesisHashes checks the congruity of default genesis data to corresponding hardcoded genesis hash values.
+func TestGenesisHashes(t *testing.T) {
+	cases := []struct {
+		genesis *Genesis
+		hash    common.Hash
+	}{
+		{
+			genesis: DefaultGenesisBlock(),
+			hash:    params.MainnetGenesisHash,
+		},
+		{
+			genesis: DefaultGoerliGenesisBlock(),
+			hash:    params.GoerliGenesisHash,
+		},
+		{
+			genesis: DefaultRopstenGenesisBlock(),
+			hash:    params.RopstenGenesisHash,
+		},
+		{
+			genesis: DefaultRinkebyGenesisBlock(),
+			hash:    params.RinkebyGenesisHash,
+		},
+		{
+			genesis: DefaultCalaverasGenesisBlock(),
+			hash:    params.CalaverasGenesisHash,
+		},
+	}
+	for i, c := range cases {
+		b := c.genesis.MustCommit(rawdb.NewMemoryDatabase())
+		if got := b.Hash(); got != c.hash {
+			t.Errorf("case: %d, want: %s, got: %s", i, c.hash.Hex(), got.Hex())
+		}
+	}
+}
+>>>>>>> v1.10.7

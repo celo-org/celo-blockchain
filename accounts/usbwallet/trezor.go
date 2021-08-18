@@ -190,12 +190,20 @@ func (w *trezorDriver) SignTx(path accounts.DerivationPath, tx *types.Transactio
 	return w.trezorSign(path, tx, chainID)
 }
 
+<<<<<<< HEAD
 // SignPersonalMessage implements usbwallet.driver, sending the message to the Trezor and
 // waiting for the user to confirm or deny the message.
 func (w *trezorDriver) SignPersonalMessage(path accounts.DerivationPath, message []byte) (common.Address, []byte, []byte, error) {
 	return common.Address{}, nil, nil, accounts.ErrNotSupported
 }
 
+||||||| e78727290
+=======
+func (w *trezorDriver) SignTypedMessage(path accounts.DerivationPath, domainHash []byte, messageHash []byte) ([]byte, error) {
+	return nil, accounts.ErrNotSupported
+}
+
+>>>>>>> v1.10.7
 // trezorDerive sends a derivation request to the Trezor device and returns the
 // Ethereum address located on that path.
 func (w *trezorDriver) trezorDerive(derivationPath []uint32) (common.Address, error) {
@@ -266,9 +274,11 @@ func (w *trezorDriver) trezorSign(derivationPath []uint32, tx *types.Transaction
 	if chainID == nil {
 		signer = new(types.HomesteadSigner)
 	} else {
+		// Trezor backend does not support typed transactions yet.
 		signer = types.NewEIP155Signer(chainID)
 		signature[64] -= byte(chainID.Uint64()*2 + 35)
 	}
+
 	// Inject the final signature into the transaction and sanity check the sender
 	signed, err := tx.WithSignature(signer, signature)
 	if err != nil {

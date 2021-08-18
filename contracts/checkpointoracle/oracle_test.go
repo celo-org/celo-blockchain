@@ -175,7 +175,19 @@ func TestCheckpointRegister(t *testing.T) {
 	sort.Sort(accounts)
 
 	// Deploy registrar contract
+<<<<<<< HEAD
 	contractBackend := backends.NewSimulatedBackend(core.GenesisAlloc{accounts[0].addr: {Balance: big.NewInt(1000000000)}, accounts[1].addr: {Balance: big.NewInt(1000000000)}, accounts[2].addr: {Balance: big.NewInt(1000000000)}})
+||||||| e78727290
+	contractBackend := backends.NewSimulatedBackend(core.GenesisAlloc{accounts[0].addr: {Balance: big.NewInt(1000000000)}, accounts[1].addr: {Balance: big.NewInt(1000000000)}, accounts[2].addr: {Balance: big.NewInt(1000000000)}}, 10000000)
+=======
+	contractBackend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{
+			accounts[0].addr: {Balance: big.NewInt(10000000000000000)},
+			accounts[1].addr: {Balance: big.NewInt(10000000000000000)},
+			accounts[2].addr: {Balance: big.NewInt(10000000000000000)},
+		}, 10000000,
+	)
+>>>>>>> v1.10.7
 	defer contractBackend.Close()
 
 	transactOpts, _ := bind.NewKeyedTransactorWithChainID(accounts[0].key, big.NewInt(1337))

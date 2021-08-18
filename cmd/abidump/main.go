@@ -25,6 +25,10 @@ import (
 
 	"github.com/celo-org/celo-blockchain/signer/core"
 	"github.com/celo-org/celo-blockchain/signer/fourbyte"
+	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/celo-org/celo-blockchain/signer/fourbyte"
+	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
+	"github.com/celo-org/celo-blockchain/signer/fourbyte"
 )
 
 func init() {
@@ -41,7 +45,7 @@ func parse(data []byte) {
 	if err != nil {
 		die(err)
 	}
-	messages := core.ValidationMessages{}
+	messages := apitypes.ValidationMessages{}
 	db.ValidateCallData(nil, data, &messages)
 	for _, m := range messages.Messages {
 		fmt.Printf("%v: %v\n", m.Typ, m.Message)

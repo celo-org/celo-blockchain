@@ -55,11 +55,36 @@ var waitDeployedTests = map[string]struct {
 func TestWaitDeployed(t *testing.T) {
 	for name, test := range waitDeployedTests {
 		backend := backends.NewSimulatedBackend(
+<<<<<<< HEAD
 			core.GenesisAlloc{crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000)}})
+||||||| e78727290
+			core.GenesisAlloc{
+				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000)},
+			},
+			10000000,
+		)
+=======
+			core.GenesisAlloc{
+				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
+			},
+			10000000,
+		)
+>>>>>>> v1.10.7
 		defer backend.Close()
 
+<<<<<<< HEAD
 		// Create the transaction.
 		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, big.NewInt(1), nil, nil, nil, common.FromHex(test.code))
+||||||| e78727290
+		// Create the transaction.
+		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, big.NewInt(1), common.FromHex(test.code))
+=======
+		// Create the transaction
+		head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+		gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+
+		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, gasPrice, common.FromHex(test.code))
+>>>>>>> v1.10.7
 		tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 
 		// Wait for it to get mined in the background.
@@ -95,15 +120,24 @@ func TestWaitDeployed(t *testing.T) {
 func TestWaitDeployedCornerCases(t *testing.T) {
 	backend := backends.NewSimulatedBackend(
 		core.GenesisAlloc{
-			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000)},
+			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
 		},
 	)
 	defer backend.Close()
 
+	head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+
 	// Create a transaction to an account.
 	code := "6060604052600a8060106000396000f360606040526008565b00"
+<<<<<<< HEAD
 	tx := types.NewTransaction(0, common.HexToAddress("0x01"), big.NewInt(0), 3000000,
 		big.NewInt(1), nil, nil, nil, common.FromHex(code))
+||||||| e78727290
+	tx := types.NewTransaction(0, common.HexToAddress("0x01"), big.NewInt(0), 3000000, big.NewInt(1), common.FromHex(code))
+=======
+	tx := types.NewTransaction(0, common.HexToAddress("0x01"), big.NewInt(0), 3000000, gasPrice, common.FromHex(code))
+>>>>>>> v1.10.7
 	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -115,7 +149,13 @@ func TestWaitDeployedCornerCases(t *testing.T) {
 	}
 
 	// Create a transaction that is not mined.
+<<<<<<< HEAD
 	tx = types.NewContractCreation(1, big.NewInt(0), 3000000, big.NewInt(1), nil, nil, nil, common.FromHex(code))
+||||||| e78727290
+	tx = types.NewContractCreation(1, big.NewInt(0), 3000000, big.NewInt(1), common.FromHex(code))
+=======
+	tx = types.NewContractCreation(1, big.NewInt(0), 3000000, gasPrice, common.FromHex(code))
+>>>>>>> v1.10.7
 	tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
 
 	go func() {

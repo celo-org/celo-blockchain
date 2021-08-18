@@ -21,6 +21,7 @@ import (
 	"errors"
 	"math"
 	"math/big"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,6 +31,25 @@ import (
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/core/forkid"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/mclock"
+	"github.com/celo-org/celo-blockchain/core/forkid"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
@@ -50,6 +70,7 @@ type clientHandler struct {
 	// TODO(nategraf) Remove this field once gateway fees can be retreived.
 	gatewayFee *big.Int
 
+<<<<<<< HEAD
 	closeCh  chan struct{}
 	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
 	syncDone func()         // Test hooks when syncing is done.
@@ -117,6 +138,18 @@ func (c *gatewayFeeCache) MinPeerGatewayFee() (*GatewayFeeInformation, error) {
 
 	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
 	return minGatewayFeeInformation, nil
+||||||| e78727290
+	closeCh  chan struct{}
+	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
+	syncDone func()         // Test hooks when syncing is done.
+=======
+	closeCh chan struct{}
+	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
+
+	// Hooks used in the testing
+	syncStart func(header *types.Header) // Hook called when the syncing is started
+	syncEnd   func(header *types.Header) // Hook called when the syncing is done
+>>>>>>> v1.10.7
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, gatewayFee *big.Int) *clientHandler {
@@ -192,15 +225,33 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		p.Log().Debug("Light Ethereum handshake failed", "err", err)
 		return err
 	}
+<<<<<<< HEAD
 
 	// TODO(nategraf) The local gateway fee is temporarily being used as the peer gateway fee.
 	p.SetGatewayFee(h.gatewayFee)
 
+||||||| e78727290
+=======
+	// Register peer with the server pool
+	if h.backend.serverPool != nil {
+		if nvt, err := h.backend.serverPool.RegisterNode(p.Node()); err == nil {
+			p.setValueTracker(nvt)
+			p.updateVtParams()
+			defer func() {
+				p.setValueTracker(nil)
+				h.backend.serverPool.UnregisterNode(p.Node())
+			}()
+		} else {
+			return err
+		}
+	}
+>>>>>>> v1.10.7
 	// Register the peer locally
 	if err := h.backend.peers.register(p); err != nil {
 		p.Log().Error("Light Ethereum peer registration failed", "err", err)
 		return err
 	}
+
 	serverConnectionGauge.Update(int64(h.backend.peers.len()))
 
 	connectedAt := mclock.Now()
@@ -507,7 +558,7 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 			return dp.(*serverPeer) == pc.peer
 		},
 		request: func(dp distPeer) func() {
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			peer := dp.(*serverPeer)
 			cost := peer.getRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueuedRequest(reqID, cost)
@@ -531,7 +582,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 			return dp.(*serverPeer) == pc.peer
 		},
 		request: func(dp distPeer) func() {
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			peer := dp.(*serverPeer)
 			cost := peer.getRequestCost(GetBlockHeadersMsg, amount)
 			peer.fcServer.QueuedRequest(reqID, cost)
@@ -548,7 +599,7 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 // RetrieveSingleHeaderByNumber requests a single header by the specified block
 // number. This function will wait the response until it's timeout or delivered.
 func (pc *peerConnection) RetrieveSingleHeaderByNumber(context context.Context, number uint64) (*types.Header, error) {
-	reqID := genReqID()
+	reqID := rand.Uint64()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
 			peer := dp.(*serverPeer)
@@ -590,7 +641,7 @@ func (d *downloaderPeerNotify) registerPeer(p *serverPeer) {
 		handler: h,
 		peer:    p,
 	}
-	h.downloader.RegisterLightPeer(p.id, ethVersion, pc)
+	h.downloader.RegisterLightPeer(p.id, eth.ETH65, pc)
 }
 
 func (d *downloaderPeerNotify) unregisterPeer(p *serverPeer) {

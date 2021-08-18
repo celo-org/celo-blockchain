@@ -41,8 +41,16 @@ const (
 func runMinimalGeth(t *testing.T, args ...string) *testgeth {
 	// --networkid=1337 to avoid cache bump
 	// --syncmode=full to avoid allocating fast sync bloom
+<<<<<<< HEAD
 	allArgs := []string{"--nousb", "--networkid", "1337", "--syncmode=full", "--port", "0",
 		"--nat", "none", "--nodiscover", "--maxpeers", "0", "--light.maxpeers", "0", "--cache", "64"}
+||||||| e78727290
+	allArgs := []string{"--ropsten", "--nousb", "--networkid", "1337", "--syncmode=full", "--port", "0",
+		"--nat", "none", "--nodiscover", "--maxpeers", "0", "--cache", "64"}
+=======
+	allArgs := []string{"--ropsten", "--networkid", "1337", "--syncmode=full", "--port", "0",
+		"--nat", "none", "--nodiscover", "--maxpeers", "0", "--cache", "64"}
+>>>>>>> v1.10.7
 	return runGeth(t, append(allArgs, args...)...)
 }
 
@@ -52,7 +60,7 @@ func TestConsoleWelcome(t *testing.T) {
 	coinbase := "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182"
 
 	// Start a geth console, make sure it's cleaned up and terminate the console
-	geth := runMinimalGeth(t, "--etherbase", coinbase, "console")
+	geth := runMinimalGeth(t, "--miner.etherbase", coinbase, "console")
 
 	// Gather all the infos the welcome message needs to contain
 	geth.SetTemplateFunc("goos", func() string { return runtime.GOOS })
@@ -99,7 +107,7 @@ func TestAttachWelcome(t *testing.T) {
 	p := trulyRandInt(1024, 65533) // Yeah, sometimes this will fail, sorry :P
 	httpPort = strconv.Itoa(p)
 	wsPort = strconv.Itoa(p + 1)
-	geth := runMinimalGeth(t, "--etherbase", "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182",
+	geth := runMinimalGeth(t, "--miner.etherbase", "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182",
 		"--ipcpath", ipc,
 		"--http", "--http.port", httpPort,
 		"--ws", "--ws.port", wsPort)

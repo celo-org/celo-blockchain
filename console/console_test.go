@@ -33,6 +33,23 @@ import (
 	"github.com/celo-org/celo-blockchain/internal/jsre"
 	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/ethash"
+	"github.com/celo-org/celo-blockchain/console/prompt"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/internal/jsre"
+	"github.com/celo-org/celo-blockchain/miner"
+	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/ethash"
+	"github.com/celo-org/celo-blockchain/console/prompt"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
+	"github.com/celo-org/celo-blockchain/internal/jsre"
+	"github.com/celo-org/celo-blockchain/miner"
+	"github.com/celo-org/celo-blockchain/node"
 )
 
 const (
@@ -84,7 +101,7 @@ type tester struct {
 
 // newTester creates a test environment based on which the console can operate.
 // Please ensure you call Close() on the returned tester to avoid leaks.
-func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
+func newTester(t *testing.T, confOverride func(*ethconfig.Config)) *tester {
 	// Create a temporary storage for the node keys and initialize it
 	workspace, err := ioutil.TempDir("", "console-tester-")
 	if err != nil {
@@ -96,9 +113,17 @@ func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
 	}
+<<<<<<< HEAD
 	ethConf := &eth.Config{
 		Genesis:        core.DeveloperGenesisBlock(),
 		TxFeeRecipient: common.HexToAddress(testAddress),
+||||||| e78727290
+	ethConf := &eth.Config{
+		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+=======
+	ethConf := &ethconfig.Config{
+		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+>>>>>>> v1.10.7
 		Miner: miner.Config{
 			Validator: common.HexToAddress(testAddress),
 		},

@@ -24,6 +24,12 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/p2p/discv5"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/p2p/discv5"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 // MainnetGenesis returns the JSON spec to use for the main Ethereum network. It
@@ -51,9 +57,13 @@ func BaklavaGenesis() string {
 // FoundationBootnodes returns the enode URLs of the P2P bootstrap nodes operated
 // by the foundation running the V5 discovery protocol.
 func FoundationBootnodes() *Enodes {
-	nodes := &Enodes{nodes: make([]*discv5.Node, len(params.MainnetBootnodes))}
+	nodes := &Enodes{nodes: make([]*enode.Node, len(params.MainnetBootnodes))}
 	for i, url := range params.MainnetBootnodes {
-		nodes.nodes[i] = discv5.MustParseNode(url)
+		var err error
+		nodes.nodes[i], err = enode.Parse(enode.ValidSchemes, url)
+		if err != nil {
+			panic("invalid node URL: " + err.Error())
+		}
 	}
 	return nodes
 }

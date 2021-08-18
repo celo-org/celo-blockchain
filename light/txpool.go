@@ -35,6 +35,25 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
+	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
+	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/ethdb"
+	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -71,7 +90,12 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
+<<<<<<< HEAD
 	donut    bool // Fork indicated whether Donut has been activated
+||||||| e78727290
+=======
+	eip2718  bool // Fork indicator whether we are in the eip2718 stage.
+>>>>>>> v1.10.7
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -94,7 +118,7 @@ type TxRelayBackend interface {
 func NewTxPool(config *params.ChainConfig, chain *LightChain, relay TxRelayBackend) *TxPool {
 	pool := &TxPool{
 		config:      config,
-		signer:      types.NewEIP155Signer(config.ChainID),
+		signer:      types.LatestSigner(config),
 		nonce:       make(map[common.Address]uint64),
 		pending:     make(map[common.Hash]*types.Transaction),
 		mined:       make(map[common.Hash][]*types.Transaction),
@@ -325,7 +349,12 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
 	pool.istanbul = pool.config.IsIstanbul(next)
+<<<<<<< HEAD
 	pool.donut = pool.config.IsDonut(next)
+||||||| e78727290
+=======
+	pool.eip2718 = pool.config.IsBerlin(next)
+>>>>>>> v1.10.7
 }
 
 // Stop stops the light transaction pool
@@ -396,12 +425,20 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return err
 	}
 
+<<<<<<< HEAD
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if tx.FeeCurrency() != nil {
 		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	}
 	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
+||||||| e78727290
+	// Should supply enough intrinsic gas
+	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+=======
+	// Should supply enough intrinsic gas
+	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
+>>>>>>> v1.10.7
 	if err != nil {
 		return err
 	}
@@ -454,8 +491,7 @@ func (pool *TxPool) add(ctx context.Context, tx *types.Transaction) error {
 func (pool *TxPool) Add(ctx context.Context, tx *types.Transaction) error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
-
-	data, err := rlp.EncodeToBytes(tx)
+	data, err := tx.MarshalBinary()
 	if err != nil {
 		return err
 	}
@@ -527,6 +563,25 @@ func (pool *TxPool) Content() (map[common.Address]types.Transactions, map[common
 	// There are no queued transactions in a light pool, just return an empty map
 	queued := make(map[common.Address]types.Transactions)
 	return pending, queued
+}
+
+// ContentFrom retrieves the data content of the transaction pool, returning the
+// pending as well as queued transactions of this address, grouped by nonce.
+func (pool *TxPool) ContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
+	// Retrieve the pending transactions and sort by nonce
+	var pending types.Transactions
+	for _, tx := range pool.pending {
+		account, _ := types.Sender(pool.signer, tx)
+		if account != addr {
+			continue
+		}
+		pending = append(pending, tx)
+	}
+	// There are no queued transactions in a light pool, just return an empty map
+	return pending, types.Transactions{}
 }
 
 // RemoveTransactions removes all given transactions from the pool.
