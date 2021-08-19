@@ -136,7 +136,6 @@ func New(conf *Config) (*Node, error) {
 		node.server.Config.NodeDatabase = node.config.NodeDB()
 	}
 
-<<<<<<< HEAD
 	if node.config.Proxy {
 		// Initialize the proxy p2p server. This creates the node key and
 		// discovery databases.
@@ -153,8 +152,6 @@ func New(conf *Config) (*Node, error) {
 		node.log.Info("Proxy Server Config", "node.proxyServer.Config", node.proxyServer.Config.ListenAddr)
 	}
 
-||||||| e78727290
-=======
 	// Check HTTP/WS prefixes are valid.
 	if err := validatePrefix("HTTP", conf.HTTPPathPrefix); err != nil {
 		return nil, err
@@ -163,7 +160,6 @@ func New(conf *Config) (*Node, error) {
 		return nil, err
 	}
 
->>>>>>> v1.10.7
 	// Configure RPC servers.
 	node.http = newHTTPServer(node.log, conf.HTTPTimeouts)
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
@@ -284,7 +280,6 @@ func (n *Node) openEndpoints() error {
 	if err := n.server.Start(); err != nil {
 		return convertFileLockError(err)
 	}
-<<<<<<< HEAD
 	if n.proxyServer != nil {
 		n.log.Info("Starting proxy peer-to-peer node", "instance", n.proxyServer.Name)
 		if err := n.proxyServer.Start(); err != nil {
@@ -292,10 +287,8 @@ func (n *Node) openEndpoints() error {
 			return convertFileLockError(err)
 		}
 	}
-||||||| e78727290
-=======
+
 	// start RPC endpoints
->>>>>>> v1.10.7
 	err := n.startRPC()
 	if err != nil {
 		n.stopRPC()
