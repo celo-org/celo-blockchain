@@ -524,13 +524,13 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 	if tester.downloader.Mode == LightSync || tester.downloader.Mode == LightestSync {
 		blocks, receipts = 1, 1
 		for _, lightProof := range tester.ownPlumoProofs {
-			fmt.Printf("Adding to num plumo epochs, firstEpoch: %v, last epoch %v\n", lightProof.FirstEpoch, lightProof.LastEpoch.Index)
-			// -2 to avoid double counting edge headers
-			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch - 2)
+			// -1 to avoid double counting edge header
+			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch - 1)
 			numPlumoProofEpochs += proofRange
 		}
+		// Don't double count genesis
+		numPlumoProofEpochs -= 1
 	}
-	fmt.Printf("Num plumo proof epochs %v\n", numPlumoProofEpochs)
 	if hs := len(tester.ownHeaders) + len(tester.ancientHeaders) + numPlumoProofEpochs; hs != headers {
 		t.Fatalf("synchronised headers mismatch: have %v, want %v", hs, headers)
 	}
@@ -1746,9 +1746,13 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 	var headerGaps []headerGap
 	knownPlumoProofs := dlp.knownPlumoProofs
 	var currEpoch = uint(istanbul.GetEpochNumber(from, epoch))
-	fmt.Printf("from: %v, Curr from %v, epoch: %v\n", from, currEpoch, epoch)
 	// Outer loop finding the path
 	for {
+		for _, proofMetadata := range dlp.requestedProofs {
+			if currEpoch >= proofMetadata.FirstEpoch && currEpoch < proofMetadata.LastEpoch {
+				currEpoch = proofMetadata.LastEpoch
+			}
+		}
 		// Inner loop adding the next proof
 		var earliestMatch uint = math.MaxUint32
 		var maxRange uint = 0
@@ -1861,7 +1865,7 @@ var (
 			Proof:      []byte{0},
 			FirstEpoch: 2,
 			LastEpoch: istanbul.LightEpochBlock{
-				Index:         15, // 12
+				Index:         15,
 				MaxNonSigners: 0,
 			},
 			VersionNumber:      0,
@@ -1873,7 +1877,7 @@ var (
 			Proof:      []byte{0},
 			FirstEpoch: 45,
 			LastEpoch: istanbul.LightEpochBlock{
-				Index:         54, // 8
+				Index:         54,
 				MaxNonSigners: 0,
 			},
 			VersionNumber:      0,

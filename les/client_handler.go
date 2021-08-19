@@ -38,12 +38,13 @@ import (
 // clientHandler is responsible for receiving and processing all incoming server
 // responses.
 type clientHandler struct {
-	ulc        *ulc
-	checkpoint *params.TrustedCheckpoint
-	fetcher    *lightFetcher
-	downloader *downloader.Downloader
-	backend    *LightEthereum
-	syncMode   downloader.SyncMode
+	ulc             *ulc
+	checkpoint      *params.TrustedCheckpoint
+	fetcher         *lightFetcher
+	downloader      *downloader.Downloader
+	backend         *LightEthereum
+	syncMode        downloader.SyncMode
+	requestedProofs []types.PlumoProofMetadata
 
 	// TODO(nategraf) Remove this field once gateway fees can be retreived.
 	gatewayFee *big.Int
@@ -611,16 +612,20 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	}
 	var headerGaps []headerGap
 	knownPlumoProofs := pc.peer.knownPlumoProofs
-	var currFrom uint = uint(from)
-	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch)) - 1
+	var currEpoch = uint(istanbul.GetEpochNumber(uint64(from), epoch)) - 1
 	// Outer loop finding the path
 	for {
+		for _, proofMetadata := range pc.handler.requestedProofs {
+			if currEpoch >= proofMetadata.FirstEpoch && currEpoch < proofMetadata.LastEpoch {
+				currEpoch = proofMetadata.LastEpoch
+			}
+		}
 		// Inner loop adding the next proof
 		var earliestMatch uint = math.MaxUint32
 		var maxRange uint = 0
 		var chosenProofMetadata types.PlumoProofMetadata
 		for _, proofMetadata := range knownPlumoProofs {
-			log.Error("iterating proofs", "currFrom", currFrom, "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
+			log.Error("iterating proofs", "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
 			if proofMetadata.FirstEpoch >= currEpoch {
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
@@ -634,7 +639,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		// No more proofs to add, break
 		if maxRange == 0 && currEpoch < earliestMatch {
 			// TODO check height
-			log.Error("No more proofs", "currFrom", currFrom, "original from", from)
+			log.Error("No more proofs", "currEpoch", currEpoch, "original from", from)
 			amount := int(earliestMatch - currEpoch)
 			if amount > maxEpochHeaderFetch {
 				amount = maxEpochHeaderFetch
@@ -683,6 +688,10 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		if !ok {
 			log.Error("Returning no peers from request proofs and headers")
 			return light.ErrNoPeers
+		}
+		// Might need a lock
+		for _, proofMetadata := range proofsToRequest {
+			pc.handler.requestedProofs = append(pc.handler.requestedProofs, proofMetadata)
 		}
 	}
 	// This does seem to work in some ways, testing proofs now
