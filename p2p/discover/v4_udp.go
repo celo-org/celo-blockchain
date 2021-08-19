@@ -34,18 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/discover/v4wire"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/discover/v4wire"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/discover/v4wire"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
 )
 
 // Errors
@@ -271,14 +259,8 @@ func (t *UDPv4) makePing(toaddr *net.UDPAddr) *v4wire.Ping {
 		From:       t.ourEndpoint(),
 		To:         v4wire.NewEndpoint(toaddr, 0),
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
-<<<<<<< HEAD
 		NetworkId:  t.localNode.NetworkId(),
-		Rest:       []rlp.RawValue{seq},
-||||||| e78727290
-		Rest:       []rlp.RawValue{seq},
-=======
 		ENRSeq:     t.localNode.Node().Seq(),
->>>>>>> v1.10.7
 	}
 }
 

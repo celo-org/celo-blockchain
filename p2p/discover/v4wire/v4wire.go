@@ -50,13 +50,8 @@ type (
 		Version    uint
 		From, To   Endpoint
 		Expiration uint64
-<<<<<<< HEAD
 		NetworkId  uint64
-||||||| e78727290
-=======
 		ENRSeq     uint64 `rlp:"optional"` // Sequence number of local record, added by EIP-868.
-
->>>>>>> v1.10.7
 		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}

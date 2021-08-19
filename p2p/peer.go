@@ -115,19 +115,14 @@ type Peer struct {
 	disc     chan DiscReason
 
 	// events receives message send / receive events if set
-<<<<<<< HEAD
 	events *event.Feed
 
 	purposesMu sync.Mutex
 	purposes   PurposeFlag
 
 	Server *Server
-||||||| e78727290
-	events *event.Feed
-=======
-	events   *event.Feed
+
 	testPipe *MsgPipeRW // for testing
->>>>>>> v1.10.7
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -140,7 +135,6 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	return peer
 }
 
-<<<<<<< HEAD
 func (p *Peer) AddPurpose(purpose PurposeFlag) {
 	p.purposesMu.Lock()
 	defer p.purposesMu.Unlock()
@@ -175,8 +169,6 @@ func (p *Peer) HasPurpose(purpose PurposeFlag) bool {
 	return p.purposes.IsSet(purpose)
 }
 
-||||||| e78727290
-=======
 // NewPeerPipe creates a peer for testing purposes.
 // The message pipe given as the last parameter is closed when
 // Disconnect is called on the peer.
@@ -186,7 +178,6 @@ func NewPeerPipe(id enode.ID, name string, caps []Cap, pipe *MsgPipeRW) *Peer {
 	return p
 }
 
->>>>>>> v1.10.7
 // ID returns the node's public key.
 func (p *Peer) ID() enode.ID {
 	return p.rw.node.ID()
