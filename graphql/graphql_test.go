@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/node"
@@ -142,7 +141,7 @@ func createNode(t *testing.T, gqlEnabled bool) *node.Node {
 func createGQLService(t *testing.T, stack *node.Node, endpoint string) {
 	// create backend (use a config which is light on mem consumption)
 	ethConf := &eth.Config{
-		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
+		Genesis: core.DeveloperGenesisBlock(),
 		// Miner: miner.Config{
 		// 	Etherbase: common.HexToAddress("0xaabb"),
 		// },
