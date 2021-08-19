@@ -49,15 +49,7 @@ func TestChainIterator(t *testing.T) {
 				Data:     []byte{0x11, 0x11, 0x11},
 			})
 		} else {
-<<<<<<< HEAD
-			tx := types.NewTransaction(i, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), nil, nil, nil, []byte{0x11, 0x11, 0x11})
-			txs = append(txs, tx)
-			block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())
-||||||| e78727290
-			tx := types.NewTransaction(i, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), []byte{0x11, 0x11, 0x11})
-			txs = append(txs, tx)
-			block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())
-=======
+
 			tx = types.NewTx(&types.AccessListTx{
 				ChainID:  big.NewInt(1337),
 				Nonce:    i,
@@ -67,7 +59,6 @@ func TestChainIterator(t *testing.T) {
 				Value:    big.NewInt(111),
 				Data:     []byte{0x11, 0x11, 0x11},
 			})
->>>>>>> v1.10.7
 		}
 		txs = append(txs, tx)
 		block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())
@@ -137,15 +128,7 @@ func TestIndexTransactions(t *testing.T) {
 				Data:     []byte{0x11, 0x11, 0x11},
 			})
 		} else {
-<<<<<<< HEAD
-			tx := types.NewTransaction(i, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), nil, nil, nil, []byte{0x11, 0x11, 0x11})
-			txs = append(txs, tx)
-			block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())
-||||||| e78727290
-			tx := types.NewTransaction(i, common.BytesToAddress([]byte{0x11}), big.NewInt(111), 1111, big.NewInt(11111), []byte{0x11, 0x11, 0x11})
-			txs = append(txs, tx)
-			block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())
-=======
+
 			tx = types.NewTx(&types.AccessListTx{
 				ChainID:  big.NewInt(1337),
 				Nonce:    i,
@@ -155,7 +138,6 @@ func TestIndexTransactions(t *testing.T) {
 				Value:    big.NewInt(111),
 				Data:     []byte{0x11, 0x11, 0x11},
 			})
->>>>>>> v1.10.7
 		}
 		txs = append(txs, tx)
 		block = types.NewBlock(&types.Header{Number: big.NewInt(int64(i))}, []*types.Transaction{tx}, nil, nil, newHasher())

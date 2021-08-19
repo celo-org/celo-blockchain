@@ -750,7 +750,6 @@ func DeleteBlockWithoutNumber(db ethdb.KeyValueWriter, hash common.Hash, number 
 	DeleteTd(db, hash, number)
 }
 
-<<<<<<< HEAD
 // WriteRandomCommitmentCache will write a random beacon commitment's associated block parent hash
 // (which is used to calculate the commitmented random number).
 func WriteRandomCommitmentCache(db ethdb.KeyValueWriter, commitment common.Hash, parentHash common.Hash) {
@@ -770,8 +769,6 @@ func ReadRandomCommitmentCache(db ethdb.Reader, commitment common.Hash) common.H
 	return common.BytesToHash(parentHash)
 }
 
-||||||| e78727290
-=======
 const badBlockToKeep = 10
 
 type badBlock struct {
@@ -801,7 +798,7 @@ func ReadBadBlock(db ethdb.Reader, hash common.Hash) *types.Block {
 	}
 	for _, bad := range badBlocks {
 		if bad.Header.Hash() == hash {
-			return types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Uncles)
+			return types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Randomness, bad.Body.EpochSnarkData)
 		}
 	}
 	return nil
@@ -820,7 +817,7 @@ func ReadAllBadBlocks(db ethdb.Reader) []*types.Block {
 	}
 	var blocks []*types.Block
 	for _, bad := range badBlocks {
-		blocks = append(blocks, types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Uncles))
+		blocks = append(blocks, types.NewBlockWithHeader(bad.Header).WithBody(bad.Body.Transactions, bad.Body.Randomness, bad.Body.EpochSnarkData))
 	}
 	return blocks
 }
@@ -868,7 +865,6 @@ func DeleteBadBlocks(db ethdb.KeyValueWriter) {
 	}
 }
 
->>>>>>> v1.10.7
 // FindCommonAncestor returns the last common ancestor of two block headers
 func FindCommonAncestor(db ethdb.Reader, a, b *types.Header) *types.Header {
 	for bn := b.Number.Uint64(); a.Number.Uint64() > bn; {

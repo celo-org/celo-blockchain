@@ -357,21 +357,11 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 			metadata.Add(size)
 		case bytes.HasPrefix(key, bloomBitsPrefix) && len(key) == (len(bloomBitsPrefix)+10+common.HashLength):
 			bloomBits.Add(size)
-<<<<<<< HEAD
-		case bytes.HasPrefix(key, []byte("cht-")) && len(key) == 4+common.HashLength:
-||||||| e78727290
-		case bytes.HasPrefix(key, []byte("clique-")) && len(key) == 7+common.HashLength:
-			cliqueSnaps.Add(size)
-		case bytes.HasPrefix(key, []byte("cht-")) && len(key) == 4+common.HashLength:
-=======
 		case bytes.HasPrefix(key, BloomBitsIndexPrefix):
 			bloomBits.Add(size)
-		case bytes.HasPrefix(key, []byte("clique-")) && len(key) == 7+common.HashLength:
-			cliqueSnaps.Add(size)
 		case bytes.HasPrefix(key, []byte("cht-")) ||
 			bytes.HasPrefix(key, []byte("chtIndexV2-")) ||
 			bytes.HasPrefix(key, []byte("chtRootV2-")): // Canonical hash trie
->>>>>>> v1.10.7
 			chtTrieNodes.Add(size)
 		case bytes.HasPrefix(key, []byte("blt-")) ||
 			bytes.HasPrefix(key, []byte("bltIndex-")) ||

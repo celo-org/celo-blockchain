@@ -188,7 +188,6 @@ func TestPartialBlockStorage(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 // Tests uptime accumulator storage and retrieval operations.
 func TestUptimeStorage(t *testing.T) {
 	db := NewMemoryDatabase()
@@ -220,8 +219,6 @@ func TestUptimeStorage(t *testing.T) {
 	}
 }
 
-||||||| e78727290
-=======
 // Tests block storage and retrieval operations.
 func TestBadBlockStorage(t *testing.T) {
 	db := NewMemoryDatabase()
@@ -230,7 +227,6 @@ func TestBadBlockStorage(t *testing.T) {
 	block := types.NewBlockWithHeader(&types.Header{
 		Number:      big.NewInt(1),
 		Extra:       []byte("bad block"),
-		UncleHash:   types.EmptyUncleHash,
 		TxHash:      types.EmptyRootHash,
 		ReceiptHash: types.EmptyRootHash,
 	})
@@ -248,7 +244,6 @@ func TestBadBlockStorage(t *testing.T) {
 	blockTwo := types.NewBlockWithHeader(&types.Header{
 		Number:      big.NewInt(2),
 		Extra:       []byte("bad block two"),
-		UncleHash:   types.EmptyUncleHash,
 		TxHash:      types.EmptyRootHash,
 		ReceiptHash: types.EmptyRootHash,
 	})
@@ -267,7 +262,6 @@ func TestBadBlockStorage(t *testing.T) {
 		block := types.NewBlockWithHeader(&types.Header{
 			Number:      big.NewInt(int64(n)),
 			Extra:       []byte("bad block"),
-			UncleHash:   types.EmptyUncleHash,
 			TxHash:      types.EmptyRootHash,
 			ReceiptHash: types.EmptyRootHash,
 		})
@@ -291,7 +285,6 @@ func TestBadBlockStorage(t *testing.T) {
 	}
 }
 
->>>>>>> v1.10.7
 // Tests block total difficulty storage and retrieval operations.
 func TestTdStorage(t *testing.T) {
 	db := NewMemoryDatabase()
