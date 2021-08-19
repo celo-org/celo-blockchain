@@ -26,54 +26,33 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
-<<<<<<< HEAD
-//go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
-
 const (
 	ethCompatibleTxNumFields = 9
 )
 
-||||||| e78727290
-//go:generate gencodec -type txdata -field-override txdataMarshaling -out gen_tx_json.go
-
-=======
->>>>>>> v1.10.7
 var (
-<<<<<<< HEAD
-	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
-	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
-	// but has non-nil-or-0 values for some of the Celo-only fields
-	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
-||||||| e78727290
-	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
-=======
 	ErrInvalidSig           = errors.New("invalid transaction v, r, s values")
 	ErrUnexpectedProtection = errors.New("transaction type does not supported EIP-155 protected signatures")
 	ErrInvalidTxType        = errors.New("transaction type not valid in this context")
 	ErrTxTypeNotSupported   = errors.New("transaction type not supported")
 	ErrGasFeeCapTooLow      = errors.New("fee cap less than base fee")
 	errEmptyTypedTx         = errors.New("empty typed transaction bytes")
->>>>>>> v1.10.7
+	// ErrEthCompatibleTransactionIsntCompatible is returned if the transaction has EthCompatible: true
+	// but has non-nil-or-0 values for some of the Celo-only fields
+	ErrEthCompatibleTransactionIsntCompatible = errors.New("ethCompatible is true, but non-eth-compatible fields are present")
 )
 
 // Transaction types.
 const (
-	LegacyTxType = iota
-	AccessListTxType
-	DynamicFeeTxType
+	LegacyTxType     = iota
+	AccessListTxType = 0x01
+	DynamicFeeTxType = 0x02
+	LegacyCeloTxType
 )
 
 // Transaction is an Ethereum transaction.
@@ -87,26 +66,6 @@ type Transaction struct {
 	from atomic.Value
 }
 
-<<<<<<< HEAD
-type txdata struct {
-	AccountNonce        uint64          `json:"nonce"    gencodec:"required"`
-	Price               *big.Int        `json:"gasPrice" gencodec:"required"`
-	GasLimit            uint64          `json:"gas"      gencodec:"required"`
-	FeeCurrency         *common.Address `json:"feeCurrency" rlp:"nil"`         // nil means native currency
-	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient" rlp:"nil"` // nil means no gateway fee is paid
-	GatewayFee          *big.Int        `json:"gatewayFee"`
-	Recipient           *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
-	Amount              *big.Int        `json:"value"    gencodec:"required"`
-	Payload             []byte          `json:"input"    gencodec:"required"`
-||||||| e78727290
-type txdata struct {
-	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
-	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
-	GasLimit     uint64          `json:"gas"      gencodec:"required"`
-	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
-	Amount       *big.Int        `json:"value"    gencodec:"required"`
-	Payload      []byte          `json:"input"    gencodec:"required"`
-=======
 // NewTx creates a new transaction.
 func NewTx(inner TxData) *Transaction {
 	tx := new(Transaction)
@@ -120,7 +79,6 @@ func NewTx(inner TxData) *Transaction {
 type TxData interface {
 	txType() byte // returns the type ID
 	copy() TxData // creates a deep copy and initializes all fields
->>>>>>> v1.10.7
 
 	chainID() *big.Int
 	accessList() AccessList
@@ -133,49 +91,23 @@ type TxData interface {
 	nonce() uint64
 	to() *common.Address
 
-<<<<<<< HEAD
-	// This is only used when marshaling to JSON.
-	Hash *common.Hash `json:"hash" rlp:"-"`
-
+	// Celo specific fields
+	feeCurrency() *common.Address
+	gatewayFeeRecipient() *common.Address
+	gatewayFee() *big.Int
 	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
-	EthCompatible bool `json:"ethCompatible" rlp:"-"`
-||||||| e78727290
-	// This is only used when marshaling to JSON.
-	Hash *common.Hash `json:"hash" rlp:"-"`
-=======
+	ethCompatible() bool
+
 	rawSignatureValues() (v, r, s *big.Int)
 	setSignatureValues(chainID, v, r, s *big.Int)
->>>>>>> v1.10.7
 }
 
-<<<<<<< HEAD
-type txdataMarshaling struct {
-	AccountNonce        hexutil.Uint64
-	Price               *hexutil.Big
-	GasLimit            hexutil.Uint64
-	FeeCurrency         *common.Address
-	GatewayFeeRecipient *common.Address
-	GatewayFee          *hexutil.Big
-	Amount              *hexutil.Big
-	Payload             hexutil.Bytes
-	V                   *hexutil.Big
-	R                   *hexutil.Big
-	S                   *hexutil.Big
-	EthCompatible       bool
-||||||| e78727290
-type txdataMarshaling struct {
-	AccountNonce hexutil.Uint64
-	Price        *hexutil.Big
-	GasLimit     hexutil.Uint64
-	Amount       *hexutil.Big
-	Payload      hexutil.Bytes
-	V            *hexutil.Big
-	R            *hexutil.Big
-	S            *hexutil.Big
-=======
 // EncodeRLP implements rlp.Encoder
 func (tx *Transaction) EncodeRLP(w io.Writer) error {
+
 	if tx.Type() == LegacyTxType {
+		return rlp.Encode(w, tx.inner)
+	} else if tx.Type() == LegacyCeloTxType {
 		return rlp.Encode(w, tx.inner)
 	}
 	// It's an EIP-2718 typed TX envelope.
@@ -186,53 +118,14 @@ func (tx *Transaction) EncodeRLP(w io.Writer) error {
 		return err
 	}
 	return rlp.Encode(w, buf.Bytes())
->>>>>>> v1.10.7
 }
 
-<<<<<<< HEAD
-// ethCompatibleTxRlpList is used for RLP encoding/decoding of eth-compatible transactions.
-// As such, it:
-// (a) excludes the Celo-only fields,
-// (b) doesn't need the Hash or EthCompatible fields, and
-// (c) doesn't need the `json` or `gencodec` tags
-type ethCompatibleTxRlpList struct {
-	AccountNonce uint64
-	Price        *big.Int
-	GasLimit     uint64
-	Recipient    *common.Address `rlp:"nil"` // nil means contract creation
-	Amount       *big.Int
-	Payload      []byte
-	V            *big.Int
-	R            *big.Int
-	S            *big.Int
-||||||| e78727290
-func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, data)
-=======
 // encodeTyped writes the canonical encoding of a typed transaction to w.
 func (tx *Transaction) encodeTyped(w *bytes.Buffer) error {
 	w.WriteByte(tx.Type())
 	return rlp.Encode(w, tx.inner)
->>>>>>> v1.10.7
 }
 
-<<<<<<< HEAD
-func toEthCompatibleRlpList(data txdata) ethCompatibleTxRlpList {
-	return ethCompatibleTxRlpList{
-		AccountNonce: data.AccountNonce,
-		Price:        data.Price,
-		GasLimit:     data.GasLimit,
-		Recipient:    data.Recipient,
-		Amount:       data.Amount,
-		Payload:      data.Payload,
-		V:            data.V,
-		R:            data.R,
-		S:            data.S,
-	}
-||||||| e78727290
-func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, data)
-=======
 // MarshalBinary returns the canonical encoding of the transaction.
 // For legacy transactions, it returns the RLP encoding. For EIP-2718 typed
 // transactions, it returns the type and payload.
@@ -243,69 +136,19 @@ func (tx *Transaction) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 	err := tx.encodeTyped(&buf)
 	return buf.Bytes(), err
->>>>>>> v1.10.7
 }
 
-<<<<<<< HEAD
-func fromEthCompatibleRlpList(data ethCompatibleTxRlpList) txdata {
-	return txdata{
-		AccountNonce:        data.AccountNonce,
-		Price:               data.Price,
-		GasLimit:            data.GasLimit,
-		FeeCurrency:         nil,
-		GatewayFeeRecipient: nil,
-		GatewayFee:          big.NewInt(0),
-		Recipient:           data.Recipient,
-		Amount:              data.Amount,
-		Payload:             data.Payload,
-		V:                   data.V,
-		R:                   data.R,
-		S:                   data.S,
-		Hash:                nil, // txdata.Hash is calculated and saved inside tx.Hash()
-		EthCompatible:       true,
-	}
-}
-
-func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, &to, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data)
-}
-
-func NewTransactionEthCompatible(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	tx := newTransaction(nonce, &to, amount, gasLimit, gasPrice, nil, nil, nil, data)
-	tx.data.EthCompatible = true
-	return tx
-}
-
-func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
-	return newTransaction(nonce, nil, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data)
-}
-
-func NewContractCreationEthCompatible(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	tx := newTransaction(nonce, nil, amount, gasLimit, gasPrice, nil, nil, nil, data)
-	tx.data.EthCompatible = true
-	return tx
-}
-
-func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *Transaction {
-	if len(data) > 0 {
-		data = common.CopyBytes(data)
-||||||| e78727290
-func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
-	if len(data) > 0 {
-		data = common.CopyBytes(data)
-=======
 // DecodeRLP implements rlp.Decoder
 func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
-	kind, size, err := s.Kind()
+	kind, _, err := s.Kind()
 	switch {
 	case err != nil:
 		return err
 	case kind == rlp.List:
 		// It's a legacy transaction.
-		var inner LegacyTx
-		err := s.Decode(&inner)
+		inner, size, err := tx.decodeLegacy(s)
 		if err == nil {
-			tx.setDecoded(&inner, int(rlp.ListSize(size)))
+			tx.setDecoded(inner, size)
 		}
 		return err
 	case kind == rlp.String:
@@ -321,34 +164,7 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 		return err
 	default:
 		return rlp.ErrExpectedList
->>>>>>> v1.10.7
 	}
-<<<<<<< HEAD
-	d := txdata{
-		AccountNonce:        nonce,
-		Recipient:           to,
-		Payload:             data,
-		Amount:              new(big.Int),
-		GasLimit:            gasLimit,
-		FeeCurrency:         feeCurrency,
-		GatewayFeeRecipient: gatewayFeeRecipient,
-		GatewayFee:          new(big.Int),
-		Price:               new(big.Int),
-		V:                   new(big.Int),
-		R:                   new(big.Int),
-		S:                   new(big.Int),
-||||||| e78727290
-	d := txdata{
-		AccountNonce: nonce,
-		Recipient:    to,
-		Payload:      data,
-		Amount:       new(big.Int),
-		GasLimit:     gasLimit,
-		Price:        new(big.Int),
-		V:            new(big.Int),
-		R:            new(big.Int),
-		S:            new(big.Int),
-=======
 }
 
 // UnmarshalBinary decodes the canonical encoding of transactions.
@@ -356,39 +172,54 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 func (tx *Transaction) UnmarshalBinary(b []byte) error {
 	if len(b) > 0 && b[0] > 0x7f {
 		// It's a legacy transaction.
-		var data LegacyTx
-		err := rlp.DecodeBytes(b, &data)
+		r := bytes.NewReader(b)
+		s := rlp.NewStream(r, 10_000)
+		inner, size, err := tx.decodeLegacy(s)
 		if err != nil {
 			return err
 		}
-		tx.setDecoded(&data, len(b))
+		tx.setDecoded(inner, size)
 		return nil
->>>>>>> v1.10.7
 	}
 	// It's an EIP2718 typed transaction envelope.
 	inner, err := tx.decodeTyped(b)
 	if err != nil {
 		return err
 	}
-<<<<<<< HEAD
-	if gatewayFee != nil {
-		d.GatewayFee.Set(gatewayFee)
-	}
-	if gasPrice != nil {
-		d.Price.Set(gasPrice)
-||||||| e78727290
-	if gasPrice != nil {
-		d.Price.Set(gasPrice)
-=======
 	tx.setDecoded(inner, len(b))
 	return nil
+}
+
+// decodeLegacy decode a legacy transaction (optionally eth compatible) from the canonical format.
+func (tx *Transaction) decodeLegacy(s *rlp.Stream) (TxData, int, error) {
+	// It's a legacy transaction.
+	// Need to decode it to use the number of elements to determine if it is eth compatible or not.
+	_, size, _ := s.Kind()
+	var raw rlp.RawValue
+	err := s.Decode(&raw)
+	if err != nil {
+		return nil, 0, err
+	}
+	headerSize := len(raw) - int(size)
+	numElems, err := rlp.CountValues(raw[headerSize:])
+	if err != nil {
+		return nil, 0, err
+	}
+	if numElems == ethCompatibleTxNumFields {
+		var inner LegacyTx
+		err = s.Decode(&inner)
+		return &inner, int(rlp.ListSize(size)), err
+	} else {
+		var inner LegacyCeloTx
+		err = s.Decode(&inner)
+		return &inner, int(rlp.ListSize(size)), err
+	}
 }
 
 // decodeTyped decodes a typed transaction from the canonical format.
 func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 	if len(b) == 0 {
 		return nil, errEmptyTypedTx
->>>>>>> v1.10.7
 	}
 	switch b[0] {
 	case AccessListTxType:
@@ -448,61 +279,15 @@ func isProtectedV(V *big.Int) bool {
 	return true
 }
 
-<<<<<<< HEAD
-// EncodeRLP implements rlp.Encoder
-func (tx *Transaction) EncodeRLP(w io.Writer) error {
-	if tx.data.EthCompatible {
-		return rlp.Encode(w, toEthCompatibleRlpList(tx.data))
-	} else {
-		return rlp.Encode(w, &tx.data)
-	}
-}
-
-// DecodeRLP implements rlp.Decoder
-func (tx *Transaction) DecodeRLP(s *rlp.Stream) (err error) {
-	_, size, _ := s.Kind()
-	var raw rlp.RawValue
-	err = s.Decode(&raw)
-	if err != nil {
-		return err
-	}
-	headerSize := len(raw) - int(size)
-	numElems, err := rlp.CountValues(raw[headerSize:])
-	if err != nil {
-		return err
-	}
-	if numElems == ethCompatibleTxNumFields {
-		rlpList := ethCompatibleTxRlpList{}
-		err = rlp.DecodeBytes(raw, &rlpList)
-		tx.data = fromEthCompatibleRlpList(rlpList)
-	} else {
-		err = rlp.DecodeBytes(raw, &tx.data)
-	}
-	if err == nil {
-		tx.size.Store(common.StorageSize(rlp.ListSize(size)))
-		tx.time = time.Now()
-||||||| e78727290
-// EncodeRLP implements rlp.Encoder
-func (tx *Transaction) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &tx.data)
-}
-
-// DecodeRLP implements rlp.Decoder
-func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
-	_, size, _ := s.Kind()
-	err := s.Decode(&tx.data)
-	if err == nil {
-		tx.size.Store(common.StorageSize(rlp.ListSize(size)))
-		tx.time = time.Now()
-=======
 // Protected says whether the transaction is replay-protected.
 func (tx *Transaction) Protected() bool {
 	switch tx := tx.inner.(type) {
 	case *LegacyTx:
 		return tx.V != nil && isProtectedV(tx.V)
+	case *LegacyCeloTx:
+		return tx.V != nil && isProtectedV(tx.V)
 	default:
 		return true
->>>>>>> v1.10.7
 	}
 }
 
@@ -518,26 +303,14 @@ func (tx *Transaction) ChainId() *big.Int {
 	return tx.inner.chainID()
 }
 
-<<<<<<< HEAD
-func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
-func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
-func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
-func (tx *Transaction) GasPriceCmp(other *Transaction) int {
-	return tx.data.Price.Cmp(other.data.Price)
-}
-func (tx *Transaction) GasPriceIntCmp(other *big.Int) int {
-	return tx.data.Price.Cmp(other)
-}
-func (tx *Transaction) FeeCurrency() *common.Address         { return tx.data.FeeCurrency }
-func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.data.GatewayFeeRecipient }
-func (tx *Transaction) GatewayFee() *big.Int                 { return tx.data.GatewayFee }
-func (tx *Transaction) Value() *big.Int                      { return new(big.Int).Set(tx.data.Amount) }
-func (tx *Transaction) ValueU64() uint64                     { return tx.data.Amount.Uint64() }
-func (tx *Transaction) Nonce() uint64                        { return tx.data.AccountNonce }
-func (tx *Transaction) CheckNonce() bool                     { return true }
-func (tx *Transaction) EthCompatible() bool                  { return tx.data.EthCompatible }
+// TODO: Comment + fixup
+func (tx *Transaction) FeeCurrency() *common.Address         { return tx.inner.feeCurrency() }
+func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
+func (tx *Transaction) GatewayFee() *big.Int                 { return new(big.Int).Set(tx.inner.gatewayFee()) }
+func (tx *Transaction) EthCompatible() bool                  { return tx.inner.ethCompatible() }
+
 func (tx *Transaction) Fee() *big.Int {
-	return Fee(tx.data.Price, tx.data.GasLimit, tx.data.GatewayFee)
+	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.inner.gatewayFee())
 }
 
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
@@ -545,20 +318,7 @@ func Fee(gasPrice *big.Int, gasLimit uint64, gatewayFee *big.Int) *big.Int {
 	gasFee := new(big.Int).Mul(gasPrice, big.NewInt(int64(gasLimit)))
 	return gasFee.Add(gasFee, gatewayFee)
 }
-||||||| e78727290
-func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
-func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
-func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }
-func (tx *Transaction) GasPriceCmp(other *Transaction) int {
-	return tx.data.Price.Cmp(other.data.Price)
-}
-func (tx *Transaction) GasPriceIntCmp(other *big.Int) int {
-	return tx.data.Price.Cmp(other)
-}
-func (tx *Transaction) Value() *big.Int  { return new(big.Int).Set(tx.data.Amount) }
-func (tx *Transaction) Nonce() uint64    { return tx.data.AccountNonce }
-func (tx *Transaction) CheckNonce() bool { return true }
-=======
+
 // Data returns the input data of the transaction.
 func (tx *Transaction) Data() []byte { return tx.inner.data() }
 
@@ -582,7 +342,6 @@ func (tx *Transaction) Value() *big.Int { return new(big.Int).Set(tx.inner.value
 
 // Nonce returns the sender account nonce of the transaction.
 func (tx *Transaction) Nonce() uint64 { return tx.inner.nonce() }
->>>>>>> v1.10.7
 
 // To returns the recipient address of the transaction.
 // For contract-creation transactions, To returns nil.
@@ -596,10 +355,11 @@ func (tx *Transaction) To() *common.Address {
 	return &cpy
 }
 
-// Cost returns gas * gasPrice + value.
+// Cost returns amount + gasprice * gaslimit + gatewayfee.
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	total.Add(total, tx.Value())
+	total.Add(total, tx.GatewayFee())
 	return total
 }
 
@@ -632,6 +392,7 @@ func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
 // EffectiveGasTip returns the effective miner gasTipCap for the given base fee.
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
+// Note: The returned value is in the FeeCurrency of the transaction
 func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
 	if baseFee == nil {
 		return tx.GasTipCap(), nil
@@ -646,6 +407,7 @@ func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
 // error in case the effective gasTipCap is negative
+// Note: The returned value is in the FeeCurrency of the transaction
 func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int) *big.Int {
 	effectiveTip, _ := tx.EffectiveGasTip(baseFee)
 	return effectiveTip
@@ -695,7 +457,6 @@ func (tx *Transaction) Size() common.StorageSize {
 	return common.StorageSize(c)
 }
 
-<<<<<<< HEAD
 // CheckEthCompatibility checks that the Celo-only fields are nil-or-0 if EthCompatible is true
 func (tx *Transaction) CheckEthCompatibility() error {
 	if tx.EthCompatible() && !(tx.FeeCurrency() == nil && tx.GatewayFeeRecipient() == nil && tx.GatewayFee().Sign() == 0) {
@@ -704,55 +465,6 @@ func (tx *Transaction) CheckEthCompatibility() error {
 	return nil
 }
 
-// AsMessage returns the transaction as a core.Message.
-//
-// AsMessage requires a signer to derive the sender.
-//
-// XXX Rename message to something less arbitrary?
-func (tx *Transaction) AsMessage(s Signer) (Message, error) {
-	msg := Message{
-		nonce:               tx.data.AccountNonce,
-		gasLimit:            tx.data.GasLimit,
-		gasPrice:            new(big.Int).Set(tx.data.Price),
-		feeCurrency:         tx.data.FeeCurrency,
-		gatewayFeeRecipient: tx.data.GatewayFeeRecipient,
-		gatewayFee:          tx.data.GatewayFee,
-		to:                  tx.data.Recipient,
-		amount:              tx.data.Amount,
-		data:                tx.data.Payload,
-		checkNonce:          true,
-		ethCompatible:       tx.data.EthCompatible,
-	}
-
-	var err error
-	msg.from, err = Sender(s, tx)
-	return msg, err
-}
-
-||||||| e78727290
-// AsMessage returns the transaction as a core.Message.
-//
-// AsMessage requires a signer to derive the sender.
-//
-// XXX Rename message to something less arbitrary?
-func (tx *Transaction) AsMessage(s Signer) (Message, error) {
-	msg := Message{
-		nonce:      tx.data.AccountNonce,
-		gasLimit:   tx.data.GasLimit,
-		gasPrice:   new(big.Int).Set(tx.data.Price),
-		to:         tx.data.Recipient,
-		amount:     tx.data.Amount,
-		data:       tx.data.Payload,
-		checkNonce: true,
-	}
-
-	var err error
-	msg.from, err = Sender(s, tx)
-	return msg, err
-}
-
-=======
->>>>>>> v1.10.7
 // WithSignature returns a new transaction with the given signature.
 // This signature needs to be in the [R || S || V] format where V is 0 or 1.
 func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, error) {
@@ -765,40 +477,7 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 	return &Transaction{inner: cpy, time: tx.time}, nil
 }
 
-<<<<<<< HEAD
-// Cost returns amount + gasprice * gaslimit + gatewayfee.
-func (tx *Transaction) Cost() *big.Int {
-	total := new(big.Int).Mul(tx.data.Price, new(big.Int).SetUint64(tx.data.GasLimit))
-	total.Add(total, tx.data.Amount)
-	total.Add(total, tx.data.GatewayFee)
-	return total
-}
-
-// RawSignatureValues returns the V, R, S signature values of the transaction.
-// The return values should not be modified by the caller.
-func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
-	return tx.data.V, tx.data.R, tx.data.S
-}
-
-// Transactions is a Transaction slice type for basic sorting.
-||||||| e78727290
-// Cost returns amount + gasprice * gaslimit.
-func (tx *Transaction) Cost() *big.Int {
-	total := new(big.Int).Mul(tx.data.Price, new(big.Int).SetUint64(tx.data.GasLimit))
-	total.Add(total, tx.data.Amount)
-	return total
-}
-
-// RawSignatureValues returns the V, R, S signature values of the transaction.
-// The return values should not be modified by the caller.
-func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
-	return tx.data.V, tx.data.R, tx.data.S
-}
-
-// Transactions is a Transaction slice type for basic sorting.
-=======
 // Transactions implements DerivableList for transactions.
->>>>>>> v1.10.7
 type Transactions []*Transaction
 
 // Len returns the length of s.
@@ -843,71 +522,27 @@ func (s TxByNonce) Len() int           { return len(s) }
 func (s TxByNonce) Less(i, j int) bool { return s[i].Nonce() < s[j].Nonce() }
 func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-// TxWithMinerFee wraps a transaction with its gas price or effective miner gasTipCap
-type TxWithMinerFee struct {
-	tx       *Transaction
-	minerFee *big.Int
-}
-
-// NewTxWithMinerFee creates a wrapped transaction, calculating the effective
-// miner gasTipCap if a base fee is provided.
-// Returns error in case of a negative effective miner gasTipCap.
-func NewTxWithMinerFee(tx *Transaction, baseFee *big.Int) (*TxWithMinerFee, error) {
-	minerFee, err := tx.EffectiveGasTip(baseFee)
-	if err != nil {
-		return nil, err
-	}
-	return &TxWithMinerFee{
-		tx:       tx,
-		minerFee: minerFee,
-	}, nil
-}
-
 // TxByPriceAndTime implements both the sort and the heap interface, making it useful
 // for all at once sorting as well as individually adding and removing elements.
-<<<<<<< HEAD
 type TxByPriceAndTime struct {
 	txs       Transactions
 	txCmpFunc func(tx1, tx2 *Transaction) int
 }
-||||||| e78727290
-type TxByPriceAndTime Transactions
-=======
-type TxByPriceAndTime []*TxWithMinerFee
->>>>>>> v1.10.7
 
 func (s TxByPriceAndTime) Len() int { return len(s.txs) }
 func (s TxByPriceAndTime) Less(i, j int) bool {
 	// If the prices are equal, use the time the transaction was first seen for
 	// deterministic sorting
-<<<<<<< HEAD
 	cmp := s.txCmpFunc(s.txs[i], s.txs[j])
-||||||| e78727290
-	cmp := s[i].data.Price.Cmp(s[j].data.Price)
-=======
-	cmp := s[i].minerFee.Cmp(s[j].minerFee)
->>>>>>> v1.10.7
 	if cmp == 0 {
-<<<<<<< HEAD
 		return s.txs[i].time.Before(s.txs[j].time)
-||||||| e78727290
-		return s[i].time.Before(s[j].time)
-=======
-		return s[i].tx.time.Before(s[j].tx.time)
->>>>>>> v1.10.7
 	}
 	return cmp > 0
 }
 func (s TxByPriceAndTime) Swap(i, j int) { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
 
 func (s *TxByPriceAndTime) Push(x interface{}) {
-<<<<<<< HEAD
 	s.txs = append(s.txs, x.(*Transaction))
-||||||| e78727290
-	*s = append(*s, x.(*Transaction))
-=======
-	*s = append(*s, x.(*TxWithMinerFee))
->>>>>>> v1.10.7
 }
 
 func (s *TxByPriceAndTime) Pop() interface{} {
@@ -930,10 +565,9 @@ func (s *TxByPriceAndTime) Add(tx *Transaction) {
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
-	txs     map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads   TxByPriceAndTime                // Next transaction for each unique account (price heap)
-	signer  Signer                          // Signer for the set of transactions
-	baseFee *big.Int                        // Current base fee
+	txs    map[common.Address]Transactions // Per account nonce-sorted list of transactions
+	heads  TxByPriceAndTime                // Next transaction for each unique account (price heap)
+	signer Signer                          // Signer for the set of transactions
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -941,49 +575,31 @@ type TransactionsByPriceAndNonce struct {
 //
 // Note, the input map is reowned so the caller should not interact any more with
 // if after providing it to the constructor.
-<<<<<<< HEAD
+// Note: txCmpFunc should handle the basefee
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, txCmpFunc func(tx1, tx2 *Transaction) int) *TransactionsByPriceAndNonce {
-	// Initialize a price based heap with the head transactions
+	// Initialize a price and received time based heap with the head transactions
 	heads := TxByPriceAndTime{
 		txs:       make(Transactions, 0, len(txs)),
 		txCmpFunc: txCmpFunc,
 	}
-||||||| e78727290
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions) *TransactionsByPriceAndNonce {
-	// Initialize a price and received time based heap with the head transactions
-	heads := make(TxByPriceAndTime, 0, len(txs))
-=======
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFee *big.Int) *TransactionsByPriceAndNonce {
-	// Initialize a price and received time based heap with the head transactions
-	heads := make(TxByPriceAndTime, 0, len(txs))
->>>>>>> v1.10.7
 	for from, accTxs := range txs {
-<<<<<<< HEAD
 		heads.Push(accTxs[0])
 		// Ensure the sender address is from the signer
-||||||| e78727290
-		heads = append(heads, accTxs[0])
-		// Ensure the sender address is from the signer
-=======
->>>>>>> v1.10.7
 		acc, _ := Sender(signer, accTxs[0])
-		wrapped, err := NewTxWithMinerFee(accTxs[0], baseFee)
-		// Remove transaction if sender doesn't match from, or if wrapping fails.
-		if acc != from || err != nil {
+		txs[acc] = accTxs[1:]
+		if from != acc {
 			delete(txs, from)
-			continue
+
 		}
-		heads = append(heads, wrapped)
-		txs[from] = accTxs[1:]
+
 	}
 	heap.Init(&heads)
 
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
-		txs:     txs,
-		heads:   heads,
-		signer:  signer,
-		baseFee: baseFee,
+		txs:    txs,
+		heads:  heads,
+		signer: signer,
 	}
 }
 
@@ -992,46 +608,20 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 	if t.heads.txs.Len() == 0 {
 		return nil
 	}
-<<<<<<< HEAD
 	return t.heads.Peek()
-||||||| e78727290
-	return t.heads[0]
-=======
-	return t.heads[0].tx
->>>>>>> v1.10.7
 }
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift() {
-<<<<<<< HEAD
 	acc, _ := Sender(t.signer, t.heads.Peek())
-||||||| e78727290
-	acc, _ := Sender(t.signer, t.heads[0])
-=======
-	acc, _ := Sender(t.signer, t.heads[0].tx)
->>>>>>> v1.10.7
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
-<<<<<<< HEAD
 		next := txs[0]
 		t.txs[acc] = txs[1:]
 		t.heads.Add(next)
 		heap.Fix(&t.heads, 0)
 	} else {
 		heap.Pop(&t.heads)
-||||||| e78727290
-		t.heads[0], t.txs[acc] = txs[0], txs[1:]
-		heap.Fix(&t.heads, 0)
-	} else {
-		heap.Pop(&t.heads)
-=======
-		if wrapped, err := NewTxWithMinerFee(txs[0], t.baseFee); err == nil {
-			t.heads[0], t.txs[acc] = wrapped, txs[1:]
-			heap.Fix(&t.heads, 0)
-			return
-		}
->>>>>>> v1.10.7
 	}
-	heap.Pop(&t.heads)
 }
 
 // Pop removes the best transaction, *not* replacing it with the next one from
@@ -1045,129 +635,63 @@ func (t *TransactionsByPriceAndNonce) Pop() {
 //
 // NOTE: In a future PR this will be removed.
 type Message struct {
-<<<<<<< HEAD
 	to                  *common.Address
 	from                common.Address
 	nonce               uint64
 	amount              *big.Int
 	gasLimit            uint64
 	gasPrice            *big.Int
+	gasFeeCap           *big.Int
+	gasTipCap           *big.Int
 	feeCurrency         *common.Address
 	gatewayFeeRecipient *common.Address
 	gatewayFee          *big.Int
 	data                []byte
+	accessList          AccessList
 	ethCompatible       bool
 	checkNonce          bool
-||||||| e78727290
-	to         *common.Address
-	from       common.Address
-	nonce      uint64
-	amount     *big.Int
-	gasLimit   uint64
-	gasPrice   *big.Int
-	data       []byte
-	checkNonce bool
-=======
-	to         *common.Address
-	from       common.Address
-	nonce      uint64
-	amount     *big.Int
-	gasLimit   uint64
-	gasPrice   *big.Int
-	gasFeeCap  *big.Int
-	gasTipCap  *big.Int
-	data       []byte
-	accessList AccessList
-	checkNonce bool
->>>>>>> v1.10.7
 }
 
-<<<<<<< HEAD
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte, ethCompatible, checkNonce bool) Message {
-||||||| e78727290
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, checkNonce bool) Message {
-=======
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int, data []byte, accessList AccessList, checkNonce bool) Message {
->>>>>>> v1.10.7
+func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int,
+	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
+	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
+	data []byte, accessList AccessList, ethCompatible, checkNonce bool) Message {
 	return Message{
-<<<<<<< HEAD
 		from:                from,
 		to:                  to,
 		nonce:               nonce,
 		amount:              amount,
 		gasLimit:            gasLimit,
 		gasPrice:            gasPrice,
+		gasFeeCap:           gasFeeCap,
+		gasTipCap:           gasTipCap,
 		feeCurrency:         feeCurrency,
 		gatewayFeeRecipient: gatewayFeeRecipient,
 		gatewayFee:          gatewayFee,
 		data:                data,
+		accessList:          accessList,
 		ethCompatible:       ethCompatible,
 		checkNonce:          checkNonce,
-||||||| e78727290
-		from:       from,
-		to:         to,
-		nonce:      nonce,
-		amount:     amount,
-		gasLimit:   gasLimit,
-		gasPrice:   gasPrice,
-		data:       data,
-		checkNonce: checkNonce,
-=======
-		from:       from,
-		to:         to,
-		nonce:      nonce,
-		amount:     amount,
-		gasLimit:   gasLimit,
-		gasPrice:   gasPrice,
-		gasFeeCap:  gasFeeCap,
-		gasTipCap:  gasTipCap,
-		data:       data,
-		accessList: accessList,
-		checkNonce: checkNonce,
->>>>>>> v1.10.7
 	}
 }
 
-<<<<<<< HEAD
-func (m Message) From() common.Address                 { return m.from }
-func (m Message) To() *common.Address                  { return m.to }
-func (m Message) GasPrice() *big.Int                   { return m.gasPrice }
-func (m Message) EthCompatible() bool                  { return m.ethCompatible }
-func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
-func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
-func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
-func (m Message) Value() *big.Int                      { return m.amount }
-func (m Message) Gas() uint64                          { return m.gasLimit }
-func (m Message) Nonce() uint64                        { return m.nonce }
-func (m Message) Data() []byte                         { return m.data }
-func (m Message) CheckNonce() bool                     { return m.checkNonce }
-func (m Message) Fee() *big.Int {
-	gasFee := new(big.Int).Mul(m.gasPrice, big.NewInt(int64(m.gasLimit)))
-	return gasFee.Add(gasFee, m.gatewayFee)
-}
-||||||| e78727290
-func (m Message) From() common.Address { return m.from }
-func (m Message) To() *common.Address  { return m.to }
-func (m Message) GasPrice() *big.Int   { return m.gasPrice }
-func (m Message) Value() *big.Int      { return m.amount }
-func (m Message) Gas() uint64          { return m.gasLimit }
-func (m Message) Nonce() uint64        { return m.nonce }
-func (m Message) Data() []byte         { return m.data }
-func (m Message) CheckNonce() bool     { return m.checkNonce }
-=======
 // AsMessage returns the transaction as a core.Message.
 func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	msg := Message{
-		nonce:      tx.Nonce(),
-		gasLimit:   tx.Gas(),
-		gasPrice:   new(big.Int).Set(tx.GasPrice()),
-		gasFeeCap:  new(big.Int).Set(tx.GasFeeCap()),
-		gasTipCap:  new(big.Int).Set(tx.GasTipCap()),
-		to:         tx.To(),
-		amount:     tx.Value(),
-		data:       tx.Data(),
-		accessList: tx.AccessList(),
-		checkNonce: true,
+		nonce:               tx.Nonce(),
+		gasLimit:            tx.Gas(),
+		gasPrice:            new(big.Int).Set(tx.GasPrice()),
+		gasFeeCap:           new(big.Int).Set(tx.GasFeeCap()),
+		gasTipCap:           new(big.Int).Set(tx.GasTipCap()),
+		feeCurrency:         tx.FeeCurrency(),
+		gatewayFeeRecipient: tx.GatewayFeeRecipient(),
+		gatewayFee:          new(big.Int).Set(tx.GatewayFee()),
+		to:                  tx.To(),
+		amount:              tx.Value(),
+		data:                tx.Data(),
+		accessList:          tx.AccessList(),
+		checkNonce:          true,
+		ethCompatible:       tx.EthCompatible(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -1178,15 +702,23 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	return msg, err
 }
 
-func (m Message) From() common.Address   { return m.from }
-func (m Message) To() *common.Address    { return m.to }
-func (m Message) GasPrice() *big.Int     { return m.gasPrice }
-func (m Message) GasFeeCap() *big.Int    { return m.gasFeeCap }
-func (m Message) GasTipCap() *big.Int    { return m.gasTipCap }
-func (m Message) Value() *big.Int        { return m.amount }
-func (m Message) Gas() uint64            { return m.gasLimit }
-func (m Message) Nonce() uint64          { return m.nonce }
-func (m Message) Data() []byte           { return m.data }
-func (m Message) AccessList() AccessList { return m.accessList }
-func (m Message) CheckNonce() bool       { return m.checkNonce }
->>>>>>> v1.10.7
+func (m Message) From() common.Address                 { return m.from }
+func (m Message) To() *common.Address                  { return m.to }
+func (m Message) GasPrice() *big.Int                   { return m.gasPrice }
+func (m Message) GasFeeCap() *big.Int                  { return m.gasFeeCap }
+func (m Message) GasTipCap() *big.Int                  { return m.gasTipCap }
+func (m Message) EthCompatible() bool                  { return m.ethCompatible }
+func (m Message) FeeCurrency() *common.Address         { return m.feeCurrency }
+func (m Message) GatewayFeeRecipient() *common.Address { return m.gatewayFeeRecipient }
+func (m Message) GatewayFee() *big.Int                 { return m.gatewayFee }
+func (m Message) Value() *big.Int                      { return m.amount }
+func (m Message) Gas() uint64                          { return m.gasLimit }
+func (m Message) Nonce() uint64                        { return m.nonce }
+func (m Message) Data() []byte                         { return m.data }
+func (m Message) AccessList() AccessList               { return m.accessList }
+func (m Message) CheckNonce() bool                     { return m.checkNonce }
+
+func (m Message) Fee() *big.Int {
+	gasFee := new(big.Int).Mul(m.gasPrice, big.NewInt(int64(m.gasLimit)))
+	return gasFee.Add(gasFee, m.gatewayFee)
+}

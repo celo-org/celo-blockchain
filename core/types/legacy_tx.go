@@ -35,7 +35,7 @@ type LegacyTx struct {
 
 // NewTransaction creates an unsigned legacy transaction.
 // Deprecated: use NewTx instead.
-func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+func NewTransactionEthCompatible(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
 	return NewTx(&LegacyTx{
 		Nonce:    nonce,
 		To:       &to,
@@ -48,7 +48,7 @@ func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit u
 
 // NewContractCreation creates an unsigned legacy transaction.
 // Deprecated: use NewTx instead.
-func NewContractCreation(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
+func NewContractCreationEthCompatible(nonce uint64, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
 	return NewTx(&LegacyTx{
 		Nonce:    nonce,
 		Value:    amount,
@@ -91,17 +91,21 @@ func (tx *LegacyTx) copy() TxData {
 }
 
 // accessors for innerTx.
-func (tx *LegacyTx) txType() byte           { return LegacyTxType }
-func (tx *LegacyTx) chainID() *big.Int      { return deriveChainId(tx.V) }
-func (tx *LegacyTx) accessList() AccessList { return nil }
-func (tx *LegacyTx) data() []byte           { return tx.Data }
-func (tx *LegacyTx) gas() uint64            { return tx.Gas }
-func (tx *LegacyTx) gasPrice() *big.Int     { return tx.GasPrice }
-func (tx *LegacyTx) gasTipCap() *big.Int    { return tx.GasPrice }
-func (tx *LegacyTx) gasFeeCap() *big.Int    { return tx.GasPrice }
-func (tx *LegacyTx) value() *big.Int        { return tx.Value }
-func (tx *LegacyTx) nonce() uint64          { return tx.Nonce }
-func (tx *LegacyTx) to() *common.Address    { return tx.To }
+func (tx *LegacyTx) txType() byte                         { return LegacyTxType }
+func (tx *LegacyTx) chainID() *big.Int                    { return deriveChainId(tx.V) }
+func (tx *LegacyTx) accessList() AccessList               { return nil }
+func (tx *LegacyTx) data() []byte                         { return tx.Data }
+func (tx *LegacyTx) gas() uint64                          { return tx.Gas }
+func (tx *LegacyTx) gasPrice() *big.Int                   { return tx.GasPrice }
+func (tx *LegacyTx) gasTipCap() *big.Int                  { return tx.GasPrice }
+func (tx *LegacyTx) gasFeeCap() *big.Int                  { return tx.GasPrice }
+func (tx *LegacyTx) value() *big.Int                      { return tx.Value }
+func (tx *LegacyTx) nonce() uint64                        { return tx.Nonce }
+func (tx *LegacyTx) to() *common.Address                  { return tx.To }
+func (tx *LegacyTx) feeCurrency() *common.Address         { return nil }
+func (tx *LegacyTx) gatewayFeeRecipient() *common.Address { return nil }
+func (tx *LegacyTx) gatewayFee() *big.Int                 { return nil }
+func (tx *LegacyTx) ethCompatible() bool                  { return true }
 
 func (tx *LegacyTx) rawSignatureValues() (v, r, s *big.Int) {
 	return tx.V, tx.R, tx.S

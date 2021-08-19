@@ -247,8 +247,7 @@ func signAndEncodeTx(tx *Transaction) []byte {
 
 func TestRecipientEmpty(t *testing.T) {
 	_, addr := defaultTestKey()
-	tx := emptyTx
-	tx.data.Recipient = nil
+	tx := NewTx(&LegacyTx{})
 	tx, err := decodeTx(signAndEncodeTx(tx))
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +279,6 @@ func TestRecipientNormal(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 // Tests that a modified transaction does not produce a valid signature
 func TestTxAmountChanged(t *testing.T) {
 	_, addr := defaultTestKey()
@@ -291,7 +289,7 @@ func TestTxAmountChanged(t *testing.T) {
 		t.FailNow()
 	}
 
-	tx.data.Amount = big.NewInt(20)
+	tx.inner.(*LegacyCeloTx).Value = big.NewInt(20)
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
@@ -314,7 +312,7 @@ func TestTxGatewayFeeRecipientChanged(t *testing.T) {
 	}
 
 	recipientAddr := common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
-	tx.data.GatewayFeeRecipient = &recipientAddr
+	tx.inner.(*LegacyCeloTx).GatewayFeeRecipient = &recipientAddr
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
@@ -336,7 +334,7 @@ func TestTxGatewayFee(t *testing.T) {
 		t.FailNow()
 	}
 
-	tx.data.GatewayFee.SetInt64(5)
+	tx.inner.(*LegacyCeloTx).GatewayFee.SetInt64(5)
 
 	from, err := Sender(HomesteadSigner{}, tx)
 	if err != nil {
@@ -398,8 +396,6 @@ func TestTxEthCompatible(t *testing.T) {
 	}
 }
 
-||||||| e78727290
-=======
 func TestTransactionPriceNonceSortLegacy(t *testing.T) {
 	testTransactionPriceNonceSort(t, nil)
 }
@@ -410,7 +406,6 @@ func TestTransactionPriceNonceSort1559(t *testing.T) {
 	testTransactionPriceNonceSort(t, big.NewInt(50))
 }
 
->>>>>>> v1.10.7
 // Tests that transactions can be correctly sorted according to their price in
 // decreasing order, but at the same time with increasing nonces when issued by
 // the same account.
@@ -429,11 +424,6 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 		count := 25
 		for i := 0; i < 25; i++ {
-<<<<<<< HEAD
-			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil, nil, nil, nil), signer, key)
-||||||| e78727290
-			tx, _ := SignTx(NewTransaction(uint64(start+i), common.Address{}, big.NewInt(100), 100, big.NewInt(int64(start+i)), nil), signer, key)
-=======
 			var tx *Transaction
 			gasFeeCap := rand.Intn(50)
 			if baseFee == nil {
@@ -463,19 +453,13 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 			if err != nil {
 				t.Fatalf("failed to sign tx: %s", err)
 			}
->>>>>>> v1.10.7
 			groups[addr] = append(groups[addr], tx)
 		}
 		expectedCount += count
 	}
 	// Sort the transactions and cross check the nonce ordering
-<<<<<<< HEAD
-	txset := NewTransactionsByPriceAndNonce(signer, groups, func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) })
-||||||| e78727290
-	txset := NewTransactionsByPriceAndNonce(signer, groups)
-=======
-	txset := NewTransactionsByPriceAndNonce(signer, groups, baseFee)
->>>>>>> v1.10.7
+	cmp := func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) }
+	txset := NewTransactionsByPriceAndNonce(signer, groups, cmp)
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
@@ -532,13 +516,8 @@ func TestTransactionTimeSort(t *testing.T) {
 		groups[addr] = append(groups[addr], tx)
 	}
 	// Sort the transactions and cross check the nonce ordering
-<<<<<<< HEAD
-	txset := NewTransactionsByPriceAndNonce(signer, groups, func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) })
-||||||| e78727290
-	txset := NewTransactionsByPriceAndNonce(signer, groups)
-=======
+	// func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) }
 	txset := NewTransactionsByPriceAndNonce(signer, groups, nil)
->>>>>>> v1.10.7
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
@@ -581,11 +560,6 @@ func TestTransactionCoding(t *testing.T) {
 		var txdata TxData
 		switch i % 5 {
 		case 0:
-<<<<<<< HEAD
-			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, nil, nil, nil, []byte("abcdef"))
-||||||| e78727290
-			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, []byte("abcdef"))
-=======
 			// Legacy tx.
 			txdata = &LegacyTx{
 				Nonce:    i,
@@ -594,13 +568,7 @@ func TestTransactionCoding(t *testing.T) {
 				GasPrice: big.NewInt(2),
 				Data:     []byte("abcdef"),
 			}
->>>>>>> v1.10.7
 		case 1:
-<<<<<<< HEAD
-			tx = NewContractCreation(i, common.Big0, 1, common.Big2, nil, nil, nil, []byte("abcdef"))
-||||||| e78727290
-			tx = NewContractCreation(i, common.Big0, 1, common.Big2, []byte("abcdef"))
-=======
 			// Legacy tx contract creation.
 			txdata = &LegacyTx{
 				Nonce:    i,
@@ -638,7 +606,6 @@ func TestTransactionCoding(t *testing.T) {
 				GasPrice:   big.NewInt(10),
 				AccessList: accesses,
 			}
->>>>>>> v1.10.7
 		}
 		tx, err := SignNewTx(key, signer, txdata)
 		if err != nil {

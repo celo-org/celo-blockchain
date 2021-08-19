@@ -42,6 +42,11 @@ type txJSON struct {
 	S                    *hexutil.Big    `json:"s"`
 	To                   *common.Address `json:"to"`
 
+	// Celo specific fields
+	FeeCurrency         *common.Address `json:"feeCurrency" rlp:"nil"`         // nil means native currency
+	GatewayFeeRecipient *common.Address `json:"gatewayFeeRecipient" rlp:"nil"` // nil means no gateway fee is paid
+	GatewayFee          *hexutil.Big    `json:"gatewayFee"`
+
 	// Access list transaction fields:
 	ChainID    *hexutil.Big `json:"chainId,omitempty"`
 	AccessList *AccessList  `json:"accessList,omitempty"`
@@ -66,6 +71,19 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Value = (*hexutil.Big)(tx.Value)
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
+		enc.V = (*hexutil.Big)(tx.V)
+		enc.R = (*hexutil.Big)(tx.R)
+		enc.S = (*hexutil.Big)(tx.S)
+	case *LegacyCeloTx:
+		enc.Nonce = (*hexutil.Uint64)(&tx.Nonce)
+		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
+		enc.GasPrice = (*hexutil.Big)(tx.GasPrice)
+		enc.Value = (*hexutil.Big)(tx.Value)
+		enc.Data = (*hexutil.Bytes)(&tx.Data)
+		enc.To = t.To()
+		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
+		enc.GatewayFeeRecipient = tx.GatewayFeeRecipient
+		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.V = (*hexutil.Big)(tx.V)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)

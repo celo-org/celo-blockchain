@@ -59,7 +59,8 @@ type Receipt struct {
 	Bloom             Bloom  `json:"logsBloom"         gencodec:"required"`
 	Logs              []*Log `json:"logs"              gencodec:"required"`
 
-	// Implementation fields (don't reorder!)
+	// Implementation fields: These fields are added by geth when processing a transaction.
+	// They are stored in the chain database.
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`
 	ContractAddress common.Address `json:"contractAddress"`
 	GasUsed         uint64         `json:"gasUsed" gencodec:"required"`
@@ -94,6 +95,27 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
+}
+
+// v4StoredReceiptRLP is the storage encoding of a receipt used in database version 4.
+type v4StoredReceiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	TxHash            common.Hash
+	ContractAddress   common.Address
+	Logs              []*LogForStorage
+	GasUsed           uint64
+}
+
+// v3StoredReceiptRLP is the original storage encoding of a receipt including some unnecessary fields.
+type v3StoredReceiptRLP struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Bloom             Bloom
+	TxHash            common.Hash
+	ContractAddress   common.Address
+	Logs              []*LogForStorage
+	GasUsed           uint64
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -233,6 +255,19 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	if err != nil {
 		return err
 	}
+	// Try decoding from the newest format for future proofness, then the older one
+	// for old nodes that just upgraded. V4 was an intermediate unreleased format so
+	// we do need to decode it, but it's not common (try last).
+	if err := decodeStoredReceiptRLP(r, blob); err == nil {
+		return nil
+	}
+	if err := decodeV3StoredReceiptRLP(r, blob); err == nil {
+		return nil
+	}
+	return decodeV4StoredReceiptRLP(r, blob)
+}
+
+func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 
 	var stored storedReceiptRLP
 	if err := rlp.DecodeBytes(blob, &stored); err != nil {
@@ -246,17 +281,13 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
-
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 
 	return nil
 }
 
-<<<<<<< HEAD
-// Receipts is a wrapper around a Receipt array to implement DerivableList.
-||||||| e78727290
-func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
-	var stored v3StoredReceiptRLP
+func decodeV4StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
+	var stored v4StoredReceiptRLP
 	if err := rlp.DecodeBytes(blob, &stored); err != nil {
 		return err
 	}
@@ -264,7 +295,6 @@ func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		return err
 	}
 	r.CumulativeGasUsed = stored.CumulativeGasUsed
-	r.Bloom = stored.Bloom
 	r.TxHash = stored.TxHash
 	r.ContractAddress = stored.ContractAddress
 	r.GasUsed = stored.GasUsed
@@ -272,11 +302,11 @@ func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
+	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
+
 	return nil
 }
 
-// Receipts is a wrapper around a Receipt array to implement DerivableList.
-=======
 func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	var stored v3StoredReceiptRLP
 	if err := rlp.DecodeBytes(blob, &stored); err != nil {
@@ -298,7 +328,6 @@ func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 }
 
 // Receipts implements DerivableList for receipts.
->>>>>>> v1.10.7
 type Receipts []*Receipt
 
 // Len returns the number of receipts in this list.
@@ -334,18 +363,11 @@ func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, num
 	if !(len(txs) == len(r) || len(txs)+1 == len(r)) {
 		return errors.New("transaction and receipt count mismatch")
 	}
-<<<<<<< HEAD
 
+	// len(r) is not always strictly equal to len(txs) because of the block finalization receipt (IBFT)
 	for i := 0; i < len(txs); i++ {
-		// The transaction hash can be retrieved from the transaction itself
-||||||| e78727290
-	for i := 0; i < len(r); i++ {
-		// The transaction hash can be retrieved from the transaction itself
-=======
-	for i := 0; i < len(r); i++ {
 		// The transaction type and hash can be retrieved from the transaction itself
 		r[i].Type = txs[i].Type()
->>>>>>> v1.10.7
 		r[i].TxHash = txs[i].Hash()
 
 		// block location fields

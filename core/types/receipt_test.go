@@ -127,13 +127,6 @@ func TestDeriveFields(t *testing.T) {
 	to2 := common.HexToAddress("0x2")
 	to3 := common.HexToAddress("0x3")
 	txs := Transactions{
-<<<<<<< HEAD
-		NewContractCreation(1, big.NewInt(1), 1, big.NewInt(1), nil, nil, nil, nil),
-		NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil, nil, nil, nil),
-||||||| e78727290
-		NewContractCreation(1, big.NewInt(1), 1, big.NewInt(1), nil),
-		NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil),
-=======
 		NewTx(&LegacyTx{
 			Nonce:    1,
 			Value:    big.NewInt(1),
@@ -154,7 +147,6 @@ func TestDeriveFields(t *testing.T) {
 			Gas:      3,
 			GasPrice: big.NewInt(3),
 		}),
->>>>>>> v1.10.7
 	}
 	// Create the corresponding receipts
 	receipts := Receipts{

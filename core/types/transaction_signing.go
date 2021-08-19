@@ -40,10 +40,8 @@ type sigCache struct {
 func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 	var signer Signer
 	switch {
-	case config.IsLondon(blockNumber):
+	case config.IsEHardfork(blockNumber):
 		signer = NewLondonSigner(config.ChainID)
-	case config.IsBerlin(blockNumber):
-		signer = NewEIP2930Signer(config.ChainID)
 	case config.IsEIP155(blockNumber):
 		signer = NewEIP155Signer(config.ChainID)
 	case config.IsHomestead(blockNumber):
@@ -63,11 +61,8 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 // have the current block number available, use MakeSigner instead.
 func LatestSigner(config *params.ChainConfig) Signer {
 	if config.ChainID != nil {
-		if config.LondonBlock != nil {
+		if config.EBlock != nil {
 			return NewLondonSigner(config.ChainID)
-		}
-		if config.BerlinBlock != nil {
-			return NewEIP2930Signer(config.ChainID)
 		}
 		if config.EIP155Block != nil {
 			return NewEIP155Signer(config.ChainID)
@@ -298,15 +293,30 @@ func (s eip2930Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *bi
 func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 	switch tx.Type() {
 	case LegacyTxType:
-		return rlpHash([]interface{}{
-			tx.Nonce(),
-			tx.GasPrice(),
-			tx.Gas(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-			s.chainId, uint(0), uint(0),
-		})
+		if tx.EthCompatible() {
+			return rlpHash([]interface{}{
+				tx.Nonce(),
+				tx.GasPrice(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				s.chainId, uint(0), uint(0),
+			})
+		} else {
+			return rlpHash([]interface{}{
+				tx.Nonce(),
+				tx.GasPrice(),
+				tx.Gas(),
+				tx.FeeCurrency(),
+				tx.GatewayFeeRecipient(),
+				tx.GatewayFee(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				s.chainId, uint(0), uint(0),
+			})
+		}
 	case AccessListTxType:
 		return prefixedRlpHash(
 			tx.Type(),
@@ -369,14 +379,7 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 	V, R, S := tx.RawSignatureValues()
 	V = new(big.Int).Sub(V, s.chainIdMul)
 	V.Sub(V, big8)
-<<<<<<< HEAD
-	addr, _, err := recoverPlain(s.Hash(tx), tx.data.R, tx.data.S, V, true)
-	return addr, err
-||||||| e78727290
-	return recoverPlain(s.Hash(tx), tx.data.R, tx.data.S, V, true)
-=======
 	return recoverPlain(s.Hash(tx), R, S, V, true)
->>>>>>> v1.10.7
 }
 
 // SignatureValues returns signature values. This signature
@@ -396,52 +399,30 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
-<<<<<<< HEAD
-	if tx.data.EthCompatible {
+	if tx.EthCompatible() {
 		return rlpHash([]interface{}{
-			tx.data.AccountNonce,
-			tx.data.Price,
-			tx.data.GasLimit,
-			tx.data.Recipient,
-			tx.data.Amount,
-			tx.data.Payload,
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
 			s.chainId, uint(0), uint(0),
 		})
 	} else {
 		return rlpHash([]interface{}{
-			tx.data.AccountNonce,
-			tx.data.Price,
-			tx.data.GasLimit,
-			tx.data.FeeCurrency,
-			tx.data.GatewayFeeRecipient,
-			tx.data.GatewayFee,
-			tx.data.Recipient,
-			tx.data.Amount,
-			tx.data.Payload,
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.FeeCurrency(),
+			tx.GatewayFeeRecipient(),
+			tx.GatewayFee(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
 			s.chainId, uint(0), uint(0),
 		})
 	}
-||||||| e78727290
-	return rlpHash([]interface{}{
-		tx.data.AccountNonce,
-		tx.data.Price,
-		tx.data.GasLimit,
-		tx.data.Recipient,
-		tx.data.Amount,
-		tx.data.Payload,
-		s.chainId, uint(0), uint(0),
-	})
-=======
-	return rlpHash([]interface{}{
-		tx.Nonce(),
-		tx.GasPrice(),
-		tx.Gas(),
-		tx.To(),
-		tx.Value(),
-		tx.Data(),
-		s.chainId, uint(0), uint(0),
-	})
->>>>>>> v1.10.7
 }
 
 // HomesteadTransaction implements TransactionInterface using the
@@ -464,27 +445,11 @@ func (hs HomesteadSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v 
 }
 
 func (hs HomesteadSigner) Sender(tx *Transaction) (common.Address, error) {
-<<<<<<< HEAD
-	addr, _, err := recoverPlain(hs.Hash(tx), tx.data.R, tx.data.S, tx.data.V, true)
-	return addr, err
-}
-
-func (hs HomesteadSigner) SenderData(data common.Hash, sig []byte) (common.Address, []byte, error) {
-	r, s, v, err := hs.SignatureValues(nil, sig)
-	v = new(big.Int).Sub(v, big.NewInt(27))
-	if err != nil {
-		return common.Address{}, nil, err
-	}
-	return recoverPlain(data, r, s, v, true)
-||||||| e78727290
-	return recoverPlain(hs.Hash(tx), tx.data.R, tx.data.S, tx.data.V, true)
-=======
-	if tx.Type() != LegacyTxType {
+	if tx.Type() != LegacyTxType || tx.Type() != LegacyCeloTxType {
 		return common.Address{}, ErrTxTypeNotSupported
 	}
 	v, r, s := tx.RawSignatureValues()
 	return recoverPlain(hs.Hash(tx), r, s, v, true)
->>>>>>> v1.10.7
 }
 
 type FrontierSigner struct{}
@@ -519,14 +484,28 @@ func (fs FrontierSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v *
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.Nonce(),
-		tx.GasPrice(),
-		tx.Gas(),
-		tx.To(),
-		tx.Value(),
-		tx.Data(),
-	})
+	if tx.EthCompatible() {
+		return rlpHash([]interface{}{
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
+		})
+	} else {
+		return rlpHash([]interface{}{
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.FeeCurrency(),
+			tx.GatewayFeeRecipient(),
+			tx.GatewayFee(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
+		})
+	}
 }
 
 func decodeSignature(sig []byte) (r, s, v *big.Int) {
@@ -536,71 +515,16 @@ func decodeSignature(sig []byte) (r, s, v *big.Int) {
 	r = new(big.Int).SetBytes(sig[:32])
 	s = new(big.Int).SetBytes(sig[32:64])
 	v = new(big.Int).SetBytes([]byte{sig[64] + 27})
-<<<<<<< HEAD
-	return r, s, v, nil
-}
-
-// Hash returns the hash to be signed by the sender.
-// It does not uniquely identify the transaction.
-func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	if tx.data.EthCompatible {
-		return rlpHash([]interface{}{
-			tx.data.AccountNonce,
-			tx.data.Price,
-			tx.data.GasLimit,
-			tx.data.Recipient,
-			tx.data.Amount,
-			tx.data.Payload,
-		})
-	} else {
-		return rlpHash([]interface{}{
-			tx.data.AccountNonce,
-			tx.data.Price,
-			tx.data.GasLimit,
-			tx.data.FeeCurrency,
-			tx.data.GatewayFeeRecipient,
-			tx.data.GatewayFee,
-			tx.data.Recipient,
-			tx.data.Amount,
-			tx.data.Payload,
-		})
-	}
-}
-
-func (fs FrontierSigner) Sender(tx *Transaction) (common.Address, error) {
-	addr, _, err := recoverPlain(fs.Hash(tx), tx.data.R, tx.data.S, tx.data.V, false)
-	return addr, err
-||||||| e78727290
-	return r, s, v, nil
-}
-
-// Hash returns the hash to be signed by the sender.
-// It does not uniquely identify the transaction.
-func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.data.AccountNonce,
-		tx.data.Price,
-		tx.data.GasLimit,
-		tx.data.Recipient,
-		tx.data.Amount,
-		tx.data.Payload,
-	})
-}
-
-func (fs FrontierSigner) Sender(tx *Transaction) (common.Address, error) {
-	return recoverPlain(fs.Hash(tx), tx.data.R, tx.data.S, tx.data.V, false)
-=======
 	return r, s, v
->>>>>>> v1.10.7
 }
 
-func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, []byte, error) {
+func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, error) {
 	if Vb.BitLen() > 8 {
-		return common.Address{}, nil, ErrInvalidSig
+		return common.Address{}, ErrInvalidSig
 	}
 	V := byte(Vb.Uint64() - 27)
 	if !crypto.ValidateSignatureValues(V, R, S, homestead) {
-		return common.Address{}, nil, ErrInvalidSig
+		return common.Address{}, ErrInvalidSig
 	}
 	// encode the signature in uncompressed format
 	r, s := R.Bytes(), S.Bytes()
@@ -611,14 +535,14 @@ func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (commo
 	// recover the public key from the signature
 	pub, err := crypto.Ecrecover(sighash[:], sig)
 	if err != nil {
-		return common.Address{}, nil, err
+		return common.Address{}, err
 	}
 	if len(pub) == 0 || pub[0] != 4 {
-		return common.Address{}, nil, errors.New("invalid public key")
+		return common.Address{}, errors.New("invalid public key")
 	}
 	var addr common.Address
 	copy(addr[:], crypto.Keccak256(pub[1:])[12:])
-	return addr, pub, nil
+	return addr, nil
 }
 
 // deriveChainId derives the chain id from the given v parameter
