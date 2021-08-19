@@ -525,11 +525,13 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 		blocks, receipts = 1, 1
 		for _, lightProof := range tester.ownPlumoProofs {
 			fmt.Printf("Adding to num plumo epochs, firstEpoch: %v, last epoch %v\n", lightProof.FirstEpoch, lightProof.LastEpoch.Index)
-			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch)
+			// -2 to avoid double counting edge headers
+			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch - 2)
 			numPlumoProofEpochs += proofRange
 		}
 	}
-	if hs := len(tester.ownHeaders) + len(tester.ancientHeaders) + numPlumoProofEpochs - 1; hs != headers {
+	fmt.Printf("Num plumo proof epochs %v\n", numPlumoProofEpochs)
+	if hs := len(tester.ownHeaders) + len(tester.ancientHeaders) + numPlumoProofEpochs; hs != headers {
 		t.Fatalf("synchronised headers mismatch: have %v, want %v", hs, headers)
 	}
 	if bs := len(tester.ownBlocks) + len(tester.ancientBlocks) - 1; bs != blocks {
@@ -1743,8 +1745,8 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 	}
 	var headerGaps []headerGap
 	knownPlumoProofs := dlp.knownPlumoProofs
-	var currFrom uint = uint(from)
-	var currEpoch = uint(istanbul.GetEpochNumber(uint64(currFrom), epoch)) - 1
+	var currEpoch = uint(istanbul.GetEpochNumber(from, epoch))
+	fmt.Printf("from: %v, Curr from %v, epoch: %v\n", from, currEpoch, epoch)
 	// Outer loop finding the path
 	for {
 		// Inner loop adding the next proof
@@ -1775,10 +1777,10 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 			headerGaps = append(headerGaps, gap)
 			break
 		}
-		if currFrom < earliestMatch {
+		if currEpoch <= earliestMatch {
 			gap := headerGap{
-				FirstEpoch: currEpoch + 1,
-				Amount:     int(earliestMatch - (currEpoch + 1)),
+				FirstEpoch: currEpoch,
+				Amount:     int(earliestMatch-currEpoch) + 1,
 			}
 			headerGaps = append(headerGaps, gap)
 		}
@@ -1799,12 +1801,14 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 		if !requested {
 			result := proofs[proofsMetadata]
 			dlp.requestedProofs = append(dlp.requestedProofs, proofsMetadata)
+			fmt.Printf("Delivering plumo proofs %v : %v\n", result.FirstEpoch, result.LastEpoch.Index)
 			go dlp.dl.downloader.DeliverPlumoProofs(dlp.id, []istanbul.LightPlumoProof{result})
 		}
 	}
 
 	for _, headerGap := range headerGaps {
 		result := dlp.chain.headersByNumber(uint64(headerGap.FirstEpoch), headerGap.Amount, 0)
+		fmt.Printf("Delivering header %v : %v \n", headerGap.FirstEpoch, headerGap.Amount)
 		go dlp.dl.downloader.DeliverHeaders(dlp.id, result)
 	}
 	return nil
@@ -1822,7 +1826,7 @@ func (dl *downloadTester) InsertPlumoProofs(lightProofs []istanbul.LightPlumoPro
 var (
 	proofsMetadata = []types.PlumoProofMetadata{
 		{
-			FirstEpoch:    1,
+			FirstEpoch:    2,
 			LastEpoch:     10,
 			VersionNumber: 0,
 		},
@@ -1830,20 +1834,20 @@ var (
 	proofsMetadataGaps = []types.PlumoProofMetadata{
 		{
 			FirstEpoch:    2,
-			LastEpoch:     25,
+			LastEpoch:     15,
 			VersionNumber: 0,
 		},
-		// {
-		// 	FirstEpoch:    45,
-		// 	LastEpoch:     54,
-		// 	VersionNumber: 0,
-		// },
+		{
+			FirstEpoch:    45,
+			LastEpoch:     54,
+			VersionNumber: 0,
+		},
 	}
 	// TODO
 	proofs = map[types.PlumoProofMetadata]istanbul.LightPlumoProof{
 		proofsMetadata[0]: {
 			Proof:      []byte{0},
-			FirstEpoch: 1,
+			FirstEpoch: 2,
 			LastEpoch: istanbul.LightEpochBlock{
 				Index:         10,
 				MaxNonSigners: 0,
@@ -1857,7 +1861,7 @@ var (
 			Proof:      []byte{0},
 			FirstEpoch: 2,
 			LastEpoch: istanbul.LightEpochBlock{
-				Index:         25,
+				Index:         15, // 12
 				MaxNonSigners: 0,
 			},
 			VersionNumber:      0,
@@ -1865,18 +1869,18 @@ var (
 			NewValidators:      []istanbul.ValidatorData{},
 			ValidatorPositions: []byte{},
 		},
-		// proofsMetadataGaps[1]: {
-		// 	Proof:      []byte{0},
-		// 	FirstEpoch: 45,
-		// 	LastEpoch: istanbul.LightEpochBlock{
-		// 		Index:         54,
-		// 		MaxNonSigners: 0,
-		// 	},
-		// 	VersionNumber:      0,
-		// 	FirstHashToField:   []byte{},
-		// 	NewValidators:      []istanbul.ValidatorData{},
-		// 	ValidatorPositions: []byte{},
-		// },
+		proofsMetadataGaps[1]: {
+			Proof:      []byte{0},
+			FirstEpoch: 45,
+			LastEpoch: istanbul.LightEpochBlock{
+				Index:         54, // 8
+				MaxNonSigners: 0,
+			},
+			VersionNumber:      0,
+			FirstHashToField:   []byte{},
+			NewValidators:      []istanbul.ValidatorData{},
+			ValidatorPositions: []byte{},
+		},
 	}
 )
 

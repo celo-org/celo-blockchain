@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // PlumoProofMetadata holds a proof's epoch range and proof version number, which is then used as a key for lookups
