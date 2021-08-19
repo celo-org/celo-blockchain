@@ -27,7 +27,7 @@ type TransactionTracker struct {
 	wg     sync.WaitGroup
 	// processed maps transaction hashes to the block they were processed in.
 	processed   map[common.Hash]*types.Block
-	processedMu sync.Mutex
+	processedMu sync.RWMutex
 	stopCh      chan struct{}
 	newTxs      event.Feed
 }
@@ -45,17 +45,26 @@ func NewTransactionTracker() *TransactionTracker {
 // GetProcessedTx returns the processed transaction with the given hash or nil
 // if the tracker has not seen a processed transaction with the given hash.
 func (tr *TransactionTracker) GetProcessedTx(hash common.Hash) *types.Transaction {
-	tr.processedMu.Lock()
-	defer tr.processedMu.Unlock()
-	return tr.processed[hash].Transaction(hash)
+	tr.processedMu.RLock()
+	defer tr.processedMu.RUnlock()
+	block, ok := tr.processed[hash]
+	if !ok {
+		return nil
+	}
+	return block.Transaction(hash)
+}
+
+// TxProcessed returs true iff the transaction was processed
+func (tr *TransactionTracker) TxProcessed(tx *types.Transaction) bool {
+	return tr.GetProcessedTx(tx.Hash()) != nil
 }
 
 // GetProcessedTx returns the block that a transaction with the given hash was
 // processed in or nil if the tracker has not seen a processed transaction with
 // the given hash.
 func (tr *TransactionTracker) GetProcessedBlock(hash common.Hash) *types.Block {
-	tr.processedMu.Lock()
-	defer tr.processedMu.Unlock()
+	tr.processedMu.RLock()
+	defer tr.processedMu.RUnlock()
 	return tr.processed[hash]
 }
 
@@ -128,7 +137,7 @@ func (tr *TransactionTracker) AwaitTransactions(ctx context.Context, hashes []co
 	sub := tr.newTxs.Subscribe(ch)
 	defer sub.Unsubscribe()
 	for {
-		tr.processedMu.Lock()
+		tr.processedMu.RLock()
 		// Delete processed transactions from hashmap
 		for hash := range hashmap {
 			_, ok := tr.processed[hash]
@@ -136,7 +145,7 @@ func (tr *TransactionTracker) AwaitTransactions(ctx context.Context, hashes []co
 				delete(hashmap, hash)
 			}
 		}
-		tr.processedMu.Unlock()
+		tr.processedMu.RUnlock()
 		// If there are no transactions left then they have all been processed.
 		if len(hashmap) == 0 {
 			return nil

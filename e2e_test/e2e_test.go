@@ -36,3 +36,23 @@ func TestSendCelo(t *testing.T) {
 	err = network.AwaitTransactions(ctx, tx)
 	require.NoError(t, err)
 }
+
+func TestSingleNodeManyTxs(t *testing.T) {
+	rounds := 100
+	accounts := test.Accounts(1)
+	gc := test.GenesisConfig(accounts)
+	gc.Istanbul.Epoch = uint64(rounds) * 5 // avoid the epoch for this test
+	network, err := test.NewNetwork(accounts, gc)
+	require.NoError(t, err)
+	defer network.Shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	for r := 0; r < rounds; r++ {
+		tx, err := network[0].SendCelo(ctx, network[0].DevAddress, 1)
+		require.NoError(t, err)
+		require.NotNil(t, tx)
+		err = network.AwaitTransactions(ctx, tx)
+		require.NoError(t, err)
+	}
+}
