@@ -24,10 +24,6 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/ethdb/memorydb"
