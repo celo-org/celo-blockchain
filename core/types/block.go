@@ -201,16 +201,6 @@ type extblock struct {
 	EpochSnarkData *EpochSnarkData
 }
 
-// [deprecated by eth/63]
-// "storage" block encoding. used for database.
-type storageblock struct {
-	Header         *Header
-	Txs            []*Transaction
-	Randomness     *Randomness
-	EpochSnarkData *EpochSnarkData
-	TD             *big.Int
-}
-
 // NewBlock creates a new block. The input data is copied,
 // changes to header and to the field values will not affect the
 // block.
@@ -285,17 +275,6 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 		EpochSnarkData: b.epochSnarkData,
 	})
 }
-
-// TODO: StorageBlock not found. Fully removed?
-// [deprecated by eth/63]
-// func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
-// 	var sb storageblock
-// 	if err := s.Decode(&sb); err != nil {
-// 		return err
-// 	}
-// 	b.header, b.transactions, b.randomness, b.epochSnarkData = sb.Header, sb.Txs, sb.Randomness, sb.EpochSnarkData
-// 	return nil
-// }
 
 // TODO: copies
 

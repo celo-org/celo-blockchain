@@ -72,21 +72,12 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
 		enc.V = (*hexutil.Big)(tx.V)
-		enc.R = (*hexutil.Big)(tx.R)
-		enc.S = (*hexutil.Big)(tx.S)
-	case *LegacyCeloTx:
-		enc.Nonce = (*hexutil.Uint64)(&tx.Nonce)
-		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
-		enc.GasPrice = (*hexutil.Big)(tx.GasPrice)
-		enc.Value = (*hexutil.Big)(tx.Value)
-		enc.Data = (*hexutil.Bytes)(&tx.Data)
-		enc.To = t.To()
 		enc.FeeCurrency = tx.FeeCurrency // todo: check if needs deep copy
 		enc.GatewayFeeRecipient = tx.GatewayFeeRecipient
 		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
-		enc.V = (*hexutil.Big)(tx.V)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
+		// TODO: Th compatible + hash here?
 	case *AccessListTx:
 		enc.ChainID = (*hexutil.Big)(tx.ChainID)
 		enc.AccessList = &tx.AccessList

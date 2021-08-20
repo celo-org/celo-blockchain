@@ -52,7 +52,6 @@ const (
 	LegacyTxType     = iota
 	AccessListTxType = 0x01
 	DynamicFeeTxType = 0x02
-	LegacyCeloTxType
 )
 
 // Transaction is an Ethereum transaction.
@@ -107,8 +106,6 @@ func (tx *Transaction) EncodeRLP(w io.Writer) error {
 
 	if tx.Type() == LegacyTxType {
 		return rlp.Encode(w, tx.inner)
-	} else if tx.Type() == LegacyCeloTxType {
-		return rlp.Encode(w, tx.inner)
 	}
 	// It's an EIP-2718 typed TX envelope.
 	buf := encodeBufferPool.Get().(*bytes.Buffer)
@@ -140,15 +137,16 @@ func (tx *Transaction) MarshalBinary() ([]byte, error) {
 
 // DecodeRLP implements rlp.Decoder
 func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
-	kind, _, err := s.Kind()
+	kind, size, err := s.Kind()
 	switch {
 	case err != nil:
 		return err
 	case kind == rlp.List:
 		// It's a legacy transaction.
-		inner, size, err := tx.decodeLegacy(s)
+		var inner LegacyTx
+		err := s.Decode(&inner)
 		if err == nil {
-			tx.setDecoded(inner, size)
+			tx.setDecoded(&inner, int(size))
 		}
 		return err
 	case kind == rlp.String:
@@ -174,11 +172,12 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		// It's a legacy transaction.
 		r := bytes.NewReader(b)
 		s := rlp.NewStream(r, 10_000)
-		inner, size, err := tx.decodeLegacy(s)
+		var inner LegacyTx
+		err := s.Decode(&inner)
 		if err != nil {
 			return err
 		}
-		tx.setDecoded(inner, size)
+		tx.setDecoded(&inner, len(b))
 		return nil
 	}
 	// It's an EIP2718 typed transaction envelope.
@@ -188,32 +187,6 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 	}
 	tx.setDecoded(inner, len(b))
 	return nil
-}
-
-// decodeLegacy decode a legacy transaction (optionally eth compatible) from the canonical format.
-func (tx *Transaction) decodeLegacy(s *rlp.Stream) (TxData, int, error) {
-	// It's a legacy transaction.
-	// Need to decode it to use the number of elements to determine if it is eth compatible or not.
-	_, size, _ := s.Kind()
-	var raw rlp.RawValue
-	err := s.Decode(&raw)
-	if err != nil {
-		return nil, 0, err
-	}
-	headerSize := len(raw) - int(size)
-	numElems, err := rlp.CountValues(raw[headerSize:])
-	if err != nil {
-		return nil, 0, err
-	}
-	if numElems == ethCompatibleTxNumFields {
-		var inner LegacyTx
-		err = s.Decode(&inner)
-		return &inner, int(rlp.ListSize(size)), err
-	} else {
-		var inner LegacyCeloTx
-		err = s.Decode(&inner)
-		return &inner, int(rlp.ListSize(size)), err
-	}
 }
 
 // decodeTyped decodes a typed transaction from the canonical format.
@@ -284,8 +257,6 @@ func (tx *Transaction) Protected() bool {
 	switch tx := tx.inner.(type) {
 	case *LegacyTx:
 		return tx.V != nil && isProtectedV(tx.V)
-	case *LegacyCeloTx:
-		return tx.V != nil && isProtectedV(tx.V)
 	default:
 		return true
 	}
@@ -306,8 +277,16 @@ func (tx *Transaction) ChainId() *big.Int {
 // TODO: Comment + fixup
 func (tx *Transaction) FeeCurrency() *common.Address         { return tx.inner.feeCurrency() }
 func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
-func (tx *Transaction) GatewayFee() *big.Int                 { return new(big.Int).Set(tx.inner.gatewayFee()) }
-func (tx *Transaction) EthCompatible() bool                  { return tx.inner.ethCompatible() }
+
+// TODO: Should this return 0 if not set?
+func (tx *Transaction) GatewayFee() *big.Int {
+	if tx.inner.gatewayFee() != nil {
+		return new(big.Int).Set(tx.inner.gatewayFee())
+	} else {
+		return nil
+	}
+}
+func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
 func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.inner.gatewayFee())
