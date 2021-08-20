@@ -597,9 +597,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		return nil, 0, err
 	}
 
-	// Make a copy of the state
-	state = state.Copy()
-
 	// Apply this block's transactions to update the state
 	receipts, logs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
