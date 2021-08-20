@@ -194,13 +194,7 @@ func TestAddMod(t *testing.T) {
 	var (
 		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
 		stack          = newstack()
-<<<<<<< HEAD
-		evmInterpreter = NewEVMInterpreter(env, &env.vmConfig)
-||||||| e78727290
-		evmInterpreter = NewEVMInterpreter(env, env.vmConfig)
-=======
 		evmInterpreter = NewEVMInterpreter(env, env.Config)
->>>>>>> v1.10.7
 		pc             = uint64(0)
 	)
 	tests := []struct {
@@ -237,22 +231,10 @@ func TestAddMod(t *testing.T) {
 // getResult is a convenience function to generate the expected values
 func getResult(args []*twoOperandParams, opFn executionFunc) []TwoOperandTestcase {
 	var (
-<<<<<<< HEAD
-		env           = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
-		stack, rstack = newstack(), newReturnStack()
-		pc            = uint64(0)
-		interpreter   = env.interpreter.(*EVMInterpreter)
-||||||| e78727290
-		env           = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
-		stack, rstack = newstack(), newReturnStack()
-		pc            = uint64(0)
-		interpreter   = env.interpreter.(*EVMInterpreter)
-=======
-		env         = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
+		env         = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
 		stack       = newstack()
 		pc          = uint64(0)
 		interpreter = env.interpreter
->>>>>>> v1.10.7
 	)
 	result := make([]TwoOperandTestcase, len(args))
 	for i, param := range args {
@@ -299,19 +281,9 @@ func TestJsonTestcases(t *testing.T) {
 
 func opBenchmark(bench *testing.B, op executionFunc, args ...string) {
 	var (
-<<<<<<< HEAD
 		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-		evmInterpreter = NewEVMInterpreter(env, &env.vmConfig)
-||||||| e78727290
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-		evmInterpreter = NewEVMInterpreter(env, env.vmConfig)
-=======
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
 		stack          = newstack()
 		evmInterpreter = NewEVMInterpreter(env, env.Config)
->>>>>>> v1.10.7
 	)
 
 	env.interpreter = evmInterpreter
@@ -543,24 +515,10 @@ func BenchmarkOpIsZero(b *testing.B) {
 
 func TestOpMstore(t *testing.T) {
 	var (
-<<<<<<< HEAD
 		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-||||||| e78727290
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-=======
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
 		stack          = newstack()
->>>>>>> v1.10.7
 		mem            = NewMemory()
-<<<<<<< HEAD
-		evmInterpreter = NewEVMInterpreter(env, &env.vmConfig)
-||||||| e78727290
-		evmInterpreter = NewEVMInterpreter(env, env.vmConfig)
-=======
 		evmInterpreter = NewEVMInterpreter(env, env.Config)
->>>>>>> v1.10.7
 	)
 
 	env.interpreter = evmInterpreter
@@ -581,24 +539,10 @@ func TestOpMstore(t *testing.T) {
 
 func BenchmarkOpMstore(bench *testing.B) {
 	var (
-<<<<<<< HEAD
 		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-||||||| e78727290
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-=======
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
 		stack          = newstack()
->>>>>>> v1.10.7
 		mem            = NewMemory()
-<<<<<<< HEAD
-		evmInterpreter = NewEVMInterpreter(env, &env.vmConfig)
-||||||| e78727290
-		evmInterpreter = NewEVMInterpreter(env, env.vmConfig)
-=======
 		evmInterpreter = NewEVMInterpreter(env, env.Config)
->>>>>>> v1.10.7
 	)
 
 	env.interpreter = evmInterpreter
@@ -616,24 +560,10 @@ func BenchmarkOpMstore(bench *testing.B) {
 
 func BenchmarkOpSHA3(bench *testing.B) {
 	var (
-<<<<<<< HEAD
 		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.IstanbulTestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-||||||| e78727290
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
-		stack, rstack  = newstack(), newReturnStack()
-=======
-		env            = NewEVM(BlockContext{}, TxContext{}, nil, params.TestChainConfig, Config{})
 		stack          = newstack()
->>>>>>> v1.10.7
 		mem            = NewMemory()
-<<<<<<< HEAD
-		evmInterpreter = NewEVMInterpreter(env, &env.vmConfig)
-||||||| e78727290
-		evmInterpreter = NewEVMInterpreter(env, env.vmConfig)
-=======
 		evmInterpreter = NewEVMInterpreter(env, env.Config)
->>>>>>> v1.10.7
 	)
 	env.interpreter = evmInterpreter
 	mem.Resize(32)

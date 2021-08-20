@@ -27,7 +27,6 @@ func NewEnv(cfg *Config) *vm.EVM {
 		GasPrice: cfg.GasPrice,
 	}
 	blockContext := vm.BlockContext{
-<<<<<<< HEAD
 		CanTransfer:          vmcontext.CanTransfer,
 		Transfer:             vmcontext.TobinTransfer,
 		GetHash:              cfg.GetHashFn,
@@ -35,30 +34,11 @@ func NewEnv(cfg *Config) *vm.EVM {
 		BlockNumber:          cfg.BlockNumber,
 		Time:                 cfg.Time,
 		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
+		// BaseFee:     cfg.BaseFee, // TODO: Set to GPM
 	}
 
 	if cfg.ChainConfig.Istanbul != nil {
 		blockContext.EpochSize = cfg.ChainConfig.Istanbul.Epoch
-||||||| e78727290
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
-		GetHash:     cfg.GetHashFn,
-		Coinbase:    cfg.Coinbase,
-		BlockNumber: cfg.BlockNumber,
-		Time:        cfg.Time,
-		Difficulty:  cfg.Difficulty,
-		GasLimit:    cfg.GasLimit,
-=======
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
-		GetHash:     cfg.GetHashFn,
-		Coinbase:    cfg.Coinbase,
-		BlockNumber: cfg.BlockNumber,
-		Time:        cfg.Time,
-		Difficulty:  cfg.Difficulty,
-		GasLimit:    cfg.GasLimit,
-		BaseFee:     cfg.BaseFee,
->>>>>>> v1.10.7
 	}
 
 	return vm.NewEVM(blockContext, txContext, cfg.State, cfg.ChainConfig, cfg.EVMConfig)

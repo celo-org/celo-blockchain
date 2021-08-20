@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/holiman/uint256"
 )
@@ -175,8 +176,11 @@ func enable3198(jt *JumpTable) {
 }
 
 // opBaseFee implements BASEFEE opcode
+// TODO: Impelements
 func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	baseFee, _ := uint256.FromBig(interpreter.evm.Context.BaseFee)
+	panic("opBaseFee unimplemented")
+	// baseFee, _ := uint256.FromBig(interpreter.evm.Context.BaseFee)
+	baseFee, _ := uint256.FromBig(common.Big0)
 	scope.Stack.push(baseFee)
 	return nil, nil
 }

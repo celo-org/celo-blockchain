@@ -29,16 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/params"
 	"github.com/holiman/uint256"
 )
 
@@ -166,13 +156,7 @@ func (l *StructLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost ui
 	contract := scope.Contract
 	// check if already accumulated the specified number of logs
 	if l.cfg.Limit != 0 && l.cfg.Limit <= len(l.logs) {
-<<<<<<< HEAD
-		return ErrTraceLimitReached
-||||||| e78727290
-		return errTraceLimitReached
-=======
 		return
->>>>>>> v1.10.7
 	}
 	// Copy a snapshot of the current memory state to a new buffer
 	var mem []byte

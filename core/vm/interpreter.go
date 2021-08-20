@@ -57,7 +57,7 @@ type keccakState interface {
 // EVMInterpreter represents an EVM interpreter
 type EVMInterpreter struct {
 	evm *EVM
-	cfg *Config
+	cfg Config
 
 	hasher    keccakState // Keccak256 hasher instance shared across opcodes
 	hasherBuf common.Hash // Keccak256 hasher result array shared aross opcodes
@@ -67,23 +67,15 @@ type EVMInterpreter struct {
 }
 
 // NewEVMInterpreter returns a new instance of the Interpreter.
-func NewEVMInterpreter(evm *EVM, cfg *Config) *EVMInterpreter {
+func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	// We use the STOP instruction whether to see
 	// the jump table was initialised. If it was not
 	// we'll set the default jump table.
 	if cfg.JumpTable[STOP] == nil {
 		var jt JumpTable
 		switch {
-<<<<<<< HEAD
-||||||| e78727290
-		case evm.chainRules.IsYoloV2:
-			jt = yoloV2InstructionSet
-=======
-		case evm.chainRules.IsLondon:
-			jt = londonInstructionSet
-		case evm.chainRules.IsBerlin:
-			jt = berlinInstructionSet
->>>>>>> v1.10.7
+		case evm.chainRules.IsEHardfork:
+			jt = eInstructionSet
 		case evm.chainRules.IsIstanbul:
 			jt = istanbulInstructionSet
 		case evm.chainRules.IsConstantinople:

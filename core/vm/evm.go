@@ -54,53 +54,13 @@ type (
 	GetRegisteredAddressFunc func(evm *EVM, registryId common.Hash) (common.Address, error)
 )
 
-<<<<<<< HEAD
-// ActivePrecompiles returns the addresses of the precompiles enabled with the current
-// configuration
-func (evm *EVM) ActivePrecompiles() []common.Address {
-	switch {
-	case evm.chainRules.IsDonut:
-		return PrecompiledAddressesDonut
-	case evm.chainRules.IsIstanbul:
-		return PrecompiledAddressesIstanbul
-	case evm.chainRules.IsByzantium:
-		return PrecompiledAddressesByzantium
-	default:
-		return PrecompiledAddressesHomestead
-	}
-}
-
-||||||| e78727290
-// ActivePrecompiles returns the addresses of the precompiles enabled with the current
-// configuration
-func (evm *EVM) ActivePrecompiles() []common.Address {
-	switch {
-	case evm.chainRules.IsYoloV2:
-		return PrecompiledAddressesYoloV2
-	case evm.chainRules.IsIstanbul:
-		return PrecompiledAddressesIstanbul
-	case evm.chainRules.IsByzantium:
-		return PrecompiledAddressesByzantium
-	default:
-		return PrecompiledAddressesHomestead
-	}
-}
-
-=======
->>>>>>> v1.10.7
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
-<<<<<<< HEAD
+	case evm.chainRules.IsEHardfork:
+		precompiles = PrecompiledContractsE
 	case evm.chainRules.IsDonut:
 		precompiles = PrecompiledContractsDonut
-||||||| e78727290
-	case evm.chainRules.IsYoloV2:
-		precompiles = PrecompiledContractsYoloV2
-=======
-	case evm.chainRules.IsBerlin:
-		precompiles = PrecompiledContractsBerlin
->>>>>>> v1.10.7
 	case evm.chainRules.IsIstanbul:
 		precompiles = PrecompiledContractsIstanbul
 	case evm.chainRules.IsByzantium:
@@ -112,46 +72,6 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
-<<<<<<< HEAD
-// run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
-func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, error) {
-	for _, interpreter := range evm.interpreters {
-		if interpreter.CanRun(contract.Code) {
-			if evm.interpreter != interpreter {
-				// Ensure that the interpreter pointer is set back
-				// to its current value upon return.
-				defer func(i Interpreter) {
-					evm.interpreter = i
-				}(evm.interpreter)
-				evm.interpreter = interpreter
-			}
-			return interpreter.Run(contract, input, readOnly)
-		}
-	}
-	return nil, ErrNoCompatibleInterpreter
-}
-
-||||||| e78727290
-// run runs the given contract and takes care of running precompiles with a fallback to the byte code interpreter.
-func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, error) {
-	for _, interpreter := range evm.interpreters {
-		if interpreter.CanRun(contract.Code) {
-			if evm.interpreter != interpreter {
-				// Ensure that the interpreter pointer is set back
-				// to its current value upon return.
-				defer func(i Interpreter) {
-					evm.interpreter = i
-				}(evm.interpreter)
-				evm.interpreter = interpreter
-			}
-			return interpreter.Run(contract, input, readOnly)
-		}
-	}
-	return nil, errors.New("no compatible interpreter")
-}
-
-=======
->>>>>>> v1.10.7
 // BlockContext provides the EVM with auxiliary information. Once provided
 // it shouldn't be modified.
 type BlockContext struct {
@@ -171,17 +91,11 @@ type BlockContext struct {
 	Coinbase    common.Address // Provides information for COINBASE
 	BlockNumber *big.Int       // Provides information for NUMBER
 	Time        *big.Int       // Provides information for TIME
-<<<<<<< HEAD
 
 	EpochSize            uint64
 	GetValidators        GetValidatorsFunc
 	GetRegisteredAddress GetRegisteredAddressFunc
-||||||| e78727290
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
-=======
-	Difficulty  *big.Int       // Provides information for DIFFICULTY
-	BaseFee     *big.Int       // Provides information for BASEFEE
->>>>>>> v1.10.7
+	// BaseFee     *big.Int       // Provides information for BASEFEE
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -235,81 +149,14 @@ type EVM struct {
 // only ever be used *once*.
 func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
 	evm := &EVM{
-<<<<<<< HEAD
 		Context:      blockCtx,
 		TxContext:    txCtx,
 		StateDB:      statedb,
-		vmConfig:     vmConfig,
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(blockCtx.BlockNumber),
-		interpreters: make([]Interpreter, 0, 1),
 		dontMeterGas: false,
-||||||| e78727290
-		Context:      blockCtx,
-		TxContext:    txCtx,
-		StateDB:      statedb,
-		vmConfig:     vmConfig,
-		chainConfig:  chainConfig,
-		chainRules:   chainConfig.Rules(blockCtx.BlockNumber),
-		interpreters: make([]Interpreter, 0, 1),
-=======
-		Context:     blockCtx,
-		TxContext:   txCtx,
-		StateDB:     statedb,
-		Config:      config,
-		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(blockCtx.BlockNumber),
->>>>>>> v1.10.7
 	}
-<<<<<<< HEAD
-
-	if chainConfig.IsEWASM(blockCtx.BlockNumber) {
-		// to be implemented by EVM-C and Wagon PRs.
-		// if vmConfig.EWASMInterpreter != "" {
-		//  extIntOpts := strings.Split(vmConfig.EWASMInterpreter, ":")
-		//  path := extIntOpts[0]
-		//  options := []string{}
-		//  if len(extIntOpts) > 1 {
-		//    options = extIntOpts[1..]
-		//  }
-		//  evm.interpreters = append(evm.interpreters, NewEVMVCInterpreter(evm, vmConfig, options))
-		// } else {
-		// 	evm.interpreters = append(evm.interpreters, NewEWASMInterpreter(evm, vmConfig))
-		// }
-		panic("No supported ewasm interpreter yet.")
-	}
-
-	// vmConfig.EVMInterpreter will be used by EVM-C, it won't be checked here
-	// as we always want to have the built-in EVM as the failover option.
-	evm.interpreters = append(evm.interpreters, NewEVMInterpreter(evm, &evm.vmConfig))
-	evm.interpreter = evm.interpreters[0]
-
-||||||| e78727290
-
-	if chainConfig.IsEWASM(blockCtx.BlockNumber) {
-		// to be implemented by EVM-C and Wagon PRs.
-		// if vmConfig.EWASMInterpreter != "" {
-		//  extIntOpts := strings.Split(vmConfig.EWASMInterpreter, ":")
-		//  path := extIntOpts[0]
-		//  options := []string{}
-		//  if len(extIntOpts) > 1 {
-		//    options = extIntOpts[1..]
-		//  }
-		//  evm.interpreters = append(evm.interpreters, NewEVMVCInterpreter(evm, vmConfig, options))
-		// } else {
-		// 	evm.interpreters = append(evm.interpreters, NewEWASMInterpreter(evm, vmConfig))
-		// }
-		panic("No supported ewasm interpreter yet.")
-	}
-
-	// vmConfig.EVMInterpreter will be used by EVM-C, it won't be checked here
-	// as we always want to have the built-in EVM as the failover option.
-	evm.interpreters = append(evm.interpreters, NewEVMInterpreter(evm, vmConfig))
-	evm.interpreter = evm.interpreters[0]
-
-=======
 	evm.interpreter = NewEVMInterpreter(evm, config)
->>>>>>> v1.10.7
 	return evm
 }
 
@@ -341,11 +188,11 @@ func (evm *EVM) GetStateDB() StateDB {
 }
 
 func (evm *EVM) GetDebug() bool {
-	return evm.vmConfig.Debug
+	return evm.Config.Debug
 }
 
 func (evm *EVM) SetDebug(value bool) {
-	evm.vmConfig.Debug = value
+	evm.Config.Debug = value
 }
 
 // Call executes the contract associated with the addr with the given input as
@@ -578,20 +425,12 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)
-<<<<<<< HEAD
-||||||| e78727290
+
 	// We add this to the access list _before_ taking a snapshot. Even if the creation fails,
 	// the access-list change should not be rolled back
-	if evm.chainRules.IsYoloV2 {
+	if evm.chainRules.IsEHardfork {
 		evm.StateDB.AddAddressToAccessList(address)
 	}
-=======
-	// We add this to the access list _before_ taking a snapshot. Even if the creation fails,
-	// the access-list change should not be rolled back
-	if evm.chainRules.IsBerlin {
-		evm.StateDB.AddAddressToAccessList(address)
-	}
->>>>>>> v1.10.7
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != emptyCodeHash) {
@@ -627,7 +466,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 
 	// Reject code starting with 0xEF if EIP-3541 is enabled.
-	if err == nil && len(ret) >= 1 && ret[0] == 0xEF && evm.chainRules.IsLondon {
+	if err == nil && len(ret) >= 1 && ret[0] == 0xEF && evm.chainRules.IsEHardfork {
 		err = ErrInvalidCode
 	}
 

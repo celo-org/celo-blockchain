@@ -56,55 +56,24 @@ var (
 	byzantiumInstructionSet        = newByzantiumInstructionSet()
 	constantinopleInstructionSet   = newConstantinopleInstructionSet()
 	istanbulInstructionSet         = newIstanbulInstructionSet()
-<<<<<<< HEAD
-||||||| e78727290
-	yoloV2InstructionSet           = newYoloV2InstructionSet()
-=======
-	berlinInstructionSet           = newBerlinInstructionSet()
-	londonInstructionSet           = newLondonInstructionSet()
->>>>>>> v1.10.7
+	eInstructionSet                = newEInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
 
-<<<<<<< HEAD
-// newIstanbulInstructionSet returns the frontier, homestead
-// byzantium, contantinople and petersburg instructions.
-||||||| e78727290
-// newYoloV2InstructionSet creates an instructionset containing
-// - "EIP-2315: Simple Subroutines"
-// - "EIP-2929: Gas cost increases for state access opcodes"
-func newYoloV2InstructionSet() JumpTable {
+// newEInstructionSet returns the frontier, homestead, byzantium,
+// contantinople, istanbul, petersburg, E instructions.
+func newEInstructionSet() JumpTable {
 	instructionSet := newIstanbulInstructionSet()
-	enable2315(&instructionSet) // Subroutines - https://eips.ethereum.org/EIPS/eip-2315
 	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
-	return instructionSet
-}
-
-// newIstanbulInstructionSet returns the frontier, homestead
-// byzantium, contantinople and petersburg instructions.
-=======
-// newLondonInstructionSet returns the frontier, homestead, byzantium,
-// contantinople, istanbul, petersburg, berlin and london instructions.
-func newLondonInstructionSet() JumpTable {
-	instructionSet := newBerlinInstructionSet()
 	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
 	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
 	return instructionSet
 }
 
-// newBerlinInstructionSet returns the frontier, homestead, byzantium,
-// contantinople, istanbul, petersburg and berlin instructions.
-func newBerlinInstructionSet() JumpTable {
-	instructionSet := newIstanbulInstructionSet()
-	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
-	return instructionSet
-}
-
 // newIstanbulInstructionSet returns the frontier, homestead, byzantium,
 // contantinople, istanbul and petersburg instructions.
->>>>>>> v1.10.7
 func newIstanbulInstructionSet() JumpTable {
 	instructionSet := newConstantinopleInstructionSet()
 

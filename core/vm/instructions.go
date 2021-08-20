@@ -469,38 +469,8 @@ func opNumber(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	return nil, nil
 }
 
-<<<<<<< HEAD
-func opPop(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	callContext.stack.pop()
-||||||| e78727290
-func opDifficulty(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	v, _ := uint256.FromBig(interpreter.evm.Context.Difficulty)
-	callContext.stack.push(v)
-	return nil, nil
-}
-
-func opGasLimit(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	callContext.stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.GasLimit))
-	return nil, nil
-}
-
-func opPop(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	callContext.stack.pop()
-=======
-func opDifficulty(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	v, _ := uint256.FromBig(interpreter.evm.Context.Difficulty)
-	scope.Stack.push(v)
-	return nil, nil
-}
-
-func opGasLimit(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	scope.Stack.push(new(uint256.Int).SetUint64(interpreter.evm.Context.GasLimit))
-	return nil, nil
-}
-
 func opPop(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	scope.Stack.pop()
->>>>>>> v1.10.7
 	return nil, nil
 }
 
