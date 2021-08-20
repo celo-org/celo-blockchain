@@ -547,10 +547,6 @@ func (s *stateObject) Nonce() uint64 {
 	return s.data.Nonce
 }
 
-func (self *stateObject) Root() common.Hash {
-	return self.data.Root
-}
-
 // Never called, but must be present to allow stateObject to be used
 // as a vm.Account interface that also satisfies the vm.ContractRef
 // interface. Interfaces are awesome.

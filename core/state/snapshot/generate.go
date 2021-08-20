@@ -26,22 +26,6 @@ import (
 
 	"github.com/VictoriaMetrics/fastcache"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -162,21 +146,6 @@ func (gs *generatorStats) Log(msg string, root common.Hash, marker []byte) {
 // and generation is continued in the background until done.
 func generateSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache int, root common.Hash) *diskLayer {
 	// Create a new disk layer with an initialized state marker at zero
-<<<<<<< HEAD
-	var (
-		stats     = &generatorStats{wiping: wiper, start: time.Now()}
-		batch     = diskdb.NewBatch()
-		genMarker = []byte{} // Initialized but empty!
-	)
-	rawdb.WriteSnapshotRoot(batch, root)
-	journalProgress(batch, genMarker, stats)
-	if err := batch.Write(); err != nil {
-		log.Crit("Failed to write initialized state marker", "error", err)
-	}
-||||||| e78727290
-	rawdb.WriteSnapshotRoot(diskdb, root)
-
-=======
 	var (
 		stats     = &generatorStats{start: time.Now()}
 		batch     = diskdb.NewBatch()
@@ -187,7 +156,6 @@ func generateSnapshot(diskdb ethdb.KeyValueStore, triedb *trie.Database, cache i
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to write initialized state marker", "err", err)
 	}
->>>>>>> v1.10.7
 	base := &diskLayer{
 		diskdb:     diskdb,
 		triedb:     triedb,
@@ -711,64 +679,8 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 				stats.slots++
 
 				// If we've exceeded our batch allowance or termination was requested, flush to disk
-<<<<<<< HEAD
-				var abort chan *generatorStats
-				select {
-				case abort = <-dl.genAbort:
-				default:
-				}
-				if batch.ValueSize() > ethdb.IdealBatchSize || abort != nil {
-					// Only write and set the marker if we actually did something useful
-					if batch.ValueSize() > 0 {
-						// Ensure the generator entry is in sync with the data
-						marker := append(accountHash[:], storeIt.Key...)
-						journalProgress(batch, marker, stats)
-
-						batch.Write()
-						batch.Reset()
-
-						dl.lock.Lock()
-						dl.genMarker = marker
-						dl.lock.Unlock()
-					}
-					if abort != nil {
-						stats.Log("Aborting state snapshot generation", dl.root, append(accountHash[:], storeIt.Key...))
-						abort <- stats
-						return
-					}
-					if time.Since(logged) > 8*time.Second {
-						stats.Log("Generating state snapshot", dl.root, append(accountHash[:], storeIt.Key...))
-						logged = time.Now()
-					}
-||||||| e78727290
-				var abort chan *generatorStats
-				select {
-				case abort = <-dl.genAbort:
-				default:
-				}
-				if batch.ValueSize() > ethdb.IdealBatchSize || abort != nil {
-					// Only write and set the marker if we actually did something useful
-					if batch.ValueSize() > 0 {
-						// Ensure the generator entry is in sync with the data
-						marker := append(accountHash[:], storeIt.Key...)
-						journalProgress(batch, marker, stats)
-
-						batch.Write()
-						batch.Reset()
-
-						dl.lock.Lock()
-						dl.genMarker = marker
-						dl.lock.Unlock()
-					}
-					if abort != nil {
-						stats.Log("Aborting state snapshot generation", dl.root, append(accountHash[:], storeIt.Key...))
-						abort <- stats
-						return
-					}
-=======
 				if err := checkAndFlush(append(accountHash[:], key...)); err != nil {
 					return err
->>>>>>> v1.10.7
 				}
 				return nil
 			}
@@ -822,20 +734,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 		abort <- stats
 		return
 	}
-<<<<<<< HEAD
-	// Snapshot fully generated, set the marker to nil.
-	// Note even there is nothing to commit, persist the
-	// generator anyway to mark the snapshot is complete.
-	journalProgress(batch, nil, stats)
-	batch.Write()
-||||||| e78727290
-	// Snapshot fully generated, set the marker to nil
-	if batch.ValueSize() > 0 {
-		// Ensure the generator entry is in sync with the data
-		journalProgress(batch, nil, stats)
-=======
 	batch.Reset()
->>>>>>> v1.10.7
 
 	log.Info("Generated state snapshot", "accounts", stats.accounts, "slots", stats.slots,
 		"storage", stats.storage, "elapsed", common.PrettyDuration(time.Since(stats.start)))
