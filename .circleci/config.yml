@@ -1,12 +1,16 @@
 version: 2.1
 parameters:
-  # Use this git tag or commit of the monorepo to build the system contracts. 
+  # Increment this to force cache rebuilding
+  system-contracts-cache-version:
+    type: integer
+    default: 1
+  # Use this git tag or commit of the monorepo to build the system contracts.
   system-contracts-monorepo-version:
     type: string
     default: "celo-core-contracts-v3.rc0"
   system-contracts-path:
     type: string
-    default: "geth/monorepo/packages/protocol/build"
+    default: "compiled-system-contracts"
 executors:
   golang:
     docker:
@@ -46,13 +50,17 @@ jobs:
             - geth
 
   prepare-system-contracts:
+    parameters:
+      cache-key:
+        type: string
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
     executor: node-v10
     resource_class: medium+
     steps:
       - checkout
       - restore_cache:
           keys:
-            - system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
+            - <<parameters.cache-key>>
       - attach_workspace:
           at: ~/repos
       - run:
@@ -63,18 +71,18 @@ jobs:
           # work. We only do this if the cache has not been restored.
           command: |
             set -e
-            if [ ! -d ~/repos/<<pipeline.parameters.system-contracts-path>> ]; then
+            if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
               mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
               make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
             fi
       - save_cache:
-          key: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>
+          key: <<parameters.cache-key>>
           paths:
-            - ~/repos/<<pipeline.parameters.system-contracts-path>>
+            - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
       - persist_to_workspace:
           root: ~/repos
           paths:
-            - <<pipeline.parameters.system-contracts-path>>
+            - geth/<<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
     executor: golang
@@ -186,9 +194,7 @@ jobs:
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
-    docker:
-      - image: circleci/node:10
-    working_directory: ~/repos/geth
+    executor: golang
     steps:
       - attach_workspace:
           at: ~/repos
