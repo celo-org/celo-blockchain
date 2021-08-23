@@ -195,7 +195,7 @@ jobs:
 
   lightest-sync-test:
     docker:
-      - image: circleci/node:10
+      - image: circleci/golang:1.16
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
