@@ -4,7 +4,7 @@ parameters:
   system-contracts-cache-version:
     type: integer
     default: 1
-  # Use this git tag or commit of the monorepo to build the system contracts. 
+  # Use this git tag or commit of the monorepo to build the system contracts.
   system-contracts-monorepo-version:
     type: string
     default: "celo-core-contracts-v3.rc0"
@@ -194,9 +194,7 @@ jobs:
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
-    docker:
-      - image: circleci/node:10
-    working_directory: ~/repos/geth
+    executor: golang
     steps:
       - attach_workspace:
           at: ~/repos
