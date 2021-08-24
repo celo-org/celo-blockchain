@@ -263,7 +263,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// if the operation clears the return data (e.g. it has returning data)
 		// set the last return to the result of the operation.
 		if operation.returns {
-			if in.evm.chainRules.IsChurrito {
+			if in.evm.chainRules.IsChurrito && !in.evm.chainRules.IsEspresso {
 				in.returnData = common.CopyBytes(res)
 			} else {
 				in.returnData = res
