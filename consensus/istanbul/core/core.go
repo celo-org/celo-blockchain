@@ -706,14 +706,14 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 
 		- Compare:
 		Round		before E     after E
-		0	   	    8	         8
+		0           8           8
 		1	        5           10
-		2	        7	        12
-		3	       11   	    16
+		2	        7           12
+		3	       11           16
 		4	       19	        24
 		5	       35	        40
-		6    	   67    	    72
-		7    	  131	       136
+		6          67           72
+		7         131          136
 		8	      259	       264
 		9	      515	       520
 		10	     1027	      1032
