@@ -58,7 +58,6 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
-	BaseFee    *big.Int    `json:"baseFeePerGas"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -87,32 +86,11 @@ type GenesisAccount struct {
 
 // field type overrides for gencodec
 type genesisSpecMarshaling struct {
-<<<<<<< HEAD
 	Timestamp math.HexOrDecimal64
 	ExtraData hexutil.Bytes
 	GasUsed   math.HexOrDecimal64
 	Number    math.HexOrDecimal64
 	Alloc     map[common.UnprefixedAddress]GenesisAccount
-||||||| e78727290
-	Nonce      math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-	ExtraData  hexutil.Bytes
-	GasLimit   math.HexOrDecimal64
-	GasUsed    math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Difficulty *math.HexOrDecimal256
-	Alloc      map[common.UnprefixedAddress]GenesisAccount
-=======
-	Nonce      math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-	ExtraData  hexutil.Bytes
-	GasLimit   math.HexOrDecimal64
-	GasUsed    math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Difficulty *math.HexOrDecimal256
-	BaseFee    *math.HexOrDecimal256
-	Alloc      map[common.UnprefixedAddress]GenesisAccount
->>>>>>> v1.10.7
 }
 
 type genesisAccountMarshaling struct {
@@ -168,24 +146,12 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-<<<<<<< HEAD
 	return SetupGenesisBlockWithOverride(db, genesis, nil)
 }
 
 func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideEHardfork *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.MainnetChainConfig, common.Hash{}, errGenesisNoConfig
-||||||| e78727290
-	if genesis != nil && genesis.Config == nil {
-		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
-=======
-	return SetupGenesisBlockWithOverride(db, genesis, nil)
-}
-
-func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideLondon *big.Int) (*params.ChainConfig, common.Hash, error) {
-	if genesis != nil && genesis.Config == nil {
-		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
->>>>>>> v1.10.7
 	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
@@ -228,29 +194,18 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}
 	}
-<<<<<<< HEAD
 
 	// Check if Registry sits in genesis
 	if s.GetCodeSize(params.RegistrySmartContractAddress) == 0 {
 		return params.MainnetChainConfig, common.Hash{}, errors.New("no Registry Smart Contract deployed in genesis")
 	}
 
-||||||| e78727290
-
-=======
->>>>>>> v1.10.7
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
-<<<<<<< HEAD
 	if overrideEHardfork != nil {
 		newcfg.EBlock = overrideEHardfork
 	}
-||||||| e78727290
-=======
-	if overrideLondon != nil {
-		newcfg.LondonBlock = overrideLondon
-	}
->>>>>>> v1.10.7
+
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
 		return newcfg, common.Hash{}, err
 	}
@@ -286,30 +241,10 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
-<<<<<<< HEAD
 	case ghash == params.BaklavaGenesisHash:
 		return params.BaklavaChainConfig
 	case ghash == params.AlfajoresGenesisHash:
 		return params.AlfajoresChainConfig
-||||||| e78727290
-	case ghash == params.RopstenGenesisHash:
-		return params.RopstenChainConfig
-	case ghash == params.RinkebyGenesisHash:
-		return params.RinkebyChainConfig
-	case ghash == params.GoerliGenesisHash:
-		return params.GoerliChainConfig
-	case ghash == params.YoloV2GenesisHash:
-		return params.YoloV2ChainConfig
-=======
-	case ghash == params.RopstenGenesisHash:
-		return params.RopstenChainConfig
-	case ghash == params.RinkebyGenesisHash:
-		return params.RinkebyChainConfig
-	case ghash == params.GoerliGenesisHash:
-		return params.GoerliChainConfig
-	case ghash == params.CalaverasGenesisHash:
-		return params.CalaverasChainConfig
->>>>>>> v1.10.7
 	default:
 		return params.MainnetChainConfig
 	}
@@ -340,41 +275,10 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		ParentHash: g.ParentHash,
 		Extra:      g.ExtraData,
 		GasUsed:    g.GasUsed,
-<<<<<<< HEAD
-||||||| e78727290
-		Difficulty: g.Difficulty,
-		MixDigest:  g.Mixhash,
-=======
-		BaseFee:    g.BaseFee,
-		Difficulty: g.Difficulty,
-		MixDigest:  g.Mixhash,
->>>>>>> v1.10.7
 		Coinbase:   g.Coinbase,
 		Root:       root,
 	}
-<<<<<<< HEAD
-||||||| e78727290
-	if g.GasLimit == 0 {
-		head.GasLimit = params.GenesisGasLimit
-	}
-	if g.Difficulty == nil {
-		head.Difficulty = params.GenesisDifficulty
-	}
-=======
-	if g.GasLimit == 0 {
-		head.GasLimit = params.GenesisGasLimit
-	}
-	if g.Difficulty == nil {
-		head.Difficulty = params.GenesisDifficulty
-	}
-	if g.Config != nil && g.Config.IsLondon(common.Big0) {
-		if g.BaseFee != nil {
-			head.BaseFee = g.BaseFee
-		} else {
-			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
-		}
-	}
->>>>>>> v1.10.7
+
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true, nil)
 
@@ -436,16 +340,7 @@ func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
-<<<<<<< HEAD
 	g := Genesis{Config: params.BaklavaChainConfig, Alloc: GenesisAlloc{addr: {Balance: balance}}}
-||||||| e78727290
-	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
-=======
-	g := Genesis{
-		Alloc:   GenesisAlloc{addr: {Balance: balance}},
-		BaseFee: big.NewInt(params.InitialBaseFee),
-	}
->>>>>>> v1.10.7
 	return g.MustCommit(db)
 }
 
@@ -477,137 +372,23 @@ func DefaultAlfajoresGenesisBlock() *Genesis {
 	alfajoresAlloc := &GenesisAlloc{}
 	alfajoresAlloc.UnmarshalJSON([]byte(alfajoresAllocJSON))
 	return &Genesis{
-<<<<<<< HEAD
 		Config:    params.AlfajoresChainConfig,
 		Timestamp: 0x5b843511,
 		ExtraData: hexutil.MustDecode(alfajoresExtraData),
 		Alloc:     *alfajoresAlloc,
-||||||| e78727290
-		Config:     params.RinkebyChainConfig,
-		Timestamp:  1492009146,
-		ExtraData:  hexutil.MustDecode("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e42eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   4700000,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(rinkebyAllocData),
-	}
-}
-
-// DefaultGoerliGenesisBlock returns the Görli network genesis block.
-func DefaultGoerliGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.GoerliChainConfig,
-		Timestamp:  1548854791,
-		ExtraData:  hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   10485760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(goerliAllocData),
-	}
-}
-
-func DefaultYoloV2GenesisBlock() *Genesis {
-	// TODO: Update with yolov2 values + regenerate alloc data
-	return &Genesis{
-		Config:     params.YoloV2ChainConfig,
-		Timestamp:  0x5f91b932,
-		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000008a37866fd3627c9205a37c8685666f32ec07bb1b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   0x47b760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(yoloV1AllocData),
-=======
-		Config:     params.RinkebyChainConfig,
-		Timestamp:  1492009146,
-		ExtraData:  hexutil.MustDecode("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e42eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   4700000,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(rinkebyAllocData),
-	}
-}
-
-// DefaultGoerliGenesisBlock returns the Görli network genesis block.
-func DefaultGoerliGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.GoerliChainConfig,
-		Timestamp:  1548854791,
-		ExtraData:  hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   10485760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(goerliAllocData),
-	}
-}
-
-func DefaultCalaverasGenesisBlock() *Genesis {
-	// Full genesis: https://gist.github.com/holiman/c6ed9269dce28304ad176314caa75e97
-	return &Genesis{
-		Config:     params.CalaverasChainConfig,
-		Timestamp:  0x60b3877f,
-		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000005211cea3870c7ba7c6c44b185e62eecdb864cd8c560228ce57d31efbf64c200b2c200aacec78cf17a7148e784fe95a7a750335f8b9572ee28d72e7650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   0x47b760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(calaverasAllocData),
->>>>>>> v1.10.7
 	}
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.
 func DeveloperGenesisBlock() *Genesis {
 	// Override the default period to the user requested one
-<<<<<<< HEAD
 	config := *params.DeveloperChainConfig
 	devAlloc := &GenesisAlloc{}
 	devAlloc.UnmarshalJSON([]byte(devAllocJSON))
-||||||| e78727290
-	config := *params.AllCliqueProtocolChanges
-	config.Clique.Period = period
-
-=======
-	config := *params.AllCliqueProtocolChanges
-	config.Clique = &params.CliqueConfig{
-		Period: period,
-		Epoch:  config.Clique.Epoch,
-	}
-
->>>>>>> v1.10.7
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
-<<<<<<< HEAD
 		Config:    &config,
 		ExtraData: hexutil.MustDecode(developerExtraData),
 		Alloc:     *devAlloc,
-||||||| e78727290
-		Config:     &config,
-		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
-		GasLimit:   11500000,
-		Difficulty: big.NewInt(1),
-		Alloc: map[common.Address]GenesisAccount{
-			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
-			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
-		},
-=======
-		Config:     &config,
-		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
-		GasLimit:   11500000,
-		BaseFee:    big.NewInt(params.InitialBaseFee),
-		Difficulty: big.NewInt(1),
-		Alloc: map[common.Address]GenesisAccount{
-			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
-			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
-		},
->>>>>>> v1.10.7
 	}
 }

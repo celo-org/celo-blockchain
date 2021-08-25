@@ -1512,16 +1512,8 @@ func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 
 	// Initialize a fresh chain
 	var (
-<<<<<<< HEAD
 		genesis = new(Genesis).MustCommit(db)
 		engine  = mockEngine.NewFaker()
-||||||| e78727290
-		genesis = new(Genesis).MustCommit(db)
-		engine  = ethash.NewFullFaker()
-=======
-		genesis = (&Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
-		engine  = ethash.NewFullFaker()
->>>>>>> v1.10.7
 		config  = &CacheConfig{
 			TrieCleanLimit: 256,
 			TrieDirtyLimit: 256,

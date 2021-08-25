@@ -55,13 +55,7 @@ func getBlock(transactions int, chainSize, dataSize int) *types.Block {
 				// Add transactions and stuff on the last block
 				for i := 0; i < transactions; i++ {
 					tx, _ := types.SignTx(types.NewTransaction(uint64(i), aa,
-<<<<<<< HEAD
 						big.NewInt(0), 50000, big.NewInt(1), nil, nil, nil, make([]byte, dataSize)), types.HomesteadSigner{}, key)
-||||||| e78727290
-						big.NewInt(0), 50000, big.NewInt(1), make([]byte, dataSize)), types.HomesteadSigner{}, key)
-=======
-						big.NewInt(0), 50000, b.header.BaseFee, make([]byte, dataSize)), types.HomesteadSigner{}, key)
->>>>>>> v1.10.7
 					b.AddTx(tx)
 				}
 			}

@@ -678,7 +678,7 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 		gasTipCap:           new(big.Int).Set(tx.GasTipCap()),
 		feeCurrency:         tx.FeeCurrency(),
 		gatewayFeeRecipient: tx.GatewayFeeRecipient(),
-		gatewayFee:          new(big.Int).Set(tx.GatewayFee()),
+		gatewayFee:          new(big.Int),
 		to:                  tx.To(),
 		amount:              tx.Value(),
 		data:                tx.Data(),
@@ -689,6 +689,9 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
 		msg.gasPrice = math.BigMin(msg.gasPrice.Add(msg.gasTipCap, baseFee), msg.gasFeeCap)
+	}
+	if gatewayFee := tx.GatewayFee(); gatewayFee != nil {
+		msg.gatewayFee.Set(gatewayFee)
 	}
 	var err error
 	msg.from, err = Sender(s, tx)

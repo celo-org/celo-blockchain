@@ -19,7 +19,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -71,7 +70,7 @@ func testInsert(t *testing.T, hc *HeaderChain, chain []*types.Header, wantStatus
 func TestHeaderInsertion(t *testing.T) {
 	var (
 		db      = rawdb.NewMemoryDatabase()
-		genesis = (&Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
+		genesis = new(Genesis).MustCommit(db)
 	)
 
 	hc, err := NewHeaderChain(db, params.IstanbulTestChainConfig, mockEngine.NewFaker(), func() bool { return false })

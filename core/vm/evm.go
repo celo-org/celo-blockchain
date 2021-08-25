@@ -95,7 +95,7 @@ type BlockContext struct {
 	EpochSize            uint64
 	GetValidators        GetValidatorsFunc
 	GetRegisteredAddress GetRegisteredAddressFunc
-	// BaseFee     *big.Int       // Provides information for BASEFEE
+	BaseFee              *big.Int // Provides information for BASEFEE
 }
 
 // TxContext provides the EVM with information about a transaction.

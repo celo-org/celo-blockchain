@@ -16,6 +16,7 @@
 
 package core
 
+/*
 import (
 	"errors"
 	"io"
@@ -178,3 +179,4 @@ func (journal *txJournal) close() error {
 	}
 	return err
 }
+*/

@@ -16,6 +16,7 @@
 
 package core
 
+/*
 import (
 	"container/heap"
 	"math"
@@ -1124,3 +1125,4 @@ func (l *txPricedList) pop() *types.Transaction {
 		return nil
 	}
 }
+*/

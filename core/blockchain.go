@@ -436,11 +436,6 @@ func (bc *BlockChain) empty() bool {
 	return true
 }
 
-// GetDatabase returns the block chain's database
-func (bc *BlockChain) GetDatabase() ethdb.Database {
-	return bc.db
-}
-
 // loadLastState loads the last known chain state from the database. This method
 // assumes that the chain manager mutex is held.
 func (bc *BlockChain) loadLastState() error {
@@ -685,11 +680,6 @@ func (bc *BlockChain) CurrentBlock() *types.Block {
 // Snapshots returns the blockchain snapshot tree.
 func (bc *BlockChain) Snapshots() *snapshot.Tree {
 	return bc.snaps
-}
-
-// Add this to solve conflicts due to cherry-picking
-func (bc *BlockChain) Snapshots() *snapshot.Tree {
-	return bc.Snapshot()
 }
 
 // CurrentFastBlock retrieves the current fast-sync head block of the canonical
@@ -2405,49 +2395,28 @@ func (bc *BlockChain) maintainTxIndex(ancients uint64) {
 	}
 }
 
-<<<<<<< HEAD
-// BadBlocks returns a list of the last 'bad blocks' that the client has seen on the network
-func (bc *BlockChain) BadBlocks() []*types.Block {
-	blocks := make([]*types.Block, 0, bc.badBlocks.Len())
-	for _, hash := range bc.badBlocks.Keys() {
-		if blk, exist := bc.badBlocks.Peek(hash); exist {
-			block := blk.(*types.Block)
-			blocks = append(blocks, block)
-		}
-	}
-	return blocks
-}
+// // BadBlocks returns a list of the last 'bad blocks' that the client has seen on the network
+// func (bc *BlockChain) BadBlocks() []*types.Block {
+// 	blocks := make([]*types.Block, 0, bc.badBlocks.Len())
+// 	for _, hash := range bc.badBlocks.Keys() {
+// 		if blk, exist := bc.badBlocks.Peek(hash); exist {
+// 			block := blk.(*types.Block)
+// 			blocks = append(blocks, block)
+// 		}
+// 	}
+// 	return blocks
+// }
 
-// HasBadBlock returns whether the block with the hash is a bad block
-func (bc *BlockChain) HasBadBlock(hash common.Hash) bool {
-	return bc.badBlocks.Contains(hash)
-}
+// // HasBadBlock returns whether the block with the hash is a bad block
+// func (bc *BlockChain) HasBadBlock(hash common.Hash) bool {
+// 	return bc.badBlocks.Contains(hash)
+// }
 
-// addBadBlock adds a bad block to the bad-block LRU cache
-func (bc *BlockChain) addBadBlock(block *types.Block) {
-	bc.badBlocks.Add(block.Hash(), block)
-}
+// // addBadBlock adds a bad block to the bad-block LRU cache
+// func (bc *BlockChain) addBadBlock(block *types.Block) {
+// 	bc.badBlocks.Add(block.Hash(), block)
+// }
 
-||||||| e78727290
-// BadBlocks returns a list of the last 'bad blocks' that the client has seen on the network
-func (bc *BlockChain) BadBlocks() []*types.Block {
-	blocks := make([]*types.Block, 0, bc.badBlocks.Len())
-	for _, hash := range bc.badBlocks.Keys() {
-		if blk, exist := bc.badBlocks.Peek(hash); exist {
-			block := blk.(*types.Block)
-			blocks = append(blocks, block)
-		}
-	}
-	return blocks
-}
-
-// addBadBlock adds a bad block to the bad-block LRU cache
-func (bc *BlockChain) addBadBlock(block *types.Block) {
-	bc.badBlocks.Add(block.Hash(), block)
-}
-
-=======
->>>>>>> v1.10.7
 // reportBlock logs a bad block error.
 func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, err error) {
 	rawdb.WriteBadBlock(bc.db, block)

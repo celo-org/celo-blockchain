@@ -84,7 +84,6 @@ var (
 	// ErrIntrinsicGas is returned if the transaction is specified to use less gas
 	// than required to start the invocation.
 	ErrIntrinsicGas = errors.New("intrinsic gas too low")
-<<<<<<< HEAD
 
 	// ErrEthCompatibleTransactionsNotSupported is returned if the transaction omits the 3 Celo-only
 	// fields (FeeCurrency & co.) but support for this kind of transaction is not enabled.
@@ -93,8 +92,6 @@ var (
 	// ErrUnprotectedTransaction is returned if replay protection is required (post-Donut) but the transaction doesn't
 	// use it.
 	ErrUnprotectedTransaction = errors.New("replay protection is required")
-||||||| e78727290
-=======
 
 	// ErrTxTypeNotSupported is returned if a transaction is not supported in the
 	// current network configuration.
@@ -118,5 +115,4 @@ var (
 
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
->>>>>>> v1.10.7
 )
