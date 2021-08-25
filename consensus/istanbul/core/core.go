@@ -695,14 +695,36 @@ func (c *core) stopAllTimers() {
 }
 
 func (c *core) getRoundChangeTimeout() time.Duration {
+	/*
+		- Prior to E hardfork:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + 2^n * backoff factor
+
+		- After E hardfork:
+		Round 0 = baseTimeout + block time
+		Round n = baseTimeout + block time + 2^n * backoff factor
+
+		- Compare:
+		Round		before E     after E
+		0	   	    8	         8
+		1	        5           10
+		2	        7	        12
+		3	       11   	    16
+		4	       19	        24
+		5	       35	        40
+		6    	   67    	    72
+		7    	  131	       136
+		8	      259	       264
+		9	      515	       520
+		10	     1027	      1032
+	*/
 	baseTimeout := time.Duration(c.config.RequestTimeout) * time.Millisecond
+	blockTime := time.Duration(c.config.BlockPeriod) * time.Second
 	round := c.current.DesiredRound().Uint64()
 	if round == 0 {
-		// timeout for first round takes into account expected block period
-		return baseTimeout + time.Duration(c.config.BlockPeriod)*time.Second
+		return baseTimeout + blockTime
 	} else {
-		// timeout for subsequent rounds adds an exponential backoff.
-		return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
+		return baseTimeout + blockTime + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
 	}
 }
 
