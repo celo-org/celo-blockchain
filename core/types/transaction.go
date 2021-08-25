@@ -348,64 +348,67 @@ func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 	return tx.inner.rawSignatureValues()
 }
 
+type CurrencyConversionFN func(amount *big.Int, feeCurrency *common.Address) *big.Int
+
 // GasFeeCapCmp compares the fee cap of two transactions.
-func (tx *Transaction) GasFeeCapCmp(other *Transaction) int {
-	return tx.inner.gasFeeCap().Cmp(other.inner.gasFeeCap())
+func (tx *Transaction) GasFeeCapCmp(other *Transaction, toCelo CurrencyConversionFN) int {
+	return toCelo(tx.GasFeeCap(), tx.FeeCurrency()).Cmp(toCelo(other.GasFeeCap(), other.FeeCurrency()))
 }
 
 // GasFeeCapIntCmp compares the fee cap of the transaction against the given fee cap.
-func (tx *Transaction) GasFeeCapIntCmp(other *big.Int) int {
-	return tx.inner.gasFeeCap().Cmp(other)
+func (tx *Transaction) GasFeeCapIntCmp(other *big.Int, toCelo CurrencyConversionFN) int {
+	return toCelo(tx.GasFeeCap(), tx.FeeCurrency()).Cmp(other)
 }
 
 // GasTipCapCmp compares the gasTipCap of two transactions.
-func (tx *Transaction) GasTipCapCmp(other *Transaction) int {
-	return tx.inner.gasTipCap().Cmp(other.inner.gasTipCap())
+func (tx *Transaction) GasTipCapCmp(other *Transaction, toCelo CurrencyConversionFN) int {
+	return toCelo(tx.GasTipCap(), tx.FeeCurrency()).Cmp(toCelo(other.GasTipCap(), other.FeeCurrency()))
 }
 
 // GasTipCapIntCmp compares the gasTipCap of the transaction against the given gasTipCap.
-func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
-	return tx.inner.gasTipCap().Cmp(other)
+func (tx *Transaction) GasTipCapIntCmp(other *big.Int, toCelo CurrencyConversionFN) int {
+	return toCelo(tx.GasTipCap(), tx.FeeCurrency()).Cmp(other)
 }
 
 // EffectiveGasTip returns the effective miner gasTipCap for the given base fee.
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
 // Note: The returned value is in the FeeCurrency of the transaction
-func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
+func (tx *Transaction) EffectiveGasTip(baseFee *big.Int, toCelo CurrencyConversionFN) (*big.Int, error) {
+	gasFeeCap, tip := toCelo(tx.GasFeeCap(), tx.FeeCurrency()), toCelo(tx.GasTipCap(), tx.FeeCurrency())
+
 	if baseFee == nil {
-		return tx.GasTipCap(), nil
+		return tip, nil
 	}
 	var err error
-	gasFeeCap := tx.GasFeeCap()
 	if gasFeeCap.Cmp(baseFee) == -1 {
 		err = ErrGasFeeCapTooLow
 	}
-	return math.BigMin(tx.GasTipCap(), gasFeeCap.Sub(gasFeeCap, baseFee)), err
+	return math.BigMin(tip, gasFeeCap.Sub(gasFeeCap, baseFee)), err
 }
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
 // error in case the effective gasTipCap is negative
 // Note: The returned value is in the FeeCurrency of the transaction
-func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int) *big.Int {
-	effectiveTip, _ := tx.EffectiveGasTip(baseFee)
+func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int, toCelo CurrencyConversionFN) *big.Int {
+	effectiveTip, _ := tx.EffectiveGasTip(baseFee, toCelo)
 	return effectiveTip
 }
 
 // EffectiveGasTipCmp compares the effective gasTipCap of two transactions assuming the given base fee.
-func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int) int {
+func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int, toCelo CurrencyConversionFN) int {
 	if baseFee == nil {
-		return tx.GasTipCapCmp(other)
+		return tx.GasTipCapCmp(other, toCelo)
 	}
-	return tx.EffectiveGasTipValue(baseFee).Cmp(other.EffectiveGasTipValue(baseFee))
+	return tx.EffectiveGasTipValue(baseFee, toCelo).Cmp(other.EffectiveGasTipValue(baseFee, toCelo))
 }
 
 // EffectiveGasTipIntCmp compares the effective gasTipCap of a transaction to the given gasTipCap.
-func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) int {
+func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int, toCelo CurrencyConversionFN) int {
 	if baseFee == nil {
-		return tx.GasTipCapIntCmp(other)
+		return tx.GasTipCapIntCmp(other, toCelo)
 	}
-	return tx.EffectiveGasTipValue(baseFee).Cmp(other)
+	return tx.EffectiveGasTipValue(baseFee, toCelo).Cmp(other)
 }
 
 // Hash returns the transaction hash.
@@ -501,52 +504,64 @@ func (s TxByNonce) Len() int           { return len(s) }
 func (s TxByNonce) Less(i, j int) bool { return s[i].Nonce() < s[j].Nonce() }
 func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-// TxByPriceAndTime implements both the sort and the heap interface, making it useful
-// for all at once sorting as well as individually adding and removing elements.
-type TxByPriceAndTime struct {
-	txs       Transactions
-	txCmpFunc func(tx1, tx2 *Transaction) int
+// TxWithMinerFee wraps a transaction with its gas price or effective miner gasTipCap
+type TxWithMinerFee struct {
+	tx       *Transaction
+	minerFee *big.Int
 }
 
-func (s TxByPriceAndTime) Len() int { return len(s.txs) }
+// NewTxWithMinerFee creates a wrapped transaction, calculating the effective
+// miner gasTipCap if a base fee is provided.
+// Returns error in case of a negative effective miner gasTipCap.
+func NewTxWithMinerFee(tx *Transaction, baseFee *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) (*TxWithMinerFee, error) {
+	minerFee, err := tx.EffectiveGasTip(baseFee, toCELO)
+	if err != nil {
+		return nil, err
+	}
+	return &TxWithMinerFee{
+		tx:       tx,
+		minerFee: minerFee,
+	}, nil
+}
+
+// TxByPriceAndTime implements both the sort and the heap interface, making it useful
+// for all at once sorting as well as individually adding and removing elements.
+type TxByPriceAndTime []*TxWithMinerFee
+
+func (s TxByPriceAndTime) Len() int { return len(s) }
 func (s TxByPriceAndTime) Less(i, j int) bool {
 	// If the prices are equal, use the time the transaction was first seen for
 	// deterministic sorting
-	cmp := s.txCmpFunc(s.txs[i], s.txs[j])
+	cmp := s[i].minerFee.Cmp(s[j].minerFee)
 	if cmp == 0 {
-		return s.txs[i].time.Before(s.txs[j].time)
+		return s[i].tx.time.Before(s[j].tx.time)
 	}
 	return cmp > 0
 }
-func (s TxByPriceAndTime) Swap(i, j int) { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
+func (s TxByPriceAndTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 func (s *TxByPriceAndTime) Push(x interface{}) {
-	s.txs = append(s.txs, x.(*Transaction))
+	*s = append(*s, x.(*TxWithMinerFee))
 }
 
 func (s *TxByPriceAndTime) Pop() interface{} {
-	old := s.txs
+	old := *s
 	n := len(old)
 	x := old[n-1]
-	s.txs = old[0 : n-1]
+	*s = old[0 : n-1]
 	return x
-}
-
-func (s *TxByPriceAndTime) Peek() *Transaction {
-	return s.txs[0]
-}
-
-func (s *TxByPriceAndTime) Add(tx *Transaction) {
-	s.txs[0] = tx
 }
 
 // TransactionsByPriceAndNonce represents a set of transactions that can return
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
-	txs    map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads  TxByPriceAndTime                // Next transaction for each unique account (price heap)
-	signer Signer                          // Signer for the set of transactions
+	txs     map[common.Address]Transactions // Per account nonce-sorted list of transactions
+	heads   TxByPriceAndTime                // Next transaction for each unique account (price heap)
+	signer  Signer                          // Signer for the set of transactions
+	baseFee *big.Int                        // Current base fee
+
+	toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int // Current exchange rate to CELO
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -555,52 +570,51 @@ type TransactionsByPriceAndNonce struct {
 // Note, the input map is reowned so the caller should not interact any more with
 // if after providing it to the constructor.
 // Note: txCmpFunc should handle the basefee
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, txCmpFunc func(tx1, tx2 *Transaction) int) *TransactionsByPriceAndNonce {
+func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFee *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) *TransactionsByPriceAndNonce {
 	// Initialize a price and received time based heap with the head transactions
-	heads := TxByPriceAndTime{
-		txs:       make(Transactions, 0, len(txs)),
-		txCmpFunc: txCmpFunc,
-	}
+	heads := make(TxByPriceAndTime, 0, len(txs))
 	for from, accTxs := range txs {
-		heads.Push(accTxs[0])
-		// Ensure the sender address is from the signer
 		acc, _ := Sender(signer, accTxs[0])
-		txs[acc] = accTxs[1:]
-		if from != acc {
+		wrapped, err := NewTxWithMinerFee(accTxs[0], baseFee, toCELO)
+		// Remove transaction if sender doesn't match from, or if wrapping fails.
+		if acc != from || err != nil {
 			delete(txs, from)
-
+			continue
 		}
-
+		heads = append(heads, wrapped)
+		txs[from] = accTxs[1:]
 	}
 	heap.Init(&heads)
 
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
-		txs:    txs,
-		heads:  heads,
-		signer: signer,
+		txs:     txs,
+		heads:   heads,
+		signer:  signer,
+		baseFee: baseFee,
+		toCELO:  toCELO,
 	}
 }
 
 // Peek returns the next transaction by price.
 func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
-	if t.heads.txs.Len() == 0 {
+	if len(t.heads) == 0 {
 		return nil
 	}
-	return t.heads.Peek()
+	return t.heads[0].tx
 }
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *TransactionsByPriceAndNonce) Shift() {
-	acc, _ := Sender(t.signer, t.heads.Peek())
+	acc, _ := Sender(t.signer, t.heads[0].tx)
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
-		next := txs[0]
-		t.txs[acc] = txs[1:]
-		t.heads.Add(next)
-		heap.Fix(&t.heads, 0)
-	} else {
-		heap.Pop(&t.heads)
+		if wrapped, err := NewTxWithMinerFee(txs[0], t.baseFee, t.toCELO); err == nil {
+			t.heads[0], t.txs[acc] = wrapped, txs[1:]
+			heap.Fix(&t.heads, 0)
+			return
+		}
 	}
+	heap.Pop(&t.heads)
 }
 
 // Pop removes the best transaction, *not* replacing it with the next one from

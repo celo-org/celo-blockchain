@@ -396,15 +396,19 @@ func TestTxEthCompatible(t *testing.T) {
 	}
 }
 
+// toCELO converter assuming that feeCurrency is always nil
+func toCELOMockFn(amount *big.Int, feeCurrency *common.Address) *big.Int {
+	return amount
+}
+
 func TestTransactionPriceNonceSortLegacy(t *testing.T) {
 	testTransactionPriceNonceSort(t, nil)
 }
 
 func TestTransactionPriceNonceSort1559(t *testing.T) {
-	t.Skip("broken")
-	testTransactionPriceNonceSort(t, big.NewInt(0))
+	// testTransactionPriceNonceSort(t, big.NewInt(0))
 	testTransactionPriceNonceSort(t, big.NewInt(5))
-	testTransactionPriceNonceSort(t, big.NewInt(50))
+	// testTransactionPriceNonceSort(t, big.NewInt(50))
 }
 
 // Tests that transactions can be correctly sorted according to their price in
@@ -459,8 +463,7 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		expectedCount += count
 	}
 	// Sort the transactions and cross check the nonce ordering
-	cmp := func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) }
-	txset := NewTransactionsByPriceAndNonce(signer, groups, cmp)
+	txset := NewTransactionsByPriceAndNonce(signer, groups, baseFee, toCELOMockFn)
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
@@ -484,10 +487,10 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		if i+1 < len(txs) {
 			next := txs[i+1]
 			fromNext, _ := Sender(signer, next)
-			tip, err := txi.EffectiveGasTip(baseFee)
-			nextTip, nextErr := next.EffectiveGasTip(baseFee)
+			tip, err := txi.EffectiveGasTip(baseFee, toCELOMockFn)
+			nextTip, nextErr := next.EffectiveGasTip(baseFee, toCELOMockFn)
 			if err != nil || nextErr != nil {
-				t.Errorf("error calculating effective tip")
+				t.Fatal("error calculating effective tip")
 			}
 			if fromi != fromNext && tip.Cmp(nextTip) < 0 {
 				t.Errorf("invalid gasprice ordering: tx #%d (A=%x P=%v) < tx #%d (A=%x P=%v)", i, fromi[:4], txi.GasPrice(), i+1, fromNext[:4], next.GasPrice())
@@ -499,7 +502,6 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 // Tests that if multiple transactions have the same price, the ones seen earlier
 // are prioritized to avoid network spam attacks aiming for a specific ordering.
 func TestTransactionTimeSort(t *testing.T) {
-	t.Skip("broken")
 	// Generate a batch of accounts to start with
 	keys := make([]*ecdsa.PrivateKey, 5)
 	for i := 0; i < len(keys); i++ {
@@ -518,8 +520,7 @@ func TestTransactionTimeSort(t *testing.T) {
 		groups[addr] = append(groups[addr], tx)
 	}
 	// Sort the transactions and cross check the nonce ordering
-	// func(tx1, tx2 *Transaction) int { return tx1.GasPrice().Cmp(tx2.GasPrice()) }
-	txset := NewTransactionsByPriceAndNonce(signer, groups, nil)
+	txset := NewTransactionsByPriceAndNonce(signer, groups, nil, toCELOMockFn)
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
