@@ -61,23 +61,24 @@ type ommer struct {
 
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
 type stEnv struct {
-	Coinbase    common.Address                      `json:"currentCoinbase"   gencodec:"required"`
-	Difficulty  *big.Int                            `json:"currentDifficulty" gencodec:"required"`
-	GasLimit    uint64                              `json:"currentGasLimit"   gencodec:"required"`
-	Number      uint64                              `json:"currentNumber"     gencodec:"required"`
-	Timestamp   uint64                              `json:"currentTimestamp"  gencodec:"required"`
-	BlockHashes map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
-	Ommers      []ommer                             `json:"ommers,omitempty"`
-	BaseFee     *big.Int                            `json:"currentBaseFee,omitempty"`
+	Coinbase        common.Address                      `json:"currentCoinbase"   gencodec:"required"`
+	GasLimit        uint64                              `json:"currentGasLimit"   gencodec:"required"`
+	Number          uint64                              `json:"currentNumber"     gencodec:"required"`
+	Timestamp       uint64                              `json:"currentTimestamp"  gencodec:"required"`
+	ParentTimestamp uint64                              `json:"parentTimestamp,omitempty"`
+	BlockHashes     map[math.HexOrDecimal64]common.Hash `json:"blockHashes,omitempty"`
+	Ommers          []ommer                             `json:"ommers,omitempty"`
+	BaseFee         *big.Int                            `json:"currentBaseFee,omitempty"`
 }
 
 type stEnvMarshaling struct {
-	Coinbase   common.UnprefixedAddress
-	Difficulty *math.HexOrDecimal256
-	GasLimit   math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-	BaseFee    *math.HexOrDecimal256
+	Coinbase        common.UnprefixedAddress
+	Difficulty      *math.HexOrDecimal256
+	GasLimit        math.HexOrDecimal64
+	Number          math.HexOrDecimal64
+	Timestamp       math.HexOrDecimal64
+	ParentTimestamp math.HexOrDecimal64
+	BaseFee         *math.HexOrDecimal256
 }
 
 type rejectedTx struct {
