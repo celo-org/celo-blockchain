@@ -238,7 +238,7 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 }
 
 type txPoolContext struct {
-	BlockContext
+	*BlockContext
 	*currency.CurrencyManager
 }
 

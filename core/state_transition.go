@@ -62,6 +62,7 @@ type StateTransition struct {
 	evm             *vm.EVM
 	vmRunner        vm.EVMRunner
 	gasPriceMinimum *big.Int
+	blockContext    *BlockContext
 }
 
 // Message represents a message sent to a contract.
@@ -190,8 +191,13 @@ func IntrinsicGas(data []byte, contractCreation bool, feeCurrency *common.Addres
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) *StateTransition {
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, blockContext *BlockContext) *StateTransition {
+	// - Prior to E hard fork, it does a contract call to get gasPriceMinimum
+	// - After E hard fork, it uses BlockContext
+	var gasPriceMinimum *big.Int
+	if !evm.ChainConfig().IsEHardfork(evm.BlockNumber) {
+		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+	}
 
 	return &StateTransition{
 		gp:              gp,
@@ -203,6 +209,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 		data:            msg.Data(),
 		state:           evm.StateDB,
 		gasPriceMinimum: gasPriceMinimum,
+		blockContext:    blockContext,
 	}
 }
 
@@ -213,18 +220,21 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, blockContext *BlockContext) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransition(evm, msg, gp, vmRunner).TransitionDb()
+	return NewStateTransition(evm, msg, gp, vmRunner, blockContext).TransitionDb()
 }
 
 // ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
 // set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, blockContext *BlockContext) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp, vmRunner)
+	if evm.ChainConfig().IsEHardfork(evm.BlockNumber) {
+		blockContext = blockContext.WithZeroGasPriceMinimum()
+	}
+	st := NewStateTransition(evm, msg, gp, vmRunner, blockContext)
 	st.gasPriceMinimum = common.Big0
 	return st.TransitionDb()
 }
@@ -361,8 +371,14 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	// Make sure this transaction's gas price is valid.
-	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
-		log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+	var gpm *big.Int
+	if !st.evm.ChainConfig().IsEHardfork(st.evm.BlockNumber) {
+		gpm = st.gasPriceMinimum
+	} else {
+		gpm = st.blockContext.GetGasPriceMinimum(st.msg.FeeCurrency())
+	}
+	if st.gasPrice.Cmp(gpm) < 0 {
+		log.Debug("Tx gas price is less than minimum", "minimum", gpm, "price", st.gasPrice)
 		return ErrGasPriceDoesNotExceedMinimum
 	}
 
@@ -417,7 +433,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
+		if !st.evm.ChainConfig().IsEHardfork(st.evm.BlockNumber) {
+			gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
+		} else {
+			gasForAlternativeCurrency = st.blockContext.GetIntrinsicGasForAlternativeFeeCurrency()
+		}
 	}
 	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
 	if err != nil {
@@ -481,9 +501,15 @@ func (st *StateTransition) distributeTxFees() error {
 	from := st.msg.From()
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
-	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
-	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 	feeCurrency := st.msg.FeeCurrency()
+	var gpm *big.Int
+	if !st.evm.ChainConfig().IsEHardfork(st.evm.BlockNumber) {
+		gpm = st.gasPriceMinimum
+	} else {
+		gpm = st.blockContext.GetGasPriceMinimum(feeCurrency)
+	}
+	baseTxFee := new(big.Int).Mul(gasUsed, gpm)
+	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 
 	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()
 	if gatewayFeeRecipient == nil {
@@ -502,7 +528,7 @@ func (st *StateTransition) distributeTxFees() error {
 		baseTxFee = new(big.Int)
 	}
 
-	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", st.msg.FeeCurrency(),
+	log.Trace("distributeTxFees", "from", from, "refund", refund, "feeCurrency", feeCurrency,
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Coinbase, "coinbaseFee", tipTxFee,
 		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)

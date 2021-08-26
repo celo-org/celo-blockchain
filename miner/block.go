@@ -38,7 +38,8 @@ import (
 
 // blockState is the collection of modified state that is used to assemble a block
 type blockState struct {
-	signer types.Signer
+	signer       types.Signer
+	blockContext *core.BlockContext
 
 	state    *state.StateDB // apply state changes here
 	tcount   int            // tx count in cycle
@@ -52,7 +53,7 @@ type blockState struct {
 	txFeeRecipient common.Address
 }
 
-// prepareBlock intializes a new blockState that is ready to have transaction included to.
+// prepareBlock initializes a new blockState that is ready to have transaction included to.
 func prepareBlock(w *worker) (*blockState, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -98,8 +99,10 @@ func prepareBlock(w *worker) (*blockState, error) {
 	}
 
 	vmRunner := w.chain.NewEVMRunner(header, state)
+	blockContext := core.NewBlockContext(vmRunner)
 	b := &blockState{
 		signer:         types.NewEIP155Signer(w.chainConfig.ChainID),
+		blockContext:   blockContext,
 		state:          state,
 		tcount:         0,
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
@@ -301,7 +304,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 	snap := b.state.Snapshot()
 	vmRunner := w.chain.NewEVMRunner(b.header, b.state)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner, b.blockContext)
 	if err != nil {
 		b.state.RevertToSnapshot(snap)
 		return nil, err
