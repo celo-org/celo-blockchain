@@ -378,7 +378,7 @@ func (d *dialScheduler) expireHistory() {
 // when peers are connected while their task is still running, or because static dials
 // are exempt from the limit.
 func (d *dialScheduler) freeDialSlots() int {
-	slots := (d.maxDialPeers - d.dialPeers) * 2
+	slots := d.maxDialPeers - d.dialPeers
 	if slots > d.maxActiveDials {
 		slots = d.maxActiveDials
 	}
