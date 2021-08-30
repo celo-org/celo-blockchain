@@ -320,9 +320,11 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
 			h.backend.retriever.lock.RUnlock()
 			if headerRequested != nil {
-				contiguousHeaders := h.syncMode != downloader.LightestSync
-				if _, err := h.fetcher.chain.InsertHeaderChain(headers, 1, contiguousHeaders); err != nil {
-					return err
+				if len(headers) != 0 {
+					contiguousHeaders := h.syncMode != downloader.LightestSync
+					if _, err := h.fetcher.chain.InsertHeaderChain(headers, 1, contiguousHeaders); err != nil {
+						return err
+					}
 				}
 				deliverMsg = &Msg{
 					MsgType: MsgBlockHeaders,
