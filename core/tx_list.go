@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -732,8 +733,8 @@ type txPricedList struct {
 	ctx              *atomic.Value
 	all              *txLookup              // Pointer to the map of all transactions
 	urgent, floating multiCurrencyPriceHeap // Heaps of prices of all the stored **remote** transactions
-	stales           int                    // Number of stale price points to (re-heap trigger)
-
+	stales           int64                  // Number of stale price points to (re-heap trigger)
+	reheapMu         sync.Mutex             // Mutex asserts that only one routine is reheaping the list
 }
 
 const (
@@ -777,8 +778,8 @@ func (l *txPricedList) Put(tx *types.Transaction, local bool) {
 // the heap if a large enough ratio of transactions go stale.
 func (l *txPricedList) Removed(count int) {
 	// Bump the stale counter, but exit if still too low (< 25%)
-	l.stales += count
-	if l.stales <= (l.urgent.Len() + l.floating.Len()/4) {
+	stales := atomic.AddInt64(&l.stales, int64(count))
+	if int(stales) <= (l.urgent.Len()+l.floating.Len())/4 {
 		return
 	}
 	// Seems we've reached a critical number of stale transactions, reheap
@@ -814,7 +815,7 @@ func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction) bool 
 	for len(h.list) > 0 {
 		head := h.list[0]
 		if l.all.GetRemote(head.Hash()) == nil { // Removed or migrated
-			l.stales--
+			atomic.AddInt64(&l.stales, -1)
 			heap.Pop(h)
 			continue
 		}
@@ -840,7 +841,7 @@ func (l *txPricedList) Discard(slots int, force bool) (types.Transactions, bool)
 			// Discard stale transactions if found during cleanup
 			tx := l.urgent.Pop()
 			if l.all.GetRemote(tx.Hash()) == nil { // Removed or migrated
-				l.stales--
+				atomic.AddInt64(&l.stales, -1)
 				continue
 			}
 			// Non stale transaction found, move to floating heap
@@ -853,7 +854,7 @@ func (l *txPricedList) Discard(slots int, force bool) (types.Transactions, bool)
 			// Discard stale transactions if found during cleanup
 			tx := l.floating.Pop()
 			if l.all.GetRemote(tx.Hash()) == nil { // Removed or migrated
-				l.stales--
+				atomic.AddInt64(&l.stales, -1)
 				continue
 			}
 			// Non stale transaction found, discard it
@@ -873,8 +874,10 @@ func (l *txPricedList) Discard(slots int, force bool) (types.Transactions, bool)
 
 // Reheap forcibly rebuilds the heap based on the current remote transaction set.
 func (l *txPricedList) Reheap() {
+	l.reheapMu.Lock()
+	defer l.reheapMu.Unlock()
 	start := time.Now()
-	l.stales = 0
+	atomic.StoreInt64(&l.stales, 0)
 	l.urgent.Clear()
 	l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
 		l.urgent.Add(tx)
