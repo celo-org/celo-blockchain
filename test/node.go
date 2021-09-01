@@ -400,14 +400,21 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 			return nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
 		if !concurrent {
-			n.Start()
+
 		}
 		network[i] = n
 	}
 	if concurrent {
 		// Start all nodes concurrently
 		if err := startConcurrently(network); err != nil {
-			return network, fmt.Errorf("failed to build node for network: %v", err)
+			return network, fmt.Errorf("failed to start node for network: %v", err)
+		}
+	} else {
+		// Start them sequentially
+		for _, n := range network {
+			if err = n.Start(); err != nil {
+				return nil, fmt.Errorf("failed to start node for network: %v", err)
+			}
 		}
 	}
 
@@ -434,10 +441,8 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 			if j == i {
 				continue
 			}
-			go func() {
-				n.Server().AddPeer(en, p2p.ValidatorPurpose)
-				n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
-			}()
+			n.Server().AddPeer(en, p2p.ValidatorPurpose)
+			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
