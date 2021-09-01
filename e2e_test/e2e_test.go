@@ -2,9 +2,11 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
 )
@@ -49,10 +51,34 @@ func TestSingleNodeManyTxs(t *testing.T) {
 	defer cancel()
 
 	for r := 0; r < rounds; r++ {
-		tx, err := network[0].SendCelo(ctx, network[0].DevAddress, 1)
+		tx, err := network[0].SendCelo(ctx, common.Address{}, 1)
 		require.NoError(t, err)
 		require.NotNil(t, tx)
 		err = network.AwaitTransactions(ctx, tx)
 		require.NoError(t, err)
+	}
+}
+
+func TestSingleNodeSurviveEpoch(t *testing.T) {
+	accounts := test.Accounts(66)
+	gc := test.GenesisConfig(accounts)
+	gc.Istanbul.Epoch = 10
+	gc.Istanbul.RequestTimeout = 1000
+	rounds := int(gc.Istanbul.Epoch * 2) // ensure we go through at least one epoch
+	network, err := test.NewConcurrentNetwork(accounts, gc)
+	require.NoError(t, err)
+	defer network.Shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*35)
+	defer cancel()
+
+	for r := 0; r < rounds; r++ {
+		tx, err := network[0].SendCelo(ctx, common.Address{}, 1)
+		require.NoError(t, err)
+		require.NotNil(t, tx)
+		err = network.AwaitTransactions(ctx, tx)
+		require.NoError(t, err)
+		fmt.Println(">>>>>>>> BLOCK ", network[0].Eth.BlockChain().CurrentBlock().Number())
+		fmt.Println()
+		fmt.Println()
 	}
 }

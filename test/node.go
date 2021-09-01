@@ -88,7 +88,7 @@ type Node struct {
 	SentTxs []*types.Transaction
 }
 
-// NewNode creates a new running node with the provided config.
+// NewNode creates a new node with the provided config.
 func NewNode(c *NodeConfig, genesis *core.Genesis) (*Node, error) {
 
 	// p2p key and address
@@ -123,7 +123,7 @@ func NewNode(c *NodeConfig, genesis *core.Genesis) (*Node, error) {
 		Tracker:    NewTransactionTracker(),
 	}
 
-	return node, node.Start()
+	return node, nil
 }
 
 // Start creates the node.Node and eth.Ethereum and starts the node.Node and
@@ -347,12 +347,50 @@ func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
 // will be returned immediately, meaning that some nodes may be running and
 // others not.
 func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, error) {
+	return newNetwork(accounts, gc, false)
+}
 
+// NewNetwork generates a network of nodes that are running and mining. For
+// each provided validator account a corresponding node is created and each
+// node is also assigned a developer account, there must be at least as many
+// developer accounts provided as validator accounts. Node startup tasks
+// are run concurrently where possible.
+func NewConcurrentNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, error) {
+	return newNetwork(accounts, gc, true)
+}
+
+func startConcurrently(network Network) error {
+	errChan := make(chan error, len(network))
+	for _, n := range network {
+		go func(n2 *Node) {
+			errChan <- n2.Start()
+		}(n)
+	}
+	for range network {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// NewNetwork generates a network of nodes that are running and mining. For
+// each provided validator account a corresponding node is created and each
+// node is also assigned a developer account, there must be at least as many
+// developer accounts provided as validator accounts. If there is an error it
+// will be returned immediately, meaning that some nodes may be running and
+// others not.
+func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent bool) (Network, error) {
+	fmt.Println(time.Now(), "Test> Starting Test Network")
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println(time.Now(), "Test> Creating validator accounts and nodes")
 	validatorAccounts := accounts.ValidatorAccounts()
 	network := make([]*Node, len(validatorAccounts))
 	for i := range validatorAccounts {
@@ -361,9 +399,19 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 		if err != nil {
 			return nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
+		if !concurrent {
+			n.Start()
+		}
 		network[i] = n
 	}
+	if concurrent {
+		// Start all nodes concurrently
+		if err := startConcurrently(network); err != nil {
+			return network, fmt.Errorf("failed to build node for network: %v", err)
+		}
+	}
 
+	fmt.Println(time.Now(), "Test> Creating enodes")
 	enodes := make([]*enode.Node, len(network))
 	for i, n := range network {
 		host, port, err := net.SplitHostPort(n.P2PListenAddr)
@@ -380,13 +428,16 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
+	fmt.Println(time.Now(), "Test> Feeding enodes as peers (quadratically)")
 	for i, en := range enodes {
 		for j, n := range network {
 			if j == i {
 				continue
 			}
-			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
+			go func() {
+				n.Server().AddPeer(en, p2p.ValidatorPurpose)
+				n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
+			}()
 		}
 	}
 
@@ -403,6 +454,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 
 	// Share enode certificates between nodes, nodes wont consider other nodes
 	// valid validators without seeing an enode certificate message from them.
+	fmt.Println(time.Now(), "Test> share enode certificates")
 	for i := range network {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: enodes[i].URLv4(),
@@ -433,7 +485,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 			return nil, err
 		}
 	}
-
+	fmt.Println(time.Now(), "Test> network created")
 	return network, nil
 }
 
