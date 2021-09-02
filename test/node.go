@@ -367,12 +367,11 @@ func startConcurrently(network Network) error {
 		}(n)
 	}
 	for range network {
-		select {
-		case err := <-errChan:
-			if err != nil {
-				return err
-			}
+		err := <-errChan
+		if err != nil {
+			return err
 		}
+
 	}
 	return nil
 }
@@ -398,9 +397,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 		n, err := NewNode(conf, genesis)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build node for network: %v", err)
-		}
-		if !concurrent {
-
 		}
 		network[i] = n
 	}
