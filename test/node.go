@@ -383,13 +383,11 @@ func startConcurrently(network Network) error {
 // will be returned immediately, meaning that some nodes may be running and
 // others not.
 func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent bool) (Network, error) {
-	fmt.Println(time.Now(), "Test> Starting Test Network")
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println(time.Now(), "Test> Creating validator accounts and nodes")
 	validatorAccounts := accounts.ValidatorAccounts()
 	network := make([]*Node, len(validatorAccounts))
 	for i := range validatorAccounts {
@@ -414,7 +412,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 		}
 	}
 
-	fmt.Println(time.Now(), "Test> Creating enodes")
 	enodes := make([]*enode.Node, len(network))
 	for i, n := range network {
 		host, port, err := net.SplitHostPort(n.P2PListenAddr)
@@ -431,7 +428,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
-	fmt.Println(time.Now(), "Test> Feeding enodes as peers (quadratically)")
 	for i, en := range enodes {
 		for j, n := range network {
 			if j == i {
@@ -455,7 +451,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 
 	// Share enode certificates between nodes, nodes wont consider other nodes
 	// valid validators without seeing an enode certificate message from them.
-	fmt.Println(time.Now(), "Test> share enode certificates")
 	for i := range network {
 		enodeCertificate := &istanbul.EnodeCertificate{
 			EnodeURL: enodes[i].URLv4(),
@@ -486,7 +481,6 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 			return nil, err
 		}
 	}
-	fmt.Println(time.Now(), "Test> network created")
 	return network, nil
 }
 

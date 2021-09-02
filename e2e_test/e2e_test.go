@@ -76,8 +76,5 @@ func TestSingleNodeManyTxs(t *testing.T) {
 // 		require.NotNil(t, tx)
 // 		err = network.AwaitTransactions(ctx, tx)
 // 		require.NoError(t, err)
-// 		fmt.Println(">>>>>>>> BLOCK ", network[0].Eth.BlockChain().CurrentBlock().Number())
-// 		fmt.Println()
-// 		fmt.Println()
 // 	}
 // }
