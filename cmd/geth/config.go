@@ -154,11 +154,8 @@ func enableWhisper(ctx *cli.Context) bool {
 // makeFullNode loads geth configuration and creates the Ethereum backend.
 func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
-	if ctx.GlobalIsSet(utils.OverrideChurritoFlag.Name) {
-		cfg.Eth.OverrideChurrito = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideChurritoFlag.Name))
-	}
-	if ctx.GlobalIsSet(utils.OverrideDonutFlag.Name) {
-		cfg.Eth.OverrideDonut = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideDonutFlag.Name))
+	if ctx.GlobalIsSet(utils.OverrideEHardforkFlag.Name) {
+		cfg.Eth.OverrideEHardfork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideEHardforkFlag.Name))
 	}
 	backend := utils.RegisterEthService(stack, &cfg.Eth)
 

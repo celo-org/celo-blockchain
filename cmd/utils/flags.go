@@ -213,13 +213,9 @@ var (
 	}
 
 	// Hard fork activation overrides
-	OverrideChurritoFlag = cli.Uint64Flag{
-		Name:  "override.churrito",
-		Usage: "Manually specify Churrito fork-block, overriding the bundled setting",
-	}
-	OverrideDonutFlag = cli.Uint64Flag{
-		Name:  "override.donut",
-		Usage: "Manually specify Donut fork-block, overriding the bundled setting",
+	OverrideEHardforkFlag = cli.Uint64Flag{
+		Name:  "override.eHardfork",
+		Usage: "Manually specify E fork-block, overriding the bundled setting",
 	}
 
 	// Light server and client settings
@@ -1205,6 +1201,9 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	ethPeers := cfg.MaxPeers - lightPeers
 	if lightClient {
 		ethPeers = 0
+	}
+	if lightServer {
+		cfg.MaxLightClients = lightPeers
 	}
 	log.Info("Maximum peer count", "ETH", ethPeers, "LES", lightPeers, "total", cfg.MaxPeers)
 
