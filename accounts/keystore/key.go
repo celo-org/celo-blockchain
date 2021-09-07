@@ -32,14 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/pborman/uuid"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/pborman/uuid"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/google/uuid"
 )
 
