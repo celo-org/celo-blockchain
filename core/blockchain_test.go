@@ -2924,7 +2924,6 @@ func TestInitThenFailCreateContract(t *testing.T) {
 // checking that the gas usage of a hot SLOAD and a cold SLOAD are calculated
 // correctly.
 func TestEIP2718Transition(t *testing.T) {
-	t.Skip("Need to fix how to select gas price")
 	var (
 		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 
@@ -2937,7 +2936,7 @@ func TestEIP2718Transition(t *testing.T) {
 		address = crypto.PubkeyToAddress(key.PublicKey)
 		funds   = big.NewInt(1000000000000000)
 		gspec   = &Genesis{
-			Config: params.TestChainConfig,
+			Config: params.IstanbulEHFTestChainConfig,
 			Alloc: GenesisAlloc{
 				address: {Balance: funds},
 				// The address 0xAAAA sloads 0x00 and 0x01
@@ -3008,7 +3007,7 @@ func TestEIP2718Transition(t *testing.T) {
 //    gasFeeCap - gasTipCap < baseFee.
 // 6. Legacy transaction behave as expected (e.g. gasPrice = gasFeeCap = gasTipCap).
 func TestEIP1559Transition(t *testing.T) {
-	t.Skip("broken")
+	t.Skip("1559 not enabled")
 	var (
 		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 
@@ -3023,7 +3022,7 @@ func TestEIP1559Transition(t *testing.T) {
 		addr2   = crypto.PubkeyToAddress(key2.PublicKey)
 		funds   = new(big.Int).Mul(common.Big1, big.NewInt(params.Ether))
 		gspec   = &Genesis{
-			Config: params.IstanbulTestChainConfig,
+			Config: params.IstanbulEHFTestChainConfig,
 			Alloc: GenesisAlloc{
 				addr1: {Balance: funds},
 				addr2: {Balance: funds},
@@ -3046,9 +3045,10 @@ func TestEIP1559Transition(t *testing.T) {
 	gspec.Config.EBlock = common.Big0
 	genesis := gspec.MustCommit(db)
 	signer := types.LatestSigner(gspec.Config)
+	txFeeRecipient := common.Address{10}
 
 	blocks, _ := GenerateChain(gspec.Config, genesis, engine, db, 1, func(i int, b *BlockGen) {
-		b.SetCoinbase(common.Address{1})
+		b.SetCoinbase(txFeeRecipient)
 
 		// One transaction to 0xAAAA
 		accesses := types.AccessList{types.AccessTuple{
@@ -3095,7 +3095,7 @@ func TestEIP1559Transition(t *testing.T) {
 	state, _ := chain.State()
 
 	// 3: Ensure that miner received only the tx's tip.
-	actual := state.GetBalance(block.Coinbase())
+	actual := state.GetBalance(txFeeRecipient)
 	expected := new(big.Int).SetUint64(block.GasUsed() * block.Transactions()[0].GasTipCap().Uint64())
 
 	if actual.Cmp(expected) != 0 {

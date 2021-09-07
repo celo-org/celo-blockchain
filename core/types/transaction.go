@@ -338,7 +338,9 @@ func (tx *Transaction) To() *common.Address {
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	total.Add(total, tx.Value())
-	total.Add(total, tx.GatewayFee())
+	if gatewayFee := tx.GatewayFee(); gatewayFee != nil {
+		total.Add(total, gatewayFee)
+	}
 	return total
 }
 
@@ -348,67 +350,76 @@ func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 	return tx.inner.rawSignatureValues()
 }
 
-type CurrencyConversionFN func(amount *big.Int, feeCurrency *common.Address) *big.Int
-
 // GasFeeCapCmp compares the fee cap of two transactions.
-func (tx *Transaction) GasFeeCapCmp(other *Transaction, toCelo CurrencyConversionFN) int {
-	return toCelo(tx.GasFeeCap(), tx.FeeCurrency()).Cmp(toCelo(other.GasFeeCap(), other.FeeCurrency()))
+func (tx *Transaction) GasFeeCapCmp(other *Transaction) int {
+	// TODO: Remove before prod release.
+	fca := tx.FeeCurrency()
+	fcb := other.FeeCurrency()
+	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+		panic("Dev error: using GasFeeCapCmp with transactions that have differing fee currencies")
+	}
+	return tx.inner.gasFeeCap().Cmp(other.inner.gasFeeCap())
 }
 
 // GasFeeCapIntCmp compares the fee cap of the transaction against the given fee cap.
-func (tx *Transaction) GasFeeCapIntCmp(other *big.Int, toCelo CurrencyConversionFN) int {
-	return toCelo(tx.GasFeeCap(), tx.FeeCurrency()).Cmp(other)
+func (tx *Transaction) GasFeeCapIntCmp(other *big.Int) int {
+	return tx.inner.gasFeeCap().Cmp(other)
 }
 
 // GasTipCapCmp compares the gasTipCap of two transactions.
-func (tx *Transaction) GasTipCapCmp(other *Transaction, toCelo CurrencyConversionFN) int {
-	return toCelo(tx.GasTipCap(), tx.FeeCurrency()).Cmp(toCelo(other.GasTipCap(), other.FeeCurrency()))
+func (tx *Transaction) GasTipCapCmp(other *Transaction) int {
+	// TODO: Remove before prod release.
+	fca := tx.FeeCurrency()
+	fcb := other.FeeCurrency()
+	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+		panic("Dev error: using GasTipCapCmp with transactions that have differing fee currencies")
+	}
+	return tx.inner.gasTipCap().Cmp(other.inner.gasTipCap())
 }
 
 // GasTipCapIntCmp compares the gasTipCap of the transaction against the given gasTipCap.
-func (tx *Transaction) GasTipCapIntCmp(other *big.Int, toCelo CurrencyConversionFN) int {
-	return toCelo(tx.GasTipCap(), tx.FeeCurrency()).Cmp(other)
+func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
+	return tx.inner.gasTipCap().Cmp(other)
 }
 
 // EffectiveGasTip returns the effective miner gasTipCap for the given base fee.
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
 // Note: The returned value is in the FeeCurrency of the transaction
-func (tx *Transaction) EffectiveGasTip(baseFee *big.Int, toCelo CurrencyConversionFN) (*big.Int, error) {
-	gasFeeCap, tip := toCelo(tx.GasFeeCap(), tx.FeeCurrency()), toCelo(tx.GasTipCap(), tx.FeeCurrency())
-
+func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
 	if baseFee == nil {
-		return tip, nil
+		return tx.GasTipCap(), nil
 	}
 	var err error
+	gasFeeCap := tx.GasFeeCap()
 	if gasFeeCap.Cmp(baseFee) == -1 {
 		err = ErrGasFeeCapTooLow
 	}
-	return math.BigMin(tip, gasFeeCap.Sub(gasFeeCap, baseFee)), err
+	return math.BigMin(tx.GasTipCap(), gasFeeCap.Sub(gasFeeCap, baseFee)), err
 }
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
 // error in case the effective gasTipCap is negative
 // Note: The returned value is in the FeeCurrency of the transaction
-func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int, toCelo CurrencyConversionFN) *big.Int {
-	effectiveTip, _ := tx.EffectiveGasTip(baseFee, toCelo)
+func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int) *big.Int {
+	effectiveTip, _ := tx.EffectiveGasTip(baseFee)
 	return effectiveTip
 }
 
 // EffectiveGasTipCmp compares the effective gasTipCap of two transactions assuming the given base fee.
-func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int, toCelo CurrencyConversionFN) int {
+func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int) int {
 	if baseFee == nil {
-		return tx.GasTipCapCmp(other, toCelo)
+		return tx.GasTipCapCmp(other)
 	}
-	return tx.EffectiveGasTipValue(baseFee, toCelo).Cmp(other.EffectiveGasTipValue(baseFee, toCelo))
+	return tx.EffectiveGasTipValue(baseFee).Cmp(other.EffectiveGasTipValue(baseFee))
 }
 
 // EffectiveGasTipIntCmp compares the effective gasTipCap of a transaction to the given gasTipCap.
-func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int, toCelo CurrencyConversionFN) int {
+func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) int {
 	if baseFee == nil {
-		return tx.GasTipCapIntCmp(other, toCelo)
+		return tx.GasTipCapIntCmp(other)
 	}
-	return tx.EffectiveGasTipValue(baseFee, toCelo).Cmp(other)
+	return tx.EffectiveGasTipValue(baseFee).Cmp(other)
 }
 
 // Hash returns the transaction hash.
@@ -514,7 +525,8 @@ type TxWithMinerFee struct {
 // miner gasTipCap if a base fee is provided.
 // Returns error in case of a negative effective miner gasTipCap.
 func NewTxWithMinerFee(tx *Transaction, baseFee *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) (*TxWithMinerFee, error) {
-	minerFee, err := tx.EffectiveGasTip(baseFee, toCELO)
+	// TODO(Joshua): Need to figure out what the baseFee is.
+	minerFee, err := tx.EffectiveGasTip(baseFee)
 	if err != nil {
 		return nil, err
 	}

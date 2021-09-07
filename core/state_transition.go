@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	cmath "github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
@@ -36,6 +37,8 @@ import (
 )
 
 var emptyCodeHash = crypto.Keccak256Hash(nil)
+
+var is1559 = false
 
 /*
 The State Transitioning Model
@@ -254,32 +257,20 @@ func (st *StateTransition) to() common.Address {
 }
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
-func (st *StateTransition) payFees() error {
+func (st *StateTransition) payFees(eHardFork bool) error {
 	if !currency.IsWhitelisted(st.vmRunner, st.msg.FeeCurrency()) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
 
-	// TODO: Calculate feeVal taking into account 1559
 	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-	// func (st *StateTransition) buyGas() error {
-	// 	mgval := new(big.Int).SetUint64(st.msg.Gas())
-	// 	mgval = mgval.Mul(mgval, st.gasPrice)
-	// 	balanceCheck := mgval
-	// 	if st.gasFeeCap != nil {
-	// 		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
-	// 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
-	// 		balanceCheck.Add(balanceCheck, st.value)
-	// 	}
-	// 	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
-	// 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
 		feeVal.Add(feeVal, st.msg.GatewayFee())
 	}
 
-	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency()) {
+	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), eHardFork) {
 		return ErrInsufficientFundsForFees
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -292,15 +283,21 @@ func (st *StateTransition) payFees() error {
 	return err
 }
 
-func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address) bool {
-
+func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, eHardfork bool) bool {
 	if feeCurrency == nil {
+		// 1559 Check that value + gas price >= account balance
+		if eHardfork {
+			fee = fee.Add(fee, st.msg.Value())
+		}
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
 	balanceOf, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
 
 	if err != nil {
+		return false
+	}
+	if eHardfork && st.msg.Value().Cmp(st.state.GetBalance(accountOwner)) > 0 {
 		return false
 	}
 	return balanceOf.Cmp(fee) > 0
@@ -409,9 +406,9 @@ func (st *StateTransition) preCheck() error {
 			}
 			// This will panic if baseFee is nil, but basefee presence is verified
 			// as part of header validation.
-			if st.gasFeeCap.Cmp(st.evm.Context.BaseFee) < 0 {
+			if st.gasFeeCap.Cmp(st.gasPriceMinimum) < 0 {
 				return fmt.Errorf("%w: address %v, maxFeePerGas: %s baseFee: %s", ErrFeeCapTooLow,
-					st.msg.From().Hex(), st.gasFeeCap, st.evm.Context.BaseFee)
+					st.msg.From().Hex(), st.gasFeeCap, st.gasPriceMinimum)
 			}
 		}
 	}
@@ -487,7 +484,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.msg.Gas(), gas)
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
-	err = st.payFees()
+	err = st.payFees(eHardfork)
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, err
@@ -548,9 +545,15 @@ func (st *StateTransition) distributeTxFees(eHardfork bool) error {
 	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
 	from := st.msg.From()
 
-	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra).
+	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if ehardfork).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
+	if is1559 && eHardfork {
+		effectiveTip := cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.gasPriceMinimum))
+		tipTxFee = tipTxFee.Mul(effectiveTip, gasUsed)
+		// refund.Add(refund, (new(big.Int)).Sub())
+	}
+
 	feeCurrency := st.msg.FeeCurrency()
 
 	gatewayFeeRecipient := st.msg.GatewayFeeRecipient()

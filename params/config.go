@@ -138,6 +138,13 @@ var (
 		BlockPeriod:    1,
 	}, true, false}
 
+	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
+		Epoch:          300,
+		ProposerPolicy: 0,
+		RequestTimeout: 1000,
+		BlockPeriod:    1,
+	}, true, false}
+
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,

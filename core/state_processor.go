@@ -171,6 +171,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner) (*types.Receipt, error) {
+	// TODO(Joshua): Set appropriate GPM/basefee here
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), nil)
 	if err != nil {
 		return nil, err

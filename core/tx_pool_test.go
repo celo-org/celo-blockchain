@@ -16,7 +16,6 @@
 
 package core
 
-/*
 import (
 	"crypto/ecdsa"
 	"errors"
@@ -42,28 +41,16 @@ import (
 	"github.com/celo-org/celo-blockchain/trie"
 )
 
-<<<<<<< HEAD
 var (
 	// testTxPoolConfig is a transaction pool configuration without stateful disk
 	// sideeffects used during testing.
 	testTxPoolConfig TxPoolConfig
 	// eip155Signer to use for generating replay-protected transactions
 	eip155Signer = types.NewEIP155Signer(params.TestChainConfig.ChainID)
-)
-||||||| e78727290
-// testTxPoolConfig is a transaction pool configuration without stateful disk
-// sideeffects used during testing.
-var testTxPoolConfig TxPoolConfig
-=======
-var (
-	// testTxPoolConfig is a transaction pool configuration without stateful disk
-	// sideeffects used during testing.
-	testTxPoolConfig TxPoolConfig
 
 	// eip1559Config is a chain config with EIP-1559 enabled at block 0.
 	eip1559Config *params.ChainConfig
 )
->>>>>>> v1.10.7
 
 func init() {
 	testTxPoolConfig = DefaultTxPoolConfig
@@ -71,8 +58,7 @@ func init() {
 
 	cpy := *params.TestChainConfig
 	eip1559Config = &cpy
-	eip1559Config.BerlinBlock = common.Big0
-	eip1559Config.LondonBlock = common.Big0
+	eip1559Config.EBlock = common.Big0
 }
 
 type testBlockChain struct {
@@ -94,17 +80,7 @@ func newTestBlockchain() *testBlockChain {
 }
 
 func (bc *testBlockChain) CurrentBlock() *types.Block {
-<<<<<<< HEAD
-	return types.NewBlock(&types.Header{}, nil, nil, nil, new(trie.Trie))
-||||||| e78727290
-	return types.NewBlock(&types.Header{
-		GasLimit: bc.gasLimit,
-	}, nil, nil, nil, new(trie.Trie))
-=======
-	return types.NewBlock(&types.Header{
-		GasLimit: bc.gasLimit,
-	}, nil, nil, nil, trie.NewStackTrie(nil))
->>>>>>> v1.10.7
+	return types.NewBlock(&types.Header{}, nil, nil, nil, trie.NewStackTrie(nil))
 }
 
 func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
@@ -178,22 +154,15 @@ func dynamicFeeTx(nonce uint64, gaslimit uint64, gasFee *big.Int, tip *big.Int, 
 }
 
 func setupTxPool() (*TxPool, *ecdsa.PrivateKey) {
-<<<<<<< HEAD
-
-	blockchain := newTestBlockchain()
-	// blockchain := &testBlockChain{statedb, 10000000, new(event.Feed), testutil.NewCeloMock()}
-||||||| e78727290
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
-=======
 	return setupTxPoolWithConfig(params.TestChainConfig)
 }
 
 func setupTxPoolWithConfig(config *params.ChainConfig) (*TxPool, *ecdsa.PrivateKey) {
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
->>>>>>> v1.10.7
+	// blockchain := &testBlockChain{statedb, 10000000, new(event.Feed), testutil.NewCeloMock()}
+	// statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	// blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
 
+	blockchain := newTestBlockchain()
 	key, _ := crypto.GenerateKey()
 	pool := NewTxPool(testTxPoolConfig, config, blockchain)
 
@@ -210,18 +179,10 @@ func validateTxPoolInternals(pool *TxPool) error {
 	if total := pool.all.Count(); total != pending+queued {
 		return fmt.Errorf("total transaction count %d != %d pending + %d queued", total, pending, queued)
 	}
-<<<<<<< HEAD
-	if priced := pool.priced.Len() - pool.priced.stales; priced != pending+queued {
-		return fmt.Errorf("total priced transaction count %d != %d pending + %d queued", priced, pending, queued)
-||||||| e78727290
-	if priced := pool.priced.items.Len() - pool.priced.stales; priced != pending+queued {
-		return fmt.Errorf("total priced transaction count %d != %d pending + %d queued", priced, pending, queued)
-=======
 	pool.priced.Reheap()
 	priced, remote := pool.priced.urgent.Len()+pool.priced.floating.Len(), pool.all.RemoteCount()
 	if priced != remote {
 		return fmt.Errorf("total priced transaction count %d != %d", priced, remote)
->>>>>>> v1.10.7
 	}
 	// Ensure the next nonce to assign is the correct one
 	for addr, txs := range pool.pending {
@@ -367,14 +328,7 @@ func TestInvalidTransactions(t *testing.T) {
 	tx := transaction(0, 100, key)
 	from, _ := deriveSender(tx)
 
-<<<<<<< HEAD
-	// Should observe insufficient funds error when the balance doesn't cover transaction costs.
-	pool.currentState.AddBalance(from, big.NewInt(1))
-||||||| e78727290
-	pool.currentState.AddBalance(from, big.NewInt(1))
-=======
 	testAddBalance(pool, from, big.NewInt(1))
->>>>>>> v1.10.7
 	if err := pool.AddRemote(tx); !errors.Is(err, ErrInsufficientFunds) {
 		t.Error("expected", ErrInsufficientFunds)
 	}
@@ -385,7 +339,7 @@ func TestInvalidTransactions(t *testing.T) {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}
 
-<<<<<<< HEAD
+	// TODO(joshua): Convert this to testAddGatewayFee
 	// Adding a gateway fee should result in insufficient funds again.
 	tx = lesTransaction(0, 100, big.NewInt(50), key)
 	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
@@ -398,15 +352,9 @@ func TestInvalidTransactions(t *testing.T) {
 		t.Error("expected", ErrIntrinsicGas, "got", err)
 	}
 
-	pool.currentState.SetNonce(from, 1)
-	pool.currentState.AddBalance(from, big.NewInt(0xffffffffffffff))
-||||||| e78727290
-	pool.currentState.SetNonce(from, 1)
-	pool.currentState.AddBalance(from, big.NewInt(0xffffffffffffff))
-=======
 	testSetNonce(pool, from, 1)
 	testAddBalance(pool, from, big.NewInt(0xffffffffffffff))
->>>>>>> v1.10.7
+
 	tx = transaction(0, 100000, key)
 	if err := pool.AddRemote(tx); !errors.Is(err, ErrNonceTooLow) {
 		t.Error("expected", ErrNonceTooLow)
@@ -2687,4 +2635,3 @@ func BenchmarkInsertRemoteWithAllLocals(b *testing.B) {
 		pool.Stop()
 	}
 }
-*/

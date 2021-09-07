@@ -16,7 +16,6 @@
 
 package core
 
-/*
 import (
 	"errors"
 	"math"
@@ -39,23 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/prque"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/prque"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/params"
+	// "github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -285,13 +268,9 @@ type TxPool struct {
 	mu          sync.RWMutex
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
-<<<<<<< HEAD
 	donut    bool // Fork indicator for the Donut fork.
-||||||| e78727290
-=======
 	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
->>>>>>> v1.10.7
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -351,9 +330,11 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newTxPricedList(pool.all, &pool.currentCtx)
 
 	pool.reset(nil, chain.CurrentBlock().Header())
+	// TODO: Does this reordering cause a problem?
+	// priced list depends on the current ctx which is set in reset
+	pool.priced = newTxPricedList(pool.all, &pool.currentCtx)
 
 	// Start the reorg loop early so it can handle requests generated during journal loading.
 	pool.wg.Add(1)
@@ -528,12 +509,12 @@ func (pool *TxPool) setGasLimit(gasLimit uint64) {
 // handleDonutActivation removes from the pool all transactions without EIP-155 replay protection
 func (pool *TxPool) handleDonutActivation() {
 	toRemove := make(map[common.Hash]struct{})
-	pool.all.Range(func(hash common.Hash, tx *types.Transaction) bool {
+	pool.all.Range(func(hash common.Hash, tx *types.Transaction, _ bool) bool {
 		if !tx.Protected() {
 			toRemove[hash] = struct{}{}
 		}
 		return true
-	})
+	}, true, true)
 	for hash := range toRemove {
 		pool.removeTx(hash, true)
 	}
@@ -668,7 +649,6 @@ func (pool *TxPool) ctx() *txPoolContext {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-<<<<<<< HEAD
 	if pool.donut && !tx.Protected() {
 		return ErrUnprotectedTransaction
 	}
@@ -678,8 +658,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err := tx.CheckEthCompatibility(); err != nil {
 		return err
 	}
-||||||| e78727290
-=======
+
 	// Accept only legacy transactions until EIP-2718/2930 activates.
 	if !pool.eip2718 && tx.Type() != types.LegacyTxType {
 		return ErrTxTypeNotSupported
@@ -688,7 +667,6 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if !pool.eip1559 && tx.Type() == types.DynamicFeeTxType {
 		return ErrTxTypeNotSupported
 	}
->>>>>>> v1.10.7
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
 		return ErrOversizedData
@@ -719,24 +697,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err != nil {
 		return ErrInvalidSender
 	}
-<<<<<<< HEAD
 
 	isWhitelisted := pool.ctx().IsWhitelisted(tx.FeeCurrency())
 	if !isWhitelisted {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
-	// Drop non-local transactions under our own minimal accepted gas price
-	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && pool.ctx().CmpValues(pool.gasPrice, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
-||||||| e78727290
-	// Drop non-local transactions under our own minimal accepted gas price
-	local = local || pool.locals.contains(from) // account may be local even if the transaction arrived from the network
-	if !local && tx.GasPriceIntCmp(pool.gasPrice) < 0 {
-=======
 	// Drop non-local transactions under our own minimal accepted gas price or tip
-	if !local && tx.GasTipCapIntCmp(pool.gasPrice) < 0 {
->>>>>>> v1.10.7
+	if !local && pool.ctx().CmpValues(tx.GasTipCap(), tx.FeeCurrency(), pool.gasPrice, nil) < 0 {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering
@@ -748,16 +716,9 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err != nil {
 		return err
 	}
-<<<<<<< HEAD
 
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
-||||||| e78727290
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
-=======
-	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
->>>>>>> v1.10.7
+	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), pool.ctx().GetIntrinsicGasForAlternativeFeeCurrency(), pool.istanbul)
 	if err != nil {
 		log.Debug("validateTx gas less than intrinsic gas", "intrGas", intrGas, "err", err)
 		return err
@@ -790,32 +751,16 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	isLocal := local || pool.locals.containsTx(tx)
 
 	// If the transaction fails basic validation, discard it
-<<<<<<< HEAD
-	if err := pool.validateTx(tx, local); err != nil {
-		log.Debug("Discarding invalid transaction", "hash", hash, "err", err)
-||||||| e78727290
-	if err := pool.validateTx(tx, local); err != nil {
-		log.Trace("Discarding invalid transaction", "hash", hash, "err", err)
-=======
 	if err := pool.validateTx(tx, isLocal); err != nil {
 		log.Trace("Discarding invalid transaction", "hash", hash, "err", err)
->>>>>>> v1.10.7
 		invalidTxMeter.Mark(1)
 		return false, err
 	}
 	// If the transaction pool is full, discard underpriced transactions
 	if uint64(pool.all.Slots()+numSlots(tx)) > pool.config.GlobalSlots+pool.config.GlobalQueue {
 		// If the new transaction is underpriced, don't accept it
-<<<<<<< HEAD
-		if !local && pool.priced.Underpriced(tx, pool.locals) {
-			log.Debug("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
-||||||| e78727290
-		if !local && pool.priced.Underpriced(tx, pool.locals) {
-			log.Trace("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
-=======
 		if !isLocal && pool.priced.Underpriced(tx) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
->>>>>>> v1.10.7
 			underpricedTxMeter.Mark(1)
 			return false, ErrUnderpriced
 		}
@@ -832,13 +777,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		}
 		// Kick out the underpriced remote transactions.
 		for _, tx := range drop {
-<<<<<<< HEAD
-			log.Debug("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
-||||||| e78727290
-			log.Trace("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
-=======
 			log.Trace("Discarding freshly underpriced transaction", "hash", tx.Hash(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
->>>>>>> v1.10.7
 			underpricedTxMeter.Mark(1)
 			pool.removeTx(tx.Hash(), false)
 		}
@@ -846,6 +785,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	// Try to replace an existing transaction in the pending pool
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
+
 		// Nonce already pending, check if required price bump is met
 		inserted, old := list.Add(tx, pool.config.PriceBump)
 		if !inserted {
@@ -1315,9 +1255,10 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	// because of another transaction (e.g. higher gas price).
 	if reset != nil {
 		pool.demoteUnexecutables()
-		if reset.newHead != nil && pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
-			pendingBaseFee := misc.CalcBaseFee(pool.chainconfig, reset.newHead)
-			pool.priced.SetBaseFee(pendingBaseFee)
+		if reset.newHead != nil && pool.chainconfig.IsEHardfork(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
+			// pendingBaseFee := misc.CalcBaseFee(pool.chainconfig, reset.newHead)
+			// TODO(joshua): Set GPM & currency conversion here
+			pool.priced.SetBaseFee(nil)
 		}
 	}
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
@@ -1442,18 +1383,14 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
-	pool.istanbul = pool.chainconfig.IsIstanbul(next)
-<<<<<<< HEAD
 	wasDonut := pool.donut
+	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.donut = pool.chainconfig.IsDonut(next)
 	if pool.donut && !wasDonut {
 		pool.handleDonutActivation()
 	}
-||||||| e78727290
-=======
-	pool.eip2718 = pool.chainconfig.IsBerlin(next)
-	pool.eip1559 = pool.chainconfig.IsLondon(next)
->>>>>>> v1.10.7
+	pool.eip2718 = pool.chainconfig.IsEHardfork(next)
+	pool.eip1559 = pool.chainconfig.IsEHardfork(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1859,36 +1796,17 @@ func (as *accountSet) merge(other *accountSet) {
 // This lookup set combines the notion of "local transactions", which is useful
 // to build upper-level structure.
 type txLookup struct {
-<<<<<<< HEAD
-	all                       map[common.Hash]*types.Transaction
-	nonNilCurrencyTxCurrCount map[common.Address]uint64
-	nilCurrencyTxCurrCount    uint64
-	slots                     int
-	lock                      sync.RWMutex
-||||||| e78727290
-	all   map[common.Hash]*types.Transaction
-	slots int
-	lock  sync.RWMutex
-=======
 	slots   int
 	lock    sync.RWMutex
 	locals  map[common.Hash]*types.Transaction
 	remotes map[common.Hash]*types.Transaction
->>>>>>> v1.10.7
 }
 
 // newTxLookup returns a new txLookup structure.
 func newTxLookup() *txLookup {
 	return &txLookup{
-<<<<<<< HEAD
-		all:                       make(map[common.Hash]*types.Transaction),
-		nonNilCurrencyTxCurrCount: make(map[common.Address]uint64),
-||||||| e78727290
-		all: make(map[common.Hash]*types.Transaction),
-=======
 		locals:  make(map[common.Hash]*types.Transaction),
 		remotes: make(map[common.Hash]*types.Transaction),
->>>>>>> v1.10.7
 	}
 }
 
@@ -1979,12 +1897,6 @@ func (t *txLookup) Add(tx *types.Transaction, local bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if tx.FeeCurrency() == nil {
-		t.nilCurrencyTxCurrCount++
-	} else {
-		t.nonNilCurrencyTxCurrCount[*tx.FeeCurrency()]++
-	}
-
 	t.slots += numSlots(tx)
 	slotsGauge.Update(int64(t.slots))
 
@@ -2000,17 +1912,6 @@ func (t *txLookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-<<<<<<< HEAD
-	if t.all[hash].FeeCurrency() == nil {
-		t.nilCurrencyTxCurrCount--
-	} else {
-		t.nonNilCurrencyTxCurrCount[*t.all[hash].FeeCurrency()]--
-	}
-
-	t.slots -= numSlots(t.all[hash])
-||||||| e78727290
-	t.slots -= numSlots(t.all[hash])
-=======
 	tx, ok := t.locals[hash]
 	if !ok {
 		tx, ok = t.remotes[hash]
@@ -2020,7 +1921,7 @@ func (t *txLookup) Remove(hash common.Hash) {
 		return
 	}
 	t.slots -= numSlots(tx)
->>>>>>> v1.10.7
+
 	slotsGauge.Update(int64(t.slots))
 
 	delete(t.locals, hash)
@@ -2060,4 +1961,3 @@ func (t *txLookup) RemotesBelowTip(threshold *big.Int) types.Transactions {
 func numSlots(tx *types.Transaction) int {
 	return int((tx.Size() + txSlotSize - 1) / txSlotSize)
 }
-*/

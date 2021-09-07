@@ -16,7 +16,6 @@
 
 package core
 
-/*
 import (
 	"sync"
 
@@ -78,4 +77,3 @@ func (txn *txNoncer) setIfLower(addr common.Address, nonce uint64) {
 	}
 	txn.nonces[addr] = nonce
 }
-*/
