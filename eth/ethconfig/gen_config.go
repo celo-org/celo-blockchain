@@ -31,16 +31,12 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
 		LightNoPrune            bool                   `toml:",omitempty"`
-<<<<<<< HEAD:eth/gen_config.go
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               common.Address         `toml:",omitempty"`
 		TxFeeRecipient          common.Address         `toml:",omitempty"`
 		BLSbase                 common.Address         `toml:",omitempty"`
-||||||| e78727290:eth/gen_config.go
-=======
 		LightNoSyncServe        bool                   `toml:",omitempty"`
 		SyncFromCheckpoint      bool                   `toml:",omitempty"`
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      int                    `toml:",omitempty"`
 		UltraLightOnlyAnnounce  bool                   `toml:",omitempty"`
@@ -64,12 +60,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCTxFeeCap             float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-<<<<<<< HEAD:eth/gen_config.go
 		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
-||||||| e78727290:eth/gen_config.go
-=======
-		OverrideLondon          *big.Int                       `toml:",omitempty"`
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -86,16 +77,12 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
 	enc.LightNoPrune = c.LightNoPrune
-<<<<<<< HEAD:eth/gen_config.go
 	enc.GatewayFee = c.GatewayFee
 	enc.Validator = c.Validator
 	enc.TxFeeRecipient = c.TxFeeRecipient
 	enc.BLSbase = c.BLSbase
-||||||| e78727290:eth/gen_config.go
-=======
 	enc.LightNoSyncServe = c.LightNoSyncServe
 	enc.SyncFromCheckpoint = c.SyncFromCheckpoint
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	enc.UltraLightServers = c.UltraLightServers
 	enc.UltraLightFraction = c.UltraLightFraction
 	enc.UltraLightOnlyAnnounce = c.UltraLightOnlyAnnounce
@@ -119,12 +106,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
-<<<<<<< HEAD:eth/gen_config.go
 	enc.OverrideEHardfork = c.OverrideEHardfork
-||||||| e78727290:eth/gen_config.go
-=======
-	enc.OverrideLondon = c.OverrideLondon
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	return &enc, nil
 }
 
@@ -145,16 +127,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
 		LightNoPrune            *bool                  `toml:",omitempty"`
-<<<<<<< HEAD:eth/gen_config.go
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               *common.Address        `toml:",omitempty"`
 		TxFeeRecipient          *common.Address        `toml:",omitempty"`
 		BLSbase                 *common.Address        `toml:",omitempty"`
-||||||| e78727290:eth/gen_config.go
-=======
 		LightNoSyncServe        *bool                  `toml:",omitempty"`
 		SyncFromCheckpoint      *bool                  `toml:",omitempty"`
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 		UltraLightServers       []string               `toml:",omitempty"`
 		UltraLightFraction      *int                   `toml:",omitempty"`
 		UltraLightOnlyAnnounce  *bool                  `toml:",omitempty"`
@@ -178,12 +156,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCTxFeeCap             *float64
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-<<<<<<< HEAD:eth/gen_config.go
 		OverrideEhardfork       *big.Int                       `toml:",omitempty"`
-||||||| e78727290:eth/gen_config.go
-=======
-		OverrideLondon          *big.Int                       `toml:",omitempty"`
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -231,7 +204,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.LightNoPrune != nil {
 		c.LightNoPrune = *dec.LightNoPrune
 	}
-<<<<<<< HEAD:eth/gen_config.go
 	if dec.GatewayFee != nil {
 		c.GatewayFee = dec.GatewayFee
 	}
@@ -244,15 +216,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.BLSbase != nil {
 		c.BLSbase = *dec.BLSbase
 	}
-||||||| e78727290:eth/gen_config.go
-=======
 	if dec.LightNoSyncServe != nil {
 		c.LightNoSyncServe = *dec.LightNoSyncServe
 	}
 	if dec.SyncFromCheckpoint != nil {
 		c.SyncFromCheckpoint = *dec.SyncFromCheckpoint
 	}
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	if dec.UltraLightServers != nil {
 		c.UltraLightServers = dec.UltraLightServers
 	}
@@ -322,15 +291,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
 	}
-<<<<<<< HEAD:eth/gen_config.go
 	if dec.OverrideEhardfork != nil {
 		c.OverrideEHardfork = dec.OverrideEhardfork
 	}
-||||||| e78727290:eth/gen_config.go
-=======
-	if dec.OverrideLondon != nil {
-		c.OverrideLondon = dec.OverrideLondon
-	}
->>>>>>> v1.10.7:eth/ethconfig/gen_config.go
 	return nil
 }

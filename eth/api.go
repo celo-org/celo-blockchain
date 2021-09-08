@@ -61,7 +61,6 @@ func (api *PublicEthereumAPI) TxFeeRecipient() (common.Address, error) {
 
 // Coinbase is the address that mining rewards will be sent to (alias for TxFeeRecipient)
 func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
-<<<<<<< HEAD
 	return api.TxFeeRecipient()
 }
 
@@ -72,30 +71,6 @@ func (api *PublicEthereumAPI) ChainId() hexutil.Uint64 {
 		chainID = config.ChainID
 	}
 	return (hexutil.Uint64)(chainID.Uint64())
-||||||| e78727290
-	return api.Etherbase()
-}
-
-// Hashrate returns the POW hashrate
-func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
-	return hexutil.Uint64(api.e.Miner().HashRate())
-}
-
-// ChainId is the EIP-155 replay-protection chain id for the current ethereum chain config.
-func (api *PublicEthereumAPI) ChainId() hexutil.Uint64 {
-	chainID := new(big.Int)
-	if config := api.e.blockchain.Config(); config.IsEIP155(api.e.blockchain.CurrentBlock().Number()) {
-		chainID = config.ChainID
-	}
-	return (hexutil.Uint64)(chainID.Uint64())
-=======
-	return api.Etherbase()
-}
-
-// Hashrate returns the POW hashrate
-func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
-	return hexutil.Uint64(api.e.Miner().Hashrate())
->>>>>>> v1.10.7
 }
 
 // PublicMinerAPI provides an API to control the miner.
@@ -167,25 +142,6 @@ func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
 	return true
 }
 
-<<<<<<< HEAD
-||||||| e78727290
-// SetRecommitInterval updates the interval for miner sealing work recommitting.
-func (api *PrivateMinerAPI) SetRecommitInterval(interval int) {
-	api.e.Miner().SetRecommitInterval(time.Duration(interval) * time.Millisecond)
-}
-
-// GetHashrate returns the current hashrate of the miner.
-func (api *PrivateMinerAPI) GetHashrate() uint64 {
-	return api.e.miner.HashRate()
-}
-
-=======
-// SetRecommitInterval updates the interval for miner sealing work recommitting.
-func (api *PrivateMinerAPI) SetRecommitInterval(interval int) {
-	api.e.Miner().SetRecommitInterval(time.Duration(interval) * time.Millisecond)
-}
-
->>>>>>> v1.10.7
 // PrivateAdminAPI is the collection of Ethereum full node-related APIs
 // exposed over the private admin endpoint.
 type PrivateAdminAPI struct {
@@ -469,13 +425,7 @@ func (api *PrivateDebugAPI) StorageRangeAt(blockHash common.Hash, txIndex int, c
 	if block == nil {
 		return StorageRangeResult{}, fmt.Errorf("block %#x not found", blockHash)
 	}
-<<<<<<< HEAD
-	_, _, _, statedb, err := api.computeTxEnv(block, txIndex, 0)
-||||||| e78727290
-	_, _, statedb, err := api.computeTxEnv(block, txIndex, 0)
-=======
-	_, _, statedb, err := api.eth.stateAtTransaction(block, txIndex, 0)
->>>>>>> v1.10.7
+	_, _, _, statedb, err := api.eth.stateAtTransaction(block, txIndex, 0)
 	if err != nil {
 		return StorageRangeResult{}, err
 	}

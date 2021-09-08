@@ -22,8 +22,11 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -102,12 +105,12 @@ type TxPool interface {
 
 // MakeProtocols constructs the P2P protocol definitions for `eth`.
 func MakeProtocols(backend Backend, network uint64, dnsdisc enode.Iterator) []p2p.Protocol {
-	protocols := make([]p2p.Protocol, len(ProtocolVersions))
-	for i, version := range ProtocolVersions {
+	protocols := make([]p2p.Protocol, len(istanbul.ProtocolVersions))
+	for i, version := range istanbul.ProtocolVersions {
 		version := version // Closure
 
 		protocols[i] = p2p.Protocol{
-			Name:    ProtocolName,
+			Name:    istanbul.ProtocolName,
 			Version: version,
 			Length:  protocolLengths[version],
 			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
@@ -171,7 +174,7 @@ type Decoder interface {
 	Time() time.Time
 }
 
-var eth65 = map[uint64]msgHandler{
+var celo66 = map[uint64]msgHandler{
 	GetBlockHeadersMsg:            handleGetBlockHeaders,
 	BlockHeadersMsg:               handleBlockHeaders,
 	GetBlockBodiesMsg:             handleGetBlockBodies,
@@ -188,40 +191,48 @@ var eth65 = map[uint64]msgHandler{
 	PooledTransactionsMsg:         handlePooledTransactions,
 }
 
-var eth66 = map[uint64]msgHandler{
+var celo67 = map[uint64]msgHandler{
 	NewBlockHashesMsg:             handleNewBlockhashes,
 	NewBlockMsg:                   handleNewBlock,
 	TransactionsMsg:               handleTransactions,
 	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes,
-	// eth66 messages with request-id
-	GetBlockHeadersMsg:       handleGetBlockHeaders66,
-	BlockHeadersMsg:          handleBlockHeaders66,
-	GetBlockBodiesMsg:        handleGetBlockBodies66,
-	BlockBodiesMsg:           handleBlockBodies66,
-	GetNodeDataMsg:           handleGetNodeData66,
-	NodeDataMsg:              handleNodeData66,
-	GetReceiptsMsg:           handleGetReceipts66,
-	ReceiptsMsg:              handleReceipts66,
-	GetPooledTransactionsMsg: handleGetPooledTransactions66,
-	PooledTransactionsMsg:    handlePooledTransactions66,
+	// celo67 messages with request-id
+	GetBlockHeadersMsg:       handleGetBlockHeaders67,
+	BlockHeadersMsg:          handleBlockHeaders67,
+	GetBlockBodiesMsg:        handleGetBlockBodies67,
+	BlockBodiesMsg:           handleBlockBodies67,
+	GetNodeDataMsg:           handleGetNodeData67,
+	NodeDataMsg:              handleNodeData67,
+	GetReceiptsMsg:           handleGetReceipts67,
+	ReceiptsMsg:              handleReceipts67,
+	GetPooledTransactionsMsg: handleGetPooledTransactions67,
+	PooledTransactionsMsg:    handlePooledTransactions67,
 }
 
 // handleMessage is invoked whenever an inbound message is received from a remote
 // peer. The remote connection is torn down upon returning any error.
 func handleMessage(backend Backend, peer *Peer) error {
 	// Read the next message from the remote peer, and ensure it's fully consumed
-	msg, err := peer.rw.ReadMsg()
+	msg, err := peer.ReadMsg()
 	if err != nil {
 		return err
 	}
-	if msg.Size > maxMessageSize {
-		return fmt.Errorf("%w: %v > %v", errMsgTooLarge, msg.Size, maxMessageSize)
-	}
 	defer msg.Discard()
 
-	var handlers = eth65
-	if peer.Version() >= ETH66 {
-		handlers = eth66
+	// Send messages to the consensus engine first. If they are consensus related,
+	// e.g. for IBFT, let the consensus handler handle the message.
+	if consensusHandler, ok := backend.Chain().Engine().(consensus.Handler); ok {
+		pubKey := peer.Node().Pubkey()
+		addr := crypto.PubkeyToAddress(*pubKey)
+		handled, err := consensusHandler.HandleMsg(addr, msg, peer)
+		if handled {
+			return err
+		}
+	}
+
+	var handlers = celo66
+	if peer.Version() >= istanbul.Celo67 {
+		handlers = celo67
 	}
 	// Track the amount of time it takes to serve the request and run the handler
 	if metrics.Enabled {

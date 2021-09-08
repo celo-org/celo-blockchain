@@ -17,15 +17,17 @@
 package eth
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sync"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/rlp"
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -108,7 +110,7 @@ func NewPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter, txpool TxPool) *Pe
 	// Start up all the broadcasters
 	go peer.broadcastBlocks()
 	go peer.broadcastTransactions()
-	if version >= ETH65 {
+	if version >= istanbul.Celo66 {
 		go peer.announceTransactions()
 	}
 	return peer
@@ -177,6 +179,12 @@ func (p *Peer) markTransaction(hash common.Hash) {
 		p.knownTxs.Pop()
 	}
 	p.knownTxs.Add(hash)
+}
+
+// Send writes an RLP-encoded message with the given code.
+// data should encode as an RLP list.
+func (p *Peer) Send(msgcode uint64, data interface{}) error {
+	return p2p.Send(p.rw, msgcode, data)
 }
 
 // SendTransactions sends transactions to the peer and includes the hashes
@@ -268,7 +276,7 @@ func (p *Peer) SendPooledTransactionsRLP(hashes []common.Hash, txs []rlp.RawValu
 	return p2p.Send(p.rw, PooledTransactionsMsg, txs) // Not packed into PooledTransactionsPacket to avoid RLP decoding
 }
 
-// ReplyPooledTransactionsRLP is the eth/66 version of SendPooledTransactionsRLP.
+// ReplyPooledTransactionsRLP is the celo/67 (eth/66) version of SendPooledTransactionsRLP.
 func (p *Peer) ReplyPooledTransactionsRLP(id uint64, hashes []common.Hash, txs []rlp.RawValue) error {
 	// Mark all the transactions as known, but ensure we don't overflow our limits
 	for p.knownTxs.Cardinality() > max(0, maxKnownTxs-len(hashes)) {
@@ -278,7 +286,7 @@ func (p *Peer) ReplyPooledTransactionsRLP(id uint64, hashes []common.Hash, txs [
 		p.knownTxs.Add(hash)
 	}
 	// Not packed into PooledTransactionsPacket to avoid RLP decoding
-	return p2p.Send(p.rw, PooledTransactionsMsg, PooledTransactionsRLPPacket66{
+	return p2p.Send(p.rw, PooledTransactionsMsg, PooledTransactionsRLPPacket67{
 		RequestId:                   id,
 		PooledTransactionsRLPPacket: txs,
 	})
@@ -351,9 +359,9 @@ func (p *Peer) SendBlockHeaders(headers []*types.Header) error {
 	return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersPacket(headers))
 }
 
-// ReplyBlockHeaders is the eth/66 version of SendBlockHeaders.
+// ReplyBlockHeaders is the celo/67 (eth/66) version of SendBlockHeaders.
 func (p *Peer) ReplyBlockHeaders(id uint64, headers []*types.Header) error {
-	return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersPacket66{
+	return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersPacket67{
 		RequestId:          id,
 		BlockHeadersPacket: headers,
 	})
@@ -365,10 +373,10 @@ func (p *Peer) SendBlockBodiesRLP(bodies []rlp.RawValue) error {
 	return p2p.Send(p.rw, BlockBodiesMsg, bodies) // Not packed into BlockBodiesPacket to avoid RLP decoding
 }
 
-// ReplyBlockBodiesRLP is the eth/66 version of SendBlockBodiesRLP.
+// ReplyBlockBodiesRLP is the celo/67 (eth/66) version of SendBlockBodiesRLP.
 func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
 	// Not packed into BlockBodiesPacket to avoid RLP decoding
-	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket66{
+	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket67{
 		RequestId:            id,
 		BlockBodiesRLPPacket: bodies,
 	})
@@ -380,9 +388,9 @@ func (p *Peer) SendNodeData(data [][]byte) error {
 	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket(data))
 }
 
-// ReplyNodeData is the eth/66 response to GetNodeData.
+// ReplyNodeData is the celo/67 (eth/66) response to GetNodeData.
 func (p *Peer) ReplyNodeData(id uint64, data [][]byte) error {
-	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket66{
+	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket67{
 		RequestId:      id,
 		NodeDataPacket: data,
 	})
@@ -394,9 +402,9 @@ func (p *Peer) SendReceiptsRLP(receipts []rlp.RawValue) error {
 	return p2p.Send(p.rw, ReceiptsMsg, receipts) // Not packed into ReceiptsPacket to avoid RLP decoding
 }
 
-// ReplyReceiptsRLP is the eth/66 response to GetReceipts.
+// ReplyReceiptsRLP is the celo/67 (eth/66) response to GetReceipts.
 func (p *Peer) ReplyReceiptsRLP(id uint64, receipts []rlp.RawValue) error {
-	return p2p.Send(p.rw, ReceiptsMsg, ReceiptsRLPPacket66{
+	return p2p.Send(p.rw, ReceiptsMsg, ReceiptsRLPPacket67{
 		RequestId:         id,
 		ReceiptsRLPPacket: receipts,
 	})
@@ -412,11 +420,11 @@ func (p *Peer) RequestOneHeader(hash common.Hash) error {
 		Skip:    uint64(0),
 		Reverse: false,
 	}
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetBlockHeadersMsg, BlockHeadersMsg, id)
-		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket66{
+		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket67{
 			RequestId:             id,
 			GetBlockHeadersPacket: &query,
 		})
@@ -434,11 +442,11 @@ func (p *Peer) RequestHeadersByHash(origin common.Hash, amount int, skip int, re
 		Skip:    uint64(skip),
 		Reverse: reverse,
 	}
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetBlockHeadersMsg, BlockHeadersMsg, id)
-		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket66{
+		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket67{
 			RequestId:             id,
 			GetBlockHeadersPacket: &query,
 		})
@@ -456,11 +464,11 @@ func (p *Peer) RequestHeadersByNumber(origin uint64, amount int, skip int, rever
 		Skip:    uint64(skip),
 		Reverse: reverse,
 	}
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetBlockHeadersMsg, BlockHeadersMsg, id)
-		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket66{
+		return p2p.Send(p.rw, GetBlockHeadersMsg, &GetBlockHeadersPacket67{
 			RequestId:             id,
 			GetBlockHeadersPacket: &query,
 		})
@@ -484,11 +492,11 @@ func (p *Peer) ExpectRequestHeadersByNumber(origin uint64, amount int, skip int,
 // specified.
 func (p *Peer) RequestBodies(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of block bodies", "count", len(hashes))
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetBlockBodiesMsg, BlockBodiesMsg, id)
-		return p2p.Send(p.rw, GetBlockBodiesMsg, &GetBlockBodiesPacket66{
+		return p2p.Send(p.rw, GetBlockBodiesMsg, &GetBlockBodiesPacket67{
 			RequestId:            id,
 			GetBlockBodiesPacket: hashes,
 		})
@@ -500,11 +508,11 @@ func (p *Peer) RequestBodies(hashes []common.Hash) error {
 // data, corresponding to the specified hashes.
 func (p *Peer) RequestNodeData(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of state data", "count", len(hashes))
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetNodeDataMsg, NodeDataMsg, id)
-		return p2p.Send(p.rw, GetNodeDataMsg, &GetNodeDataPacket66{
+		return p2p.Send(p.rw, GetNodeDataMsg, &GetNodeDataPacket67{
 			RequestId:         id,
 			GetNodeDataPacket: hashes,
 		})
@@ -515,11 +523,11 @@ func (p *Peer) RequestNodeData(hashes []common.Hash) error {
 // RequestReceipts fetches a batch of transaction receipts from a remote node.
 func (p *Peer) RequestReceipts(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of receipts", "count", len(hashes))
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetReceiptsMsg, ReceiptsMsg, id)
-		return p2p.Send(p.rw, GetReceiptsMsg, &GetReceiptsPacket66{
+		return p2p.Send(p.rw, GetReceiptsMsg, &GetReceiptsPacket67{
 			RequestId:         id,
 			GetReceiptsPacket: hashes,
 		})
@@ -530,14 +538,29 @@ func (p *Peer) RequestReceipts(hashes []common.Hash) error {
 // RequestTxs fetches a batch of transactions from a remote node.
 func (p *Peer) RequestTxs(hashes []common.Hash) error {
 	p.Log().Debug("Fetching batch of transactions", "count", len(hashes))
-	if p.Version() >= ETH66 {
+	if p.Version() >= istanbul.Celo67 {
 		id := rand.Uint64()
 
 		requestTracker.Track(p.id, p.version, GetPooledTransactionsMsg, PooledTransactionsMsg, id)
-		return p2p.Send(p.rw, GetPooledTransactionsMsg, &GetPooledTransactionsPacket66{
+		return p2p.Send(p.rw, GetPooledTransactionsMsg, &GetPooledTransactionsPacket67{
 			RequestId:                   id,
 			GetPooledTransactionsPacket: hashes,
 		})
 	}
 	return p2p.Send(p.rw, GetPooledTransactionsMsg, GetPooledTransactionsPacket(hashes))
+}
+
+func (p *Peer) ReadMsg() (p2p.Msg, error) {
+	msg, err := p.rw.ReadMsg()
+	if err != nil {
+		return msg, err
+	}
+	if msg.Size > maxMessageSize {
+		return msg, fmt.Errorf("%w: %v > %v", errMsgTooLarge, msg.Size, maxMessageSize)
+	}
+	return msg, nil
+}
+
+func (p *Peer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
+	return purpose == p2p.AnyPurpose || p.HasPurpose(purpose)
 }

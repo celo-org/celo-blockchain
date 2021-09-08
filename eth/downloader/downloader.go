@@ -30,29 +30,8 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/eth/protocols/snap"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
@@ -63,54 +42,13 @@ import (
 )
 
 var (
-<<<<<<< HEAD
-	MaxHashFetch        = 512 // Amount of hashes to be fetched per retrieval request
 	MaxBlockFetch       = 128 // Amount of blocks to be fetched per retrieval request
 	MaxHeaderFetch      = 192 // Amount of block headers to be fetched per retrieval request
 	MaxEpochHeaderFetch = 192 // Number of epoch block headers to fetch (only used in IBFT consensus + Lightest sync mode)
 	MaxSkeletonSize     = 128 // Number of header fetches to need for a skeleton assembly
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
 	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
-||||||| e78727290
-	MaxHashFetch    = 512 // Amount of hashes to be fetched per retrieval request
-	MaxBlockFetch   = 128 // Amount of blocks to be fetched per retrieval request
-	MaxHeaderFetch  = 192 // Amount of block headers to be fetched per retrieval request
-	MaxSkeletonSize = 128 // Number of header fetches to need for a skeleton assembly
-	MaxReceiptFetch = 256 // Amount of transaction receipts to allow fetching per request
-	MaxStateFetch   = 384 // Amount of node state values to allow fetching per request
-=======
-	MaxBlockFetch   = 128 // Amount of blocks to be fetched per retrieval request
-	MaxHeaderFetch  = 192 // Amount of block headers to be fetched per retrieval request
-	MaxSkeletonSize = 128 // Number of header fetches to need for a skeleton assembly
-	MaxReceiptFetch = 256 // Amount of transaction receipts to allow fetching per request
-	MaxStateFetch   = 384 // Amount of node state values to allow fetching per request
->>>>>>> v1.10.7
 
-<<<<<<< HEAD
-	rttMinEstimate     = 2 * time.Second  // Minimum round-trip time to target for download requests
-	rttMaxEstimate     = 20 * time.Second // Maximum round-trip time to target for download requests
-	rttDefaultEstimate = 5 * time.Second  // Maximum round-trip time to target for download requests
-	rttMinConfidence   = 0.1              // Worse confidence factor in our estimated RTT value
-	ttlScaling         = 3                // Constant scaling factor for RTT -> TTL conversion
-	ttlLimit           = time.Minute      // Maximum TTL allowance to prevent reaching crazy timeouts
-
-	qosTuningPeers   = 5    // Number of peers to tune based on (best peers)
-	qosConfidenceCap = 10   // Number of peers above which not to modify RTT confidence
-	qosTuningImpact  = 0.25 // Impact that a new tuning target has on the previous value
-
-||||||| e78727290
-	rttMinEstimate   = 2 * time.Second  // Minimum round-trip time to target for download requests
-	rttMaxEstimate   = 20 * time.Second // Maximum round-trip time to target for download requests
-	rttMinConfidence = 0.1              // Worse confidence factor in our estimated RTT value
-	ttlScaling       = 3                // Constant scaling factor for RTT -> TTL conversion
-	ttlLimit         = time.Minute      // Maximum TTL allowance to prevent reaching crazy timeouts
-
-	qosTuningPeers   = 5    // Number of peers to tune based on (best peers)
-	qosConfidenceCap = 10   // Number of peers above which not to modify RTT confidence
-	qosTuningImpact  = 0.25 // Impact that a new tuning target has on the previous value
-
-=======
->>>>>>> v1.10.7
 	maxQueuedHeaders            = 32 * 1024                         // [eth/62] Maximum number of headers to queue for import (DOS protection)
 	maxHeadersProcess           = 2048                              // Number of header download results to import at once into the chain
 	maxResultsProcess           = 2048                              // Number of content download results to import at once into the chain
@@ -145,14 +83,8 @@ var (
 	errCancelContentProcessing = errors.New("content processing canceled (requested)")
 	errCanceled                = errors.New("syncing canceled (requested)")
 	errNoSyncActive            = errors.New("no sync active")
-<<<<<<< HEAD
-	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 64)")
-||||||| e78727290
-	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 63)")
-=======
 	errTooOld                  = errors.New("peer's protocol version too old")
 	errNoAncestorFound         = errors.New("no common ancestor found")
->>>>>>> v1.10.7
 )
 
 // If you adding a new variable add it at the bottom. Otherwise, you can end up making some uint64 unaligned to 8-byte
@@ -275,16 +207,12 @@ type BlockChain interface {
 
 	// InsertReceiptChain inserts a batch of receipts into the local chain.
 	InsertReceiptChain(types.Blocks, []types.Receipts, uint64) (int, error)
-<<<<<<< HEAD
 
 	// GetBlockByNumber retrieves a block from the database by number.
 	GetBlockByNumber(uint64) *types.Block
-||||||| e78727290
-=======
 
 	// Snapshots returns the blockchain snapshot tree to paused it during sync.
 	Snapshots() *snapshot.Tree
->>>>>>> v1.10.7
 }
 
 // TODO(tim) previously passing mode here!
@@ -315,14 +243,6 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		checkpoint:     checkpoint,
 		queue:          newQueue(blockCacheMaxItems, blockCacheInitialItems),
 		peers:          newPeerSet(),
-<<<<<<< HEAD
-		rttEstimate:    uint64(rttDefaultEstimate),
-		rttConfidence:  uint64(1000000),
-||||||| e78727290
-		rttEstimate:    uint64(rttMaxEstimate),
-		rttConfidence:  uint64(1000000),
-=======
->>>>>>> v1.10.7
 		blockchain:     chain,
 		lightchain:     lightchain,
 		dropPeer:       dropPeer,
@@ -559,16 +479,8 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 			d.mux.Post(DoneEvent{latest})
 		}
 	}()
-<<<<<<< HEAD
-	if p.version < 64 {
-		return errTooOld
-||||||| e78727290
-	if p.version < 63 {
-		return errTooOld
-=======
-	if p.version < eth.ETH65 {
-		return fmt.Errorf("%w: advertized %d < required %d", errTooOld, p.version, eth.ETH65)
->>>>>>> v1.10.7
+	if p.version < istanbul.Celo66 {
+		return fmt.Errorf("%w: advertized %d < required %d", errTooOld, p.version, istanbul.Celo66)
 	}
 	mode := d.getMode()
 
@@ -1163,7 +1075,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, height uint64)
 
 		request = time.Now()
 
-		ttl = d.requestTTL()
+		ttl = d.peers.rates.TargetTimeout()
 		timeout.Reset(ttl)
 
 		// if epoch is 100 and we fetch from=1000 and skip=100 then we will get
@@ -2194,16 +2106,8 @@ func (d *Downloader) DeliverHeaders(id string, headers []*types.Header) error {
 }
 
 // DeliverBodies injects a new batch of block bodies received from a remote node.
-<<<<<<< HEAD
 func (d *Downloader) DeliverBodies(id string, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, randomness, epochSnarkData}, bodyInMeter, bodyDropMeter)
-||||||| e78727290
-func (d *Downloader) DeliverBodies(id string, transactions [][]*types.Transaction, uncles [][]*types.Header) (err error) {
-	return d.deliver(id, d.bodyCh, &bodyPack{id, transactions, uncles}, bodyInMeter, bodyDropMeter)
-=======
-func (d *Downloader) DeliverBodies(id string, transactions [][]*types.Transaction, uncles [][]*types.Header) error {
-	return d.deliver(d.bodyCh, &bodyPack{id, transactions, uncles}, bodyInMeter, bodyDropMeter)
->>>>>>> v1.10.7
+	return d.deliver(d.bodyCh, &bodyPack{id, transactions, randomness, epochSnarkData}, bodyInMeter, bodyDropMeter)
 }
 
 // DeliverReceipts injects a new batch of receipts received from a remote node.
@@ -2265,157 +2169,3 @@ func (d *Downloader) deliver(destCh chan dataPack, packet dataPack, inMeter, dro
 		return errNoSyncActive
 	}
 }
-<<<<<<< HEAD
-
-// qosTuner is the quality of service tuning loop that occasionally gathers the
-// peer latency statistics and updates the estimated request round trip time.
-func (d *Downloader) qosTuner() {
-	for {
-		// Retrieve the current median RTT and integrate into the previoust target RTT
-		rtt := time.Duration((1-qosTuningImpact)*float64(atomic.LoadUint64(&d.rttEstimate)) + qosTuningImpact*float64(d.peers.medianRTT()))
-		atomic.StoreUint64(&d.rttEstimate, uint64(rtt))
-
-		// A new RTT cycle passed, increase our confidence in the estimated RTT
-		conf := atomic.LoadUint64(&d.rttConfidence)
-		conf = conf + (1000000-conf)/2
-		atomic.StoreUint64(&d.rttConfidence, conf)
-
-		// Log the new QoS values and sleep until the next RTT
-		log.Trace("Recalculated downloader QoS values", "rtt", rtt, "confidence", float64(conf)/1000000.0, "ttl", d.requestTTL())
-		select {
-		case <-d.quitCh:
-			return
-		case <-time.After(rtt):
-		}
-	}
-}
-
-// qosReduceConfidence is meant to be called when a new peer joins the downloader's
-// peer set, needing to reduce the confidence we have in out QoS estimates.
-func (d *Downloader) qosReduceConfidence() {
-	// If we have a single peer, confidence is always 1
-	peers := uint64(d.peers.Len())
-	if peers == 0 {
-		// Ensure peer connectivity races don't catch us off guard
-		return
-	}
-	if peers == 1 {
-		atomic.StoreUint64(&d.rttConfidence, 1000000)
-		return
-	}
-	// If we have a ton of peers, don't drop confidence)
-	if peers >= uint64(qosConfidenceCap) {
-		return
-	}
-	// Otherwise drop the confidence factor
-	conf := atomic.LoadUint64(&d.rttConfidence) * (peers - 1) / peers
-	if float64(conf)/1000000 < rttMinConfidence {
-		conf = uint64(rttMinConfidence * 1000000)
-	}
-	atomic.StoreUint64(&d.rttConfidence, conf)
-
-	rtt := time.Duration(atomic.LoadUint64(&d.rttEstimate))
-	log.Debug("Relaxed downloader QoS values", "rtt", rtt, "confidence", float64(conf)/1000000.0, "ttl", d.requestTTL())
-}
-
-// requestRTT returns the current target round trip time for a download request
-// to complete in.
-//
-// Note, the returned RTT is .9 of the actually estimated RTT. The reason is that
-// the downloader tries to adapt queries to the RTT, so multiple RTT values can
-// be adapted to, but smaller ones are preferred (stabler download stream).
-func (d *Downloader) requestRTT() time.Duration {
-	return time.Duration(atomic.LoadUint64(&d.rttEstimate)) * 9 / 10
-}
-
-// requestTTL returns the current timeout allowance for a single download request
-// to finish under.
-func (d *Downloader) requestTTL() time.Duration {
-	var (
-		rtt  = time.Duration(atomic.LoadUint64(&d.rttEstimate))
-		conf = float64(atomic.LoadUint64(&d.rttConfidence)) / 1000000.0
-	)
-	ttl := time.Duration(ttlScaling) * time.Duration(float64(rtt)/conf)
-	if ttl > ttlLimit {
-		ttl = ttlLimit
-	}
-	return ttl
-}
-||||||| e78727290
-
-// qosTuner is the quality of service tuning loop that occasionally gathers the
-// peer latency statistics and updates the estimated request round trip time.
-func (d *Downloader) qosTuner() {
-	for {
-		// Retrieve the current median RTT and integrate into the previoust target RTT
-		rtt := time.Duration((1-qosTuningImpact)*float64(atomic.LoadUint64(&d.rttEstimate)) + qosTuningImpact*float64(d.peers.medianRTT()))
-		atomic.StoreUint64(&d.rttEstimate, uint64(rtt))
-
-		// A new RTT cycle passed, increase our confidence in the estimated RTT
-		conf := atomic.LoadUint64(&d.rttConfidence)
-		conf = conf + (1000000-conf)/2
-		atomic.StoreUint64(&d.rttConfidence, conf)
-
-		// Log the new QoS values and sleep until the next RTT
-		log.Debug("Recalculated downloader QoS values", "rtt", rtt, "confidence", float64(conf)/1000000.0, "ttl", d.requestTTL())
-		select {
-		case <-d.quitCh:
-			return
-		case <-time.After(rtt):
-		}
-	}
-}
-
-// qosReduceConfidence is meant to be called when a new peer joins the downloader's
-// peer set, needing to reduce the confidence we have in out QoS estimates.
-func (d *Downloader) qosReduceConfidence() {
-	// If we have a single peer, confidence is always 1
-	peers := uint64(d.peers.Len())
-	if peers == 0 {
-		// Ensure peer connectivity races don't catch us off guard
-		return
-	}
-	if peers == 1 {
-		atomic.StoreUint64(&d.rttConfidence, 1000000)
-		return
-	}
-	// If we have a ton of peers, don't drop confidence)
-	if peers >= uint64(qosConfidenceCap) {
-		return
-	}
-	// Otherwise drop the confidence factor
-	conf := atomic.LoadUint64(&d.rttConfidence) * (peers - 1) / peers
-	if float64(conf)/1000000 < rttMinConfidence {
-		conf = uint64(rttMinConfidence * 1000000)
-	}
-	atomic.StoreUint64(&d.rttConfidence, conf)
-
-	rtt := time.Duration(atomic.LoadUint64(&d.rttEstimate))
-	log.Debug("Relaxed downloader QoS values", "rtt", rtt, "confidence", float64(conf)/1000000.0, "ttl", d.requestTTL())
-}
-
-// requestRTT returns the current target round trip time for a download request
-// to complete in.
-//
-// Note, the returned RTT is .9 of the actually estimated RTT. The reason is that
-// the downloader tries to adapt queries to the RTT, so multiple RTT values can
-// be adapted to, but smaller ones are preferred (stabler download stream).
-func (d *Downloader) requestRTT() time.Duration {
-	return time.Duration(atomic.LoadUint64(&d.rttEstimate)) * 9 / 10
-}
-
-// requestTTL returns the current timeout allowance for a single download request
-// to finish under.
-func (d *Downloader) requestTTL() time.Duration {
-	var (
-		rtt  = time.Duration(atomic.LoadUint64(&d.rttEstimate))
-		conf = float64(atomic.LoadUint64(&d.rttConfidence)) / 1000000.0
-	)
-	ttl := time.Duration(ttlScaling) * time.Duration(float64(rtt)/conf)
-	if ttl > ttlLimit {
-		ttl = ttlLimit
-	}
-	return ttl
-}
-=======
->>>>>>> v1.10.7

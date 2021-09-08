@@ -603,31 +603,7 @@ func (f *BlockFetcher) loop() {
 						if f.queued[hash] != nil || announce.origin != task.peer {
 							continue
 						}
-<<<<<<< HEAD
 						if task.blockHashes[i] != announce.header.Hash() {
-||||||| e78727290
-						if uncleHash == (common.Hash{}) {
-							uncleHash = types.CalcUncleHash(task.uncles[i])
-						}
-						if uncleHash != announce.header.UncleHash {
-							continue
-						}
-						if txnHash == (common.Hash{}) {
-							txnHash = types.DeriveSha(types.Transactions(task.transactions[i]), new(trie.Trie))
-						}
-						if txnHash != announce.header.TxHash {
-=======
-						if uncleHash == (common.Hash{}) {
-							uncleHash = types.CalcUncleHash(task.uncles[i])
-						}
-						if uncleHash != announce.header.UncleHash {
-							continue
-						}
-						if txnHash == (common.Hash{}) {
-							txnHash = types.DeriveSha(types.Transactions(task.transactions[i]), trie.NewStackTrie(nil))
-						}
-						if txnHash != announce.header.TxHash {
->>>>>>> v1.10.7
 							continue
 						}
 						// Mark the body matched, reassemble if still unknown

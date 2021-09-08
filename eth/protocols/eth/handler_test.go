@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -68,9 +70,9 @@ func newTestBackendWithGenerator(blocks int, generator func(int, *core.BlockGen)
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
 	}).MustCommit(db)
 
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 
-	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, generator)
+	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), mockEngine.NewFaker(), db, blocks, generator)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
@@ -109,8 +111,8 @@ func (b *testBackend) Handle(*Peer, Packet) error {
 }
 
 // Tests that block headers can be retrieved from a remote chain based on user queries.
-func TestGetBlockHeaders65(t *testing.T) { testGetBlockHeaders(t, ETH65) }
-func TestGetBlockHeaders66(t *testing.T) { testGetBlockHeaders(t, ETH66) }
+func TestGetBlockHeaders66(t *testing.T) { testGetBlockHeaders(t, istanbul.Celo66) }
+func TestGetBlockHeaders67(t *testing.T) { testGetBlockHeaders(t, istanbul.Celo67) }
 
 func testGetBlockHeaders(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -253,17 +255,17 @@ func testGetBlockHeaders(t *testing.T, protocol uint) {
 			headers = append(headers, backend.chain.GetBlockByHash(hash).Header())
 		}
 		// Send the hash request and verify the response
-		if protocol <= ETH65 {
+		if protocol <= istanbul.Celo66 {
 			p2p.Send(peer.app, GetBlockHeadersMsg, tt.query)
 			if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, headers); err != nil {
 				t.Errorf("test %d: headers mismatch: %v", i, err)
 			}
 		} else {
-			p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket66{
+			p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
 				RequestId:             123,
 				GetBlockHeadersPacket: tt.query,
 			})
-			if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket66{
+			if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
 				RequestId:          123,
 				BlockHeadersPacket: headers,
 			}); err != nil {
@@ -275,17 +277,17 @@ func testGetBlockHeaders(t *testing.T, protocol uint) {
 			if origin := backend.chain.GetBlockByNumber(tt.query.Origin.Number); origin != nil {
 				tt.query.Origin.Hash, tt.query.Origin.Number = origin.Hash(), 0
 
-				if protocol <= ETH65 {
+				if protocol <= istanbul.Celo66 {
 					p2p.Send(peer.app, GetBlockHeadersMsg, tt.query)
 					if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, headers); err != nil {
 						t.Errorf("test %d: headers mismatch: %v", i, err)
 					}
 				} else {
-					p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket66{
+					p2p.Send(peer.app, GetBlockHeadersMsg, GetBlockHeadersPacket67{
 						RequestId:             456,
 						GetBlockHeadersPacket: tt.query,
 					})
-					if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket66{
+					if err := p2p.ExpectMsg(peer.app, BlockHeadersMsg, BlockHeadersPacket67{
 						RequestId:          456,
 						BlockHeadersPacket: headers,
 					}); err != nil {
@@ -298,8 +300,8 @@ func testGetBlockHeaders(t *testing.T, protocol uint) {
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies65(t *testing.T) { testGetBlockBodies(t, ETH65) }
-func TestGetBlockBodies66(t *testing.T) { testGetBlockBodies(t, ETH66) }
+func TestGetBlockBodies66(t *testing.T) { testGetBlockBodies(t, istanbul.Celo66) }
+func TestGetBlockBodies67(t *testing.T) { testGetBlockBodies(t, istanbul.Celo67) }
 
 func testGetBlockBodies(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -341,9 +343,9 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expectva
 		var (
-			hashes []common.Hash
-			bodies []*BlockBody
-			seen   = make(map[int64]bool)
+			hashes               []common.Hash
+			bodiesAndBlockHashes BlockBodiesPacket
+			seen                 = make(map[int64]bool)
 		)
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -353,8 +355,12 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 
 					block := backend.chain.GetBlockByNumber(uint64(num))
 					hashes = append(hashes, block.Hash())
-					if len(bodies) < tt.expected {
-						bodies = append(bodies, &BlockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+					if len(bodiesAndBlockHashes) < tt.expected {
+						bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
+							BlockBody: &types.Body{Transactions: block.Transactions(),
+								Randomness:     block.Randomness(),
+								EpochSnarkData: block.EpochSnarkData()}}
+						bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
 					}
 					break
 				}
@@ -362,25 +368,29 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 		}
 		for j, hash := range tt.explicit {
 			hashes = append(hashes, hash)
-			if tt.available[j] && len(bodies) < tt.expected {
+			if tt.available[j] && len(bodiesAndBlockHashes) < tt.expected {
 				block := backend.chain.GetBlockByHash(hash)
-				bodies = append(bodies, &BlockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+				bhEntry := &blockBodyWithBlockHash{BlockHash: block.Hash(),
+					BlockBody: &types.Body{Transactions: block.Transactions(),
+						Randomness:     block.Randomness(),
+						EpochSnarkData: block.EpochSnarkData()}}
+				bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhEntry)
 			}
 		}
 		// Send the hash request and verify the response
-		if protocol <= ETH65 {
+		if protocol <= istanbul.Celo66 {
 			p2p.Send(peer.app, GetBlockBodiesMsg, hashes)
-			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, bodies); err != nil {
+			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, bodiesAndBlockHashes); err != nil {
 				t.Errorf("test %d: bodies mismatch: %v", i, err)
 			}
 		} else {
-			p2p.Send(peer.app, GetBlockBodiesMsg, GetBlockBodiesPacket66{
+			p2p.Send(peer.app, GetBlockBodiesMsg, GetBlockBodiesPacket67{
 				RequestId:            123,
 				GetBlockBodiesPacket: hashes,
 			})
-			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket66{
+			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket67{
 				RequestId:         123,
-				BlockBodiesPacket: bodies,
+				BlockBodiesPacket: bodiesAndBlockHashes,
 			}); err != nil {
 				t.Errorf("test %d: bodies mismatch: %v", i, err)
 			}
@@ -389,8 +399,8 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 }
 
 // Tests that the state trie nodes can be retrieved based on hashes.
-func TestGetNodeData65(t *testing.T) { testGetNodeData(t, ETH65) }
-func TestGetNodeData66(t *testing.T) { testGetNodeData(t, ETH66) }
+func TestGetNodeData66(t *testing.T) { testGetNodeData(t, istanbul.Celo66) }
+func TestGetNodeData67(t *testing.T) { testGetNodeData(t, istanbul.Celo67) }
 
 func testGetNodeData(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -407,27 +417,19 @@ func testGetNodeData(t *testing.T, protocol uint) {
 		switch i {
 		case 0:
 			// In block 1, the test bank sends account #1 some ether.
-			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testKey)
+			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
 			block.AddTx(tx)
 		case 1:
 			// In block 2, the test bank sends some more ether to account #1.
 			// acc1Addr passes it on to account #2.
-			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testKey)
-			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, acc1Key)
+			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
+			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
 			block.AddTx(tx1)
 			block.AddTx(tx2)
 		case 2:
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
-		case 3:
-			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
-			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
@@ -448,10 +450,10 @@ func testGetNodeData(t *testing.T, protocol uint) {
 	}
 	it.Release()
 
-	if protocol <= ETH65 {
+	if protocol <= istanbul.Celo66 {
 		p2p.Send(peer.app, GetNodeDataMsg, hashes)
 	} else {
-		p2p.Send(peer.app, GetNodeDataMsg, GetNodeDataPacket66{
+		p2p.Send(peer.app, GetNodeDataMsg, GetNodeDataPacket67{
 			RequestId:         123,
 			GetNodeDataPacket: hashes,
 		})
@@ -464,12 +466,12 @@ func testGetNodeData(t *testing.T, protocol uint) {
 		t.Fatalf("response packet code mismatch: have %x, want %x", msg.Code, NodeDataMsg)
 	}
 	var data [][]byte
-	if protocol <= ETH65 {
+	if protocol <= istanbul.Celo66 {
 		if err := msg.Decode(&data); err != nil {
 			t.Fatalf("failed to decode response node data: %v", err)
 		}
 	} else {
-		var res NodeDataPacket66
+		var res NodeDataPacket67
 		if err := msg.Decode(&res); err != nil {
 			t.Fatalf("failed to decode response node data: %v", err)
 		}
@@ -505,8 +507,8 @@ func testGetNodeData(t *testing.T, protocol uint) {
 }
 
 // Tests that the transaction receipts can be retrieved based on hashes.
-func TestGetBlockReceipts65(t *testing.T) { testGetBlockReceipts(t, ETH65) }
-func TestGetBlockReceipts66(t *testing.T) { testGetBlockReceipts(t, ETH66) }
+func TestGetBlockReceipts66(t *testing.T) { testGetBlockReceipts(t, istanbul.Celo66) }
+func TestGetBlockReceipts67(t *testing.T) { testGetBlockReceipts(t, istanbul.Celo67) }
 
 func testGetBlockReceipts(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -523,27 +525,19 @@ func testGetBlockReceipts(t *testing.T, protocol uint) {
 		switch i {
 		case 0:
 			// In block 1, the test bank sends account #1 some ether.
-			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testKey)
+			tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
 			block.AddTx(tx)
 		case 1:
 			// In block 2, the test bank sends some more ether to account #1.
 			// acc1Addr passes it on to account #2.
-			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testKey)
-			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, acc1Key)
+			tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
+			tx2, _ := types.SignTx(types.NewTransaction(block.TxNonce(acc1Addr), acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
 			block.AddTx(tx1)
 			block.AddTx(tx2)
 		case 2:
 			// Block 3 is empty but was mined by account #2.
 			block.SetCoinbase(acc2Addr)
 			block.SetExtra([]byte("yeehaw"))
-		case 3:
-			// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-			b2 := block.PrevBlock(1).Header()
-			b2.Extra = []byte("foo")
-			block.AddUncle(b2)
-			b3 := block.PrevBlock(2).Header()
-			b3.Extra = []byte("foo")
-			block.AddUncle(b3)
 		}
 	}
 	// Assemble the test environment
@@ -565,17 +559,17 @@ func testGetBlockReceipts(t *testing.T, protocol uint) {
 		receipts = append(receipts, backend.chain.GetReceiptsByHash(block.Hash()))
 	}
 	// Send the hash request and verify the response
-	if protocol <= ETH65 {
+	if protocol <= istanbul.Celo66 {
 		p2p.Send(peer.app, GetReceiptsMsg, hashes)
 		if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, receipts); err != nil {
 			t.Errorf("receipts mismatch: %v", err)
 		}
 	} else {
-		p2p.Send(peer.app, GetReceiptsMsg, GetReceiptsPacket66{
+		p2p.Send(peer.app, GetReceiptsMsg, GetReceiptsPacket67{
 			RequestId:         123,
 			GetReceiptsPacket: hashes,
 		})
-		if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, ReceiptsPacket66{
+		if err := p2p.ExpectMsg(peer.app, ReceiptsMsg, ReceiptsPacket67{
 			RequestId:      123,
 			ReceiptsPacket: receipts,
 		}); err != nil {

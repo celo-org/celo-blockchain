@@ -43,19 +43,9 @@ import (
 
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
-<<<<<<< HEAD
-	extRPCEnabled bool
-	eth           *Ethereum
-||||||| e78727290
-	extRPCEnabled bool
-	eth           *Ethereum
-	gpo           *gasprice.Oracle
-=======
 	extRPCEnabled       bool
 	allowUnprotectedTxs bool
 	eth                 *Ethereum
-	gpo                 *gasprice.Oracle
->>>>>>> v1.10.7
 }
 
 // ChainConfig returns the active chain configuration.
@@ -298,7 +288,6 @@ func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) 
 	return b.gpo.SuggestTipCap(ctx)
 }
 
-<<<<<<< HEAD
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
@@ -329,13 +318,6 @@ func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Con
 		return params.IntrinsicGasForAlternativeFeeCurrency
 	}
 	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
-||||||| e78727290
-func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestPrice(ctx)
-=======
-func (b *EthAPIBackend) FeeHistory(ctx context.Context, blockCount int, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (firstBlock *big.Int, reward [][]*big.Int, baseFee []*big.Int, gasUsedRatio []float64, err error) {
-	return b.gpo.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
->>>>>>> v1.10.7
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -405,6 +387,10 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 	return b.eth.stateAtBlock(block, reexec, base, checkLive)
 }
 
-func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
+func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(block, txIndex, reexec)
+}
+
+func (b *EthAPIBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
+	return b.eth.blockchain.NewEVMRunner(header, state)
 }

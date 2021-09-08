@@ -23,21 +23,11 @@ import "fmt"
 type SyncMode uint32
 
 const (
-<<<<<<< HEAD
 	FullSync     SyncMode = iota // Synchronise the entire blockchain history from full blocks
 	FastSync                     // Quickly download the headers, full sync only at the chain head
+	SnapSync                     // Download the chain and the state via compact snapshots
 	LightSync                    // Download only the headers and terminate afterwards
 	LightestSync                 // Synchronise one block per Epoch (Celo-specific mode)
-||||||| e78727290
-	FullSync  SyncMode = iota // Synchronise the entire blockchain history from full blocks
-	FastSync                  // Quickly download the headers, full sync only at the chain head
-	LightSync                 // Download only the headers and terminate afterwards
-=======
-	FullSync  SyncMode = iota // Synchronise the entire blockchain history from full blocks
-	FastSync                  // Quickly download the headers, full sync only at the chain
-	SnapSync                  // Download the chain and the state via compact snapshots
-	LightSync                 // Download only the headers and terminate afterwards
->>>>>>> v1.10.7
 )
 
 func (mode SyncMode) IsValid() bool {

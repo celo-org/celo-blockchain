@@ -247,6 +247,18 @@ func (ps *peerSet) peerWithHighestTD() *eth.Peer {
 	return bestPeer
 }
 
+// Peers returns all registered peers
+func (ps *peerSet) Peers() map[string]*ethPeer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	set := make(map[string]*ethPeer)
+	for id, p := range ps.peers {
+		set[id] = p
+	}
+	return set
+}
+
 // close disconnects all peers.
 func (ps *peerSet) close() {
 	ps.lock.Lock()

@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"testing"
 
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -42,20 +43,19 @@ var (
 
 func generateTestChain() (*core.Genesis, []*types.Block) {
 	db := rawdb.NewMemoryDatabase()
-	config := params.AllEthashProtocolChanges
+	config := params.TestChainConfig
 	genesis := &core.Genesis{
 		Config:    config,
 		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
 		ExtraData: []byte("test genesis"),
 		Timestamp: 9000,
-		BaseFee:   big.NewInt(params.InitialBaseFee),
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
 		g.SetExtra([]byte("test"))
 	}
 	gblock := genesis.ToBlock(db)
-	engine := ethash.NewFaker()
+	engine := mockEngine.NewFaker()
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, 10, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
@@ -76,18 +76,15 @@ func generateTestChainWithFork(n int, fork int) (*core.Genesis, []*types.Block, 
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
-		MuirGlacierBlock:    big.NewInt(0),
-		BerlinBlock:         big.NewInt(0),
-		LondonBlock:         big.NewInt(0),
-		CatalystBlock:       big.NewInt(0),
-		Ethash:              new(params.EthashConfig),
+		ChurritoBlock:       big.NewInt(0),
+		DonutBlock:          big.NewInt(0),
+		EBlock:              big.NewInt(0),
 	}
 	genesis := &core.Genesis{
 		Config:    config,
 		Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
 		ExtraData: []byte("test genesis"),
 		Timestamp: 9000,
-		BaseFee:   big.NewInt(params.InitialBaseFee),
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
@@ -98,7 +95,7 @@ func generateTestChainWithFork(n int, fork int) (*core.Genesis, []*types.Block, 
 		g.SetExtra([]byte("testF"))
 	}
 	gblock := genesis.ToBlock(db)
-	engine := ethash.NewFaker()
+	engine := mockEngine.NewFaker()
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, n, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	forkedBlocks, _ := core.GenerateChain(config, blocks[fork], engine, db, n-fork, generateFork)
@@ -112,7 +109,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 
 	api := newConsensusAPI(ethservice)
 	signer := types.NewEIP155Signer(ethservice.BlockChain().Config().ChainID)
-	tx, err := types.SignTx(types.NewTransaction(0, blocks[8].Coinbase(), big.NewInt(1000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, testKey)
+	tx, err := types.SignTx(types.NewTransaction(0, blocks[8].Coinbase(), big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testKey)
 	if err != nil {
 		t.Fatalf("error signing transaction, err=%v", err)
 	}
@@ -166,7 +163,6 @@ func TestEth2NewBlock(t *testing.T) {
 			ParentHash:   ethservice.BlockChain().CurrentBlock().Hash(),
 			Miner:        blocks[i].Coinbase(),
 			StateRoot:    blocks[i].Root(),
-			GasLimit:     blocks[i].GasLimit(),
 			GasUsed:      blocks[i].GasUsed(),
 			Transactions: encodeTransactions(blocks[i].Transactions()),
 			ReceiptRoot:  blocks[i].ReceiptHash(),
@@ -193,7 +189,6 @@ func TestEth2NewBlock(t *testing.T) {
 			Miner:        forkedBlocks[i].Coinbase(),
 			StateRoot:    forkedBlocks[i].Root(),
 			Number:       lastBlockNum.Uint64(),
-			GasLimit:     forkedBlocks[i].GasLimit(),
 			GasUsed:      forkedBlocks[i].GasUsed(),
 			Transactions: encodeTransactions(blocks[i].Transactions()),
 			ReceiptRoot:  forkedBlocks[i].ReceiptHash(),
@@ -225,7 +220,7 @@ func startEthService(t *testing.T, genesis *core.Genesis, blocks []*types.Block)
 		t.Fatal("can't create node:", err)
 	}
 
-	ethcfg := &ethconfig.Config{Genesis: genesis, Ethash: ethash.Config{PowMode: ethash.ModeFake}}
+	ethcfg := &ethconfig.Config{Genesis: genesis}
 	ethservice, err := eth.New(n, ethcfg)
 	if err != nil {
 		t.Fatal("can't create eth service:", err)
@@ -237,7 +232,7 @@ func startEthService(t *testing.T, genesis *core.Genesis, blocks []*types.Block)
 		n.Close()
 		t.Fatal("can't import test blocks:", err)
 	}
-	ethservice.SetEtherbase(testAddr)
+	ethservice.SetTxFeeRecipient(testAddr)
 
 	return n, ethservice
 }

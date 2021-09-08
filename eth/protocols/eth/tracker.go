@@ -16,16 +16,10 @@
 
 package eth
 
-<<<<<<< HEAD:p2p/discv5/metrics.go
-import "github.com/celo-org/celo-blockchain/metrics"
-||||||| e78727290:p2p/discv5/metrics.go
-import "github.com/ethereum/go-ethereum/metrics"
-=======
 import (
 	"time"
->>>>>>> v1.10.7:eth/protocols/eth/tracker.go
 
-	"github.com/ethereum/go-ethereum/p2p/tracker"
+	"github.com/celo-org/celo-blockchain/p2p/tracker"
 )
 
 // requestTracker is a singleton tracker for eth/66 and newer request times.

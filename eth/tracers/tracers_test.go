@@ -20,10 +20,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -82,7 +84,6 @@ var makeTest = function(tx, rewind) {
 }
 */
 
-/*
 // callTrace is the result of a callTracer run.
 type callTrace struct {
 	Type    string          `json:"type"`
@@ -112,7 +113,7 @@ type callTracerTest struct {
 	Input   string        `json:"input"`
 	Result  *callTrace    `json:"result"`
 }
-*/
+
 func TestPrestateTracerCreate2(t *testing.T) {
 	celoMock := testutil.NewCeloMock()
 
@@ -281,6 +282,7 @@ func TestCallTracer(t *testing.T) {
 		})
 	}
 }
+*/
 
 // jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
 // comparison
@@ -299,12 +301,9 @@ func jsonEqual(x, y interface{}) bool {
 	}
 	return reflect.DeepEqual(xTrace, yTrace)
 }
-<<<<<<< HEAD
-*/
-||||||| e78727290
-=======
 
 func BenchmarkTransactionTrace(b *testing.B) {
+	celoMock := testutil.NewCeloMock()
 	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	from := crypto.PubkeyToAddress(key.PublicKey)
 	gas := uint64(1000000) // 1M gas
@@ -325,14 +324,13 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		GasPrice: tx.GasPrice(),
 	}
 	context := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
+		CanTransfer: vmcontext.CanTransfer,
+		Transfer:    vmcontext.TobinTransfer,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(uint64(5)),
 		Time:        new(big.Int).SetUint64(uint64(5)),
-		Difficulty:  big.NewInt(0xffffffff),
-		GasLimit:    gas,
 	}
+
 	alloc := core.GenesisAlloc{}
 	// The code pushes 'deadbeef' into memory, then the other params, and calls CREATE2, then returns
 	// the address
@@ -359,7 +357,7 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		//DisableMemory: true,
 		//DisableReturnData: true,
 	})
-	evm := vm.NewEVM(context, txContext, statedb, params.AllEthashProtocolChanges, vm.Config{Debug: true, Tracer: tracer})
+	evm := vm.NewEVM(context, txContext, statedb, params.TestChainConfig, vm.Config{Debug: true, Tracer: tracer})
 	msg, err := tx.AsMessage(signer, nil)
 	if err != nil {
 		b.Fatalf("failed to prepare transaction for tracing: %v", err)
@@ -369,7 +367,7 @@ func BenchmarkTransactionTrace(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		snap := statedb.Snapshot()
-		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner)
 		_, err = st.TransitionDb()
 		if err != nil {
 			b.Fatal(err)
@@ -381,4 +379,3 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		tracer.Reset()
 	}
 }
->>>>>>> v1.10.7

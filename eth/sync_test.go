@@ -21,31 +21,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
-<<<<<<< HEAD
-func TestFastSyncDisabling64(t *testing.T) { testFastSyncDisabling(t, 64) }
-func TestFastSyncDisabling65(t *testing.T) { testFastSyncDisabling(t, 65) }
-func TestFastSyncDisabling66(t *testing.T) { testFastSyncDisabling(t, 66) }
-||||||| e78727290
-func TestFastSyncDisabling63(t *testing.T) { testFastSyncDisabling(t, 63) }
-func TestFastSyncDisabling64(t *testing.T) { testFastSyncDisabling(t, 64) }
-func TestFastSyncDisabling65(t *testing.T) { testFastSyncDisabling(t, 65) }
-=======
 // Tests that fast sync is disabled after a successful sync cycle.
-func TestFastSyncDisabling65(t *testing.T) { testFastSyncDisabling(t, eth.ETH65) }
-func TestFastSyncDisabling66(t *testing.T) { testFastSyncDisabling(t, eth.ETH66) }
->>>>>>> v1.10.7
+func TestFastSyncDisabling66(t *testing.T) { testFastSyncDisabling(t, istanbul.Celo66) }
+func TestFastSyncDisabling67(t *testing.T) { testFastSyncDisabling(t, istanbul.Celo67) }
 
 // Tests that fast sync gets disabled as soon as a real block is successfully
 // imported into the blockchain.

@@ -38,10 +38,10 @@ func handleGetBlockHeaders(backend Backend, msg Decoder, peer *Peer) error {
 	return peer.SendBlockHeaders(response)
 }
 
-// handleGetBlockHeaders66 is the eth/66 version of handleGetBlockHeaders
-func handleGetBlockHeaders66(backend Backend, msg Decoder, peer *Peer) error {
+// handleGetBlockHeaders67 is the celo/67 (eth/66) version of handleGetBlockHeaders
+func handleGetBlockHeaders67(backend Backend, msg Decoder, peer *Peer) error {
 	// Decode the complex header query
-	var query GetBlockHeadersPacket66
+	var query GetBlockHeadersPacket67
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -141,37 +141,50 @@ func handleGetBlockBodies(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	response := answerGetBlockBodiesQuery(backend, query, peer)
+	response, err := answerGetBlockBodiesQuery(backend, query, peer)
+	if err != nil {
+		return err
+	}
 	return peer.SendBlockBodiesRLP(response)
 }
 
-func handleGetBlockBodies66(backend Backend, msg Decoder, peer *Peer) error {
+func handleGetBlockBodies67(backend Backend, msg Decoder, peer *Peer) error {
 	// Decode the block body retrieval message
-	var query GetBlockBodiesPacket66
+	var query GetBlockBodiesPacket67
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
-	response := answerGetBlockBodiesQuery(backend, query.GetBlockBodiesPacket, peer)
+	response, err := answerGetBlockBodiesQuery(backend, query.GetBlockBodiesPacket, peer)
+	if err != nil {
+		return err
+	}
 	return peer.ReplyBlockBodiesRLP(query.RequestId, response)
 }
 
-func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) []rlp.RawValue {
+func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) ([]rlp.RawValue, error) {
 	// Gather blocks until the fetch or network limits is reached
 	var (
-		bytes  int
-		bodies []rlp.RawValue
+		bytes                int
+		bodiesAndBlockHashes []rlp.RawValue
 	)
 	for lookups, hash := range query {
-		if bytes >= softResponseLimit || len(bodies) >= maxBodiesServe ||
+		if bytes >= softResponseLimit || len(bodiesAndBlockHashes) >= maxBodiesServe ||
 			lookups >= 2*maxBodiesServe {
 			break
 		}
-		if data := backend.Chain().GetBodyRLP(hash); len(data) != 0 {
-			bodies = append(bodies, data)
-			bytes += len(data)
+		// Retrieve the requested block body, stopping if enough was found
+		if body := backend.Chain().GetBody(hash); body != nil {
+			bh := &blockBodyWithBlockHash{BlockHash: hash, BlockBody: body}
+			bhRLPbytes, err := rlp.EncodeToBytes(bh)
+			if err != nil {
+				return nil, err
+			}
+			bhRLP := rlp.RawValue(bhRLPbytes)
+			bodiesAndBlockHashes = append(bodiesAndBlockHashes, bhRLP)
+			bytes += len(bhRLP)
 		}
 	}
-	return bodies
+	return bodiesAndBlockHashes, nil
 }
 
 func handleGetNodeData(backend Backend, msg Decoder, peer *Peer) error {
@@ -184,9 +197,9 @@ func handleGetNodeData(backend Backend, msg Decoder, peer *Peer) error {
 	return peer.SendNodeData(response)
 }
 
-func handleGetNodeData66(backend Backend, msg Decoder, peer *Peer) error {
+func handleGetNodeData67(backend Backend, msg Decoder, peer *Peer) error {
 	// Decode the trie node data retrieval message
-	var query GetNodeDataPacket66
+	var query GetNodeDataPacket67
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -233,9 +246,9 @@ func handleGetReceipts(backend Backend, msg Decoder, peer *Peer) error {
 	return peer.SendReceiptsRLP(response)
 }
 
-func handleGetReceipts66(backend Backend, msg Decoder, peer *Peer) error {
+func handleGetReceipts67(backend Backend, msg Decoder, peer *Peer) error {
 	// Decode the block receipts retrieval message
-	var query GetReceiptsPacket66
+	var query GetReceiptsPacket67
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -295,10 +308,6 @@ func handleNewBlock(backend Backend, msg Decoder, peer *Peer) error {
 	if err := ann.sanityCheck(); err != nil {
 		return err
 	}
-	if hash := types.CalcUncleHash(ann.Block.Uncles()); hash != ann.Block.UncleHash() {
-		log.Warn("Propagated block has invalid uncles", "have", hash, "exp", ann.Block.UncleHash())
-		return nil // TODO(karalabe): return error eventually, but wait a few releases
-	}
 	if hash := types.DeriveSha(ann.Block.Transactions(), trie.NewStackTrie(nil)); hash != ann.Block.TxHash() {
 		log.Warn("Propagated block has invalid body", "have", hash, "exp", ann.Block.TxHash())
 		return nil // TODO(karalabe): return error eventually, but wait a few releases
@@ -321,9 +330,9 @@ func handleBlockHeaders(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, res)
 }
 
-func handleBlockHeaders66(backend Backend, msg Decoder, peer *Peer) error {
+func handleBlockHeaders67(backend Backend, msg Decoder, peer *Peer) error {
 	// A batch of headers arrived to one of our previous requests
-	res := new(BlockHeadersPacket66)
+	res := new(BlockHeadersPacket67)
 	if err := msg.Decode(res); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -341,9 +350,9 @@ func handleBlockBodies(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, res)
 }
 
-func handleBlockBodies66(backend Backend, msg Decoder, peer *Peer) error {
+func handleBlockBodies67(backend Backend, msg Decoder, peer *Peer) error {
 	// A batch of block bodies arrived to one of our previous requests
-	res := new(BlockBodiesPacket66)
+	res := new(BlockBodiesPacket67)
 	if err := msg.Decode(res); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -361,9 +370,9 @@ func handleNodeData(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, res)
 }
 
-func handleNodeData66(backend Backend, msg Decoder, peer *Peer) error {
+func handleNodeData67(backend Backend, msg Decoder, peer *Peer) error {
 	// A batch of node state data arrived to one of our previous requests
-	res := new(NodeDataPacket66)
+	res := new(NodeDataPacket67)
 	if err := msg.Decode(res); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -381,9 +390,9 @@ func handleReceipts(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, res)
 }
 
-func handleReceipts66(backend Backend, msg Decoder, peer *Peer) error {
+func handleReceipts67(backend Backend, msg Decoder, peer *Peer) error {
 	// A batch of receipts arrived to one of our previous requests
-	res := new(ReceiptsPacket66)
+	res := new(ReceiptsPacket67)
 	if err := msg.Decode(res); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -419,9 +428,9 @@ func handleGetPooledTransactions(backend Backend, msg Decoder, peer *Peer) error
 	return peer.SendPooledTransactionsRLP(hashes, txs)
 }
 
-func handleGetPooledTransactions66(backend Backend, msg Decoder, peer *Peer) error {
+func handleGetPooledTransactions67(backend Backend, msg Decoder, peer *Peer) error {
 	// Decode the pooled transactions retrieval message
-	var query GetPooledTransactionsPacket66
+	var query GetPooledTransactionsPacket67
 	if err := msg.Decode(&query); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -497,13 +506,13 @@ func handlePooledTransactions(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, &txs)
 }
 
-func handlePooledTransactions66(backend Backend, msg Decoder, peer *Peer) error {
+func handlePooledTransactions67(backend Backend, msg Decoder, peer *Peer) error {
 	// Transactions arrived, make sure we have a valid and fresh chain to handle them
 	if !backend.AcceptTxs() {
 		return nil
 	}
 	// Transactions can be processed, parse all of them and deliver to the pool
-	var txs PooledTransactionsPacket66
+	var txs PooledTransactionsPacket67
 	if err := msg.Decode(&txs); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}

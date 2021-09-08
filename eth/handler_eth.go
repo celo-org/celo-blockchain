@@ -68,8 +68,8 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.handleHeaders(peer, *packet)
 
 	case *eth.BlockBodiesPacket:
-		txset, uncleset := packet.Unpack()
-		return h.handleBodies(peer, txset, uncleset)
+		blockHashes, transactions, randomness, epochSnarkData := packet.Unpack()
+		return h.handleBodies(peer, blockHashes, transactions, randomness, epochSnarkData)
 
 	case *eth.NodeDataPacket:
 		if err := h.downloader.DeliverNodeData(peer.ID(), *packet); err != nil {
@@ -162,14 +162,14 @@ func (h *ethHandler) handleHeaders(peer *eth.Peer, headers []*types.Header) erro
 
 // handleBodies is invoked from a peer's message handler when it transmits a batch
 // of block bodies for the local node to process.
-func (h *ethHandler) handleBodies(peer *eth.Peer, txs [][]*types.Transaction, uncles [][]*types.Header) error {
+func (h *ethHandler) handleBodies(peer *eth.Peer, blockHashes []common.Hash, transactions [][]*types.Transaction, randomness []*types.Randomness, epochSnarkData []*types.EpochSnarkData) error {
 	// Filter out any explicitly requested bodies, deliver the rest to the downloader
-	filter := len(txs) > 0 || len(uncles) > 0
+	filter := len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0
 	if filter {
-		txs, uncles = h.blockFetcher.FilterBodies(peer.ID(), txs, uncles, time.Now())
+		blockHashes, transactions, randomness, epochSnarkData = h.blockFetcher.FilterBodies(peer.ID(), blockHashes, transactions, randomness, epochSnarkData, time.Now())
 	}
-	if len(txs) > 0 || len(uncles) > 0 || !filter {
-		err := h.downloader.DeliverBodies(peer.ID(), txs, uncles)
+	if len(blockHashes) > 0 || len(transactions) > 0 || len(randomness) > 0 || len(epochSnarkData) > 0 || !filter {
+		err := h.downloader.DeliverBodies(peer.ID(), transactions, randomness, epochSnarkData)
 		if err != nil {
 			log.Debug("Failed to deliver bodies", "err", err)
 		}
@@ -207,7 +207,7 @@ func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, block *types.Block, td
 	// calculate the head hash and TD that the peer truly must have.
 	var (
 		trueHead = block.ParentHash()
-		trueTD   = new(big.Int).Sub(td, block.Difficulty())
+		trueTD   = new(big.Int).Sub(td, big.NewInt(1))
 	)
 	// Update the peer's total difficulty if better than the previous
 	if _, td := peer.Head(); trueTD.Cmp(td) > 0 {

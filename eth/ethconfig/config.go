@@ -18,26 +18,17 @@
 package ethconfig
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/eth/gasprice"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/miner"
@@ -45,71 +36,9 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-<<<<<<< HEAD:eth/config.go
-// DefaultConfig contains default settings for use on the Ethereum main net.
-var DefaultConfig = Config{
-	SyncMode:                downloader.FastSync,
-||||||| e78727290:eth/config.go
-// DefaultFullGPOConfig contains default gasprice oracle settings for full node.
-var DefaultFullGPOConfig = gasprice.Config{
-	Blocks:     20,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
-}
-
-// DefaultLightGPOConfig contains default gasprice oracle settings for light client.
-var DefaultLightGPOConfig = gasprice.Config{
-	Blocks:     2,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
-}
-
-// DefaultConfig contains default settings for use on the Ethereum main net.
-var DefaultConfig = Config{
-	SyncMode: downloader.FastSync,
-	Ethash: ethash.Config{
-		CacheDir:         "ethash",
-		CachesInMem:      2,
-		CachesOnDisk:     3,
-		CachesLockMmap:   false,
-		DatasetsInMem:    1,
-		DatasetsOnDisk:   2,
-		DatasetsLockMmap: false,
-	},
-=======
-// FullNodeGPO contains default gasprice oracle settings for full node.
-var FullNodeGPO = gasprice.Config{
-	Blocks:           20,
-	Percentile:       60,
-	MaxHeaderHistory: 0,
-	MaxBlockHistory:  0,
-	MaxPrice:         gasprice.DefaultMaxPrice,
-	IgnorePrice:      gasprice.DefaultIgnorePrice,
-}
-
-// LightClientGPO contains default gasprice oracle settings for light client.
-var LightClientGPO = gasprice.Config{
-	Blocks:           2,
-	Percentile:       60,
-	MaxHeaderHistory: 300,
-	MaxBlockHistory:  5,
-	MaxPrice:         gasprice.DefaultMaxPrice,
-	IgnorePrice:      gasprice.DefaultIgnorePrice,
-}
-
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode: downloader.SnapSync,
-	Ethash: ethash.Config{
-		CacheDir:         "ethash",
-		CachesInMem:      2,
-		CachesOnDisk:     3,
-		CachesLockMmap:   false,
-		DatasetsInMem:    1,
-		DatasetsOnDisk:   2,
-		DatasetsLockMmap: false,
-	},
->>>>>>> v1.10.7:eth/ethconfig/config.go
+	SyncMode:                downloader.FastSync,
 	NetworkId:               1,
 	TxLookupLimit:           2350000,
 	LightPeers:              100,
@@ -122,82 +51,13 @@ var Defaults = Config{
 	TrieDirtyCache:          256,
 	TrieTimeout:             60 * time.Minute,
 	SnapshotCache:           102,
-<<<<<<< HEAD:eth/config.go
 	GatewayFee:              big.NewInt(0),
 
-||||||| e78727290:eth/config.go
-	Miner: miner.Config{
-		GasFloor: 8000000,
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(params.GWei),
-		Recommit: 3 * time.Second,
-	},
-=======
-	Miner: miner.Config{
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(params.GWei),
-		Recommit: 3 * time.Second,
-	},
->>>>>>> v1.10.7:eth/ethconfig/config.go
 	TxPool:      core.DefaultTxPoolConfig,
-<<<<<<< HEAD:eth/config.go
 	RPCGasCap:   25000000,
 	RPCTxFeeCap: 500, // 500 celo
-||||||| e78727290:eth/config.go
-	RPCGasCap:   25000000,
-	GPO:         DefaultFullGPOConfig,
-	RPCTxFeeCap: 1, // 1 ether
-}
-=======
-	RPCGasCap:   50000000,
-	GPO:         FullNodeGPO,
-	RPCTxFeeCap: 1, // 1 ether
-}
->>>>>>> v1.10.7:eth/ethconfig/config.go
 
-<<<<<<< HEAD:eth/config.go
 	Istanbul: *istanbul.DefaultConfig,
-||||||| e78727290:eth/config.go
-func init() {
-	home := os.Getenv("HOME")
-	if home == "" {
-		if user, err := user.Current(); err == nil {
-			home = user.HomeDir
-		}
-	}
-	if runtime.GOOS == "darwin" {
-		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "Library", "Ethash")
-	} else if runtime.GOOS == "windows" {
-		localappdata := os.Getenv("LOCALAPPDATA")
-		if localappdata != "" {
-			DefaultConfig.Ethash.DatasetDir = filepath.Join(localappdata, "Ethash")
-		} else {
-			DefaultConfig.Ethash.DatasetDir = filepath.Join(home, "AppData", "Local", "Ethash")
-		}
-	} else {
-		DefaultConfig.Ethash.DatasetDir = filepath.Join(home, ".ethash")
-	}
-=======
-func init() {
-	home := os.Getenv("HOME")
-	if home == "" {
-		if user, err := user.Current(); err == nil {
-			home = user.HomeDir
-		}
-	}
-	if runtime.GOOS == "darwin" {
-		Defaults.Ethash.DatasetDir = filepath.Join(home, "Library", "Ethash")
-	} else if runtime.GOOS == "windows" {
-		localappdata := os.Getenv("LOCALAPPDATA")
-		if localappdata != "" {
-			Defaults.Ethash.DatasetDir = filepath.Join(localappdata, "Ethash")
-		} else {
-			Defaults.Ethash.DatasetDir = filepath.Join(home, "AppData", "Local", "Ethash")
-		}
-	} else {
-		Defaults.Ethash.DatasetDir = filepath.Join(home, ".ethash")
-	}
->>>>>>> v1.10.7:eth/ethconfig/config.go
 }
 
 //go:generate gencodec -type Config -formats toml -out gen_config.go
@@ -226,26 +86,6 @@ type Config struct {
 	Whitelist map[uint64]common.Hash `toml:"-"`
 
 	// Light client options
-<<<<<<< HEAD:eth/config.go
-	LightServ    int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
-	LightIngress int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
-	LightEgress  int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
-	LightPeers   int  `toml:",omitempty"` // Maximum number of LES client peers
-	LightNoPrune bool `toml:",omitempty"` // Whether to disable light chain pruning
-	// Minimum gateway fee value to serve a transaction from a light client
-	GatewayFee *big.Int `toml:",omitempty"`
-	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
-	Validator common.Address `toml:",omitempty"`
-	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
-	TxFeeRecipient common.Address `toml:",omitempty"`
-	BLSbase        common.Address `toml:",omitempty"`
-||||||| e78727290:eth/config.go
-	LightServ    int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
-	LightIngress int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
-	LightEgress  int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
-	LightPeers   int  `toml:",omitempty"` // Maximum number of LES client peers
-	LightNoPrune bool `toml:",omitempty"` // Whether to disable light chain pruning
-=======
 	LightServ          int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
 	LightIngress       int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
 	LightEgress        int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
@@ -253,7 +93,13 @@ type Config struct {
 	LightNoPrune       bool `toml:",omitempty"` // Whether to disable light chain pruning
 	LightNoSyncServe   bool `toml:",omitempty"` // Whether to serve light clients before syncing
 	SyncFromCheckpoint bool `toml:",omitempty"` // Whether to sync the header chain from the configured checkpoint
->>>>>>> v1.10.7:eth/ethconfig/config.go
+	// Minimum gateway fee value to serve a transaction from a light client
+	GatewayFee *big.Int `toml:",omitempty"`
+	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
+	Validator common.Address `toml:",omitempty"`
+	// TxFeeRecipient is the GatewayFeeRecipient light clients need to specify in order for their transactions to be accepted by this node.
+	TxFeeRecipient common.Address `toml:",omitempty"`
+	BLSbase        common.Address `toml:",omitempty"`
 
 	// Ultra Light client options
 	UltraLightServers      []string `toml:",omitempty"` // List of trusted ultra light servers
@@ -301,45 +147,25 @@ type Config struct {
 
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
-<<<<<<< HEAD:eth/config.go
 
 	// E block override (TODO: remove after the fork)
 	OverrideEHardfork *big.Int `toml:",omitempty"`
-||||||| e78727290:eth/config.go
-=======
-
-	// Berlin block override (TODO: remove after the fork)
-	OverrideLondon *big.Int `toml:",omitempty"`
 }
 
-// CreateConsensusEngine creates a consensus engine for the given chain configuration.
-func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
-	// If proof-of-authority is requested, set it up
-	if chainConfig.Clique != nil {
-		return clique.New(chainConfig.Clique, db)
+// CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
+func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *Config, db ethdb.Database) consensus.Engine {
+	if chainConfig.Faker {
+		return mockEngine.NewFaker()
 	}
-	// Otherwise assume proof-of-work
-	switch config.PowMode {
-	case ethash.ModeFake:
-		log.Warn("Ethash used in fake mode")
-	case ethash.ModeTest:
-		log.Warn("Ethash used in test mode")
-	case ethash.ModeShared:
-		log.Warn("Ethash used in shared mode")
+	// If Istanbul is requested, set it up
+	if chainConfig.Istanbul != nil {
+		log.Debug("Setting up Istanbul consensus engine")
+		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
+			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
+		}
+
+		return istanbulBackend.New(&config.Istanbul, db)
 	}
-	engine := ethash.New(ethash.Config{
-		PowMode:          config.PowMode,
-		CacheDir:         stack.ResolvePath(config.CacheDir),
-		CachesInMem:      config.CachesInMem,
-		CachesOnDisk:     config.CachesOnDisk,
-		CachesLockMmap:   config.CachesLockMmap,
-		DatasetDir:       config.DatasetDir,
-		DatasetsInMem:    config.DatasetsInMem,
-		DatasetsOnDisk:   config.DatasetsOnDisk,
-		DatasetsLockMmap: config.DatasetsLockMmap,
-		NotifyFull:       config.NotifyFull,
-	}, notify, noverify)
-	engine.SetThreads(-1) // Disable CPU mining
-	return engine
->>>>>>> v1.10.7:eth/ethconfig/config.go
+	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
+	return nil
 }

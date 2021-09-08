@@ -28,12 +28,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -419,13 +414,7 @@ func (ps *peerSet) HeaderIdlePeers() ([]*peerConnection, int) {
 	throughput := func(p *peerConnection) int {
 		return p.rates.Capacity(eth.BlockHeadersMsg, time.Second)
 	}
-<<<<<<< HEAD
-	return ps.idlePeers(64, 66, idle, throughput)
-||||||| e78727290
-	return ps.idlePeers(63, 65, idle, throughput)
-=======
-	return ps.idlePeers(eth.ETH65, eth.ETH66, idle, throughput)
->>>>>>> v1.10.7
+	return ps.idlePeers(istanbul.Celo66, istanbul.Celo67, idle, throughput)
 }
 
 // BodyIdlePeers retrieves a flat list of all the currently body-idle peers within
@@ -437,13 +426,7 @@ func (ps *peerSet) BodyIdlePeers() ([]*peerConnection, int) {
 	throughput := func(p *peerConnection) int {
 		return p.rates.Capacity(eth.BlockBodiesMsg, time.Second)
 	}
-<<<<<<< HEAD
-	return ps.idlePeers(64, 66, idle, throughput)
-||||||| e78727290
-	return ps.idlePeers(63, 65, idle, throughput)
-=======
-	return ps.idlePeers(eth.ETH65, eth.ETH66, idle, throughput)
->>>>>>> v1.10.7
+	return ps.idlePeers(istanbul.Celo66, istanbul.Celo67, idle, throughput)
 }
 
 // ReceiptIdlePeers retrieves a flat list of all the currently receipt-idle peers
@@ -455,13 +438,7 @@ func (ps *peerSet) ReceiptIdlePeers() ([]*peerConnection, int) {
 	throughput := func(p *peerConnection) int {
 		return p.rates.Capacity(eth.ReceiptsMsg, time.Second)
 	}
-<<<<<<< HEAD
-	return ps.idlePeers(64, 66, idle, throughput)
-||||||| e78727290
-	return ps.idlePeers(63, 65, idle, throughput)
-=======
-	return ps.idlePeers(eth.ETH65, eth.ETH66, idle, throughput)
->>>>>>> v1.10.7
+	return ps.idlePeers(istanbul.Celo66, istanbul.Celo67, idle, throughput)
 }
 
 // NodeDataIdlePeers retrieves a flat list of all the currently node-data-idle
@@ -473,13 +450,7 @@ func (ps *peerSet) NodeDataIdlePeers() ([]*peerConnection, int) {
 	throughput := func(p *peerConnection) int {
 		return p.rates.Capacity(eth.NodeDataMsg, time.Second)
 	}
-<<<<<<< HEAD
-	return ps.idlePeers(64, 66, idle, throughput)
-||||||| e78727290
-	return ps.idlePeers(63, 65, idle, throughput)
-=======
-	return ps.idlePeers(eth.ETH65, eth.ETH66, idle, throughput)
->>>>>>> v1.10.7
+	return ps.idlePeers(istanbul.Celo66, istanbul.Celo67, idle, throughput)
 }
 
 // idlePeers retrieves a flat list of all currently idle peers satisfying the

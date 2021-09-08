@@ -787,12 +787,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, headerProcCh 
 func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, randomnessList []*types.Randomness, epochSnarkDataList []*types.EpochSnarkData) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-<<<<<<< HEAD
-
-||||||| e78727290
-=======
 	trieHasher := trie.NewStackTrie(nil)
->>>>>>> v1.10.7
 	validate := func(index int, header *types.Header) error {
 		if types.DeriveSha(types.Transactions(txLists[index]), trieHasher) != header.TxHash {
 			return errInvalidBody

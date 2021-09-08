@@ -27,18 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -77,13 +65,7 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 	// The eth/65 (celo/66) protocol introduces proper transaction announcements, so instead
 	// of dripping transactions across multiple peers, just send the entire list as
 	// an announcement and let the remote side decide what they need (likely nothing).
-<<<<<<< HEAD
-	if p.version >= istanbul.Celo66 {
-||||||| e78727290
-	if p.version >= eth65 {
-=======
-	if p.Version() >= eth.ETH65 {
->>>>>>> v1.10.7
+	if p.Version() >= istanbul.Celo66 {
 		hashes := make([]common.Hash, len(txs))
 		for i, tx := range txs {
 			hashes[i] = tx.Hash()
@@ -116,16 +98,8 @@ func (h *handler) txsyncLoop64() {
 
 	// send starts a sending a pack of transactions from the sync.
 	send := func(s *txsync) {
-<<<<<<< HEAD
-		if s.p.version >= istanbul.Celo66 {
+		if s.p.Version() >= istanbul.Celo66 {
 			panic("initial transaction syncer running on eth/65+ (celo/66+)")
-||||||| e78727290
-		if s.p.version >= eth65 {
-			panic("initial transaction syncer running on eth/65+")
-=======
-		if s.p.Version() >= eth.ETH65 {
-			panic("initial transaction syncer running on eth/65+")
->>>>>>> v1.10.7
 		}
 		// Fill pack with transactions up to the target size.
 		size := common.StorageSize(0)
