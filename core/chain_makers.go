@@ -97,7 +97,6 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 
 	celoMock := testutil.NewCeloMock()
 	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner)
-
 	if err != nil {
 		panic(err)
 	}
@@ -229,14 +228,13 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	} else {
 		time = parent.Time() + 10 // block time is fixed at 10 seconds
 	}
-	header := &types.Header{
+	return &types.Header{
 		Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
 		Number:     new(big.Int).Add(parent.Number(), common.Big1),
 		Time:       time,
 	}
-	return header
 }
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.

@@ -74,10 +74,9 @@ var (
 	blockExecutionTimer  = metrics.NewRegisteredTimer("chain/execution", nil)
 	blockWriteTimer      = metrics.NewRegisteredTimer("chain/write", nil)
 
-	blockReorgMeter         = metrics.NewRegisteredMeter("chain/reorg/executes", nil)
-	blockReorgAddMeter      = metrics.NewRegisteredMeter("chain/reorg/add", nil)
-	blockReorgDropMeter     = metrics.NewRegisteredMeter("chain/reorg/drop", nil)
-	blockReorgInvalidatedTx = metrics.NewRegisteredMeter("chain/reorg/invalidTx", nil)
+	blockReorgMeter     = metrics.NewRegisteredMeter("chain/reorg/executes", nil)
+	blockReorgAddMeter  = metrics.NewRegisteredMeter("chain/reorg/add", nil)
+	blockReorgDropMeter = metrics.NewRegisteredMeter("chain/reorg/drop", nil)
 
 	blockPrefetchExecuteTimer   = metrics.NewRegisteredTimer("chain/prefetch/executes", nil)
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
@@ -2395,27 +2394,10 @@ func (bc *BlockChain) maintainTxIndex(ancients uint64) {
 	}
 }
 
-// // BadBlocks returns a list of the last 'bad blocks' that the client has seen on the network
-// func (bc *BlockChain) BadBlocks() []*types.Block {
-// 	blocks := make([]*types.Block, 0, bc.badBlocks.Len())
-// 	for _, hash := range bc.badBlocks.Keys() {
-// 		if blk, exist := bc.badBlocks.Peek(hash); exist {
-// 			block := blk.(*types.Block)
-// 			blocks = append(blocks, block)
-// 		}
-// 	}
-// 	return blocks
-// }
-
-// // HasBadBlock returns whether the block with the hash is a bad block
-// func (bc *BlockChain) HasBadBlock(hash common.Hash) bool {
-// 	return bc.badBlocks.Contains(hash)
-// }
-
-// // addBadBlock adds a bad block to the bad-block LRU cache
-// func (bc *BlockChain) addBadBlock(block *types.Block) {
-// 	bc.badBlocks.Add(block.Hash(), block)
-// }
+// HasBadBlock returns whether the block with the hash is a bad block
+func (bc *BlockChain) HasBadBlock(hash common.Hash) bool {
+	return (rawdb.ReadBadBlock(bc.db, hash) != nil)
+}
 
 // reportBlock logs a bad block error.
 func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, err error) {

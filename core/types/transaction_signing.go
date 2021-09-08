@@ -452,6 +452,15 @@ func (hs HomesteadSigner) Sender(tx *Transaction) (common.Address, error) {
 	return recoverPlain(hs.Hash(tx), r, s, v, true)
 }
 
+func (hs HomesteadSigner) SenderData(data common.Hash, sig []byte) (common.Address, []byte, error) {
+	r, s, v, err := hs.SignatureValues(nil, sig)
+	v = new(big.Int).Sub(v, big.NewInt(27))
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	return recoverPlainWithPublic(data, r, s, v, true)
+}
+
 type FrontierSigner struct{}
 
 func (s FrontierSigner) ChainID() *big.Int {
@@ -519,12 +528,17 @@ func decodeSignature(sig []byte) (r, s, v *big.Int) {
 }
 
 func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, error) {
+	addr, _, err := recoverPlainWithPublic(sighash, R, S, Vb, homestead)
+	return addr, err
+}
+
+func recoverPlainWithPublic(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, []byte, error) {
 	if Vb.BitLen() > 8 {
-		return common.Address{}, ErrInvalidSig
+		return common.Address{}, nil, ErrInvalidSig
 	}
 	V := byte(Vb.Uint64() - 27)
 	if !crypto.ValidateSignatureValues(V, R, S, homestead) {
-		return common.Address{}, ErrInvalidSig
+		return common.Address{}, nil, ErrInvalidSig
 	}
 	// encode the signature in uncompressed format
 	r, s := R.Bytes(), S.Bytes()
@@ -535,14 +549,14 @@ func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (commo
 	// recover the public key from the signature
 	pub, err := crypto.Ecrecover(sighash[:], sig)
 	if err != nil {
-		return common.Address{}, err
+		return common.Address{}, nil, err
 	}
 	if len(pub) == 0 || pub[0] != 4 {
-		return common.Address{}, errors.New("invalid public key")
+		return common.Address{}, nil, errors.New("invalid public key")
 	}
 	var addr common.Address
 	copy(addr[:], crypto.Keccak256(pub[1:])[12:])
-	return addr, nil
+	return addr, pub, nil
 }
 
 // deriveChainId derives the chain id from the given v parameter

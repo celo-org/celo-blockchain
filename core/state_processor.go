@@ -67,7 +67,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmRunner    = p.bc.NewEVMRunner(block.Header(), statedb)
 		gp          = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
 	)
-
 	if random.IsRunning(vmRunner) {
 		author, err := p.bc.Engine().Author(header)
 		if err != nil {
@@ -122,7 +121,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 		return nil, ErrUnprotectedTransaction
 	}
 
-	// Create a new context to be used in the EVM environment.
+	// Create a new context to be used in the EVM environment
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
 
@@ -180,5 +179,4 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	blockContext := NewEVMBlockContext(header, bc, txFeeRecipient)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
 	return applyTransaction(msg, config, bc, txFeeRecipient, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner)
-
 }
