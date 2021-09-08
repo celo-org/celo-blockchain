@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -44,35 +45,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/les"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/les"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	ethproto "github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/event"
@@ -81,6 +53,7 @@ import (
 	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/gorilla/websocket"
 	"golang.org/x/sync/errgroup"
@@ -141,7 +114,6 @@ type fullNodeBackend interface {
 	Miner() *miner.Miner
 	BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
 	CurrentBlock() *types.Block
-<<<<<<< HEAD
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 }
 
@@ -155,11 +127,6 @@ type StatsPayload struct {
 type DelegateSignMessage struct {
 	PeerID  enode.ID
 	Payload StatsPayload
-||||||| e78727290
-	SuggestPrice(ctx context.Context) (*big.Int, error)
-=======
-	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
->>>>>>> v1.10.7
 }
 
 // Service implements an Ethereum netstats reporting daemon that pushes local
@@ -225,7 +192,6 @@ func (w *connWrapper) Close() error {
 	return w.conn.Close()
 }
 
-<<<<<<< HEAD
 func parseStatsConnectionURL(url string, name *string, host *string) error {
 	re := regexp.MustCompile("([^:@]*)?@(.+)")
 	parts := re.FindStringSubmatch(url)
@@ -237,36 +203,8 @@ func parseStatsConnectionURL(url string, name *string, host *string) error {
 	return nil
 }
 
-||||||| e78727290
-=======
-// parseEthstatsURL parses the netstats connection url.
-// URL argument should be of the form <nodename:secret@host:port>
-// If non-erroring, the returned slice contains 3 elements: [nodename, pass, host]
-func parseEthstatsURL(url string) (parts []string, err error) {
-	err = fmt.Errorf("invalid netstats url: \"%s\", should be nodename:secret@host:port", url)
-
-	hostIndex := strings.LastIndex(url, "@")
-	if hostIndex == -1 || hostIndex == len(url)-1 {
-		return nil, err
-	}
-	preHost, host := url[:hostIndex], url[hostIndex+1:]
-
-	passIndex := strings.LastIndex(preHost, ":")
-	if passIndex == -1 {
-		return []string{preHost, "", host}, nil
-	}
-	nodename, pass := preHost[:passIndex], ""
-	if passIndex != len(preHost)-1 {
-		pass = preHost[passIndex+1:]
-	}
-
-	return []string{nodename, pass, host}, nil
-}
-
->>>>>>> v1.10.7
 // New returns a monitoring service ready for stats reporting.
 func New(node *node.Node, backend backend, engine consensus.Engine, url string) error {
-<<<<<<< HEAD
 	// Assemble and return the stats service
 	var (
 		name          string
@@ -279,21 +217,9 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string) 
 		if err := parseStatsConnectionURL(url, &name, &celostatsHost); err != nil {
 			return err
 		}
-||||||| e78727290
-	// Parse the netstats connection url
-	re := regexp.MustCompile("([^:@]*)(:([^@]*))?@(.+)")
-	parts := re.FindStringSubmatch(url)
-	if len(parts) != 5 {
-		return fmt.Errorf("invalid netstats url: \"%s\", should be nodename:secret@host:port", url)
-=======
-	parts, err := parseEthstatsURL(url)
-	if err != nil {
-		return err
->>>>>>> v1.10.7
 	}
 
 	ethstats := &Service{
-<<<<<<< HEAD
 		engine:          engine,
 		backend:         backend,
 		istanbulBackend: istanbulBackend,
@@ -303,25 +229,6 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string) 
 		stopFn:          nil,
 		pongCh:          make(chan struct{}),
 		histCh:          make(chan []uint64, 1),
-||||||| e78727290
-		backend: backend,
-		engine:  engine,
-		server:  node.Server(),
-		node:    parts[1],
-		pass:    parts[3],
-		host:    parts[4],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
-=======
-		backend: backend,
-		engine:  engine,
-		server:  node.Server(),
-		node:    parts[0],
-		pass:    parts[1],
-		host:    parts[2],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
->>>>>>> v1.10.7
 	}
 	node.RegisterLifecycle(ethstats)
 	return nil
@@ -333,23 +240,12 @@ func (s *Service) Protocols() []p2p.Protocol { return nil }
 
 // Start implements node.Service, starting up the monitoring and reporting daemon.
 func (s *Service) Start() error {
-<<<<<<< HEAD
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		s.stopFn = cancel
 		s.loop(ctx)
 	}()
-||||||| e78727290
-	go s.loop()
-=======
-	// Subscribe to chain events to execute updates on
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	s.headSub = s.backend.SubscribeChainHeadEvent(chainHeadCh)
-	txEventCh := make(chan core.NewTxsEvent, txChanSize)
-	s.txSub = s.backend.SubscribeNewTxsEvent(txEventCh)
-	go s.loop(chainHeadCh, txEventCh)
->>>>>>> v1.10.7
 
 	log.Info("Stats daemon started")
 	return nil
@@ -357,7 +253,6 @@ func (s *Service) Start() error {
 
 // Stop implements node.Lifecycle, terminating the monitoring and reporting daemon.
 func (s *Service) Stop() error {
-<<<<<<< HEAD
 	// TODO don't stop if already stopped
 	// TODO use lock
 	if s.stopFn != nil {
@@ -366,34 +261,12 @@ func (s *Service) Stop() error {
 		s.stopFn = nil
 	}
 	// TODO use WaitGroup to wait for loop to finish (or use errgroup for it)
-||||||| e78727290
-	log.Info("Stats daemon stopped")
-=======
-	s.headSub.Unsubscribe()
-	s.txSub.Unsubscribe()
-	log.Info("Stats daemon stopped")
->>>>>>> v1.10.7
 	return nil
 }
 
 // loop keeps trying to connect to the netstats server, reporting chain events
 // until termination.
-<<<<<<< HEAD
 func (s *Service) loop(ctx context.Context) {
-||||||| e78727290
-func (s *Service) loop() {
-	// Subscribe to chain events to execute updates on
-	chainHeadCh := make(chan core.ChainHeadEvent, chainHeadChanSize)
-	headSub := s.backend.SubscribeChainHeadEvent(chainHeadCh)
-	defer headSub.Unsubscribe()
-
-	txEventCh := make(chan core.NewTxsEvent, txChanSize)
-	txSub := s.backend.SubscribeNewTxsEvent(txEventCh)
-	defer txSub.Unsubscribe()
-
-=======
-func (s *Service) loop(chainHeadCh chan core.ChainHeadEvent, txEventCh chan core.NewTxsEvent) {
->>>>>>> v1.10.7
 	// Start a goroutine that exhausts the subscriptions to avoid events piling up
 	var (
 		headCh = make(chan *types.Block, 1)
@@ -459,33 +332,11 @@ func (s *Service) loop(chainHeadCh chan core.ChainHeadEvent, txEventCh chan core
 						}
 					}
 
-<<<<<<< HEAD
 					if err != nil {
 						log.Warn("Stats server unreachable", "err", err)
 						errTimer.Reset(connectionTimeout * time.Second)
 						continue
 					}
-||||||| e78727290
-			// node stopped
-			case <-txSub.Err():
-				break HandleLoop
-			case <-headSub.Err():
-				break HandleLoop
-			}
-		}
-		close(quitCh)
-	}()
-=======
-			// node stopped
-			case <-s.txSub.Err():
-				break HandleLoop
-			case <-s.headSub.Err():
-				break HandleLoop
-			}
-		}
-		close(quitCh)
-	}()
->>>>>>> v1.10.7
 
 					// Authenticate the client with the server
 					if err = s.login(conn, sendCh); err != nil {
@@ -569,17 +420,17 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 	// Construct and send the login authentication
 	infos := s.server.NodeInfo()
 
-	var (
-		network  string
-		protocol string
-	)
+	var protocols []string
+	for _, proto := range s.server.Protocols {
+		protocols = append(protocols, fmt.Sprintf("%s/%d", proto.Name, proto.Version))
+	}
+	var network string
 	if info := infos.Protocols[istanbul.ProtocolName]; info != nil {
-		ethInfo, ok := info.(*eth.NodeInfo)
+		ethInfo, ok := info.(*ethproto.NodeInfo)
 		if !ok {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", ethInfo.Network)
-		protocol = fmt.Sprintf("%s/%d", istanbul.ProtocolName, istanbul.ProtocolVersions[0])
 	} else {
 		lesProtocol, ok := infos.Protocols["les"]
 		if !ok {
@@ -590,8 +441,8 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 			return errors.New("could not resolve NodeInfo")
 		}
 		network = fmt.Sprintf("%d", lesInfo.Network)
-		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
 	}
+
 	auth := &authMsg{
 		ID: s.istanbulBackend.ValidatorAddress().String(),
 		Info: nodeInfo{
@@ -599,7 +450,7 @@ func (s *Service) login(conn *connWrapper, sendCh chan *StatsPayload) error {
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
 			Network:  network,
-			Protocol: protocol,
+			Protocol: strings.Join(protocols, ", "),
 			API:      "No",
 			Os:       runtime.GOOS,
 			OsVer:    runtime.GOARCH,
@@ -764,6 +615,10 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 	var lastTx mclock.AbsTime
 	ch := make(chan core.NewTxsEvent, txChanSize)
 	subscription := s.backend.SubscribeNewTxsEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -791,6 +646,10 @@ func (s *Service) handleNewTransactionEvents(ctx context.Context, txChan chan st
 func (s *Service) handleChainHeadEvents(ctx context.Context, headCh chan *types.Block) error {
 	ch := make(chan core.ChainHeadEvent, chainHeadChanSize)
 	subscription := s.backend.SubscribeChainHeadEvent(ch)
+	if subscription == nil {
+		log.Error("Stats daemon stopped due to nil head subscription")
+		return errors.New("nil head subscription")
+	}
 	defer subscription.Unsubscribe()
 
 	for {
@@ -920,106 +779,8 @@ type nodeInfo struct {
 
 // authMsg is the authentication infos needed to login to a monitoring server.
 type authMsg struct {
-<<<<<<< HEAD
 	ID   string   `json:"id"`
 	Info nodeInfo `json:"info"`
-||||||| e78727290
-	ID     string   `json:"id"`
-	Info   nodeInfo `json:"info"`
-	Secret string   `json:"secret"`
-}
-
-// login tries to authorize the client at the remote server.
-func (s *Service) login(conn *connWrapper) error {
-	// Construct and send the login authentication
-	infos := s.server.NodeInfo()
-
-	var network, protocol string
-	if info := infos.Protocols["eth"]; info != nil {
-		network = fmt.Sprintf("%d", info.(*eth.NodeInfo).Network)
-		protocol = fmt.Sprintf("eth/%d", eth.ProtocolVersions[0])
-	} else {
-		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
-		protocol = fmt.Sprintf("les/%d", les.ClientProtocolVersions[0])
-	}
-	auth := &authMsg{
-		ID: s.node,
-		Info: nodeInfo{
-			Name:     s.node,
-			Node:     infos.Name,
-			Port:     infos.Ports.Listener,
-			Network:  network,
-			Protocol: protocol,
-			API:      "No",
-			Os:       runtime.GOOS,
-			OsVer:    runtime.GOARCH,
-			Client:   "0.1.1",
-			History:  true,
-		},
-		Secret: s.pass,
-	}
-	login := map[string][]interface{}{
-		"emit": {"hello", auth},
-	}
-	if err := conn.WriteJSON(login); err != nil {
-		return err
-	}
-	// Retrieve the remote ack or connection termination
-	var ack map[string][]string
-	if err := conn.ReadJSON(&ack); err != nil || len(ack["emit"]) != 1 || ack["emit"][0] != "ready" {
-		return errors.New("unauthorized")
-	}
-	return nil
-=======
-	ID     string   `json:"id"`
-	Info   nodeInfo `json:"info"`
-	Secret string   `json:"secret"`
-}
-
-// login tries to authorize the client at the remote server.
-func (s *Service) login(conn *connWrapper) error {
-	// Construct and send the login authentication
-	infos := s.server.NodeInfo()
-
-	var protocols []string
-	for _, proto := range s.server.Protocols {
-		protocols = append(protocols, fmt.Sprintf("%s/%d", proto.Name, proto.Version))
-	}
-	var network string
-	if info := infos.Protocols["eth"]; info != nil {
-		network = fmt.Sprintf("%d", info.(*ethproto.NodeInfo).Network)
-	} else {
-		network = fmt.Sprintf("%d", infos.Protocols["les"].(*les.NodeInfo).Network)
-	}
-	auth := &authMsg{
-		ID: s.node,
-		Info: nodeInfo{
-			Name:     s.node,
-			Node:     infos.Name,
-			Port:     infos.Ports.Listener,
-			Network:  network,
-			Protocol: strings.Join(protocols, ", "),
-			API:      "No",
-			Os:       runtime.GOOS,
-			OsVer:    runtime.GOARCH,
-			Client:   "0.1.1",
-			History:  true,
-		},
-		Secret: s.pass,
-	}
-	login := map[string][]interface{}{
-		"emit": {"hello", auth},
-	}
-	if err := conn.WriteJSON(login); err != nil {
-		return err
-	}
-	// Retrieve the remote ack or connection termination
-	var ack map[string][]string
-	if err := conn.ReadJSON(&ack); err != nil || len(ack["emit"]) != 1 || ack["emit"][0] != "ready" {
-		return errors.New("unauthorized")
-	}
-	return nil
->>>>>>> v1.10.7
 }
 
 // report collects all possible data to report and send it to the stats server.
@@ -1447,7 +1208,6 @@ func (s *Service) reportStats(conn *connWrapper) error {
 
 		proxy = s.istanbulBackend.IsProxy()
 		mining = fullBackend.Miner().Mining()
-<<<<<<< HEAD
 
 		elected = false
 		valsElected := s.istanbulBackend.GetValidators(block.Number(), block.Hash())
@@ -1457,26 +1217,15 @@ func (s *Service) reportStats(conn *connWrapper) error {
 				elected = true
 			}
 		}
-||||||| e78727290
-		hashrate = int(fullBackend.Miner().HashRate())
-=======
-		hashrate = int(fullBackend.Miner().Hashrate())
->>>>>>> v1.10.7
 
 		sync := fullBackend.Downloader().Progress()
 		syncing = fullBackend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-<<<<<<< HEAD
 		price, _ := fullBackend.SuggestPrice(context.Background(), nil)
-||||||| e78727290
-		price, _ := fullBackend.SuggestPrice(context.Background())
-=======
-		price, _ := fullBackend.SuggestGasTipCap(context.Background())
->>>>>>> v1.10.7
 		gasprice = int(price.Uint64())
-		if basefee := fullBackend.CurrentHeader().BaseFee; basefee != nil {
-			gasprice += int(basefee.Uint64())
-		}
+		// if basefee := fullBackend.CurrentHeader().BaseFee; basefee != nil {
+		// 	gasprice += int(basefee.Uint64())
+		// }
 	} else {
 		sync := s.backend.Downloader().Progress()
 		syncing = s.backend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
