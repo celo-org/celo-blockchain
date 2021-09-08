@@ -505,9 +505,9 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	sb.Finalize(chain, header, state, txs)
 
 	// Add extra receipt for Block's Internal Transaction Logs
-	if len(state.GetLogs(common.Hash{})) > 0 {
+	if len(state.GetLogs(common.Hash{}, header.Hash())) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = state.GetLogs(common.Hash{})
+		receipt.Logs = state.GetLogs(common.Hash{}, header.Hash())
 		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 		receipts = append(receipts, receipt)
 	}
