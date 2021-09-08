@@ -16,7 +16,6 @@
 
 package core
 
-/*
 import (
 	"math/big"
 	"testing"
@@ -24,23 +23,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/trie"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -55,6 +37,7 @@ import (
 // blockchain imports bad blocks, meaning blocks which have valid headers but
 // contain invalid transactions
 func TestStateProcessorErrors(t *testing.T) {
+	t.Skip("TODO: Fix Test")
 	var (
 		config = &params.ChainConfig{
 			ChainID:             big.NewInt(1),
@@ -66,100 +49,25 @@ func TestStateProcessorErrors(t *testing.T) {
 			ConstantinopleBlock: big.NewInt(0),
 			PetersburgBlock:     big.NewInt(0),
 			IstanbulBlock:       big.NewInt(0),
-			MuirGlacierBlock:    big.NewInt(0),
-			BerlinBlock:         big.NewInt(0),
-			LondonBlock:         big.NewInt(0),
-			Ethash:              new(params.EthashConfig),
+			ChurritoBlock:       big.NewInt(0),
+			DonutBlock:          big.NewInt(0),
+			EBlock:              big.NewInt(0),
 		}
 		signer     = types.LatestSigner(config)
 		testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-<<<<<<< HEAD
-		db         = rawdb.NewMemoryDatabase()
-		gspec      = &Genesis{
-			Config: params.TestChainConfig,
-		}
-		genesis       = gspec.MustCommit(db)
-		blockchain, _ = NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
-||||||| e78727290
-		db         = rawdb.NewMemoryDatabase()
-		gspec      = &Genesis{
-			Config: params.TestChainConfig,
-		}
-		genesis       = gspec.MustCommit(db)
-		blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
-=======
->>>>>>> v1.10.7
+		// db         = rawdb.NewMemoryDatabase()
+		// gspec      = &Genesis{
+		// 	Config: params.TestChainConfig,
+		// }
+		// genesis       = gspec.MustCommit(db)
+		// blockchain, _ = NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 	)
-<<<<<<< HEAD
-	defer blockchain.Stop()
+	// defer blockchain.Stop()
 	var makeTx = func(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency *common.Address, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *types.Transaction {
 		tx, _ := types.SignTx(types.NewTransaction(nonce, to, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data), signer, testKey)
-||||||| e78727290
-	defer blockchain.Stop()
-	var makeTx = func(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *types.Transaction {
-		tx, _ := types.SignTx(types.NewTransaction(nonce, to, amount, gasLimit, gasPrice, data), signer, testKey)
-=======
-	var makeTx = func(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *types.Transaction {
-		tx, _ := types.SignTx(types.NewTransaction(nonce, to, amount, gasLimit, gasPrice, data), signer, testKey)
->>>>>>> v1.10.7
 		return tx
 	}
-<<<<<<< HEAD
-	for i, tt := range []struct {
-		txs  []*types.Transaction
-		want string
-	}{
-		{
-			txs: []*types.Transaction{
-				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-			},
-			want: "could not apply tx 1 [0xd7d4ec936b98af7dfe88835c151ae30d6c1a1aec02a6165443927349928666d7]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
-		},
-		{
-			txs: []*types.Transaction{
-				makeTx(100, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-			},
-			want: "could not apply tx 0 [0xc6fe0942985c8bd3727ed0705d156880b1fe5f12d8f53a7691bee4322357abf7]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
-		},
-		{
-			txs: []*types.Transaction{
-				makeTx(0, common.Address{}, big.NewInt(0), 21000000, nil, nil, nil, nil, nil),
-			},
-			want: "could not apply tx 0 [0x3ae48e34b0a5bbc796eadee31de3a5d89f64976cc36400b467ec542ebbfa5967]: gas limit reached",
-		},
-		{
-			txs: []*types.Transaction{
-				makeTx(0, common.Address{}, big.NewInt(1), params.TxGas, nil, nil, nil, nil, nil),
-			},
-			want: "could not apply tx 0 [0x58e8ab3dd574583c5195687aae5e9a3f8c3680801422b8ecdb73ca0ba0f0c200]: insufficient funds for transfer (after fees): address 0x71562b71999873DB5b286dF957af199Ec94617F7",
-		},
-		{
-			txs: []*types.Transaction{
-				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(0xffffff), nil, nil, nil, nil),
-			},
-			want: "could not apply tx 0 [0x1dd95c056fa099d248f03edebd6de39d65e99f6eb3944bd03dab86296b1cf962]: insufficient funds to pay for fees",
-		},
-		{
-			txs: []*types.Transaction{
-				makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-				makeTx(1, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-				makeTx(2, common.Address{}, big.NewInt(0), params.TxGas, nil, nil, nil, nil, nil),
-				makeTx(3, common.Address{}, big.NewInt(0), params.TxGas-1000, big.NewInt(0), nil, nil, nil, nil),
-			},
-			want: "could not apply tx 3 [0x28ef3bcf5511bc6073ce432d806cbf86e1e4556fc2006a4f4ca4398eb94113dd]: intrinsic gas too low: have 20000, want 21000",
-		},
-		// The last 'core' error is ErrGasUintOverflow: "gas uint64 overflow", but in order to
-		// trigger that one, we'd have to allocate a _huge_ chunk of data, such that the
-		// multiplication len(data) +gas_per_byte overflows uint64. Not testable at the moment
-	} {
-		block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs)
-		_, err := blockchain.InsertChain(types.Blocks{block})
-		if err == nil {
-			t.Fatal("block imported without errors")
-||||||| e78727290
 
-=======
 	var mkDynamicTx = func(nonce uint64, to common.Address, gasLimit uint64, gasTipCap, gasFeeCap *big.Int) *types.Transaction {
 		tx, _ := types.SignTx(types.NewTx(&types.DynamicFeeTx{
 			Nonce:     nonce,
@@ -184,7 +92,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 			}
 			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			blockchain, _ = NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		bigNumber := new(big.Int).SetBytes(common.FromHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
@@ -196,34 +104,34 @@ func TestStateProcessorErrors(t *testing.T) {
 		}{
 			{ // ErrNonceTooLow
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil),
-					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 1 [0x0026256b3939ed97e2c4a6f3fce8ecf83bdcfa6d507c47838c308a1fb0436f62]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
+				want: "could not apply tx 1 [0x007b02f957123ca016999a9e826e6dfd4f7b36d2406f0057526aeb9a6202adfa]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
 			},
 			{ // ErrNonceTooHigh
 				txs: []*types.Transaction{
-					makeTx(100, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil),
+					makeTx(100, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0xdebad714ca7f363bd0d8121c4518ad48fa469ca81b0a081be3d10c17460f751b]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
+				want: "could not apply tx 0 [0xa0f823b5e4c81b1b0528531f25f06514b8d8c766de99747ad3137577987ff0b7]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
 			},
 			{ // ErrGasLimitReached
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(0), 21000000, big.NewInt(875000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(0), 21000000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0xbd49d8dadfd47fb846986695f7d4da3f7b2c48c8da82dbc211a26eb124883de9]: gas limit reached",
+				want: "could not apply tx 0 [0xbd4180e51b03a814b5c96016cc47575fdf777288fc165dc5ad3f9dd3e0e8dcee]: gas limit reached",
 			},
 			{ // ErrInsufficientFundsForTransfer
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(1000000000000000000), params.TxGas, big.NewInt(875000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(1000000000000000000), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0x98c796b470f7fcab40aaef5c965a602b0238e1034cce6fb73823042dd0638d74]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1000018375000000000",
+				want: "could not apply tx 0 [0x4610b4dc2b2508d3555499e34eed7315ad3b5215ec8dbc1cb22bda45e1667cf6]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1000018375000000000",
 			},
 			{ // ErrInsufficientFunds
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(900000000000000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(900000000000000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0x4a69690c4b0cd85e64d0d9ea06302455b01e10a83db964d60281739752003440]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 18900000000000000000000",
+				want: "could not apply tx 0 [0x99113426d253b063416fc51259f7f78c832d49a9bf09f2748fe50fd3130e7162]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 18900000000000000000000",
 			},
 			// ErrGasUintOverflow
 			// One missing 'core' error is ErrGasUintOverflow: "gas uint64 overflow",
@@ -231,15 +139,15 @@ func TestStateProcessorErrors(t *testing.T) {
 			// multiplication len(data) +gas_per_byte overflows uint64. Not testable at the moment
 			{ // ErrIntrinsicGas
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas-1000, big.NewInt(875000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas-1000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0xcf3b049a0b516cb4f9274b3e2a264359e2ba53b2fb64b7bda2c634d5c9d01fca]: intrinsic gas too low: have 20000, want 21000",
+				want: "could not apply tx 0 [0x436f2e580794590a8627d8155b638c4ed1b41375283ba19f13a5a8b76ed51fdc]: intrinsic gas too low: have 20000, want 21000",
 			},
 			{ // ErrGasLimitReached
 				txs: []*types.Transaction{
-					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas*1000, big.NewInt(875000000), nil),
+					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas*1000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0xbd49d8dadfd47fb846986695f7d4da3f7b2c48c8da82dbc211a26eb124883de9]: gas limit reached",
+				want: "could not apply tx 0 [0xbd4180e51b03a814b5c96016cc47575fdf777288fc165dc5ad3f9dd3e0e8dcee]: gas limit reached",
 			},
 			{ // ErrFeeCapTooLow
 				txs: []*types.Transaction{
@@ -283,7 +191,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 2431633873983640103894990685182446064918669677978451844828609264166175722438635000",
 			},
 		} {
-			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
+			block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs, gspec.Config)
 			_, err := blockchain.InsertChain(types.Blocks{block})
 			if err == nil {
 				t.Fatal("block imported without errors")
@@ -309,7 +217,6 @@ func TestStateProcessorErrors(t *testing.T) {
 					ConstantinopleBlock: big.NewInt(0),
 					PetersburgBlock:     big.NewInt(0),
 					IstanbulBlock:       big.NewInt(0),
-					MuirGlacierBlock:    big.NewInt(0),
 				},
 				Alloc: GenesisAlloc{
 					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
@@ -319,7 +226,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 			}
 			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			blockchain, _ = NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		for i, tt := range []struct {
@@ -333,7 +240,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				want: "could not apply tx 0 [0x88626ac0d53cb65308f2416103c62bb1f18b805573d4f96a3640bbbfff13c14f]: transaction type not supported",
 			},
 		} {
-			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
+			block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs, gspec.Config)
 			_, err := blockchain.InsertChain(types.Blocks{block})
 			if err == nil {
 				t.Fatal("block imported without errors")
@@ -341,7 +248,6 @@ func TestStateProcessorErrors(t *testing.T) {
 			if have, want := err.Error(), tt.want; have != want {
 				t.Errorf("test %d:\nhave \"%v\"\nwant \"%v\"\n", i, have, want)
 			}
->>>>>>> v1.10.7
 		}
 	}
 
@@ -360,7 +266,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 			}
 			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			blockchain, _ = NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		for i, tt := range []struct {
@@ -374,7 +280,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				want: "could not apply tx 0 [0x88626ac0d53cb65308f2416103c62bb1f18b805573d4f96a3640bbbfff13c14f]: sender not an eoa: address 0x71562b71999873DB5b286dF957af199Ec94617F7, codehash: 0x9280914443471259d4570a8661015ae4a5b80186dbc619658fb494bebc3da3d1",
 			},
 		} {
-			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
+			block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs, gspec.Config)
 			_, err := blockchain.InsertChain(types.Blocks{block})
 			if err == nil {
 				t.Fatal("block imported without errors")
@@ -394,21 +300,10 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
-		// Difficulty: engine.CalcDifficulty(&fakeChainReader{params.TestChainConfig}, parent.Time()+10, &types.Header{
-		// 	Number:     parent.Number(),
-		// 	Time:       parent.Time(),
-		// 	Difficulty: parent.Difficulty(),
-		// 	UncleHash:  parent.UncleHash(),
-		// }),
-		// GasLimit:  CalcGasLimit(parent, parent.GasLimit(), parent.GasLimit()),
-		Number: new(big.Int).Add(parent.Number(), common.Big1),
-		Time:   parent.Time() + 10,
-		// UncleHash: types.EmptyUncleHash,
+		Number:     new(big.Int).Add(parent.Number(), common.Big1),
+		Time:       parent.Time() + 10,
+	}
 
-	}
-	if config.IsLondon(header.Number) {
-		header.BaseFee = misc.CalcBaseFee(config, parent.Header())
-	}
 	var receipts []*types.Receipt
 	// The post-state result doesn't need to be correct (this is a bad block), but we do need something there
 	// Preferably something unique. So let's use a combo of blocknum + txhash
@@ -429,4 +324,3 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 	return types.NewBlock(header, txs, receipts, nil, trie.NewStackTrie(nil))
 
 }
-*/
