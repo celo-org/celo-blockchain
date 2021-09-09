@@ -157,7 +157,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 // selectAndApplyTransactions selects and applies transactions to the in flight block state.
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
+	pending, err := w.eth.TxPool().Pending(true)
 
 	// TODO: should this be a fatal error?
 	if err != nil {
@@ -178,15 +178,16 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 		}
 	}
 
-	txComparator := createTxCmp(w.chain, b.header, b.state)
+	// TODO: Properly inject the basefee & toCELO function here
+	// txComparator := createTxCmp(w.chain, b.header, b.state)
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, txComparator)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, nil, nil)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit local transactions: %w", err)
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, txComparator)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, nil, nil)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit remote transactions: %w", err)
 		}
@@ -239,7 +240,7 @@ loop:
 			continue
 		}
 		// Start executing the transaction
-		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
+		b.state.Prepare(tx.Hash(), b.tcount)
 
 		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
 		switch {
@@ -329,9 +330,9 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 		}
 	}
 
-	if len(b.state.GetLogs(common.Hash{})) > 0 {
+	if len(b.state.GetLogs(common.Hash{}, b.header.Hash())) > 0 {
 		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = b.state.GetLogs(common.Hash{})
+		receipt.Logs = b.state.GetLogs(common.Hash{}, b.header.Hash())
 		for i := range receipt.Logs {
 			receipt.Logs[i].TxIndex = uint(len(b.receipts))
 		}
@@ -346,6 +347,7 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
+		// TODO(Joshua): User tx.EffectiveGasTip instead of gas price
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
