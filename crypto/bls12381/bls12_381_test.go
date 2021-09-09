@@ -4,26 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"math/big"
-	"os"
-	"testing"
 )
 
-<<<<<<< HEAD
-var fuz int
-
-func TestMain(m *testing.M) {
-	_fuz := flag.Int("fuzz", 10, "# of iterations")
-	flag.Parse()
-	fuz = *_fuz
-	os.Exit(m.Run())
-}
-||||||| e78727290
-var fuz int = 10
-=======
 var fuz = 10
->>>>>>> v1.10.7
 
 func randScalar(max *big.Int) *big.Int {
 	a, err := rand.Int(rand.Reader, max)
