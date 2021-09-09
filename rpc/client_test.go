@@ -515,13 +515,7 @@ func TestClientNotificationStorm(t *testing.T) {
 	}
 
 	doTest(8000, false)
-<<<<<<< HEAD
-	doTest(33000, true)
-||||||| e78727290
-	doTest(23000, true)
-=======
 	doTest(24000, true)
->>>>>>> v1.10.7
 }
 
 func TestClientSetHeader(t *testing.T) {
