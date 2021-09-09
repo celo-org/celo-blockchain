@@ -487,8 +487,8 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		if i+1 < len(txs) {
 			next := txs[i+1]
 			fromNext, _ := Sender(signer, next)
-			tip, err := txi.EffectiveGasTip(baseFee, toCELOMockFn)
-			nextTip, nextErr := next.EffectiveGasTip(baseFee, toCELOMockFn)
+			tip, err := txi.EffectiveGasTip(baseFee)
+			nextTip, nextErr := next.EffectiveGasTip(baseFee)
 			if err != nil || nextErr != nil {
 				t.Fatal("error calculating effective tip")
 			}
