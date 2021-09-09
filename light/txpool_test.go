@@ -81,21 +81,14 @@ func txPoolTestChainGen(i int, block *core.BlockGen) {
 
 func TestTxPool(t *testing.T) {
 	for i := range testTx {
-<<<<<<< HEAD
 		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil, nil, nil), types.HomesteadSigner{}, testBankKey)
-||||||| e78727290
-		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), types.HomesteadSigner{}, testBankKey)
-=======
-		testTx[i], _ = types.SignTx(types.NewTransaction(uint64(i), acc1Addr, big.NewInt(10000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), types.HomesteadSigner{}, testBankKey)
->>>>>>> v1.10.7
 	}
 
 	var (
 		sdb   = rawdb.NewMemoryDatabase()
 		ldb   = rawdb.NewMemoryDatabase()
 		gspec = core.Genesis{
-			Alloc:   core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
-			BaseFee: big.NewInt(params.InitialBaseFee),
+			Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 		}
 		genesis = gspec.MustCommit(sdb)
 	)

@@ -34,26 +34,6 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/event"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
 )
 
 const (
@@ -90,12 +70,8 @@ type TxPool struct {
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
-<<<<<<< HEAD
 	donut    bool // Fork indicated whether Donut has been activated
-||||||| e78727290
-=======
 	eip2718  bool // Fork indicator whether we are in the eip2718 stage.
->>>>>>> v1.10.7
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -349,12 +325,8 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	// Update fork indicator by next pending block number
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
 	pool.istanbul = pool.config.IsIstanbul(next)
-<<<<<<< HEAD
 	pool.donut = pool.config.IsDonut(next)
-||||||| e78727290
-=======
-	pool.eip2718 = pool.config.IsBerlin(next)
->>>>>>> v1.10.7
+	pool.eip2718 = pool.config.IsEHardfork(next)
 }
 
 // Stop stops the light transaction pool
@@ -425,20 +397,13 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 		return err
 	}
 
-<<<<<<< HEAD
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if tx.FeeCurrency() != nil {
 		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	}
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
-||||||| e78727290
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
-=======
-	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
->>>>>>> v1.10.7
+	gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), gasForAlternativeCurrency, pool.istanbul)
 	if err != nil {
 		return err
 	}

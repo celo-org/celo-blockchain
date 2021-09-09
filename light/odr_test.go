@@ -243,13 +243,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
-<<<<<<< HEAD
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, nil, data, false, false)}
-||||||| e78727290
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false)}
-=======
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, big.NewInt(params.InitialBaseFee), big.NewInt(params.InitialBaseFee), new(big.Int), data, nil, false)}
->>>>>>> v1.10.7
+		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), new(big.Int), new(big.Int), nil, nil, nil, data, nil, false, false)}
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(header, chain, nil)
 		vmenv := vm.NewEVM(context, txContext, st, config, vm.Config{NoBaseFee: true})
@@ -270,41 +264,17 @@ func testChainGen(i int, block *core.BlockGen) {
 	switch i {
 	case 0:
 		// In block 1, the test bank sends account #1 some ether.
-<<<<<<< HEAD
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
-||||||| e78727290
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil), signer, testBankKey)
-=======
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testBankKey)
->>>>>>> v1.10.7
+		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
 		block.AddTx(tx)
 	case 1:
 		// In block 2, the test bank sends some more ether to account #1.
 		// acc1Addr passes it on to account #2.
 		// acc1Addr creates a test contract.
-<<<<<<< HEAD
-		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
-||||||| e78727290
-		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, testBankKey)
-=======
-		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, testBankKey)
->>>>>>> v1.10.7
+		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
 		nonce := block.TxNonce(acc1Addr)
-<<<<<<< HEAD
-		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
-||||||| e78727290
-		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1000), params.TxGas, nil, nil), signer, acc1Key)
-=======
-		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, block.BaseFee(), nil), signer, acc1Key)
->>>>>>> v1.10.7
+		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
 		nonce++
-<<<<<<< HEAD
 		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, big.NewInt(0), nil, nil, nil, testContractCode), signer, acc1Key)
-||||||| e78727290
-		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, big.NewInt(0), testContractCode), signer, acc1Key)
-=======
-		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, block.BaseFee(), testContractCode), signer, acc1Key)
->>>>>>> v1.10.7
 		testContractAddr = crypto.CreateAddress(acc1Addr, nonce)
 		block.AddTx(tx1)
 		block.AddTx(tx2)
@@ -314,35 +284,7 @@ func testChainGen(i int, block *core.BlockGen) {
 		block.SetCoinbase(acc2Addr)
 		block.SetExtra([]byte("yeehaw"))
 		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001")
-<<<<<<< HEAD
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, nil, nil, nil, data), signer, testBankKey)
-||||||| e78727290
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, data), signer, testBankKey)
-		block.AddTx(tx)
-	case 3:
-		// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-		b2 := block.PrevBlock(1).Header()
-		b2.Extra = []byte("foo")
-		block.AddUncle(b2)
-		b3 := block.PrevBlock(2).Header()
-		b3.Extra = []byte("foo")
-		block.AddUncle(b3)
-		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002")
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, data), signer, testBankKey)
-=======
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, block.BaseFee(), data), signer, testBankKey)
-		block.AddTx(tx)
-	case 3:
-		// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
-		b2 := block.PrevBlock(1).Header()
-		b2.Extra = []byte("foo")
-		block.AddUncle(b2)
-		b3 := block.PrevBlock(2).Header()
-		b3.Extra = []byte("foo")
-		block.AddUncle(b3)
-		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002")
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, block.BaseFee(), data), signer, testBankKey)
->>>>>>> v1.10.7
 		block.AddTx(tx)
 	}
 }
@@ -352,8 +294,7 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 		sdb   = rawdb.NewMemoryDatabase()
 		ldb   = rawdb.NewMemoryDatabase()
 		gspec = core.Genesis{
-			Alloc:   core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
-			BaseFee: big.NewInt(params.InitialBaseFee),
+			Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 		}
 		genesis = gspec.MustCommit(sdb)
 	)
