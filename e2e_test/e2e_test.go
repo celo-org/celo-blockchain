@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
 )
@@ -40,9 +41,10 @@ func TestSendCelo(t *testing.T) {
 
 func TestSingleNodeManyTxs(t *testing.T) {
 	rounds := 100
+	txsPerRound := 5
 	accounts := test.Accounts(1)
 	gc := test.GenesisConfig(accounts)
-	gc.Istanbul.Epoch = uint64(rounds) * 5 // avoid the epoch for this test
+	gc.Istanbul.Epoch = uint64(rounds) * 50 // avoid the epoch for this test
 	network, err := test.NewNetwork(accounts, gc)
 	require.NoError(t, err)
 	defer network.Shutdown()
@@ -50,31 +52,40 @@ func TestSingleNodeManyTxs(t *testing.T) {
 	defer cancel()
 
 	for r := 0; r < rounds; r++ {
-		tx, err := network[0].SendCelo(ctx, common.Address{}, 1)
-		require.NoError(t, err)
-		require.NotNil(t, tx)
-		err = network.AwaitTransactions(ctx, tx)
+		txs := make([]*types.Transaction, 0, txsPerRound)
+		for j := 0; j < txsPerRound; j++ {
+			tx, err := network[0].SendCelo(ctx, common.Address{}, 1)
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+		}
+		err = network.AwaitTransactions(ctx, txs...)
 		require.NoError(t, err)
 	}
 }
 
-// func TestSingleNodeSurviveEpoch(t *testing.T) {
-// 	accounts := test.Accounts(66)
-// 	gc := test.GenesisConfig(accounts)
-// 	gc.Istanbul.Epoch = 10
-// 	gc.Istanbul.RequestTimeout = 1000
-// 	rounds := int(gc.Istanbul.Epoch * 2) // ensure we go through at least one epoch
-// 	network, err := test.NewConcurrentNetwork(accounts, gc)
-// 	require.NoError(t, err)
-// 	defer network.Shutdown()
-// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*35)
-// 	defer cancel()
+func TestManyNodes(t *testing.T) {
+	accounts := test.Accounts(4)
+	gc := test.GenesisConfig(accounts)
+	rounds := 5
+	txsPerNodePerRound := 3
+	gc.Istanbul.Epoch = 10000                               // avoid the epoch
+	network, err := test.NewConcurrentNetwork(accounts, gc) // start concurrently all nodes
+	require.NoError(t, err)
+	defer network.Shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
 
-// 	for r := 0; r < rounds; r++ {
-// 		tx, err := network[0].SendCelo(ctx, common.Address{}, 1)
-// 		require.NoError(t, err)
-// 		require.NotNil(t, tx)
-// 		err = network.AwaitTransactions(ctx, tx)
-// 		require.NoError(t, err)
-// 	}
-// }
+	for r := 0; r < rounds; r++ {
+		txs := make([]*types.Transaction, 0, len(network)*txsPerNodePerRound)
+		for i := range network {
+			for j := 0; j < txsPerNodePerRound; j++ {
+				tx, err := network[i].SendCelo(ctx, network[(i+1)%len(network)].Address, 1)
+				require.NoError(t, err)
+				require.NotNil(t, tx)
+				txs = append(txs, tx)
+			}
+		}
+		err = network.AwaitTransactions(ctx, txs...)
+		require.NoError(t, err)
+	}
+}
