@@ -356,7 +356,7 @@ func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
 // others not.
 func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, error) {
 
-	genesis, err := genesis.GenerateGenesis(accounts, gc, "../../monorepo/packages/protocol/build/contracts")
+	genesis, err := genesis.GenerateGenesis(accounts, gc, "../monorepo/packages/protocol/build/contracts")
 	if err != nil {
 		return nil, err
 	}
