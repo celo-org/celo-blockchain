@@ -26,14 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -308,16 +300,8 @@ func unknownTx(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-<<<<<<< HEAD
 	txNew := types.NewTransaction(tx.Nonce()+1, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
-	return signWithFaucet(t, txNew)
-||||||| e78727290
-	txNew := types.NewTransaction(tx.Nonce()+1, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
-	return signWithFaucet(t, txNew)
-=======
-	txNew := types.NewTransaction(tx.Nonce()+1, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
->>>>>>> v1.10.7
 }
 
 func getNextTxFromChain(s *Suite) *types.Transaction {
@@ -357,7 +341,7 @@ func generateTxs(s *Suite, numTxs int) (map[common.Hash]common.Hash, []*types.Tr
 
 func generateTx(chainConfig *params.ChainConfig, nonce uint64, gas uint64) *types.Transaction {
 	var to common.Address
-	tx := types.NewTransaction(nonce, to, big.NewInt(1), gas, big.NewInt(1), []byte{})
+	tx := types.NewTransaction(nonce, to, big.NewInt(1), gas, big.NewInt(1), nil, nil, nil, []byte{})
 	return signWithFaucet(chainConfig, tx)
 }
 
@@ -380,16 +364,8 @@ func invalidNonceTx(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-<<<<<<< HEAD
 	txNew := types.NewTransaction(tx.Nonce()-2, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
-	return signWithFaucet(t, txNew)
-||||||| e78727290
-	txNew := types.NewTransaction(tx.Nonce()-2, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
-	return signWithFaucet(t, txNew)
-=======
-	txNew := types.NewTransaction(tx.Nonce()-2, to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
->>>>>>> v1.10.7
 }
 
 func hugeAmount(s *Suite) *types.Transaction {
@@ -402,16 +378,8 @@ func hugeAmount(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-<<<<<<< HEAD
 	txNew := types.NewTransaction(tx.Nonce(), to, amount, tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
-	return signWithFaucet(t, txNew)
-||||||| e78727290
-	txNew := types.NewTransaction(tx.Nonce(), to, amount, tx.Gas(), tx.GasPrice(), tx.Data())
-	return signWithFaucet(t, txNew)
-=======
-	txNew := types.NewTransaction(tx.Nonce(), to, amount, tx.Gas(), tx.GasPrice(), tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
->>>>>>> v1.10.7
 }
 
 func hugeGasPrice(s *Suite) *types.Transaction {
@@ -424,16 +392,8 @@ func hugeGasPrice(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-<<<<<<< HEAD
 	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), gasPrice, tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), tx.Data())
-	return signWithFaucet(t, txNew)
-||||||| e78727290
-	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), gasPrice, tx.Data())
-	return signWithFaucet(t, txNew)
-=======
-	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), gasPrice, tx.Data())
 	return signWithFaucet(s.chain.chainConfig, txNew)
->>>>>>> v1.10.7
 }
 
 func hugeData(s *Suite) *types.Transaction {
@@ -445,16 +405,8 @@ func hugeData(s *Suite) *types.Transaction {
 	if tx.To() != nil {
 		to = *tx.To()
 	}
-<<<<<<< HEAD
 	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), tx.GasPrice(), tx.FeeCurrency(), tx.GatewayFeeRecipient(), tx.GatewayFee(), largeBuffer(2))
-	return signWithFaucet(t, txNew)
-||||||| e78727290
-	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), tx.GasPrice(), largeBuffer(2))
-	return signWithFaucet(t, txNew)
-=======
-	txNew := types.NewTransaction(tx.Nonce(), to, tx.Value(), tx.Gas(), tx.GasPrice(), largeBuffer(2))
 	return signWithFaucet(s.chain.chainConfig, txNew)
->>>>>>> v1.10.7
 }
 
 func signWithFaucet(chainConfig *params.ChainConfig, tx *types.Transaction) *types.Transaction {
