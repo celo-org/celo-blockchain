@@ -26,15 +26,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/common"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -242,41 +234,12 @@ func createNode(t *testing.T, gqlEnabled bool, txEnabled bool) *node.Node {
 	return stack
 }
 
-<<<<<<< HEAD
-func createGQLService(t *testing.T, stack *node.Node, endpoint string) {
-	// create backend (use a config which is light on mem consumption)
-	ethConf := &eth.Config{
-		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
-		// Miner: miner.Config{
-		// 	Etherbase: common.HexToAddress("0xaabb"),
-		// },
-		// Istanbul: MockEngine.Config{
-		// 	mode: Fake,
-		// },
-||||||| e78727290
-func createGQLService(t *testing.T, stack *node.Node, endpoint string) {
-	// create backend (use a config which is light on mem consumption)
-	ethConf := &eth.Config{
-		Genesis: core.DeveloperGenesisBlock(15, common.Address{}),
-		Miner: miner.Config{
-			Etherbase: common.HexToAddress("0xaabb"),
-		},
-		Ethash: ethash.Config{
-			PowMode: ethash.ModeTest,
-		},
-=======
 func createGQLService(t *testing.T, stack *node.Node) {
 	// create backend
 	ethConf := &ethconfig.Config{
 		Genesis: &core.Genesis{
-			Config:     params.AllEthashProtocolChanges,
-			GasLimit:   11500000,
-			Difficulty: big.NewInt(1048576),
+			Config: params.IstanbulTestChainConfig,
 		},
-		Ethash: ethash.Config{
-			PowMode: ethash.ModeFake,
-		},
->>>>>>> v1.10.7
 		NetworkId:               1337,
 		TrieCleanCache:          5,
 		TrieCleanCacheJournal:   "triecache",
@@ -290,8 +253,8 @@ func createGQLService(t *testing.T, stack *node.Node) {
 		t.Fatalf("could not create eth backend: %v", err)
 	}
 	// Create some blocks and import them
-	chain, _ := core.GenerateChain(params.AllEthashProtocolChanges, ethBackend.BlockChain().Genesis(),
-		ethash.NewFaker(), ethBackend.ChainDb(), 10, func(i int, gen *core.BlockGen) {})
+	chain, _ := core.GenerateChain(params.IstanbulTestChainConfig, ethBackend.BlockChain().Genesis(),
+		mockEngine.NewFaker(), ethBackend.ChainDb(), 10, func(i int, gen *core.BlockGen) {})
 	_, err = ethBackend.BlockChain().InsertChain(chain)
 	if err != nil {
 		t.Fatalf("could not create import blocks: %v", err)
@@ -312,9 +275,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 
 	ethConf := &ethconfig.Config{
 		Genesis: &core.Genesis{
-			Config:     params.AllEthashProtocolChanges,
-			GasLimit:   11500000,
-			Difficulty: big.NewInt(1048576),
+			Config: params.IstanbulTestChainConfig,
 			Alloc: core.GenesisAlloc{
 				address: {Balance: funds},
 				// The address 0xdad sloads 0x00 and 0x01
@@ -329,11 +290,8 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 					Balance: big.NewInt(0),
 				},
 			},
-			BaseFee: big.NewInt(params.InitialBaseFee),
 		},
-		Ethash: ethash.Config{
-			PowMode: ethash.ModeFake,
-		},
+
 		NetworkId:               1337,
 		TrieCleanCache:          5,
 		TrieCleanCacheJournal:   "triecache",
@@ -354,14 +312,14 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 		To:       &dad,
 		Value:    big.NewInt(100),
 		Gas:      50000,
-		GasPrice: big.NewInt(params.InitialBaseFee),
+		GasPrice: new(big.Int),
 	})
 	envelopTx, _ := types.SignNewTx(key, signer, &types.AccessListTx{
 		ChainID:  ethConf.Genesis.Config.ChainID,
 		Nonce:    uint64(1),
 		To:       &dad,
 		Gas:      30000,
-		GasPrice: big.NewInt(params.InitialBaseFee),
+		GasPrice: new(big.Int),
 		Value:    big.NewInt(50),
 		AccessList: types.AccessList{{
 			Address:     dad,
@@ -370,8 +328,8 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 	})
 
 	// Create some blocks and import them
-	chain, _ := core.GenerateChain(params.AllEthashProtocolChanges, ethBackend.BlockChain().Genesis(),
-		ethash.NewFaker(), ethBackend.ChainDb(), 1, func(i int, b *core.BlockGen) {
+	chain, _ := core.GenerateChain(params.IstanbulTestChainConfig, ethBackend.BlockChain().Genesis(),
+		mockEngine.NewFaker(), ethBackend.ChainDb(), 1, func(i int, b *core.BlockGen) {
 			b.SetCoinbase(common.Address{1})
 			b.AddTx(legacyTx)
 			b.AddTx(envelopTx)

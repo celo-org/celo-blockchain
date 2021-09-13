@@ -28,33 +28,15 @@ import (
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/filters"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth/filters"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
@@ -591,35 +573,15 @@ func (b *Block) Hash(ctx context.Context) (common.Hash, error) {
 	return b.hash, nil
 }
 
-<<<<<<< HEAD
 func (b *Block) GasUsed(ctx context.Context) (hexutil.Uint64, error) {
-||||||| e78727290
-func (b *Block) GasLimit(ctx context.Context) (hexutil.Uint64, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return hexutil.Uint64(header.GasLimit), nil
-}
-
-func (b *Block) GasUsed(ctx context.Context) (hexutil.Uint64, error) {
-=======
-func (b *Block) GasLimit(ctx context.Context) (Long, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return Long(header.GasLimit), nil
-}
-
-func (b *Block) GasUsed(ctx context.Context) (Long, error) {
->>>>>>> v1.10.7
 	header, err := b.resolveHeader(ctx)
 	if err != nil {
 		return 0, err
 	}
 	return Long(header.GasUsed), nil
 }
+
+// TODO: Enable GasLimit graphQL interface
 
 func (b *Block) BaseFeePerGas(ctx context.Context) (*hexutil.Big, error) {
 	header, err := b.resolveHeader(ctx)
@@ -1151,22 +1113,17 @@ func (r *Resolver) Logs(ctx context.Context, args struct{ Filter FilterCriteria 
 }
 
 func (r *Resolver) GasPrice(ctx context.Context) (hexutil.Big, error) {
-<<<<<<< HEAD
 	price, err := r.backend.SuggestPrice(ctx, nil)
 	return hexutil.Big(*price), err
-||||||| e78727290
-	price, err := r.backend.SuggestPrice(ctx)
-	return hexutil.Big(*price), err
-=======
-	tipcap, err := r.backend.SuggestGasTipCap(ctx)
-	if err != nil {
-		return hexutil.Big{}, err
-	}
-	if head := r.backend.CurrentHeader(); head.BaseFee != nil {
-		tipcap.Add(tipcap, head.BaseFee)
-	}
-	return (hexutil.Big)(*tipcap), nil
->>>>>>> v1.10.7
+
+	// tipcap, err := r.backend.SuggestGasTipCap(ctx)
+	// if err != nil {
+	// 	return hexutil.Big{}, err
+	// }
+	// if head := r.backend.CurrentHeader(); head.BaseFee != nil {
+	// 	tipcap.Add(tipcap, head.BaseFee)
+	// }
+	// return (hexutil.Big)(*tipcap), nil
 }
 
 func (r *Resolver) MaxPriorityFeePerGas(ctx context.Context) (hexutil.Big, error) {
