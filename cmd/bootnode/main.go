@@ -32,20 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/cmd/utils"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/discover"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/cmd/utils"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p/discover"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
 )
 
 func main() {
@@ -144,53 +130,25 @@ func main() {
 
 	printNotice(&nodeKey.PublicKey, *realaddr)
 
-<<<<<<< HEAD
 	// If v4 and v5 are both enabled, a packet is first tried as v4
 	// and then v5 if v4 decoding fails, following the same pattern as full
 	// nodes that use v4 and v5:
 	// https://github.com/celo-org/celo-blockchain/blob/7fbd6f3574f1c1c1e657c152fc63fb771adab3af/p2p/server.go#L588
 	var unhandled chan discover.ReadPacket
 	var sconn *p2p.SharedUDPConn
+	db, _ := enode.OpenDB("")
+	ln := enode.NewLocalNode(db, nodeKey, *networkId)
+	cfg := discover.Config{
+		PrivateKey:       nodeKey,
+		NetRestrict:      restrictList,
+		PingIPFromPacket: *pingIPFromPacket,
+	}
 	if *runv4 {
 		if *runv5 {
 			unhandled = make(chan discover.ReadPacket, 100)
+			cfg.Unhandled = unhandled
 			sconn = &p2p.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}
-||||||| e78727290
-	if *runv5 {
-		if _, err := discv5.ListenUDP(nodeKey, conn, "", restrictList); err != nil {
-			utils.Fatalf("%v", err)
-=======
-	db, _ := enode.OpenDB("")
-	ln := enode.NewLocalNode(db, nodeKey)
-	cfg := discover.Config{
-		PrivateKey:  nodeKey,
-		NetRestrict: restrictList,
-	}
-	if *runv5 {
-		if _, err := discover.ListenV5(conn, ln, cfg); err != nil {
-			utils.Fatalf("%v", err)
->>>>>>> v1.10.7
 		}
-<<<<<<< HEAD
-		db, _ := enode.OpenDB("")
-		ln := enode.NewLocalNode(db, nodeKey, *networkId)
-		cfg := discover.Config{
-			PrivateKey:       nodeKey,
-			NetRestrict:      restrictList,
-			PingIPFromPacket: *pingIPFromPacket,
-			Unhandled:        unhandled,
-		}
-||||||| e78727290
-	} else {
-		db, _ := enode.OpenDB("")
-		ln := enode.NewLocalNode(db, nodeKey)
-		cfg := discover.Config{
-			PrivateKey:  nodeKey,
-			NetRestrict: restrictList,
-		}
-=======
-	} else {
->>>>>>> v1.10.7
 		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
@@ -199,9 +157,9 @@ func main() {
 	if *runv5 {
 		var err error
 		if sconn != nil {
-			_, err = discv5.ListenUDP(nodeKey, sconn, "", restrictList)
+			_, err = discover.ListenV5(sconn, ln, cfg)
 		} else {
-			_, err = discv5.ListenUDP(nodeKey, conn, "", restrictList)
+			_, err = discover.ListenV5(conn, ln, cfg)
 		}
 		if err != nil {
 			utils.Fatalf("%v", err)
