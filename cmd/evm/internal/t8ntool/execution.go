@@ -23,7 +23,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/consensus/misc"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -129,13 +128,6 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	if pre.Env.BaseFee != nil {
 		vmContext.BaseFee = new(big.Int).Set(pre.Env.BaseFee)
 	}
-	// If DAO is supported/enabled, we need to handle it here. In geth 'proper', it's
-	// done in StateProcessor.Process(block, ...), right before transactions are applied.
-	if chainConfig.DAOForkSupport &&
-		chainConfig.DAOForkBlock != nil &&
-		chainConfig.DAOForkBlock.Cmp(new(big.Int).SetUint64(pre.Env.Number)) == 0 {
-		misc.ApplyDAOHardFork(statedb)
-	}
 
 	for i, tx := range txs {
 		msg, err := tx.AsMessage(signer, pre.Env.BaseFee)
@@ -152,34 +144,12 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		vmConfig.Debug = (tracer != nil)
 		statedb.Prepare(tx.Hash(), txIndex)
 		txContext := core.NewEVMTxContext(msg)
-<<<<<<< HEAD
 
 		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
 
-||||||| e78727290
-
-		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
-		if chainConfig.IsYoloV2(vmContext.BlockNumber) {
-			statedb.AddAddressToAccessList(msg.From())
-			if dst := msg.To(); dst != nil {
-				statedb.AddAddressToAccessList(*dst)
-				// If it's a create-tx, the destination will be added inside evm.create
-			}
-			for _, addr := range evm.ActivePrecompiles() {
-				statedb.AddAddressToAccessList(addr)
-			}
-		}
-=======
->>>>>>> v1.10.7
 		snapshot := statedb.Snapshot()
-<<<<<<< HEAD
 
 		// FIXME this is broken
-||||||| e78727290
-=======
-		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
-
->>>>>>> v1.10.7
 		// (ret []byte, usedGas uint64, failed bool, err error)
 		msgResult, err := core.ApplyMessage(evm, msg, gaspool, nil)
 		if err != nil {
