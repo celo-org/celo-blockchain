@@ -38,31 +38,11 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.AncientFlag,
 			utils.MinFreeDiskSpaceFlag,
 			utils.KeyStoreDirFlag,
-<<<<<<< HEAD
-			utils.NoUSBFlag,
-||||||| e78727290
-			utils.NoUSBFlag,
-			utils.SmartCardDaemonPathFlag,
-=======
 			utils.USBFlag,
-			utils.SmartCardDaemonPathFlag,
->>>>>>> v1.10.7
 			utils.NetworkIdFlag,
-<<<<<<< HEAD
+			utils.MainnetFlag,
 			utils.BaklavaFlag,
 			utils.AlfajoresFlag,
-||||||| e78727290
-			utils.GoerliFlag,
-			utils.RinkebyFlag,
-			utils.YoloV2Flag,
-			utils.RopstenFlag,
-=======
-			utils.MainnetFlag,
-			utils.GoerliFlag,
-			utils.RinkebyFlag,
-			utils.CalaverasFlag,
-			utils.RopstenFlag,
->>>>>>> v1.10.7
 			utils.SyncModeFlag,
 			utils.ExitWhenSyncedFlag,
 			utils.GCModeFlag,
@@ -186,51 +166,19 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Name: "MINER",
 		Flags: []cli.Flag{
 			utils.MiningEnabledFlag,
-<<<<<<< HEAD
 			utils.MinerValidatorFlag,
-||||||| e78727290
-			utils.MinerThreadsFlag,
-			utils.MinerNotifyFlag,
-			utils.MinerGasPriceFlag,
-			utils.MinerGasTargetFlag,
-			utils.MinerGasLimitFlag,
-			utils.MinerEtherbaseFlag,
-=======
-			utils.MinerThreadsFlag,
-			utils.MinerNotifyFlag,
-			utils.MinerNotifyFullFlag,
-			utils.MinerGasPriceFlag,
-			utils.MinerGasLimitFlag,
-			utils.MinerEtherbaseFlag,
->>>>>>> v1.10.7
 			utils.MinerExtraDataFlag,
-<<<<<<< HEAD
-||||||| e78727290
-			utils.MinerRecommitIntervalFlag,
-			utils.MinerNoVerfiyFlag,
 		},
 	},
-	{
-		Name: "GAS PRICE ORACLE",
-		Flags: []cli.Flag{
-			utils.GpoBlocksFlag,
-			utils.GpoPercentileFlag,
-			utils.GpoMaxGasPriceFlag,
-=======
-			utils.MinerRecommitIntervalFlag,
-			utils.MinerNoVerfiyFlag,
-		},
-	},
-	{
-		Name: "GAS PRICE ORACLE",
-		Flags: []cli.Flag{
-			utils.GpoBlocksFlag,
-			utils.GpoPercentileFlag,
-			utils.GpoMaxGasPriceFlag,
-			utils.GpoIgnoreGasPriceFlag,
->>>>>>> v1.10.7
-		},
-	},
+	// {
+	// 	Name: "GAS PRICE ORACLE",
+	// 	Flags: []cli.Flag{
+	// 		utils.GpoBlocksFlag,
+	// 		utils.GpoPercentileFlag,
+	// 		utils.GpoMaxGasPriceFlag,
+	// 		utils.GpoIgnoreGasPriceFlag,
+	// 	},
+	// },
 	{
 		Name: "VIRTUAL MACHINE",
 		Flags: []cli.Flag{
@@ -246,11 +194,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 	{
 		Name:  "METRICS AND STATS",
 		Flags: metricsFlags,
-	},
-	{
-<<<<<<< HEAD
-		Name:  "WHISPER (deprecated)",
-		Flags: whisperFlags,
 	},
 	{
 		Name: "ISTANBUL",
@@ -276,57 +219,44 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.ProxyAllowPrivateIPFlag,
 		},
 	},
+	// {
+	// 	Name: "DEPRECATED",
+	// 	Flags: []cli.Flag{
+	// 		utils.EtherbaseFlag,
+	// 		utils.LegacyMinerGasPriceFlag,
+	// 		utils.LegacyProxyEnodeURLPairsFlag,
+	// 		utils.LegacyIstanbulRequestTimeoutFlag,
+	// 		utils.LegacyIstanbulBlockPeriodFlag,
+	// 		utils.LegacyIstanbulProposerPolicyFlag,
+	// 		utils.LegacyIstanbulLookbackWindowFlag,
+	// 		utils.LegacyEthStatsURLFlag,
+	// 	},
+	// },
 	{
-		Name: "DEPRECATED",
-		Flags: append([]cli.Flag{
-			utils.EtherbaseFlag,
-			utils.LegacyMinerGasPriceFlag,
-			utils.LegacyProxyEnodeURLPairsFlag,
-			utils.LegacyIstanbulRequestTimeoutFlag,
-			utils.LegacyIstanbulBlockPeriodFlag,
-			utils.LegacyIstanbulProposerPolicyFlag,
-			utils.LegacyIstanbulLookbackWindowFlag,
-			utils.LegacyEthStatsURLFlag,
-||||||| e78727290
-		Name:  "WHISPER (deprecated)",
-		Flags: whisperFlags,
-	},
-	{
-		Name: "ALIASED (deprecated)",
-		Flags: append([]cli.Flag{
-=======
 		Name: "ALIASED (deprecated)",
 		Flags: []cli.Flag{
 			utils.NoUSBFlag,
->>>>>>> v1.10.7
 			utils.LegacyRPCEnabledFlag,
 			utils.LegacyRPCListenAddrFlag,
 			utils.LegacyRPCPortFlag,
 			utils.LegacyRPCCORSDomainFlag,
 			utils.LegacyRPCVirtualHostsFlag,
 			utils.LegacyRPCApiFlag,
-<<<<<<< HEAD
 			utils.LegacyWSListenAddrFlag,
 			utils.LegacyWSPortFlag,
 			utils.LegacyWSAllowedOriginsFlag,
 			utils.LegacyWSApiFlag,
 			utils.LegacyGraphQLListenAddrFlag,
 			utils.LegacyGraphQLPortFlag,
-		}, debug.DeprecatedFlags...),
-||||||| e78727290
 			utils.LegacyWSListenAddrFlag,
 			utils.LegacyWSPortFlag,
 			utils.LegacyWSAllowedOriginsFlag,
 			utils.LegacyWSApiFlag,
-			utils.LegacyGpoBlocksFlag,
-			utils.LegacyGpoPercentileFlag,
+			// utils.LegacyGpoBlocksFlag,
+			// utils.LegacyGpoPercentileFlag,
 			utils.LegacyGraphQLListenAddrFlag,
 			utils.LegacyGraphQLPortFlag,
-		}, debug.DeprecatedFlags...),
-=======
-			utils.LegacyMinerGasTargetFlag,
 		},
->>>>>>> v1.10.7
 	},
 	{
 		Name: "MISC",
@@ -335,7 +265,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.SnapshotFlag,
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
-			utils.CatalystFlag,
 		},
 	},
 }

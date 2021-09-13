@@ -135,6 +135,10 @@ var (
 		Usage: "Explicitly set network id (integer)(For testnets: use --alfajores or --baklava instead)",
 		Value: params.MainnetNetworkId,
 	}
+	MainnetFlag = cli.BoolFlag{
+		Name:  "mainnet",
+		Usage: "Celo mainnet",
+	}
 	AlfajoresFlag = cli.BoolFlag{
 		Name:  "alfajores",
 		Usage: "Alfajores network: pre-configured Celo test network",

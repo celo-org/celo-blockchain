@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,13 +40,7 @@ var (
 		Description: `
 The Geth console is an interactive shell for the JavaScript runtime environment
 which exposes a node admin interface as well as the Ðapp JavaScript API.
-<<<<<<< HEAD
-See https://github.com/celo-org/celo-blockchain/wiki/JavaScript-Console.`,
-||||||| e78727290
-See https://github.com/ethereum/go-ethereum/wiki/JavaScript-Console.`,
-=======
 See https://geth.ethereum.org/docs/interface/javascript-console.`,
->>>>>>> v1.10.7
 	}
 
 	attachCommand = cli.Command{
@@ -60,13 +53,7 @@ See https://geth.ethereum.org/docs/interface/javascript-console.`,
 		Description: `
 The Geth console is an interactive shell for the JavaScript runtime environment
 which exposes a node admin interface as well as the Ðapp JavaScript API.
-<<<<<<< HEAD
-See https://github.com/celo-org/celo-blockchain/wiki/JavaScript-Console.
-||||||| e78727290
-See https://github.com/ethereum/go-ethereum/wiki/JavaScript-Console.
-=======
 See https://geth.ethereum.org/docs/interface/javascript-console.
->>>>>>> v1.10.7
 This command allows to open a console on a running geth node.`,
 	}
 
@@ -79,13 +66,7 @@ This command allows to open a console on a running geth node.`,
 		Category:  "CONSOLE COMMANDS",
 		Description: `
 The JavaScript VM exposes a node admin interface as well as the Ðapp
-<<<<<<< HEAD
-JavaScript API. See https://github.com/celo-org/celo-blockchain/wiki/JavaScript-Console`,
-||||||| e78727290
-JavaScript API. See https://github.com/ethereum/go-ethereum/wiki/JavaScript-Console`,
-=======
 JavaScript API. See https://geth.ethereum.org/docs/interface/javascript-console`,
->>>>>>> v1.10.7
 	}
 )
 
@@ -139,44 +120,10 @@ func remoteConsole(ctx *cli.Context) error {
 			path = ctx.GlobalString(utils.DataDirFlag.Name)
 		}
 		if path != "" {
-<<<<<<< HEAD
 			if ctx.GlobalBool(utils.BaklavaFlag.Name) {
 				path = filepath.Join(path, "baklava")
 			} else if ctx.GlobalBool(utils.AlfajoresFlag.Name) {
 				path = filepath.Join(path, "alfajores")
-||||||| e78727290
-			if ctx.GlobalBool(utils.LegacyTestnetFlag.Name) || ctx.GlobalBool(utils.RopstenFlag.Name) {
-				// Maintain compatibility with older Geth configurations storing the
-				// Ropsten database in `testnet` instead of `ropsten`.
-				legacyPath := filepath.Join(path, "testnet")
-				if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
-					path = legacyPath
-				} else {
-					path = filepath.Join(path, "ropsten")
-				}
-			} else if ctx.GlobalBool(utils.RinkebyFlag.Name) {
-				path = filepath.Join(path, "rinkeby")
-			} else if ctx.GlobalBool(utils.GoerliFlag.Name) {
-				path = filepath.Join(path, "goerli")
-			} else if ctx.GlobalBool(utils.YoloV2Flag.Name) {
-				path = filepath.Join(path, "yolo-v2")
-=======
-			if ctx.GlobalBool(utils.RopstenFlag.Name) {
-				// Maintain compatibility with older Geth configurations storing the
-				// Ropsten database in `testnet` instead of `ropsten`.
-				legacyPath := filepath.Join(path, "testnet")
-				if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
-					path = legacyPath
-				} else {
-					path = filepath.Join(path, "ropsten")
-				}
-			} else if ctx.GlobalBool(utils.RinkebyFlag.Name) {
-				path = filepath.Join(path, "rinkeby")
-			} else if ctx.GlobalBool(utils.GoerliFlag.Name) {
-				path = filepath.Join(path, "goerli")
-			} else if ctx.GlobalBool(utils.CalaverasFlag.Name) {
-				path = filepath.Join(path, "calaveras")
->>>>>>> v1.10.7
 			}
 		}
 		endpoint = fmt.Sprintf("%s/geth.ipc", path)
