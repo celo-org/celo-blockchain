@@ -286,76 +286,6 @@ func buildFlags(env build.Environment) (flags []string) {
 	return flags
 }
 
-<<<<<<< HEAD
-// goTool returns the go tool. This uses the Go version which runs ci.go.
-func goTool(subcmd string, args ...string) *exec.Cmd {
-	cmd := build.GoTool(subcmd, args...)
-	goToolSetEnv(cmd)
-	return cmd
-}
-
-// localGoTool returns the go tool from the given GOROOT.
-func localGoTool(goroot string, subcmd string, args ...string) *exec.Cmd {
-	gotool := filepath.Join(goroot, "bin", "go")
-	cmd := exec.Command(gotool, subcmd)
-	goToolSetEnv(cmd)
-	cmd.Env = append(cmd.Env, "GOROOT="+goroot)
-	cmd.Args = append(cmd.Args, args...)
-	return cmd
-}
-
-// goToolSetEnv forwards the build environment to the go tool.
-func goToolSetEnv(cmd *exec.Cmd) {
-	cmd.Env = append(cmd.Env, "GOBIN="+GOBIN)
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOBIN=") || strings.HasPrefix(e, "CC=") {
-			continue
-		}
-		cmd.Env = append(cmd.Env, e)
-	}
-}
-
-func Filter(vs []string, pred func(string) bool) []string {
-	filtered := make([]string, 0)
-	for _, v := range vs {
-		if pred(v) {
-			filtered = append(filtered, v)
-		}
-	}
-	return filtered
-}
-
-||||||| e78727290
-// goTool returns the go tool. This uses the Go version which runs ci.go.
-func goTool(subcmd string, args ...string) *exec.Cmd {
-	cmd := build.GoTool(subcmd, args...)
-	goToolSetEnv(cmd)
-	return cmd
-}
-
-// localGoTool returns the go tool from the given GOROOT.
-func localGoTool(goroot string, subcmd string, args ...string) *exec.Cmd {
-	gotool := filepath.Join(goroot, "bin", "go")
-	cmd := exec.Command(gotool, subcmd)
-	goToolSetEnv(cmd)
-	cmd.Env = append(cmd.Env, "GOROOT="+goroot)
-	cmd.Args = append(cmd.Args, args...)
-	return cmd
-}
-
-// goToolSetEnv forwards the build environment to the go tool.
-func goToolSetEnv(cmd *exec.Cmd) {
-	cmd.Env = append(cmd.Env, "GOBIN="+GOBIN)
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOBIN=") || strings.HasPrefix(e, "CC=") {
-			continue
-		}
-		cmd.Env = append(cmd.Env, e)
-	}
-}
-
-=======
->>>>>>> v1.10.7
 // Running The Tests
 //
 // "tests" also includes static analysis tools such as vet.
@@ -425,13 +355,7 @@ func doLint(cmdline []string) {
 
 // downloadLinter downloads and unpacks golangci-lint.
 func downloadLinter(cachedir string) string {
-<<<<<<< HEAD
-	const version = "1.25.0"
-||||||| e78727290
-	const version = "1.27.0"
-=======
-	const version = "1.39.0"
->>>>>>> v1.10.7
+	const version = "1.25.0" // TODO: Update to "1.39.0"
 
 	csdb := build.MustLoadChecksums("build/checksums.txt")
 	base := fmt.Sprintf("golangci-lint-%s-%s-%s", version, runtime.GOOS, runtime.GOARCH)
@@ -550,16 +474,8 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping archive creation because this is a cron job")
 		os.Exit(0)
 	}
-<<<<<<< HEAD
 	if env.Branch != "master" && !strings.HasPrefix(env.Branch, "release/") {
-		log.Printf("skipping because branch %q is not on the whitelist", env.Branch)
-||||||| e78727290
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping because branch %q, tag %q is not on the whitelist", env.Branch, env.Tag)
-=======
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping archive creation because branch %q, tag %q is not on the inclusion list", env.Branch, env.Tag)
->>>>>>> v1.10.7
+		log.Printf("skipping archive creation because branch %q is not on the whitelist", env.Branch)
 		os.Exit(0)
 	}
 }
@@ -1053,10 +969,10 @@ func doWindowsInstaller(cmdline []string) {
 	build.Render("build/nsis.pathupdate.nsh", filepath.Join(*workdir, "PathUpdate.nsh"), 0644, nil)
 	build.Render("build/nsis.envvarupdate.nsh", filepath.Join(*workdir, "EnvVarUpdate.nsh"), 0644, nil)
 	if err := cp.CopyFile(filepath.Join(*workdir, "SimpleFC.dll"), "build/nsis.simplefc.dll"); err != nil {
-		log.Fatal("Failed to copy SimpleFC.dll: %v", err)
+		log.Fatalf("Failed to copy SimpleFC.dll: %v", err)
 	}
 	if err := cp.CopyFile(filepath.Join(*workdir, "COPYING"), "COPYING"); err != nil {
-		log.Fatal("Failed to copy copyright note: %v", err)
+		log.Fatalf("Failed to copy copyright note: %v", err)
 	}
 	// Build the installer. This assumes that all the needed files have been previously
 	// built (don't mix building and packaging to keep cross compilation complexity to a
@@ -1109,19 +1025,12 @@ func doAndroidArchive(cmdline []string) {
 	build.MustRun(tc.Go("mod", "download"))
 
 	// Build the Android archive and Maven resources
-<<<<<<< HEAD
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
+	// build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
 	ldflags := "-s -w"
 	if env.MetricsDefault {
 		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
 	build.MustRun(gomobileTool("bind", "-ldflags", ldflags, "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/celo-org/celo-blockchain/mobile"))
-||||||| e78727290
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"))
-=======
-	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/ethereum/go-ethereum/mobile"))
->>>>>>> v1.10.7
 
 	if *local {
 		// If we're building locally, copy bundle to build dir and skip Maven
@@ -1250,20 +1159,12 @@ func doXCodeFramework(cmdline []string) {
 	build.MustRun(tc.Go("mod", "download"))
 
 	// Build the iOS XCode framework
-<<<<<<< HEAD
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
+	// build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
 	ldflags := "-s -w"
 	if env.MetricsDefault {
 		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
 	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios/arm64,ios/amd64", "-v", "github.com/celo-org/celo-blockchain/mobile")
-||||||| e78727290
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
-=======
-	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/ethereum/go-ethereum/mobile")
->>>>>>> v1.10.7
 
 	if *local {
 		// If we're building locally, use the build folder and stop afterwards
