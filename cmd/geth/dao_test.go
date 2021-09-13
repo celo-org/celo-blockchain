@@ -111,13 +111,8 @@ func testDAOForkBlockNewChain(t *testing.T, test int, genesis string, expectBloc
 		runGeth(t, "--datadir", datadir, "--networkid", "1337", "init", json).WaitExit()
 	} else {
 		// Force chain initialization
-<<<<<<< HEAD
 		args := []string{"--port", "0", "--nousb", "--networkid", "1337", "--maxpeers", "0", "--light.maxpeers", "0", "--nodiscover", "--nat", "none", "--ipcdisable", "--datadir", datadir}
-||||||| e78727290
-		args := []string{"--port", "0", "--nousb", "--networkid", "1337", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--ipcdisable", "--datadir", datadir}
-=======
-		args := []string{"--port", "0", "--networkid", "1337", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--ipcdisable", "--datadir", datadir}
->>>>>>> v1.10.7
+		// args := []string{"--port", "0", "--networkid", "1337", "--maxpeers", "0", "--nodiscover", "--nat", "none", "--ipcdisable", "--datadir", datadir}
 		runGeth(t, append(args, []string{"--exec", "2+2", "console"}...)...).WaitExit()
 	}
 	// Retrieve the DAO config flag from the database

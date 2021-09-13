@@ -22,11 +22,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/big"
-	"os"
 	"math"
 	"math/big"
-	"os"
 	"path/filepath"
 	godebug "runtime/debug"
 	"strconv"
@@ -47,66 +44,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/ethstats"
-	"github.com/celo-org/celo-blockchain/graphql"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/internal/flags"
-	"github.com/celo-org/celo-blockchain/les"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/metrics/exp"
-	"github.com/celo-org/celo-blockchain/metrics/influxdb"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fdlimit"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/eth/gasprice"
-	"github.com/celo-org/celo-blockchain/ethdb"
-	"github.com/celo-org/celo-blockchain/ethstats"
-	"github.com/celo-org/celo-blockchain/graphql"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/internal/flags"
-	"github.com/celo-org/celo-blockchain/les"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/metrics"
-	"github.com/celo-org/celo-blockchain/metrics/exp"
-	"github.com/celo-org/celo-blockchain/metrics/influxdb"
-	"github.com/celo-org/celo-blockchain/miner"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/nat"
-	"github.com/celo-org/celo-blockchain/p2p/netutil"
-	"github.com/celo-org/celo-blockchain/params"
-	pcsclite "github.com/gballet/go-libpcsclite"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/fdlimit"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
-	"github.com/celo-org/celo-blockchain/eth/gasprice"
 	"github.com/celo-org/celo-blockchain/eth/tracers"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/ethstats"
@@ -125,7 +63,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/nat"
 	"github.com/celo-org/celo-blockchain/p2p/netutil"
 	"github.com/celo-org/celo-blockchain/params"
-	pcsclite "github.com/gballet/go-libpcsclite"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -195,54 +132,16 @@ var (
 	}
 	NetworkIdFlag = cli.Uint64Flag{
 		Name:  "networkid",
-<<<<<<< HEAD
-		Usage: fmt.Sprintf("Network identifier (%s)", params.NetworkIdHelp),
+		Usage: "Explicitly set network id (integer)(For testnets: use --alfajores or --baklava instead)",
 		Value: params.MainnetNetworkId,
-||||||| e78727290
-		Usage: "Explicitly set network id (integer)(For testnets: use --ropsten, --rinkeby, --goerli instead)",
-		Value: eth.DefaultConfig.NetworkId,
-=======
-		Usage: "Explicitly set network id (integer)(For testnets: use --ropsten, --rinkeby, --goerli instead)",
-		Value: ethconfig.Defaults.NetworkId,
-	}
-	MainnetFlag = cli.BoolFlag{
-		Name:  "mainnet",
-		Usage: "Ethereum mainnet",
->>>>>>> v1.10.7
 	}
 	AlfajoresFlag = cli.BoolFlag{
 		Name:  "alfajores",
 		Usage: "Alfajores network: pre-configured Celo test network",
 	}
-<<<<<<< HEAD
 	BaklavaFlag = cli.BoolFlag{
 		Name:  "baklava",
 		Usage: "Baklava network: pre-configured Celo test network",
-||||||| e78727290
-	YoloV2Flag = cli.BoolFlag{
-		Name:  "yolov2",
-		Usage: "YOLOv2 network: pre-configured proof-of-authority shortlived test network.",
-	}
-	RinkebyFlag = cli.BoolFlag{
-		Name:  "rinkeby",
-		Usage: "Rinkeby network: pre-configured proof-of-authority test network",
-	}
-	RopstenFlag = cli.BoolFlag{
-		Name:  "ropsten",
-		Usage: "Ropsten network: pre-configured proof-of-work test network",
-=======
-	CalaverasFlag = cli.BoolFlag{
-		Name:  "calaveras",
-		Usage: "Calaveras network: pre-configured proof-of-authority shortlived test network.",
-	}
-	RinkebyFlag = cli.BoolFlag{
-		Name:  "rinkeby",
-		Usage: "Rinkeby network: pre-configured proof-of-authority test network",
-	}
-	RopstenFlag = cli.BoolFlag{
-		Name:  "ropsten",
-		Usage: "Ropsten network: pre-configured proof-of-work test network",
->>>>>>> v1.10.7
 	}
 	DeveloperFlag = cli.BoolFlag{
 		Name:  "dev",
@@ -292,15 +191,10 @@ var (
 		Value: 0,
 	}
 	defaultSyncMode = ethconfig.Defaults.SyncMode
-	SyncModeFlag    = TextMarshalerFlag{
+	// TODO: Check if snap sync is enabled
+	SyncModeFlag = TextMarshalerFlag{
 		Name:  "syncmode",
-<<<<<<< HEAD
 		Usage: `Blockchain sync mode ("fast", "full", "light", or "lightest")`,
-||||||| e78727290
-		Usage: `Blockchain sync mode ("fast", "full", or "light")`,
-=======
-		Usage: `Blockchain sync mode ("fast", "full", "snap" or "light")`,
->>>>>>> v1.10.7
 		Value: &defaultSyncMode,
 	}
 	GCModeFlag = cli.StringFlag{
@@ -325,7 +219,6 @@ var (
 		Name:  "whitelist",
 		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>)",
 	}
-<<<<<<< HEAD
 	EtherbaseFlag = cli.StringFlag{
 		Name:  "etherbase",
 		Usage: "Public address for transaction broadcasting and block mining rewards (default = first account)",
@@ -348,18 +241,11 @@ var (
 		Usage: "Manually specify E fork-block, overriding the bundled setting",
 	}
 
-||||||| e78727290
-=======
 	BloomFilterSizeFlag = cli.Uint64Flag{
 		Name:  "bloomfilter.size",
 		Usage: "Megabytes of memory allocated to bloom-filter for pruning",
 		Value: 2048,
 	}
-	OverrideLondonFlag = cli.Uint64Flag{
-		Name:  "override.london",
-		Usage: "Manually specify London fork-block, overriding the bundled setting",
-	}
->>>>>>> v1.10.7
 	// Light server and client settings
 
 	LightServeFlag = cli.IntFlag{
@@ -405,90 +291,12 @@ var (
 		Name:  "light.nopruning",
 		Usage: "Disable ancient light chain data pruning",
 	}
-<<<<<<< HEAD
-||||||| e78727290
-	// Ethash settings
-	EthashCacheDirFlag = DirectoryFlag{
-		Name:  "ethash.cachedir",
-		Usage: "Directory to store the ethash verification caches (default = inside the datadir)",
-	}
-	EthashCachesInMemoryFlag = cli.IntFlag{
-		Name:  "ethash.cachesinmem",
-		Usage: "Number of recent ethash caches to keep in memory (16MB each)",
-		Value: eth.DefaultConfig.Ethash.CachesInMem,
-	}
-	EthashCachesOnDiskFlag = cli.IntFlag{
-		Name:  "ethash.cachesondisk",
-		Usage: "Number of recent ethash caches to keep on disk (16MB each)",
-		Value: eth.DefaultConfig.Ethash.CachesOnDisk,
-	}
-	EthashCachesLockMmapFlag = cli.BoolFlag{
-		Name:  "ethash.cacheslockmmap",
-		Usage: "Lock memory maps of recent ethash caches",
-	}
-	EthashDatasetDirFlag = DirectoryFlag{
-		Name:  "ethash.dagdir",
-		Usage: "Directory to store the ethash mining DAGs",
-		Value: DirectoryString(eth.DefaultConfig.Ethash.DatasetDir),
-	}
-	EthashDatasetsInMemoryFlag = cli.IntFlag{
-		Name:  "ethash.dagsinmem",
-		Usage: "Number of recent ethash mining DAGs to keep in memory (1+GB each)",
-		Value: eth.DefaultConfig.Ethash.DatasetsInMem,
-	}
-	EthashDatasetsOnDiskFlag = cli.IntFlag{
-		Name:  "ethash.dagsondisk",
-		Usage: "Number of recent ethash mining DAGs to keep on disk (1+GB each)",
-		Value: eth.DefaultConfig.Ethash.DatasetsOnDisk,
-	}
-	EthashDatasetsLockMmapFlag = cli.BoolFlag{
-		Name:  "ethash.dagslockmmap",
-		Usage: "Lock memory maps for recent ethash mining DAGs",
-	}
-=======
+
 	LightNoSyncServeFlag = cli.BoolFlag{
 		Name:  "light.nosyncserve",
 		Usage: "Enables serving light clients before syncing",
 	}
-	// Ethash settings
-	EthashCacheDirFlag = DirectoryFlag{
-		Name:  "ethash.cachedir",
-		Usage: "Directory to store the ethash verification caches (default = inside the datadir)",
-	}
-	EthashCachesInMemoryFlag = cli.IntFlag{
-		Name:  "ethash.cachesinmem",
-		Usage: "Number of recent ethash caches to keep in memory (16MB each)",
-		Value: ethconfig.Defaults.Ethash.CachesInMem,
-	}
-	EthashCachesOnDiskFlag = cli.IntFlag{
-		Name:  "ethash.cachesondisk",
-		Usage: "Number of recent ethash caches to keep on disk (16MB each)",
-		Value: ethconfig.Defaults.Ethash.CachesOnDisk,
-	}
-	EthashCachesLockMmapFlag = cli.BoolFlag{
-		Name:  "ethash.cacheslockmmap",
-		Usage: "Lock memory maps of recent ethash caches",
-	}
-	EthashDatasetDirFlag = DirectoryFlag{
-		Name:  "ethash.dagdir",
-		Usage: "Directory to store the ethash mining DAGs",
-		Value: DirectoryString(ethconfig.Defaults.Ethash.DatasetDir),
-	}
-	EthashDatasetsInMemoryFlag = cli.IntFlag{
-		Name:  "ethash.dagsinmem",
-		Usage: "Number of recent ethash mining DAGs to keep in memory (1+GB each)",
-		Value: ethconfig.Defaults.Ethash.DatasetsInMem,
-	}
-	EthashDatasetsOnDiskFlag = cli.IntFlag{
-		Name:  "ethash.dagsondisk",
-		Usage: "Number of recent ethash mining DAGs to keep on disk (1+GB each)",
-		Value: ethconfig.Defaults.Ethash.DatasetsOnDisk,
-	}
-	EthashDatasetsLockMmapFlag = cli.BoolFlag{
-		Name:  "ethash.dagslockmmap",
-		Usage: "Lock memory maps for recent ethash mining DAGs",
-	}
->>>>>>> v1.10.7
+
 	// Transaction pool settings
 
 	TxPoolLocalsFlag = cli.StringFlag{
@@ -596,95 +404,22 @@ var (
 		Name:  "mine",
 		Usage: "Enable mining",
 	}
-<<<<<<< HEAD
+
 	MinerValidatorFlag = cli.StringFlag{
 		Name:  "miner.validator",
 		Usage: "Public address for participation in consensus",
-||||||| e78727290
-	MinerThreadsFlag = cli.IntFlag{
-		Name:  "miner.threads",
-		Usage: "Number of CPU threads to use for mining",
-		Value: 0,
-	}
-	MinerNotifyFlag = cli.StringFlag{
-		Name:  "miner.notify",
-		Usage: "Comma separated HTTP URL list to notify of new work packages",
-	}
-	MinerGasTargetFlag = cli.Uint64Flag{
-		Name:  "miner.gastarget",
-		Usage: "Target gas floor for mined blocks",
-		Value: eth.DefaultConfig.Miner.GasFloor,
-	}
-	MinerGasLimitFlag = cli.Uint64Flag{
-		Name:  "miner.gaslimit",
-		Usage: "Target gas ceiling for mined blocks",
-		Value: eth.DefaultConfig.Miner.GasCeil,
-	}
-	MinerGasPriceFlag = BigFlag{
-		Name:  "miner.gasprice",
-		Usage: "Minimum gas price for mining a transaction",
-		Value: eth.DefaultConfig.Miner.GasPrice,
-	}
-	MinerEtherbaseFlag = cli.StringFlag{
-		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
-=======
-	MinerThreadsFlag = cli.IntFlag{
-		Name:  "miner.threads",
-		Usage: "Number of CPU threads to use for mining",
-		Value: 0,
-	}
-	MinerNotifyFlag = cli.StringFlag{
-		Name:  "miner.notify",
-		Usage: "Comma separated HTTP URL list to notify of new work packages",
-	}
-	MinerNotifyFullFlag = cli.BoolFlag{
-		Name:  "miner.notify.full",
-		Usage: "Notify with pending block headers instead of work packages",
-	}
-	MinerGasLimitFlag = cli.Uint64Flag{
-		Name:  "miner.gaslimit",
-		Usage: "Target gas ceiling for mined blocks",
-		Value: ethconfig.Defaults.Miner.GasCeil,
-	}
-	MinerGasPriceFlag = BigFlag{
-		Name:  "miner.gasprice",
-		Usage: "Minimum gas price for mining a transaction",
-		Value: ethconfig.Defaults.Miner.GasPrice,
-	}
-	MinerEtherbaseFlag = cli.StringFlag{
-		Name:  "miner.etherbase",
-		Usage: "Public address for block mining rewards (default = first account)",
->>>>>>> v1.10.7
 		Value: "0",
 	}
 	MinerExtraDataFlag = cli.StringFlag{
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
 	}
-<<<<<<< HEAD
+	MinerGasPriceFlag = BigFlag{
+		Name:  "miner.gasprice",
+		Usage: "Minimum gas price for mining a transaction",
+		Value: ethconfig.Defaults.Miner.GasPrice,
+	}
 
-||||||| e78727290
-	MinerRecommitIntervalFlag = cli.DurationFlag{
-		Name:  "miner.recommit",
-		Usage: "Time interval to recreate the block being mined",
-		Value: eth.DefaultConfig.Miner.Recommit,
-	}
-	MinerNoVerfiyFlag = cli.BoolFlag{
-		Name:  "miner.noverify",
-		Usage: "Disable remote sealing verification",
-	}
-=======
-	MinerRecommitIntervalFlag = cli.DurationFlag{
-		Name:  "miner.recommit",
-		Usage: "Time interval to recreate the block being mined",
-		Value: ethconfig.Defaults.Miner.Recommit,
-	}
-	MinerNoVerfiyFlag = cli.BoolFlag{
-		Name:  "miner.noverify",
-		Usage: "Disable remote sealing verification",
-	}
->>>>>>> v1.10.7
 	// Account settings
 
 	UnlockedAccountFlag = cli.StringFlag{
@@ -717,16 +452,8 @@ var (
 	}
 	RPCGlobalTxFeeCapFlag = cli.Float64Flag{
 		Name:  "rpc.txfeecap",
-<<<<<<< HEAD
 		Usage: "Sets a cap on transaction fee (in celo) that can be sent via the RPC APIs (0 = no cap)",
-		Value: eth.DefaultConfig.RPCTxFeeCap,
-||||||| e78727290
-		Usage: "Sets a cap on transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)",
-		Value: eth.DefaultConfig.RPCTxFeeCap,
-=======
-		Usage: "Sets a cap on transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)",
 		Value: ethconfig.Defaults.RPCTxFeeCap,
->>>>>>> v1.10.7
 	}
 	// Logging and debug settings
 
@@ -910,59 +637,6 @@ var (
 		Value: DirectoryString("."),
 	}
 
-<<<<<<< HEAD
-	WhisperEnabledFlag = cli.BoolFlag{
-		Name:  "shh",
-		Usage: "Enable Whisper",
-	}
-	WhisperMaxMessageSizeFlag = cli.IntFlag{
-		Name:  "shh.maxmessagesize",
-		Usage: "Max message size accepted",
-		Value: 1024 * 1024,
-	}
-	WhisperMinPOWFlag = cli.Float64Flag{
-		Name:  "shh.pow",
-		Usage: "Minimum POW accepted",
-		Value: 0.2,
-	}
-	WhisperRestrictConnectionBetweenLightClientsFlag = cli.BoolFlag{
-		Name:  "shh.restrict-light",
-		Usage: "Restrict connection between two whisper light clients",
-||||||| e78727290
-	// Gas price oracle settings
-	GpoBlocksFlag = cli.IntFlag{
-		Name:  "gpo.blocks",
-		Usage: "Number of recent blocks to check for gas prices",
-		Value: eth.DefaultConfig.GPO.Blocks,
-	}
-	GpoPercentileFlag = cli.IntFlag{
-		Name:  "gpo.percentile",
-		Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
-		Value: eth.DefaultConfig.GPO.Percentile,
-	}
-	GpoMaxGasPriceFlag = cli.Int64Flag{
-		Name:  "gpo.maxprice",
-		Usage: "Maximum gas price will be recommended by gpo",
-		Value: eth.DefaultConfig.GPO.MaxPrice.Int64(),
-	}
-	WhisperEnabledFlag = cli.BoolFlag{
-		Name:  "shh",
-		Usage: "Enable Whisper",
-	}
-	WhisperMaxMessageSizeFlag = cli.IntFlag{
-		Name:  "shh.maxmessagesize",
-		Usage: "Max message size accepted",
-		Value: 1024 * 1024,
-	}
-	WhisperMinPOWFlag = cli.Float64Flag{
-		Name:  "shh.pow",
-		Usage: "Minimum POW accepted",
-		Value: 0.2,
-	}
-	WhisperRestrictConnectionBetweenLightClientsFlag = cli.BoolFlag{
-		Name:  "shh.restrict-light",
-		Usage: "Restrict connection between two whisper light clients",
-=======
 	// Gas price oracle settings
 	GpoBlocksFlag = cli.IntFlag{
 		Name:  "gpo.blocks",
@@ -983,7 +657,6 @@ var (
 		Name:  "gpo.ignoreprice",
 		Usage: "Gas price below which gpo will ignore transactions",
 		Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
->>>>>>> v1.10.7
 	}
 
 	// Metrics flags
@@ -1044,38 +717,10 @@ var (
 		Usage: "Comma-separated InfluxDB tags (key/values) attached to all measurements",
 		Value: metrics.DefaultConfig.InfluxDBTags,
 	}
-<<<<<<< HEAD
 	MetricsLoadTestCSVFlag = cli.StringFlag{
 		Name:  "metrics.loadtestcsvfile",
 		Usage: "Write a csv with information about the block production cycle to the given file name. If passed an empty string or non-existent, do not output csv metrics.",
 		Value: "",
-	}
-
-	EWASMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.ewasm",
-		Usage: "External ewasm configuration (default = built-in interpreter)",
-		Value: "",
-	}
-	EVMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.evm",
-		Usage: "External EVM configuration (default = built-in interpreter)",
-		Value: "",
-||||||| e78727290
-	EWASMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.ewasm",
-		Usage: "External ewasm configuration (default = built-in interpreter)",
-		Value: "",
-	}
-	EVMInterpreterFlag = cli.StringFlag{
-		Name:  "vm.evm",
-		Usage: "External EVM configuration (default = built-in interpreter)",
-		Value: "",
-=======
-
-	CatalystFlag = cli.BoolFlag{
-		Name:  "catalyst",
-		Usage: "Catalyst mode (eth2 integration testing)",
->>>>>>> v1.10.7
 	}
 
 	// Istanbul settings
@@ -1134,44 +779,10 @@ var (
 // then a subdirectory of the specified datadir will be used.
 func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.GlobalString(DataDirFlag.Name); path != "" {
-<<<<<<< HEAD
 		if ctx.GlobalBool(BaklavaFlag.Name) {
 			return filepath.Join(path, "baklava")
 		} else if ctx.GlobalBool(AlfajoresFlag.Name) {
 			return filepath.Join(path, "alfajores")
-||||||| e78727290
-		if ctx.GlobalBool(LegacyTestnetFlag.Name) || ctx.GlobalBool(RopstenFlag.Name) {
-			// Maintain compatibility with older Geth configurations storing the
-			// Ropsten database in `testnet` instead of `ropsten`.
-			legacyPath := filepath.Join(path, "testnet")
-			if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
-				return legacyPath
-			}
-			return filepath.Join(path, "ropsten")
-		}
-		if ctx.GlobalBool(RinkebyFlag.Name) {
-			return filepath.Join(path, "rinkeby")
-		}
-		if ctx.GlobalBool(GoerliFlag.Name) {
-			return filepath.Join(path, "goerli")
-		}
-		if ctx.GlobalBool(YoloV2Flag.Name) {
-			return filepath.Join(path, "yolo-v2")
-=======
-		if ctx.GlobalBool(RopstenFlag.Name) {
-			// Maintain compatibility with older Geth configurations storing the
-			// Ropsten database in `testnet` instead of `ropsten`.
-			return filepath.Join(path, "ropsten")
-		}
-		if ctx.GlobalBool(RinkebyFlag.Name) {
-			return filepath.Join(path, "rinkeby")
-		}
-		if ctx.GlobalBool(GoerliFlag.Name) {
-			return filepath.Join(path, "goerli")
-		}
-		if ctx.GlobalBool(CalaverasFlag.Name) {
-			return filepath.Join(path, "calaveras")
->>>>>>> v1.10.7
 		}
 		return path
 	}
@@ -1215,7 +826,8 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 func GetBootstrapNodes(ctx *cli.Context) []string {
 	urls := params.MainnetBootnodes
 	switch {
-<<<<<<< HEAD
+	// case ctx.GlobalIsSet(BootnodesFlag.Name):
+	// 	urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name):
 		if ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name) {
 			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
@@ -1226,37 +838,9 @@ func GetBootstrapNodes(ctx *cli.Context) []string {
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		urls = params.BaklavaBootnodes
-||||||| e78727290
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name):
-		if ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name) {
-			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
-		} else {
-			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-		}
-	case ctx.GlobalBool(LegacyTestnetFlag.Name) || ctx.GlobalBool(RopstenFlag.Name):
-		urls = params.RopstenBootnodes
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
-	case ctx.GlobalBool(YoloV2Flag.Name):
-		urls = params.YoloV2Bootnodes
 	case cfg.BootstrapNodes != nil:
 		return // already set, don't apply defaults.
-=======
-	case ctx.GlobalIsSet(BootnodesFlag.Name):
-		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-	case ctx.GlobalBool(RopstenFlag.Name):
-		urls = params.RopstenBootnodes
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
-	case ctx.GlobalBool(CalaverasFlag.Name):
-		urls = params.CalaverasBootnodes
-	case cfg.BootstrapNodes != nil:
-		return // already set, don't apply defaults.
->>>>>>> v1.10.7
+
 	}
 	return urls
 }
@@ -1287,7 +871,6 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	urls := params.V5Bootnodes
 	switch {
-<<<<<<< HEAD
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
 		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
 			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
@@ -1298,25 +881,8 @@ func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		urls = params.BaklavaBootnodes
-||||||| e78727290
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
-		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
-			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
-		} else {
-			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-		}
-	case ctx.GlobalBool(RopstenFlag.Name):
-		urls = params.RopstenBootnodes
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		urls = params.RinkebyBootnodes
-	case ctx.GlobalBool(GoerliFlag.Name):
-		urls = params.GoerliBootnodes
-	case ctx.GlobalBool(YoloV2Flag.Name):
-		urls = params.YoloV2Bootnodes
-=======
-	case ctx.GlobalIsSet(BootnodesFlag.Name):
-		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
->>>>>>> v1.10.7
+	// case ctx.GlobalIsSet(BootnodesFlag.Name):
+	// 	urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
 	}
@@ -1473,17 +1039,7 @@ func setIPC(ctx *cli.Context, cfg *node.Config) {
 }
 
 // setLes configures the les server and ultra light client settings from the command line flags.
-<<<<<<< HEAD
-func setLes(ctx *cli.Context, cfg *eth.Config) {
-||||||| e78727290
-func setLes(ctx *cli.Context, cfg *eth.Config) {
-	if ctx.GlobalIsSet(LegacyLightServFlag.Name) {
-		cfg.LightServ = ctx.GlobalInt(LegacyLightServFlag.Name)
-		log.Warn("The flag --lightserv is deprecated and will be removed in the future, please use --light.serve")
-	}
-=======
 func setLes(ctx *cli.Context, cfg *ethconfig.Config) {
->>>>>>> v1.10.7
 	if ctx.GlobalIsSet(LightServeFlag.Name) {
 		cfg.LightServ = ctx.GlobalInt(LightServeFlag.Name)
 	}
@@ -1570,7 +1126,6 @@ func MakeAddress(ks *keystore.KeyStore, account string) (accounts.Account, error
 
 // setValidator retrieves the validator address either from the directly specified
 // command line flags or from the keystore if CLI indexed.
-<<<<<<< HEAD
 // `Validator` is the address used to sign consensus messages.
 func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	// Extract the current validator, new flag overriding legacy etherbase
@@ -1595,24 +1150,6 @@ func setValidator(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 			Fatalf("Invalid validator: %v", err)
 		}
 		cfg.Miner.Validator = account.Address
-||||||| e78727290
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
-	// Extract the current etherbase, new flag overriding legacy one
-	var etherbase string
-	if ctx.GlobalIsSet(LegacyMinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(LegacyMinerEtherbaseFlag.Name)
-		log.Warn("The flag --etherbase is deprecated and will be removed in the future, please use --miner.etherbase")
-
-	}
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
-=======
-func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *ethconfig.Config) {
-	// Extract the current etherbase
-	var etherbase string
-	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
-		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
->>>>>>> v1.10.7
 	}
 }
 
@@ -1688,29 +1225,12 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	cfg.NetworkId = getNetworkId(ctx)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
-<<<<<<< HEAD
-	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
-||||||| e78727290
-	lightServer := (ctx.GlobalInt(LegacyLightServFlag.Name) != 0 || ctx.GlobalInt(LightServeFlag.Name) != 0)
-=======
-	lightServer := (ctx.GlobalInt(LightServeFlag.Name) != 0)
->>>>>>> v1.10.7
+	lightServer := (ctx.GlobalInt(LightServeFlag.Name)) != 0
 
-<<<<<<< HEAD
 	// LightPeers is in the eth config, not the p2p config, so we don't have it here, so we
 	// get it here separately using GlobalInt()
 	lightPeers := ctx.GlobalInt(LightMaxPeersFlag.Name)
 	if lightClient && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
-||||||| e78727290
-	lightPeers := ctx.GlobalInt(LegacyLightPeersFlag.Name)
-	if ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
-		lightPeers = ctx.GlobalInt(LightMaxPeersFlag.Name)
-	}
-	if lightClient && !ctx.GlobalIsSet(LegacyLightPeersFlag.Name) && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
-=======
-	lightPeers := ctx.GlobalInt(LightMaxPeersFlag.Name)
-	if lightClient && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {
->>>>>>> v1.10.7
 		// dynamic default - for clients we use 1/10th of the default for servers
 		lightPeers /= 10
 	}
@@ -1724,13 +1244,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 		if lightServer {
 			cfg.MaxPeers += lightPeers
 		}
-<<<<<<< HEAD
-		if lightClient && (ctx.GlobalIsSet(LightMaxPeersFlag.Name)) && cfg.MaxPeers < lightPeers {
-||||||| e78727290
-		if lightClient && (ctx.GlobalIsSet(LegacyLightPeersFlag.Name) || ctx.GlobalIsSet(LightMaxPeersFlag.Name)) && cfg.MaxPeers < lightPeers {
-=======
 		if lightClient && ctx.GlobalIsSet(LightMaxPeersFlag.Name) && cfg.MaxPeers < lightPeers {
->>>>>>> v1.10.7
 			cfg.MaxPeers = lightPeers
 		}
 	}
@@ -1825,74 +1339,10 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = ctx.GlobalString(DataDirFlag.Name)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		cfg.DataDir = "" // unless explicitly requested, use memory databases
-<<<<<<< HEAD
 	case ctx.GlobalBool(BaklavaFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		log.Info("setting data dir")
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "baklava")
 	case ctx.GlobalBool(AlfajoresFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "alfajores")
-||||||| e78727290
-	case (ctx.GlobalBool(LegacyTestnetFlag.Name) || ctx.GlobalBool(RopstenFlag.Name)) && cfg.DataDir == node.DefaultDataDir():
-		// Maintain compatibility with older Geth configurations storing the
-		// Ropsten database in `testnet` instead of `ropsten`.
-		legacyPath := filepath.Join(node.DefaultDataDir(), "testnet")
-		if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
-			log.Warn("Using the deprecated `testnet` datadir. Future versions will store the Ropsten chain in `ropsten`.")
-			cfg.DataDir = legacyPath
-		} else {
-			cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ropsten")
-		}
-	case ctx.GlobalBool(RinkebyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case ctx.GlobalBool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
-	case ctx.GlobalBool(YoloV2Flag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "yolo-v2")
-	}
-}
-
-func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
-	// If we are running the light client, apply another group
-	// settings for gas oracle.
-	if light {
-		cfg.Blocks = eth.DefaultLightGPOConfig.Blocks
-		cfg.Percentile = eth.DefaultLightGPOConfig.Percentile
-	}
-	if ctx.GlobalIsSet(LegacyGpoBlocksFlag.Name) {
-		cfg.Blocks = ctx.GlobalInt(LegacyGpoBlocksFlag.Name)
-		log.Warn("The flag --gpoblocks is deprecated and will be removed in the future, please use --gpo.blocks")
-	}
-	if ctx.GlobalIsSet(GpoBlocksFlag.Name) {
-		cfg.Blocks = ctx.GlobalInt(GpoBlocksFlag.Name)
-	}
-	if ctx.GlobalIsSet(LegacyGpoPercentileFlag.Name) {
-		cfg.Percentile = ctx.GlobalInt(LegacyGpoPercentileFlag.Name)
-		log.Warn("The flag --gpopercentile is deprecated and will be removed in the future, please use --gpo.percentile")
-	}
-	if ctx.GlobalIsSet(GpoPercentileFlag.Name) {
-		cfg.Percentile = ctx.GlobalInt(GpoPercentileFlag.Name)
-	}
-	if ctx.GlobalIsSet(GpoMaxGasPriceFlag.Name) {
-		cfg.MaxPrice = big.NewInt(ctx.GlobalInt64(GpoMaxGasPriceFlag.Name))
-=======
-	case ctx.GlobalBool(RopstenFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		// Maintain compatibility with older Geth configurations storing the
-		// Ropsten database in `testnet` instead of `ropsten`.
-		legacyPath := filepath.Join(node.DefaultDataDir(), "testnet")
-		if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
-			log.Warn("Using the deprecated `testnet` datadir. Future versions will store the Ropsten chain in `ropsten`.")
-			cfg.DataDir = legacyPath
-		} else {
-			cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ropsten")
-		}
-
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ropsten")
-	case ctx.GlobalBool(RinkebyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case ctx.GlobalBool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "goerli")
-	case ctx.GlobalBool(CalaverasFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "calaveras")
 	}
 }
 
@@ -1910,7 +1360,6 @@ func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
 	}
 	if ctx.GlobalIsSet(GpoMaxGasPriceFlag.Name) {
 		cfg.MaxPrice = big.NewInt(ctx.GlobalInt64(GpoMaxGasPriceFlag.Name))
->>>>>>> v1.10.7
 	}
 	if ctx.GlobalIsSet(GpoIgnoreGasPriceFlag.Name) {
 		cfg.IgnorePrice = big.NewInt(ctx.GlobalInt64(GpoIgnoreGasPriceFlag.Name))
@@ -1960,129 +1409,18 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 }
 
-<<<<<<< HEAD
-||||||| e78727290
-func setEthash(ctx *cli.Context, cfg *eth.Config) {
-	if ctx.GlobalIsSet(EthashCacheDirFlag.Name) {
-		cfg.Ethash.CacheDir = ctx.GlobalString(EthashCacheDirFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetDirFlag.Name) {
-		cfg.Ethash.DatasetDir = ctx.GlobalString(EthashDatasetDirFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesInMemoryFlag.Name) {
-		cfg.Ethash.CachesInMem = ctx.GlobalInt(EthashCachesInMemoryFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesOnDiskFlag.Name) {
-		cfg.Ethash.CachesOnDisk = ctx.GlobalInt(EthashCachesOnDiskFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesLockMmapFlag.Name) {
-		cfg.Ethash.CachesLockMmap = ctx.GlobalBool(EthashCachesLockMmapFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsInMemoryFlag.Name) {
-		cfg.Ethash.DatasetsInMem = ctx.GlobalInt(EthashDatasetsInMemoryFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsOnDiskFlag.Name) {
-		cfg.Ethash.DatasetsOnDisk = ctx.GlobalInt(EthashDatasetsOnDiskFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsLockMmapFlag.Name) {
-		cfg.Ethash.DatasetsLockMmap = ctx.GlobalBool(EthashDatasetsLockMmapFlag.Name)
-	}
-}
-
-=======
-func setEthash(ctx *cli.Context, cfg *ethconfig.Config) {
-	if ctx.GlobalIsSet(EthashCacheDirFlag.Name) {
-		cfg.Ethash.CacheDir = ctx.GlobalString(EthashCacheDirFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetDirFlag.Name) {
-		cfg.Ethash.DatasetDir = ctx.GlobalString(EthashDatasetDirFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesInMemoryFlag.Name) {
-		cfg.Ethash.CachesInMem = ctx.GlobalInt(EthashCachesInMemoryFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesOnDiskFlag.Name) {
-		cfg.Ethash.CachesOnDisk = ctx.GlobalInt(EthashCachesOnDiskFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashCachesLockMmapFlag.Name) {
-		cfg.Ethash.CachesLockMmap = ctx.GlobalBool(EthashCachesLockMmapFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsInMemoryFlag.Name) {
-		cfg.Ethash.DatasetsInMem = ctx.GlobalInt(EthashDatasetsInMemoryFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsOnDiskFlag.Name) {
-		cfg.Ethash.DatasetsOnDisk = ctx.GlobalInt(EthashDatasetsOnDiskFlag.Name)
-	}
-	if ctx.GlobalIsSet(EthashDatasetsLockMmapFlag.Name) {
-		cfg.Ethash.DatasetsLockMmap = ctx.GlobalBool(EthashDatasetsLockMmapFlag.Name)
-	}
-}
-
->>>>>>> v1.10.7
 func setMiner(ctx *cli.Context, cfg *miner.Config) {
-<<<<<<< HEAD
 	if ctx.GlobalIsSet(LegacyMinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(LegacyMinerExtraDataFlag.Name))
 		log.Warn("The flag --extradata is deprecated and will be removed in the future, please use --miner.extradata")
 	}
-||||||| e78727290
-	if ctx.GlobalIsSet(MinerNotifyFlag.Name) {
-		cfg.Notify = strings.Split(ctx.GlobalString(MinerNotifyFlag.Name), ",")
-	}
-	if ctx.GlobalIsSet(LegacyMinerExtraDataFlag.Name) {
-		cfg.ExtraData = []byte(ctx.GlobalString(LegacyMinerExtraDataFlag.Name))
-		log.Warn("The flag --extradata is deprecated and will be removed in the future, please use --miner.extradata")
-	}
-=======
-	if ctx.GlobalIsSet(MinerNotifyFlag.Name) {
-		cfg.Notify = strings.Split(ctx.GlobalString(MinerNotifyFlag.Name), ",")
-	}
-	cfg.NotifyFull = ctx.GlobalBool(MinerNotifyFullFlag.Name)
->>>>>>> v1.10.7
 	if ctx.GlobalIsSet(MinerExtraDataFlag.Name) {
 		cfg.ExtraData = []byte(ctx.GlobalString(MinerExtraDataFlag.Name))
 	}
-<<<<<<< HEAD
-||||||| e78727290
-	if ctx.GlobalIsSet(LegacyMinerGasTargetFlag.Name) {
-		cfg.GasFloor = ctx.GlobalUint64(LegacyMinerGasTargetFlag.Name)
-		log.Warn("The flag --targetgaslimit is deprecated and will be removed in the future, please use --miner.gastarget")
-	}
-	if ctx.GlobalIsSet(MinerGasTargetFlag.Name) {
-		cfg.GasFloor = ctx.GlobalUint64(MinerGasTargetFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerGasLimitFlag.Name) {
-		cfg.GasCeil = ctx.GlobalUint64(MinerGasLimitFlag.Name)
-	}
-	if ctx.GlobalIsSet(LegacyMinerGasPriceFlag.Name) {
-		cfg.GasPrice = GlobalBig(ctx, LegacyMinerGasPriceFlag.Name)
-		log.Warn("The flag --gasprice is deprecated and will be removed in the future, please use --miner.gasprice")
-	}
-	if ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
-		cfg.GasPrice = GlobalBig(ctx, MinerGasPriceFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerRecommitIntervalFlag.Name) {
-		cfg.Recommit = ctx.GlobalDuration(MinerRecommitIntervalFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
-		cfg.Noverify = ctx.GlobalBool(MinerNoVerfiyFlag.Name)
-	}
-=======
-	if ctx.GlobalIsSet(MinerGasLimitFlag.Name) {
-		cfg.GasCeil = ctx.GlobalUint64(MinerGasLimitFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
-		cfg.GasPrice = GlobalBig(ctx, MinerGasPriceFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerRecommitIntervalFlag.Name) {
-		cfg.Recommit = ctx.GlobalDuration(MinerRecommitIntervalFlag.Name)
-	}
-	if ctx.GlobalIsSet(MinerNoVerfiyFlag.Name) {
-		cfg.Noverify = ctx.GlobalBool(MinerNoVerfiyFlag.Name)
-	}
-	if ctx.GlobalIsSet(LegacyMinerGasTargetFlag.Name) {
-		log.Warn("The generic --miner.gastarget flag is deprecated and will be removed in the future!")
-	}
->>>>>>> v1.10.7
+
+	// if ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
+	// 	cfg.GasPrice = GlobalBig(ctx, MinerGasPriceFlag.Name)
+	// }
 }
 
 func setWhitelist(ctx *cli.Context, cfg *ethconfig.Config) {
@@ -2275,17 +1613,6 @@ func CheckExclusive(ctx *cli.Context, args ...interface{}) {
 	}
 }
 
-<<<<<<< HEAD
-// SetShhConfig applies shh-related command line flags to the config.
-func SetShhConfig(ctx *cli.Context, stack *node.Node) {
-	if ctx.GlobalIsSet(WhisperEnabledFlag.Name) ||
-		ctx.GlobalIsSet(WhisperMaxMessageSizeFlag.Name) ||
-		ctx.GlobalIsSet(WhisperMinPOWFlag.Name) ||
-		ctx.GlobalIsSet(WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
-		log.Warn("Whisper support has been deprecated and the code has been moved to github.com/ethereum/whisper")
-	}
-}
-
 func getNetworkId(ctx *cli.Context) uint64 {
 	if ctx.GlobalIsSet(NetworkIdFlag.Name) {
 		return ctx.GlobalUint64(NetworkIdFlag.Name)
@@ -2301,32 +1628,11 @@ func getNetworkId(ctx *cli.Context) uint64 {
 	return params.MainnetNetworkId
 }
 
-||||||| e78727290
-// SetShhConfig applies shh-related command line flags to the config.
-func SetShhConfig(ctx *cli.Context, stack *node.Node) {
-	if ctx.GlobalIsSet(WhisperEnabledFlag.Name) ||
-		ctx.GlobalIsSet(WhisperMaxMessageSizeFlag.Name) ||
-		ctx.GlobalIsSet(WhisperMinPOWFlag.Name) ||
-		ctx.GlobalIsSet(WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
-		log.Warn("Whisper support has been deprecated and the code has been moved to github.com/ethereum/whisper")
-	}
-}
-
-=======
->>>>>>> v1.10.7
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Avoid conflicting network flags
-<<<<<<< HEAD
-	CheckExclusive(ctx, DeveloperFlag, BaklavaFlag, AlfajoresFlag)
+	CheckExclusive(ctx, MainnetFlag, DeveloperFlag, BaklavaFlag, AlfajoresFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
-||||||| e78727290
-	CheckExclusive(ctx, DeveloperFlag, LegacyTestnetFlag, RopstenFlag, RinkebyFlag, GoerliFlag, YoloV2Flag)
-	CheckExclusive(ctx, LegacyLightServFlag, LightServeFlag, SyncModeFlag, "light")
-=======
-	CheckExclusive(ctx, MainnetFlag, DeveloperFlag, RopstenFlag, RinkebyFlag, GoerliFlag, CalaverasFlag)
-	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
->>>>>>> v1.10.7
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 	if ctx.GlobalString(GCModeFlag.Name) == "archive" && ctx.GlobalUint64(TxLookupLimitFlag.Name) != 0 {
 		ctx.GlobalSet(TxLookupLimitFlag.Name, "0")
@@ -2347,12 +1653,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	setWhitelist(ctx, cfg)
 	setIstanbul(ctx, stack, cfg)
 	setLes(ctx, cfg)
-
-<<<<<<< HEAD
 	cfg.NetworkId = params.MainnetNetworkId
 
-||||||| e78727290
-=======
 	// Cap the cache allowance and tune the garbage collector
 	mem, err := gopsutil.VirtualMemory()
 	if err == nil {
@@ -2373,7 +1675,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	log.Debug("Sanitizing Go's GC trigger", "percent", int(gogc))
 	godebug.SetGCPercent(int(gogc))
 
->>>>>>> v1.10.7
 	if ctx.GlobalIsSet(SyncModeFlag.Name) {
 		cfg.SyncMode = *GlobalTextMarshaler(ctx, SyncModeFlag.Name).(*downloader.SyncMode)
 	}
@@ -2421,24 +1722,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheSnapshotFlag.Name) {
 		cfg.SnapshotCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheSnapshotFlag.Name) / 100
 	}
-<<<<<<< HEAD
 	if !ctx.GlobalBool(SnapshotFlag.Name) {
+		// // If snap-sync is requested, this flag is also required
+		// if cfg.SyncMode == downloader.SnapSync {
+		// 	log.Info("Snap sync requested, enabling --snapshot")
+		// } else {
+		// 	cfg.TrieCleanCache += cfg.SnapshotCache
+		// 	cfg.SnapshotCache = 0 // Disabled
+		// }
 		cfg.TrieCleanCache += cfg.SnapshotCache
 		cfg.SnapshotCache = 0 // Disabled
-||||||| e78727290
-	if !ctx.GlobalIsSet(SnapshotFlag.Name) {
-		cfg.TrieCleanCache += cfg.SnapshotCache
-		cfg.SnapshotCache = 0 // Disabled
-=======
-	if !ctx.GlobalBool(SnapshotFlag.Name) {
-		// If snap-sync is requested, this flag is also required
-		if cfg.SyncMode == downloader.SnapSync {
-			log.Info("Snap sync requested, enabling --snapshot")
-		} else {
-			cfg.TrieCleanCache += cfg.SnapshotCache
-			cfg.SnapshotCache = 0 // Disabled
-		}
->>>>>>> v1.10.7
 	}
 	if ctx.GlobalIsSet(DocRootFlag.Name) {
 		cfg.DocRoot = ctx.GlobalString(DocRootFlag.Name)
@@ -2465,47 +1758,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Note that passing --discovery.dns "" is the way the Geth docs specify for disabling DNS discovery,
 	// so here we just make that be the default.
 	if ctx.GlobalIsSet(NoDiscoverFlag.Name) {
-<<<<<<< HEAD
-		cfg.DiscoveryURLs = []string{}
-	} else if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
-		cfg.DiscoveryURLs = []string{}
-	} else {
-		cfg.DiscoveryURLs = SplitAndTrim(urls)
-||||||| e78727290
-		cfg.DiscoveryURLs = []string{}
-	} else if ctx.GlobalIsSet(DNSDiscoveryFlag.Name) {
-		urls := ctx.GlobalString(DNSDiscoveryFlag.Name)
-		if urls == "" {
-			cfg.DiscoveryURLs = []string{}
-		} else {
-			cfg.DiscoveryURLs = SplitAndTrim(urls)
-		}
-=======
 		cfg.EthDiscoveryURLs, cfg.SnapDiscoveryURLs = []string{}, []string{}
-	} else if ctx.GlobalIsSet(DNSDiscoveryFlag.Name) {
-		urls := ctx.GlobalString(DNSDiscoveryFlag.Name)
-		if urls == "" {
-			cfg.EthDiscoveryURLs = []string{}
-		} else {
-			cfg.EthDiscoveryURLs = SplitAndTrim(urls)
-		}
->>>>>>> v1.10.7
+	} else if urls := ctx.GlobalString(DNSDiscoveryFlag.Name); urls == "" {
+		cfg.EthDiscoveryURLs = []string{}
+	} else {
+		cfg.EthDiscoveryURLs = SplitAndTrim(urls)
 	}
 	// Override any default configs for hard coded networks.
 	switch {
-<<<<<<< HEAD
+	// TODO: Case for mainnet flag?
 	case ctx.GlobalBool(BaklavaFlag.Name):
-||||||| e78727290
-	case ctx.GlobalBool(LegacyTestnetFlag.Name) || ctx.GlobalBool(RopstenFlag.Name):
-=======
-	case ctx.GlobalBool(MainnetFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1
-		}
-		cfg.Genesis = core.DefaultGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
-	case ctx.GlobalBool(RopstenFlag.Name):
->>>>>>> v1.10.7
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			log.Info("Setting baklava id")
 			cfg.NetworkId = params.BaklavaNetworkId
@@ -2516,38 +1778,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = params.AlfajoresNetworkId
 		}
-<<<<<<< HEAD
 		cfg.Genesis = core.DefaultAlfajoresGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.AlfajoresGenesisHash)
-||||||| e78727290
-		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.RinkebyGenesisHash)
-	case ctx.GlobalBool(GoerliFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultGoerliGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.GoerliGenesisHash)
-	case ctx.GlobalBool(YoloV2Flag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 133519467574834 // "yolov2"
-		}
-		cfg.Genesis = core.DefaultYoloV2GenesisBlock()
-=======
-		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.RinkebyGenesisHash)
-	case ctx.GlobalBool(GoerliFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
-		}
-		cfg.Genesis = core.DefaultGoerliGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.GoerliGenesisHash)
-	case ctx.GlobalBool(CalaverasFlag.Name):
-		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 123 // https://gist.github.com/holiman/c5697b041b3dc18c50a5cdd382cbdd16
-		}
-		cfg.Genesis = core.DefaultCalaverasGenesisBlock()
->>>>>>> v1.10.7
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -2593,16 +1825,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 			}
 			chaindb.Close()
 		}
-<<<<<<< HEAD
-||||||| e78727290
-		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(LegacyMinerGasPriceFlag.Name) {
-			cfg.Miner.GasPrice = big.NewInt(1)
-		}
-=======
-		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
-			cfg.Miner.GasPrice = big.NewInt(1)
-		}
->>>>>>> v1.10.7
+		// if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
+		// 	cfg.Miner.GasPrice = big.NewInt(1)
+		// }
 	default:
 		if cfg.NetworkId == params.MainnetNetworkId {
 			SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
@@ -2627,18 +1852,10 @@ func SetDNSDiscoveryDefaults(cfg *ethconfig.Config, genesis common.Hash) {
 }
 
 // RegisterEthService adds an Ethereum client to the stack.
-<<<<<<< HEAD
-func RegisterEthService(stack *node.Node, cfg *eth.Config) ethapi.Backend {
-	if !cfg.SyncMode.SyncFullBlockChain() {
-||||||| e78727290
-func RegisterEthService(stack *node.Node, cfg *eth.Config) ethapi.Backend {
-	if cfg.SyncMode == downloader.LightSync {
-=======
 // The second return value is the full node instance, which may be nil if the
 // node is running as a light client.
 func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend, *eth.Ethereum) {
-	if cfg.SyncMode == downloader.LightSync {
->>>>>>> v1.10.7
+	if !cfg.SyncMode.SyncFullBlockChain() {
 		backend, err := les.New(stack, cfg)
 		if err != nil {
 			Fatalf("Failed to register the Ethereum service: %v", err)
@@ -2731,16 +1948,10 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly bool) ethdb.
 	)
 	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
 		name := "lightchaindata"
-<<<<<<< HEAD
-		chainDb, err = stack.OpenDatabase(name, cache, handles, "")
+		chainDb, err = stack.OpenDatabase(name, cache, handles, "", readonly)
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "lightest" {
 		name := "lightestchaindata"
 		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "")
-||||||| e78727290
-		chainDb, err = stack.OpenDatabase(name, cache, handles, "")
-=======
-		chainDb, err = stack.OpenDatabase(name, cache, handles, "", readonly)
->>>>>>> v1.10.7
 	} else {
 		name := "chaindata"
 		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "", readonly)
@@ -2754,32 +1965,12 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly bool) ethdb.
 func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
-<<<<<<< HEAD
+	case ctx.GlobalBool(MainnetFlag.Name):
+		genesis = core.DefaultGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		genesis = core.DefaultAlfajoresGenesisBlock()
-||||||| e78727290
-	case ctx.GlobalBool(LegacyTestnetFlag.Name) || ctx.GlobalBool(RopstenFlag.Name):
-		genesis = core.DefaultRopstenGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		genesis = core.DefaultGoerliGenesisBlock()
-	case ctx.GlobalBool(YoloV2Flag.Name):
-		genesis = core.DefaultYoloV2GenesisBlock()
-=======
-	case ctx.GlobalBool(MainnetFlag.Name):
-		genesis = core.DefaultGenesisBlock()
-	case ctx.GlobalBool(RopstenFlag.Name):
-		genesis = core.DefaultRopstenGenesisBlock()
-	case ctx.GlobalBool(RinkebyFlag.Name):
-		genesis = core.DefaultRinkebyGenesisBlock()
-	case ctx.GlobalBool(GoerliFlag.Name):
-		genesis = core.DefaultGoerliGenesisBlock()
-	case ctx.GlobalBool(CalaverasFlag.Name):
-		genesis = core.DefaultCalaverasGenesisBlock()
->>>>>>> v1.10.7
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
 	}
@@ -2794,49 +1985,9 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("%v", err)
 	}
-<<<<<<< HEAD
 	config.FullHeaderChainAvailable = ctx.GlobalString(SyncModeFlag.Name) != "lightest"
 	engine := mockEngine.NewFaker()
 
-||||||| e78727290
-	var engine consensus.Engine
-	if config.Clique != nil {
-		engine = clique.New(config.Clique, chainDb)
-	} else {
-		engine = ethash.NewFaker()
-		if !ctx.GlobalBool(FakePoWFlag.Name) {
-			engine = ethash.New(ethash.Config{
-				CacheDir:         stack.ResolvePath(eth.DefaultConfig.Ethash.CacheDir),
-				CachesInMem:      eth.DefaultConfig.Ethash.CachesInMem,
-				CachesOnDisk:     eth.DefaultConfig.Ethash.CachesOnDisk,
-				CachesLockMmap:   eth.DefaultConfig.Ethash.CachesLockMmap,
-				DatasetDir:       stack.ResolvePath(eth.DefaultConfig.Ethash.DatasetDir),
-				DatasetsInMem:    eth.DefaultConfig.Ethash.DatasetsInMem,
-				DatasetsOnDisk:   eth.DefaultConfig.Ethash.DatasetsOnDisk,
-				DatasetsLockMmap: eth.DefaultConfig.Ethash.DatasetsLockMmap,
-			}, nil, false)
-		}
-	}
-=======
-	var engine consensus.Engine
-	if config.Clique != nil {
-		engine = clique.New(config.Clique, chainDb)
-	} else {
-		engine = ethash.NewFaker()
-		if !ctx.GlobalBool(FakePoWFlag.Name) {
-			engine = ethash.New(ethash.Config{
-				CacheDir:         stack.ResolvePath(ethconfig.Defaults.Ethash.CacheDir),
-				CachesInMem:      ethconfig.Defaults.Ethash.CachesInMem,
-				CachesOnDisk:     ethconfig.Defaults.Ethash.CachesOnDisk,
-				CachesLockMmap:   ethconfig.Defaults.Ethash.CachesLockMmap,
-				DatasetDir:       stack.ResolvePath(ethconfig.Defaults.Ethash.DatasetDir),
-				DatasetsInMem:    ethconfig.Defaults.Ethash.DatasetsInMem,
-				DatasetsOnDisk:   ethconfig.Defaults.Ethash.DatasetsOnDisk,
-				DatasetsLockMmap: ethconfig.Defaults.Ethash.DatasetsLockMmap,
-			}, nil, false)
-		}
-	}
->>>>>>> v1.10.7
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
