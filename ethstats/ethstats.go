@@ -142,9 +142,6 @@ type Service struct {
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
-
-	headSub event.Subscription
-	txSub   event.Subscription
 }
 
 // connWrapper is a wrapper to prevent concurrent-write or concurrent-read on the
@@ -192,14 +189,18 @@ func (w *connWrapper) Close() error {
 	return w.conn.Close()
 }
 
-func parseStatsConnectionURL(url string, name *string, host *string) error {
-	re := regexp.MustCompile("([^:@]*)?@(.+)")
-	parts := re.FindStringSubmatch(url)
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+// parseEthstatsURL parses the netstats connection url.
+// URL argument should be of the form <name@host:port>
+func parseEthstatsURL(url string, name *string, host *string) error {
+	err := fmt.Errorf("invalid netstats url: \"%s\", should be nodename@host:port", url)
+
+	hostIndex := strings.LastIndex(url, "@")
+	if hostIndex == -1 || hostIndex == len(url)-1 {
+		return err
 	}
-	*name = parts[1]
-	*host = parts[2]
+	*name = url[:hostIndex]
+	*host = url[hostIndex+1:]
+
 	return nil
 }
 
@@ -214,7 +215,7 @@ func New(node *node.Node, backend backend, engine consensus.Engine, url string) 
 
 	if !istanbulBackend.IsProxiedValidator() {
 		// Parse the netstats connection url
-		if err := parseStatsConnectionURL(url, &name, &celostatsHost); err != nil {
+		if err := parseEthstatsURL(url, &name, &celostatsHost); err != nil {
 			return err
 		}
 	}

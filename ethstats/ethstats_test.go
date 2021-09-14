@@ -45,7 +45,7 @@ func TestParseEthstatsURL(t *testing.T) {
 			name          string
 			celostatsHost string
 		)
-		if err := parseStatsConnectionURL(c.url, &name, &celostatsHost); err != nil {
+		if err := parseEthstatsURL(c.url, &name, &celostatsHost); err != nil {
 			t.Fatal(err)
 		}
 
