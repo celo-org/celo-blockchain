@@ -105,7 +105,7 @@ func (mp *MockPeer) Node() *enode.Node {
 	return mp.node
 }
 
-func (mp *MockPeer) Version() int {
+func (mp *MockPeer) Version() uint {
 	return 0
 }
 
