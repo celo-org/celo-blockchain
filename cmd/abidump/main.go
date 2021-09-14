@@ -23,10 +23,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/signer/core"
-	"github.com/celo-org/celo-blockchain/signer/fourbyte"
-	"github.com/celo-org/celo-blockchain/signer/core"
-	"github.com/celo-org/celo-blockchain/signer/fourbyte"
 	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 	"github.com/celo-org/celo-blockchain/signer/fourbyte"
 )

@@ -20,22 +20,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/rlpx"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/rlpx"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/rlpx"
@@ -217,25 +201,25 @@ func (c *Conn) Read66() (uint64, Message) {
 	case (Status{}).Code():
 		msg = new(Status)
 	case (GetBlockHeaders{}).Code():
-		ethMsg := new(eth.GetBlockHeadersPacket66)
+		ethMsg := new(eth.GetBlockHeadersPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}
 		return ethMsg.RequestId, GetBlockHeaders(*ethMsg.GetBlockHeadersPacket)
 	case (BlockHeaders{}).Code():
-		ethMsg := new(eth.BlockHeadersPacket66)
+		ethMsg := new(eth.BlockHeadersPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}
 		return ethMsg.RequestId, BlockHeaders(ethMsg.BlockHeadersPacket)
 	case (GetBlockBodies{}).Code():
-		ethMsg := new(eth.GetBlockBodiesPacket66)
+		ethMsg := new(eth.GetBlockBodiesPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}
 		return ethMsg.RequestId, GetBlockBodies(ethMsg.GetBlockBodiesPacket)
 	case (BlockBodies{}).Code():
-		ethMsg := new(eth.BlockBodiesPacket66)
+		ethMsg := new(eth.BlockBodiesPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}
@@ -249,13 +233,13 @@ func (c *Conn) Read66() (uint64, Message) {
 	case (NewPooledTransactionHashes{}).Code():
 		msg = new(NewPooledTransactionHashes)
 	case (GetPooledTransactions{}.Code()):
-		ethMsg := new(eth.GetPooledTransactionsPacket66)
+		ethMsg := new(eth.GetPooledTransactionsPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}
 		return ethMsg.RequestId, GetPooledTransactions(ethMsg.GetPooledTransactionsPacket)
 	case (PooledTransactions{}.Code()):
-		ethMsg := new(eth.PooledTransactionsPacket66)
+		ethMsg := new(eth.PooledTransactionsPacket67)
 		if err := rlp.DecodeBytes(rawData, ethMsg); err != nil {
 			return 0, errorf("could not rlp decode message: %v", err)
 		}

@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -31,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/internal/utesting"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/rlpx"
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -169,7 +169,7 @@ loop:
 				return nil, fmt.Errorf("wrong head block in status, want:  %#x (block %d) have %#x",
 					want, chain.blocks[chain.Len()-1].NumberU64(), have)
 			}
-			if have, want := msg.TD.Cmp(chain.TD()), 0; have != want {
+			if have, want := msg.TD.Cmp(chain.TD(int(chain.Head().NumberU64()))), 0; have != want {
 				return nil, fmt.Errorf("wrong TD in status: have %v want %v", have, want)
 			}
 			if have, want := msg.ForkID, chain.ForkID(); !reflect.DeepEqual(have, want) {
@@ -198,7 +198,7 @@ loop:
 		status = &Status{
 			ProtocolVersion: uint32(c.negotiatedProtoVersion),
 			NetworkID:       chain.chainConfig.ChainID.Uint64(),
-			TD:              chain.TD(),
+			TD:              chain.TD(int(chain.Head().NumberU64())),
 			Head:            chain.blocks[chain.Len()-1].Hash(),
 			Genesis:         chain.blocks[0].Hash(),
 			ForkID:          chain.ForkID(),
@@ -284,7 +284,7 @@ func (c *Conn) readAndServe66(chain *Chain, timeout time.Duration) (uint64, Mess
 			if err != nil {
 				return 0, errorf("could not get headers for inbound header request: %v", err)
 			}
-			resp := &eth.BlockHeadersPacket66{
+			resp := &eth.BlockHeadersPacket67{
 				RequestId:          reqID,
 				BlockHeadersPacket: eth.BlockHeadersPacket(headers),
 			}
@@ -321,7 +321,7 @@ func (c *Conn) headersRequest(request *GetBlockHeaders, chain *Chain, isEth66 bo
 func getBlockHeaders66(chain *Chain, conn *Conn, request *GetBlockHeaders, id uint64) (BlockHeaders, error) {
 	// write request
 	packet := eth.GetBlockHeadersPacket(*request)
-	req := &eth.GetBlockHeadersPacket66{
+	req := &eth.GetBlockHeadersPacket67{
 		RequestId:             id,
 		GetBlockHeadersPacket: &packet,
 	}
@@ -479,7 +479,7 @@ func (s *Suite) oldAnnounce(isEth66 bool) error {
 	// create old block announcement
 	oldBlockAnnounce := &NewBlock{
 		Block: s.chain.blocks[len(s.chain.blocks)/2],
-		TD:    s.chain.blocks[len(s.chain.blocks)/2].Difficulty(),
+		TD:    s.chain.blocks[len(s.chain.blocks)/2].Number(),
 	}
 	if err := sendConn.Write(oldBlockAnnounce); err != nil {
 		return fmt.Errorf("could not write to connection: %v", err)
@@ -682,7 +682,7 @@ func (s *Suite) hashAnnounce(isEth66 bool) error {
 				pretty.Sdump(announcement),
 				pretty.Sdump(blockHeaderReq))
 		}
-		if err := sendConn.Write66(&eth.BlockHeadersPacket66{
+		if err := sendConn.Write66(&eth.BlockHeadersPacket67{
 			RequestId: id,
 			BlockHeadersPacket: eth.BlockHeadersPacket{
 				nextBlock.Header(),
@@ -725,7 +725,7 @@ func (s *Suite) hashAnnounce(isEth66 bool) error {
 	case *NewBlock:
 		// node should only propagate NewBlock without having requested the body if the body is empty
 		nextBlockBody := nextBlock.Body()
-		if len(nextBlockBody.Transactions) != 0 || len(nextBlockBody.Uncles) != 0 {
+		if len(nextBlockBody.Transactions) != 0 {
 			return fmt.Errorf("unexpected non-empty new block propagated: %s", pretty.Sdump(msg))
 		}
 		if msg.Block.Hash() != nextBlock.Hash() {

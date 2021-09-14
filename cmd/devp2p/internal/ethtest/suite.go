@@ -19,22 +19,6 @@ package ethtest
 import (
 	"time"
 
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/rlpx"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/stretchr/testify/assert"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/internal/utesting"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/rlpx"
-	"github.com/stretchr/testify/assert"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/internal/utesting"
@@ -254,7 +238,7 @@ func (s *Suite) TestSimultaneousRequests66(t *utesting.T) {
 		t.Fatalf("peering failed: %v", err)
 	}
 	// create two requests
-	req1 := &eth.GetBlockHeadersPacket66{
+	req1 := &eth.GetBlockHeadersPacket67{
 		RequestId: uint64(111),
 		GetBlockHeadersPacket: &eth.GetBlockHeadersPacket{
 			Origin: eth.HashOrNumber{
@@ -265,7 +249,7 @@ func (s *Suite) TestSimultaneousRequests66(t *utesting.T) {
 			Reverse: false,
 		},
 	}
-	req2 := &eth.GetBlockHeadersPacket66{
+	req2 := &eth.GetBlockHeadersPacket67{
 		RequestId: uint64(222),
 		GetBlockHeadersPacket: &eth.GetBlockHeadersPacket{
 			Origin: eth.HashOrNumber{
@@ -325,7 +309,7 @@ func (s *Suite) TestSameRequestID66(t *utesting.T) {
 	}
 	// create requests
 	reqID := uint64(1234)
-	request1 := &eth.GetBlockHeadersPacket66{
+	request1 := &eth.GetBlockHeadersPacket67{
 		RequestId: reqID,
 		GetBlockHeadersPacket: &eth.GetBlockHeadersPacket{
 			Origin: eth.HashOrNumber{
@@ -334,7 +318,7 @@ func (s *Suite) TestSameRequestID66(t *utesting.T) {
 			Amount: 2,
 		},
 	}
-	request2 := &eth.GetBlockHeadersPacket66{
+	request2 := &eth.GetBlockHeadersPacket67{
 		RequestId: reqID,
 		GetBlockHeadersPacket: &eth.GetBlockHeadersPacket{
 			Origin: eth.HashOrNumber{
@@ -453,7 +437,7 @@ func (s *Suite) TestGetBlockBodies66(t *utesting.T) {
 		t.Fatalf("peering failed: %v", err)
 	}
 	// create block bodies request
-	req := &eth.GetBlockBodiesPacket66{
+	req := &eth.GetBlockBodiesPacket67{
 		RequestId: uint64(55),
 		GetBlockBodiesPacket: eth.GetBlockBodiesPacket{
 			s.chain.blocks[54].Hash(),
@@ -720,7 +704,7 @@ func (s *Suite) TestLargeTxRequest66(t *utesting.T) {
 	for _, hash := range hashMap {
 		hashes = append(hashes, hash)
 	}
-	getTxReq := &eth.GetPooledTransactionsPacket66{
+	getTxReq := &eth.GetPooledTransactionsPacket67{
 		RequestId:                   1234,
 		GetPooledTransactionsPacket: hashes,
 	}

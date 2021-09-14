@@ -28,22 +28,6 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/tests"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/tests"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -266,7 +250,7 @@ func Main(ctx *cli.Context) error {
 		return NewError(ErrorJson, fmt.Errorf("failed signing transactions: %v", err))
 	}
 	// Sanity check, to not `panic` in state_transition
-	if chainConfig.IsLondon(big.NewInt(int64(prestate.Env.Number))) {
+	if chainConfig.IsEHardfork(big.NewInt(int64(prestate.Env.Number))) {
 		if prestate.Env.BaseFee == nil {
 			return NewError(ErrorVMConfig, errors.New("EIP-1559 config but missing 'currentBaseFee' in env section"))
 		}
