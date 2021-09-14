@@ -31,25 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/shared/signer"
-	"github.com/celo-org/celo-blockchain/signer/storage"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/signer/storage"
-	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/keystore"
-	"github.com/celo-org/celo-blockchain/accounts/usbwallet"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 	"github.com/celo-org/celo-blockchain/signer/storage"
 )
@@ -230,31 +212,13 @@ type (
 		Approved    bool                `json:"approved"`
 	}
 	SignDataRequest struct {
-<<<<<<< HEAD
-		ContentType string                  `json:"content_type"`
-		Address     common.MixedcaseAddress `json:"address"`
-		Rawdata     []byte                  `json:"raw_data"`
-		Messages    []*signer.NameValueType `json:"messages"`
-		Callinfo    []ValidationInfo        `json:"call_info"`
-		Hash        hexutil.Bytes           `json:"hash"`
-		Meta        Metadata                `json:"meta"`
-||||||| e78727290
-		ContentType string                  `json:"content_type"`
-		Address     common.MixedcaseAddress `json:"address"`
-		Rawdata     []byte                  `json:"raw_data"`
-		Messages    []*NameValueType        `json:"messages"`
-		Callinfo    []ValidationInfo        `json:"call_info"`
-		Hash        hexutil.Bytes           `json:"hash"`
-		Meta        Metadata                `json:"meta"`
-=======
 		ContentType string                    `json:"content_type"`
 		Address     common.MixedcaseAddress   `json:"address"`
 		Rawdata     []byte                    `json:"raw_data"`
-		Messages    []*NameValueType          `json:"messages"`
+		Messages    []*signer.NameValueType   `json:"messages"`
 		Callinfo    []apitypes.ValidationInfo `json:"call_info"`
 		Hash        hexutil.Bytes             `json:"hash"`
 		Meta        Metadata                  `json:"meta"`
->>>>>>> v1.10.7
 	}
 	SignDataResponse struct {
 		Approved bool `json:"approved"`
