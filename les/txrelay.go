@@ -30,27 +30,11 @@ import (
 )
 
 type lesTxRelay struct {
-<<<<<<< HEAD
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}
 	peerList  []*serverPeer
 	lock      sync.Mutex
 	stop      chan struct{}
-||||||| e78727290
-	txSent       map[common.Hash]*ltrInfo
-	txPending    map[common.Hash]struct{}
-	peerList     []*serverPeer
-	peerStartPos int
-	lock         sync.Mutex
-	stop         chan struct{}
-=======
-	txSent       map[common.Hash]*types.Transaction
-	txPending    map[common.Hash]struct{}
-	peerList     []*serverPeer
-	peerStartPos int
-	lock         sync.Mutex
-	stop         chan struct{}
->>>>>>> v1.10.7
 
 	retriever *retrieveManager
 }
@@ -94,7 +78,6 @@ func (ltrx *lesTxRelay) unregisterPeer(p *serverPeer) {
 	}
 }
 
-<<<<<<< HEAD
 func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 	ltrx.lock.Lock()
 	defer ltrx.lock.Unlock()
@@ -110,100 +93,14 @@ func (ltrx *lesTxRelay) CanRelayTransaction(tx *types.Transaction) bool {
 // send sends a list of transactions to at most a given number of peers at
 // once, never resending any particular transaction to the same peer twice
 func (ltrx *lesTxRelay) send(txs types.Transactions) {
-||||||| e78727290
-// send sends a list of transactions to at most a given number of peers at
-// once, never resending any particular transaction to the same peer twice
-func (ltrx *lesTxRelay) send(txs types.Transactions, count int) {
-	sendTo := make(map[*serverPeer]types.Transactions)
-
-	ltrx.peerStartPos++ // rotate the starting position of the peer list
-	if ltrx.peerStartPos >= len(ltrx.peerList) {
-		ltrx.peerStartPos = 0
-	}
-
-=======
-// send sends a list of transactions to at most a given number of peers.
-func (ltrx *lesTxRelay) send(txs types.Transactions, count int) {
-	sendTo := make(map[*serverPeer]types.Transactions)
-
-	ltrx.peerStartPos++ // rotate the starting position of the peer list
-	if ltrx.peerStartPos >= len(ltrx.peerList) {
-		ltrx.peerStartPos = 0
-	}
-
->>>>>>> v1.10.7
 	for _, tx := range txs {
 		hash := tx.Hash()
-<<<<<<< HEAD
 		if _, ok := ltrx.txSent[hash]; ok {
 			continue
-||||||| e78727290
-		ltr, ok := ltrx.txSent[hash]
-		if !ok {
-			ltr = &ltrInfo{
-				tx:     tx,
-				sentTo: make(map[*serverPeer]struct{}),
-			}
-			ltrx.txSent[hash] = ltr
-			ltrx.txPending[hash] = struct{}{}
-=======
-		_, ok := ltrx.txSent[hash]
-		if !ok {
-			ltrx.txSent[hash] = tx
-			ltrx.txPending[hash] = struct{}{}
->>>>>>> v1.10.7
 		}
-<<<<<<< HEAD
 
 		ltrx.txSent[hash] = tx
 		ltrx.txPending[hash] = struct{}{}
-||||||| e78727290
-
-		if len(ltrx.peerList) > 0 {
-			cnt := count
-			pos := ltrx.peerStartPos
-			for {
-				peer := ltrx.peerList[pos]
-				if _, ok := ltr.sentTo[peer]; !ok {
-					sendTo[peer] = append(sendTo[peer], tx)
-					ltr.sentTo[peer] = struct{}{}
-					cnt--
-				}
-				if cnt == 0 {
-					break // sent it to the desired number of peers
-				}
-				pos++
-				if pos == len(ltrx.peerList) {
-					pos = 0
-				}
-				if pos == ltrx.peerStartPos {
-					break // tried all available peers
-				}
-			}
-		}
-	}
-=======
-		if len(ltrx.peerList) > 0 {
-			cnt := count
-			pos := ltrx.peerStartPos
-			for {
-				peer := ltrx.peerList[pos]
-				sendTo[peer] = append(sendTo[peer], tx)
-				cnt--
-				if cnt == 0 {
-					break // sent it to the desired number of peers
-				}
-				pos++
-				if pos == len(ltrx.peerList) {
-					pos = 0
-				}
-				if pos == ltrx.peerStartPos {
-					break // tried all available peers
-				}
-			}
-		}
-	}
->>>>>>> v1.10.7
 
 		// Send a single transaction per request to avoid failure coupling and
 		// because the expected base cost of a SendTxV2 request is 0, so it
@@ -211,14 +108,7 @@ func (ltrx *lesTxRelay) send(txs types.Transactions, count int) {
 		list := types.Transactions{tx}
 		enc, _ := rlp.EncodeToBytes(list)
 
-<<<<<<< HEAD
-		// Assemble the request object with callbacks for the distributor.
-		reqID := genReqID()
-||||||| e78727290
-		reqID := genReqID()
-=======
 		reqID := rand.Uint64()
->>>>>>> v1.10.7
 		rq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				return dp.(*serverPeer).getTxRelayCost(len(list), len(enc))

@@ -32,8 +32,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
@@ -43,19 +43,9 @@ import (
 )
 
 type LesApiBackend struct {
-<<<<<<< HEAD
-	extRPCEnabled bool
-	eth           *LightEthereum
-||||||| e78727290
-	extRPCEnabled bool
-	eth           *LightEthereum
-	gpo           *gasprice.Oracle
-=======
 	extRPCEnabled       bool
 	allowUnprotectedTxs bool
 	eth                 *LightEthereum
-	gpo                 *gasprice.Oracle
->>>>>>> v1.10.7
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {
@@ -277,7 +267,6 @@ func (b *LesApiBackend) ProtocolVersion() int {
 	return b.eth.LesVersion() + 10000
 }
 
-<<<<<<< HEAD
 func (b *LesApiBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
 	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
 	if err != nil {
@@ -308,17 +297,29 @@ func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.
 
 func (b *LesApiBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
 	return b.eth.BlockChain().NewEVMRunner(header, state)
-||||||| e78727290
-func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestPrice(ctx)
-=======
-func (b *LesApiBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestTipCap(ctx)
 }
 
-func (b *LesApiBackend) FeeHistory(ctx context.Context, blockCount int, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (firstBlock *big.Int, reward [][]*big.Int, baseFee []*big.Int, gasUsedRatio []float64, err error) {
-	return b.gpo.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
->>>>>>> v1.10.7
+func (b *LesApiBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *LesApiBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state := light.NewState(ctx, header, b.eth.odr)
+	vmRunner := b.eth.blockchain.NewEVMRunner(header, state)
+
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -365,7 +366,7 @@ func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 
 func (b *LesApiBackend) GatewayFee() *big.Int {
 	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
-	return eth.DefaultConfig.GatewayFee
+	return ethconfig.Defaults.GatewayFee
 }
 
 func (b *LesApiBackend) Engine() consensus.Engine {
@@ -380,6 +381,10 @@ func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 	return b.eth.stateAtBlock(ctx, block, reexec)
 }
 
-func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
+func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
+}
+
+func (b *LesApiBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
+	return b.eth.blockchain.NewEVMRunner(header, state)
 }

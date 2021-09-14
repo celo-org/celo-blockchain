@@ -40,23 +40,16 @@ func TestLightPruner(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 			}
 		}
-<<<<<<< HEAD
-	}
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(3*config.ChtSize+config.ChtConfirms), 2, waitIndexers, nil, 0, false, true, false)
-||||||| e78727290
-	}
-	server, client, tearDown := newClientServerEnv(t, int(3*config.ChtSize+config.ChtConfirms), 2, waitIndexers, nil, 0, false, true, false)
-=======
 		config    = light.TestClientIndexerConfig
 		netconfig = testnetConfig{
 			blocks:   int(3*config.ChtSize + config.ChtConfirms),
 			protocol: 3,
+			syncMode: downloader.LightSync,
 			indexFn:  waitIndexers,
 			connect:  true,
 		}
 	)
 	server, client, tearDown := newClientServerEnv(t, netconfig)
->>>>>>> v1.10.7
 	defer tearDown()
 
 	// checkDB iterates the chain with given prefix, resolves the block number

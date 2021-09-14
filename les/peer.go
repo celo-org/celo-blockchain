@@ -32,31 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/les/flowcontrol"
-	"github.com/celo-org/celo-blockchain/les/utils"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/les/flowcontrol"
-	"github.com/celo-org/celo-blockchain/les/utils"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	vfc "github.com/celo-org/celo-blockchain/les/vflux/client"
@@ -300,7 +275,7 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	// If the protocol version is beyond les4, then pass the forkID
 	// as well. Check http://eips.ethereum.org/EIPS/eip-2124 for more
 	// spec detail.
-	if p.version >= lpv4 {
+	if p.version >= lpv5 {
 		send = send.add("forkID", forkID)
 	}
 	// Add client-specified or server-specified fields
@@ -337,7 +312,7 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", rVersion, p.version)
 	}
 	// Check forkID if the protocol version is beyond the les4
-	if p.version >= lpv4 {
+	if p.version >= lpv5 {
 		var forkID forkid.ID
 		if err := recv.get("forkID", &forkID); err != nil {
 			return err
@@ -740,7 +715,7 @@ func (p *serverPeer) Handshake(genesis common.Hash, forkid forkid.ID, forkFilter
 		if recv.get("txRelay", nil) != nil {
 			p.onlyAnnounce = true
 		}
-		if p.version >= lpv4 {
+		if p.version >= lpv5 {
 			var recentTx uint
 			if err := recv.get("recentTxLookup", &recentTx); err != nil {
 				return err
@@ -1164,7 +1139,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 	if server.config.UltraLightOnlyAnnounce {
 		recentTx = txIndexDisabled
 	}
-	if recentTx != txIndexUnlimited && p.version < lpv4 {
+	if recentTx != txIndexUnlimited && p.version < lpv5 {
 		return errors.New("Cannot serve old clients without a complete tx index")
 	}
 	// Note: clientPeer.headInfo should contain the last head announced to the client by us.
@@ -1186,7 +1161,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 			*lists = (*lists).add("serveRecentState", stateRecent)
 			*lists = (*lists).add("txRelay", nil)
 		}
-		if p.version >= lpv4 {
+		if p.version >= lpv5 {
 			*lists = (*lists).add("recentTxLookup", recentTx)
 		}
 		*lists = (*lists).add("flowControl/BL", server.defParams.BufLimit)
@@ -1254,138 +1229,6 @@ type serverPeerSubscriber interface {
 type clientPeerSubscriber interface { //nolint:unused
 	registerPeer(*clientPeer)
 	unregisterPeer(*clientPeer)
-}
-
-// clientPeerSet represents the set of active client peers currently
-// participating in the Light Ethereum sub-protocol.
-type clientPeerSet struct {
-	peers map[enode.ID]*clientPeer
-	// subscribers is a batch of subscribers and peerset will notify
-	// these subscribers when the peerset changes(new client peer is
-	// added or removed)
-	subscribers []clientPeerSubscriber //nolint:unused
-	closed      bool
-	lock        sync.RWMutex
-}
-
-// newClientPeerSet creates a new peer set to track the client peers.
-func newClientPeerSet() *clientPeerSet {
-	return &clientPeerSet{peers: make(map[enode.ID]*clientPeer)}
-}
-
-// subscribe adds a service to be notified about added or removed
-// peers and also register all active peers into the given service.
-func (ps *clientPeerSet) subscribe(sub clientPeerSubscriber) { // nolint:unused
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	ps.subscribers = append(ps.subscribers, sub)
-	for _, p := range ps.peers {
-		sub.registerPeer(p)
-	}
-}
-
-// unSubscribe removes the specified service from the subscriber pool.
-func (ps *clientPeerSet) unSubscribe(sub clientPeerSubscriber) { // nolint:unused
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	for i, s := range ps.subscribers {
-		if s == sub {
-			ps.subscribers = append(ps.subscribers[:i], ps.subscribers[i+1:]...)
-			return
-		}
-	}
-}
-
-// register adds a new peer into the peer set, or returns an error if the
-// peer is already known.
-func (ps *clientPeerSet) register(peer *clientPeer) error { //nolint:unused
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	if ps.closed {
-		return errClosed
-	}
-	if _, exist := ps.peers[peer.ID()]; exist {
-		return errAlreadyRegistered
-	}
-	ps.peers[peer.ID()] = peer
-	for _, sub := range ps.subscribers {
-		sub.registerPeer(peer)
-	}
-	return nil
-}
-
-// unregister removes a remote peer from the peer set, disabling any further
-// actions to/from that particular entity. It also initiates disconnection
-// at the networking layer.
-func (ps *clientPeerSet) unregister(id enode.ID) error { //nolint:unused
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	p, ok := ps.peers[id]
-	if !ok {
-		return errNotRegistered
-	}
-	delete(ps.peers, id)
-	for _, sub := range ps.subscribers {
-		sub.unregisterPeer(p)
-	}
-	p.Peer.Disconnect(p2p.DiscRequested)
-	return nil
-}
-
-// ids returns a list of all registered peer IDs
-func (ps *clientPeerSet) ids() []enode.ID { // nolint:unused
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	var ids []enode.ID
-	for id := range ps.peers {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-// peer retrieves the registered peer with the given id.
-func (ps *clientPeerSet) peer(id enode.ID) *clientPeer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	return ps.peers[id]
-}
-
-// len returns if the current number of peers in the set.
-func (ps *clientPeerSet) len() int { //nolint:unused
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	return len(ps.peers)
-}
-
-// allClientPeers returns all client peers in a list.
-func (ps *clientPeerSet) allPeers() []*clientPeer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	list := make([]*clientPeer, 0, len(ps.peers))
-	for _, p := range ps.peers {
-		list = append(list, p)
-	}
-	return list
-}
-
-// close disconnects all peers. No new peers can be registered
-// after close has returned.
-func (ps *clientPeerSet) close() {
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	for _, p := range ps.peers {
-		p.Disconnect(p2p.DiscQuitting)
-	}
-	ps.closed = true
 }
 
 // serverPeerSet represents the set of active server peers currently
@@ -1553,63 +1396,6 @@ func (ps *serverPeerSet) close() {
 	}
 	ps.closed = true
 }
-<<<<<<< HEAD
-
-// serverSet is a special set which contains all connected les servers.
-// Les servers will also be discovered by discovery protocol because they
-// also run the LES protocol. We can't drop them although they are useless
-// for us(server) but for other protocols(e.g. ETH) upon the devp2p they
-// may be useful.
-type serverSet struct { //nolint:unused
-	lock   sync.Mutex
-	set    map[string]*clientPeer
-	closed bool
-}
-
-func newServerSet() *serverSet { //nolint:unused
-	return &serverSet{set: make(map[string]*clientPeer)}
-}
-
-func (s *serverSet) register(peer *clientPeer) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.closed {
-		return errClosed
-	}
-	if _, exist := s.set[peer.id]; exist {
-		return errAlreadyRegistered
-	}
-	s.set[peer.id] = peer
-	return nil
-}
-
-func (s *serverSet) unregister(peer *clientPeer) error { //nolint:unused
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.closed {
-		return errClosed
-	}
-	if _, exist := s.set[peer.id]; !exist {
-		return errNotRegistered
-	}
-	delete(s.set, peer.id)
-	peer.Peer.Disconnect(p2p.DiscQuitting)
-	return nil
-}
-
-func (s *serverSet) close() { //nolint:unused
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	for _, p := range s.set {
-		p.Disconnect(p2p.DiscQuitting)
-	}
-	s.closed = true
-}
-||||||| e78727290
-=======
 
 // clientPeerSet represents the set of active client peers currently
 // participating in the Light Ethereum sub-protocol.
@@ -1723,6 +1509,18 @@ func (ps *clientPeerSet) announceOrStore(p *clientPeer) {
 	}
 }
 
+// allClientPeers returns all client peers in a list.
+func (ps *clientPeerSet) allPeers() []*clientPeer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*clientPeer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		list = append(list, p)
+	}
+	return list
+}
+
 // close disconnects all peers. No new peers can be registered
 // after close has returned.
 func (ps *clientPeerSet) close() {
@@ -1788,4 +1586,3 @@ func (s *serverSet) close() {
 	}
 	s.closed = true
 }
->>>>>>> v1.10.7

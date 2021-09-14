@@ -31,24 +31,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -70,10 +52,11 @@ type clientHandler struct {
 	// TODO(nategraf) Remove this field once gateway fees can be retreived.
 	gatewayFee *big.Int
 
-<<<<<<< HEAD
-	closeCh  chan struct{}
-	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
-	syncDone func()         // Test hooks when syncing is done.
+	closeCh chan struct{}
+	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
+	// Hooks used in the testing
+	syncStart func(header *types.Header) // Hook called when the syncing is started
+	syncEnd   func(header *types.Header) // Hook called when the syncing is done
 
 	gatewayFeeCache *gatewayFeeCache
 }
@@ -138,18 +121,6 @@ func (c *gatewayFeeCache) MinPeerGatewayFee() (*GatewayFeeInformation, error) {
 
 	minGatewayFeeInformation := &GatewayFeeInformation{minGwFee, minEtherbase}
 	return minGatewayFeeInformation, nil
-||||||| e78727290
-	closeCh  chan struct{}
-	wg       sync.WaitGroup // WaitGroup used to track all connected peers.
-	syncDone func()         // Test hooks when syncing is done.
-=======
-	closeCh chan struct{}
-	wg      sync.WaitGroup // WaitGroup used to track all connected peers.
-
-	// Hooks used in the testing
-	syncStart func(header *types.Header) // Hook called when the syncing is started
-	syncEnd   func(header *types.Header) // Hook called when the syncing is done
->>>>>>> v1.10.7
 }
 
 func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, gatewayFee *big.Int) *clientHandler {
@@ -225,13 +196,10 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		p.Log().Debug("Light Ethereum handshake failed", "err", err)
 		return err
 	}
-<<<<<<< HEAD
 
 	// TODO(nategraf) The local gateway fee is temporarily being used as the peer gateway fee.
 	p.SetGatewayFee(h.gatewayFee)
 
-||||||| e78727290
-=======
 	// Register peer with the server pool
 	if h.backend.serverPool != nil {
 		if nvt, err := h.backend.serverPool.RegisterNode(p.Node()); err == nil {
@@ -245,7 +213,6 @@ func (h *clientHandler) handle(p *serverPeer) error {
 			return err
 		}
 	}
->>>>>>> v1.10.7
 	// Register the peer locally
 	if err := h.backend.peers.register(p); err != nil {
 		p.Log().Error("Light Ethereum peer registration failed", "err", err)
@@ -267,7 +234,7 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		maxRequests := 10
 		for requests := 1; requests <= maxRequests; requests++ {
 			p.Log().Trace("Requesting etherbase from new peer")
-			reqID := genReqID()
+			reqID := rand.Uint64()
 			cost := p.getRequestCost(GetEtherbaseMsg, int(1))
 			err := p.RequestEtherbase(reqID, cost)
 

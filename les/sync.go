@@ -25,16 +25,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 )
 
@@ -109,28 +99,6 @@ func (h *clientHandler) synchronise(peer *serverPeer) {
 	if currentTd != nil && peer.Td().Cmp(currentTd) < 0 {
 		return
 	}
-<<<<<<< HEAD
-
-	// Recap the checkpoint.
-	//
-	// The light client may be connected to several different versions of the server.
-	// (1) Old version server which can not provide stable checkpoint in the handshake packet.
-	//     => Use hardcoded checkpoint or empty checkpoint
-	// (2) New version server but simple checkpoint syncing is not enabled(e.g. mainnet, new testnet or private network)
-	//     => Use hardcoded checkpoint or empty checkpoint
-	// (3) New version server but the provided stable checkpoint is even lower than the hardcoded one.
-	//     => Use hardcoded checkpoint
-||||||| e78727290
-	// Recap the checkpoint.
-	//
-	// The light client may be connected to several different versions of the server.
-	// (1) Old version server which can not provide stable checkpoint in the handshake packet.
-	//     => Use hardcoded checkpoint or empty checkpoint
-	// (2) New version server but simple checkpoint syncing is not enabled(e.g. mainnet, new testnet or private network)
-	//     => Use hardcoded checkpoint or empty checkpoint
-	// (3) New version server but the provided stable checkpoint is even lower than the hardcoded one.
-	//     => Use hardcoded checkpoint
-=======
 	// Recap the checkpoint. The light client may be connected to several different
 	// versions of the server.
 	// (1) Old version server which can not provide stable checkpoint in the
@@ -142,7 +110,6 @@ func (h *clientHandler) synchronise(peer *serverPeer) {
 	// (3) New version server but the provided stable checkpoint is even lower
 	//     than the local one.
 	//     => Use local checkpoint
->>>>>>> v1.10.7
 	// (4) New version server with valid and higher stable checkpoint
 	//     => Use provided checkpoint
 	var (

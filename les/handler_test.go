@@ -591,6 +591,7 @@ func testGetBloombitsProofs(t *testing.T, protocol int) {
 func TestTransactionStatusLes2(t *testing.T) { testTransactionStatus(t, lpv2) }
 func TestTransactionStatusLes3(t *testing.T) { testTransactionStatus(t, lpv3) }
 func TestTransactionStatusLes4(t *testing.T) { testTransactionStatus(t, lpv4) }
+func TestTransactionStatusLes5(t *testing.T) { testTransactionStatus(t, lpv5) }
 
 func testTransactionStatus(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
@@ -693,6 +694,7 @@ func testTransactionStatus(t *testing.T, protocol int) {
 
 func TestStopResumeLES3(t *testing.T) { testStopResume(t, lpv3) }
 func TestStopResumeLES4(t *testing.T) { testStopResume(t, lpv4) }
+func TestStopResumeLES5(t *testing.T) { testStopResume(t, lpv5) }
 
 func testStopResume(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
@@ -750,7 +752,26 @@ func testStopResume(t *testing.T, protocol int) {
 }
 
 func TestTransactionGatewayFeeRequirementLes2(t *testing.T) {
-	server, tearDown := newServerEnv(t, 0, 2, nil, false, true, 0)
+	testTransactionGatewayFeeRequirement(t, lpv2)
+}
+func TestTransactionGatewayFeeRequirementLes3(t *testing.T) {
+	testTransactionGatewayFeeRequirement(t, lpv3)
+}
+func TestTransactionGatewayFeeRequirementLes4(t *testing.T) {
+	testTransactionGatewayFeeRequirement(t, lpv4)
+}
+func TestTransactionGatewayFeeRequirementLes5(t *testing.T) {
+	testTransactionGatewayFeeRequirement(t, lpv5)
+}
+
+func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
+	netconfig := testnetConfig{
+		blocks:    downloader.MaxHeaderFetch + 15,
+		syncMode:  downloader.LightSync,
+		protocol:  protocol,
+		nopruning: true,
+	}
+	server, _, tearDown := newClientServerEnv(t, netconfig)
 	defer tearDown()
 
 	server.handler.addTxsSync = true

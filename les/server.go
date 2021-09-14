@@ -18,33 +18,10 @@ package les
 
 import (
 	"crypto/ecdsa"
+	"math/rand"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/les/flowcontrol"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/enr"
-	"github.com/celo-org/celo-blockchain/p2p/nodestate"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/eth"
-	"github.com/celo-org/celo-blockchain/les/flowcontrol"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/node"
-	"github.com/celo-org/celo-blockchain/p2p"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/p2p/enr"
-	"github.com/celo-org/celo-blockchain/p2p/nodestate"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rpc"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
@@ -82,18 +59,9 @@ type LesServer struct {
 
 	archiveMode bool // Flag whether the ethereum node runs in archive mode.
 	handler     *serverHandler
-<<<<<<< HEAD
-	peers       *clientPeerSet
-	broadcaster *broadcaster
-	lesTopics   []discv5.Topic
-||||||| e78727290
-	broadcaster *broadcaster
-	lesTopics   []discv5.Topic
-=======
 	peers       *clientPeerSet
 	serverset   *serverSet
 	vfluxServer *vfs.Server
->>>>>>> v1.10.7
 	privateKey  *ecdsa.PrivateKey
 
 	// Flow control and capacity management
@@ -135,36 +103,20 @@ func NewLesServer(node *node.Node, e ethBackend, config *ethconfig.Config) (*Les
 			closeCh:          make(chan struct{}),
 		},
 		archiveMode:  e.ArchiveMode(),
-<<<<<<< HEAD
-		peers:        newClientPeerSet(),
-		broadcaster:  newBroadcaster(ns),
-		lesTopics:    lesTopics,
-||||||| e78727290
-		broadcaster:  newBroadcaster(ns),
-		lesTopics:    lesTopics,
-=======
 		peers:        newClientPeerSet(),
 		serverset:    newServerSet(),
 		vfluxServer:  vfs.NewServer(time.Millisecond * 10),
->>>>>>> v1.10.7
 		fcManager:    flowcontrol.NewClientManager(nil, &mclock.System{}),
 		servingQueue: newServingQueue(int64(time.Millisecond*10), float64(config.LightServ)/100),
 		threadsBusy:  config.LightServ/100 + 1,
 		threadsIdle:  threads,
 		p2pSrv:       node.Server(),
 	}
-<<<<<<< HEAD
-
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), e.Synced, config.TxFeeRecipient, config.GatewayFee)
-||||||| e78727290
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), e.Synced)
-=======
 	issync := e.Synced
 	if config.LightNoSyncServe {
 		issync = func() bool { return true }
 	}
-	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), issync)
->>>>>>> v1.10.7
+	srv.handler = newServerHandler(srv, e.BlockChain(), e.ChainDb(), e.TxPool(), issync, config.TxFeeRecipient, config.GatewayFee)
 	srv.costTracker, srv.minCapacity = newCostTracker(e.ChainDb(), config)
 	srv.oracle = srv.setupOracle(node, e.BlockChain().Genesis().Hash(), config)
 
@@ -276,20 +228,11 @@ func (s *LesServer) Start() error {
 func (s *LesServer) Stop() error {
 	close(s.closeCh)
 
-<<<<<<< HEAD
-	s.clientPool.stop()
-	s.ns.Stop()
-	s.peers.close()
-||||||| e78727290
-	s.clientPool.stop()
-	s.ns.Stop()
-=======
 	s.clientPool.Stop()
 	if s.serverset != nil {
 		s.serverset.close()
 	}
 	s.peers.close()
->>>>>>> v1.10.7
 	s.fcManager.Stop()
 	s.costTracker.stop()
 	s.handler.stop()
@@ -369,7 +312,6 @@ func (s *LesServer) capacityManagement() {
 		}
 	}
 }
-<<<<<<< HEAD
 
 //This sends messages to light client peers whenever this light server updates gateway fee.
 func (s *LesServer) BroadcastGatewayFeeInfo() error {
@@ -380,7 +322,7 @@ func (s *LesServer) BroadcastGatewayFeeInfo() error {
 
 	for _, lightClientPeer := range lightClientPeerNodes {
 		currGatewayFeeResp := GatewayFeeInformation{GatewayFee: s.handler.gatewayFee, Etherbase: s.handler.etherbase}
-		reply := lightClientPeer.ReplyGatewayFee(genReqID(), currGatewayFeeResp)
+		reply := lightClientPeer.ReplyGatewayFee(rand.Uint64(), currGatewayFeeResp)
 		if reply == nil {
 			continue
 		}
@@ -396,36 +338,3 @@ func (s *LesServer) BroadcastGatewayFeeInfo() error {
 
 	return nil
 }
-
-func (s *LesServer) getClient(id enode.ID) *clientPeer {
-	if node := s.ns.GetNode(id); node != nil {
-		if p, ok := s.ns.GetField(node, clientPeerField).(*clientPeer); ok {
-			return p
-		}
-	}
-	return nil
-}
-
-func (s *LesServer) dropClient(id enode.ID) {
-	if p := s.getClient(id); p != nil {
-		p.Peer.Disconnect(p2p.DiscRequested)
-	}
-}
-||||||| e78727290
-
-func (s *LesServer) getClient(id enode.ID) *clientPeer {
-	if node := s.ns.GetNode(id); node != nil {
-		if p, ok := s.ns.GetField(node, clientPeerField).(*clientPeer); ok {
-			return p
-		}
-	}
-	return nil
-}
-
-func (s *LesServer) dropClient(id enode.ID) {
-	if p := s.getClient(id); p != nil {
-		p.Peer.Disconnect(p2p.DiscRequested)
-	}
-}
-=======
->>>>>>> v1.10.7

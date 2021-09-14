@@ -24,14 +24,6 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	vfc "github.com/celo-org/celo-blockchain/les/vflux/client"
@@ -44,17 +36,18 @@ const (
 	lpv2 = 2
 	lpv3 = 3
 	lpv4 = 4 // Work in progress. Breaking changes expected.
+	lpv5 = 5 // eth lpv4
 )
 
 // Supported versions of the les protocol (first is primary)
 var (
-	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4}
-	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4}
+	ClientProtocolVersions    = []uint{lpv2, lpv3, lpv4, lpv5}
+	ServerProtocolVersions    = []uint{lpv2, lpv3, lpv4, lpv5}
 	AdvertiseProtocolVersions = []uint{lpv2} // clients are searching for the first advertised protocol in the list
 )
 
 // Number of implemented message corresponding to different protocol versions.
-var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28}
+var ProtocolLengths = map[uint]uint64{lpv2: 24, lpv3: 26, lpv4: 28, lpv5: 28}
 
 const (
 	NetworkId          = 1
@@ -154,6 +147,18 @@ type GetTxStatusPacket struct {
 	Hashes []common.Hash
 }
 
+// GetEtherbasePacket represents a etherbase request
+type GetEtherbasePacket struct {
+	ReqID     uint64
+	Etherbase common.Address
+}
+
+// GetGatewayFeePacket represents a gateway fee request
+type GetGatewayFeePacket struct {
+	ReqID uint64
+	Info  GatewayFeeInformation
+}
+
 type requestInfo struct {
 	name                          string
 	maxCount                      uint64
@@ -180,7 +185,8 @@ var (
 		GetHelperTrieProofsMsg: {"GetHelperTrieProofs", MaxHelperTrieProofsFetch, 10, 100},
 		SendTxV2Msg:            {"SendTxV2", MaxTxSend, 1, 0},
 		GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus, 10, 0},
-		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
+		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0},   // TODO: revisit this as we as its costs in costtracker.go
+		GetGatewayFeeMsg:       {"GetGatewayFee", MaxGatewayFee, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
 	}
 	requestList    []vfc.RequestInfo
 	requestMapping map[uint32]reqMapping

@@ -84,20 +84,15 @@ func tfCodeAccess(db ethdb.Database, bhash common.Hash, num uint64) light.OdrReq
 
 func testAccess(t *testing.T, protocol int, fn accessTestFn) {
 	// Assemble the test environment
-<<<<<<< HEAD
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true, true)
-||||||| e78727290
-	server, client, tearDown := newClientServerEnv(t, 4, protocol, nil, nil, 0, false, true, true)
-=======
 	netconfig := testnetConfig{
 		blocks:    4,
+		syncMode:  downloader.LightSync,
 		protocol:  protocol,
 		indexFn:   nil,
 		connect:   true,
 		nopruning: true,
 	}
 	server, client, tearDown := newClientServerEnv(t, netconfig)
->>>>>>> v1.10.7
 	defer tearDown()
 
 	// Ensure the client has synced all necessary data.

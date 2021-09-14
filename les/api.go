@@ -20,15 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	vfs "github.com/celo-org/celo-blockchain/les/vflux/server"
@@ -39,13 +34,7 @@ var (
 	errNoCheckpoint         = errors.New("no local checkpoint provided")
 	errNotActivated         = errors.New("checkpoint registrar is not activated")
 	errUnknownBenchmarkType = errors.New("unknown benchmark type")
-<<<<<<< HEAD
-	errNoPriority           = errors.New("priority too low to raise capacity")
 	errInvalidGatewayFee    = errors.New("invalid gateway fee")
-||||||| e78727290
-	errNoPriority           = errors.New("priority too low to raise capacity")
-=======
->>>>>>> v1.10.7
 )
 
 // PrivateLightServerAPI provides an API to access the LES light server.
@@ -472,7 +461,7 @@ func (api *PrivateLightClientAPI) RequestPeerGatewayFees() error {
 	peerNodes := api.le.peers.allPeers()
 	for _, peerNode := range peerNodes {
 		cost := peerNode.getRequestCost(GetGatewayFeeMsg, int(1))
-		err := peerNode.RequestGatewayFee(genReqID(), cost)
+		err := peerNode.RequestGatewayFee(rand.Uint64(), cost)
 		if err != nil {
 			return err
 		}

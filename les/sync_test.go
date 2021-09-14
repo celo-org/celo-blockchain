@@ -24,19 +24,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/eth/downloader"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/crypto"
-	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
-	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -65,22 +55,15 @@ func testCheckpointSyncing(t *testing.T, protocol int, syncMode int) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-<<<<<<< HEAD
-	// Generate 128+4 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), protocol, waitIndexers, nil, 0, false, false, true)
-||||||| e78727290
-	// Generate 128+1 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, int(config.ChtSize+config.ChtConfirms), protocol, waitIndexers, nil, 0, false, false, true)
-=======
 	// Generate 128+1 blocks (totally 1 CHT section)
 	netconfig := testnetConfig{
 		blocks:    int(config.ChtSize + config.ChtConfirms),
+		syncMode:  downloader.LightSync,
 		protocol:  protocol,
 		indexFn:   waitIndexers,
 		nopruning: true,
 	}
 	server, client, tearDown := newClientServerEnv(t, netconfig)
->>>>>>> v1.10.7
 	defer tearDown()
 
 	expected := config.ChtSize + config.ChtConfirms
@@ -169,22 +152,15 @@ func testMissOracleBackend(t *testing.T, hasCheckpoint bool, protocol int) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-<<<<<<< HEAD
-	// Generate 512+4 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, int(config.ChtSize+config.ChtConfirms), 3, waitIndexers, nil, 0, false, false, true)
-||||||| e78727290
-	// Generate 512+4 blocks (totally 1 CHT sections)
-	server, client, tearDown := newClientServerEnv(t, int(config.ChtSize+config.ChtConfirms), 3, waitIndexers, nil, 0, false, false, true)
-=======
 	// Generate 128+1 blocks (totally 1 CHT section)
 	netconfig := testnetConfig{
 		blocks:    int(config.ChtSize + config.ChtConfirms),
+		syncMode:  downloader.LightSync,
 		protocol:  protocol,
 		indexFn:   waitIndexers,
 		nopruning: true,
 	}
 	server, client, tearDown := newClientServerEnv(t, netconfig)
->>>>>>> v1.10.7
 	defer tearDown()
 
 	expected := config.ChtSize + config.ChtConfirms

@@ -144,18 +144,13 @@ func newTestServerPeer(t *testing.T, blocks int, protocol int) (*testServer, *en
 
 // newTestLightPeer creates node with light sync mode
 func newTestLightPeer(t *testing.T, protocol int, ulcServers []string, ulcFraction int) (*testClient, func()) {
-<<<<<<< HEAD
-	_, c, teardown := newClientServerEnv(t, downloader.LightSync, 0, protocol, nil, ulcServers, ulcFraction, false, false, true)
-||||||| e78727290
-	_, c, teardown := newClientServerEnv(t, 0, protocol, nil, ulcServers, ulcFraction, false, false, true)
-=======
 	netconfig := testnetConfig{
 		protocol:    protocol,
+		syncMode:    downloader.LightSync,
 		ulcServers:  ulcServers,
 		ulcFraction: ulcFraction,
 		nopruning:   true,
 	}
 	_, c, teardown := newClientServerEnv(t, netconfig)
->>>>>>> v1.10.7
 	return c, teardown
 }
