@@ -41,16 +41,10 @@ import (
 type Backend interface {
 	// General Ethereum API
 	Downloader() *downloader.Downloader
-<<<<<<< HEAD
-	ProtocolVersion() int
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
-||||||| e78727290
-	ProtocolVersion() int
-	SuggestPrice(ctx context.Context) (*big.Int, error)
-=======
-	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
-	FeeHistory(ctx context.Context, blockCount int, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)
->>>>>>> v1.10.7
+	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error)
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool

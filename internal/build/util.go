@@ -111,37 +111,6 @@ func render(tpl *template.Template, outputFile string, outputPerm os.FileMode, x
 	}
 }
 
-<<<<<<< HEAD
-// GoTool returns the command that runs a go tool. This uses go from GOROOT instead of PATH
-// so that go commands executed by build use the same version of Go as the 'host' that runs
-// build code. e.g.
-//
-//     /usr/lib/go-1.12.1/bin/go run build/ci.go ...
-//
-// runs using go 1.12.1 and invokes go 1.12.1 tools from the same GOROOT. This is also important
-// because runtime.Version checks on the host should match the tools that are run.
-func GoTool(tool string, args ...string) *exec.Cmd {
-	args = append([]string{tool}, args...)
-	// #nosec (Ignoring sanitization warning. Build tool is intended to take arbitrary arguments.)
-	return exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), args...)
-}
-
-||||||| e78727290
-// GoTool returns the command that runs a go tool. This uses go from GOROOT instead of PATH
-// so that go commands executed by build use the same version of Go as the 'host' that runs
-// build code. e.g.
-//
-//     /usr/lib/go-1.12.1/bin/go run build/ci.go ...
-//
-// runs using go 1.12.1 and invokes go 1.12.1 tools from the same GOROOT. This is also important
-// because runtime.Version checks on the host should match the tools that are run.
-func GoTool(tool string, args ...string) *exec.Cmd {
-	args = append([]string{tool}, args...)
-	return exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), args...)
-}
-
-=======
->>>>>>> v1.10.7
 // UploadSFTP uploads files to a remote host using the sftp command line tool.
 // The destination host may be specified either as [user@]host[: or as a URI in
 // the form sftp://[user@]host[:port].

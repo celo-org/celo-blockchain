@@ -40,8 +40,12 @@ type TransactionArgs struct {
 	GasPrice             *hexutil.Big    `json:"gasPrice"`
 	MaxFeePerGas         *hexutil.Big    `json:"maxFeePerGas"`
 	MaxPriorityFeePerGas *hexutil.Big    `json:"maxPriorityFeePerGas"`
+	FeeCurrency          *common.Address `json:"feeCurrency"`
+	GatewayFeeRecipient  *common.Address `json:"gatewayFeeRecipient"`
+	GatewayFee           *hexutil.Big    `json:"gatewayFee"`
 	Value                *hexutil.Big    `json:"value"`
 	Nonce                *hexutil.Uint64 `json:"nonce"`
+	EthCompatible        bool            `json:"ethCompatible"`
 
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	// "input" is the newer name and should be preferred by clients.
@@ -75,6 +79,9 @@ func (arg *TransactionArgs) data() []byte {
 
 // setDefaults fills in default values for unspecified tx fields.
 func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
+	if err := args.checkEthCompatibility(); err != nil {
+		return err
+	}
 	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
 		return errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
@@ -84,18 +91,22 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	// need to consult the chain for defaults. It's definitely a London tx.
 	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
 		// In this clause, user left some fields unspecified.
-		if b.ChainConfig().IsLondon(head.Number) && args.GasPrice == nil {
+		if b.ChainConfig().IsEHardfork(head.Number) && (args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0) {
 			if args.MaxPriorityFeePerGas == nil {
-				tip, err := b.SuggestGasTipCap(ctx)
+				tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
 				if err != nil {
 					return err
 				}
 				args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
 			}
 			if args.MaxFeePerGas == nil {
+				gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
+				if err != nil {
+					return err
+				}
 				gasFeeCap := new(big.Int).Add(
 					(*big.Int)(args.MaxPriorityFeePerGas),
-					new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+					new(big.Int).Mul(gasPriceMinimum, big.NewInt(2)),
 				)
 				args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
 			}
@@ -106,16 +117,20 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
 				return errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
 			}
-			if args.GasPrice == nil {
-				price, err := b.SuggestGasTipCap(ctx)
+			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+				price, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
 				if err != nil {
 					return err
 				}
-				if b.ChainConfig().IsLondon(head.Number) {
+				if b.ChainConfig().IsEHardfork(head.Number) {
+					gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
+					if err != nil {
+						return err
+					}
 					// The legacy tx gas price suggestion should not add 2x base fee
 					// because all fees are consumed, so it would result in a spiral
 					// upwards.
-					price.Add(price, head.BaseFee)
+					price.Add(price, gasPriceMinimum)
 				}
 				args.GasPrice = (*hexutil.Big)(price)
 			}
@@ -142,6 +157,12 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	if args.To == nil && len(args.data()) == 0 {
 		return errors.New(`contract creation without any data provided`)
 	}
+	if args.GatewayFeeRecipient == nil && !args.EthCompatible {
+		recipient := b.GatewayFeeRecipient()
+		if (recipient != common.Address{}) {
+			args.GatewayFeeRecipient = &recipient
+		}
+	}
 	// Estimate the gas usage if necessary.
 	if args.Gas == nil {
 		// These fields are immutable during the estimation, safe to
@@ -163,6 +184,9 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 		}
 		args.Gas = &estimated
 		log.Trace("Estimate gas usage automatically", "gas", args.Gas)
+	}
+	if args.GatewayFeeRecipient != nil && args.GatewayFee == nil {
+		args.GatewayFee = (*hexutil.Big)(b.GatewayFee())
 	}
 	if args.ChainID == nil {
 		id := (*hexutil.Big)(b.ChainConfig().ChainID)
@@ -238,7 +262,7 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 	if args.AccessList != nil {
 		accessList = *args.AccessList
 	}
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, data, accessList, false)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, accessList, args.EthCompatible, false)
 	return msg, nil
 }
 
@@ -276,12 +300,18 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		}
 	default:
 		data = &types.LegacyTx{
-			To:       args.To,
-			Nonce:    uint64(*args.Nonce),
-			Gas:      uint64(*args.Gas),
-			GasPrice: (*big.Int)(args.GasPrice),
-			Value:    (*big.Int)(args.Value),
-			Data:     args.data(),
+			To:            args.To,
+			Nonce:         uint64(*args.Nonce),
+			Gas:           uint64(*args.Gas),
+			GasPrice:      (*big.Int)(args.GasPrice),
+			Value:         (*big.Int)(args.Value),
+			Data:          args.data(),
+			EthCompatible: args.EthCompatible,
+		}
+		if !args.EthCompatible {
+			data.(*types.LegacyTx).FeeCurrency = args.FeeCurrency
+			data.(*types.LegacyTx).GatewayFeeRecipient = args.GatewayFeeRecipient
+			data.(*types.LegacyTx).GatewayFee = args.GatewayFee.ToInt()
 		}
 	}
 	return types.NewTx(data)
@@ -291,4 +321,12 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 // This assumes that setDefaults has been called.
 func (args *TransactionArgs) ToTransaction() *types.Transaction {
 	return args.toTransaction()
+}
+
+func (args *TransactionArgs) checkEthCompatibility() error {
+	// Reject if Celo-only fields set when EthCompatible is true
+	if args.EthCompatible && !(args.FeeCurrency == nil && args.GatewayFeeRecipient == nil && (args.GatewayFee == nil || args.GatewayFee.ToInt().Sign() == 0)) {
+		return types.ErrEthCompatibleTransactionIsntCompatible
+	}
+	return nil
 }

@@ -37,6 +37,12 @@ var (
 	updateGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
 )
 
+func GetGasTipCapSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
+	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
+	// GasPriceSuggestion - GasPriceMinimum => N * GasPriceMinimum - GasPriceMinimum => (N-1) * GasPriceMinimum
+	return new(big.Int).Mul(gasPriceMinimum, new(big.Int).Sub(suggestionMultiplier, common.Big1)), err
+}
+
 func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err

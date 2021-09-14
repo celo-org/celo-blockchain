@@ -66,7 +66,7 @@ func Env() Environment {
 			commit = os.Getenv("TRAVIS_COMMIT")
 		}
 		return Environment{
-<<<<<<< HEAD
+			CI:             true,
 			Name:           "travis",
 			Repo:           os.Getenv("TRAVIS_REPO_SLUG"),
 			Commit:         commit,
@@ -78,28 +78,6 @@ func Env() Environment {
 			IsCronJob:      os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
 			IsMusl:         stringToBool(os.Getenv("MUSL")),
 			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
-||||||| e78727290
-			Name:          "travis",
-			Repo:          os.Getenv("TRAVIS_REPO_SLUG"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("TRAVIS_BRANCH"),
-			Tag:           os.Getenv("TRAVIS_TAG"),
-			Buildnum:      os.Getenv("TRAVIS_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("TRAVIS_PULL_REQUEST") != "false",
-			IsCronJob:     os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
-=======
-			CI:            true,
-			Name:          "travis",
-			Repo:          os.Getenv("TRAVIS_REPO_SLUG"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("TRAVIS_BRANCH"),
-			Tag:           os.Getenv("TRAVIS_TAG"),
-			Buildnum:      os.Getenv("TRAVIS_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("TRAVIS_PULL_REQUEST") != "false",
-			IsCronJob:     os.Getenv("TRAVIS_EVENT_TYPE") == "cron",
->>>>>>> v1.10.7
 		}
 	case stringToBool(os.Getenv("CI")) && stringToBool(os.Getenv("APPVEYOR")):
 		commit := os.Getenv("APPVEYOR_PULL_REQUEST_HEAD_COMMIT")
@@ -107,7 +85,7 @@ func Env() Environment {
 			commit = os.Getenv("APPVEYOR_REPO_COMMIT")
 		}
 		return Environment{
-<<<<<<< HEAD
+			CI:             true,
 			Name:           "appveyor",
 			Repo:           os.Getenv("APPVEYOR_REPO_NAME"),
 			Commit:         commit,
@@ -127,6 +105,7 @@ func Env() Environment {
 			panic(fmt.Sprintf("failed to parse git commit date: %v", err))
 		}
 		return Environment{
+			CI:             true,
 			Name:           "cloudbuild",
 			Repo:           os.Getenv("REPO_NAME"),
 			Commit:         commit,
@@ -138,28 +117,6 @@ func Env() Environment {
 			IsCronJob:      false,
 			IsMusl:         stringToBool(os.Getenv("MUSL")),
 			MetricsDefault: stringToBool(os.Getenv("METRICS_DEFAULT")),
-||||||| e78727290
-			Name:          "appveyor",
-			Repo:          os.Getenv("APPVEYOR_REPO_NAME"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("APPVEYOR_REPO_BRANCH"),
-			Tag:           os.Getenv("APPVEYOR_REPO_TAG_NAME"),
-			Buildnum:      os.Getenv("APPVEYOR_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
-			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
-=======
-			CI:            true,
-			Name:          "appveyor",
-			Repo:          os.Getenv("APPVEYOR_REPO_NAME"),
-			Commit:        commit,
-			Date:          getDate(commit),
-			Branch:        os.Getenv("APPVEYOR_REPO_BRANCH"),
-			Tag:           os.Getenv("APPVEYOR_REPO_TAG_NAME"),
-			Buildnum:      os.Getenv("APPVEYOR_BUILD_NUMBER"),
-			IsPullRequest: os.Getenv("APPVEYOR_PULL_REQUEST_NUMBER") != "",
-			IsCronJob:     os.Getenv("APPVEYOR_SCHEDULED_BUILD") == "True",
->>>>>>> v1.10.7
 		}
 	default:
 		return LocalEnv()

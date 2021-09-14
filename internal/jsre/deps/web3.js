@@ -3828,15 +3828,10 @@ var outputTransactionReceiptFormatter = function (receipt){
 */
 var outputBlockFormatter = function(block) {
     // transform to number
-<<<<<<< HEAD
-||||||| e78727290
-    block.gasLimit = utils.toDecimal(block.gasLimit);
-=======
     if (block.baseFeePerGas !== undefined) {
       block.baseFeePerGas = utils.toBigNumber(block.baseFeePerGas);
     }
     block.gasLimit = utils.toDecimal(block.gasLimit);
->>>>>>> v1.10.7
     block.gasUsed = utils.toDecimal(block.gasUsed);
     block.size = utils.toDecimal(block.size);
     block.timestamp = utils.toDecimal(block.timestamp);
