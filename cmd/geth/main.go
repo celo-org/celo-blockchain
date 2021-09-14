@@ -43,7 +43,6 @@ import (
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/rpc"
-	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -426,14 +425,15 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 		if !ok {
 			utils.Fatalf("Ethereum service not running: %v", err)
 		}
-		// Set the gas price to the limits from the CLI and start mining
-		// gasprice := utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name) // MinerGasPriceFlag
-		gasprice := utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		// Migration from legacy miner gas price to new flag
-		if ctx.GlobalIsSet(utils.LegacyMinerGasPriceFlag.Name) && !ctx.GlobalIsSet(utils.MinerGasPriceFlag.Name) {
-			gasprice = utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
-		}
-		ethBackend.TxPool().SetGasPrice(gasprice)
+		// // TODO: Handle gas price.
+		// // Set the gas price to the limits from the CLI and start mining
+		// // gasprice := utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name) // MinerGasPriceFlag
+		// gasprice := utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+		// // Migration from legacy miner gas price to new flag
+		// if ctx.GlobalIsSet(utils.LegacyMinerGasPriceFlag.Name) && !ctx.GlobalIsSet(utils.MinerGasPriceFlag.Name) {
+		// 	gasprice = utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
+		// }
+		// ethBackend.TxPool().SetGasPrice(gasprice)
 
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)

@@ -29,14 +29,10 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
-	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
@@ -254,10 +250,12 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 	if err != nil || header == nil {
 		return nil, err
 	}
-	if header.BaseFee == nil {
-		return (*hexutil.Big)(tx.GasPrice()), nil
-	}
-	return (*hexutil.Big)(math.BigMin(new(big.Int).Add(tx.GasTipCap(), header.BaseFee), tx.GasFeeCap())), nil
+	return (*hexutil.Big)(tx.GasPrice()), nil
+	// TODO: Substitue GPM
+	// if header.BaseFee == nil {
+	// 	return (*hexutil.Big)(tx.GasPrice()), nil
+	// }
+	// return (*hexutil.Big)(math.BigMin(new(big.Int).Add(tx.GasTipCap(), header.BaseFee), tx.GasFeeCap())), nil
 }
 
 func (t *Transaction) MaxFeePerGas(ctx context.Context) (*hexutil.Big, error) {
@@ -573,7 +571,7 @@ func (b *Block) Hash(ctx context.Context) (common.Hash, error) {
 	return b.hash, nil
 }
 
-func (b *Block) GasUsed(ctx context.Context) (hexutil.Uint64, error) {
+func (b *Block) GasUsed(ctx context.Context) (Long, error) {
 	header, err := b.resolveHeader(ctx)
 	if err != nil {
 		return 0, err
@@ -584,14 +582,15 @@ func (b *Block) GasUsed(ctx context.Context) (hexutil.Uint64, error) {
 // TODO: Enable GasLimit graphQL interface
 
 func (b *Block) BaseFeePerGas(ctx context.Context) (*hexutil.Big, error) {
-	header, err := b.resolveHeader(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if header.BaseFee == nil {
-		return nil, nil
-	}
-	return (*hexutil.Big)(header.BaseFee), nil
+	// header, err := b.resolveHeader(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if header.BaseFee == nil {
+	// 	return nil, nil
+	// }
+	// return (*hexutil.Big)(header.BaseFee), nil
+	return nil, nil
 }
 
 func (b *Block) Parent(ctx context.Context) (*Block, error) {
@@ -1127,7 +1126,7 @@ func (r *Resolver) GasPrice(ctx context.Context) (hexutil.Big, error) {
 }
 
 func (r *Resolver) MaxPriorityFeePerGas(ctx context.Context) (hexutil.Big, error) {
-	tipcap, err := r.backend.SuggestGasTipCap(ctx)
+	tipcap, err := r.backend.SuggestGasTipCap(ctx, nil)
 	if err != nil {
 		return hexutil.Big{}, err
 	}

@@ -11,9 +11,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -90,3 +88,47 @@ func bignumberJs() (*asset, error) {
 	return a, nil
 }
 
+// Asset loads and returns the asset for the given name.
+// It returns an error if the asset could not be found or
+// could not be loaded.
+func Asset(name string) ([]byte, error) {
+	canonicalName := strings.Replace(name, "\\", "/", -1)
+	if f, ok := _bindata[canonicalName]; ok {
+		a, err := f()
+		if err != nil {
+			return nil, fmt.Errorf("Asset %s can't read by error: %v", name, err)
+		}
+		return a.bytes, nil
+	}
+	return nil, fmt.Errorf("Asset %s not found", name)
+}
+
+// AssetString returns the asset contents as a string (instead of a []byte).
+func AssetString(name string) (string, error) {
+	data, err := Asset(name)
+	return string(data), err
+}
+
+// MustAsset is like Asset but panics when Asset would return an error.
+// It simplifies safe initialization of global variables.
+func MustAsset(name string) []byte {
+	a, err := Asset(name)
+	if err != nil {
+		panic("asset: Asset(" + name + "): " + err.Error())
+	}
+
+	return a
+}
+
+// MustAssetString is like AssetString but panics when Asset would return an
+// error. It simplifies safe initialization of global variables.
+func MustAssetString(name string) string {
+	return string(MustAsset(name))
+}
+
+// _bindata is a table, holding each asset generator, mapped to its name.
+var _bindata = map[string]func() (*asset, error){
+	"bignumber.js": bignumberJs,
+
+	// "web3.js": web3Js,
+}

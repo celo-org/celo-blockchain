@@ -262,40 +262,41 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	if opts.GasPrice != nil && (opts.GasFeeCap != nil || opts.GasTipCap != nil) {
 		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
-	head, err := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil)
-	if err != nil {
-		return nil, err
+	// head, err := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// TODO: Use GPM here
+	// if head.BaseFee != nil && opts.GasPrice == nil {
+	// 	if opts.GasTipCap == nil {
+	// 		tip, err := c.transactor.SuggestGasTipCap(ensureContext(opts.Context))
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		opts.GasTipCap = tip
+	// 	}
+	// 	if opts.GasFeeCap == nil {
+	// 		gasFeeCap := new(big.Int).Add(
+	// 			opts.GasTipCap,
+	// 			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+	// 		)
+	// 		opts.GasFeeCap = gasFeeCap
+	// 	}
+	// 	if opts.GasFeeCap.Cmp(opts.GasTipCap) < 0 {
+	// 		return nil, fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", opts.GasFeeCap, opts.GasTipCap)
+	// 	}
+	// } else {
+	if opts.GasFeeCap != nil || opts.GasTipCap != nil {
+		return nil, errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
 	}
-	if head.BaseFee != nil && opts.GasPrice == nil {
-		if opts.GasTipCap == nil {
-			tip, err := c.transactor.SuggestGasTipCap(ensureContext(opts.Context))
-			if err != nil {
-				return nil, err
-			}
-			opts.GasTipCap = tip
+	if opts.GasPrice == nil {
+		price, err := c.transactor.SuggestGasPrice(ensureContext(opts.Context))
+		if err != nil {
+			return nil, err
 		}
-		if opts.GasFeeCap == nil {
-			gasFeeCap := new(big.Int).Add(
-				opts.GasTipCap,
-				new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-			)
-			opts.GasFeeCap = gasFeeCap
-		}
-		if opts.GasFeeCap.Cmp(opts.GasTipCap) < 0 {
-			return nil, fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", opts.GasFeeCap, opts.GasTipCap)
-		}
-	} else {
-		if opts.GasFeeCap != nil || opts.GasTipCap != nil {
-			return nil, errors.New("maxFeePerGas or maxPriorityFeePerGas specified but london is not active yet")
-		}
-		if opts.GasPrice == nil {
-			price, err := c.transactor.SuggestGasPrice(ensureContext(opts.Context))
-			if err != nil {
-				return nil, err
-			}
-			opts.GasPrice = price
-		}
+		opts.GasPrice = price
 	}
+	// }
 
 	feeCurrency := opts.FeeCurrency
 	// TODO(nategraf): Add SuggestFeeCurrency to Transactor to get fee currency
@@ -357,15 +358,12 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 		rawTx = types.NewTx(baseTx)
 	} else {
 		baseTx := &types.DynamicFeeTx{
-			Nonce:               nonce,
-			GasFeeCap:           opts.GasFeeCap,
-			GasTipCap:           opts.GasTipCap,
-			Gas:                 gasLimit,
-			Value:               value,
-			FeeCurrency:         feeCurrency,
-			GatewayFeeRecipient: gatewayFeeRecipient,
-			GatewayFee:          gatewayFee,
-			Data:                input,
+			Nonce:     nonce,
+			GasFeeCap: opts.GasFeeCap,
+			GasTipCap: opts.GasTipCap,
+			Gas:       gasLimit,
+			Value:     value,
+			Data:      input,
 		}
 		if contract != nil {
 			baseTx.To = &c.address

@@ -23,7 +23,6 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
-	"math/big"
 	"path/filepath"
 	godebug "runtime/debug"
 	"strconv"
@@ -275,7 +274,7 @@ var (
 	LightGatewayFeeFlag = BigFlag{
 		Name:  "light.gatewayfee",
 		Usage: "Minimum value of gateway fee to serve a light client transaction",
-		Value: eth.DefaultConfig.GatewayFee,
+		Value: ethconfig.Defaults.GatewayFee,
 	}
 	UltraLightServersFlag = cli.StringFlag{
 		Name:  "ulc.servers",
@@ -418,11 +417,11 @@ var (
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
 	}
-	MinerGasPriceFlag = BigFlag{
-		Name:  "miner.gasprice",
-		Usage: "Minimum gas price for mining a transaction",
-		Value: ethconfig.Defaults.Miner.GasPrice,
-	}
+	// MinerGasPriceFlag = BigFlag{
+	// 	Name:  "miner.gasprice",
+	// 	Usage: "Minimum gas price for mining a transaction",
+	// 	Value: ethconfig.Defaults.Miner.GasPrice,
+	// }
 
 	// Account settings
 
@@ -645,22 +644,22 @@ var (
 	GpoBlocksFlag = cli.IntFlag{
 		Name:  "gpo.blocks",
 		Usage: "Number of recent blocks to check for gas prices",
-		Value: ethconfig.Defaults.GPO.Blocks,
+		// Value: ethconfig.Defaults.GPO.Blocks,
 	}
 	GpoPercentileFlag = cli.IntFlag{
 		Name:  "gpo.percentile",
 		Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
-		Value: ethconfig.Defaults.GPO.Percentile,
+		// Value: ethconfig.Defaults.GPO.Percentile,
 	}
 	GpoMaxGasPriceFlag = cli.Int64Flag{
 		Name:  "gpo.maxprice",
 		Usage: "Maximum gas price will be recommended by gpo",
-		Value: ethconfig.Defaults.GPO.MaxPrice.Int64(),
+		// Value: ethconfig.Defaults.GPO.MaxPrice.Int64(),
 	}
 	GpoIgnoreGasPriceFlag = cli.Int64Flag{
 		Name:  "gpo.ignoreprice",
 		Usage: "Gas price below which gpo will ignore transactions",
-		Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
+		// Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
 	}
 
 	// Metrics flags
@@ -739,7 +738,7 @@ var (
 	AnnounceQueryEnodeGossipPeriodFlag = cli.Uint64Flag{
 		Name:  "announce.queryenodegossipperiod",
 		Usage: "Time duration (in seconds) between gossiped query enode messages",
-		Value: eth.DefaultConfig.Istanbul.AnnounceQueryEnodeGossipPeriod,
+		Value: ethconfig.Defaults.Istanbul.AnnounceQueryEnodeGossipPeriod,
 	}
 	AnnounceAggressiveQueryEnodeGossipOnEnablementFlag = cli.BoolFlag{
 		Name:  "announce.aggressivequeryenodegossiponenablement",
@@ -842,9 +841,6 @@ func GetBootstrapNodes(ctx *cli.Context) []string {
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		urls = params.BaklavaBootnodes
-	case cfg.BootstrapNodes != nil:
-		return // already set, don't apply defaults.
-
 	}
 	return urls
 }
@@ -873,7 +869,7 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 // setBootstrapNodesV5 creates a list of bootstrap nodes from the command line
 // flags, reverting to pre-configured ones if none have been specified.
 func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
-	urls := params.V5Bootnodes
+	urls := params.MainnetBootnodes
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
 		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
@@ -1293,7 +1289,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 		cfg.NetRestrict = list
 	}
 
-	if ctx.GlobalBool(DeveloperFlag.Name) || ctx.GlobalBool(CatalystFlag.Name) {
+	if ctx.GlobalBool(DeveloperFlag.Name) {
 		// --dev mode can't use p2p networking.
 		cfg.MaxPeers = 0
 		cfg.ListenAddr = ""
@@ -1350,25 +1346,25 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
-func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
-	// If we are running the light client, apply another group
-	// settings for gas oracle.
-	if light {
-		*cfg = ethconfig.LightClientGPO
-	}
-	if ctx.GlobalIsSet(GpoBlocksFlag.Name) {
-		cfg.Blocks = ctx.GlobalInt(GpoBlocksFlag.Name)
-	}
-	if ctx.GlobalIsSet(GpoPercentileFlag.Name) {
-		cfg.Percentile = ctx.GlobalInt(GpoPercentileFlag.Name)
-	}
-	if ctx.GlobalIsSet(GpoMaxGasPriceFlag.Name) {
-		cfg.MaxPrice = big.NewInt(ctx.GlobalInt64(GpoMaxGasPriceFlag.Name))
-	}
-	if ctx.GlobalIsSet(GpoIgnoreGasPriceFlag.Name) {
-		cfg.IgnorePrice = big.NewInt(ctx.GlobalInt64(GpoIgnoreGasPriceFlag.Name))
-	}
-}
+// func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
+// 	// If we are running the light client, apply another group
+// 	// settings for gas oracle.
+// 	if light {
+// 		*cfg = ethconfig.LightClientGPO
+// 	}
+// 	if ctx.GlobalIsSet(GpoBlocksFlag.Name) {
+// 		cfg.Blocks = ctx.GlobalInt(GpoBlocksFlag.Name)
+// 	}
+// 	if ctx.GlobalIsSet(GpoPercentileFlag.Name) {
+// 		cfg.Percentile = ctx.GlobalInt(GpoPercentileFlag.Name)
+// 	}
+// 	if ctx.GlobalIsSet(GpoMaxGasPriceFlag.Name) {
+// 		cfg.MaxPrice = big.NewInt(ctx.GlobalInt64(GpoMaxGasPriceFlag.Name))
+// 	}
+// 	if ctx.GlobalIsSet(GpoIgnoreGasPriceFlag.Name) {
+// 		cfg.IgnorePrice = big.NewInt(ctx.GlobalInt64(GpoIgnoreGasPriceFlag.Name))
+// 	}
+// }
 
 func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	if ctx.GlobalIsSet(TxPoolLocalsFlag.Name) {
@@ -1955,7 +1951,7 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly bool) ethdb.
 		chainDb, err = stack.OpenDatabase(name, cache, handles, "", readonly)
 	} else if ctx.GlobalString(SyncModeFlag.Name) == "lightest" {
 		name := "lightestchaindata"
-		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "")
+		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "", readonly)
 	} else {
 		name := "chaindata"
 		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "", readonly)
@@ -1970,7 +1966,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
 	case ctx.GlobalBool(MainnetFlag.Name):
-		genesis = core.DefaultGenesisBlock()
+		genesis = core.MainnetGenesisBlock()
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		genesis = core.DefaultBaklavaGenesisBlock()
 	case ctx.GlobalBool(AlfajoresFlag.Name):
