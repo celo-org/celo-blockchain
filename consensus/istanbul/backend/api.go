@@ -193,7 +193,7 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 	api.istanbul.coreMu.RLock()
 	defer api.istanbul.coreMu.RUnlock()
 
-	if !api.istanbul.coreStarted {
+	if !api.istanbul.isCoreStarted() {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
@@ -203,7 +203,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 	api.istanbul.coreMu.RLock()
 	defer api.istanbul.coreMu.RUnlock()
 
-	if !api.istanbul.coreStarted {
+	if !api.istanbul.isCoreStarted() {
 		return false, istanbul.ErrStoppedEngine
 	}
 	api.istanbul.core.ForceRoundChange()
