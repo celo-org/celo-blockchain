@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
+	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -55,13 +56,12 @@ var (
 func makechain() (bc *core.BlockChain, addrHashes, txHashes []common.Hash) {
 	db := rawdb.NewMemoryDatabase()
 	gspec := core.Genesis{
-		Config:   params.TestChainConfig,
-		Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
-		GasLimit: 100000000,
+		Config: params.TestChainConfig,
+		Alloc:  core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 	}
 	genesis := gspec.MustCommit(db)
 	signer := types.HomesteadSigner{}
-	blocks, _ := core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, testChainLen,
+	blocks, _ := core.GenerateChain(gspec.Config, genesis, mockEngine.NewFaker(), db, testChainLen,
 		func(i int, gen *core.BlockGen) {
 			var (
 				tx   *types.Transaction
@@ -69,17 +69,17 @@ func makechain() (bc *core.BlockChain, addrHashes, txHashes []common.Hash) {
 			)
 			nonce := uint64(i)
 			if i%4 == 0 {
-				tx, _ = types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 200000, big.NewInt(0), testContractCode), signer, bankKey)
+				tx, _ = types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 200000, big.NewInt(0), nil, nil, nil, testContractCode), signer, bankKey)
 				addr = crypto.CreateAddress(bankAddr, nonce)
 			} else {
 				addr = common.BigToAddress(big.NewInt(int64(i)))
-				tx, _ = types.SignTx(types.NewTransaction(nonce, addr, big.NewInt(10000), params.TxGas, big.NewInt(params.GWei), nil), signer, bankKey)
+				tx, _ = types.SignTx(types.NewTransaction(nonce, addr, big.NewInt(10000), params.TxGas, big.NewInt(params.GWei), nil, nil, nil, nil), signer, bankKey)
 			}
 			gen.AddTx(tx)
 			addrHashes = append(addrHashes, crypto.Keccak256Hash(addr[:]))
 			txHashes = append(txHashes, tx.Hash())
 		})
-	bc, _ = core.NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+	bc, _ = core.NewBlockChain(db, nil, gspec.Config, mockEngine.NewFaker(), vm.Config{}, nil, nil)
 	if _, err := bc.InsertChain(blocks); err != nil {
 		panic(err)
 	}
@@ -251,6 +251,18 @@ func (f *fuzzer) GetHelperTrie(typ uint, index uint64) *trie.Trie {
 	return nil
 }
 
+func (f *fuzzer) GetEtherbase() common.Address {
+	return common.Address{}
+}
+
+func (h *fuzzer) GetGatewayFee() *big.Int {
+	return big.NewInt(1)
+}
+
+func (h *fuzzer) VerifyGatewayFee(gatewayFeeRecipient *common.Address, gatewayFee *big.Int) error {
+	return nil
+}
+
 type dummyMsg struct {
 	data []byte
 }
@@ -390,7 +402,7 @@ func Fuzz(input []byte) int {
 					nonce = f.nonce
 					f.nonce += 1
 				}
-				req.Txs[i], _ = types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(10000), params.TxGas, big.NewInt(1000000000*int64(f.randomByte())), nil), signer, bankKey)
+				req.Txs[i], _ = types.SignTx(types.NewTransaction(nonce, common.Address{}, big.NewInt(10000), params.TxGas, big.NewInt(1000000000*int64(f.randomByte())), nil, nil, nil, nil), signer, bankKey)
 			}
 			f.doFuzz(l.SendTxV2Msg, req)
 

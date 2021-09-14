@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/accounts/abi"
-	"github.com/celo-org/celo-blockchain/crypto"
 	fuzz "github.com/google/gofuzz"
 )
 
