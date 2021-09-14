@@ -284,8 +284,33 @@ func (b *EthAPIBackend) Downloader() *downloader.Downloader {
 	return b.eth.Downloader()
 }
 
-func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	return b.gpo.SuggestTipCap(ctx)
+func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+}
+
+func (b *EthAPIBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *EthAPIBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state, err := b.eth.blockchain.StateAt(header.Root)
+	if err != nil {
+		return nil, err
+	}
+	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
+
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
