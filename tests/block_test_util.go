@@ -32,30 +32,6 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/state/snapshot"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
-	"github.com/celo-org/celo-blockchain/core/state/snapshot"
-	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/params"
-	"github.com/celo-org/celo-blockchain/rlp"
-	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/common/math"
-	"github.com/celo-org/celo-blockchain/consensus"
-	"github.com/celo-org/celo-blockchain/core"
-	"github.com/celo-org/celo-blockchain/core/rawdb"
-	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
@@ -83,19 +59,9 @@ type btJSON struct {
 }
 
 type btBlock struct {
-<<<<<<< HEAD
-	BlockHeader *btHeader
-	Rlp         string
-||||||| e78727290
-	BlockHeader  *btHeader
-	Rlp          string
-	UncleHeaders []*btHeader
-=======
 	BlockHeader     *btHeader
 	ExpectException string
 	Rlp             string
-	UncleHeaders    []*btHeader
->>>>>>> v1.10.7
 }
 
 //go:generate gencodec -type btHeader -field-override btHeaderMarshaling -out gen_btheader.go
@@ -116,27 +82,10 @@ type btHeader struct {
 }
 
 type btHeaderMarshaling struct {
-<<<<<<< HEAD
 	ExtraData hexutil.Bytes
 	Number    *math.HexOrDecimal256
 	GasUsed   math.HexOrDecimal64
 	Timestamp math.HexOrDecimal64
-||||||| e78727290
-	ExtraData  hexutil.Bytes
-	Number     *math.HexOrDecimal256
-	Difficulty *math.HexOrDecimal256
-	GasLimit   math.HexOrDecimal64
-	GasUsed    math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-=======
-	ExtraData     hexutil.Bytes
-	Number        *math.HexOrDecimal256
-	Difficulty    *math.HexOrDecimal256
-	GasLimit      math.HexOrDecimal64
-	GasUsed       math.HexOrDecimal64
-	Timestamp     math.HexOrDecimal64
-	BaseFeePerGas *math.HexOrDecimal256
->>>>>>> v1.10.7
 }
 
 func (t *BlockTest) Run(snapshotter bool) error {
@@ -202,7 +151,6 @@ func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 		GasUsed:    t.json.Genesis.GasUsed,
 		Coinbase:   t.json.Genesis.Coinbase,
 		Alloc:      t.json.Pre,
-		BaseFee:    t.json.Genesis.BaseFeePerGas,
 	}
 }
 

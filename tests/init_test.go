@@ -157,16 +157,9 @@ func (tm *testMatcher) findSkip(name string) (reason string, skipload bool) {
 }
 
 // findConfig returns the chain config matching defined patterns.
-<<<<<<< HEAD
 // nolint: unused
-func (tm *testMatcher) findConfig(name string) *params.ChainConfig {
-	// TODO(fjl): name can be derived from testing.T when min Go version is 1.8
-||||||| e78727290
-func (tm *testMatcher) findConfig(name string) *params.ChainConfig {
-	// TODO(fjl): name can be derived from testing.T when min Go version is 1.8
-=======
 func (tm *testMatcher) findConfig(t *testing.T) *params.ChainConfig {
->>>>>>> v1.10.7
+
 	for _, m := range tm.configpat {
 		if m.p.MatchString(t.Name()) {
 			return &m.config
