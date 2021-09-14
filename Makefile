@@ -136,15 +136,10 @@ android:
 	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
 	@echo "Import \"$(GOBIN)/geth-sources.jar\" to add javadocs"
 	@echo "For more info see https://stackoverflow.com/questions/20994336/android-studio-how-to-attach-javadoc"
-<<<<<<< HEAD
 	@echo "Remove patch for mobile libs..."
 	git apply -R patches/mobileLibsForBuild.patch
 	
-||||||| e78727290
-	
-=======
 
->>>>>>> v1.10.7
 ios:
 	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
