@@ -429,12 +429,9 @@ func newNetwork(accounts *env.AccountsConfig, gc *genesis.Config, concurrent boo
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
 	for i, en := range enodes {
-		for j, n := range network {
-			if j == i {
-				continue
-			}
+		// Connect to the remaining nodes
+		for _, n := range network[i+1:] {
 			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
