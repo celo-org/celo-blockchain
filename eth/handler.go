@@ -210,7 +210,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		}
 		return n, err
 	}
-	manager.blockFetcher = fetcher.NewBlockFetcher(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
+	manager.blockFetcher = fetcher.NewBlockFetcher(false, nil, blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, nil, inserter, manager.removePeer)
 
 	fetchTx := func(peer string, hashes []common.Hash) error {
 		p := manager.peers.Peer(peer)
@@ -261,7 +261,6 @@ func (pm *ProtocolManager) makeProtocol(version uint) p2p.Protocol {
 		Name:    istanbul.ProtocolName,
 		Version: version,
 		Length:  length,
-		Primary: istanbul.IsPrimary(version),
 		Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 			return pm.runPeer(pm.newPeer(int(version), p, rw, pm.txpool.Get))
 		},

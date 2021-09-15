@@ -88,18 +88,18 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 
 	// Mark that this node gossiped/processed this message, so that it will ignore it if
 	// one of it's peers sends the message to it.
-	sb.markMessageProcessedBySelf(payload)
+	sb.gossipCache.MarkMessageProcessedBySelf(payload)
 
 	// Filter out peers that already sent us this gossip message
 	for nodeID, peer := range peersToSendMsg {
 		nodePubKey := peer.Node().Pubkey()
 		nodeAddr := crypto.PubkeyToAddress(*nodePubKey)
-		if sb.checkIfMessageProcessedByPeer(nodeAddr, payload) {
+		if sb.gossipCache.CheckIfMessageProcessedByPeer(nodeAddr, payload) {
 			delete(peersToSendMsg, nodeID)
 			logger.Trace("Peer already gossiped this message.  Not sending message to it", "peer", peer)
 			continue
 		} else {
-			sb.markMessageProcessedByPeer(nodeAddr, payload)
+			sb.gossipCache.MarkMessageProcessedByPeer(nodeAddr, payload)
 		}
 	}
 

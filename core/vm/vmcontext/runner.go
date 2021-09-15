@@ -12,10 +12,9 @@ import (
 // VMAddress is the address the VM uses to make internal calls to contracts
 var VMAddress = common.ZeroAddress
 
-// ExtendedChainContext extends ChainContext providing relevant methods
-// for EVMRunner creation
-type ExtendedChainContext interface {
-	vm.ChainContext
+// evmRunnerContext defines methods required to create an EVMRunner
+type evmRunnerContext interface {
+	chainContext
 
 	// GetVMConfig returns the node's vm configuration
 	GetVMConfig() *vm.Config
@@ -25,59 +24,51 @@ type ExtendedChainContext interface {
 	State() (*state.StateDB, error)
 }
 
-// GetSystemEVMRunnerFactory returns a factory for a System's EVMRunner
-// DO NOT USE, only for backwards compatibility
-func GetSystemEVMRunnerFactory(chain ExtendedChainContext) func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
-	return func(header *types.Header, state vm.StateDB) (vm.EVMRunner, error) {
-		if header == nil {
-			header := chain.CurrentHeader()
-			// FIXME small race condition here (Head changes between get header & get state)
-			state, err := chain.State()
-			if err != nil {
-				return nil, err
-			}
-			return NewEVMRunner(chain, header, state), nil
-		}
-
-		return NewEVMRunner(chain, header, state), nil
-	}
-}
-
 type evmRunner struct {
-	newEVM func() *vm.EVM
+	newEVM func(from common.Address) *vm.EVM
 	state  vm.StateDB
 
 	dontMeterGas bool
 }
 
-// NewEVMRunner creates an EVMRunner pointing to (header, state)
-func NewEVMRunner(chain ExtendedChainContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
+func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB) vm.EVMRunner {
 
 	return &evmRunner{
 		state: state,
-		newEVM: func() *vm.EVM {
+		newEVM: func(from common.Address) *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
-			// Putting in zero values.
-			context := New(VMAddress, common.Big0, header, chain, nil)
+			// Putting in zero values for gas price and tx fee recipient
+			context := New(from, common.Big0, header, chain, nil)
 			return vm.NewEVM(context, state, chain.Config(), *chain.GetVMConfig())
 		},
 	}
 }
 
-func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	evm := ev.newEVM()
+func (ev *evmRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	evm := ev.newEVM(VMAddress)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	ret, _, err = evm.Call(vm.AccountRef(evm.Origin), recipient, input, gas, value)
+	return ret, err
 }
 
-func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	evm := ev.newEVM()
+func (ev *evmRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	evm := ev.newEVM(sender)
 	if ev.dontMeterGas {
 		evm.StopGasMetering()
 	}
-	return evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
+	ret, _, err = evm.Call(vm.AccountRef(sender), recipient, input, gas, value)
+	return ret, err
+}
+
+func (ev *evmRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
+	evm := ev.newEVM(VMAddress)
+	if ev.dontMeterGas {
+		evm.StopGasMetering()
+	}
+	ret, _, err = evm.StaticCall(vm.AccountRef(evm.Origin), recipient, input, gas)
+	return ret, err
 }
 
 func (ev *evmRunner) StopGasMetering() {
@@ -98,10 +89,17 @@ func (ev *evmRunner) GetStateDB() vm.StateDB {
 // purposes
 type SharedEVMRunner struct{ *vm.EVM }
 
-func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-	return sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
+func (sev *SharedEVMRunner) Execute(recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	ret, _, err = sev.Call(vm.AccountRef(VMAddress), recipient, input, gas, value)
+	return ret, err
 }
 
-func (sev *SharedEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
-	return sev.StaticCall(vm.AccountRef(VMAddress), recipient, input, gas)
+func (sev *SharedEVMRunner) ExecuteFrom(sender, recipient common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, err error) {
+	ret, _, err = sev.Call(vm.AccountRef(sender), recipient, input, gas, value)
+	return ret, err
+}
+
+func (sev *SharedEVMRunner) Query(recipient common.Address, input []byte, gas uint64) (ret []byte, err error) {
+	ret, _, err = sev.StaticCall(vm.AccountRef(VMAddress), recipient, input, gas)
+	return ret, err
 }

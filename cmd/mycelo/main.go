@@ -10,9 +10,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/fileutils"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/internal/debug"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/cluster"
@@ -62,7 +62,7 @@ func init() {
 		loadBotCommand,
 		envCommand,
 	}
-	cli.CommandHelpTemplate = utils.OriginCommandHelpTemplate
+	cli.CommandHelpTemplate = flags.OriginCommandHelpTemplate
 }
 
 func main() {
@@ -162,16 +162,16 @@ func readWorkdir(ctx *cli.Context) (string, error) {
 }
 
 func readGethPath(ctx *cli.Context) (string, error) {
-	buildpath := ctx.String(gethPathFlag.Name)
-	if buildpath == "" {
-		buildpath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
-		if fileutils.FileExists(buildpath) {
-			log.Info("Missing --geth flag, using CELO_BLOCKCHAIN derived path", "geth", buildpath)
+	gethPath := ctx.String(gethPathFlag.Name)
+	if gethPath == "" {
+		gethPath = path.Join(os.Getenv("CELO_BLOCKCHAIN"), "build/bin/geth")
+		if fileutils.FileExists(gethPath) {
+			log.Info("Missing --geth flag, using CELO_BLOCKCHAIN derived path", "geth", gethPath)
 		} else {
 			return "", fmt.Errorf("Missing --geth flag")
 		}
 	}
-	return buildpath, nil
+	return gethPath, nil
 }
 
 func readEnv(ctx *cli.Context) (*env.Environment, error) {

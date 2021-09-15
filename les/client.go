@@ -22,24 +22,20 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
-	"github.com/celo-org/celo-blockchain/accounts/abi/bind"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/consensus"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	"github.com/celo-org/celo-blockchain/les/checkpointoracle"
 	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
@@ -65,6 +61,7 @@ type LightEthereum struct {
 	chainreader    *LightChainReader
 	valueTracker   *lpc.ValueTracker
 	dialCandidates enode.Iterator
+	pruner         *pruner
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -76,9 +73,11 @@ type LightEthereum struct {
 	netRPCService  *ethapi.PublicNetAPI
 
 	networkId uint64
+	p2pServer *p2p.Server
 }
 
-func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
+// New creates an instance of the light client.
+func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 	var chainName string
 	syncMode := config.SyncMode
 	var fullChainAvailable bool
@@ -92,16 +91,16 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}
 
-	chainDb, err := ctx.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/")
+	chainDb, err := stack.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/")
 	if err != nil {
 		return nil, err
 	}
-	lespayDb, err := ctx.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
+	lespayDb, err := stack.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
 	if err != nil {
 		return nil, err
 	}
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis,
-		config.OverrideChurrito, config.OverrideDonut)
+		config.OverrideEHardfork)
 	if _, isCompat := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !isCompat {
 		return nil, genesisErr
 	}
@@ -118,17 +117,18 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 			closeCh:     make(chan struct{}),
 		},
 		peers:          peers,
-		eventMux:       ctx.EventMux,
+		eventMux:       stack.EventMux(),
 		reqDist:        newRequestDistributor(peers, &mclock.System{}),
-		accountManager: ctx.AccountManager,
-		engine:         eth.CreateConsensusEngine(ctx, chainConfig, config, nil, false, chainDb),
+		accountManager: stack.AccountManager(),
+		engine:         eth.CreateConsensusEngine(stack, chainConfig, config, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
 		valueTracker:   lpc.NewValueTracker(lespayDb, &mclock.System{}, requestList, time.Minute, 1/float64(time.Hour), 1/float64(time.Hour*100), 1/float64(time.Hour*1000)),
+		p2pServer:      stack.Server(),
 	}
 	peers.subscribe((*vtSubscription)(leth.valueTracker))
 
-	dnsdisc, err := leth.setupDiscovery(&ctx.Config.P2P)
+	dnsdisc, err := leth.setupDiscovery(&stack.Config().P2P)
 	if err != nil {
 		return nil, err
 	}
@@ -143,8 +143,8 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	// If the full chain is not available then indexing each block header isn't possible.
 	if fullChainAvailable {
 		leth.bloomIndexer = eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
-		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, fullChainAvailable)
-		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, fullChainAvailable)
+		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, config.LightNoPrune, fullChainAvailable)
+		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, config.LightNoPrune, fullChainAvailable)
 	}
 	leth.odr.SetIndexers(leth.chtIndexer, leth.bloomTrieIndexer, leth.bloomIndexer)
 
@@ -158,19 +158,11 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		return nil, err
 	}
 
-	// Set the blockchain for the EVMHandler singleton that geth can use to make calls to smart contracts.
-	// Note that this should NOT be used when executing smart contract calls done via end user transactions.
-	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(leth.blockchain))
-
 	leth.chainReader = leth.blockchain
 	leth.txPool = light.NewTxPool(leth.chainConfig, leth.blockchain, leth.relay)
 
 	// Set up checkpoint oracle.
-	oracle := config.CheckpointOracle
-	if oracle == nil {
-		oracle = params.CheckpointOracles[genesisHash]
-	}
-	leth.oracle = checkpointoracle.New(oracle, leth.localCheckpoint)
+	leth.oracle = leth.setupOracle(stack, genesisHash, config)
 
 	// Note: AddChildIndexer starts the update process for the child
 	if leth.bloomIndexer != nil && leth.bloomTrieIndexer != nil {
@@ -181,13 +173,9 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		leth.chtIndexer.Start(leth.blockchain)
 	}
 
-	// TODO mcortesi (needs etherbase & gatewayFee?)
-	log.Error("Starting client handler")
-	leth.handler = newClientHandler(syncMode, config.UltraLightServers, config.UltraLightFraction, checkpoint, leth, config.GatewayFee)
-	if leth.handler.ulc != nil {
-		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
-		leth.blockchain.DisableCheckFreq()
-	}
+	// Start a light chain pruner to delete useless historical data.
+	leth.pruner = newPruner(chainDb, leth.chtIndexer, leth.bloomTrieIndexer)
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -195,7 +183,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.ApiBackend = &LesApiBackend{ctx.ExtRPCEnabled(), leth}
+	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), leth}
 
 	leth.chainreader = &LightChainReader{
 		config:     leth.chainConfig,
@@ -212,6 +200,14 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 		log.Warn("Ultra light client is enabled", "trustedNodes", len(leth.handler.ulc.keys), "minTrustedFraction", leth.handler.ulc.fraction)
 		leth.blockchain.DisableCheckFreq()
 	}
+
+	leth.netRPCService = ethapi.NewPublicNetAPI(leth.p2pServer, leth.config.NetworkId)
+
+	// Register the backend on the node
+	stack.RegisterAPIs(leth.APIs())
+	stack.RegisterProtocols(leth.Protocols())
+	stack.RegisterLifecycle(leth)
+
 	return leth, nil
 }
 
@@ -311,28 +307,27 @@ func (s *LightEthereum) Downloader() *downloader.Downloader { return s.handler.d
 func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPool }
 
-// Protocols implements node.Service, returning all the currently configured
-// network protocols to start.
+// Protocols returns all the currently configured network protocols to start.
 func (s *LightEthereum) Protocols() []p2p.Protocol {
 	return s.makeProtocols(ClientProtocolVersions, s.handler.runPeer, func(id enode.ID) interface{} {
-		if p := s.peers.peer(peerIdToString(id)); p != nil {
+		if p := s.peers.peer(id.String()); p != nil {
 			return p.Info()
 		}
 		return nil
 	}, s.dialCandidates)
 }
 
-// Start implements node.Service, starting all internal goroutines needed by the
+// Start implements node.Lifecycle, starting all internal goroutines needed by the
 // light ethereum protocol implementation.
-func (s *LightEthereum) Start(srvr *p2p.Server) error {
+func (s *LightEthereum) Start() error {
 	log.Warn("Light client mode is an experimental feature")
 
 	s.serverPool.start()
 	// Start bloom request workers.
 	s.wg.Add(bloomServiceThreads)
 	s.startBloomHandlers(params.BloomBitsBlocksClient)
+	s.handler.start()
 
-	s.netRPCService = ethapi.NewPublicNetAPI(srvr, s.config.NetworkId)
 	return nil
 }
 
@@ -340,7 +335,7 @@ func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
 	return s.peers.randomPeerEtherbase()
 }
 
-// Stop implements node.Service, terminating all internal goroutines used by the
+// Stop implements node.Lifecycle, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
 	close(s.closeCh)
@@ -360,17 +355,10 @@ func (s *LightEthereum) Stop() error {
 	s.handler.stop()
 	s.txPool.Stop()
 	s.engine.Close()
+	s.pruner.close()
 	s.eventMux.Stop()
 	s.chainDb.Close()
 	s.wg.Wait()
 	log.Info("Light ethereum stopped")
 	return nil
-}
-
-// SetClient sets the rpc client and binds the registrar contract.
-func (s *LightEthereum) SetContractBackend(backend bind.ContractBackend) {
-	if s.oracle == nil {
-		return
-	}
-	s.oracle.Start(backend)
 }

@@ -82,7 +82,6 @@ func StorageTrieID(state *TrieID, addrHash, root common.Hash) *TrieID {
 
 // TrieRequest is the ODR request type for state/storage trie entries
 type TrieRequest struct {
-	OdrRequest
 	Id    *TrieID
 	Key   []byte
 	Proof *NodeSet
@@ -95,7 +94,6 @@ func (req *TrieRequest) StoreResult(db ethdb.Database) {
 
 // CodeRequest is the ODR request type for retrieving contract code
 type CodeRequest struct {
-	OdrRequest
 	Id   *TrieID // references storage trie of the account
 	Hash common.Hash
 	Data []byte
@@ -108,9 +106,9 @@ func (req *CodeRequest) StoreResult(db ethdb.Database) {
 
 // BlockRequest is the ODR request type for retrieving block bodies
 type BlockRequest struct {
-	OdrRequest
 	Hash   common.Hash
 	Number uint64
+	Header *types.Header
 	Rlp    []byte
 }
 
@@ -133,14 +131,18 @@ type HeaderRequest struct {
 // StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
 // This occurs if the total difficulty of the requested header is less than the current known TD.
 func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if req.Header == nil {
+		// A nil header is a valid response when request the header by hash, as it indicates
+		// no known block with this hash.  In this case, there is nothing for us to do here.
+		return
+	}
 	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
 		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
 	}
 }
 
-// ReceiptsRequest is the ODR request type for retrieving block bodies
+// ReceiptsRequest is the ODR request type for retrieving receipts.
 type ReceiptsRequest struct {
-	OdrRequest
 	Untrusted bool // Indicator whether the result retrieved is trusted or not
 	Hash      common.Hash
 	Number    uint64
@@ -157,7 +159,6 @@ func (req *ReceiptsRequest) StoreResult(db ethdb.Database) {
 
 // ChtRequest is the ODR request type for state/storage trie entries
 type ChtRequest struct {
-	OdrRequest
 	Untrusted        bool   // Indicator whether the result retrieved is trusted or not
 	PeerId           string // The specified peer id from which to retrieve data.
 	Config           *IndexerConfig
@@ -212,7 +213,6 @@ type TxStatus struct {
 
 // TxStatusRequest is the ODR request type for retrieving transaction status
 type TxStatusRequest struct {
-	OdrRequest
 	Hashes []common.Hash
 	Status []TxStatus
 }

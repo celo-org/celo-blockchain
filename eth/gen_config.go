@@ -29,6 +29,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		LightIngress            int                    `toml:",omitempty"`
 		LightEgress             int                    `toml:",omitempty"`
 		LightPeers              int                    `toml:",omitempty"`
+		LightNoPrune            bool                   `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               common.Address         `toml:",omitempty"`
 		TxFeeRecipient          common.Address         `toml:",omitempty"`
@@ -41,8 +42,11 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DatabaseCache           int
 		DatabaseFreezer         string
 		TrieCleanCache          int
+		TrieCleanCacheJournal   string        `toml:",omitempty"`
+		TrieCleanCacheRejournal time.Duration `toml:",omitempty"`
 		TrieDirtyCache          int
 		TrieTimeout             time.Duration
+		SnapshotCache           int
 		Miner                   miner.Config
 		TxPool                  core.TxPoolConfig
 		EnablePreimageRecording bool
@@ -50,11 +54,11 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DocRoot                 string `toml:"-"`
 		EWASMInterpreter        string
 		EVMInterpreter          string
-		RPCGasCap               *big.Int                       `toml:",omitempty"`
+		RPCGasCap               uint64                         `toml:",omitempty"`
+		RPCTxFeeCap             float64                        `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideChurrito        *big.Int                       `toml:",omitempty"`
-		OverrideDonut           *big.Int                       `toml:",omitempty"`
+		OverrideEHardfork       *big.Int                       `toml:",omitempty"`
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -69,6 +73,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.LightIngress = c.LightIngress
 	enc.LightEgress = c.LightEgress
 	enc.LightPeers = c.LightPeers
+	enc.LightNoPrune = c.LightNoPrune
 	enc.GatewayFee = c.GatewayFee
 	enc.Validator = c.Validator
 	enc.TxFeeRecipient = c.TxFeeRecipient
@@ -81,8 +86,11 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DatabaseCache = c.DatabaseCache
 	enc.DatabaseFreezer = c.DatabaseFreezer
 	enc.TrieCleanCache = c.TrieCleanCache
+	enc.TrieCleanCacheJournal = c.TrieCleanCacheJournal
+	enc.TrieCleanCacheRejournal = c.TrieCleanCacheRejournal
 	enc.TrieDirtyCache = c.TrieDirtyCache
 	enc.TrieTimeout = c.TrieTimeout
+	enc.SnapshotCache = c.SnapshotCache
 	enc.Miner = c.Miner
 	enc.TxPool = c.TxPool
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
@@ -91,10 +99,10 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.EWASMInterpreter = c.EWASMInterpreter
 	enc.EVMInterpreter = c.EVMInterpreter
 	enc.RPCGasCap = c.RPCGasCap
+	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.Checkpoint = c.Checkpoint
 	enc.CheckpointOracle = c.CheckpointOracle
-	enc.OverrideChurrito = c.OverrideChurrito
-	enc.OverrideDonut = c.OverrideDonut
+	enc.OverrideEHardfork = c.OverrideEHardfork
 	return &enc, nil
 }
 
@@ -113,6 +121,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		LightIngress            *int                   `toml:",omitempty"`
 		LightEgress             *int                   `toml:",omitempty"`
 		LightPeers              *int                   `toml:",omitempty"`
+		LightNoPrune            *bool                  `toml:",omitempty"`
 		GatewayFee              *big.Int               `toml:",omitempty"`
 		Validator               *common.Address        `toml:",omitempty"`
 		TxFeeRecipient          *common.Address        `toml:",omitempty"`
@@ -125,8 +134,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DatabaseCache           *int
 		DatabaseFreezer         *string
 		TrieCleanCache          *int
+		TrieCleanCacheJournal   *string        `toml:",omitempty"`
+		TrieCleanCacheRejournal *time.Duration `toml:",omitempty"`
 		TrieDirtyCache          *int
 		TrieTimeout             *time.Duration
+		SnapshotCache           *int
 		Miner                   *miner.Config
 		TxPool                  *core.TxPoolConfig
 		EnablePreimageRecording *bool
@@ -134,11 +146,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DocRoot                 *string `toml:"-"`
 		EWASMInterpreter        *string
 		EVMInterpreter          *string
-		RPCGasCap               *big.Int                       `toml:",omitempty"`
+		RPCGasCap               *uint64                        `toml:",omitempty"`
+		RPCTxFeeCap             *float64                       `toml:",omitempty"`
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
-		OverrideChurrito        *big.Int                       `toml:",omitempty"`
-		OverrideDonut           *big.Int                       `toml:",omitempty"`
+		OverrideEhardfork       *big.Int                       `toml:",omitempty"`
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -180,6 +192,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.LightPeers != nil {
 		c.LightPeers = *dec.LightPeers
 	}
+	if dec.LightNoPrune != nil {
+		c.LightNoPrune = *dec.LightNoPrune
+	}
 	if dec.GatewayFee != nil {
 		c.GatewayFee = dec.GatewayFee
 	}
@@ -216,11 +231,20 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.TrieCleanCache != nil {
 		c.TrieCleanCache = *dec.TrieCleanCache
 	}
+	if dec.TrieCleanCacheJournal != nil {
+		c.TrieCleanCacheJournal = *dec.TrieCleanCacheJournal
+	}
+	if dec.TrieCleanCacheRejournal != nil {
+		c.TrieCleanCacheRejournal = *dec.TrieCleanCacheRejournal
+	}
 	if dec.TrieDirtyCache != nil {
 		c.TrieDirtyCache = *dec.TrieDirtyCache
 	}
 	if dec.TrieTimeout != nil {
 		c.TrieTimeout = *dec.TrieTimeout
+	}
+	if dec.SnapshotCache != nil {
+		c.SnapshotCache = *dec.SnapshotCache
 	}
 	if dec.Miner != nil {
 		c.Miner = *dec.Miner
@@ -244,7 +268,10 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		c.EVMInterpreter = *dec.EVMInterpreter
 	}
 	if dec.RPCGasCap != nil {
-		c.RPCGasCap = dec.RPCGasCap
+		c.RPCGasCap = *dec.RPCGasCap
+	}
+	if dec.RPCTxFeeCap != nil {
+		c.RPCTxFeeCap = *dec.RPCTxFeeCap
 	}
 	if dec.Checkpoint != nil {
 		c.Checkpoint = dec.Checkpoint
@@ -252,11 +279,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.CheckpointOracle != nil {
 		c.CheckpointOracle = dec.CheckpointOracle
 	}
-	if dec.OverrideChurrito != nil {
-		c.OverrideChurrito = dec.OverrideChurrito
-	}
-	if dec.OverrideDonut != nil {
-		c.OverrideDonut = dec.OverrideDonut
+	if dec.OverrideEhardfork != nil {
+		c.OverrideEHardfork = dec.OverrideEhardfork
 	}
 	return nil
 }

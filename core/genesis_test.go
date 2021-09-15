@@ -46,16 +46,15 @@ func TestMainnetGenesisBlock(t *testing.T) {
 }
 
 func TestSetupGenesis(t *testing.T) {
-	var (
-		customghash = common.HexToHash("0xcffd352e3277fc3fed34ac56e5fb1ab866a55a3da52e87549e05be5500a9f01c")
-		customg     = Genesis{
-			Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3), Istanbul: &params.IstanbulConfig{}},
-			Alloc: GenesisAlloc{
-				{1}: {Balance: big.NewInt(1), Storage: map[common.Hash]common.Hash{{1}: {1}}},
-			},
-		}
-		oldcustomg = customg
-	)
+	customghash := common.HexToHash("0xade49833713207ecf7d4807ca34b1246b014ef3992ec231deb1e0ee56289c1c8")
+	alloc := &GenesisAlloc{}
+	alloc.UnmarshalJSON([]byte(devAllocJSON))
+	customg := Genesis{
+		Config: &params.ChainConfig{HomesteadBlock: big.NewInt(3), Istanbul: &params.IstanbulConfig{}},
+		Alloc:  *alloc,
+	}
+	oldcustomg := customg
+
 	oldcustomg.Config = &params.ChainConfig{HomesteadBlock: big.NewInt(2)}
 	tests := []struct {
 		name       string
@@ -174,5 +173,52 @@ func TestSetupGenesis(t *testing.T) {
 				t.Errorf("%s: block in DB has hash %s, want %s", test.name, stored.Hash(), test.wantHash)
 			}
 		}
+	}
+}
+
+// TestRegistryInGenesis tests if the params.RegistrySmartContract that defined in the genesis block sits in the blockchain
+func TestRegistryInGenesis(t *testing.T) {
+	tests := []struct {
+		name    string
+		genesis func() *Genesis
+	}{
+		{
+			name:    "dev",
+			genesis: DeveloperGenesisBlock,
+		},
+		{
+			name:    "alfajores",
+			genesis: DefaultAlfajoresGenesisBlock,
+		},
+		{
+			name:    "baklava",
+			genesis: DefaultBaklavaGenesisBlock,
+		},
+		{
+			name:    "mainnet",
+			genesis: MainnetGenesisBlock,
+		},
+		{
+			name: "emptyAlloc",
+			genesis: func() *Genesis {
+				return &Genesis{}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		db := rawdb.NewMemoryDatabase()
+		test.genesis().MustCommit(db)
+		chain, _ := NewBlockChain(db, nil, params.IstanbulTestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
+		state, _ := chain.State()
+		codeSize := state.GetCodeSize(params.RegistrySmartContractAddress)
+		if test.name == "emptyAlloc" {
+			if codeSize != 0 {
+				t.Errorf("%s: Registry code size is %d, want 0", test.name, codeSize)
+			}
+		} else if codeSize == 0 {
+			t.Errorf("%s: Registry code size should not be 0", test.name)
+		}
+		chain.Stop()
 	}
 }

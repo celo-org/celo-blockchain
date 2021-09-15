@@ -23,7 +23,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -33,6 +35,8 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -184,11 +188,11 @@ func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*typ
 	return logs, nil
 }
 
-func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
-	return b.eth.blockchain.GetTdByHash(blockHash)
+func (b *EthAPIBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
+	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
 
 	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
@@ -256,6 +260,10 @@ func (b *EthAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, 
 	return b.eth.TxPool().Content()
 }
 
+func (b *EthAPIBackend) TxPool() *core.TxPool {
+	return b.eth.TxPool()
+}
+
 func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return b.eth.TxPool().SubscribeNewTxsEvent(ch)
 }
@@ -268,12 +276,36 @@ func (b *EthAPIBackend) ProtocolVersion() int {
 	return b.eth.EthVersion()
 }
 
-func (b *EthAPIBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(nil, nil, nil)
+func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
 }
 
-func (b *EthAPIBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(currencyAddress, header, state)
+func (b *EthAPIBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64 {
+	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		log.Warn("Cannot create evmCaller to get blockGasLimit", "err", err)
+		return params.DefaultGasLimit
+	}
+
+	vmRunner := b.eth.BlockChain().NewEVMRunner(header, statedb)
+	return blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner)
+}
+
+func (b *EthAPIBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return b.eth.BlockChain().NewEVMRunner(header, state)
+}
+
+func (b *EthAPIBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		log.Warn("Cannot create evmCaller to get intrinsic gas for alternative fee currency", "err", err)
+		return params.IntrinsicGasForAlternativeFeeCurrency
+	}
+	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
 
 func (b *EthAPIBackend) ChainDb() ethdb.Database {
@@ -292,8 +324,12 @@ func (b *EthAPIBackend) ExtRPCEnabled() bool {
 	return b.extRPCEnabled
 }
 
-func (b *EthAPIBackend) RPCGasCap() *big.Int {
+func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
+}
+
+func (b *EthAPIBackend) RPCTxFeeCap() float64 {
+	return b.eth.config.RPCTxFeeCap
 }
 
 func (b *EthAPIBackend) BloomStatus() (uint64, uint64) {
@@ -313,4 +349,20 @@ func (b *EthAPIBackend) GatewayFeeRecipient() common.Address {
 
 func (b *EthAPIBackend) GatewayFee() *big.Int {
 	return b.eth.GatewayFee()
+}
+
+func (b *EthAPIBackend) Engine() consensus.Engine {
+	return b.eth.engine
+}
+
+func (b *EthAPIBackend) CurrentHeader() *types.Header {
+	return b.eth.blockchain.CurrentHeader()
+}
+
+func (b *EthAPIBackend) Miner() *miner.Miner {
+	return b.eth.Miner()
+}
+
+func (b *EthAPIBackend) StartMining() error {
+	return b.eth.StartMining()
 }

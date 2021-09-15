@@ -119,35 +119,18 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 			return
 		}
 	}
-
-	committedSub := &istanbul.CommittedSubject{
+	istMsg := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 		Subject:               sub,
 		CommittedSeal:         committedSeal[:],
 		EpochValidatorSetSeal: epochValidatorSetSeal[:],
-	}
-	encodedCommittedSubject, err := Encode(committedSub)
-	if err != nil {
-		logger.Error("Failed to encode committedSubject", committedSub)
-	}
-
-	istMsg := istanbul.Message{
-		Code: istanbul.MsgCommit,
-		Msg:  encodedCommittedSubject,
-	}
-	c.broadcast(&istMsg)
+	}, c.address)
+	c.broadcast(istMsg)
 }
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
 	defer c.handleCommitTimer.UpdateSince(time.Now())
-	// Decode COMMIT message
-	var commit *istanbul.CommittedSubject
-	err := msg.Decode(&commit)
-	if err != nil {
-		return errFailedDecodeCommit
-	}
-
-	err = c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
-
+	commit := msg.Commit()
+	err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
 	if err == errOldMessage {
 		// Discard messages from previous views, unless they are commits from the previous sequence,
 		// with the same round as what we wound up finalizing, as we would be able to include those
@@ -242,7 +225,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 	// by committing the proposal without PREPARE messages.
 	// TODO(joshua): Remove state comparisons (or change the cmp function)
 	if numberOfCommits >= minQuorumSize && c.current.State().Cmp(StateCommitted) < 0 {
-		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", c.current.Commits)
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
 		err := c.commit()
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)

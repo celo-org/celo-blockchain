@@ -24,9 +24,12 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/les/checkpointoracle"
 	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/discv5"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -156,4 +159,27 @@ func (c *lesCommons) localCheckpoint(index uint64) params.TrustedCheckpoint {
 		CHTRoot:      light.GetChtRoot(c.chainDb, index, sectionHead),
 		BloomRoot:    light.GetBloomTrieRoot(c.chainDb, index, sectionHead),
 	}
+}
+
+// setupOracle sets up the checkpoint oracle contract client.
+func (c *lesCommons) setupOracle(node *node.Node, genesis common.Hash, ethconfig *eth.Config) *checkpointoracle.CheckpointOracle {
+	config := ethconfig.CheckpointOracle
+	if config == nil {
+		// Try loading default config.
+		config = params.CheckpointOracles[genesis]
+	}
+	if config == nil {
+		log.Info("Checkpoint registrar is not enabled")
+		return nil
+	}
+	if config.Address == (common.Address{}) || uint64(len(config.Signers)) < config.Threshold {
+		log.Warn("Invalid checkpoint registrar config")
+		return nil
+	}
+	oracle := checkpointoracle.New(config, c.localCheckpoint)
+	rpcClient, _ := node.Attach()
+	client := ethclient.NewClient(rpcClient)
+	oracle.Start(client)
+	log.Info("Configured checkpoint registrar", "address", config.Address, "signers", len(config.Signers), "threshold", config.Threshold)
+	return oracle
 }

@@ -1,16 +1,45 @@
 version: 2.1
+parameters:
+  # Increment this to force cache rebuilding
+  system-contracts-cache-version:
+    type: integer
+    default: 1
+  # Use this git tag or commit of the monorepo to build the system contracts.
+  system-contracts-monorepo-version:
+    type: string
+    default: "celo-core-contracts-v3.rc0"
+  system-contracts-path:
+    type: string
+    default: "compiled-system-contracts"
 executors:
   golang:
     docker:
       - image: circleci/golang:1.16
+    working_directory: ~/repos/geth
+  node-v10:
+    docker:
+      - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/geth
   e2e:
     docker:
       - image: celohq/node10-gcloud:v3
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
-      GO_VERSION: "1.16.2"
-      CELO_MONOREPO_BRANCH_TO_TEST: master
+      GO_VERSION: "1.16.4"
+      # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
+      # our CI doesn't break due to another team making changes in monorepo.
+      # * It should be updated when:
+      #     (a) changes or additions are made to the blockchain e2e tests in celo-monorepo, or
+      #     (b) a new contracts release has been merged to monorepo's master
+      #    In the latter case, we need to check whether the new contract release breaks things and update the mycelo
+      #    contracts ABI and migrations accordingly if necessary.
+      # * When updating it, update the comment with (a) the branch or commit hash, (b) the date of the change, and
+      #   (c) the contracts release it includes (`RELEASE_TAG` in the monorepo)
+
+      # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
+      # includes contracts release 5 (core-contracts.v5)
+      CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
+
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
@@ -32,6 +61,42 @@ jobs:
           root: ~/repos
           paths:
             - geth
+
+  prepare-system-contracts:
+    parameters:
+      cache-key:
+        type: string
+        default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
+    executor: node-v10
+    resource_class: medium+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - <<parameters.cache-key>>
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: prepare system contracts
+          # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
+          # use We also need to add the fingerprint id for the github ssh key
+          # to our known hosts in order for the monorepo post install script to
+          # work. We only do this if the cache has not been restored.
+          command: |
+            set -e
+            if [ ! -d <<pipeline.parameters.system-contracts-path>> ]; then
+              mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+              make prepare-system-contracts MONOREPO_COMMIT=<<pipeline.parameters.system-contracts-monorepo-version>>
+            fi
+      - save_cache:
+          key: <<parameters.cache-key>>
+          paths:
+            - ~/repos/geth/<<pipeline.parameters.system-contracts-path>>
+      - persist_to_workspace:
+          root: ~/repos
+          paths:
+            - geth/<<pipeline.parameters.system-contracts-path>>
+
   unit-tests:
     executor: golang
     resource_class: medium+
@@ -142,9 +207,7 @@ jobs:
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
-    docker:
-      - image: circleci/node:10
-    working_directory: ~/repos/geth
+    executor: golang
     steps:
       - attach_workspace:
           at: ~/repos
@@ -160,8 +223,10 @@ jobs:
             set -e
             mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
             ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep "github.com RSA ${GITHUB_RSA_FINGERPRINT}"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo
             cd celo-monorepo
+            git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
+            git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
             yarn install || yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
@@ -260,6 +325,7 @@ workflows:
     jobs:
       - checkout-monorepo
       - build-geth
+      - prepare-system-contracts
       - check-imports
       - lint:
           requires:
@@ -267,9 +333,11 @@ workflows:
       - unit-tests:
           requires:
             - build-geth
+            - prepare-system-contracts
       - coverage:
           requires:
             - build-geth
+            - prepare-system-contracts
       - android
       - ios
       - publish-mobile-client:

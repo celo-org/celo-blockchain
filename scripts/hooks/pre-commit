@@ -46,7 +46,7 @@ EOF
 fi
 
 # Check imports
-grep --files-with-matches "github.com/ethereum/go-ethereum" --recursive . --include="*.go"
+grep --exclude-dir=compiled-system-contracts --files-with-matches "github.com/ethereum/go-ethereum" --recursive . --include="*.go"
 if [ "$?" -gt "0" ]; then
     exit 0
 else

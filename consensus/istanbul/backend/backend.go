@@ -23,9 +23,8 @@ import (
 	"math/big"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
@@ -36,13 +35,15 @@ import (
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm/election"
-	comm_errors "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	"github.com/celo-org/celo-blockchain/contract_comm/random"
-	"github.com/celo-org/celo-blockchain/contract_comm/validators"
+	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/election"
+
+	"github.com/celo-org/celo-blockchain/contracts/random"
+	"github.com/celo-org/celo-blockchain/contracts/validators"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -52,18 +53,56 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-const (
-	// fetcherID is the ID indicates the block is from Istanbul engine
-	fetcherID = "istanbul"
-)
-
 var (
 	// errInvalidSigningFn is returned when the consensus signing function is invalid.
 	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-
-	// errNoBlockHeader is returned when the requested block header could not be found.
-	errNoBlockHeader = errors.New("failed to retrieve block header")
 )
+
+type EcdsaInfo struct {
+	Address   common.Address   // Ethereum address of the ECDSA signing key
+	PublicKey *ecdsa.PublicKey // The signer public key
+
+	decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	sign     istanbul.SignerFn     // Signer function to authorize hashes with
+	signHash istanbul.HashSignerFn // Signer function to create random seed
+}
+
+// Sign hashes and signs the data with the ecdsa account
+func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
+	if ei.sign == nil {
+		return nil, errInvalidSigningFn
+	}
+	return ei.sign(accounts.Account{Address: ei.Address}, accounts.MimetypeIstanbul, data)
+}
+
+// SignHash signs the given hash with the ecdsa account
+func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
+	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
+}
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
+	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
+}
+
+type BlsInfo struct {
+	Address common.Address       // Ethereum address of the BLS signing key
+	sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
+}
+
+// Sign signs with the bls account
+func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
+	if bi.sign == nil {
+		return blscrypto.SerializedSignature{}, errInvalidSigningFn
+	}
+	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
+}
+
+type Wallets struct {
+	Ecdsa EcdsaInfo
+	Bls   BlsInfo
+}
 
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
@@ -73,30 +112,19 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	if err != nil {
 		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
-	peerRecentMessages, err := lru.NewARC(inmemoryPeers)
-	if err != nil {
-		logger.Crit("Failed to create recent messages cache", "err", err)
-	}
-	selfRecentMessages, err := lru.NewARC(inmemoryMessages)
-	if err != nil {
-		logger.Crit("Failed to create known messages cache", "err", err)
-	}
+
 	backend := &Backend{
 		config:                             config,
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
-		commitCh:                           make(chan *types.Block, 1),
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        false,
 		announceRunning:                    false,
-		peerRecentMessages:                 peerRecentMessages,
-		selfRecentMessages:                 selfRecentMessages,
+		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		announceThreadWg:                   new(sync.WaitGroup),
 		generateAndGossipQueryEnodeCh:      make(chan struct{}, 1),
 		updateAnnounceVersionCh:            make(chan struct{}, 1),
-		lastQueryEnodeGossiped:             make(map[common.Address]time.Time),
-		lastVersionCertificatesGossiped:    make(map[common.Address]time.Time),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -114,25 +142,16 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
+	backend.aWallets.Store(&Wallets{})
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
 				"cycle", "sleep", "consensus", "block_verify", "block_construct",
 				"sysload", "syswait", "procload")
 		}
-
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
-
-	backend.logger = istanbul.NewIstLogger(
-		func() *big.Int {
-			if backend.core != nil && backend.core.CurrentView() != nil {
-				return backend.core.CurrentView().Round
-			}
-			return common.Big0
-		},
-	)
 
 	if config.Validator {
 		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
@@ -151,12 +170,6 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 	backend.valEnodeTable = valEnodeTable
 
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(config.VersionCertificateDBPath)
-	if err != nil {
-		logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", config.VersionCertificateDBPath)
-	}
-	backend.versionCertificateTable = versionCertificateTable
-
 	// If this node is a proxy or is a proxied validator, then create the appropriate proxy engine object
 	if backend.IsProxy() {
 		backend.proxyEngine, err = proxy.NewProxyEngine(backend, backend.config)
@@ -170,6 +183,20 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		}
 	}
 
+	announceConfig := AnnounceManagerConfig{
+		IsProxiedValidator: backend.IsProxiedValidator(),
+		AWallets:           &backend.aWallets,
+		VcDbPath:           config.VersionCertificateDBPath,
+	}
+
+	backend.announceManager = NewAnnounceManager(
+		announceConfig,
+		backend,
+		backend,
+		backend,
+		backend.valEnodeTable,
+		backend.gossipCache)
+
 	return backend
 }
 
@@ -179,33 +206,23 @@ type Backend struct {
 	config           *istanbul.Config
 	istanbulEventMux *event.TypeMux
 
-	address    common.Address        // Ethereum address of the ECDSA signing key
-	blsAddress common.Address        // Ethereum address of the BLS signing key
-	publicKey  *ecdsa.PublicKey      // The signer public key
-	decryptFn  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	signFn     istanbul.SignerFn     // Signer function to authorize hashes with
-	signBLSFn  istanbul.BLSSignerFn  // Signer function to authorize BLS messages
-	signHashFn istanbul.HashSignerFn // Signer function to create random seed
-	signFnMu   sync.RWMutex          // Protects the signer fields
+	aWallets atomic.Value
 
 	core         istanbulCore.Engine
 	logger       log.Logger
 	db           ethdb.Database
-	chain        consensus.ChainReader
+	chain        consensus.ChainContext
 	currentBlock func() *types.Block
 	hasBadBlock  func(hash common.Hash) bool
 	stateAt      func(hash common.Hash) (*state.StateDB, error)
 	replicaState replica.State
 
-	processBlock  func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
-	validateState func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	processBlock        func(block *types.Block, statedb *state.StateDB) (types.Receipts, []*types.Log, uint64, error)
+	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
+	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	// the channels for istanbul engine notifications
-	commitCh          chan *types.Block
-	proposedBlockHash common.Hash
-	sealMu            sync.Mutex
-	coreStarted       bool
-	coreMu            sync.RWMutex
+	coreStarted bool
+	coreMu      sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
@@ -216,17 +233,11 @@ type Backend struct {
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
 
-	peerRecentMessages *lru.ARCCache // the cache of peer's recent messages
-	selfRecentMessages *lru.ARCCache // the cache of self recent messages
-
-	lastQueryEnodeGossiped   map[common.Address]time.Time
-	lastQueryEnodeGossipedMu sync.RWMutex
+	gossipCache GossipCache
 
 	valEnodeTable *enodes.ValidatorEnodeDB
 
-	versionCertificateTable           *enodes.VersionCertificateDB
-	lastVersionCertificatesGossiped   map[common.Address]time.Time
-	lastVersionCertificatesGossipedMu sync.RWMutex
+	announceManager *AnnounceManager
 
 	announceRunning               bool
 	announceMu                    sync.RWMutex
@@ -237,17 +248,6 @@ type Backend struct {
 	generateAndGossipQueryEnodeCh chan struct{}
 
 	updateAnnounceVersionCh chan struct{}
-
-	// The enode certificate message map contains the most recently generated
-	// enode certificates for each external node ID (e.g. will have one entry per proxy
-	// for a proxied validator, or just one entry if it's a standalone validator).
-	// Each proxy will just have one entry for their own external node ID.
-	// Used for proving itself as a validator in the handshake for externally exposed nodes,
-	// or by saving latest generated certificate messages by proxied validators to send
-	// to their proxies.
-	enodeCertificateMsgMap     map[enode.ID]*istanbul.EnodeCertMsg
-	enodeCertificateMsgVersion uint
-	enodeCertificateMsgMapMu   sync.RWMutex // This protects both enodeCertificateMsgMap and enodeCertificateMsgVersion
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
@@ -320,6 +320,9 @@ type Backend struct {
 	// RandomSeed (and it's mutex) used to generate the random beacon randomness
 	randomSeed   []byte
 	randomSeedMu sync.Mutex
+
+	// Test hooks
+	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
 }
 
 // IsProxy returns true if instance has proxy flag
@@ -384,22 +387,32 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
-	sb.signFnMu.Lock()
-	defer sb.signFnMu.Unlock()
-
-	sb.address = ecdsaAddress
-	sb.blsAddress = blsAddress
-	sb.publicKey = publicKey
-	sb.decryptFn = decryptFn
-	sb.signFn = signFn
-	sb.signBLSFn = signBLSFn
-	sb.signHashFn = signHashFn
+	bls := BlsInfo{
+		Address: blsAddress,
+		sign:    signBLSFn,
+	}
+	ecdsa := EcdsaInfo{
+		Address:   ecdsaAddress,
+		PublicKey: publicKey,
+		decrypt:   decryptFn,
+		sign:      signFn,
+		signHash:  signHashFn,
+	}
+	w := &Wallets{
+		Ecdsa: ecdsa,
+		Bls:   bls,
+	}
+	sb.aWallets.Store(w)
 	sb.core.SetAddress(ecdsaAddress)
+}
+
+func (sb *Backend) wallets() *Wallets {
+	return sb.aWallets.Load().(*Wallets)
 }
 
 // Address implements istanbul.Backend.Address
 func (sb *Backend) Address() common.Address {
-	return sb.address
+	return sb.wallets().Ecdsa.Address
 }
 
 // SelfNode returns the owner's node (if this is a proxy, it will return the external node)
@@ -414,7 +427,7 @@ func (sb *Backend) Close() error {
 	if err := sb.valEnodeTable.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sb.versionCertificateTable.Close(); err != nil {
+	if err := sb.announceManager.Close(); err != nil {
 		errs = append(errs, err)
 	}
 	if sb.replicaState != nil {
@@ -489,7 +502,7 @@ func (sb *Backend) GetValidatorSet(epochNumber uint64, headerHash common.Hash) i
 }
 
 // Commit implements istanbul.Backend.Commit
-func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal) error {
+func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.IstanbulAggregatedSeal, aggregatedEpochValidatorSetSeal types.IstanbulEpochValidatorSetSeal, result *istanbulCore.StateProcessResult) error {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -504,7 +517,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		return err
 	}
 	// update block's header
-	block = block.WithSeal(h)
+	block = block.WithHeader(h)
 	block = block.WithEpochSnarkData(&types.EpochSnarkData{
 		Bitmap:    aggregatedEpochValidatorSetSeal.Bitmap,
 		Signature: aggregatedEpochValidatorSetSeal.Signature,
@@ -513,22 +526,23 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 		sb.recordBlockProductionTimes(block.Header().Number.Uint64(), len(block.Transactions()), block.GasUsed(), aggregatedSeal.Round.Uint64())
 	}
 
-	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
-	// - if the proposed and committed blocks are the same, send the proposed hash
-	//   to commit channel, which is being watched inside the engine.Seal() function.
-	// - otherwise, we try to insert the block.
-	// -- if success, the ChainHeadEvent event will be broadcasted, try to build
-	//    the next block and the previous Seal() will be stopped.
-	// -- otherwise, a error will be returned and a round change event will be fired.
-	if sb.proposedBlockHash == block.Hash() {
-		// feed block hash to Seal() and wait the Seal() result
-		sb.commitCh <- block
-		return nil
+	if sb.abortCommitHook != nil && sb.abortCommitHook(result) {
+		return errors.New("nil StateProcessResult")
 	}
 
-	if sb.broadcaster != nil {
-		sb.broadcaster.Enqueue(fetcherID, block)
+	sb.logger.Info("Committed", "address", sb.Address(), "round", aggregatedSeal.Round.Uint64(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
+
+	// If caller didn't provide a result, try verifying the block to produce one
+	if result == nil {
+		// This is a suboptimal path, since caller is expected to already have a result available
+		// and thus to avoid doing the block processing again
+		sb.logger.Warn("Potentially duplicated processing for block", "number", block.Number(), "hash", block.Hash())
+		if result, _, err = sb.Verify(proposal); err != nil {
+			return err
+		}
 	}
+	go sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
+
 	return nil
 }
 
@@ -538,23 +552,23 @@ func (sb *Backend) EventMux() *event.TypeMux {
 }
 
 // Verify implements istanbul.Backend.Verify
-func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
+func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProcessResult, time.Duration, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
 		sb.logger.Error("Invalid proposal, %v", proposal)
-		return 0, errInvalidProposal
+		return nil, 0, errInvalidProposal
 	}
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return 0, core.ErrBlacklistedHash
+		return nil, 0, core.ErrBlacklistedHash
 	}
 
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions())
 	if txnHash != block.Header().TxHash {
-		return 0, errMismatchTxhashes
+		return nil, 0, errMismatchTxhashes
 	}
 
 	// If the current block occurred before the Donut hard fork, check that the author and coinbase are equal.
@@ -562,10 +576,10 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 		addr, err := sb.Author(block.Header())
 		if err != nil {
 			sb.logger.Error("Could not recover original author of the block to verify against the header's coinbase", "err", err, "func", "Verify")
-			return 0, errInvalidProposal
+			return nil, 0, errInvalidProposal
 		} else if addr != block.Header().Coinbase {
 			sb.logger.Error("Block proposal author and coinbase must be the same when Donut hard fork is active")
-			return 0, errInvalidCoinbase
+			return nil, 0, errInvalidCoinbase
 		}
 	}
 
@@ -574,9 +588,9 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	// ignore errEmptyAggregatedSeal error because we don't have the committed seals yet
 	if err != nil && err != errEmptyAggregatedSeal {
 		if err == consensus.ErrFutureBlock {
-			return time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
+			return nil, time.Unix(int64(block.Header().Time), 0).Sub(now()), consensus.ErrFutureBlock
 		} else {
-			return 0, err
+			return nil, 0, err
 		}
 	}
 
@@ -585,42 +599,41 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (time.Duration, error) {
 	state, err := sb.stateAt(block.Header().ParentHash)
 	if err != nil {
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
-		return 0, err
+		return nil, 0, err
 	}
 
-	// Make a copy of the state
-	state = state.Copy()
-
 	// Apply this block's transactions to update the state
-	receipts, _, usedGas, err := sb.processBlock(block, state)
+	receipts, logs, usedGas, err := sb.processBlock(block, state)
 	if err != nil {
 		sb.logger.Error("verify - Error in processing the block", "err", err)
-		return 0, err
+		return nil, 0, err
 	}
 
 	// Validate the block
 	if err := sb.validateState(block, state, receipts, usedGas); err != nil {
 		sb.logger.Error("verify - Error in validating the block", "err", err)
-		return 0, err
+		return nil, 0, err
 	}
 
 	// verify the validator set diff if this is the last block of the epoch
 	if istanbul.IsLastBlockOfEpoch(block.Header().Number.Uint64(), sb.config.Epoch) {
 		if err := sb.verifyValSetDiff(proposal, block, state); err != nil {
 			sb.logger.Error("verify - Error in verifying the val set diff", "err", err)
-			return 0, err
+			return nil, 0, err
 		}
 	}
 
-	return 0, err
+	result := &istanbulCore.StateProcessResult{Receipts: receipts, Logs: logs, State: state}
+	return result, 0, nil
 }
 
 func (sb *Backend) getNewValidatorSet(header *types.Header, state *state.StateDB) ([]istanbul.ValidatorData, error) {
-	newValSetAddresses, err := election.GetElectedValidators(header, state)
+	vmRunner := sb.chain.NewEVMRunner(header, state)
+	newValSetAddresses, err := election.GetElectedValidators(vmRunner)
 	if err != nil {
 		return nil, err
 	}
-	newValSet, err := validators.GetValidatorData(header, state, newValSetAddresses)
+	newValSet, err := validators.GetValidatorData(vmRunner, newValSetAddresses)
 	return newValSet, err
 }
 
@@ -670,22 +683,13 @@ func (sb *Backend) verifyValSetDiff(proposal istanbul.Proposal, block *types.Blo
 
 // Sign implements istanbul.Backend.Sign
 func (sb *Backend) Sign(data []byte) ([]byte, error) {
-	if sb.signFn == nil {
-		return nil, errInvalidSigningFn
-	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	return sb.signFn(accounts.Account{Address: sb.address}, accounts.MimetypeIstanbul, data)
+	return sb.wallets().Ecdsa.Sign(data)
 }
 
 // Sign implements istanbul.Backend.SignBLS
 func (sb *Backend) SignBLS(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	if sb.signBLSFn == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	sb.signFnMu.RLock()
-	defer sb.signFnMu.RUnlock()
-	return sb.signBLSFn(accounts.Account{Address: sb.blsAddress}, data, extra, useComposite, cip22)
+	w := sb.wallets()
+	return w.Bls.Sign(data, extra, useComposite, cip22)
 }
 
 // CheckSignature implements istanbul.Backend.CheckSignature
@@ -739,15 +743,11 @@ func (sb *Backend) validatorRandomnessAtBlockNumber(number uint64, hash common.H
 	if number > 0 {
 		lastBlockInPreviousEpoch = number - istanbul.GetNumberWithinEpoch(number, sb.config.Epoch)
 	}
-	header := sb.chain.CurrentHeader()
-	if header == nil {
-		return common.Hash{}, errNoBlockHeader
-	}
-	state, err := sb.stateAt(header.Hash())
+	vmRunner, err := sb.chain.NewEVMRunnerForCurrentBlock()
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return random.BlockRandomness(header, state, lastBlockInPreviousEpoch)
+	return random.BlockRandomness(vmRunner, lastBlockInPreviousEpoch)
 }
 
 func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbul.ValidatorSet {
@@ -759,7 +759,7 @@ func (sb *Backend) getOrderedValidators(number uint64, hash common.Hash) istanbu
 	if sb.config.ProposerPolicy == istanbul.ShuffledRoundRobin {
 		seed, err := sb.validatorRandomnessAtBlockNumber(number, hash)
 		if err != nil {
-			if err == comm_errors.ErrRegistryContractNotDeployed {
+			if err == contracts.ErrRegistryContractNotDeployed {
 				sb.logger.Debug("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
 			} else {
 				sb.logger.Warn("Failed to set randomness for proposer selection", "block_number", number, "hash", hash, "error", err)
@@ -955,11 +955,12 @@ func (sb *Backend) retrieveUncachedValidatorConnSet() (map[common.Address]bool, 
 	if err != nil {
 		return nil, 0, time.Time{}, err
 	}
-	electNValidators, err := election.ElectNValidatorSigners(currentBlock.Header(), currentState, sb.config.AnnounceAdditionalValidatorsToGossip)
+	vmRunner := sb.chain.NewEVMRunner(currentBlock.Header(), currentState)
+	electNValidators, err := election.ElectNValidatorSigners(vmRunner, sb.config.AnnounceAdditionalValidatorsToGossip)
 
 	// The validator contract may not be deployed yet.
 	// Even if it is deployed, it may not have any registered validators yet.
-	if err == comm_errors.ErrSmartContractNotDeployed || err == comm_errors.ErrRegistryContractNotDeployed {
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
 		logger.Trace("Can't elect N validators because smart contract not deployed. Setting validator conn set to current elected validators.", "err", err)
 	} else if err != nil {
 		logger.Error("Error in electing N validators. Setting validator conn set to current elected validators", "err", err)

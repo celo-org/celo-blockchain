@@ -19,6 +19,9 @@ target
 
 # created when running tests
 /miner/validatorenodes/
+/graphql/roundstates/
+/graphql/validatorenodes/
+/graphql/versioncertificates/
 
 #*
 .#*
@@ -61,3 +64,6 @@ vendor/**/Cargo.lock
 docs/Gemfile.lock
 docs/_site
 docs/.jekyll-metadata
+
+# Ignore compiled contracts
+compiled-system-contracts

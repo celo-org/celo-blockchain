@@ -31,10 +31,11 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/gorilla/websocket v1.4.1-0.20190629185528-ae1634f6a989
 	github.com/graph-gophers/graphql-go v0.0.0-20191115155744-f33e81362277
-	github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hdevalence/ed25519consensus v0.0.0-20201207055737-7fde80a9d5ff
-	github.com/huin/goupnp v1.0.1-0.20200620063722-49508fba0031
-	github.com/influxdata/influxdb v1.8.3
+	github.com/holiman/uint256 v1.1.1
+	github.com/huin/goupnp v1.0.0
+	github.com/influxdata/influxdb v1.2.3-0.20180221223340-01288bdb0883
 	github.com/jackpal/go-nat-pmp v1.0.2-0.20160603034137-1fa385a6f458
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/karalabe/usb v0.0.0-20190919080040-51dc0efba356
@@ -51,10 +52,10 @@ require (
 	github.com/peterh/liner v1.1.1-0.20190123174540-a2c9a5303de7
 	github.com/prometheus/tsdb v0.7.1
 	github.com/rjeczalik/notify v0.9.1
-	github.com/rs/cors v1.7.0
+	github.com/rs/cors v0.0.0-20160617231935-a62a804a8a00
 	github.com/rs/xhandler v0.0.0-20160618193221-ed27b6fd6521 // indirect
 	github.com/shopspring/decimal v1.2.0
-	github.com/shirou/gopsutil v2.20.5-0.20200531151128-663af789c085+incompatible
+	github.com/shirou/gopsutil v2.20.5+incompatible
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
 	github.com/steakknife/hamming v0.0.0-20180906055917-c99c65617cd3 // indirect
@@ -70,7 +71,7 @@ require (
 	golang.org/x/text v0.3.3
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
-	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200603215123-a4a8cb9d2cbc
+	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200619000410-60c24ae608a6
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools v2.2.0+incompatible // indirect
 )

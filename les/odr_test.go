@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
+	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -118,6 +119,7 @@ func (callmsg) CheckNonce() bool { return false }
 
 func odrContractCall(ctx context.Context, db ethdb.Database, config *params.ChainConfig, bc *core.BlockChain, lc *light.LightChain, bhash common.Hash) []byte {
 	data := common.Hex2Bytes("60CD26850000000000000000000000000000000000000000000000000000000000000000")
+	celoMock := testutil.NewCeloMock()
 
 	var res []byte
 	for i := 0; i < 3; i++ {
@@ -135,9 +137,8 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 				context := core.NewEVMContext(msg, header, bc, nil)
 				vmenv := vm.NewEVM(context, statedb, config, vm.Config{})
 
-				//vmenv := core.NewEnv(statedb, config, bc, msg, header, vm.Config{})
 				gp := new(core.GasPool).AddGas(math.MaxUint64)
-				result, _ := core.ApplyMessage(vmenv, msg, gp)
+				result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner)
 				res = append(res, result.Return()...)
 			}
 		} else {
@@ -148,7 +149,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, config *params.Chai
 			context := core.NewEVMContext(msg, header, lc, nil)
 			vmenv := vm.NewEVM(context, state, config, vm.Config{})
 			gp := new(core.GasPool).AddGas(math.MaxUint64)
-			result, _ := core.ApplyMessage(vmenv, msg, gp)
+			result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner)
 			if state.Error() == nil {
 				res = append(res, result.Return()...)
 			}
@@ -185,7 +186,7 @@ func odrTxStatus(ctx context.Context, db ethdb.Database, config *params.ChainCon
 // testOdr tests odr requests whose validation guaranteed by block headers.
 func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn odrTestFn) {
 	// Assemble the test environment
-	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true)
+	server, client, tearDown := newClientServerEnv(t, downloader.LightSync, 4, protocol, nil, nil, 0, false, true, true)
 	defer tearDown()
 
 	// Ensure the client has synced all necessary data.
@@ -224,13 +225,13 @@ func testOdr(t *testing.T, protocol int, expFail uint64, checkCached bool, fn od
 
 	// expect retrievals to fail (except genesis block) without a les peer
 	client.handler.backend.peers.lock.Lock()
-	client.peer.speer.hasBlock = func(common.Hash, *uint64, bool) bool { return false }
+	client.peer.speer.hasBlockHook = func(common.Hash, uint64, bool) bool { return false }
 	client.handler.backend.peers.lock.Unlock()
 	test(expFail)
 
 	// expect all retrievals to pass
 	client.handler.backend.peers.lock.Lock()
-	client.peer.speer.hasBlock = func(common.Hash, *uint64, bool) bool { return true }
+	client.peer.speer.hasBlockHook = func(common.Hash, uint64, bool) bool { return true }
 	client.handler.backend.peers.lock.Unlock()
 	test(5)
 

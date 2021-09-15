@@ -2,6 +2,8 @@
 
 Official golang implementation of the Celo blockchain, based off of the [official golang implementation of the Ethereum protocol](https://github.com/ethereum/go-ethereum).
 
+[![CircleCI](https://img.shields.io/circleci/build/github/celo-org/celo-blockchain/master)](https://circleci.com/gh/celo-org/celo-blockchain/tree/master)
+[![Codecov](https://img.shields.io/codecov/c/github/celo-org/celo-blockchain)](https://codecov.io/gh/celo-org/celo-blockchain)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
 Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for a guide to the Celo networks and how to get started.
@@ -54,6 +56,34 @@ The Celo blockchain client comes with several wrappers/executables found in the 
 | `gethrpctest` | Developer utility tool to support the [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [ethereum test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
 | `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Celo protocol both network as well as consensus wise) to user friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
 
+## Running tests
+
+Prior to running tests you will need to run `make prepare-system-contracts`.
+This will checkout the celo-monorepo and compile the system contracts for use
+in full network tests. The rule will copy the compiled contracts from
+celo-monorepo to `compiled-system-contracts`. If you subsequently edit the
+system contracts source, running the make rule again will re-compile them and
+copy them into place.
+
+This make rule will shallow checkout
+[celo-monorepo](https://github.com/celo-org/celo-monorepo) under
+`../.celo-blockchain-monorepo-checkout` relative to this project's root, and it
+will checkout the commit defined in the variable MONOREPO_COMMIT in the
+Makefile. 
+
+These values can be overridden if required, by setting those variables in the
+make command, for example:
+```
+make prepare-system-contracts MONOREPO_COMMIT=master MONOREPO_PATH=../alt-monorepo
+```
+
+Without first running this make rule, certain tests will fail with errors such
+as:
+
+```
+panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/FixidityLib.json: open
+```
+
 ## Running Celo
 
 Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
@@ -81,7 +111,7 @@ This command will:
 ### A Full node on the Alfajores test network
 
 Smart contract developers will be most interested in the Alfajores testnet.
-On Alfajores, you can receive testnet Celo Gold through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
+On Alfajores, you can receive testnet Celo through the [Alfajores faucet](https://celo.org/developers/faucet) and deploy smart contracts in an environment very similar to Mainnet.
 More information about the Alfajores testnet can be found on [docs.celo.org](https://docs.celo.org/getting-started/alfajores-testnet).
 
 ```shell
@@ -136,16 +166,19 @@ you'd expect.
 
 HTTP based JSON-RPC API options:
 
-  * `--rpc` Enable the HTTP-RPC server
-  * `--rpcaddr` HTTP-RPC server listening interface (default: `localhost`)
-  * `--rpcport` HTTP-RPC server listening port (default: `8545`)
-  * `--rpcapi` API's offered over the HTTP-RPC interface (default: `eth,net,web3`)
-  * `--rpccorsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
+  * `--http` Enable the HTTP-RPC server
+  * `--http.addr` HTTP-RPC server listening interface (default: `localhost`)
+  * `--http.port` HTTP-RPC server listening port (default: `8545`)
+  * `--http.api` API's offered over the HTTP-RPC interface (default: `eth,net,web3`)
+  * `--http.corsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
   * `--ws` Enable the WS-RPC server
-  * `--wsaddr` WS-RPC server listening interface (default: `localhost`)
-  * `--wsport` WS-RPC server listening port (default: `8546`)
-  * `--wsapi` API's offered over the WS-RPC interface (default: `eth,net,web3`)
-  * `--wsorigins` Origins from which to accept websockets requests
+  * `--ws.addr` WS-RPC server listening interface (default: `localhost`)
+  * `--ws.port` WS-RPC server listening port (default: `8546`)
+  * `--ws.api` API's offered over the WS-RPC interface (default: `eth,net,web3`)
+  * `--ws.origins value` Origins from which to accept websockets requests
+  * `--graphql` Enable GraphQL on the HTTP-RPC server. Note that GraphQL can only be started if an HTTP server is started as well.
+  * `--graphql.corsdomain value` Comma separated list of domains from which to accept cross origin requests (browser enforced)
+  * `--graphql.vhosts value` Comma separated list of virtual hostnames from which to accept requests (server enforced). Accepts '*' wildcard. (default: "localhost")
   * `--ipcdisable` Disable the IPC-RPC server
   * `--ipcapi` API's offered over the IPC-RPC interface (default: `admin,debug,eth,miner,net,personal,shh,txpool,web3`)
   * `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
@@ -197,7 +230,7 @@ merge a PR.
   * Build: `make`
   * End to end sync and transfer tests
   * Check imports: `./scripts/check_imports.sh`
- 
+
  `celo-blockchain` is based on `go-ethereum`, but the import path has been renamed from `github.com/ethereum/go-ethereum` to `github.com/celo-org/celo-blockchain`.
  Developers are encouraged to run `./scripts/setup_git_hooks.sh` to enable checking that import path has been changed to `celo-org` on `git merge` and `git commit`.
  Imports can automatically be renamed with `./scripts/rename_imports.sh`.

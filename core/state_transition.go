@@ -22,11 +22,10 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
-	"github.com/celo-org/celo-blockchain/contract_comm/currency"
-	commerrs "github.com/celo-org/celo-blockchain/contract_comm/errors"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/contracts"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
@@ -61,6 +60,7 @@ type StateTransition struct {
 	data            []byte
 	state           vm.StateDB
 	evm             *vm.EVM
+	vmRunner        vm.EVMRunner
 	gasPriceMinimum *big.Int
 }
 
@@ -190,12 +190,13 @@ func IntrinsicGas(data []byte, contractCreation bool, feeCurrency *common.Addres
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(msg.FeeCurrency(), evm.Header, evm.StateDB)
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) *StateTransition {
+	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
 
 	return &StateTransition{
 		gp:              gp,
 		evm:             evm,
+		vmRunner:        vmRunner,
 		msg:             msg,
 		gasPrice:        msg.GasPrice(),
 		value:           msg.Value(),
@@ -212,18 +213,18 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) (*ExecutionResult, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransition(evm, msg, gp).TransitionDb()
+	return NewStateTransition(evm, msg, gp, vmRunner).TransitionDb()
 }
 
 // ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
 // set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool) (*ExecutionResult, error) {
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp)
+	st := NewStateTransition(evm, msg, gp, vmRunner)
 	st.gasPriceMinimum = common.Big0
 	return st.TransitionDb()
 }
@@ -238,7 +239,7 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees() error {
-	if !currency.IsWhitelisted(st.msg.FeeCurrency(), st.evm.Header, st.evm.StateDB) {
+	if !currency.IsWhitelisted(st.vmRunner, st.msg.FeeCurrency()) {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -268,12 +269,17 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
-	balanceOf, err := currency.GetBalanceOf(accountOwner, *feeCurrency, st.evm.Header, st.evm.StateDB)
-
+	balance, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
 	if err != nil {
 		return false
 	}
-	return balanceOf.Cmp(fee) > 0
+
+	// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
+	if st.evm.ChainConfig().IsEHardfork(st.evm.BlockNumber) {
+		return balance.Cmp(fee) >= 0
+	} else {
+		return balance.Cmp(fee) > 0
+	}
 }
 
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
@@ -411,7 +417,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrency(st.evm.Header, st.state)
+		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
 	}
 	gas, err := IntrinsicGas(st.data, contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
 	if err != nil {
@@ -487,7 +493,7 @@ func (st *StateTransition) distributeTxFees() error {
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
 	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 	if err != nil {
-		if err != commerrs.ErrSmartContractNotDeployed && err != commerrs.ErrRegistryContractNotDeployed {
+		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return err
 		}
 		log.Trace("Cannot credit gas fee to community fund: refunding fee to sender", "error", err, "fee", baseTxFee)

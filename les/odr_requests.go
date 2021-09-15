@@ -112,11 +112,13 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	body := bodies[0]
 
 	// Retrieve our stored header and validate block content against it
-	header := rawdb.ReadHeader(db, r.Hash, r.Number)
-	if header == nil {
+	if r.Header == nil {
+		r.Header = rawdb.ReadHeader(db, r.Hash, r.Number)
+	}
+	if r.Header == nil {
 		return errHeaderUnavailable
 	}
-	if header.TxHash != types.DeriveSha(types.Transactions(body.Transactions)) {
+	if r.Header.TxHash != types.DeriveSha(types.Transactions(body.Transactions)) {
 		return errTxHashMismatch
 	}
 	// Validations passed, encode and store RLP
@@ -144,13 +146,18 @@ func (r *HeaderRequest) CanSend(peer *serverPeer) bool {
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
 func (r *HeaderRequest) Request(reqId uint64, peer *serverPeer) error {
-	if r.Origin.Hash != (common.Hash{}) {
+	if r.isByHash() {
 		peer.Log().Debug("Requesting block header", "hash", r.Origin.Hash)
 		return peer.requestHeadersByHash(reqId, r.Origin.Hash, 1, 0, false)
 	} else {
 		peer.Log().Debug("Requesting block header", "number", r.Origin.Number)
 		return peer.requestHeadersByNumber(reqId, *r.Origin.Number, 1, 0, false)
 	}
+}
+
+// Whether the request specified the block hash (rather than block number)
+func (r *HeaderRequest) isByHash() bool {
+	return r.Origin.Hash != common.Hash{}
 }
 
 // Validate processes an ODR request reply message from the LES network
@@ -162,7 +169,15 @@ func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
 		return errInvalidMessageType
 	}
 	headers := msg.Obj.([]*types.Header)
-	if len(headers) != 1 {
+	if len(headers) == 0 && r.isByHash() {
+		// For requests by number, we only send to peers for which we know the block number
+		// is within the range of what they have, so if they don't send us the header we reject
+		// the response and try other peers.
+		// However, for requests by hash, we have no way of knowing ahead of time whether the peer
+		// should have it or not (e.g. what if there is no such block?).  So we need to accept
+		// 'no match' as a valid response, to avoid ODR endlessly trying to send to different peers.
+		return nil
+	} else if len(headers) != 1 {
 		return errInvalidEntryCount
 	}
 	if r.Origin.Hash != (common.Hash{}) && headers[0].Hash() != r.Origin.Hash {

@@ -16,9 +16,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	numValidators := 3
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
-	_, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain0.Stop()
+	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	defer chain1.Stop()
+	chain2, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	defer chain2.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
 	time.Sleep(6 * time.Second)
@@ -34,18 +37,19 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	engine0Enode := engine0.SelfNode()
 
 	// Create version certificate messages for engine1 and engine2, so that engine0 will send a queryEnodeMessage to them
-	vCert1, err := engine1.generateVersionCertificate(engine1AnnounceVersion)
+	vCert1, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine1.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine1.  Error: %v", err)
 	}
 
-	vCert2, err := engine2.generateVersionCertificate(engine2AnnounceVersion)
+	vCert2, err := istanbul.NewVersionCertificate(engine1AnnounceVersion, engine2.Sign)
 	if err != nil {
 		t.Errorf("Error in generating version certificate for engine2.  Error: %v", err)
 	}
 
 	// Have engine0 handle vCert messages from engine1 and engine2
-	vCert1MsgPayload, err := engine1.encodeVersionCertificatesMsg([]*versionCertificate{vCert1})
+
+	vCert1MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert1}, engine1Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert1.  Error: %v", err)
 	}
@@ -54,7 +58,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 		t.Errorf("Error in handling vCert1.  Error: %v", err)
 	}
 
-	vCert2MsgPayload, err := engine2.encodeVersionCertificatesMsg([]*versionCertificate{vCert2})
+	vCert2MsgPayload, err := istanbul.NewVersionCeritifcatesMessage([]*istanbul.VersionCertificate{vCert2}, engine2Address).Payload()
 	if err != nil {
 		t.Errorf("Error in encoding vCert2.  Error: %v", err)
 	}
@@ -64,7 +68,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeEntries, err := engine0.getQueryEnodeValEnodeEntries(false)
+	qeEntries, err := engine0.announceManager.getQueryEnodeValEnodeEntries(false)
 	if err != nil {
 		t.Errorf("Error in retrieving entries for queryEnode request")
 	}
@@ -89,7 +93,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Generate query enode message for engine0
-	qeMsg, err := engine0.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
+	qeMsg, err := engine0.announceManager.generateAndGossipQueryEnode(engine0AnnounceVersion, false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}
@@ -101,12 +105,12 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Handle the qeMsg for both engine1 and engine2
-	err = engine1.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine1.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine1.  Error: %v", err)
 	}
 
-	err = engine2.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
+	err = engine2.announceManager.handleQueryEnodeMsg(engine0.Address(), nil, qePayload)
 	if err != nil {
 		t.Errorf("Error in handling query enode message for engine2.  Error: %v", err)
 	}
@@ -143,8 +147,10 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 	numValidators := 2
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
-	_, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain0.Stop()
+	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	defer chain1.Stop()
 
 	engine0Node := engine0.SelfNode()
 
@@ -194,13 +200,14 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	numValidators := 1
 	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
 
-	_, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	defer chain.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
 	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
-	if err := engine.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
+	if err := engine.announceManager.setAndShareUpdatedAnnounceVersion(announceVersion); err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 

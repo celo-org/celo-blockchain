@@ -36,9 +36,6 @@ type Protocol struct {
 	// by the protocol.
 	Length uint64
 
-	// Whether this should be the primary form of communication between nodes that support this protocol.
-	Primary bool
-
 	// Run is called in a new goroutine when the protocol has been
 	// negotiated with a peer. It should read and write messages from
 	// rw. The Payload for each message must be fully consumed.

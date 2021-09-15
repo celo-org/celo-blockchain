@@ -138,7 +138,7 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	if checkpoint != nil {
 		height = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 	}
-	handler.fetcher = newLightFetcher(handler, backend.serverPool.getTimeout)
+	handler.fetcher = newLightFetcher(backend.blockchain, backend.engine, backend.peers, handler.ulc, backend.chainDb, backend.reqDist, handler.synchronise, handler.syncMode)
 	// TODO mcortesi lightest boolean
 	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
 	handler.backend.peers.subscribe((*downloaderPeerNotify)(handler))
@@ -147,10 +147,14 @@ func newClientHandler(syncMode downloader.SyncMode, ulcServers []string, ulcFrac
 	return handler
 }
 
+func (h *clientHandler) start() {
+	h.fetcher.start()
+}
+
 func (h *clientHandler) stop() {
 	close(h.closeCh)
 	h.downloader.Terminate()
-	h.fetcher.close()
+	h.fetcher.stop()
 	h.wg.Wait()
 }
 
@@ -208,7 +212,6 @@ func (h *clientHandler) handle(p *serverPeer) error {
 		connectionTimer.Update(time.Duration(mclock.Now() - connectedAt))
 		serverConnectionGauge.Update(int64(h.backend.peers.len()))
 	}()
-
 	h.fetcher.announce(p, &announceData{Hash: p.headInfo.Hash, Number: p.headInfo.Number, Td: p.headInfo.Td})
 
 	// Loop until we receive a RequestEtherbase response or timeout.
@@ -292,6 +295,9 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 				p.Log().Trace("Valid announcement signature")
 			}
 			p.Log().Trace("Announce message content", "number", req.Number, "hash", req.Hash, "td", req.Td, "reorg", req.ReorgDepth)
+
+			// Update peer head information first and then notify the announcement
+			p.updateHead(req.Hash, req.Number, req.Td)
 			h.fetcher.announce(p, &req)
 		}
 	case BlockHeadersMsg:
@@ -302,28 +308,32 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		if err := msg.Decode(&resp); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
-		p.Log().Error("Received block header response message", "headers", resp.Headers)
+		headers := resp.Headers
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
 		p.answeredRequest(resp.ReqID)
-		if h.fetcher.requestedID(resp.ReqID) {
-			h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
-		} else { // ODR
+		// Filter out any explicitly requested headers, deliver the rest to the downloader
+		filter := len(headers) == 1
+		if filter {
+			headers = h.fetcher.deliverHeaders(p, resp.ReqID, resp.Headers)
+		}
+		if len(headers) != 0 || !filter {
 			h.backend.retriever.lock.RLock()
 			headerRequested := h.backend.retriever.sentReqs[resp.ReqID]
 			h.backend.retriever.lock.RUnlock()
 			if headerRequested != nil {
-				contiguousHeaders := h.syncMode != downloader.LightestSync
-				log.Error("Inserting header chain")
-				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
-					return err
+				if len(headers) != 0 {
+					contiguousHeaders := h.syncMode != downloader.LightestSync
+					if _, err := h.fetcher.chain.InsertHeaderChain(headers, 1, contiguousHeaders); err != nil {
+						return err
+					}
 				}
 				deliverMsg = &Msg{
 					MsgType: MsgBlockHeaders,
 					ReqID:   resp.ReqID,
-					Obj:     resp.Headers,
+					Obj:     headers,
 				}
 			} else {
-				if err := h.downloader.DeliverHeaders(p.id, resp.Headers); err != nil {
+				if err := h.downloader.DeliverHeaders(p.id, headers); err != nil {
 					log.Error("Failed to deliver headers", "err", err)
 				}
 			}
@@ -503,8 +513,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 	// Deliver the received response to retriever.
 	if deliverMsg != nil {
 		if err := h.backend.retriever.deliver(p, deliverMsg); err != nil {
-			p.errCount++
-			if p.errCount > maxResponseErrors {
+			if val := p.errCount.Add(1, mclock.Now()); val > maxResponseErrors {
 				return err
 			}
 		}

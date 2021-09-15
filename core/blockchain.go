@@ -40,6 +40,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
@@ -120,6 +121,8 @@ const (
 // that's resident in a blockchain.
 type CacheConfig struct {
 	TrieCleanLimit      int           // Memory allowance (MB) to use for caching trie nodes in memory
+	TrieCleanJournal    string        // Disk journal for saving clean cache entries.
+	TrieCleanRejournal  time.Duration // Time interval to dump clean cache to disk periodically
 	TrieCleanNoPrefetch bool          // Whether to disable heuristic state prefetching for followup blocks
 	TrieDirtyLimit      int           // Memory limit (MB) at which to start flushing dirty trie nodes to disk
 	TrieDirtyDisabled   bool          // Whether to disable trie write caching and GC altogether (archive node)
@@ -229,7 +232,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		cacheConfig:    cacheConfig,
 		db:             db,
 		triegc:         prque.New(nil),
-		stateCache:     state.NewDatabaseWithCache(db, cacheConfig.TrieCleanLimit),
+		stateCache:     state.NewDatabaseWithCache(db, cacheConfig.TrieCleanLimit, cacheConfig.TrieCleanJournal),
 		quit:           make(chan struct{}),
 		shouldPreserve: shouldPreserve,
 		bodyCache:      bodyCache,
@@ -375,12 +378,41 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		bc.txLookupLimit = *txLookupLimit
 		go bc.maintainTxIndex(txIndexBlock)
 	}
+	// If periodic cache journal is required, spin it up.
+	if bc.cacheConfig.TrieCleanRejournal > 0 {
+		if bc.cacheConfig.TrieCleanRejournal < time.Minute {
+			log.Warn("Sanitizing invalid trie cache journal time", "provided", bc.cacheConfig.TrieCleanRejournal, "updated", time.Minute)
+			bc.cacheConfig.TrieCleanRejournal = time.Minute
+		}
+		triedb := bc.stateCache.TrieDB()
+		bc.wg.Add(1)
+		go func() {
+			defer bc.wg.Done()
+			triedb.SaveCachePeriodically(bc.cacheConfig.TrieCleanJournal, bc.cacheConfig.TrieCleanRejournal, bc.quit)
+		}()
+	}
 	return bc, nil
 }
 
 // GetVMConfig returns the block chain VM config.
 func (bc *BlockChain) GetVMConfig() *vm.Config {
 	return &bc.vmConfig
+}
+
+// NewEVMRunner creates the System's EVMRunner for given header & sttate
+func (bc *BlockChain) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return vmcontext.NewEVMRunner(bc, header, state)
+}
+
+// NewEVMRunnerForCurrentBlock creates the System's EVMRunner for current block & state
+func (bc *BlockChain) NewEVMRunnerForCurrentBlock() (vm.EVMRunner, error) {
+	block := bc.CurrentBlock()
+	state, err := bc.StateAt(block.Header().Root)
+	if err != nil {
+		log.Error("Can't create EVMRunner for current block (error fetching state)", "number", block.Number(), "stateRoot", block.Root().Hex(), "err", err)
+		return nil, err
+	}
+	return vmcontext.NewEVMRunner(bc, block.Header(), state), nil
 }
 
 // empty returns an indicator whether the blockchain is empty.
@@ -982,14 +1014,14 @@ func (bc *BlockChain) Stop() {
 				recent := bc.GetBlockByNumber(number - offset)
 
 				log.Info("Writing cached state to disk", "block", recent.Number(), "hash", recent.Hash(), "root", recent.Root())
-				if err := triedb.Commit(recent.Root(), true); err != nil {
+				if err := triedb.Commit(recent.Root(), true, nil); err != nil {
 					log.Error("Failed to commit recent state trie", "err", err)
 				}
 			}
 		}
 		if snapBase != (common.Hash{}) {
 			log.Info("Writing snapshot state to disk", "root", snapBase)
-			if err := triedb.Commit(snapBase, true); err != nil {
+			if err := triedb.Commit(snapBase, true, nil); err != nil {
 				log.Error("Failed to commit recent state trie", "err", err)
 			}
 		}
@@ -999,6 +1031,12 @@ func (bc *BlockChain) Stop() {
 		if size, _ := triedb.Size(); size != 0 {
 			log.Error("Dangling trie nodes after full cleanup")
 		}
+	}
+	// Ensure all live cached entries be saved into disk, so that we can skip
+	// cache warmup when node restarts.
+	if bc.cacheConfig.TrieCleanJournal != "" {
+		triedb := bc.stateCache.TrieDB()
+		triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
 	}
 	log.Info("Blockchain stopped")
 }
@@ -1421,17 +1459,24 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-// WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+// InsertPreprocessedBlock inserts a block which is already processed.
+// It can only insert the new Head block
+func (bc *BlockChain) InsertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) error {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
-	return bc.writeBlockWithState(block, receipts, logs, state, emitHeadEvent)
+	// check we are trying to insert the NEXT block
+	if block.Header().ParentHash != bc.CurrentHeader().Hash() {
+		return ErrNotHeadBlock
+	}
+
+	_, err := bc.insertPreprocessedBlock(block, receipts, logs, state, true)
+	return err
 }
 
-// writeBlockWithState writes the block and all associated state to the database,
+// insertPreprocessedBlock writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) insertPreprocessedBlock(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
@@ -1502,7 +1547,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
-		if err := triedb.Commit(root, false); err != nil {
+		if err := triedb.Commit(root, false, nil); err != nil {
 			return NonStatTy, err
 		}
 	} else {
@@ -1536,7 +1581,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 						log.Info("State in memory for too long, committing", "time", bc.gcproc, "allowance", bc.cacheConfig.TrieTimeLimit, "optimum", float64(chosen-lastWrite)/TriesInMemory)
 					}
 					// Flush an entire trie and restart the counters
-					triedb.Commit(header.Root, true)
+					triedb.Commit(header.Root, true, nil)
 					lastWrite = chosen
 					bc.gcproc = 0
 				}
@@ -1745,13 +1790,13 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 	}
 	switch {
 	// First block is pruned, insert as sidechain and reorg only if TD grows enough
-	case err == consensus.ErrPrunedAncestor:
+	case errors.Is(err, consensus.ErrPrunedAncestor):
 		log.Debug("Pruned ancestor, inserting as sidechain", "number", block.Number(), "hash", block.Hash())
 		return bc.insertSideChain(block, it)
 
 	// First block is future, shove it (and all children) to the future queue (unknown ancestor)
-	case err == consensus.ErrFutureBlock || (err == consensus.ErrUnknownAncestor && bc.futureBlocks.Contains(it.first().ParentHash())):
-		for block != nil && (it.index == 0 || err == consensus.ErrUnknownAncestor) {
+	case errors.Is(err, consensus.ErrFutureBlock) || (errors.Is(err, consensus.ErrUnknownAncestor) && bc.futureBlocks.Contains(it.first().ParentHash())):
+		for block != nil && (it.index == 0 || errors.Is(err, consensus.ErrUnknownAncestor)) {
 			log.Debug("Future block, postponing import", "number", block.Number(), "hash", block.Hash())
 			if err := bc.addFutureBlock(block); err != nil {
 				return it.index, err
@@ -1879,7 +1924,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Write the block to the chain and get the status.
 		substart = time.Now()
-		status, err := bc.writeBlockWithState(block, receipts, logs, statedb, false)
+		status, err := bc.insertPreprocessedBlock(block, receipts, logs, statedb, false)
 		atomic.StoreUint32(&followupInterrupt, 1)
 		if err != nil {
 			return it.index, err
@@ -1925,13 +1970,13 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		stats.report(chain, it.index, dirty)
 	}
 	// Any blocks remaining here? The only ones we care about are the future ones
-	if block != nil && err == consensus.ErrFutureBlock {
+	if block != nil && errors.Is(err, consensus.ErrFutureBlock) {
 		if err := bc.addFutureBlock(block); err != nil {
 			return it.index, err
 		}
 		block, err = it.next()
 
-		for ; block != nil && err == consensus.ErrUnknownAncestor; block, err = it.next() {
+		for ; block != nil && errors.Is(err, consensus.ErrUnknownAncestor); block, err = it.next() {
 			if err := bc.addFutureBlock(block); err != nil {
 				return it.index, err
 			}
@@ -1959,7 +2004,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 	// ones. Any other errors means that the block is invalid, and should not be written
 	// to disk.
 	err := consensus.ErrPrunedAncestor
-	for ; block != nil && (err == consensus.ErrPrunedAncestor); block, err = it.next() {
+	for ; block != nil && errors.Is(err, consensus.ErrPrunedAncestor); block, err = it.next() {
 		// Check the canonical state root for that number
 		if number := block.NumberU64(); current.NumberU64() >= number {
 			canonical := bc.GetBlockByNumber(number)

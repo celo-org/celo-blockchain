@@ -231,7 +231,7 @@ func (f *freezer) AppendAncient(number uint64, hash, header, body, receipts, td 
 	return nil
 }
 
-// Truncate discards any recent data above the provided threshold number.
+// TruncateAncients discards any recent data above the provided threshold number.
 func (f *freezer) TruncateAncients(items uint64) error {
 	if atomic.LoadUint64(&f.frozen) <= items {
 		return nil
@@ -245,7 +245,7 @@ func (f *freezer) TruncateAncients(items uint64) error {
 	return nil
 }
 
-// sync flushes all data tables to disk.
+// Sync flushes all data tables to disk.
 func (f *freezer) Sync() error {
 	var errs []error
 	for _, table := range f.tables {
@@ -333,7 +333,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		var (
 			start    = time.Now()
 			first    = f.frozen
-			ancients = make([]common.Hash, 0, limit)
+			ancients = make([]common.Hash, 0, limit-f.frozen)
 		)
 		for f.frozen <= limit {
 			// Retrieves all the components of the canonical block

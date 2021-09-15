@@ -518,7 +518,7 @@ func (b *Block) TotalDifficulty(ctx context.Context) (hexutil.Big, error) {
 		}
 		h = header.Hash()
 	}
-	return hexutil.Big(*b.backend.GetTd(h)), nil
+	return hexutil.Big(*b.backend.GetTd(ctx, h)), nil
 }
 
 // BlockNumberArgs encapsulates arguments to accessors that specify a block number.
@@ -952,7 +952,7 @@ func (r *Resolver) Logs(ctx context.Context, args struct{ Filter FilterCriteria 
 }
 
 func (r *Resolver) GasPrice(ctx context.Context) (hexutil.Big, error) {
-	price, err := r.backend.SuggestPrice(ctx)
+	price, err := r.backend.SuggestPrice(ctx, nil)
 	return hexutil.Big(*price), err
 }
 

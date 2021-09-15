@@ -171,7 +171,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'accountRange',
 			call: 'debug_accountRange',
-			params: 2
+			params: 6,
+			inputFormatter: [web3._extend.formatters.inputDefaultBlockNumberFormatter, null, null, null, null, null],
 		}),
 		new web3._extend.Method({
 			name: 'printBlock',
@@ -460,6 +461,12 @@ web3._extend({
 			params: 2
 		}),
 		new web3._extend.Method({
+			name: 'getBlockReceipt',
+			call: 'eth_getBlockReceipt',
+			params: 1,
+			outputFormatter: web3._extend.formatters.outputTransactionReceiptFormatter
+		}),
+		new web3._extend.Method({
 			name: 'getRawTransaction',
 			call: 'eth_getRawTransactionByHash',
 			params: 1
@@ -511,16 +518,6 @@ web3._extend({
 	property: 'miner',
 	methods: [
 		new web3._extend.Method({
-			name: 'start',
-			call: 'miner_start',
-			params: 1,
-			inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'stop',
-			call: 'miner_stop'
-		}),
-		new web3._extend.Method({
 			name: 'setEtherbase',
 			call: 'miner_setEtherbase',
 			params: 1,
@@ -538,13 +535,16 @@ web3._extend({
 			inputFormatter: [web3._extend.utils.fromDecimal]
 		}),
 		new web3._extend.Method({
-			name: 'setRecommitInterval',
-			call: 'miner_setRecommitInterval',
-			params: 1,
+			name: 'start',
+			call: 'miner_start',
+			params: 0,
+			inputFormatter: []
 		}),
 		new web3._extend.Method({
-			name: 'getHashrate',
-			call: 'miner_getHashrate'
+			name: 'stop',
+			call: 'miner_stop',
+			params: 0,
+			inputFormatter: []
 		}),
 	],
 	properties: []

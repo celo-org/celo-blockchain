@@ -1,29 +1,29 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
-	"math/big"
 	"strings"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
-	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/contract_comm"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
-	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -86,21 +86,21 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	b.StartAnnouncing()
 
 	if !isProxy {
-		b.SetBlockProcessors(blockchain.HasBadBlock,
+		b.SetCallBacks(blockchain.HasBadBlock,
 			func(block *types.Block, state *state.StateDB) (types.Receipts, []*types.Log, uint64, error) {
 				return blockchain.Processor().Process(block, state, *blockchain.GetVMConfig())
 			},
-			func(block *types.Block, state *state.StateDB, receipts types.Receipts, usedGas uint64) error {
-				return blockchain.Validator().ValidateState(block, state, receipts, usedGas)
+			blockchain.Validator().ValidateState,
+			func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) {
+				if err := blockchain.InsertPreprocessedBlock(block, receipts, logs, state); err != nil {
+					panic(fmt.Sprintf("could not InsertPreprocessedBlock: %v", err))
+				}
 			})
-
 		if isProxied {
 			b.StartProxiedValidatorEngine()
 		}
 		b.StartValidating()
 	}
-
-	contract_comm.SetEVMRunnerFactory(vmcontext.GetSystemEVMRunnerFactory(blockchain))
 
 	return blockchain, b, &config
 }
@@ -111,7 +111,7 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	validators := make([]istanbul.ValidatorData, n)
 	for i := 0; i < n; i++ {
 		var addr common.Address
-		if i == 1 {
+		if i == 0 {
 			nodeKeys[i], _ = generatePrivateKey()
 			addr = getAddress()
 		} else {
@@ -143,6 +143,38 @@ func getGenesisAndKeys(n int, isFullChain bool) (*core.Genesis, []*ecdsa.Private
 	return genesis, nodeKeys
 }
 
+func AppendValidatorsToGenesisBlock(genesis *core.Genesis, validators []istanbul.ValidatorData) {
+	if len(genesis.ExtraData) < types.IstanbulExtraVanity {
+		genesis.ExtraData = append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...)
+	}
+	genesis.ExtraData = genesis.ExtraData[:types.IstanbulExtraVanity]
+
+	var addrs []common.Address
+	var publicKeys []blscrypto.SerializedPublicKey
+
+	for i := range validators {
+		if (validators[i].BLSPublicKey == blscrypto.SerializedPublicKey{}) {
+			panic("BLSPublicKey is nil")
+		}
+		addrs = append(addrs, validators[i].Address)
+		publicKeys = append(publicKeys, validators[i].BLSPublicKey)
+	}
+
+	ist := &types.IstanbulExtra{
+		AddedValidators:           addrs,
+		AddedValidatorsPublicKeys: publicKeys,
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+	}
+
+	istPayload, err := rlp.EncodeToBytes(&ist)
+	if err != nil {
+		panic("failed to encode istanbul extra")
+	}
+	genesis.ExtraData = append(genesis.ExtraData, istPayload...)
+}
+
 func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 	header := &types.Header{
 		ParentHash: parent.Hash(),
@@ -156,39 +188,38 @@ func makeHeader(parent *types.Block, config *istanbul.Config) *types.Header {
 
 func makeBlock(keys []*ecdsa.PrivateKey, chain *core.BlockChain, engine *Backend, parent *types.Block) (*types.Block, error) {
 	block := makeBlockWithoutSeal(chain, engine, parent)
-	block, _ = engine.updateBlock(parent.Header(), block)
 
-	// start the sealing procedure
-	results := make(chan *types.Block)
-	go func() {
-		err := engine.Seal(chain, block, results, nil)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	// Set up block subscription
+	chainHeadCh := make(chan core.ChainHeadEvent, 10)
+	sub := chain.SubscribeChainHeadEvent(chainHeadCh)
+	defer sub.Unsubscribe()
 
-	// create the sig and call Commit so that the result is pushed to the channel
-	aggregatedSeal := signBlock(keys, block)
-	aggregatedEpochSnarkDataSeal := signEpochSnarkData(keys, []byte("message"), []byte("extra data"))
-	err := engine.Commit(block, aggregatedSeal, aggregatedEpochSnarkDataSeal)
+	// start seal request (this is non-blocking)
+	err := engine.Seal(chain, block)
 	if err != nil {
 		return nil, err
 	}
-	block = <-results
 
-	// insert the block to the chain so that we can make multiple calls to this function
-	_, err = chain.InsertChain(types.Blocks{block})
-	if err != nil {
-		return nil, err
+	// Wait for and then save the mined block.
+	select {
+	case ev := <-chainHeadCh:
+		block = ev.Block
+	case <-time.After(6 * time.Second):
+		return nil, errors.New("Timed out when making a block")
 	}
+
+	// Notify the core engine to stop working on current Seal.
+	go engine.istanbulEventMux.Post(istanbul.FinalCommittedEvent{})
+
 	return block, nil
 }
 
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	header := makeHeader(parent, engine.config)
 	// The worker that calls Prepare is the one filling the Coinbase
-	header.Coinbase = engine.address
+	header.Coinbase = engine.wallets().Ecdsa.Address
 	engine.Prepare(chain, header)
+	time.Sleep(time.Until(time.Unix(int64(header.Time), 0)))
 
 	state, err := chain.StateAt(parent.Root())
 	if err != nil {
@@ -315,82 +346,6 @@ func SignHashFn(key *ecdsa.PrivateKey) istanbul.HashSignerFn {
 	return func(_ accounts.Account, data []byte) ([]byte, error) {
 		return crypto.Sign(data, key)
 	}
-}
-
-// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over the
-// block's hash, on consensus round 0, without a composite hasher
-func signBlock(keys []*ecdsa.PrivateKey, block *types.Block) types.IstanbulAggregatedSeal {
-	extraData := []byte{}
-	useComposite := false
-	cip22 := false
-	round := big.NewInt(0)
-	headerHash := block.Header().Hash()
-	signatures := make([][]byte, len(keys))
-
-	msg := istanbulCore.PrepareCommittedSeal(headerHash, round)
-
-	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, msg, extraData, useComposite, cip22)
-		if err != nil {
-			panic("could not sign msg")
-		}
-		signatures[i] = sig[:]
-	}
-
-	asigBytes, err := blscrypto.AggregateSignatures(signatures)
-	if err != nil {
-		panic("could not aggregate sigs")
-	}
-
-	// create the bitmap from the validators
-	bitmap := big.NewInt(0)
-	for i := 0; i < len(keys); i++ {
-		bitmap.SetBit(bitmap, i, 1)
-	}
-
-	asig := types.IstanbulAggregatedSeal{
-		Bitmap:    bitmap,
-		Round:     round,
-		Signature: asigBytes,
-	}
-
-	return asig
-}
-
-// this will return an aggregate sig by the BLS keys corresponding to the `keys` array over
-// an abtirary message
-func signEpochSnarkData(keys []*ecdsa.PrivateKey, message, extraData []byte) types.IstanbulEpochValidatorSetSeal {
-	useComposite := true
-	cip22 := true
-	signatures := make([][]byte, len(keys))
-
-	for i, key := range keys {
-		signFn := SignBLSFn(key)
-		sig, err := signFn(accounts.Account{}, message, extraData, useComposite, cip22)
-		if err != nil {
-			panic("could not sign msg")
-		}
-		signatures[i] = sig[:]
-	}
-
-	asigBytes, err := blscrypto.AggregateSignatures(signatures)
-	if err != nil {
-		panic("could not aggregate sigs")
-	}
-
-	// create the bitmap from the validators
-	bitmap := big.NewInt(0)
-	for i := 0; i < len(keys); i++ {
-		bitmap.SetBit(bitmap, i, 1)
-	}
-
-	asig := types.IstanbulEpochValidatorSetSeal{
-		Bitmap:    bitmap,
-		Signature: asigBytes,
-	}
-
-	return asig
 }
 
 func newBackend() (b *Backend) {

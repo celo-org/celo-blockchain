@@ -25,9 +25,7 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"runtime"
 	"strings"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -67,11 +65,6 @@ func (api *PublicEthereumAPI) Coinbase() (common.Address, error) {
 	return api.TxFeeRecipient()
 }
 
-// Hashrate returns the POW hashrate
-func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
-	return hexutil.Uint64(api.e.Miner().HashRate())
-}
-
 // ChainId is the EIP-155 replay-protection chain id for the current ethereum chain config.
 func (api *PublicEthereumAPI) ChainId() hexutil.Uint64 {
 	chainID := new(big.Int)
@@ -108,20 +101,13 @@ func NewPrivateMinerAPI(e *Ethereum) *PrivateMinerAPI {
 	return &PrivateMinerAPI{e: e}
 }
 
-// Start starts the miner with the given number of threads. If threads is nil,
-// the number of workers started is equal to the number of logical CPUs that are
-// usable by this process. If mining is already running, this method adjust the
-// number of threads allowed to use and updates the minimum price required by the
-// transaction pool.
-func (api *PrivateMinerAPI) Start(threads *int) error {
+// Start starts the miner
+func (api *PrivateMinerAPI) Start() error {
 	if api.e.config.Istanbul.Proxy {
 		return errors.New("Can't mine if node is a proxy")
 	}
 
-	if threads == nil {
-		return api.e.StartMining(runtime.NumCPU())
-	}
-	return api.e.StartMining(*threads)
+	return api.e.StartMining()
 }
 
 // Stop terminates the miner, both at the consensus engine level as well as at
@@ -140,10 +126,6 @@ func (api *PrivateMinerAPI) SetExtra(extra string) (bool, error) {
 
 // SetGasPrice sets the minimum accepted gas price for the miner.
 func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
-	api.e.lock.Lock()
-	api.e.gasPrice = (*big.Int)(&gasPrice)
-	api.e.lock.Unlock()
-
 	api.e.txPool.SetGasPrice((*big.Int)(&gasPrice))
 	return true
 }
@@ -153,16 +135,6 @@ func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
 	api.e.SetValidator(etherbase)
 	api.e.SetTxFeeRecipient(etherbase)
 	return true
-}
-
-// SetRecommitInterval updates the interval for miner sealing work recommitting.
-func (api *PrivateMinerAPI) SetRecommitInterval(interval int) {
-	api.e.Miner().SetRecommitInterval(time.Duration(interval) * time.Millisecond)
-}
-
-// GetHashrate returns the current hashrate of the miner.
-func (api *PrivateMinerAPI) GetHashrate() uint64 {
-	return api.e.miner.HashRate()
 }
 
 // PrivateAdminAPI is the collection of Ethereum full node-related APIs
@@ -457,7 +429,7 @@ type storageEntry struct {
 
 // StorageRangeAt returns the storage at the given block height and transaction index.
 func (api *PrivateDebugAPI) StorageRangeAt(blockHash common.Hash, txIndex int, contractAddress common.Address, keyStart hexutil.Bytes, maxResult int) (StorageRangeResult, error) {
-	_, _, statedb, err := api.computeTxEnv(blockHash, txIndex, 0)
+	_, _, _, statedb, err := api.computeTxEnv(blockHash, txIndex, 0)
 	if err != nil {
 		return StorageRangeResult{}, err
 	}

@@ -30,25 +30,23 @@ import (
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
 var DefaultConfig = Config{
-	SyncMode:           downloader.FastSync,
-	NetworkId:          1,
-	LightPeers:         100,
-	LightServ:          0,
-	UltraLightFraction: 75,
-	DatabaseCache:      512,
-	TrieCleanCache:     154,
-	TrieDirtyCache:     256,
-	TrieTimeout:        60 * time.Minute,
-	SnapshotCache:      102,
-	Miner: miner.Config{
-		GasFloor: 8000000,
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(1),
-		Recommit: 3 * time.Second,
-	},
-	GatewayFee: big.NewInt(0),
+	SyncMode:                downloader.FastSync,
+	NetworkId:               1,
+	LightPeers:              100,
+	LightServ:               0,
+	UltraLightFraction:      75,
+	DatabaseCache:           512,
+	TrieCleanCache:          154,
+	TrieCleanCacheJournal:   "triecache",
+	TrieCleanCacheRejournal: 60 * time.Minute,
+	TrieDirtyCache:          256,
+	TrieTimeout:             60 * time.Minute,
+	SnapshotCache:           102,
+	GatewayFee:              big.NewInt(0),
 
-	TxPool: core.DefaultTxPoolConfig,
+	TxPool:      core.DefaultTxPoolConfig,
+	RPCGasCap:   25000000,
+	RPCTxFeeCap: 500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
 }
@@ -77,10 +75,11 @@ type Config struct {
 	Whitelist map[uint64]common.Hash `toml:"-"`
 
 	// Light client options
-	LightServ    int `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
-	LightIngress int `toml:",omitempty"` // Incoming bandwidth limit for light servers
-	LightEgress  int `toml:",omitempty"` // Outgoing bandwidth limit for light servers
-	LightPeers   int `toml:",omitempty"` // Maximum number of LES client peers
+	LightServ    int  `toml:",omitempty"` // Maximum percentage of time allowed for serving LES requests
+	LightIngress int  `toml:",omitempty"` // Incoming bandwidth limit for light servers
+	LightEgress  int  `toml:",omitempty"` // Outgoing bandwidth limit for light servers
+	LightPeers   int  `toml:",omitempty"` // Maximum number of LES client peers
+	LightNoPrune bool `toml:",omitempty"` // Whether to disable light chain pruning
 	// Minimum gateway fee value to serve a transaction from a light client
 	GatewayFee *big.Int `toml:",omitempty"`
 	// Validator is the address used to sign consensus messages. Also the address for block transaction rewards.
@@ -100,10 +99,12 @@ type Config struct {
 	DatabaseCache      int
 	DatabaseFreezer    string
 
-	TrieCleanCache int
-	TrieDirtyCache int
-	TrieTimeout    time.Duration
-	SnapshotCache  int
+	TrieCleanCache          int
+	TrieCleanCacheJournal   string        `toml:",omitempty"` // Disk journal directory for trie cache to survive node restarts
+	TrieCleanCacheRejournal time.Duration `toml:",omitempty"` // Time interval to regenerate the journal for clean cache
+	TrieDirtyCache          int
+	TrieTimeout             time.Duration
+	SnapshotCache           int
 
 	// Mining options
 	Miner miner.Config
@@ -127,7 +128,11 @@ type Config struct {
 	EVMInterpreter string
 
 	// RPCGasCap is the global gas cap for eth-call variants.
-	RPCGasCap *big.Int `toml:",omitempty"`
+	RPCGasCap uint64 `toml:",omitempty"`
+
+	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
+	// send-transction variants. The unit is ether.
+	RPCTxFeeCap float64 `toml:",omitempty"`
 
 	// Checkpoint is a hardcoded checkpoint which can be nil.
 	Checkpoint *params.TrustedCheckpoint `toml:",omitempty"`
@@ -135,9 +140,6 @@ type Config struct {
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 
-	// Churrito block override (TODO: remove after the fork)
-	OverrideChurrito *big.Int `toml:",omitempty"`
-
-	// Donut block override (TODO: remove after the fork)
-	OverrideDonut *big.Int `toml:",omitempty"`
+	// E block override (TODO: remove after the fork)
+	OverrideEHardfork *big.Int `toml:",omitempty"`
 }

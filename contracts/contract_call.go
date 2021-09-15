@@ -90,30 +90,29 @@ func (bm *BoundMethod) run(vmRunner vm.EVMRunner, result interface{}, readOnly b
 		return err
 	}
 
-	logger := log.New("to", contractAddress, "method", bm.method, "args", args, "maxgas", bm.maxGas)
+	logger := log.New("to", contractAddress, "method", bm.method)
 
 	input, err := bm.encodeCall(args...)
 	if err != nil {
-		logger.Error("Error invoking evm function: can't encode method arguments", "err", err)
+		logger.Error("Error invoking evm function: can't encode method arguments", "args", args, "err", err)
 		return err
 	}
 
 	var output []byte
-	var leftoverGas uint64
 	if readOnly {
-		output, leftoverGas, err = vmRunner.Query(contractAddress, input, bm.maxGas)
+		output, err = vmRunner.Query(contractAddress, input, bm.maxGas)
 	} else {
-		output, leftoverGas, err = vmRunner.Execute(contractAddress, input, bm.maxGas, value)
+		output, err = vmRunner.Execute(contractAddress, input, bm.maxGas, value)
 	}
 
 	if err != nil {
 		message, _ := unpackError(output)
-		logger.Error("Error invoking evm function: EVM call failure", "input", hexutil.Encode(input), "err", err, "message", message)
+		logger.Error("Error invoking evm function: EVM call failure", "input", hexutil.Encode(input), "maxgas", bm.maxGas, "err", err, "message", message)
 		return err
 	}
 
 	if err := bm.decodeResult(result, output); err != nil {
-		logger.Error("Error invoking evm function: can't unpack result", "err", err, "gasLeft", leftoverGas)
+		logger.Error("Error invoking evm function: can't unpack result", "err", err, "maxgas", bm.maxGas)
 		return err
 	}
 

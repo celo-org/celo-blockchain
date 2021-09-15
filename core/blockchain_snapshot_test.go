@@ -102,7 +102,7 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 		startPoint = point
 
 		if basic.commitBlock > 0 && basic.commitBlock == point {
-			chain.stateCache.TrieDB().Commit(blocks[point-1].Root(), true)
+			chain.stateCache.TrieDB().Commit(blocks[point-1].Root(), true, nil)
 		}
 		if basic.snapshotBlock > 0 && basic.snapshotBlock == point {
 			if basic.legacy {

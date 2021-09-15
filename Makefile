@@ -7,6 +7,7 @@
 .PHONY: geth-linux-arm geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 .PHONY: geth-darwin geth-darwin-amd64
 .PHONY: geth-windows geth-windows-386 geth-windows-amd64
+.PHONY: prepare-system-contracts $(MONOREPO_PATH)
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -21,6 +22,22 @@ else
 	OS = linux
 endif
 
+MONOREPO_COMMIT=celo-core-contracts-v3.rc0
+
+# We checkout the monorepo as a sibling to the celo-blockchain dir because the
+# huge amount of files in the monorepo interferes with tooling such as gopls,
+# which becomes very slow.
+MONOREPO_PATH=../.celo-blockchain-monorepo-checkout
+
+# This either evaluates to the contract source files if they exist or NOT_FOUND
+# if celo-monorepo has not been checked out yet.
+CONTRACT_SOURCE_FILES=$(shell 2>/dev/null find $(MONOREPO_PATH)/packages/protocol \
+						   -not -path "*/node_modules*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/test*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/build*" \
+						   -not -path "$(MONOREPO_PATH)/packages/protocol/types*" \
+						   || echo "NOT_FOUND")
+
 # example NDK values
 export NDK_VERSION ?= android-ndk-r19c
 export ANDROID_NDK ?= $(PWD)/ndk_bundle/$(NDK_VERSION)
@@ -29,6 +46,52 @@ geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
+# This rule checks out celo-monorepo under MONOREPO_PATH at commit
+# MONOREPO_COMMIT and compiles the system solidty contracts. It then copies the
+# compiled contracts from the monorepo to the compiled-system-contracts, so
+# that this repo can always access the contracts at a consistent path.
+prepare-system-contracts: $(MONOREPO_PATH)/packages/protocol/build
+	@rm -rf compiled-system-contracts
+	@cp -a $(MONOREPO_PATH)/packages/protocol/build/contracts compiled-system-contracts
+
+# If any of the source files in CONTRACT_SOURCE_FILES are more recent than the
+# build dir or the build dir does not exist then we remove the build dir, yarn
+# install and rebuild the contracts.
+$(MONOREPO_PATH)/packages/protocol/build: $(CONTRACT_SOURCE_FILES)
+	@node --version | grep "^v10" || (echo "node v10 is required to build the monorepo (nvm use 10)" && exit 1)
+	@echo Running yarn install and compiling contracts
+	@cd $(MONOREPO_PATH) && rm -rf packages/protocol/build && yarn && cd packages/protocol && yarn run build:sol
+
+
+# The source files depend on the MONOREPO_PATH rule to ensure that the monorepo is
+# checked out before we try to build.
+$(CONTRACT_SOURCE_FILES): $(MONOREPO_PATH)
+
+# Clone the monorepo.
+#
+# If the repo has not been cloned then clone it at the MONOREPO_COMMIT and
+# store that commit in a file.  Otherwise if the repo has been cloned and
+# MONOREPO_COMMIT doesn't match the contents of current_commit then checkout
+# the new commit, and update the file that stores the current commit.  This
+# will fail if there are local changes.
+$(MONOREPO_PATH):
+	@set -e; \
+	if  [ ! -e $(MONOREPO_PATH) ]; \
+	then \
+		echo "Cloning monorepo at $(MONOREPO_COMMIT)"; \
+		git clone --quiet --depth 1 --branch $(MONOREPO_COMMIT) https://github.com/celo-org/celo-monorepo.git $(MONOREPO_PATH); \
+		echo $(MONOREPO_COMMIT) > $(MONOREPO_PATH)/current_commit; \
+	elif [ $(MONOREPO_COMMIT) != $(shell cat $(MONOREPO_PATH)/current_commit 2>/dev/null || echo "") ]; \
+	then \
+		echo "Checking out monorepo at $(MONOREPO_COMMIT)"; \
+		cd $(MONOREPO_PATH); \
+		git fetch --quiet --depth 1 origin $(MONOREPO_COMMIT); \
+		git checkout FETCH_HEAD; \
+		sleep 0.5; \
+		echo $(MONOREPO_COMMIT) > current_commit; \
+	fi
+
 
 geth-musl:
 	$(GORUN) build/ci.go install -musl ./cmd/geth

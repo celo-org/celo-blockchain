@@ -76,6 +76,10 @@ type Config struct {
 	// connected. It must be greater than zero.
 	MaxPeers int
 
+	// MaxLightClients is the maximum number of light clients that can be connected.
+	// It is zero if the LES server isn't running (includes the case that we are an LES client).
+	MaxLightClients int
+
 	// MaxPendingPeers is the maximum number of peers that can be pending in the
 	// handshake phase, counted separately for inbound and outbound connections.
 	// Zero defaults to preset values.
@@ -594,20 +598,10 @@ func (srv *Server) setupLocalNode() error {
 	srv.localnode.SetFallbackIP(net.IP{127, 0, 0, 1})
 
 	// TODO: check conflicts
-	primaries := make(map[string]bool)
 	for _, p := range srv.Protocols {
-		if p.Primary {
-			primaries[p.Name] = true
-		}
 		for _, e := range p.Attributes {
 			srv.localnode.Set(e)
 		}
-	}
-	if len(primaries) > 1 {
-		// It's ok for multiple versions of Istanbul to be marked as primary, since for a given peer
-		// connection only the latest version they both support will be used. But it's not ok if another
-		// protocol besides Istanbul is marked a primary, since then it's unclear which should be run.
-		srv.log.Crit("Multiple primary protocols specified", "names", primaries)
 	}
 	switch srv.NAT.(type) {
 	case nil:
@@ -742,10 +736,11 @@ func (srv *Server) maxDialedConns() (limit int) {
 	if srv.NoDial || srv.MaxPeers == 0 {
 		return 0
 	}
+	maxEthPeers := srv.MaxPeers - srv.MaxLightClients
 	if srv.DialRatio == 0 {
-		limit = srv.MaxPeers / defaultDialRatio
+		limit = maxEthPeers / defaultDialRatio
 	} else {
-		limit = srv.MaxPeers / srv.DialRatio
+		limit = maxEthPeers / srv.DialRatio
 	}
 	if limit == 0 {
 		limit = 1
@@ -790,7 +785,7 @@ func (srv *Server) doPeerOp(fn peerOpFunc) {
 
 // run is the main loop of the server.
 func (srv *Server) run() {
-	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4())
+	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4(), "maxdialed", srv.maxDialedConns(), "maxinbound", srv.maxInboundConns())
 	defer srv.loopWG.Done()
 	defer srv.nodedb.Close()
 	defer srv.discmix.Close()

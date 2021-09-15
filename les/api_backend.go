@@ -23,7 +23,9 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
-	gpm "github.com/celo-org/celo-blockchain/contract_comm/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/consensus"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -35,6 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/light"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
@@ -162,11 +165,14 @@ func (b *LesApiBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*typ
 	return nil, nil
 }
 
-func (b *LesApiBackend) GetTd(hash common.Hash) *big.Int {
-	return b.eth.blockchain.GetTdByHash(hash)
+func (b *LesApiBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
+	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
+		return b.eth.blockchain.GetTdOdr(ctx, hash, *number)
+	}
+	return nil
 }
 
-func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, header *types.Header, state *state.StateDB) (*vm.EVM, func() error, error) {
+func (b *LesApiBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
 	context := core.NewEVMContext(msg, header, b.eth.blockchain, nil)
 	return vm.NewEVM(context, state, b.eth.chainConfig, vm.Config{}), state.Error, nil
 }
@@ -242,16 +248,36 @@ func (b *LesApiBackend) ProtocolVersion() int {
 	return b.eth.LesVersion() + 10000
 }
 
-func (b *LesApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(nil, nil, nil)
+func (b *LesApiBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceSuggestion(vmRunner, currencyAddress)
 }
 
-func (b *LesApiBackend) SuggestPriceInCurrency(ctx context.Context, currencyAddress *common.Address, header *types.Header, state *state.StateDB) (*big.Int, error) {
-	return gpm.GetGasPriceSuggestion(currencyAddress, header, state)
+func (b *LesApiBackend) GetIntrinsicGasForAlternativeFeeCurrency(ctx context.Context) uint64 {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		log.Warn("Cannot read intrinsic gas for alternative fee currency", "err", err)
+		return params.IntrinsicGasForAlternativeFeeCurrency
+	}
+	return blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 }
 
-func (b *LesApiBackend) GetGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
-	return gpm.GetGasPriceMinimum(currencyAddress, nil, nil)
+func (b *LesApiBackend) GetBlockGasLimit(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) uint64 {
+	statedb, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if err != nil {
+		log.Warn("Cannot create evmCaller to get blockGasLimit", "err", err)
+		return params.DefaultGasLimit
+	}
+
+	caller := b.eth.BlockChain().NewEVMRunner(header, statedb)
+	return blockchain_parameters.GetBlockGasLimitOrDefault(caller)
+}
+
+func (b *LesApiBackend) NewEVMRunner(header *types.Header, state vm.StateDB) vm.EVMRunner {
+	return b.eth.BlockChain().NewEVMRunner(header, state)
 }
 
 func (b *LesApiBackend) ChainDb() ethdb.Database {
@@ -266,8 +292,12 @@ func (b *LesApiBackend) ExtRPCEnabled() bool {
 	return b.extRPCEnabled
 }
 
-func (b *LesApiBackend) RPCGasCap() *big.Int {
+func (b *LesApiBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
+}
+
+func (b *LesApiBackend) RPCTxFeeCap() float64 {
+	return b.eth.config.RPCTxFeeCap
 }
 
 func (b *LesApiBackend) BloomStatus() (uint64, uint64) {
@@ -291,4 +321,12 @@ func (b *LesApiBackend) GatewayFeeRecipient() common.Address {
 func (b *LesApiBackend) GatewayFee() *big.Int {
 	// TODO(nategraf): Create a method to fetch the gateway fee values of peers along with the coinbase.
 	return eth.DefaultConfig.GatewayFee
+}
+
+func (b *LesApiBackend) Engine() consensus.Engine {
+	return b.eth.engine
+}
+
+func (b *LesApiBackend) CurrentHeader() *types.Header {
+	return b.eth.blockchain.CurrentHeader()
 }

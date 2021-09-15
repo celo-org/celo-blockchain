@@ -100,7 +100,30 @@ func (m *txSortedMap) Forward(threshold uint64) types.Transactions {
 
 // Filter iterates over the list of transactions and removes all of them for which
 // the specified function evaluates to true.
+// Filter, as opposed to 'filter', re-initialises the heap after the operation is done.
+// If you want to do several consecutive filterings, it's therefore better to first
+// do a .filter(func1) followed by .Filter(func2) or reheap()
 func (m *txSortedMap) Filter(filter func(*types.Transaction) bool) types.Transactions {
+	removed := m.filter(filter)
+	// If transactions were removed, the heap and cache are ruined
+	if len(removed) > 0 {
+		m.reheap()
+	}
+	return removed
+}
+
+func (m *txSortedMap) reheap() {
+	*m.index = make([]uint64, 0, len(m.items))
+	for nonce := range m.items {
+		*m.index = append(*m.index, nonce)
+	}
+	heap.Init(m.index)
+	m.cache = nil
+}
+
+// filter is identical to Filter, but **does not** regenerate the heap. This method
+// should only be used if followed immediately by a call to Filter or reheap()
+func (m *txSortedMap) filter(filter func(*types.Transaction) bool) types.Transactions {
 	var removed types.Transactions
 
 	// Collect all the transactions to filter out
@@ -110,14 +133,7 @@ func (m *txSortedMap) Filter(filter func(*types.Transaction) bool) types.Transac
 			delete(m.items, nonce)
 		}
 	}
-	// If transactions were removed, the heap and cache are ruined
 	if len(removed) > 0 {
-		*m.index = make([]uint64, 0, len(m.items))
-		for nonce := range m.items {
-			*m.index = append(*m.index, nonce)
-		}
-		heap.Init(m.index)
-
 		m.cache = nil
 	}
 	return removed
@@ -198,10 +214,7 @@ func (m *txSortedMap) Len() int {
 	return len(m.items)
 }
 
-// Flatten creates a nonce-sorted slice of transactions based on the loosely
-// sorted internal representation. The result of the sorting is cached in case
-// it's requested again before any modifications are made to the contents.
-func (m *txSortedMap) Flatten() types.Transactions {
+func (m *txSortedMap) flatten() types.Transactions {
 	// If the sorting was not cached yet, create and cache it
 	if m.cache == nil {
 		m.cache = make(types.Transactions, 0, len(m.items))
@@ -210,10 +223,25 @@ func (m *txSortedMap) Flatten() types.Transactions {
 		}
 		sort.Sort(types.TxByNonce(m.cache))
 	}
+	return m.cache
+}
+
+// Flatten creates a nonce-sorted slice of transactions based on the loosely
+// sorted internal representation. The result of the sorting is cached in case
+// it's requested again before any modifications are made to the contents.
+func (m *txSortedMap) Flatten() types.Transactions {
 	// Copy the cache to prevent accidental modifications
-	txs := make(types.Transactions, len(m.cache))
-	copy(txs, m.cache)
+	cache := m.flatten()
+	txs := make(types.Transactions, len(cache))
+	copy(txs, cache)
 	return txs
+}
+
+// LastElement returns the last element of a flattened list, thus, the
+// transaction with the highest nonce
+func (m *txSortedMap) LastElement() *types.Transaction {
+	cache := m.flatten()
+	return cache[len(cache)-1]
 }
 
 // txList is a "list" of transactions belonging to an account, sorted by account
@@ -297,7 +325,11 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 				newPrice = tx.GasPrice()
 			}
 		}
-		threshold := new(big.Int).Div(new(big.Int).Mul(oldPrice, big.NewInt(100+int64(priceBump))), big.NewInt(100))
+		// threshold = oldGP * (100 + priceBump) / 100
+		a := big.NewInt(100 + int64(priceBump))
+		a = a.Mul(a, oldPrice)
+		b := big.NewInt(100)
+		threshold := a.Div(a, b)
 		// Have to ensure that the new gas price is higher than the old gas
 		// price as well as checking the percentage threshold to ensure that
 		// this is accurate for low (Wei-level) gas price replacements
@@ -348,7 +380,7 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // This method uses the cached costcap and gascap to quickly decide if there's even
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
-func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, blockCtx BlockContext, gasLimit uint64) (types.Transactions, types.Transactions) {
+func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 
 	// check if we can bail & lower caps & raise floors at the same time
 	canBail := true
@@ -429,18 +461,21 @@ func (l *txList) FilterOnGasLimit(gasLimit uint64) (types.Transactions, types.Tr
 		return tx.Gas() > gasLimit
 	})
 
-	// If the list was strict, filter anything above the lowest nonce
+	if len(removed) == 0 {
+		return nil, nil
+	}
 	var invalids types.Transactions
-
-	if l.strict && len(removed) > 0 {
+	// If the list was strict, filter anything above the lowest nonce
+	if l.strict {
 		lowest := uint64(math.MaxUint64)
 		for _, tx := range removed {
 			if nonce := tx.Nonce(); lowest > nonce {
 				lowest = nonce
 			}
 		}
-		invalids = l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
+		invalids = l.txs.filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
 	}
+	l.txs.reheap()
 	return removed, invalids
 }
 
@@ -494,6 +529,12 @@ func (l *txList) Flatten() types.Transactions {
 	return l.txs.Flatten()
 }
 
+// LastElement returns the last element of a flattened list, thus, the
+// transaction with the highest nonce
+func (l *txList) LastElement() *types.Transaction {
+	return l.txs.LastElement()
+}
+
 // priceHeap is a heap.Interface implementation over transactions for retrieving
 // price-sorted transactions to discard when the pool fills up.
 type priceHeap []*types.Transaction
@@ -503,7 +544,7 @@ func (h priceHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h priceHeap) Less(i, j int) bool {
 	// Sort primarily by price, returning the cheaper one
-	switch h[i].GasPrice().Cmp(h[j].GasPrice()) {
+	switch h[i].GasPriceCmp(h[j]) {
 	case -1:
 		return true
 	case 1:
@@ -656,11 +697,56 @@ func (l *txPricedList) Underpriced(tx *types.Transaction, local *accountSet) boo
 	return ctx.CmpValues(cheapest.GasPrice(), cheapest.FeeCurrency(), tx.GasPrice(), tx.FeeCurrency()) >= 0
 }
 
+// getAllPriceHeaps returns a slice of all the price heaps for each currency
+// plus the nil currency heap
+func (l *txPricedList) getAllPriceHeaps() []*priceHeap {
+	heaps := make([]*priceHeap, 0, len(l.nonNilCurrencyHeaps)+1)
+	for _, h := range l.nonNilCurrencyHeaps {
+		heaps = append(heaps, h)
+	}
+	heaps = append(heaps, l.nilCurrencyHeap)
+	return heaps
+}
+
+// phsLen returns the sum of all of the heaps sizes
+func phsLen(heaps []*priceHeap) int {
+	len := 0
+	for _, h := range heaps {
+		len += h.Len()
+	}
+	return len
+}
+
 // Discard finds a number of most underpriced transactions, removes them from the
 // priced list and returns them for further removal from the entire pool.
 func (l *txPricedList) Discard(slots int, local *accountSet) types.Transactions {
-	drop := make(types.Transactions, 0, slots) // Remote underpriced transactions to drop
-	save := make(types.Transactions, 0, 64)    // Local underpriced transactions to keep
+	heaps := l.getAllPriceHeaps()
+	totalItems := phsLen(heaps)
+	// If we have some local accountset, those will not be discarded
+	if !local.empty() {
+		// In case the list is filled to the brim with 'local' txs, we do this
+		// little check to avoid unpacking / repacking the heap later on, which
+		// is very expensive
+		discardable := 0
+		for _, items := range heaps {
+			for _, tx := range *items {
+				if !local.containsTx(tx) {
+					discardable++
+				}
+				if discardable >= slots {
+					break
+				}
+			}
+		}
+		if slots > discardable {
+			slots = discardable
+		}
+	}
+	if slots == 0 {
+		return nil
+	}
+	drop := make(types.Transactions, 0, slots)            // Remote underpriced transactions to drop
+	save := make(types.Transactions, 0, totalItems-slots) // Local underpriced transactions to keep
 
 	for l.Len() > 0 && slots > 0 {
 		// Discard stale transactions if found during cleanup

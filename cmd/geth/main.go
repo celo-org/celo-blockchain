@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"os"
@@ -32,15 +33,18 @@ import (
 	"github.com/celo-org/celo-blockchain/cmd/utils"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/console/prompt"
-	"github.com/celo-org/celo-blockchain/contract_comm/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
 	"github.com/celo-org/celo-blockchain/internal/debug"
-	"github.com/celo-org/celo-blockchain/les"
+	"github.com/celo-org/celo-blockchain/internal/ethapi"
+	"github.com/celo-org/celo-blockchain/internal/flags"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/node"
+	"github.com/celo-org/celo-blockchain/rpc"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	cli "gopkg.in/urfave/cli.v1"
 )
@@ -54,7 +58,7 @@ var (
 	gitCommit = ""
 	gitDate   = ""
 	// The app that holds all commands and flags.
-	app = utils.NewApp(gitCommit, gitDate, "the go-ethereum command line interface")
+	app = flags.NewApp(gitCommit, gitDate, "the go-ethereum command line interface")
 	// flags that configure the node
 	nodeFlags = []cli.Flag{
 		utils.IdentityFlag,
@@ -68,8 +72,7 @@ var (
 		utils.KeyStoreDirFlag,
 		utils.ExternalSignerFlag,
 		utils.NoUSBFlag,
-		utils.OverrideChurritoFlag,
-		utils.OverrideDonutFlag,
+		utils.OverrideEHardforkFlag,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -90,6 +93,7 @@ var (
 		utils.LightIngressFlag,
 		utils.LightEgressFlag,
 		utils.LightMaxPeersFlag,
+		utils.LightNoPruneFlag,
 		utils.LightKDFFlag,
 		utils.LightGatewayFeeFlag,
 		utils.UltraLightServersFlag,
@@ -102,6 +106,8 @@ var (
 		utils.CacheFlag,
 		utils.CacheDatabaseFlag,
 		utils.CacheTrieFlag,
+		utils.CacheTrieJournalFlag,
+		utils.CacheTrieRejournalFlag,
 		utils.CacheGCFlag,
 		utils.CacheSnapshotFlag,
 		utils.CacheNoPrefetchFlag,
@@ -110,17 +116,9 @@ var (
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerValidatorFlag,
-		utils.MinerThreadsFlag,
-		utils.LegacyMinerThreadsFlag,
-		utils.MinerNotifyFlag,
-		utils.MinerGasTargetFlag,
-		utils.LegacyMinerGasTargetFlag,
-		utils.MinerGasLimitFlag,
-		utils.MinerGasPriceFlag,
+		utils.LegacyMinerGasPriceFlag,
 		utils.MinerExtraDataFlag,
 		utils.LegacyMinerExtraDataFlag,
-		utils.MinerRecommitIntervalFlag,
-		utils.MinerNoVerfiyFlag,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,
@@ -171,8 +169,6 @@ var (
 		utils.LegacyRPCCORSDomainFlag,
 		utils.LegacyRPCVirtualHostsFlag,
 		utils.GraphQLEnabledFlag,
-		utils.GraphQLListenAddrFlag,
-		utils.GraphQLPortFlag,
 		utils.GraphQLCORSDomainFlag,
 		utils.GraphQLVirtualHostsFlag,
 		utils.HTTPApiFlag,
@@ -190,6 +186,7 @@ var (
 		utils.IPCPathFlag,
 		utils.InsecureUnlockAllowedFlag,
 		utils.RPCGlobalGasCap,
+		utils.RPCGlobalTxFeeCap,
 	}
 
 	whisperFlags = []cli.Flag{
@@ -202,6 +199,8 @@ var (
 	metricsFlags = []cli.Flag{
 		utils.MetricsEnabledFlag,
 		utils.MetricsEnabledExpensiveFlag,
+		utils.MetricsHTTPFlag,
+		utils.MetricsPortFlag,
 		utils.MetricsEnableInfluxDBFlag,
 		utils.MetricsInfluxDBEndpointFlag,
 		utils.MetricsInfluxDBDatabaseFlag,
@@ -338,18 +337,20 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
+
 	prepare(ctx)
-	node := makeFullNode(ctx)
-	defer node.Close()
-	startNode(ctx, node)
-	node.Wait()
+	stack, backend := makeFullNode(ctx)
+	defer stack.Close()
+
+	startNode(ctx, stack, backend)
+	stack.Wait()
 	return nil
 }
 
 // startNode boots up the system node and all registered protocols, after which
 // it unlocks any requested accounts, and starts the RPC/IPC interfaces and the
 // miner.
-func startNode(ctx *cli.Context, stack *node.Node) {
+func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 	debug.Memsize.Add("node", stack)
 
 	// Start up the node itself
@@ -368,26 +369,6 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		utils.Fatalf("Failed to attach to self: %v", err)
 	}
 	ethClient := ethclient.NewClient(rpcClient)
-
-	// Set contract backend for ethereum service if local node
-	// is serving LES requests.
-	if ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast" {
-		if ctx.GlobalInt(utils.LightServeFlag.Name) > 0 {
-			var ethService *eth.Ethereum
-			if err := stack.Service(&ethService); err != nil {
-				utils.Fatalf("Failed to retrieve ethereum service: %v", err)
-			}
-			ethService.SetContractBackend(ethClient)
-		}
-	} else {
-		// Set contract backend for les service if local node is
-		// running as a light client.
-		var lesService *les.LightEthereum
-		if err := stack.Service(&lesService); err != nil {
-			utils.Fatalf("Failed to retrieve light ethereum service: %v", err)
-		}
-		lesService.SetContractBackend(ethClient)
-	}
 
 	go func() {
 		// Open any wallets already attached
@@ -440,14 +421,16 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				if timestamp := time.Unix(int64(done.Latest.Time), 0); time.Since(timestamp) < 10*time.Minute {
 					log.Info("Synchronisation completed", "latestnum", done.Latest.Number, "latesthash", done.Latest.Hash(),
 						"age", common.PrettyAge(timestamp))
-					stack.Stop()
+					stack.Close()
 				}
 			}
 		}()
 	}
+
+	isFullNode := ctx.GlobalString(utils.SyncModeFlag.Name) == "full" || ctx.GlobalString(utils.SyncModeFlag.Name) == "fast"
 	// Miners and proxies only makes sense if a full node is running
 	if ctx.GlobalBool(utils.ProxyFlag.Name) || ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-		if ctx.GlobalString(utils.SyncModeFlag.Name) != "fast" && ctx.GlobalString(utils.SyncModeFlag.Name) != "full" {
+		if !isFullNode {
 			utils.Fatalf("Miners and Proxies must be run as a full node")
 		}
 	}
@@ -463,30 +446,30 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if ctx.GlobalBool(utils.ProxyFlag.Name) {
 			utils.Fatalf("Proxies can't mine")
 		}
-
-		var ethereum *eth.Ethereum
-		if err := stack.Service(&ethereum); err != nil {
+		ethBackend, ok := backend.(*eth.EthAPIBackend)
+		if !ok {
 			utils.Fatalf("Ethereum service not running: %v", err)
 		}
+
 		// Set the gas price to the limits from the CLI and start mining
-		gasprice := utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		if ctx.GlobalIsSet(utils.LegacyMinerGasPriceFlag.Name) && !ctx.GlobalIsSet(utils.MinerGasPriceFlag.Name) {
-			gasprice = utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
-		}
-		ethereum.TxPool().SetGasPrice(gasprice)
+		gasprice := utils.GlobalBig(ctx, utils.LegacyMinerGasPriceFlag.Name)
+		ethBackend.TxPool().SetGasPrice(gasprice)
 
-		threads := ctx.GlobalInt(utils.MinerThreadsFlag.Name)
-		if ctx.GlobalIsSet(utils.LegacyMinerThreadsFlag.Name) && !ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
-			threads = ctx.GlobalInt(utils.LegacyMinerThreadsFlag.Name)
-			log.Warn("The flag --minerthreads is deprecated and will be removed in the future, please use --miner.threads")
-		}
-
-		if err := ethereum.StartMining(threads); err != nil {
+		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
 	}
 	if !ctx.GlobalBool(utils.VersionCheckFlag.Name) {
-		blockchain_parameters.SpawnCheck()
+		runnerFactory := func() (vm.EVMRunner, error) {
+			header := backend.CurrentHeader()
+			stateDB, _, err := backend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithHash(header.Hash(), true))
+			if err != nil {
+				return nil, err
+			}
+			return backend.NewEVMRunner(header, stateDB), nil
+		}
+
+		blockchain_parameters.SpawnCheck(runnerFactory)
 	}
 }
 

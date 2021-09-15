@@ -43,4 +43,6 @@ var (
 
 	plumoProofInMeter   = metrics.NewRegisteredMeter("eth/downloader/plumoproofs/in", nil)
 	plumoProofDropMeter = metrics.NewRegisteredMeter("eth/downloader/plumoproofs/drop", nil)
+
+	throttleCounter = metrics.NewRegisteredCounter("eth/downloader/throttle", nil)
 )

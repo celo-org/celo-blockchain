@@ -79,7 +79,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			})
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)
@@ -114,7 +114,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)
@@ -147,7 +147,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			go sb.handleEnodeCertificateMsg(peer, data)
 			return true, nil
 		case istanbul.QueryEnodeMsg:
-			go sb.handleQueryEnodeMsg(addr, peer, data)
+			go sb.announceManager.handleQueryEnodeMsg(addr, peer, data)
 			return true, nil
 		case istanbul.VersionCertificatesMsg:
 			go sb.handleVersionCertificatesMsg(addr, peer, data)
@@ -197,7 +197,7 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 	sb.p2pserver = p2pserver
 }
 
-// This function is called by miner/worker.go whenever it's mainLoop gets a newWork event.
+// NewWork is called by miner/worker.go whenever it's mainLoop gets a newWork event.
 func (sb *Backend) NewWork() error {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 
@@ -381,7 +381,7 @@ func (sb *Backend) RegisterPeer(peer consensus.Peer, isProxiedPeer bool) error {
 		}
 	}
 
-	if err := sb.sendVersionCertificateTable(peer); err != nil {
+	if err := sb.announceManager.SendVersionCertificateTable(peer); err != nil {
 		logger.Debug("Error sending all version certificates", "err", err)
 	}
 

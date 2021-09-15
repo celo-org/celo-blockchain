@@ -37,7 +37,7 @@ import (
 
 // API is a user facing RPC API to dump Istanbul state
 type API struct {
-	chain    consensus.ChainReader
+	chain    consensus.ChainHeaderReader
 	istanbul *Backend
 }
 
@@ -185,19 +185,24 @@ func (api *API) GetValEnodeTable() (map[string]*vet.ValEnodeEntryInfo, error) {
 }
 
 func (api *API) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
-	return api.istanbul.versionCertificateTable.Info()
+	return api.istanbul.announceManager.GetVersionCertificateTableInfo()
 }
 
 // GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
 	if !api.istanbul.coreStarted {
 		return nil, istanbul.ErrStoppedEngine
 	}
 	return api.istanbul.core.CurrentRoundState().Summary(), nil
 }
 
-// GetCurrentRoundState retrieves the current IBFT RoundState
 func (api *API) ForceRoundChange() (bool, error) {
+	api.istanbul.coreMu.RLock()
+	defer api.istanbul.coreMu.RUnlock()
+
 	if !api.istanbul.coreStarted {
 		return false, istanbul.ErrStoppedEngine
 	}
@@ -205,7 +210,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 	return true, nil
 }
 
-// Proxies retrieves all the proxied validator's proxies' info
+// GetProxiesInfo retrieves all the proxied validator's proxies' info
 func (api *API) GetProxiesInfo() ([]*proxy.ProxyInfo, error) {
 	if api.istanbul.IsProxiedValidator() {
 		proxies, valAssignments, err := api.istanbul.proxiedValidatorEngine.GetProxiesAndValAssignments()
