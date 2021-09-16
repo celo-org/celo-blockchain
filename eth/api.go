@@ -257,12 +257,10 @@ func (api *PrivateAdminAPI) AddProof(proof string, firstEpoch uint, lastEpoch ui
 			VersionNumber: versionNumber,
 		},
 	}
-	// TODO unify verify/add logic on one component - which one? Engine?
 	err := api.eth.Engine().VerifyPlumoProofs([]types.PlumoProof{plumoProof})
 	if err != nil {
 		return false, err
 	}
-	// TODO(lucas): is this cleaner than just adding an event?
 	rawdb.WritePlumoProof(api.eth.proofDb, &plumoProof)
 	api.eth.protocolManager.BroadcastPlumoProof(&plumoProof)
 	return true, nil

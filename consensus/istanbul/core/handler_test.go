@@ -178,7 +178,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 		c := backend.engine.(*core)
 
 		if useRoundStateDB {
-			rsdb, err := newRoundStateDB(b.TempDir(), nil)
+			rsdb, err := newRoundStateDB("", nil)
 			if err != nil {
 				b.Errorf("Failed to create rsdb: %v", err)
 			}

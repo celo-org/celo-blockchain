@@ -45,7 +45,7 @@ var (
 		SendTxV2Msg:            {0, 450000},
 		GetTxStatusMsg:         {0, 250000},
 		GetEtherbaseMsg:        {10000, 1},
-		// TODO(lucas):
+		// TODO(plumo): Come up with better estimates here
 		GetPlumoProofInventoryMsg: {0, 600000},
 		GetPlumoProofsMsg:         {0, 600000},
 	}

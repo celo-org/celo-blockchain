@@ -215,12 +215,12 @@ type LightEpochBlock struct { // 48 bytes
 
 // LightPlumoProof encapsulates all data needed by a light client to verify and utilize a Plumo proof.
 type LightPlumoProof struct { // Total at least 567 bytes
-	Proof            []byte          // 383 bytes?
-	FirstEpoch       uint            // 8 bytes
-	LastEpoch        LightEpochBlock // 48 bytes
-	VersionNumber    uint            // 8 bytes
-	FirstHashToField []byte          // TODO type and how to compute
-	// TODO 96 bytes?
+	Proof         []byte          // 383 bytes?
+	FirstEpoch    uint            // 8 bytes
+	LastEpoch     LightEpochBlock // 48 bytes
+	VersionNumber uint            // 8 bytes
+	// TODO(plumo) type and how to compute -- needed for batching proofs, not necessary yet
+	FirstHashToField   []byte          // ? bytes
 	NewValidators      []ValidatorData // (116 * numNewValidators) bytes
 	ValidatorPositions []byte          // len(NewValSet) bytes
 }

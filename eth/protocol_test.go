@@ -98,7 +98,6 @@ func TestStatusMsgErrors64(t *testing.T) {
 	}
 }
 
-// TODO(lucas): Add Celo66 tests
 func TestStatusMsgErrors65(t *testing.T) {
 	pm, _ := newTestProtocolManagerMust(t, downloader.FullSync, 0, nil, nil)
 	var (

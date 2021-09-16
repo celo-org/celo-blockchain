@@ -619,8 +619,7 @@ func (p *peer) RequestReceipts(hashes []common.Hash) error {
 
 // RequestPlumoProofs fetches a proof from a remote node
 func (p *peer) RequestPlumoProofs(metadata []types.PlumoProofMetadata, complement bool) error {
-	// TODO trace
-	p.Log().Error("Fetching batch of proofs", "complement", complement)
+	p.Log().Trace("Fetching batch of proofs", "complement", complement)
 	return p2p.Send(p.rw, GetPlumoProofsMsg, &getPlumoProofsData{Complement: complement, ProofsMetadata: metadata})
 }
 

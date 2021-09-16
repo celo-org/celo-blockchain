@@ -163,13 +163,11 @@ func (p *FakePeer) RequestNodeData(hashes []common.Hash) error {
 }
 
 // RequestPlumoProofInventory implements downloader.Peer, returning nil for now
-// TODO(lucas): should this return proofs?
 func (p *FakePeer) RequestPlumoProofInventory() error {
 	return nil
 }
 
 // RequestPlumoProofsAndHeaders implements downloader.Peer, returning nil for now
-// TODO(lucas): should this return proofs?
 func (p *FakePeer) RequestPlumoProofsAndHeaders(uint64, uint64, int, int, int) error {
 	return nil
 }

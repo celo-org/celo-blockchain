@@ -24,7 +24,6 @@ import (
 )
 
 // PlumoProofMetadata holds a proof's epoch range and proof version number, which is then used as a key for lookups
-// TODO: do these need to be uints for encoding? lots of casting being done
 type PlumoProofMetadata struct {
 	FirstEpoch    uint
 	LastEpoch     uint

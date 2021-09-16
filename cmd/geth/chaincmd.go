@@ -525,7 +525,6 @@ func removeDB(ctx *cli.Context) error {
 	} else {
 		log.Info("Light node database missing", "path", path)
 	}
-	// TODO(lucas): test
 	// Remove the plumo proof database
 	path = stack.ResolvePath("plumoproofdata")
 	if common.FileExist(path) {

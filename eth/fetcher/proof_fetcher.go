@@ -173,8 +173,7 @@ func (pf *ProofFetcher) Enqueue(peer string, proof *types.PlumoProof) error {
 }
 
 func (pf *ProofFetcher) FilterProofs(peer string, proofs []*types.PlumoProof, time time.Time) []*types.PlumoProof {
-	// TODO trace
-	log.Error("Filtering proofs", "peer", peer, "proofs", len(proofs))
+	log.Trace("Filtering proofs", "peer", peer, "proofs", len(proofs))
 
 	// Send the filter channel to the fetcher
 	filter := make(chan *proofFilterTask)

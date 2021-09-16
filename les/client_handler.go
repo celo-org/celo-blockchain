@@ -301,6 +301,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			h.fetcher.announce(p, &req)
 		}
 	case BlockHeadersMsg:
+		p.Log().Trace("Received block header response message")
 		var resp struct {
 			ReqID, BV uint64
 			Headers   []*types.Header
@@ -475,9 +476,8 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		h.gatewayFeeCache.update(p.id, &resp.Data)
 
 	case PlumoProofInventoryMsg:
-		p.Log().Error("Received PlumoProofInventory response")
+		p.Log().Trace("Received PlumoProofInventory response")
 		var resp struct {
-			// TODO would be nice to have detail on what BV exactly is? Looks like a buffer limit of sorts
 			ReqID, BV       uint64
 			ProofsInventory []types.PlumoProofMetadata
 		}
@@ -486,22 +486,22 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		}
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-		p.Log().Error("Received proof inventory", "inventory", resp.ProofsInventory)
+		p.Log().Trace("Received proof inventory", "inventory", resp.ProofsInventory)
 		h.fetcher.importKnownPlumoProofs(p, resp.ProofsInventory)
 
 	case PlumoProofsMsg:
-		p.Log().Error("Recieved PlumoProofsMsg response")
+		p.Log().Trace("Recieved PlumoProofsMsg response")
 		var resp struct {
 			ReqID, BV   uint64
 			LightProofs []istanbul.LightPlumoProof
 		}
 		if err := msg.Decode(&resp); err != nil {
-			p.Log().Error("Error decoding")
+			p.Log().Trace("Error decoding")
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
 
 		p.fcServer.ReceivedReply(resp.ReqID, resp.BV)
-		p.Log().Error("Received requested proofs", "light_proofs", resp.LightProofs)
+		p.Log().Trace("Received requested proofs", "light_proofs", resp.LightProofs)
 		if err := h.downloader.DeliverPlumoProofs(p.id, resp.LightProofs); err != nil {
 			log.Error("Failed to deliver proofs", "err", err)
 		}
@@ -612,8 +612,7 @@ func (pc *peerConnection) RequestPlumoProofInventory() error {
 
 func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64, skip int, maxPlumoProofFetch int, maxEpochHeaderFetch int) error {
 	// Greedy alg for grabbing proofs
-	// TODO version number
-	// TODO limit based on max fetch
+	// TODO version number and limit based on max fetch
 	var proofsToRequest []types.PlumoProofMetadata
 	type headerGap struct {
 		FirstEpoch uint
@@ -634,11 +633,11 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		var maxRange uint = 0
 		var chosenProofMetadata types.PlumoProofMetadata
 		for _, proofMetadata := range knownPlumoProofs {
-			log.Error("iterating proofs", "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
+			log.Trace("iterating proofs", "currEpoch", currEpoch, "firstEpoch", proofMetadata.FirstEpoch, "lastEpoch", proofMetadata.LastEpoch)
 			if proofMetadata.FirstEpoch >= currEpoch {
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
-					log.Error("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
+					log.Trace("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
 					earliestMatch = uint(proofMetadata.FirstEpoch)
 					maxRange = proofRange
 					chosenProofMetadata = proofMetadata
@@ -647,8 +646,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		}
 		// No more proofs to add, break
 		if maxRange == 0 && currEpoch < earliestMatch {
-			// TODO check height
-			log.Error("No more proofs", "currEpoch", currEpoch, "original from", from)
+			log.Trace("No more proofs", "currEpoch", currEpoch, "original from", from)
 			amount := int(earliestMatch - currEpoch)
 			if amount > maxEpochHeaderFetch {
 				amount = maxEpochHeaderFetch
@@ -661,7 +659,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 			break
 		}
 		if currEpoch < earliestMatch {
-			log.Error("Need to add header gap", "currEpoch", currEpoch, "earliestMatch", earliestMatch)
+			log.Trace("Need to add header gap", "currEpoch", currEpoch, "earliestMatch", earliestMatch)
 			gap := headerGap{
 				FirstEpoch: currEpoch + 1,
 				Amount:     int(earliestMatch - currEpoch),
@@ -676,7 +674,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	}
 
 	if len(proofsToRequest) > 0 {
-		log.Error("Requesting proofs", "numProofs", len(proofsToRequest))
+		log.Trace("Requesting proofs", "numProofs", len(proofsToRequest))
 		proofReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*serverPeer)
@@ -695,7 +693,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 		}
 		_, ok := <-pc.handler.backend.reqDist.queue(proofReq)
 		if !ok {
-			log.Error("Returning no peers from request proofs and headers")
+			log.Trace("Returning no peers from request proofs and headers")
 			return light.ErrNoPeers
 		}
 		// Might need a lock
@@ -703,19 +701,11 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 			pc.handler.requestedProofs = append(pc.handler.requestedProofs, proofMetadata)
 		}
 	}
-	// This does seem to work in some ways, testing proofs now
+
 	for i := len(headerGaps) - 1; i >= 0; i-- {
 		headerGap := headerGaps[i]
-		// for _, headerGap := range headerGaps {
-		log.Error("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount, "greater?", int(headerGap.FirstEpoch) > 52)
+		log.Trace("Requesting headergap", "firstEpoch", headerGap.FirstEpoch, "amount", headerGap.Amount, "greater?", int(headerGap.FirstEpoch) > 52)
 
-		// if int(headerGap.FirstEpoch)+headerGap.Amount >= 52 {
-		// 	if int(headerGap.FirstEpoch) == 52 {
-		// 		headerGap.Amount = 1
-		// 	} else {
-		// 		headerGap.Amount = 52 - int(headerGap.FirstEpoch)
-		// 	}
-		// }
 		headerReq := &distReq{
 			getCost: func(dp distPeer) uint64 {
 				peer := dp.(*serverPeer)
@@ -731,7 +721,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 				peer.fcServer.QueuedRequest(reqID, cost)
 				return func() {
 					blockNumber := uint64(headerGap.FirstEpoch) * epoch
-					log.Error("Requesting headers by number", "blockNumber", blockNumber, "amount", headerGap.Amount)
+					log.Trace("Requesting headers by number", "blockNumber", blockNumber, "amount", headerGap.Amount)
 					peer.requestHeadersByNumber(reqID, blockNumber, headerGap.Amount, skip, false)
 				}
 			},

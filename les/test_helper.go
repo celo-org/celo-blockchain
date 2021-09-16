@@ -286,7 +286,6 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.costTracker.testCostList = testCostList(0) // Disable flow control mechanism.
 	server.clientPool = newClientPool(db, 1, clock, nil)
 	server.clientPool.setLimits(10000, 10000) // Assign enough capacity for clientpool
-	// TODO(lucas): Okay to use same db twice? No technical issues but may be confusing
 	server.handler = newServerHandler(server, simulation.Blockchain(), db, db, txpool, func() bool { return true }, common.ZeroAddress, eth.DefaultConfig.GatewayFee)
 	if server.oracle != nil {
 		server.oracle.Start(simulation)

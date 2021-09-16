@@ -980,7 +980,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 						Metadata: knownProof,
 					}
 					proofs = append(proofs, plumoProof)
-					// TODO(lucas): could optimize if this size is semi-constant
 					proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
 					if err != nil {
 						return err
@@ -1005,7 +1004,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 					Metadata: metadata,
 				}
 				proofs = append(proofs, plumoProof)
-				// TODO(lucas): could optimize if this size is semi-constant
 				proofRLPBytes, err := rlp.EncodeToBytes(&plumoProof)
 				if err != nil {
 					return err
@@ -1051,8 +1049,7 @@ func (pm *ProtocolManager) BroadcastPlumoProof(plumoProof *types.PlumoProof) {
 	for _, peer := range transfer {
 		peer.AsyncSendPlumoProof(plumoProof)
 	}
-	// TODO (lucas): trace
-	log.Error("Broadcast Plumo Proof", "Metadata", plumoProof.Metadata)
+	log.Trace("Broadcast Plumo Proof", "Metadata", plumoProof.Metadata)
 }
 
 // BroadcastBlock will either propagate a block to a subset of its peers, or

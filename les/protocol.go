@@ -117,7 +117,7 @@ var (
 		SendTxV2Msg:            {"SendTxV2", MaxTxSend, 1, 0},
 		GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus, 10, 0},
 		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
-		// TODO(lucas) values here?
+		// TODO(plumo): Set reasonable values here
 		GetPlumoProofInventoryMsg: {"GetPlumoProofInventory", MaxPlumoProofsMetadata, 1, 0},
 		GetPlumoProofsMsg:         {"GetPlumoProofs", MaxPlumoProofsFetch, 1, 0},
 	}

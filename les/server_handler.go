@@ -89,7 +89,6 @@ type serverHandler struct {
 }
 
 func newServerHandler(server *LesServer, blockchain *core.BlockChain, chainDb ethdb.Database, proofDb ethdb.Database, txpool *core.TxPool, synced func() bool, etherbase common.Address, gatewayFee *big.Int) *serverHandler {
-	log.Error("Creating server handler")
 	handler := &serverHandler{
 		server:     server,
 		blockchain: blockchain,
@@ -151,7 +150,7 @@ func (h *serverHandler) handle(p *clientPeer) error {
 	}
 	// Reject light clients if server is not synced.
 	if !h.synced() {
-		p.Log().Error("Light server not synced, rejecting peer")
+		p.Log().Debug("Light server not synced, rejecting peer")
 		return p2p.DiscRequested
 	}
 	defer p.fcClient.Disconnect()
@@ -206,7 +205,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	p.Log().Error("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
+	p.Log().Trace("Light Ethereum message arrived", "code", msg.Code, "bytes", msg.Size)
 
 	// Discard large message which exceeds the limitation.
 	if msg.Size > ProtocolMaxMsgSize {
@@ -295,7 +294,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 	}
 	switch msg.Code {
 	case GetBlockHeadersMsg:
-		p.Log().Error("Received block header request")
+		p.Log().Trace("Received block header request")
 		if metrics.EnabledExpensive {
 			miscInHeaderPacketsMeter.Mark(1)
 			miscInHeaderTrafficMeter.Mark(int64(msg.Size))
@@ -858,7 +857,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 
 	case GetEtherbaseMsg:
 		// Celo: Handle Etherbase Request
-		p.Log().Error("Received etherbase request")
+		p.Log().Trace("Received etherbase request")
 		if metrics.EnabledExpensive {
 			miscInEtherbasePacketsMeter.Mark(1)
 			miscInEtherbaseTrafficMeter.Mark(int64(msg.Size))
@@ -903,7 +902,7 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 		}
 
 	case GetPlumoProofInventoryMsg:
-		p.Log().Error("Received plumoProofInventory request")
+		p.Log().Trace("Received plumoProofInventory request")
 		var req struct {
 			ReqID uint64
 		}
@@ -918,15 +917,13 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 				defer wg.Done()
 				proofInventory := rawdb.KnownPlumoProofs(h.proofDb)
 
-				p.Log().Error("Proof inventory", "inventory", proofInventory)
-
 				reply := p.ReplyPlumoProofInventory(req.ReqID, proofInventory)
 				sendResponse(req.ReqID, 1, reply, task.done())
 			}()
 		}
 
 	case GetPlumoProofsMsg:
-		p.Log().Error("Received GetPlumoProofs request")
+		p.Log().Trace("Received GetPlumoProofs request")
 		var req struct {
 			ReqID          uint64
 			ProofsMetadata []types.PlumoProofMetadata
@@ -949,15 +946,13 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 					proofBytes := rawdb.ReadPlumoProof(h.proofDb, metadata)
 					engine := h.blockchain.Engine()
 					backend := engine.(*istanbulBackend.Backend)
-					// Could try and fetch roundstate here... but curiously never happens anywhere else.
+
 					firstEpochValSet := backend.GetValidatorSet(uint64(metadata.FirstEpoch), common.Hash{})
 					lastEpochValSet := backend.GetValidatorSet(uint64(metadata.LastEpoch), common.Hash{})
 					lastEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch), backend.EpochSize())
 					lastBlockHeader := h.blockchain.GetHeaderByNumber(lastEpochBlockNumber)
-					// lastEpochEntropy := blscrypto.EpochEntropyFromHash(lastBlockHeader.Hash())
 					parentEpochBlockNumber := istanbul.GetEpochLastBlockNumber(uint64(metadata.LastEpoch)-1, backend.EpochSize())
 					parentBlockHeader := h.blockchain.GetHeaderByNumber(parentEpochBlockNumber)
-					// parentEpochEntropy := blscrypto.EpochEntropyFromHash(parentBlockHeader.Hash())
 					lastEpochBlock := istanbul.LightEpochBlock{
 						Index:         metadata.LastEpoch,
 						MaxNonSigners: uint(lastEpochValSet.MinQuorumSize()),
@@ -987,12 +982,12 @@ func (h *serverHandler) handleMsg(p *clientPeer, wg *sync.WaitGroup) error {
 				}
 				reply := p.ReplyPlumoProofs(req.ReqID, proofs)
 				sendResponse(req.ReqID, uint64(reqCnt), reply, task.done())
-				// TODO metrics
+				// TODO(plumo) metrics
 			}()
 		}
 
 	default:
-		p.Log().Error("Received invalid message", "code", msg.Code)
+		p.Log().Trace("Received invalid message", "code", msg.Code)
 		clientErrorMeter.Mark(1)
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

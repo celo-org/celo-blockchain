@@ -36,7 +36,6 @@ import (
 	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/light"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
@@ -1339,12 +1338,6 @@ func (ps *serverPeerSet) register(peer *serverPeer) error {
 		sub.registerPeer(peer)
 	}
 
-	// if ps.lightest {
-	// 	reqID := genReqID()
-	// 	cost := p.GetRequestCost(GetPlumoProofInventoryMsg, 0)
-	// 	go p.RequestPlumoProofInventory(reqID, cost)
-	// }
-
 	return nil
 }
 
@@ -1415,8 +1408,6 @@ func (ps *serverPeerSet) len() int {
 func (ps *serverPeerSet) bestPeer() *serverPeer { // nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
-
-	log.Error("Calculating BestPeer")
 
 	var (
 		bestPeer *serverPeer
