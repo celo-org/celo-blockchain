@@ -112,7 +112,7 @@ func MakeProtocols(backend Backend, network uint64, dnsdisc enode.Iterator) []p2
 		protocols[i] = p2p.Protocol{
 			Name:    istanbul.ProtocolName,
 			Version: version,
-			Length:  protocolLengths[version],
+			Length:  istanbul.ProtocolLengths[version],
 			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 				peer := NewPeer(version, p, rw, backend.TxPool())
 				defer peer.Close()
