@@ -3837,7 +3837,8 @@ var outputBlockFormatter = function(block) {
     block.timestamp = utils.toDecimal(block.timestamp);
     if(block.number !== null)
         block.number = utils.toDecimal(block.number);
-    
+
+    block.difficulty = utils.toBigNumber(block.difficulty);
     block.totalDifficulty = utils.toBigNumber(block.totalDifficulty);
 
     if (utils.isArray(block.transactions)) {
@@ -5640,13 +5641,6 @@ var methods = function () {
         inputFormatter: [null]
     });
 
-    var decrypt = new Method({
-        name: 'decrypt',
-		call: 'personal_decrypt',
-		params: 2,
-		inputFormatter: [null, formatters.inputAddressFormatter]
-    });
-
     var importRawKey = new Method({
         name: 'importRawKey',
 		call: 'personal_importRawKey',
@@ -5689,7 +5683,6 @@ var methods = function () {
 
     return [
         newAccount,
-        decrypt,
         importRawKey,
         unlockAccount,
         ecRecover,
