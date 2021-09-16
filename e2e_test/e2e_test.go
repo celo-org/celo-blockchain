@@ -20,8 +20,9 @@ func init() {
 // network to process the transaction.
 func TestSendCelo(t *testing.T) {
 	accounts := test.Accounts(3)
-	gc := test.GenesisConfig(accounts)
-	network, err := test.NewNetwork(accounts, gc)
+	gc, ec, err := test.BuildConfig(accounts)
+	require.NoError(t, err)
+	network, err := test.NewNetwork(accounts, gc, ec)
 	require.NoError(t, err)
 	defer network.Shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
