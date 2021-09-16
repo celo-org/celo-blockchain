@@ -17,14 +17,11 @@ const (
 
 var (
 	proofAnnounceInMeter   = metrics.NewRegisteredMeter("eth/fetcher/proof/announces/in", nil)
-	proofAnnounceOutTimer  = metrics.NewRegisteredTimer("eth/fetcher/proof/announces/out", nil)
 	proofAnnounceDropMeter = metrics.NewRegisteredMeter("eth/fetcher/proof/announces/drop", nil)
 	proofAnnounceDOSMeter  = metrics.NewRegisteredMeter("eth/fetcher/proof/announces/dos", nil)
 
-	proofBroadcastInMeter   = metrics.NewRegisteredMeter("eth/fetcher/proof/broadcasts/in", nil)
-	proofBroadcastOutTimer  = metrics.NewRegisteredTimer("eth/fetcher/proof/broadcasts/out", nil)
-	proofBroadcastDropMeter = metrics.NewRegisteredMeter("eth/fetcher/proof/broadcasts/drop", nil)
-	proofBroadcastDOSMeter  = metrics.NewRegisteredMeter("eth/fetcher/proof/broadcasts/dos", nil)
+	proofBroadcastInMeter  = metrics.NewRegisteredMeter("eth/fetcher/proof/broadcasts/in", nil)
+	proofBroadcastDOSMeter = metrics.NewRegisteredMeter("eth/fetcher/proof/broadcasts/dos", nil)
 
 	proofFetchMeter = metrics.NewRegisteredMeter("eth/fetcher/fetch/proofs", nil)
 
@@ -50,7 +47,7 @@ type proofInsertFn func(types.PlumoProofs) error
 // announce is the metadata notification of the availability of a new proof in the
 // network.
 type proofAnnounce struct {
-	metadata types.PlumoProofMetadata // Metadata of the proof being anounced
+	metadata types.PlumoProofMetadata // Metadata of the proof being announced
 	time     time.Time                // Tiemstamp of the announcement
 
 	origin string // Identifier of the peer originating the notification
@@ -60,7 +57,7 @@ type proofAnnounce struct {
 
 // proofFilterTask represents a batch of proofs needing fetcher filtering.
 type proofFilterTask struct {
-	peer   string              // The soruce peer of proofs
+	peer   string              // The source peer of proofs
 	proofs []*types.PlumoProof // Collection of proofs to filter
 	time   time.Time           // Arrival time of the proofs
 }
@@ -244,7 +241,6 @@ func (pf *ProofFetcher) loop() {
 			}
 			// If we have a valid metadata, check that it's potentially useful
 			if notification.metadata != (types.PlumoProofMetadata{}) {
-				// TODO is this ok? I think it simulates the expected behavior as best it can
 				if pf.getProof(notification.metadata) != nil {
 					log.Debug("Peer discarded announcement", "peer", notification.origin, "metadata", notification.metadata.String())
 					proofAnnounceDropMeter.Mark(1)
@@ -419,8 +415,6 @@ func (pf *ProofFetcher) insert(peer string, proof *types.PlumoProof) {
 		switch err := pf.verifyProof(proof); err {
 		case nil:
 			// All ok, quickly propagate to our peers
-			// TODO
-			// propBroadcastOutTimer.UpdateSince(block.ReceivedAt)
 			go pf.broadcastProof(proof, true)
 
 		default:
@@ -435,8 +429,6 @@ func (pf *ProofFetcher) insert(peer string, proof *types.PlumoProof) {
 			return
 		}
 		// If import succeeded, broadcast the proof
-		// TODO
-		// propAnnounceOutTimer.UpdateSince(block.ReceivedAt)
 		go pf.broadcastProof(proof, false)
 
 		// Invoke the testing hook if needed

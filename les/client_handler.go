@@ -490,7 +490,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 		h.fetcher.importKnownPlumoProofs(p, resp.ProofsInventory)
 
 	case PlumoProofsMsg:
-		p.Log().Trace("Recieved PlumoProofsMsg response")
+		p.Log().Trace("Received PlumoProofsMsg response")
 		var resp struct {
 			ReqID, BV   uint64
 			LightProofs []istanbul.LightPlumoProof
@@ -620,7 +620,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	}
 	var headerGaps []headerGap
 	knownPlumoProofs := pc.peer.knownPlumoProofs
-	var currEpoch = uint(istanbul.GetEpochNumber(uint64(from), epoch)) - 1
+	var currEpoch = istanbul.GetEpochNumber(uint64(from), epoch) - 1
 	// Outer loop finding the path
 	for {
 		for _, proofMetadata := range pc.handler.requestedProofs {
@@ -638,7 +638,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
 					log.Trace("Updating match", "prev", earliestMatch, "prevRange", maxRange, "to", proofMetadata.FirstEpoch, "toAmount", proofRange)
-					earliestMatch = uint(proofMetadata.FirstEpoch)
+					earliestMatch = proofMetadata.FirstEpoch
 					maxRange = proofRange
 					chosenProofMetadata = proofMetadata
 				}
@@ -697,9 +697,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 			return light.ErrNoPeers
 		}
 		// Might need a lock
-		for _, proofMetadata := range proofsToRequest {
-			pc.handler.requestedProofs = append(pc.handler.requestedProofs, proofMetadata)
-		}
+		pc.handler.requestedProofs = append(pc.handler.requestedProofs, proofsToRequest...)
 	}
 
 	for i := len(headerGaps) - 1; i >= 0; i-- {

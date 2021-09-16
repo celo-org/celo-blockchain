@@ -1802,7 +1802,7 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 			if proofMetadata.FirstEpoch >= currEpoch {
 				proofRange := proofMetadata.LastEpoch - proofMetadata.FirstEpoch
 				if proofMetadata.FirstEpoch <= earliestMatch && proofRange > maxRange {
-					earliestMatch = uint(proofMetadata.FirstEpoch)
+					earliestMatch = proofMetadata.FirstEpoch
 					maxRange = proofRange
 					chosenProofMetadata = proofMetadata
 				}
@@ -1853,7 +1853,6 @@ func (dlp *downloadTesterPeer) RequestPlumoProofsAndHeaders(from uint64, epoch u
 
 	for _, headerGap := range headerGaps {
 		result := dlp.chain.headersByNumber(uint64(headerGap.FirstEpoch), headerGap.Amount, 0)
-		fmt.Printf("Delivering header %v : %v \n", headerGap.FirstEpoch, headerGap.Amount)
 		go dlp.dl.downloader.DeliverHeaders(dlp.id, result)
 	}
 	return nil
@@ -1863,9 +1862,7 @@ func (dl *downloadTester) InsertPlumoProofs(lightProofs []istanbul.LightPlumoPro
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	for _, lightProof := range lightProofs {
-		dl.ownPlumoProofs = append(dl.ownPlumoProofs, lightProof)
-	}
+	dl.ownPlumoProofs = append(dl.ownPlumoProofs, lightProofs...)
 }
 
 var (

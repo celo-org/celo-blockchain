@@ -34,10 +34,6 @@ var (
 		LastEpoch:     1,
 		VersionNumber: 1,
 	}
-	testProof = types.PlumoProof{
-		Proof:    proof,
-		Metadata: testMetadata,
-	}
 )
 
 // makeProofs creates a list of n proofs, iteratively increasing the proof range by `step`
@@ -78,7 +74,7 @@ func newProofTester() *proofFetcherTester {
 	var proofsMetadata []types.PlumoProofMetadata
 	proofsMetadata = append(proofsMetadata, testMetadata)
 	tester := &proofFetcherTester{
-		proofsMetadata: nil,
+		proofsMetadata: proofsMetadata,
 		proofs:         make(map[types.PlumoProofMetadata]*types.PlumoProof),
 		drops:          make(map[string]bool),
 	}
@@ -404,146 +400,3 @@ func TestProofImportDeduplication(t *testing.T) {
 		t.Fatalf("import invocation count mismatch: have %v, want %v", counter, 2)
 	}
 }
-
-// TODO: TestInvalidMetadata announcement
-// Tests that peers announcing proofs with invalid numbers (i.e. not matching
-// the headers provided afterwards) get dropped as malicious.
-// func TestInvalidNumberAnnouncement(t *testing.T) {
-// 	// Create a single block to import and check numbers against
-// 	proofsMetadata, proofs := makeProofs(1, 0, genesis)
-
-// 	tester := newTester()
-// 	badHeaderFetcher := tester.makeHeaderFetcher("bad", proofs, -gatherSlack)
-// 	badBodyFetcher := tester.makeBodyFetcher("bad", proofs, 0)
-
-// 	imported := make(chan *types.Block)
-// 	tester.fetcher.importedHook = func(block *types.Block) { imported <- block }
-
-// 	// Announce a block with a bad number, check for immediate drop
-// 	tester.fetcher.Notify("bad", proofsMetadata[0], 2, time.Now().Add(-arriveTimeout), badHeaderFetcher, badBodyFetcher)
-// 	verifyImportEvent(t, imported, false)
-
-// 	tester.lock.RLock()
-// 	dropped := tester.drops["bad"]
-// 	tester.lock.RUnlock()
-
-// 	if !dropped {
-// 		t.Fatalf("peer with invalid numbered announcement not dropped")
-// 	}
-
-// 	goodHeaderFetcher := tester.makeHeaderFetcher("good", proofs, -gatherSlack)
-// 	goodBodyFetcher := tester.makeBodyFetcher("good", proofs, 0)
-// 	// Make sure a good announcement passes without a drop
-// 	tester.fetcher.Notify("good", proofsMetadata[0], 1, time.Now().Add(-arriveTimeout), goodHeaderFetcher, goodBodyFetcher)
-// 	verifyImportEvent(t, imported, true)
-
-// 	tester.lock.RLock()
-// 	dropped = tester.drops["good"]
-// 	tester.lock.RUnlock()
-
-// 	if dropped {
-// 		t.Fatalf("peer with valid numbered announcement dropped")
-// 	}
-// 	verifyImportDone(t, imported)
-// }
-
-// Tests that a peer is unable to use unbounded memory with sending infinite
-// proof announcements to a node, but that even in the face of such an attack,
-// the fetcher remains operational.
-// func TestProofMemoryExhaustionAttack(t *testing.T) {
-// 	// Create a tester with instrumented import hooks
-// 	tester := newProofTester()
-
-// 	imported, announces := make(chan *types.PlumoProof), int32(0)
-// 	tester.proofFetcher.importedHook = func(proof *types.PlumoProof) { imported <- proof }
-// 	tester.proofFetcher.announceChangeHook = func(metadata types.PlumoProofMetadata, added bool) {
-// 		if added {
-// 			atomic.AddInt32(&announces, 1)
-// 		} else {
-// 			atomic.AddInt32(&announces, -1)
-// 		}
-// 	}
-// 	// Create a valid chain and an infinite junk chain
-// 	targetBlocks := proofLimit + 2*maxQueueDist
-// 	proofsMetadata, proofs := makeProofs(targetBlocks, 0, genesis)
-// 	validHeaderFetcher := tester.makeHeaderFetcher("valid", proofs, -gatherSlack)
-// 	validBodyFetcher := tester.makeBodyFetcher("valid", proofs, 0)
-
-// 	attack, _ := makeProofs(targetBlocks, 0, unknownBlock)
-// 	attackerHeaderFetcher := tester.makeHeaderFetcher("attacker", nil, -gatherSlack)
-// 	attackerBodyFetcher := tester.makeBodyFetcher("attacker", nil, 0)
-
-// 	// Feed the tester a huge hashset from the attacker, and a limited from the valid peer
-// 	for i := 0; i < len(attack); i++ {
-// 		if i < maxQueueDist {
-// 			tester.fetcher.Notify("valid", proofsMetadata[len(proofsMetadata)-2-i], uint64(i+1), time.Now(), validHeaderFetcher, validBodyFetcher)
-// 		}
-// 		tester.fetcher.Notify("attacker", attack[i], 1 /* don't distance drop */, time.Now(), attackerHeaderFetcher, attackerBodyFetcher)
-// 	}
-// 	if count := atomic.LoadInt32(&announces); count != proofLimit+maxQueueDist {
-// 		t.Fatalf("queued announce count mismatch: have %d, want %d", count, proofLimit+maxQueueDist)
-// 	}
-// 	// Wait for fetches to complete
-// 	verifyImportCount(t, imported, maxQueueDist)
-
-// 	// Feed the remaining valid proofsMetadata to ensure DOS protection state remains clean
-// 	for i := len(proofsMetadata) - maxQueueDist - 2; i >= 0; i-- {
-// 		tester.fetcher.Notify("valid", proofsMetadata[i], uint64(len(proofsMetadata)-i-1), time.Now().Add(-arriveTimeout), validHeaderFetcher, validBodyFetcher)
-// 		verifyImportEvent(t, imported, true)
-// 	}
-// 	verifyImportDone(t, imported)
-// }
-
-// Tests that proofs sent to the fetcher (either through propagation or via hash
-// announces and retrievals) don't pile up indefinitely, exhausting available
-// system memory.
-// func TestBlockMemoryExhaustionAttack(t *testing.T) {
-// 	// Create a tester with instrumented import hooks
-// 	tester := newTester()
-
-// 	imported, enqueued := make(chan *types.Block), int32(0)
-// 	tester.fetcher.importedHook = func(block *types.Block) { imported <- block }
-// 	tester.fetcher.queueChangeHook = func(hash common.Hash, added bool) {
-// 		if added {
-// 			atomic.AddInt32(&enqueued, 1)
-// 		} else {
-// 			atomic.AddInt32(&enqueued, -1)
-// 		}
-// 	}
-// 	// Create a valid chain and a batch of dangling (but in range) proofs
-// 	targetBlocks := proofLimit + 2*maxQueueDist
-// 	proofsMetadata, proofs := makeProofs(targetBlocks, 0, genesis)
-// 	attack := make(map[common.Hash]*types.Block)
-// 	for i := byte(0); len(attack) < blockLimit+2*maxQueueDist; i++ {
-// 		proofsMetadata, proofs := makeProofs(maxQueueDist-1, i, unknownBlock)
-// 		for _, hash := range proofsMetadata[:maxQueueDist-2] {
-// 			attack[hash] = proofs[hash]
-// 		}
-// 	}
-// 	// Try to feed all the attacker proofs make sure only a limited batch is accepted
-// 	for _, block := range attack {
-// 		tester.fetcher.Enqueue("attacker", block)
-// 	}
-// 	time.Sleep(200 * time.Millisecond)
-// 	if queued := atomic.LoadInt32(&enqueued); queued != blockLimit {
-// 		t.Fatalf("queued block count mismatch: have %d, want %d", queued, blockLimit)
-// 	}
-// 	// Queue up a batch of valid proofs, and check that a new peer is allowed to do so
-// 	for i := 0; i < maxQueueDist-1; i++ {
-// 		tester.fetcher.Enqueue("valid", proofs[proofsMetadata[len(proofsMetadata)-3-i]])
-// 	}
-// 	time.Sleep(100 * time.Millisecond)
-// 	if queued := atomic.LoadInt32(&enqueued); queued != blockLimit+maxQueueDist-1 {
-// 		t.Fatalf("queued block count mismatch: have %d, want %d", queued, blockLimit+maxQueueDist-1)
-// 	}
-// 	// Insert the missing piece (and sanity check the import)
-// 	tester.fetcher.Enqueue("valid", proofs[proofsMetadata[len(proofsMetadata)-2]])
-// 	verifyImportCount(t, imported, maxQueueDist)
-
-// 	// Insert the remaining proofs in chunks to ensure clean DOS protection
-// 	for i := maxQueueDist; i < len(proofsMetadata)-1; i++ {
-// 		tester.fetcher.Enqueue("valid", proofs[proofsMetadata[len(proofsMetadata)-2-i]])
-// 		verifyImportEvent(t, imported, true)
-// 	}
-// 	verifyImportDone(t, imported)
-// }

@@ -47,7 +47,7 @@ var (
 	MaxSkeletonSize     = 128 // Number of header fetches to need for a skeleton assembly
 	MaxReceiptFetch     = 256 // Amount of transaction receipts to allow fetching per request
 	MaxStateFetch       = 384 // Amount of node state values to allow fetching per request
-	MaxPlumoProofFetch  = 192 // Amount of plumo proofs to be fetched per retrieval request (TODO(lucas))
+	MaxPlumoProofFetch  = 192 // Amount of plumo proofs to be fetched per retrieval request
 
 	rttMinEstimate     = 2 * time.Second  // Minimum round-trip time to target for download requests
 	rttMaxEstimate     = 20 * time.Second // Maximum round-trip time to target for download requests
@@ -1025,8 +1025,6 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
 		p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
 		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, epoch, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
-		// go p.peer.RequestProofs()
-		// go p.peer.RequestPlumoProofInventory()
 	}
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.
@@ -1170,11 +1168,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				// In the lightest sync mode, increment the value by epoch instead.
 				if mode == LightestSync {
 					lastFetchedHeaderNumber := headers[len(headers)-1].Number.Uint64()
-					log.Error("Get epoch or normal Headers", "lastFetchedHeaderNumber", lastFetchedHeaderNumber)
 					moreHeaderFetchesPending := getEpochOrNormalHeaders(lastFetchedHeaderNumber + 1)
 					if !moreHeaderFetchesPending {
-						// TODO this may be inadequately dealing with concurrent proof/header requests
-						log.Error("!!!!!!! No more header fetches pending???")
 						d.headerProcCh <- nil
 						select {
 						case d.plumoProofProcCh <- nil:
@@ -1234,29 +1229,12 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 
 			// Insert all the new proofs and fetch the next batch
 			if len(lightProofs) > 0 {
-				p.log.Error("Scheduling new proofs", "count", len(lightProofs), "from", from)
+				p.log.Trace("Scheduling new proofs", "count", len(lightProofs), "from", from)
 				select {
 				case d.plumoProofProcCh <- lightProofs:
 				case <-d.cancelCh:
 					return errCanceled
 				}
-				// TODO(lucas): This will need work
-
-				// lastFetchedEpochNumber := uint64(lightProofs[len(lightProofs)-1].LastEpoch.Index)
-				// moreEpochFetchesPending := getEpochOrNormalHeaders(lastFetchedEpochNumber)
-				// if !moreEpochFetchesPending {
-				// }
-				// epochRange := lightProofs[len(lightProofs)-1].LastEpoch.Index - lightProofs[0].FirstEpoch + 1
-				// from += uint64(epochRange)*epoch - 1
-				// getEpochHeaders(from)
-				p.log.Error("No more proofs available")
-				// select {
-				// case d.plumoProofProcCh <- nil:
-				// 	// TODO what exactly to do here
-				// 	// return nil
-				// case <-d.cancelCh:
-				// 	return errCanceled
-				// }
 			} else {
 				// No plumo proofs delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Error("All plumo proofs delayed, waiting")
@@ -1288,7 +1266,6 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 				case <-d.cancelCh:
 				}
 			}
-			// TODO how to do both?
 			d.headerProcCh <- nil
 			select {
 			case d.plumoProofProcCh <- nil:
@@ -1799,7 +1776,6 @@ func (d *Downloader) processPlumoProofs(origin uint64, pivot uint64, td *big.Int
 				if uint64(earliestProof) <= currentProgress {
 					break
 				} else {
-					// TODO: add some exponential backoff or abort
 					time.Sleep(200 * time.Millisecond)
 				}
 			}

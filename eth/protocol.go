@@ -212,6 +212,3 @@ type getPlumoProofsData struct {
 	Complement     bool
 	ProofsMetadata []types.PlumoProofMetadata
 }
-
-// plumoProofsData is the network packet for plumo proof distribution.
-type plumoProofsData []*types.PlumoProof

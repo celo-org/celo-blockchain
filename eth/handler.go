@@ -957,7 +957,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			proofs []types.PlumoProof
 		)
 		if query.Complement {
-			// TODO(lucas): inefficient, could improve via some better DS
 			knownPlumoProofs := rawdb.KnownPlumoProofs(pm.proofDb)
 			for _, knownProof := range knownPlumoProofs {
 				if bytes >= softResponseLimit || len(proofs) >= downloader.MaxPlumoProofFetch {
@@ -1158,7 +1157,6 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 	}
 }
 
-// TODO(lucas): remove?
 // Added Plumo Proof loop
 func (pm *ProtocolManager) plumoProofBroadcastLoop() {
 	// automatically stops if unsubscribed
@@ -1166,7 +1164,6 @@ func (pm *ProtocolManager) plumoProofBroadcastLoop() {
 		if ev, ok := obj.Data.(core.NewPlumoProofAddedEvent); ok {
 			log.Error("Broadcast loop", "ev", ev)
 			rawdb.WritePlumoProof(pm.proofDb, ev.Proof)
-			// TODO propogate?
 			pm.BroadcastPlumoProof(ev.Proof)
 		}
 	}
