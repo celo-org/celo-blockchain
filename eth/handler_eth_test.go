@@ -47,14 +47,28 @@ type testEthHandler struct {
 	blockBroadcasts event.Feed
 	txAnnounces     event.Feed
 	txBroadcasts    event.Feed
+	chain           *core.BlockChain
 }
 
-func (h *testEthHandler) Chain() *core.BlockChain              { panic("no backing chain") }
+func (h *testEthHandler) Chain() *core.BlockChain              { return h.chain }
 func (h *testEthHandler) StateBloom() *trie.SyncBloom          { panic("no backing state bloom") }
 func (h *testEthHandler) TxPool() eth.TxPool                   { panic("no backing tx pool") }
 func (h *testEthHandler) AcceptTxs() bool                      { return true }
 func (h *testEthHandler) RunPeer(*eth.Peer, eth.Handler) error { panic("not used in tests") }
 func (h *testEthHandler) PeerInfo(enode.ID) interface{}        { panic("not used in tests") }
+
+func newTestEthHandler() *testEthHandler {
+	var (
+		engine = mockEngine.NewFaker()
+		testdb = rawdb.NewMemoryDatabase()
+	)
+	(&core.Genesis{Config: params.TestChainConfig}).MustCommit(testdb)
+	chainAux, err := core.NewBlockChain(testdb, nil, params.TestChainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	return &testEthHandler{chain: chainAux}
+}
 
 func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 	switch packet := packet.(type) {
@@ -339,7 +353,8 @@ func testSendTransactions(t *testing.T, protocol uint) {
 	}
 	// After the handshake completes, the source handler should stream the sink
 	// the transactions, subscribe to all inbound network events
-	backend := new(testEthHandler)
+	backend := newTestEthHandler()
+	defer backend.Chain().Stop()
 
 	anns := make(chan []common.Hash)
 	annSub := backend.txAnnounces.Subscribe(anns)
@@ -355,7 +370,7 @@ func testSendTransactions(t *testing.T, protocol uint) {
 	seen := make(map[common.Hash]struct{})
 	for len(seen) < len(insert) {
 		switch protocol {
-		case 65, 66:
+		case 66, 67:
 			select {
 			case hashes := <-anns:
 				for _, hash := range hashes {
@@ -606,7 +621,8 @@ func testBroadcastBlock(t *testing.T, peers, bcasts int) {
 
 	sinks := make([]*testEthHandler, peers)
 	for i := 0; i < len(sinks); i++ {
-		sinks[i] = new(testEthHandler)
+		sinks[i] = newTestEthHandler()
+		defer sinks[i].Chain().Stop()
 	}
 	// Interconnect all the sink handlers with the source handler
 	var (
@@ -706,7 +722,8 @@ func testBroadcastMalformedBlock(t *testing.T, protocol uint) {
 	}
 	// After the handshake completes, the source handler should stream the sink
 	// the blocks, subscribe to inbound network events
-	backend := new(testEthHandler)
+	backend := newTestEthHandler()
+	defer backend.Chain().Stop()
 
 	blocks := make(chan *types.Block, 1)
 	sub := backend.blockBroadcasts.Subscribe(blocks)
