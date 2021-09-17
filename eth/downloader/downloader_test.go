@@ -529,10 +529,8 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 			proofRange := int(lightProof.LastEpoch.Index - lightProof.FirstEpoch - 1)
 			numPlumoProofEpochs += proofRange
 		}
-		// Don't double count genesis
-		numPlumoProofEpochs -= 1
 	}
-	if hs := len(tester.ownHeaders) + len(tester.ancientHeaders) + numPlumoProofEpochs; hs != headers {
+	if hs := len(tester.ownHeaders) + len(tester.ancientHeaders) + numPlumoProofEpochs - 1; hs != headers {
 		t.Fatalf("synchronised headers mismatch: have %v, want %v", hs, headers)
 	}
 	if bs := len(tester.ownBlocks) + len(tester.ancientBlocks) - 1; bs != blocks {

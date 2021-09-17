@@ -620,7 +620,7 @@ func (pc *peerConnection) RequestPlumoProofsAndHeaders(from uint64, epoch uint64
 	}
 	var headerGaps []headerGap
 	knownPlumoProofs := pc.peer.knownPlumoProofs
-	var currEpoch = uint(istanbul.GetEpochNumber(uint64(from), epoch) - 1)
+	var currEpoch = uint(istanbul.GetEpochNumber(from, epoch) - 1)
 	// Outer loop finding the path
 	for {
 		for _, proofMetadata := range pc.handler.requestedProofs {

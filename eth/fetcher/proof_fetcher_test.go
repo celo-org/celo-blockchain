@@ -28,7 +28,6 @@ import (
 )
 
 var (
-	proof, _     = hex.DecodeString("dummyProof0")
 	testMetadata = types.PlumoProofMetadata{
 		FirstEpoch:    0,
 		LastEpoch:     1,
