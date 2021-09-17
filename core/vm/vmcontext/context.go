@@ -38,7 +38,7 @@ func NewBlockContext(header *types.Header, chain chainContext, txFeeRecipient *c
 	// All the other calls, assume that will be retrieved from the header
 	var beneficiary common.Address
 	if txFeeRecipient == nil {
-		beneficiary, _ = chain.Engine().Author(header)
+		beneficiary = header.Coinbase
 	} else {
 		beneficiary = *txFeeRecipient
 	}
