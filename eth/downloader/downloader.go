@@ -1022,9 +1022,16 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64, 
 		// 1000, 1101, 1202, 1303 ...
 		// So, skip has to be epoch - 1 to get the right set of blocks.
 		skip := int(epoch - 1)
-		log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
-		p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
-		go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, epoch, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		if p.version >= 4 { // TODO(plumo): cannot import les, circular
+			log.Trace("getProofsAndHeaders", "from", fromEpochBlock, "skip", skip)
+			p.log.Error("Fetching Proofs and headers", "from", fromEpochBlock)
+			go p.peer.RequestPlumoProofsAndHeaders(fromEpochBlock, epoch, skip, MaxPlumoProofFetch, MaxEpochHeaderFetch)
+		} else {
+			count := MaxEpochHeaderFetch
+			log.Trace("getEpochHeaders", "from", fromEpochBlock, "count", count, "skip", skip)
+			p.log.Trace("Fetching full headers", "count", count, "from", fromEpochBlock)
+			go p.peer.RequestHeadersByNumber(fromEpochBlock, count, skip, false)
+		}
 	}
 
 	// Returns true if a header(s) fetch request was made, false if the syncing is finished.

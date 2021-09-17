@@ -225,7 +225,7 @@ func (f *lightFetcher) stop() {
 
 // registerPeer adds an new peer to the fetcher's peer set
 func (f *lightFetcher) registerPeer(p *serverPeer) {
-	if f.syncMode == downloader.LightestSync {
+	if f.syncMode == downloader.LightestSync && p.version >= lpv4 {
 		reqID := genReqID()
 		cost := p.getRequestCost(GetPlumoProofInventoryMsg, 0)
 		go p.RequestPlumoProofInventory(reqID, cost)
