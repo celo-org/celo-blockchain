@@ -152,6 +152,7 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 		Context:      blockCtx,
 		TxContext:    txCtx,
 		StateDB:      statedb,
+		Config:       config,
 		chainConfig:  chainConfig,
 		chainRules:   chainConfig.Rules(blockCtx.BlockNumber),
 		dontMeterGas: false,

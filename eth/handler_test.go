@@ -136,10 +136,10 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 		Config: params.TestChainConfig,
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 	}).MustCommit(db)
+	engine := mockEngine.NewFaker()
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, engine, vm.Config{}, nil, nil)
 
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, mockEngine.NewFaker(), vm.Config{}, nil, nil)
-
-	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), mockEngine.NewFaker(), db, blocks, nil)
+	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), engine, db, blocks, nil)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
