@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
@@ -514,6 +515,78 @@ type Message struct {
 	enodeCertificate    *EnodeCertificate
 	versionCertificates []*VersionCertificate
 	valEnodeShareData   *ValEnodesShareData
+}
+
+// Provides a short representation of a hash
+func shortHash(h common.Hash) string {
+	return hexutil.Encode(h[:2])
+}
+
+func (m *Message) DebugString() string {
+	// pp
+	// p
+	// c
+	// rc
+	switch m.Code {
+	case MsgPreprepare:
+		cert := "N"
+		if len(m.prePrepare.RoundChangeCertificate.RoundChangeMessages) > 0 {
+			cert = "Y"
+		}
+		return fmt.Sprintf(
+			"Type:pp, Seq:%4d, Round:%3d, Val: %s, Cert:%s",
+			m.prePrepare.View.Sequence.Uint64(),
+			m.prePrepare.View.Round.Uint64(),
+			shortHash(m.prePrepare.Proposal.Hash()),
+			cert)
+	case MsgPrepare:
+		return fmt.Sprintf(
+			"Type: p, Seq:%4d, Round:%3d, Val: %s",
+			m.prepare.View.Sequence.Uint64(),
+			m.prepare.View.Round.Uint64(),
+			shortHash(m.prepare.Digest))
+	case MsgCommit:
+		return fmt.Sprintf(
+			"Type: c, Seq:%4d, Round:%3d, Val: %s",
+			m.committedSubject.Subject.View.Sequence.Uint64(),
+			m.committedSubject.Subject.View.Round.Uint64(),
+			shortHash(m.committedSubject.Subject.Digest))
+	case MsgRoundChange:
+		val := ""
+		if m.roundChange.PreparedCertificate.Proposal != nil {
+			val = shortHash(m.roundChange.PreparedCertificate.Proposal.Hash())
+		}
+		return fmt.Sprintf(
+			"Type:rc, Seq:%4d, Round:%3d, Val: %s",
+			m.roundChange.View.Sequence.Uint64(),
+			m.roundChange.View.Round.Uint64(),
+			val)
+	default:
+		panic(fmt.Sprintf("unexpected message: %d", m.Code))
+	}
+	// case QueryEnodeMsg:
+	// 	var q *QueryEnodeData
+	// 	err = m.decode(&q)
+	// 	m.queryEnode = q
+	// case FwdMsg:
+	// 	var f *ForwardMessage
+	// 	err = m.decode(&f)
+	// 	m.forwardMessage = f
+	// case EnodeCertificateMsg:
+	// 	var e *EnodeCertificate
+	// 	err = m.decode(&e)
+	// 	m.enodeCertificate = e
+	// case VersionCertificatesMsg:
+	// 	var v []*VersionCertificate
+	// 	err = m.decode(&v)
+	// 	m.versionCertificates = v
+	// case ValEnodesShareMsg:
+	// 	var v *ValEnodesShareData
+	// 	err = m.decode(&v)
+	// 	m.valEnodeShareData = v
+	// default:
+	// }
+	// return err
 }
 
 // setMessageBytes sets the Msg field of msg to the rlp serialised bytes of

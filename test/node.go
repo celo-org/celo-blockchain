@@ -68,11 +68,14 @@ var (
 			// 50ms is a really low timeout, we set this here because nodes
 			// fail the first round of consensus and so setting this higher
 			// makes tests run slower.
-			RequestTimeout:        50,
-			Epoch:                 10,
-			ProposerPolicy:        istanbul.ShuffledRoundRobin,
-			DefaultLookbackWindow: 3,
-			BlockPeriod:           0,
+			RequestTimeout:              200,
+			TimeoutBackoffFactor:        200,
+			MinResendRoundChangeTimeout: 200,
+			MaxResendRoundChangeTimeout: 10000,
+			Epoch:                       20,
+			ProposerPolicy:              istanbul.ShuffledRoundRobin,
+			DefaultLookbackWindow:       3,
+			BlockPeriod:                 0,
 		},
 	}
 )

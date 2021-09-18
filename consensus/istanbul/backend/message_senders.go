@@ -57,6 +57,7 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 		}
 	} else {
 		destPeers := sb.getPeersFromDestAddresses(destAddresses)
+		println("bc to", len(destPeers))
 		if len(destPeers) > 0 {
 			sb.asyncMulticast(destPeers, payload, ethMsgCode)
 		}

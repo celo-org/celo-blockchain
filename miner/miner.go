@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Backend wraps all methods required for mining.
@@ -132,6 +133,7 @@ func (miner *Miner) update() {
 	for {
 		select {
 		case ev := <-dlEventCh:
+			spew.Dump(ev)
 			if ev == nil {
 				// Unsubscription done, stop listening
 				dlEventCh = nil

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -320,8 +321,28 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	return payload, nil
 }
 
+// Provides a short representation of a hash
+func shortAddress(a common.Address) string {
+	return hexutil.Encode(a[:2])
+}
+
 // Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
+	// fmt.Printf(
+	// 	"%s\n%s Addr: %s Prop: %s sending msg: %s",
+	// 	string(debug.Stack()),
+	// 	time.Now().Format("15:04:05.000"),
+	// 	shortAddress(c.address),
+	// 	shortAddress(c.current.Proposer().Address()),
+	// 	msg.DebugString(),
+	// )
+	fmt.Printf(
+		"%s bc Addr: %s Prop: %5v  msg: %s\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(c.address),
+		c.current.IsProposer(c.address),
+		msg.DebugString(),
+	)
 	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
 }
 
@@ -458,6 +479,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
+	println("starting new round", round.Uint64())
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
 
 	if round.Cmp(c.current.Round()) == 0 {
@@ -716,6 +738,13 @@ func (c *core) resetRoundChangeTimer() {
 
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	timeout := c.getRoundChangeTimeout()
+
+	fmt.Printf(
+		"%s sn Addr: %s Sending next round change message in %v\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(c.address),
+		timeout,
+	)
 	c.roundChangeTimerMu.Lock()
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})

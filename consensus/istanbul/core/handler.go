@@ -17,7 +17,9 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -187,6 +189,13 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	// Store the message if it's a future message
 	catchFutureMessages := func(err error) error {
 		if err == errFutureMessage {
+			fmt.Printf(
+				"%s bk Addr: %s Prop: %5v  msg: %s\n",
+				time.Now().Format("15:04:05.000"),
+				shortAddress(c.address),
+				c.current.IsProposer(c.address),
+				msg.DebugString(),
+			)
 			// Store in backlog (if it's not from self)
 			if msg.Address != c.address {
 				c.backlog.store(msg)

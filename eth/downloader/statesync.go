@@ -100,6 +100,8 @@ func (d *Downloader) runStateSync(s *stateSync) *stateSync {
 		finished []*stateReq                  // Completed or failed requests
 		timeout  = make(chan *stateReq)       // Timed out active requests
 	)
+
+	println("State sync starting", "root", s.root.String())
 	// Run the state sync.
 	log.Trace("State sync starting", "root", s.root)
 	go s.run()

@@ -33,7 +33,7 @@ import (
 
 const (
 	forceSyncCycle      = 10 * time.Second // Time interval to force syncs, even if few peers are available
-	defaultMinSyncPeers = 5                // Amount of peers desired to start syncing
+	defaultMinSyncPeers = 1                // Amount of peers desired to start syncing
 
 	// This is the target size for the packs of transactions sent by txsyncLoop64.
 	// A pack can get larger than this if a single transactions exceeds this size.
@@ -210,11 +210,13 @@ func (cs *chainSyncer) loop() {
 
 	for {
 		if op := cs.nextSyncOp(); op != nil {
+			println("starting sync")
 			cs.startSync(op)
 		}
 
 		select {
 		case <-cs.peerEventCh:
+			println("peerevent")
 			// Peer information changed, recheck.
 		case <-cs.doneCh:
 			cs.doneCh = nil
@@ -241,6 +243,7 @@ func (cs *chainSyncer) loop() {
 // nextSyncOp determines whether sync is required at this time.
 func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 	if cs.doneCh != nil {
+		println("sync running already")
 		return nil // Sync already running.
 	}
 

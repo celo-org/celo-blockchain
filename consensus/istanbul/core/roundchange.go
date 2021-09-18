@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -143,6 +144,15 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
+
+	fmt.Printf(
+		"%s rc Addr: %s From: %s msg: %s\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(c.address),
+		shortAddress(msg.Address),
+		msg.DebugString(),
+	)
+
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	rc := msg.RoundChange()
@@ -184,11 +194,23 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// don't start a round until we have a quorum who want to start a given round.
 	ffRound := c.roundChangeSet.MaxRound(c.current.ValidatorSet().F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.current.ValidatorSet().MinQuorumSize())
+
+	fmt.Printf(
+		"%s rc Addr: %s From: %s msg: %s fr: %v qr: %5v\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(c.address),
+		shortAddress(msg.Address),
+		msg.DebugString(),
+		ffRound,
+		quorumRound,
+	)
 	logger = logger.New("ffRound", ffRound, "quorumRound", quorumRound)
 	logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
+
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
+		println("starting new")
 		logger.Debug("Got quorum round change messages, starting new round.")
 		return c.startNewRound(quorumRound)
 	} else if ffRound != nil {
