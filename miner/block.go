@@ -304,7 +304,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 	snap := b.state.Snapshot()
 	vmRunner := w.chain.NewEVMRunner(b.header, b.state)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner, b.sysCtx)
 	if err != nil {
 		b.state.RevertToSnapshot(snap)
 		return nil, err

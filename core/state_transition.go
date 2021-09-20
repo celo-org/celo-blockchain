@@ -71,6 +71,7 @@ type StateTransition struct {
 	evm             *vm.EVM
 	vmRunner        vm.EVMRunner
 	gasPriceMinimum *big.Int
+	sysCtx          *SysContractCallCtx
 }
 
 // Message represents a message sent to a contract.
@@ -207,8 +208,13 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 }
 
 // NewStateTransition initialises and returns a new state transition object.
-func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) *StateTransition {
-	gasPriceMinimum, _ := gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) *StateTransition {
+	var gasPriceMinimum *big.Int
+	if evm.ChainConfig().IsEHardfork(evm.Context.BlockNumber) {
+		gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
+	} else {
+		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
+	}
 
 	return &StateTransition{
 		gp:              gp,
@@ -232,18 +238,18 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "gas price", msg.GasPrice(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	return NewStateTransition(evm, msg, gp, vmRunner).TransitionDb()
+	return NewStateTransition(evm, msg, gp, vmRunner, sysCtx).TransitionDb()
 }
 
 // ApplyMessageWithoutGasPriceMinimum applies the given message with the gas price minimum
 // set to zero. It's only for use in eth_call and eth_estimateGas, so that they can be used
 // with gas price set to zero if the sender doesn't have funds to pay for gas.
 // Returns the gas used (which does not include gas refunds) and an error if it failed.
-func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner) (*ExecutionResult, error) {
+func ApplyMessageWithoutGasPriceMinimum(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*ExecutionResult, error) {
 	log.Trace("Applying state transition message without gas price minimum", "from", msg.From(), "nonce", msg.Nonce(), "to", msg.To(), "fee currency", msg.FeeCurrency(), "gateway fee recipient", msg.GatewayFeeRecipient(), "gateway fee", msg.GatewayFee(), "gas limit", msg.Gas(), "value", msg.Value(), "data", msg.Data())
-	st := NewStateTransition(evm, msg, gp, vmRunner)
+	st := NewStateTransition(evm, msg, gp, vmRunner, sysCtx)
 	st.gasPriceMinimum = common.Big0
 	return st.TransitionDb()
 }
@@ -258,7 +264,13 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees(eHardFork bool) error {
-	if !currency.IsWhitelisted(st.vmRunner, st.msg.FeeCurrency()) {
+	var isWhiteListed bool
+	if eHardFork {
+		isWhiteListed = st.sysCtx.IsWhitelisted(st.msg.FeeCurrency())
+	} else {
+		isWhiteListed = currency.IsWhitelisted(st.vmRunner, st.msg.FeeCurrency())
+	}
+	if !isWhiteListed {
 		log.Trace("Fee currency not whitelisted", "fee currency address", st.msg.FeeCurrency())
 		return ErrNonWhitelistedFeeCurrency
 	}
@@ -473,7 +485,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
-		gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
+		if eHardfork {
+			gasForAlternativeCurrency = st.sysCtx.GetIntrinsicGasForAlternativeFeeCurrency()
+		} else {
+			gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
+		}
 	}
 	gas, err := IntrinsicGas(st.data, st.msg.AccessList(), contractCreation, msg.FeeCurrency(), gasForAlternativeCurrency, istanbul)
 	if err != nil {

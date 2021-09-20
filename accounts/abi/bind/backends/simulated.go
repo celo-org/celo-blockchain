@@ -616,7 +616,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 
 	vmRunner := b.blockchain.NewEVMRunner(block.Header(), stateDB)
 
-	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner).TransitionDb()
+	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner, nil).TransitionDb()
 }
 
 // SendTransaction updates the pending block to include the given transaction.

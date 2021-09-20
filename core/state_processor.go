@@ -81,6 +81,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.IntermediateRoot(true)
 	}
 
+	parentHeader := p.bc.GetHeaderByNumber(block.NumberU64() - 1)
+	parentVmRunner := p.bc.NewEVMRunner(parentHeader, statedb)
+	sysCtx := NewSysContractCallCtx(parentVmRunner)
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	var gpm *big.Int // collect basefee from blockContext or somewhere else
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
@@ -91,7 +94,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.Prepare(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, p.bc, nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner)
+		receipt, err := applyTransaction(msg, p.config, p.bc, nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner, sysCtx)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -107,7 +110,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner) (*types.Receipt, error) {
+func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	if config.IsDonut(blockNumber) && !tx.Protected() {
 		return nil, ErrUnprotectedTransaction
 	}
@@ -117,7 +120,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	evm.Reset(txContext, statedb)
 
 	// Apply the transaction to the current state (included in the env).
-	result, err := ApplyMessage(evm, msg, gp, vmRunner)
+	result, err := ApplyMessage(evm, msg, gp, vmRunner, sysCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -160,14 +163,14 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	// TODO(Joshua): Set appropriate GPM/basefee here
-	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), nil)
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), sysCtx.GetGasPriceMinimum(tx.FeeCurrency()))
 	if err != nil {
 		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, txFeeRecipient)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
-	return applyTransaction(msg, config, bc, txFeeRecipient, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner)
+	return applyTransaction(msg, config, bc, txFeeRecipient, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner, sysCtx)
 }
