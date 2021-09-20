@@ -149,14 +149,12 @@ type GetTxStatusPacket struct {
 
 // GetEtherbasePacket represents a etherbase request
 type GetEtherbasePacket struct {
-	ReqID     uint64
-	Etherbase common.Address
+	ReqID uint64
 }
 
 // GetGatewayFeePacket represents a gateway fee request
 type GetGatewayFeePacket struct {
 	ReqID uint64
-	Info  GatewayFeeInformation
 }
 
 type requestInfo struct {
