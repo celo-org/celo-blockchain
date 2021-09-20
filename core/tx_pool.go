@@ -245,7 +245,7 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 }
 
 type txPoolContext struct {
-	BlockContext
+	*SysContractCallCtx
 	*currency.CurrencyManager
 }
 
@@ -1369,7 +1369,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.currentMaxGas = blockchain_parameters.GetBlockGasLimitOrDefault(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
-		NewBlockContext(pool.currentVMRunner),
+		NewSysContractCallCtx(pool.currentVMRunner),
 		currency.NewManager(pool.currentVMRunner),
 	}
 	pool.currentCtx.Store(newCtx)
