@@ -44,6 +44,7 @@ type blockState struct {
 	tcount   int            // tx count in cycle
 	gasPool  *core.GasPool  // available gas used to pack transactions
 	gasLimit uint64
+	sysCtx   *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -105,6 +106,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
+		sysCtx:         core.NewSysContractCallCtx(vmRunner),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
