@@ -94,7 +94,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.Prepare(tx.Hash(), i)
-		receipt, err := applyTransaction(msg, p.config, p.bc, nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner, sysCtx)
+		receipt, err := applyTransaction(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, vmRunner, sysCtx)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -110,7 +110,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
+func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	if config.IsDonut(blockNumber) && !tx.Protected() {
 		return nil, ErrUnprotectedTransaction
 	}
@@ -172,5 +172,5 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, txFeeRecipient)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
-	return applyTransaction(msg, config, bc, txFeeRecipient, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner, sysCtx)
+	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, vmRunner, sysCtx)
 }
