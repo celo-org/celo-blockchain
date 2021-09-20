@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -145,13 +144,13 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
-	fmt.Printf(
-		"%s rc Addr: %s From: %s msg: %s\n",
-		time.Now().Format("15:04:05.000"),
-		shortAddress(c.address),
-		shortAddress(msg.Address),
-		msg.DebugString(),
-	)
+	// fmt.Printf(
+	// 	"%s rc Addr: %s From: %s msg: %s\n",
+	// 	time.Now().Format("15:04:05.000"),
+	// 	shortAddress(c.address),
+	// 	shortAddress(msg.Address),
+	// 	msg.DebugString(),
+	// )
 
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
@@ -195,15 +194,15 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	ffRound := c.roundChangeSet.MaxRound(c.current.ValidatorSet().F() + 1)
 	quorumRound := c.roundChangeSet.MaxOnOneRound(c.current.ValidatorSet().MinQuorumSize())
 
-	fmt.Printf(
-		"%s rc Addr: %s From: %s msg: %s fr: %v qr: %5v\n",
-		time.Now().Format("15:04:05.000"),
-		shortAddress(c.address),
-		shortAddress(msg.Address),
-		msg.DebugString(),
-		ffRound,
-		quorumRound,
-	)
+	// fmt.Printf(
+	// 	"%s rc Addr: %s From: %s msg: %s fr: %v qr: %5v\n",
+	// 	time.Now().Format("15:04:05.000"),
+	// 	shortAddress(c.address),
+	// 	shortAddress(msg.Address),
+	// 	msg.DebugString(),
+	// 	ffRound,
+	// 	quorumRound,
+	// )
 	logger = logger.New("ffRound", ffRound, "quorumRound", quorumRound)
 	logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
 

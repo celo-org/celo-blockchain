@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/event"
@@ -891,12 +892,18 @@ running:
 			// The server was stopped. Run the cleanup logic.
 			break running
 		case addStaticArgs := <-srv.addstatic:
+			peerAddr := crypto.PubkeyToAddress(*addStaticArgs.node.Pubkey())
+			addr := crypto.PubkeyToAddress(*srv.localnode.Node().Pubkey())
+			fmt.Printf("Addr: %s adding static %s len(%d)\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]), len(static))
 			// This channel is used by AddPeer to add to the
 			// ephemeral static peer list. Add it to the dialer,
 			// it will keep the node connected.
 			srv.log.Trace("Adding static node", "node", addStaticArgs.node, "purpose", addStaticArgs.purpose)
 			addStatic(addStaticArgs.node, addStaticArgs.purpose)
 		case removeStaticArgs := <-srv.removestatic:
+			peerAddr := crypto.PubkeyToAddress(*removeStaticArgs.node.Pubkey())
+			addr := crypto.PubkeyToAddress(*srv.localnode.Node().Pubkey())
+			fmt.Printf("Addr: %s removing static %s len(%d)\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]), len(static))
 			// This channel is used by RemovePeer to send a
 			// disconnect request to a peer and begin the
 			// stop keeping the node connected.

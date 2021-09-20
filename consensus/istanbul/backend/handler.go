@@ -18,9 +18,11 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
@@ -40,6 +42,10 @@ var (
 const (
 	handshakeTimeout = 5 * time.Second
 )
+
+func shortAddress(a common.Address) string {
+	return hexutil.Encode(a[:2])
+}
 
 // HandleMsg implements consensus.Handler.HandleMsg
 func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Peer) (bool, error) {
@@ -92,6 +98,22 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg, peer consensus.Pe
 			return false, nil
 		}
 	} else if sb.IsValidating() {
+
+		// Decode message and check its signature
+		m := new(istanbul.Message)
+		if err := m.FromPayload(data, nil); err != nil {
+			return false, err
+		}
+
+		addr := sb.Address()
+		fmt.Printf(
+			"%s hm Addr: %s Sender: %s msg: %s\n",
+			time.Now().Format("15:04:05.000"),
+			shortAddress(addr),
+			shortAddress(m.Address),
+			m.DebugString(),
+		)
+
 		// Handle messages as primary validator
 		switch msg.Code {
 		case istanbul.ConsensusMsg:

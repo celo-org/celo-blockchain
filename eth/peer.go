@@ -727,6 +727,8 @@ func newPeerSet() *peerSet {
 // peer is already known. If a new peer it registered, its broadcast loop is also
 // started.
 func (ps *peerSet) Register(p *peer, removePeer func(string)) error {
+	// addr := crypto.PubkeyToAddress(*p.Node().Pubkey())
+	// fmt.Printf("Registering peer: %s\n", hexutil.Encode(addr[:2]))
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 

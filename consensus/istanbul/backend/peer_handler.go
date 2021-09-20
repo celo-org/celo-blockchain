@@ -17,11 +17,15 @@
 package backend
 
 import (
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
@@ -106,7 +110,10 @@ func (vph *validatorPeerHandler) MaintainValConnections() bool {
 }
 
 func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {
+	addr := vph.sb.Address()
+	fmt.Printf("Addr: %s adding validator peer: %s\n%s", hexutil.Encode(addr[:2]), hexutil.Encode(address[:2]), string(debug.Stack()))
 	if !vph.MaintainValConnections() {
+		println("returning early")
 		return
 	}
 
@@ -124,6 +131,9 @@ func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address comm
 }
 
 func (vph *validatorPeerHandler) RemoveValidatorPeer(node *enode.Node) {
+	addr := vph.sb.Address()
+	peerAddr := crypto.PubkeyToAddress(*node.Pubkey())
+	fmt.Printf("Addr: %s removing peer: %s\n%s", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]), string(debug.Stack()))
 	vph.sb.p2pserver.RemovePeer(node, p2p.ValidatorPurpose)
 	vph.sb.p2pserver.RemoveTrustedPeer(node, p2p.ValidatorPurpose)
 }

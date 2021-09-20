@@ -17,7 +17,11 @@
 package backend
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -36,7 +40,17 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 			}
 		}
 	}
+	// println("found peers from dest adresses", len(targets))
 	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
+}
+
+func toString(valEnodes map[common.Address]*istanbul.AddressEntry) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("ValEnodes: (%d)\n", len(valEnodes)))
+	for k, v := range valEnodes {
+		b.WriteString(fmt.Sprintf("%s -> %s\n", hexutil.Encode(k[:2]), hexutil.Encode(v.Address[:2])))
+	}
+	return b.String()
 }
 
 // Multicast implements istanbul.Backend.Multicast
@@ -56,8 +70,15 @@ func (sb *Backend) Multicast(destAddresses []common.Address, payload []byte, eth
 			logger.Warn("Error in sending forward message to the proxies", "err", err)
 		}
 	} else {
+		valEnodes, err := sb.valEnodeTable.GetValEnodes(nil)
+		if err != nil {
+			panic(err.Error())
+		}
 		destPeers := sb.getPeersFromDestAddresses(destAddresses)
-		println("bc to", len(destPeers))
+
+		addr := sb.Address()
+		fmt.Printf("Addr: %s bc to %d\n", hexutil.Encode(addr[:2]), len(destPeers))
+		fmt.Printf("Addr: %s %v\n", hexutil.Encode(addr[:2]), toString(valEnodes))
 		if len(destPeers) > 0 {
 			sb.asyncMulticast(destPeers, payload, ethMsgCode)
 		}

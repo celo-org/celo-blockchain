@@ -24,6 +24,7 @@ import (
 	"fmt"
 	mrand "math/rand"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -64,6 +65,7 @@ type tcpDialer struct {
 }
 
 func (t tcpDialer) Dial(ctx context.Context, dest *enode.Node) (net.Conn, error) {
+	fmt.Printf("Dialling %s\n", nodeAddr(dest).String())
 	return t.d.DialContext(ctx, "tcp", nodeAddr(dest).String())
 }
 
@@ -276,9 +278,10 @@ loop:
 
 		case node := <-d.addStaticCh:
 			id := node.ID()
-			_, exists := d.static[id]
+			existing, exists := d.static[id]
 			d.log.Trace("Adding static node", "id", id, "ip", node.IP(), "added", !exists)
 			if exists {
+				fmt.Printf("existing: %s:%s, new: %s:%s\n", existing.dest.IP().String(), strconv.Itoa(existing.dest.TCP()), node.IP().String(), strconv.Itoa(node.TCP()))
 				continue loop
 			}
 			task := newDialTask(node, staticDialedConn)

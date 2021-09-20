@@ -27,8 +27,10 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -276,8 +278,13 @@ func (pm *ProtocolManager) unregisterPeer(id string) *peer {
 // removePeer unregisters the peer and then disconnects it at the p2p (networking) layer.
 // The caller of removePeer is responsible for logging any relevant error information.
 func (pm *ProtocolManager) removePeer(id string) {
+
 	peer := pm.unregisterPeer(id)
 	if peer != nil {
+		peerAddr := crypto.PubkeyToAddress(*peer.Node().Pubkey())
+		addr := pm.engine.(*backend.Backend).Address()
+
+		fmt.Printf("Addr: %s Unregister peer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
 		// Hard disconnect at the networking layer
 		peer.Peer.Disconnect(p2p.DiscSubprotocolError)
 	}
@@ -327,12 +334,20 @@ func (pm *ProtocolManager) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter, ge
 }
 
 func (pm *ProtocolManager) runPeer(p *peer) error {
+
+	peerAddr := crypto.PubkeyToAddress(*p.Node().Pubkey())
+	addr := pm.engine.(*backend.Backend).Address()
+
+	fmt.Printf("Addr: %s run peer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
 	if !pm.chainSync.handlePeerEvent(p) {
 		return p2p.DiscQuitting
 	}
 	pm.peerWG.Add(1)
 	defer pm.peerWG.Done()
-	return pm.handle(p)
+	err := pm.handle(p)
+
+	fmt.Printf("Addr: %s run peer complete: %s - err: %v\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]), err)
+	return err
 }
 
 // handle is the callback invoked to manage the life cycle of an eth peer. When
@@ -387,7 +402,18 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		p.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
-	defer pm.unregisterPeer(p.id)
+	defer func() {
+		peerAddr := crypto.PubkeyToAddress(*p.Node().Pubkey())
+		addr := pm.engine.(*backend.Backend).Address()
+
+		fmt.Printf("Addr: %s Unregister peer on defer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
+		pm.unregisterPeer(p.id)
+	}()
+
+	addr := pm.engine.(*backend.Backend).Address()
+	peerAddr := crypto.PubkeyToAddress(*p.Peer.Node().Pubkey())
+	fmt.Printf("Addr: %s adding peer: %s\n",
+		hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
@@ -1020,7 +1046,11 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 
 func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
 	m := make(map[enode.ID]consensus.Peer)
-	for _, p := range pm.peers.Peers() {
+	ps := pm.peers.Peers()
+
+	addr := pm.engine.(*backend.Backend).Address()
+	fmt.Printf("Addr: %s peerslen %d\n", hexutil.Encode(addr[:2]), len(ps))
+	for _, p := range ps {
 		id := p.Node().ID()
 		if targets[id] || (targets == nil) {
 			if p.PurposeIsSet(purpose) {

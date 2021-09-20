@@ -216,7 +216,6 @@ func (cs *chainSyncer) loop() {
 
 		select {
 		case <-cs.peerEventCh:
-			println("peerevent")
 			// Peer information changed, recheck.
 		case <-cs.doneCh:
 			cs.doneCh = nil

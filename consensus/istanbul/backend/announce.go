@@ -204,6 +204,7 @@ func (sb *Backend) announceThread() {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
 			return
 		}
+		println("sharing updated announce")
 		if err := sb.announceManager.setAndShareUpdatedAnnounceVersion(version); err != nil {
 			logger.Warn("Error updating announce version", "err", err)
 			return
@@ -217,6 +218,7 @@ func (sb *Backend) announceThread() {
 	for {
 		select {
 		case <-checkIfShouldAnnounceTicker.C:
+			println("announ check if should announc")
 			logger.Trace("Checking if this node should announce it's enode")
 
 			var err error
@@ -237,6 +239,7 @@ func (sb *Backend) announceThread() {
 				// within that set.
 				waitPeriod := 1 * time.Minute
 				if sb.config.Epoch <= 10 {
+					println("announ 5 second wait")
 					waitPeriod = 5 * time.Second
 				}
 				time.AfterFunc(waitPeriod, func() {
@@ -292,6 +295,7 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-shareVersionCertificatesTicker.C:
+			println("announ share version certs")
 			// Send all version certificates to every peer. Only the entries
 			// that are new to a node will end up being regossiped throughout the
 			// network.
@@ -305,14 +309,18 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-updateAnnounceVersionTickerCh:
+
+			println("announ update announce version")
 			if shouldAnnounce {
 				updateAnnounceVersionFunc()
 			}
 
 		case <-queryEnodeTickerCh:
+			println("announ start gossip query enode")
 			sb.startGossipQueryEnodeTask()
 
 		case <-sb.generateAndGossipQueryEnodeCh:
+			println("announ generate and gossip query enode")
 			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
@@ -346,6 +354,7 @@ func (sb *Backend) announceThread() {
 			}
 
 		case <-sb.updateAnnounceVersionCh:
+			println("announ update announce version")
 			if shouldAnnounce {
 				updateAnnounceVersionFunc()
 			}

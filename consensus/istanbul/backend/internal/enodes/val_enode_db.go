@@ -115,6 +115,7 @@ func (vet *ValidatorEnodeDB) String() string {
 
 // GetNodeFromAddress will return the enodeURL for an address if it's known
 func (vet *ValidatorEnodeDB) GetNodeFromAddress(address common.Address) (*enode.Node, error) {
+	// println("getting node from address", hexutil.Encode(address[:2]))
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()
 	entry, err := vet.getAddressEntry(address)
@@ -318,6 +319,7 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.A
 		return err
 	}
 
+	fmt.Printf("Adding %d removing %d\n", len(peersToAdd), len(peersToRemove))
 	for _, node := range peersToRemove {
 		vet.handler.RemoveValidatorPeer(node)
 	}
@@ -449,6 +451,8 @@ func (vet *ValidatorEnodeDB) PruneEntries(addressesToKeep map[common.Address]boo
 }
 
 func (vet *ValidatorEnodeDB) RefreshValPeers(valConnSet map[common.Address]bool, ourAddress common.Address) {
+
+	// println("refreshing val peers", string(debug.Stack()))
 	// We use a R lock since we don't modify levelDB table
 	vet.lock.RLock()
 	defer vet.lock.RUnlock()

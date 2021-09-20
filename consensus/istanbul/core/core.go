@@ -352,6 +352,7 @@ func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
 }
 
 func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+	// println("sending msg to", len(addresses))
 	logger := c.newLogger("func", "sendMsgTo")
 
 	payload, err := c.finalizeMessage(msg)

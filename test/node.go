@@ -84,20 +84,18 @@ var (
 // *node.Node is embedded so that its api is available through Node.
 type Node struct {
 	*node.Node
-	Config                  *node.Config
-	P2PListenAddr           string
-	Enode                   *enode.Node
-	EnodeCertificate        *istanbul.Message
-	EnodeCertificatePayload []byte
-	Eth                     *eth.Ethereum
-	EthConfig               *eth.Config
-	WsClient                *ethclient.Client
-	Nonce                   uint64
-	Key                     *ecdsa.PrivateKey
-	Address                 common.Address
-	DevKey                  *ecdsa.PrivateKey
-	DevAddress              common.Address
-	Tracker                 *TransactionTracker
+	Config        *node.Config
+	P2PListenAddr string
+	Enode         *enode.Node
+	Eth           *eth.Ethereum
+	EthConfig     *eth.Config
+	WsClient      *ethclient.Client
+	Nonce         uint64
+	Key           *ecdsa.PrivateKey
+	Address       common.Address
+	DevKey        *ecdsa.PrivateKey
+	DevAddress    common.Address
+	Tracker       *TransactionTracker
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -244,7 +242,21 @@ func (n *Node) Start() error {
 	}
 	n.Enode = enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
 
-	// Build this nodes enodeCertificate
+	return nil
+}
+
+func (n *Node) AddPeers(nodes ...*Node) {
+	// Add the given nodes as peers. Although this means that nodes can reach
+	// each other nodes don't start sending consensus messages to another node
+	// until they have received an enode certificate from that node.
+	for _, no := range nodes {
+		n.Server().AddPeer(no.Enode, p2p.ValidatorPurpose)
+	}
+}
+
+// GossipEnodeCertificatge gossips this nodes enode certificates to the rest of
+// the network.
+func (n *Node) GossipEnodeCertificatge() error {
 	enodeCertificate := &istanbul.EnodeCertificate{
 		EnodeURL: n.Enode.URLv4(),
 		Version:  uint(time.Now().Unix()),
@@ -262,32 +274,14 @@ func (n *Node) Start() error {
 	if err := msg.Sign(b.Sign); err != nil {
 		return err
 	}
-	n.EnodeCertificate = msg
 	payload, err := msg.Payload()
 	if err != nil {
 		return err
 	}
-	n.EnodeCertificatePayload = payload
-	return nil
-}
-
-func (n *Node) AddPeers(nodes ...*Node) {
-	// Add the given nodes as peers. Although this means that nodes can reach
-	// each other nodes don't start sending consensus messages to another node
-	// until they have received an enode certificate from that node.
-	for _, no := range nodes {
-		n.Server().AddPeer(no.Enode, p2p.ValidatorPurpose)
-	}
-}
-
-// GossipEnodeCertificatge gossips this nodes enode certificates to the rest of
-// the network.
-func (n *Node) GossipEnodeCertificatge() error {
 	// Share enode certificates to the other nodes, nodes wont consider other
 	// nodes valid validators without seeing an enode certificate message from
 	// them.
-	b := n.Eth.Engine().(*backend.Backend)
-	return b.Gossip(n.EnodeCertificatePayload, istanbul.EnodeCertificateMsg)
+	return b.Gossip(payload, istanbul.EnodeCertificateMsg)
 }
 
 // Close shuts down the node and releases all resources and removes the datadir

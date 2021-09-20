@@ -561,32 +561,36 @@ func (m *Message) DebugString() string {
 			m.roundChange.View.Sequence.Uint64(),
 			m.roundChange.View.Round.Uint64(),
 			val)
+	case QueryEnodeMsg:
+		return fmt.Sprintf(
+			"Type:qe, Version: %6d",
+			m.queryEnode.Version)
+	case FwdMsg:
+		return fmt.Sprintf(
+			"Type:fm",
+		)
+		// var f *ForwardMessage
+		// err = m.decode(&f)
+		// m.forwardMessage = f
+	case EnodeCertificateMsg:
+		return fmt.Sprintf(
+			"Type:ec, Version: %6d, URL: %s",
+			m.enodeCertificate.Version,
+			m.enodeCertificate.EnodeURL,
+		)
+	case VersionCertificatesMsg:
+		return fmt.Sprintf(
+			"Type:vc, len: %2d",
+			len(m.versionCertificates),
+		)
+	case ValEnodesShareMsg:
+		return fmt.Sprintf(
+			"Type:vs, len: %2d",
+			len(m.valEnodeShareData.ValEnodes),
+		)
 	default:
 		panic(fmt.Sprintf("unexpected message: %d", m.Code))
 	}
-	// case QueryEnodeMsg:
-	// 	var q *QueryEnodeData
-	// 	err = m.decode(&q)
-	// 	m.queryEnode = q
-	// case FwdMsg:
-	// 	var f *ForwardMessage
-	// 	err = m.decode(&f)
-	// 	m.forwardMessage = f
-	// case EnodeCertificateMsg:
-	// 	var e *EnodeCertificate
-	// 	err = m.decode(&e)
-	// 	m.enodeCertificate = e
-	// case VersionCertificatesMsg:
-	// 	var v []*VersionCertificate
-	// 	err = m.decode(&v)
-	// 	m.versionCertificates = v
-	// case ValEnodesShareMsg:
-	// 	var v *ValEnodesShareData
-	// 	err = m.decode(&v)
-	// 	m.valEnodeShareData = v
-	// default:
-	// }
-	// return err
 }
 
 // setMessageBytes sets the Msg field of msg to the rlp serialised bytes of
