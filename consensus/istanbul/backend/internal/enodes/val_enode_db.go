@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 
@@ -319,14 +320,20 @@ func (vet *ValidatorEnodeDB) UpsertVersionAndEnode(valEnodeEntries []*istanbul.A
 		return err
 	}
 
-	fmt.Printf("Adding %d removing %d\n", len(peersToAdd), len(peersToRemove))
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Adding %d removing %d\n", len(peersToAdd), len(peersToRemove)))
 	for _, node := range peersToRemove {
+		b.WriteString(fmt.Sprintf("Removing %v\n", node.String()))
+		b.WriteString(spew.Sdump(node))
 		vet.handler.RemoveValidatorPeer(node)
 	}
 
 	for address, node := range peersToAdd {
+		b.WriteString(fmt.Sprintf("Adding %v\n", node.String()))
+		b.WriteString(spew.Sdump(node))
 		vet.handler.AddValidatorPeer(node, address)
 	}
+	fmt.Printf("%s", b.String())
 
 	return nil
 }

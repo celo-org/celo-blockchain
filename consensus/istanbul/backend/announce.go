@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -204,7 +205,7 @@ func (sb *Backend) announceThread() {
 			logger.Debug("Announce version is not newer than the existing version", "existing version", sb.announceVersion, "attempted new version", version)
 			return
 		}
-		println("sharing updated announce")
+		println("sharing updated announce", string(debug.Stack()))
 		if err := sb.announceManager.setAndShareUpdatedAnnounceVersion(version); err != nil {
 			logger.Warn("Error updating announce version", "err", err)
 			return

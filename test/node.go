@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"net"
 	"os"
-	"strconv"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -231,16 +229,44 @@ func (n *Node) Start() error {
 		return err
 	}
 
-	// Derive this node's enode
-	host, port, err := net.SplitHostPort(n.P2PListenAddr)
-	if err != nil {
-		return err
-	}
-	portNum, err := strconv.Atoi(port)
-	if err != nil {
-		return err
-	}
-	n.Enode = enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
+	// Note we set this enode up so that it has the same form as that produced
+	// by p2p.Server.localnode.Node().
+	//
+	// ValidatorEnodeDB.UpsertVersionAndEnode method uses the enode string to
+	// determine if a node has changed its enode, and enode certificates are
+	// generated in announceManager.generateEnodeCertificateMsgs which
+	// retreives the enode string from the p2p server's local node.
+	//
+	// If we did not do this ValidatorEnodeDB.UpsertVersionAndEnode would drop
+	// all validator connections the first time that enode ceritificates are
+	// broadcast thinking that the enode had changed. A knock on effect of this
+	// is that because the nodes in the test have just established those
+	// connections they won't try to re-establish them for 35 seconds since
+	// this is the hardcoded p2p.dialHistoryExpiration time.
+	//
+	// Its not clear to me exactly how the local node constructs its enode (its
+	// done in a piecemeal fashion across many function calls) but the restult
+	// is something like this (full key elided for readability).
+	//
+	// enode://deee4.......1a50@127.0.0.1:45441?discport=0
+	//
+	// In fact this is not a correct enode since the discovery port of 0 can
+	// never be connected to but this is what the p2p server provides. We
+	// cannot use the host that we get by splitting the P2PListenAddr because
+	// it could be an IPv6 address so we use a hardcoded IPv4 localhost, which
+	// I think is fine in the context of these local tests.
+	// _, port, err := net.SplitHostPort(n.P2PListenAddr)
+	// if err != nil {
+	// 	return err
+	// }
+	// portNum, err := strconv.Atoi(port)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// ip := net.IP{127, 0, 0, 1}
+	// n.Enode = enode.NewV4(&n.Key.PublicKey, ip, portNum, 0)
+	n.Enode = n.Server().LocalNode().Node()
 
 	return nil
 }
