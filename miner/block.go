@@ -99,7 +99,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 
 	vmRunner := w.chain.NewEVMRunner(header, state)
 	b := &blockState{
-		signer:         types.NewEIP155Signer(w.chainConfig.ChainID),
+		signer:         types.LatestSigner(w.chainConfig),
 		state:          state,
 		tcount:         0,
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),

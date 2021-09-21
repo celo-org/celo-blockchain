@@ -38,7 +38,6 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/metrics"
 	"github.com/celo-org/celo-blockchain/params"
-	// "github.com/davecgh/go-spew/spew"
 )
 
 const (
