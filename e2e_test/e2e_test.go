@@ -115,15 +115,15 @@ func TestStartStopValidators(t *testing.T) {
 	network[2].AddPeers(network[:2]...)
 	time.Sleep(25 * time.Millisecond)
 	// println("gossipingenode")
-	// for _, n := range network[:3] {
-	// 	err = n.GossipEnodeCertificatge()
-	// 	require.NoError(t, err)
-	// }
+	for _, n := range network[:3] {
+		err = n.GossipEnodeCertificatge()
+		require.NoError(t, err)
+	}
 	// time.Sleep(25 * time.Millisecond)
 
 	// network[2].AddPeers(network[:2]...)
-	err = network[2].GossipEnodeCertificatge()
-	require.NoError(t, err)
+	// err = network[2].GossipEnodeCertificatge()
+	// require.NoError(t, err)
 
 	println("------------------------------------ awaiting third tx again")
 	// Check that the  network now processes the previous transaction.
