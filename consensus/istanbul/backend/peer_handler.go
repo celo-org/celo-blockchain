@@ -110,8 +110,8 @@ func (vph *validatorPeerHandler) MaintainValConnections() bool {
 }
 
 func (vph *validatorPeerHandler) AddValidatorPeer(node *enode.Node, address common.Address) {
-	addr := vph.sb.Address()
-	fmt.Printf("Addr: %s adding validator peer: %s\n%s", hexutil.Encode(addr[:2]), hexutil.Encode(address[:2]), string(debug.Stack()))
+	// addr := vph.sb.Address()
+	// fmt.Printf("Addr: %s adding validator peer: %s\n%s", hexutil.Encode(addr[:2]), hexutil.Encode(address[:2]), string(debug.Stack()))
 	if !vph.MaintainValConnections() {
 		println("returning early")
 		return

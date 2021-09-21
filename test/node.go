@@ -15,6 +15,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
@@ -229,46 +230,27 @@ func (n *Node) Start() error {
 		return err
 	}
 
-	// Note we set this enode up so that it has the same form as that produced
-	// by p2p.Server.localnode.Node().
-	//
-	// ValidatorEnodeDB.UpsertVersionAndEnode method uses the enode string to
-	// determine if a node has changed its enode, and enode certificates are
-	// generated in announceManager.generateEnodeCertificateMsgs which
-	// retreives the enode string from the p2p server's local node.
-	//
-	// If we did not do this ValidatorEnodeDB.UpsertVersionAndEnode would drop
-	// all validator connections the first time that enode ceritificates are
-	// broadcast thinking that the enode had changed. A knock on effect of this
-	// is that because the nodes in the test have just established those
-	// connections they won't try to re-establish them for 35 seconds since
-	// this is the hardcoded p2p.dialHistoryExpiration time.
-	//
-	// Its not clear to me exactly how the local node constructs its enode (its
-	// done in a piecemeal fashion across many function calls) but the restult
-	// is something like this (full key elided for readability).
-	//
-	// enode://deee4.......1a50@127.0.0.1:45441?discport=0
-	//
-	// In fact this is not a correct enode since the discovery port of 0 can
-	// never be connected to but this is what the p2p server provides. We
-	// cannot use the host that we get by splitting the P2PListenAddr because
-	// it could be an IPv6 address so we use a hardcoded IPv4 localhost, which
-	// I think is fine in the context of these local tests.
-	// _, port, err := net.SplitHostPort(n.P2PListenAddr)
-	// if err != nil {
-	// 	return err
-	// }
-	// portNum, err := strconv.Atoi(port)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// ip := net.IP{127, 0, 0, 1}
-	// n.Enode = enode.NewV4(&n.Key.PublicKey, ip, portNum, 0)
+	// Note we need to use the LocalNode from the p2p server because that is
+	// what is also used by the announce protocol when building enode
+	// certificates.
 	n.Enode = n.Server().LocalNode().Node()
 
+	id := n.Enode.ID()
+
+	fmt.Printf(
+		"%s Addr: %s ID: %s Listening: %s\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(n.Address),
+		hexutil.Encode(id[:2]),
+		n.Enode.URLv4(),
+	)
+
 	return nil
+}
+
+// Provides a short representation of a hash
+func shortAddress(a common.Address) string {
+	return hexutil.Encode(a[:2])
 }
 
 func (n *Node) AddPeers(nodes ...*Node) {
@@ -314,6 +296,13 @@ func (n *Node) GossipEnodeCertificatge() error {
 // unless an error is returned, in which case there is no guarantee that all
 // resources are released.
 func (n *Node) Close() error {
+
+	fmt.Printf(
+		"%s hm Addr: %s Closing: %s\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(n.Address),
+		n.P2PListenAddr,
+	)
 	err := n.Tracker.StopTracking()
 	if err != nil {
 		return err

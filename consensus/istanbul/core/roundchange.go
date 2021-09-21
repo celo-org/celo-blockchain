@@ -209,7 +209,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
 	// On quorum round change messages we go to the next round immediately.
 	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
-		println("starting new")
 		logger.Debug("Got quorum round change messages, starting new round.")
 		return c.startNewRound(quorumRound)
 	} else if ffRound != nil {

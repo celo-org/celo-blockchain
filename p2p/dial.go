@@ -24,10 +24,10 @@ import (
 	"fmt"
 	mrand "math/rand"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -38,7 +38,7 @@ const (
 	// This is the amount of time spent waiting in between redialing a certain node. The
 	// limit is a bit higher than inboundThrottleTime to prevent failing dials in small
 	// private networks.
-	dialHistoryExpiration = inboundThrottleTime + 5*time.Second
+	dialHistoryExpiration = inboundThrottleTime + 5*time.Millisecond
 
 	// Config for the "Looking for peers" message.
 	dialStatsLogInterval = 10 * time.Second // printed at most this often
@@ -65,7 +65,6 @@ type tcpDialer struct {
 }
 
 func (t tcpDialer) Dial(ctx context.Context, dest *enode.Node) (net.Conn, error) {
-	fmt.Printf("Dialling %s\n", nodeAddr(dest).String())
 	return t.d.DialContext(ctx, "tcp", nodeAddr(dest).String())
 }
 
@@ -247,6 +246,15 @@ loop:
 			if err := d.checkDial(node); err != nil {
 				d.log.Trace("Discarding dial candidate", "id", node.ID(), "ip", node.IP(), "reason", err)
 			} else {
+
+				// Looks like this never happens
+				addr := hexutil.Encode(d.self[:2])
+				fmt.Printf(
+					"%s Addr: %s Dialling: %s\n",
+					time.Now().Format("15:04:05.000"),
+					addr,
+					node.URLv4(),
+				)
 				d.startDial(newDialTask(node, dynDialedConn))
 			}
 
@@ -278,10 +286,10 @@ loop:
 
 		case node := <-d.addStaticCh:
 			id := node.ID()
-			existing, exists := d.static[id]
+			_, exists := d.static[id]
 			d.log.Trace("Adding static node", "id", id, "ip", node.IP(), "added", !exists)
 			if exists {
-				fmt.Printf("existing: %s:%s, new: %s:%s\n", existing.dest.IP().String(), strconv.Itoa(existing.dest.TCP()), node.IP().String(), strconv.Itoa(node.TCP()))
+				// fmt.Printf("existing: %s:%s, new: %s:%s\n", existing.dest.IP().String(), strconv.Itoa(existing.dest.TCP()), node.IP().String(), strconv.Itoa(node.TCP()))
 				continue loop
 			}
 			task := newDialTask(node, staticDialedConn)
@@ -421,6 +429,20 @@ func (d *dialScheduler) startStaticDials() (started int) {
 	for started = 0; started < limit && len(d.staticPool) > 0; started++ {
 		idx := d.rand.Intn(len(d.staticPool))
 		task := d.staticPool[idx]
+
+		// pub, err := crypto.PubECDSAFromHex([]byte(hexutil.Encode(d.self[:])[2:]))
+		// if err != nil {
+		// 	panic(err.Error())
+		// }
+
+		id := d.self
+		// addr := crypto.PubkeyToAddress(*pub)
+		fmt.Printf(
+			"%s ID: %s Static dialling: %s\n",
+			time.Now().Format("15:04:05.000"),
+			hexutil.Encode(id[:2]),
+			task.dest.URLv4(),
+		)
 		d.startDial(task)
 		d.removeFromStaticPool(idx)
 	}
