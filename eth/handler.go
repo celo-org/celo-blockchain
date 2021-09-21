@@ -281,10 +281,10 @@ func (pm *ProtocolManager) removePeer(id string) {
 
 	peer := pm.unregisterPeer(id)
 	if peer != nil {
-		peerAddr := crypto.PubkeyToAddress(*peer.Node().Pubkey())
-		addr := pm.engine.(*backend.Backend).Address()
+		// peerAddr := crypto.PubkeyToAddress(*peer.Node().Pubkey())
+		// addr := pm.engine.(*backend.Backend).Address()
 
-		fmt.Printf("Addr: %s Unregister peer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
+		// fmt.Printf("Addr: %s Unregister peer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
 		// Hard disconnect at the networking layer
 		peer.Peer.Disconnect(p2p.DiscSubprotocolError)
 	}
@@ -403,10 +403,9 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer func() {
-		peerAddr := crypto.PubkeyToAddress(*p.Node().Pubkey())
-		addr := pm.engine.(*backend.Backend).Address()
-
-		fmt.Printf("Addr: %s Unregister peer on defer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
+		// peerAddr := crypto.PubkeyToAddress(*p.Node().Pubkey())
+		// addr := pm.engine.(*backend.Backend).Address()
+		// fmt.Printf("Addr: %s Unregister peer on defer: %s\n", hexutil.Encode(addr[:2]), hexutil.Encode(peerAddr[:2]))
 		pm.unregisterPeer(p.id)
 	}()
 

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
@@ -555,7 +554,6 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block) e
 		return err
 	}
 
-	println("handling request", hexutil.Encode(block.Hash().Bytes()[:2]))
 	// post block into Istanbul engine
 	if err := sb.EventMux().Post(istanbul.RequestEvent{Proposal: block}); err != nil {
 		return err

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
 )
@@ -49,16 +50,19 @@ func TestStartStopValidators(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
+	var txs []*types.Transaction
+
 	println("------------------------------------ sending first tx")
 
 	// Send 1 celo from the dev account attached to node 0 to the dev account
 	// attached to node 1.
 	tx, err := network[0].SendCelo(ctx, network[1].DevAddress, 1)
 	require.NoError(t, err)
+	txs = append(txs, tx)
 
 	println("------------------------------------ awaiting first tx")
 	// Wait for the whole network to process the transaction.
-	err = network.AwaitTransactions(ctx, tx)
+	err = network.AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 	println("------------------------------------ received first tx")
 
@@ -73,10 +77,11 @@ func TestStartStopValidators(t *testing.T) {
 	// attached to node 1.
 	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
 	require.NoError(t, err)
+	txs = append(txs, tx)
 
 	println("------------------------------------ awaiting second tx")
 	// Check that the remaining network can still process this transction.
-	err = network[:3].AwaitTransactions(ctx, tx)
+	err = network[:3].AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 	println("------------------------------------ received second tx")
 
@@ -96,9 +101,10 @@ func TestStartStopValidators(t *testing.T) {
 	println("------------------------------------ sending third tx")
 	tx, err = network[0].SendCelo(shortCtx, network[1].DevAddress, 1)
 	require.NoError(t, err)
+	txs = append(txs, tx)
 
 	println("------------------------------------ awaiting third tx")
-	err = network[:2].AwaitTransactions(shortCtx, tx)
+	err = network[:2].AwaitTransactions(shortCtx, txs...)
 	// Expect DeadlineExceeded error
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expecting %q, instead got: %v ", context.DeadlineExceeded.Error(), err)
@@ -119,17 +125,47 @@ func TestStartStopValidators(t *testing.T) {
 		err = n.GossipEnodeCertificatge()
 		require.NoError(t, err)
 	}
-	// time.Sleep(25 * time.Millisecond)
-
-	// network[2].AddPeers(network[:2]...)
-	// err = network[2].GossipEnodeCertificatge()
-	// require.NoError(t, err)
 
 	println("------------------------------------ awaiting third tx again")
 	// Check that the  network now processes the previous transaction.
-	err = network[:3].AwaitTransactions(ctx, tx)
+	err = network[:3].AwaitTransactions(ctx, txs...)
 	require.NoError(t, err)
 	println("------------------------------------ recived third tx again")
+
+	// Check that the network now quickly processes incoming transactions.
+	println("------------------------------------ sending fourth tx")
+	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	require.NoError(t, err)
+	txs = append(txs, tx)
+
+	println("------------------------------------ awaiting fourth tx")
+	err = network[:3].AwaitTransactions(ctx, txs...)
+	require.NoError(t, err)
+
+	println("------------------------------------ starting first node")
+	// Start the first stopped node
+	err = network[3].Start()
+	require.NoError(t, err)
+	println("------------------------------------ started first node")
+
+	// Connect final node to
+	network[3].AddPeers(network[:3]...)
+	time.Sleep(25 * time.Millisecond)
+	// println("gossipingenode")
+	for _, n := range network {
+		err = n.GossipEnodeCertificatge()
+		require.NoError(t, err)
+	}
+
+	// Check that the network continues to quickly processes incoming transactions.
+	println("------------------------------------ sending fifth tx")
+	tx, err = network[0].SendCelo(ctx, network[1].DevAddress, 1)
+	require.NoError(t, err)
+	txs = append(txs, tx)
+
+	println("------------------------------------ awaiting fifth tx")
+	err = network.AwaitTransactions(ctx, txs...)
+	require.NoError(t, err)
 
 }
 
