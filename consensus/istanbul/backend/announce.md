@@ -50,7 +50,7 @@ Wether a validator opens a connection or not against another validator is not in
 
 `[[version: , signature: ]]`
 
-- `version`: the current highest known announce version for the specified validator `address`, according to the peer that gossipped this message.
+- `version`: the current highest known announce version for a validator (deduced from the signature), according to the peer that gossipped this message.
 - `signature`: the signature for the version payload (`'versionCertificate'|version`) by the emmitter of the certificate. Note that the address and public key can be deduced from this `signature`.
 
 
@@ -60,7 +60,7 @@ Wether a validator opens a connection or not against another validator is not in
 
 ## Spec by node type
 
-Note that validators are full nodes too.
+Note that validators are full nodes too, therefore they should follow the same rules as full nodes.
 
 ### Full node (non validator) Spec
 
@@ -68,12 +68,13 @@ Note that validators are full nodes too.
 
 During an inbound peer connection, the remote peer can send an [enodeCertificateMsg] to identify itself as a validator. This allows for preferential treatment for the p2p connection.
 
+#### Peer registered
+
+When a peer is registered, all version certificates should be sent to the registered peer in a [versionCertificatesMsg].
+
 #### Handling [queryEnodeMsg]
 
 Messages received should be only processed once, so a local cache is a must
-
-Max amount of encrypted node urls is 2 * (max validator local set) // <- TODO: maybe change this? it's too variable and a bit weird
-
 Should be regossipped as is, unless another message from the same validator origin has been regossipped in the past 5 minutes
 
 #### Handling [enodeCertificateMsg]
@@ -85,10 +86,6 @@ Non validators should never receive [enodeCertificateMsg].
 Messages received should be only processed once, so a local cache is a must.
 when received, regossips new entries that hasn't been gossiped (by address) in 5 minutes
 
-#### On new peer connection
-
-// when a peer is registered, all version certificates should be sent to the registered peer in a [versionCertificatesMsg].
-
 ### Validator Spec
 
 #### Handling [queryEnodeMsg]
@@ -97,22 +94,32 @@ Should be replied with an [enodeCertificateMsg] if the origin is a validator and
 
 #### Handling [enodeCertificateMsg]
 
+Should update the highest known version to the one given, even if there's no version certificate for it known by this validator.
 
 #### Query spawning
+
 // currently sending queries if this validator is a [NearlyElectedValidator]
 // on start, wait 1 minute before querying
 // first 10 queries can be spaced by 1 minute after starting. after that, every 5 minutes
 // cant send more than (retrybackoff for highest known version) for each destination
 // only sends if a higher version than the one this validator has is known
-
+Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator])
 
 #### Version certificates spawning
+
 // currently updating own announce version every 5 minutes, if node is validating
 // also every 5 minutes, gossips the whole version certificate table to peers
 // sent when updating announce version (from validator to everyone)
 
-
-
-
 ## Change Log
 
+### Previous relevant PRs
+
+https://github.com/celo-org/celo-blockchain/pull/816
+https://github.com/celo-org/celo-blockchain/pull/873
+https://github.com/celo-org/celo-blockchain/pull/893
+
+[queryEnodeMsg]: #queryEnodeMsg-0x12
+[versionCertificatesMsg]: #versionCertificatesMsg-0x16
+[enodeCertificateMsg]: #enodeCertificateMsg-0x17
+[NearlyElectedValidator]: #nearlyElectedValidator-NEV
