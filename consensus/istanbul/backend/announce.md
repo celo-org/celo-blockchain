@@ -116,6 +116,8 @@ A query for a specific `<validator, version>` tuple has a retry back off period 
 timeoutMinutes = 1.5 ^ (min(n - 1, 5))
 ```
 
+If the validator is no longer in the list of [NearlyElectedValidator] then it should stop sending [queryEnodeMsg] messages.
+
 #### Version certificates spawning
 
 // currently updating own announce version every 5 minutes, if node is validating
@@ -127,7 +129,9 @@ timeoutMinutes = 1.5 ^ (min(n - 1, 5))
 ### Previous relevant PRs
 
 https://github.com/celo-org/celo-blockchain/pull/816
+
 https://github.com/celo-org/celo-blockchain/pull/873
+
 https://github.com/celo-org/celo-blockchain/pull/893
 
 [queryEnodeMsg]: #queryEnodeMsg-0x12
