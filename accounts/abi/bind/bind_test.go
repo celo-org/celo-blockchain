@@ -571,7 +571,7 @@ var bindTests = []struct {
 			key, _ := crypto.GenerateKey()
 			auth, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
 		
-			sim := backends.NewSimulatedBackend(core.GenesisAlloc{auth.From: {Balance: big.NewInt(10000000000000000)}}, 10000000)
+			sim := backends.NewSimulatedBackend(core.GenesisAlloc{auth.From: {Balance: big.NewInt(10000000000000000)}})
 			defer sim.Close()
 		
 			// Deploy a structs method invoker contract and execute its default method
@@ -653,7 +653,7 @@ var bindTests = []struct {
 		`
 			// Create a simulator and wrap a non-deployed contract
 
-			sim := backends.NewSimulatedBackend(core.GenesisAlloc{}, uint64(10000000000))
+			sim := backends.NewSimulatedBackend(core.GenesisAlloc{},)
 			defer sim.Close()
 
 			nonexistent, err := NewNonExistentStruct(common.Address{}, sim)

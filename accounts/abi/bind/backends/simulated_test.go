@@ -37,6 +37,9 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
+// TODO(Joshua): Replace with call to GPM or faked GPM
+var genericBaseFee = big.NewInt(2)
+
 func TestSimulatedBackend(t *testing.T) {
 	key, _ := crypto.GenerateKey() // nolint: gosec
 	auth, _ := bind.NewKeyedTransactorWithChainID(key, big.NewInt(1337))
@@ -58,8 +61,8 @@ func TestSimulatedBackend(t *testing.T) {
 	}
 
 	// generate a transaction and confirm you can retrieve it
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// // head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	code := `6060604052600a8060106000396000f360606040526008565b00`
 	var gas uint64 = 3000000
@@ -159,8 +162,8 @@ func TestNewAdjustTimeFail(t *testing.T) {
 	sim := simTestBackend(testAddr)
 
 	// Create tx and send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// // head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -282,8 +285,8 @@ func TestNonceAt(t *testing.T) {
 	}
 
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(nonce, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -326,8 +329,8 @@ func TestSendTransaction(t *testing.T) {
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -364,8 +367,8 @@ func TestTransactionByHash(t *testing.T) {
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -612,8 +615,8 @@ func TestTransactionCount(t *testing.T) {
 		t.Errorf("expected transaction count of %v does not match actual count of %v", 0, count)
 	}
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -669,8 +672,8 @@ func TestTransactionInBlock(t *testing.T) {
 		t.Errorf("expected pending nonce of 0 got %v", pendingNonce)
 	}
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -727,8 +730,8 @@ func TestPendingNonceAt(t *testing.T) {
 	}
 
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -782,8 +785,8 @@ func TestTransactionReceipt(t *testing.T) {
 	bgCtx := context.Background()
 
 	// create a signed transaction to send
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	////  head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -1208,10 +1211,10 @@ func TestForkResendTx(t *testing.T) {
 	// 1.
 	parent := sim.blockchain.CurrentBlock()
 	// 2.
-	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
-	_tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
+	_tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
 	tx, _ := types.SignTx(_tx, types.HomesteadSigner{}, testKey)
 	sim.SendTransaction(context.Background(), tx)
 	sim.Commit()

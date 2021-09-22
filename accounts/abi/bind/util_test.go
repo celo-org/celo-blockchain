@@ -33,6 +33,9 @@ import (
 
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
+// TODO(Joshua): Replace with call to GPM or faked GPM
+var genericBaseFee = big.NewInt(2)
+
 var waitDeployedTests = map[string]struct {
 	code        string
 	gas         uint64
@@ -59,8 +62,8 @@ func TestWaitDeployed(t *testing.T) {
 		defer backend.Close()
 
 		// Create the transaction
-		head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-		gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+		// head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+		gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, gasPrice, nil, nil, nil, common.FromHex(test.code))
 		tx, _ = types.SignTx(tx, types.HomesteadSigner{}, testKey)
@@ -97,14 +100,11 @@ func TestWaitDeployed(t *testing.T) {
 
 func TestWaitDeployedCornerCases(t *testing.T) {
 	backend := backends.NewSimulatedBackend(
-		core.GenesisAlloc{
-			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
-		},
-	)
+		core.GenesisAlloc{crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)}})
 	defer backend.Close()
 
-	head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	// head, _ := backend.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	// Create a transaction to an account.
 	code := "6060604052600a8060106000396000f360606040526008565b00"
