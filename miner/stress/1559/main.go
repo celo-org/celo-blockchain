@@ -23,7 +23,6 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
@@ -36,7 +35,6 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -44,7 +42,7 @@ import (
 )
 
 var (
-	londonBlock = big.NewInt(30) // Predefined london fork block for activating eip 1559.
+	espressoBlock = big.NewInt(30) // Predefined london fork block for activating eip 1559.
 )
 
 func main() {
@@ -56,8 +54,6 @@ func main() {
 	for i := 0; i < len(faucets); i++ {
 		faucets[i], _ = crypto.GenerateKey()
 	}
-	// Pre-generate the ethash mining DAG so we don't race
-	ethash.MakeDataset(1, filepath.Join(os.Getenv("HOME"), ".ethash"))
 
 	// Create an Ethash network based off of the Ropsten config
 	genesis := makeGenesis(faucets)
@@ -79,7 +75,7 @@ func main() {
 		}
 		// Connect the node to all the previous ones
 		for _, n := range enodes {
-			stack.Server().AddPeer(n)
+			stack.Server().AddPeer(n, p2p.NoPurpose)
 		}
 		// Start tracking the node and its enode
 		nodes = append(nodes, ethBackend)
@@ -95,7 +91,7 @@ func main() {
 	// Iterate over all the nodes and start mining
 	time.Sleep(3 * time.Second)
 	for _, node := range nodes {
-		if err := node.StartMining(1); err != nil {
+		if err := node.StartMining(); err != nil {
 			panic(err)
 		}
 	}
@@ -114,8 +110,10 @@ func main() {
 		index := rand.Intn(len(faucets))
 		backend := nodes[index%len(nodes)]
 
-		headHeader := backend.BlockChain().CurrentHeader()
-		baseFee := headHeader.BaseFee
+		// headHeader := backend.BlockChain().CurrentHeader()
+		// baseFee := headHeader.BaseFee
+		// TODO: Get GPM here
+		var baseFee *big.Int
 
 		// Create a self transaction and inject into the pool. The legacy
 		// and 1559 transactions can all be created by random even if the
@@ -141,7 +139,7 @@ func main() {
 func makeTransaction(nonce uint64, privKey *ecdsa.PrivateKey, signer types.Signer, baseFee *big.Int) *types.Transaction {
 	// Generate legacy transaction
 	if rand.Intn(2) == 0 {
-		tx, err := types.SignTx(types.NewTransaction(nonce, crypto.PubkeyToAddress(privKey.PublicKey), new(big.Int), 21000, big.NewInt(100000000000+rand.Int63n(65536)), nil), signer, privKey)
+		tx, err := types.SignTx(types.NewTransaction(nonce, crypto.PubkeyToAddress(privKey.PublicKey), new(big.Int), 21000, big.NewInt(100000000000+rand.Int63n(65536)), nil, nil, nil, nil), signer, privKey)
 		if err != nil {
 			panic(err)
 		}
@@ -185,14 +183,10 @@ func makeTransaction(nonce uint64, privKey *ecdsa.PrivateKey, signer types.Signe
 // makeGenesis creates a custom Ethash genesis block based on some pre-defined
 // faucet accounts.
 func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
-	genesis := core.DefaultRopstenGenesisBlock()
+	genesis := core.DefaultBaklavaGenesisBlock()
 
-	genesis.Config = params.AllEthashProtocolChanges
-	genesis.Config.LondonBlock = londonBlock
-	genesis.Difficulty = params.MinimumDifficulty
-
-	// Small gaslimit for easier basefee moving testing.
-	genesis.GasLimit = 8_000_000
+	genesis.Config = params.BaklavaChainConfig
+	genesis.Config.EBlock = espressoBlock
 
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.EIP150Hash = common.Hash{}
@@ -203,10 +197,10 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 			Balance: new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil),
 		}
 	}
-	if londonBlock.Sign() == 0 {
+	if espressoBlock.Sign() == 0 {
 		log.Info("Enabled the eip 1559 by default")
 	} else {
-		log.Info("Registered the london fork", "number", londonBlock)
+		log.Info("Registered the london fork", "number", espressoBlock)
 	}
 	return genesis
 }
@@ -238,13 +232,6 @@ func makeMiner(genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 		DatabaseCache:   256,
 		DatabaseHandles: 256,
 		TxPool:          core.DefaultTxPoolConfig,
-		GPO:             ethconfig.Defaults.GPO,
-		Ethash:          ethconfig.Defaults.Ethash,
-		Miner: miner.Config{
-			GasCeil:  genesis.GasLimit * 11 / 10,
-			GasPrice: big.NewInt(1),
-			Recommit: time.Second,
-		},
 	})
 	if err != nil {
 		return nil, nil, err
