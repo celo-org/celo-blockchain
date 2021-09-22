@@ -45,7 +45,6 @@ var (
 		SendTxV2Msg:            {0, 450000},
 		GetTxStatusMsg:         {0, 250000},
 		GetEtherbaseMsg:        {10000, 1},
-		GetGatewayFeeMsg:       {10000, 1},
 	}
 	// maximum incoming message size estimates
 	reqMaxInSize = requestCostTable{
@@ -58,7 +57,6 @@ var (
 		SendTxV2Msg:            {0, 16500},
 		GetTxStatusMsg:         {0, 50},
 		GetEtherbaseMsg:        {0, 10},
-		GetGatewayFeeMsg:       {0, 10},
 	}
 	// maximum outgoing message size estimates
 	reqMaxOutSize = requestCostTable{
@@ -71,7 +69,6 @@ var (
 		SendTxV2Msg:            {0, 100},
 		GetTxStatusMsg:         {0, 100},
 		GetEtherbaseMsg:        {0, 100},
-		GetGatewayFeeMsg:       {0, 100},
 	}
 	// request amounts that have to fit into the minimum buffer size minBufferMultiplier times
 	minBufferReqAmount = map[uint64]uint64{
@@ -84,7 +81,6 @@ var (
 		SendTxV2Msg:            8,
 		GetTxStatusMsg:         64,
 		GetEtherbaseMsg:        1,
-		GetGatewayFeeMsg:       1,
 	}
 	minBufferMultiplier = 3
 )

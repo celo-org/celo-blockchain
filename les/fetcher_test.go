@@ -131,7 +131,7 @@ func TestGappedAnnouncementsLes2(t *testing.T) {
 }
 func TestGappedAnnouncementsUltraLes2(t *testing.T) {
 	t.Skip("added in the les refactor, check if necessary for LightestSync")
-	testGappedAnnouncements(t, downloader.LightestSync, 2)
+	testGappedAnnouncements(t, downloader.LightestSync, lpv2)
 }
 func TestGappedAnnouncementsLes3(t *testing.T) {
 	testGappedAnnouncements(t, downloader.LightSync, lpv3)
@@ -156,6 +156,7 @@ func TestGappedAnnouncementsUltraLes5(t *testing.T) {
 }
 
 func testGappedAnnouncements(t *testing.T, syncMode downloader.SyncMode, protocol int) {
+	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	netconfig := testnetConfig{
 		blocks:    4,
 		syncMode:  syncMode,
@@ -262,7 +263,7 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 		nodes     []*enode.Node
 		ids       []string
 		cpeers    []*clientPeer
-		// speers    []*serverPeer
+		speers    []*serverPeer
 	)
 	for i := 0; i < 10; i++ {
 		s, n, teardown := newTestServerPeer(t, 10, protocol)
@@ -295,12 +296,12 @@ func testTrustedAnnouncement(t *testing.T, syncMode downloader.SyncMode, protoco
 
 	// Connect all server instances.
 	for i := 0; i < len(servers); i++ {
-		_, cp, err := connect(servers[i].handler, nodes[i].ID(), c.handler, protocol)
+		sp, cp, err := connect(servers[i].handler, nodes[i].ID(), c.handler, protocol)
 		if err != nil {
 			t.Fatalf("connect server and client failed, err %s", err)
 		}
 		cpeers = append(cpeers, cp)
-		// speers = append(speers, sp)
+		speers = append(speers, sp)
 	}
 	c.handler.fetcher.noAnnounce = false
 
@@ -339,6 +340,7 @@ func TestInvalidAnnouncesLES4(t *testing.T) { testInvalidAnnounces(t, downloader
 func TestInvalidAnnouncesLES5(t *testing.T) { testInvalidAnnounces(t, downloader.LightSync, lpv5) }
 
 func testInvalidAnnounces(t *testing.T, syncMode downloader.SyncMode, protocol int) {
+	t.Skip("Validates through a smaller td for the same header number. We verify this using the header number")
 	netconfig := testnetConfig{
 		blocks:    4,
 		syncMode:  syncMode,
