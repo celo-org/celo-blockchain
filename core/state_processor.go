@@ -81,15 +81,26 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.IntermediateRoot(true)
 	}
 
-	parentHeader := p.bc.GetHeaderByNumber(block.NumberU64() - 1)
-	parentVmRunner := p.bc.NewEVMRunner(parentHeader, statedb)
-	sysCtx := NewSysContractCallCtx(parentVmRunner)
+	var (
+		baseFee *big.Int
+		sysCtx  *SysContractCallCtx
+	)
+	if p.bc.chainConfig.IsEHardfork(blockNumber) {
+		sysVmRunner := p.bc.NewEVMRunner(header, statedb.Copy())
+		sysCtx = NewSysContractCallCtx(sysVmRunner)
+	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
-	var gpm *big.Int // collect basefee from blockContext or somewhere else
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), gpm)
+		if p.bc.chainConfig.IsEHardfork(header.Number) {
+			var err error
+			baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+			if err != nil {
+				return nil, nil, 0, err
+			}
+		}
+		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -164,8 +175,15 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
-	// TODO(Joshua): Set appropriate GPM/basefee here
-	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), sysCtx.GetGasPriceMinimum(tx.FeeCurrency()))
+	var baseFee *big.Int
+	if config.IsEHardfork(header.Number) {
+		var err error
+		baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+		if err != nil {
+			return nil, err
+		}
+	}
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
 		return nil, err
 	}

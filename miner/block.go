@@ -106,7 +106,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
-		sysCtx:         core.NewSysContractCallCtx(vmRunner),
+		sysCtx:         core.NewSysContractCallCtx(w.chain.NewEVMRunner(header, state.Copy())),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 

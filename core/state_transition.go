@@ -211,7 +211,7 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) *StateTransition {
 	var gasPriceMinimum *big.Int
 	if evm.ChainConfig().IsEHardfork(evm.Context.BlockNumber) {
-		gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
+		gasPriceMinimum, _ = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 	} else {
 		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
 	}
