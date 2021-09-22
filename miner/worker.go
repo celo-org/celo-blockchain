@@ -83,6 +83,7 @@ type worker struct {
 	// Channels
 	startCh chan struct{}
 	exitCh  chan struct{}
+	wg      sync.WaitGroup
 
 	mu             sync.RWMutex // The lock used to protect the validator, txFeeRecipient and extra fields
 	validator      common.Address
@@ -127,7 +128,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
-	go worker.mainLoop()
+	worker.wg.Add(1)
+	go func() {
+		defer worker.wg.Done()
+		worker.mainLoop()
+	}()
 
 	return worker
 }
@@ -225,6 +230,7 @@ func (w *worker) isRunning() bool {
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
 	close(w.exitCh)
+	w.wg.Wait()
 }
 
 // constructAndSubmitNewBlock constructs a new block and if the worker is running, submits
@@ -351,6 +357,8 @@ func (w *worker) mainLoop() {
 	var cancel context.CancelFunc
 	var wg sync.WaitGroup
 
+	// Ensure that block construction is complete before exiting this function.
+	defer wg.Wait()
 	txsCh := make(chan core.NewTxsEvent, txChanSize)
 
 	generateNewBlock := func() {
