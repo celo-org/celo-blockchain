@@ -65,7 +65,7 @@ A validator is a Nearly Elected Validator (NEV) if:
 
 ## Spec by node type
 
-Note that validators are full nodes too, therefore they should follow the same rules as full nodes.
+Note that validators are full nodes too, therefore they should follow the same rules as full nodes. This is specially important to not give away the status of the node as a validator.
 
 ### Full node (non validator) Spec
 
@@ -110,7 +110,7 @@ The first ten (10) messages should be spaced by at least 60 seconds.
 
 The following messages should be spaced by at least 5 minutes (300 seconds).
 
-A query for a specific `<validator, version>` tuple has a retry back off period, ant send more than (retrybackoff for highest known version) for each destination, from the 11th message and onwards. The `nth` attempt should be spaced from the previous one by:
+A query for a specific `<validator, version>` tuple has a retry back off period from the 11th message and onwards. The `nth` attempt should be spaced from the previous one by:
 
 ```
 timeoutMinutes = 1.5 ^ (min(n - 1, 5))
