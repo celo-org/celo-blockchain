@@ -193,6 +193,11 @@ func (c *core) SetAddress(address common.Address) {
 }
 
 func (c *core) CurrentView() *istanbul.View {
+	// CurrentView is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write which occurs
+	// in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
