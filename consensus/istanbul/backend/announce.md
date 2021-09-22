@@ -56,7 +56,9 @@ Wether a validator opens a connection or not against another validator is not in
 
 ## Nearly Elected Validator (NEV)
 
-// Explain the concept of a NEV and probably redefine it to something simpler
+A validator is a Nearly Elected Validator (NEV) if:
+- It is a current elected validator in this epoch, or
+- It is a validator in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable` taking the value of 10.
 
 ## Spec by node type
 
