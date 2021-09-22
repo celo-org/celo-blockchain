@@ -766,7 +766,6 @@ func TestTransactionGatewayFeeRequirementLes5(t *testing.T) {
 
 func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
-		blocks:    downloader.MaxHeaderFetch + 15,
 		syncMode:  downloader.LightSync,
 		protocol:  protocol,
 		nopruning: true,
@@ -777,6 +776,9 @@ func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
 	server.handler.addTxsSync = true
 	server.handler.etherbase = common.HexToAddress("2ad937cb878d8beefc84f3d0545750c2ff78cd0e")
 	server.handler.gatewayFee = big.NewInt(25000)
+
+	rawPeer, closePeer, _ := server.newRawPeer(t, "peer", protocol)
+	defer closePeer()
 
 	wrongAddress := common.HexToAddress("1762042962b8759e17d2b5ac6c5565273df506fd")
 	cases := []struct {
@@ -813,10 +815,10 @@ func testTransactionGatewayFeeRequirement(t *testing.T, protocol int) {
 	for i, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			tx, _ := types.SignTx(c.tx, signer, bankKey)
-			if err := sendRequest(server.peer.app, SendTxV2Msg, uint64(i+1), types.Transactions{tx}); err != nil {
+			if err := sendRequest(rawPeer.app, SendTxV2Msg, uint64(i+1), types.Transactions{tx}); err != nil {
 				t.Fatalf("transaction send failed: %v", err)
 			}
-			if err := expectResponse(server.peer.app, TxStatusMsg, uint64(i+1), testBufLimit, []light.TxStatus{c.status}); err != nil {
+			if err := expectResponse(rawPeer.app, TxStatusMsg, uint64(i+1), testBufLimit, []light.TxStatus{c.status}); err != nil {
 				t.Fatalf("transaction status mismatch: %v", err)
 			}
 		})

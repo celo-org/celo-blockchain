@@ -149,14 +149,12 @@ type GetTxStatusPacket struct {
 
 // GetEtherbasePacket represents a etherbase request
 type GetEtherbasePacket struct {
-	ReqID     uint64
-	Etherbase common.Address
+	ReqID uint64
 }
 
 // GetGatewayFeePacket represents a gateway fee request
 type GetGatewayFeePacket struct {
 	ReqID uint64
-	Info  GatewayFeeInformation
 }
 
 type requestInfo struct {
@@ -185,8 +183,7 @@ var (
 		GetHelperTrieProofsMsg: {"GetHelperTrieProofs", MaxHelperTrieProofsFetch, 10, 100},
 		SendTxV2Msg:            {"SendTxV2", MaxTxSend, 1, 0},
 		GetTxStatusMsg:         {"GetTxStatus", MaxTxStatus, 10, 0},
-		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0},   // TODO: revisit this as we as its costs in costtracker.go
-		GetGatewayFeeMsg:       {"GetGatewayFee", MaxGatewayFee, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
+		GetEtherbaseMsg:        {"GetEtherbase", MaxEtherbase, 1, 0}, // TODO: revisit this as we as its costs in costtracker.go
 	}
 	requestList    []vfc.RequestInfo
 	requestMapping map[uint32]reqMapping
