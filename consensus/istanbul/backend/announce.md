@@ -122,4 +122,4 @@ https://github.com/celo-org/celo-blockchain/pull/893
 [queryEnodeMsg]: #queryEnodeMsg-0x12
 [versionCertificatesMsg]: #versionCertificatesMsg-0x16
 [enodeCertificateMsg]: #enodeCertificateMsg-0x17
-[NearlyElectedValidator]: #nearlyElectedValidator-NEV
+[NearlyElectedValidator]: #nearly-Elected-Validator-NEV
