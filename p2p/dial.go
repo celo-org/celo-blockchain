@@ -435,14 +435,14 @@ func (d *dialScheduler) startStaticDials() (started int) {
 		// 	panic(err.Error())
 		// }
 
-		id := d.self
+		// id := d.self
 		// addr := crypto.PubkeyToAddress(*pub)
-		fmt.Printf(
-			"%s ID: %s Static dialling: %s\n",
-			time.Now().Format("15:04:05.000"),
-			hexutil.Encode(id[:2]),
-			task.dest.URLv4(),
-		)
+		// fmt.Printf(
+		// 	"%s ID: %s Static dialling: %s\n",
+		// 	time.Now().Format("15:04:05.000"),
+		// 	hexutil.Encode(id[:2]),
+		// 	task.dest.URLv4(),
+		// )
 		d.startDial(task)
 		d.removeFromStaticPool(idx)
 	}
