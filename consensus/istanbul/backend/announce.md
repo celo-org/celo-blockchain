@@ -64,6 +64,10 @@ Note that validators are full nodes too.
 
 ### Full node (non validator) Spec
 
+#### Peer handshake
+
+During an inbound peer connection, the remote peer can send an [enodeCertificateMsg] to identify itself as a validator. This allows for preferential treatment for the p2p connection.
+
 #### Handling [queryEnodeMsg]
 
 Messages received should be only processed once, so a local cache is a must
