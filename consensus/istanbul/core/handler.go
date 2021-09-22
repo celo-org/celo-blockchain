@@ -62,6 +62,8 @@ func (c *core) Stop() error {
 	// Make sure the handler goroutine exits
 	c.handlerWg.Wait()
 
+	c.currentMu.Lock()
+	defer c.currentMu.Unlock()
 	c.current = nil
 	return nil
 }
