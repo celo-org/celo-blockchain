@@ -26,8 +26,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/dop251/goja"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/dop251/goja"
 )
 
 // JSRE is a JS runtime environment embedding the goja interpreter.
