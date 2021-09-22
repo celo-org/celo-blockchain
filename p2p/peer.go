@@ -164,6 +164,8 @@ func (p *Peer) RemovePurpose(purpose PurposeFlag) {
 }
 
 func (p *Peer) HasPurpose(purpose PurposeFlag) bool {
+	p.purposesMu.Lock()
+	defer p.purposesMu.Unlock()
 	return p.purposes.IsSet(purpose)
 }
 
