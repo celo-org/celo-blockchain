@@ -128,6 +128,7 @@ type core struct {
 
 	rsdb      RoundStateDB
 	current   RoundState
+	currentMu sync.RWMutex
 	handlerWg *sync.WaitGroup
 
 	roundChangeSet *roundChangeSet
@@ -201,6 +202,11 @@ func (c *core) CurrentView() *istanbul.View {
 func (c *core) CurrentRoundState() RoundState { return c.current }
 
 func (c *core) ParentCommits() MessageSet {
+	// ParentCommits is called by Prepare which is called by miner.worker the
+	// main loop, we need to synchronise this access with the write wich occurs
+	// in Stop, which is called from the miner's update loop.
+	c.currentMu.RLock()
+	defer c.currentMu.RUnlock()
 	if c.current == nil {
 		return nil
 	}
