@@ -121,6 +121,7 @@ type Downloader struct {
 	notified        int32
 	committed       int32
 	ancientLimit    uint64 // The maximum block number which can be regarded as ancient data.
+	ancientLimitMu  sync.Mutex
 
 	// Channels
 	headerCh      chan dataPack        // Channel receiving inbound block headers
@@ -646,6 +647,10 @@ func (d *Downloader) cancel() {
 func (d *Downloader) Cancel() {
 	d.cancel()
 	d.cancelWg.Wait()
+	d.ancientLimitMu.Lock()
+	defer d.ancientLimitMu.Unlock()
+	d.ancientLimit = 0
+	log.Debug("Reset ancient limit to zero")
 }
 
 // Terminate interrupts the downloader, canceling all pending operations.
