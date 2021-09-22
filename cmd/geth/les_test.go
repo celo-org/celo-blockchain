@@ -142,7 +142,6 @@ func startClient(t *testing.T, name string) *gethrpc {
 }
 
 func TestPriorityClient(t *testing.T) {
-	t.Skip("blocked on LES package")
 	lightServer := startLightServer(t)
 	defer lightServer.killAndWait()
 
