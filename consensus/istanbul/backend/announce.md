@@ -39,6 +39,8 @@ Wether a validator opens a connection or not against another validator is not in
 - `version`: the current announce version for the origin's `eNodeURL`.
 - `timestamp`: a message generation timestamp, used to bypass hash caches for messages.
 
+Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator]).
+
 ### enodeCertificateMsg (0x17)
 
 `[enode_url: , version: ]`
@@ -57,6 +59,7 @@ Wether a validator opens a connection or not against another validator is not in
 ## Nearly Elected Validator (NEV)
 
 A validator is a Nearly Elected Validator (NEV) if:
+
 - It is a current elected validator in this epoch, or
 - It is a validator in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable` taking the value of 10.
 
@@ -77,6 +80,7 @@ When a peer is registered, all version certificates should be sent to the regist
 #### Handling [queryEnodeMsg]
 
 Messages received should be only processed once, so a local cache is a must
+
 Should be regossipped as is, unless another message from the same validator origin has been regossipped in the past 5 minutes
 
 #### Handling [enodeCertificateMsg]
@@ -100,12 +104,17 @@ Should update the highest known version to the one given, even if there's no ver
 
 #### Query spawning
 
-// currently sending queries if this validator is a [NearlyElectedValidator]
-// on start, wait 1 minute before querying
-// first 10 queries can be spaced by 1 minute after starting. after that, every 5 minutes
-// cant send more than (retrybackoff for highest known version) for each destination
-// only sends if a higher version than the one this validator has is known
-Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator])
+One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all validators that have a higher version `eNodeURL` than the one known.
+
+The first ten (10) messages should be spaced by at least 60 seconds.
+
+The following messages should be spaced by at least 5 minutes (300 seconds).
+
+A query for a specific `<validator, version>` tuple has a retry back off period, ant send more than (retrybackoff for highest known version) for each destination, from the 11th message and onwards. The `nth` attempt should be spaced from the previous one by:
+
+```
+timeoutMinutes = 1.5 ^ (min(n - 1, 5))
+```
 
 #### Version certificates spawning
 
