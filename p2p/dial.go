@@ -38,7 +38,7 @@ const (
 	// This is the amount of time spent waiting in between redialing a certain node. The
 	// limit is a bit higher than inboundThrottleTime to prevent failing dials in small
 	// private networks.
-	dialHistoryExpiration = inboundThrottleTime + 5*time.Millisecond
+	dialHistoryExpiration = inboundThrottleTime + 10*time.Millisecond
 
 	// Config for the "Looking for peers" message.
 	dialStatsLogInterval = 10 * time.Second // printed at most this often
