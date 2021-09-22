@@ -26,8 +26,10 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 )
 
 // BlockGen creates blocks for testing.
@@ -221,6 +223,26 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	return blocks, receipts
 }
 
+// Modified from  'func writeEmptyIstanbulExtra(header *types.Header) error' from consensus/backend/engine.go
+func CreateEmptyIstanbulExtra(vanity []byte) []byte {
+	extra := types.IstanbulExtra{
+		AddedValidators:           []common.Address{},
+		AddedValidatorsPublicKeys: []blscrypto.SerializedPublicKey{},
+		RemovedValidators:         big.NewInt(0),
+		Seal:                      []byte{},
+		AggregatedSeal:            types.IstanbulAggregatedSeal{},
+		ParentAggregatedSeal:      types.IstanbulAggregatedSeal{},
+	}
+	payload, _ := rlp.EncodeToBytes(&extra)
+
+	if len(vanity) < types.IstanbulExtraVanity {
+		vanity = append(vanity, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(vanity))...)
+	}
+	vanity = append(vanity[:types.IstanbulExtraVanity], payload...)
+
+	return vanity
+}
+
 func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {
 	var time uint64
 	if parent.Time() == 0 {
@@ -228,13 +250,16 @@ func makeHeader(chain consensus.ChainHeaderReader, parent *types.Block, state *s
 	} else {
 		time = parent.Time() + 10 // block time is fixed at 10 seconds
 	}
-	return &types.Header{
+	header := &types.Header{
 		Root:       state.IntermediateRoot(chain.Config().IsEIP158(parent.Number())),
 		ParentHash: parent.Hash(),
 		Coinbase:   parent.Coinbase(),
 		Number:     new(big.Int).Add(parent.Number(), common.Big1),
 		Time:       time,
 	}
+	// Properly set the extra data field
+	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
+	return header
 }
 
 // makeHeaderChain creates a deterministic chain of headers rooted at parent.
