@@ -84,9 +84,9 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
-  unit-tests-set-up: &unit-tests-set-up
-    executor: golang
-    resource_class: medium+
+#  unit-tests-set-up: &unit-tests-set-up
+#    executor: golang
+#    resource_class: medium+
 
   test-test:
     executor: golang
