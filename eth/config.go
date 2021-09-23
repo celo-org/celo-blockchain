@@ -140,9 +140,6 @@ type Config struct {
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 
-	// Churrito block override (TODO: remove after the fork)
-	OverrideChurrito *big.Int `toml:",omitempty"`
-
-	// Donut block override (TODO: remove after the fork)
-	OverrideDonut *big.Int `toml:",omitempty"`
+	// E block override (TODO: remove after the fork)
+	OverrideEHardfork *big.Int `toml:",omitempty"`
 }

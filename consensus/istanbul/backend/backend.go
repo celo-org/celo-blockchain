@@ -149,19 +149,9 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 				"cycle", "sleep", "consensus", "block_verify", "block_construct",
 				"sysload", "syswait", "procload")
 		}
-
 	}
 
 	backend.core = istanbulCore.New(backend, backend.config)
-
-	backend.logger = istanbul.NewIstLogger(
-		func() *big.Int {
-			if backend.core != nil && backend.core.CurrentView() != nil {
-				return backend.core.CurrentView().Round
-			}
-			return common.Big0
-		},
-	)
 
 	if config.Validator {
 		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
@@ -606,9 +596,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 		return nil, 0, err
 	}
-
-	// Make a copy of the state
-	state = state.Copy()
 
 	// Apply this block's transactions to update the state
 	receipts, logs, usedGas, err := sb.processBlock(block, state)

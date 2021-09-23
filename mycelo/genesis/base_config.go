@@ -138,7 +138,6 @@ func BaseConfig() *Config {
 			Version:                 Version{1, 0, 0},
 			GasForNonGoldCurrencies: 50000,
 			BlockGasLimit:           13000000,
-			UptimeLookbackWindow:    12,
 		},
 		DoubleSigningSlasher: DoubleSigningSlasherParameters{
 			Reward:  bigIntStr("1000000000000000000000"), // 1000 cGLD
