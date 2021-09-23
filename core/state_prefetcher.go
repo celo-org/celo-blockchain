@@ -55,10 +55,15 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		header   = block.Header()
 		vmRunner = p.bc.NewEVMRunner(header, statedb)
 		gaspool  = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
-		baseFee  *big.Int // TODO: gas price minimum
+		baseFee  *big.Int
+		sysCtx   *SysContractCallCtx
 	)
 	// Iterate over and process the individual transactions
 	byzantium := p.config.IsByzantium(block.Number())
+	espresso := p.bc.chainConfig.IsEHardfork(block.Number())
+	if espresso {
+		sysCtx = NewSysContractCallCtx(p.bc.NewEVMRunner(header, statedb.Copy()))
+	}
 	for i, tx := range block.Transactions() {
 		// If block precaching was interrupted, abort
 		if interrupt != nil && atomic.LoadUint32(interrupt) == 1 {
@@ -66,6 +71,13 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		}
 		// Block precaching permitted to continue, execute the transaction
 		statedb.Prepare(tx.Hash(), i)
+		if espresso {
+			var err error
+			baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+			if err != nil {
+				return
+			}
+		}
 		if err := precacheTransaction(p.config, p.bc, nil, gaspool, statedb, header, tx, cfg, baseFee); err != nil {
 			return // Ugh, something went horribly wrong, bail out
 		}
@@ -81,9 +93,9 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 }
 
 // precacheTransaction attempts to apply a transaction to the given state database
-// and uses the input parameters for its environment. The goal is not to execute
 // the transaction successfully, rather to warm up touched data slots.
 func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *common.Address, gaspool *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, cfg vm.Config, baseFee *big.Int) error {
+
 	// Convert the transaction into an executable message and pre-cache its sender
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
