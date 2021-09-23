@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -841,7 +842,12 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// this makes sure resources are cleaned up.
 	defer cancel()
 
-	gasPriceMinimum, err := b.GasPriceMinimumForHeader(ctx, args.FeeCurrency, header)
+	vmRunner := b.NewEVMRunner(header, state)
+	if err != nil {
+		return nil, err
+	}
+
+	gasPriceMinimum, err := gpm.GetGasPriceMinimum(vmRunner, args.FeeCurrency)
 	if err != nil {
 		return nil, err
 	}
