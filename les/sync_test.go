@@ -255,6 +255,7 @@ func testSyncFromConfiguredCheckpoint(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
 		blocks:    int(2*config.ChtSize + config.ChtConfirms),
 		protocol:  protocol,
+		syncMode:  downloader.LightSync,
 		indexFn:   waitIndexers,
 		nopruning: true,
 	}
@@ -339,6 +340,7 @@ func testSyncAll(t *testing.T, protocol int) {
 	netconfig := testnetConfig{
 		blocks:    int(2*config.ChtSize + config.ChtConfirms),
 		protocol:  protocol,
+		syncMode:  downloader.LightSync,
 		indexFn:   waitIndexers,
 		nopruning: true,
 	}
