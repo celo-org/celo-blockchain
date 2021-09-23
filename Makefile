@@ -141,7 +141,7 @@ android:
 	
 
 ios:
-	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
+	CGO_ENABLED=1 DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
 	# in order to link it to the final app
