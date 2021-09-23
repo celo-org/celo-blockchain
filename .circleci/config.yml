@@ -89,7 +89,8 @@ jobs:
     resource_class: medium+
 
   test-test:
-    <<: *unit-tests-set-up
+    executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
