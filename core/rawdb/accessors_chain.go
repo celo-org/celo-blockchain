@@ -116,8 +116,9 @@ func ReadAllCanonicalHashes(db ethdb.Iteratee, from uint64, to uint64, limit int
 
 // ReadHeaderNumber returns the header number assigned to a hash.
 func ReadHeaderNumber(db ethdb.KeyValueReader, hash common.Hash) *uint64 {
-	data, _ := db.Get(headerNumberKey(hash))
+	data, err := db.Get(headerNumberKey(hash))
 	if len(data) != 8 {
+		println("data not 8 long", err.Error())
 		return nil
 	}
 	number := binary.BigEndian.Uint64(data)

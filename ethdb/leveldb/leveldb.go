@@ -21,6 +21,7 @@ package leveldb
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -136,6 +137,7 @@ func New(file string, cache int, handles int, namespace string) (*Database, erro
 // Close stops the metrics collection, flushes any pending data to disk and closes
 // all io accesses to the underlying key-value store.
 func (db *Database) Close() error {
+	println("leveldb closed", string(debug.Stack()))
 	db.quitLock.Lock()
 	defer db.quitLock.Unlock()
 

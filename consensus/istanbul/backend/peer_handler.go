@@ -48,6 +48,8 @@ func newVPH(sb *Backend) *validatorPeerHandler {
 }
 
 func (vph *validatorPeerHandler) startThread() error {
+
+	println("vph starting", shortAddress(vph.sb.Address()))
 	vph.threadRunningMu.Lock()
 	defer vph.threadRunningMu.Unlock()
 	if vph.threadRunning {
@@ -62,10 +64,12 @@ func (vph *validatorPeerHandler) startThread() error {
 }
 
 func (vph *validatorPeerHandler) stopThread() error {
+	println("vph stopping", shortAddress(vph.sb.Address()))
 	vph.threadRunningMu.Lock()
 	defer vph.threadRunningMu.Unlock()
 
 	if !vph.threadRunning {
+		println("vph error already stopped", shortAddress(vph.sb.Address()))
 		return istanbul.ErrStoppedVPHThread
 	}
 
@@ -73,6 +77,7 @@ func (vph *validatorPeerHandler) stopThread() error {
 	vph.threadWg.Wait()
 
 	vph.threadRunning = false
+	println("vph stopped", shortAddress(vph.sb.Address()))
 	return nil
 }
 
@@ -83,6 +88,7 @@ func (vph *validatorPeerHandler) thread() {
 
 	refreshValPeersFunc := func() {
 		if vph.MaintainValConnections() {
+			println("----refreshing those validator peers", shortAddress(vph.sb.Address()))
 			if err := vph.sb.RefreshValPeers(); err != nil {
 				vph.sb.logger.Warn("Error refreshing validator peers", "err", err)
 			}

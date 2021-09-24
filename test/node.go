@@ -110,8 +110,13 @@ func NewNode(
 
 	// Copy the node config so we can modify it without damaging the original
 	ncCopy := *nc
-	// p2p key and address
-	ncCopy.P2P.PrivateKey = validatorAccount.PrivateKey
+
+	// p2p key and address, this is not the same as the validator key.
+	p2pKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	ncCopy.P2P.PrivateKey = p2pKey
 
 	// Make temp datadir
 	datadir, err := ioutil.TempDir("", "celo_datadir")
@@ -312,6 +317,13 @@ func (n *Node) Close() error {
 		err = n.Node.Close() // This also shuts down the Eth service
 	}
 	os.RemoveAll(n.Config.DataDir)
+
+	fmt.Printf(
+		"%s hm Addr: %s Closed: %s\n",
+		time.Now().Format("15:04:05.000"),
+		shortAddress(n.Address),
+		n.P2PListenAddr,
+	)
 	return err
 }
 

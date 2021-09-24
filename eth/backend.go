@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 
@@ -210,7 +212,13 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 		istanbul.SetChain(
 			eth.blockchain, eth.blockchain.CurrentBlock,
 			func(hash common.Hash) (*state.StateDB, error) {
-				stateRoot := eth.blockchain.GetHeaderByHash(hash).Root
+				h := eth.blockchain.GetHeaderByHash(hash)
+				if h == nil {
+					println("--------------!!!!", hash.String())
+					pprof.Lookup("goroutine").WriteTo(os.Stdout, 2)
+					os.Exit(1)
+				}
+				stateRoot := h.Root
 				return eth.blockchain.StateAt(stateRoot)
 			})
 	}

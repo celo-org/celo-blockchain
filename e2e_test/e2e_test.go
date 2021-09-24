@@ -41,6 +41,7 @@ func TestSendCelo(t *testing.T) {
 }
 
 func TestStartStopValidators(t *testing.T) {
+	println("starting test")
 	accounts := test.Accounts(4)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
