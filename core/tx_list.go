@@ -751,12 +751,14 @@ func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 		ctx: ctx,
 		all: all,
 		urgent: multiCurrencyPriceHeap{
-			currencyCmpFn:   txCtx.CmpValues,
-			nilCurrencyHeap: &priceHeap{},
+			currencyCmpFn:       txCtx.CmpValues,
+			nilCurrencyHeap:     &priceHeap{},
+			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 		},
 		floating: multiCurrencyPriceHeap{
-			currencyCmpFn:   txCtx.CmpValues,
-			nilCurrencyHeap: &priceHeap{},
+			currencyCmpFn:       txCtx.CmpValues,
+			nilCurrencyHeap:     &priceHeap{},
+			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
 		},
 	}
 }
