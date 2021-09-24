@@ -195,7 +195,7 @@ jobs:
 
   lightest-sync-test:
     docker:
-      - image: ubuntu-2004:202101-01
+      - image: circleci/node:12
     working_directory: ~/repos/geth
     steps:
       - attach_workspace:
