@@ -24,7 +24,9 @@ type SysContractCallCtx struct {
 
 func NewSysContractCallCtx(vmRunner vm.EVMRunner) *SysContractCallCtx {
 	return &SysContractCallCtx{
-		vmRunner: vmRunner,
+		vmRunner:              vmRunner,
+		whitelistedCurrencies: make(map[common.Address]struct{}),
+		gasPriceMinimums:      make(map[common.Address]*big.Int),
 	}
 }
 
@@ -47,11 +49,9 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 		if err != nil {
 			whiteListedArr = []common.Address{}
 		}
-		whiteListedCurrencies := make(map[common.Address]struct{}, len(whiteListedArr))
 		for _, feeCurrency := range whiteListedArr {
-			whiteListedCurrencies[feeCurrency] = struct{}{}
+			sc.whitelistedCurrencies[feeCurrency] = struct{}{}
 		}
-		sc.whitelistedCurrencies = whiteListedCurrencies
 	}
 
 	_, ok := sc.whitelistedCurrencies[*feeCurrency]
@@ -62,10 +62,6 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) (*big.Int, error) {
 	if !sc.IsWhitelisted(feeCurrency) {
 		return nil, ErrNonWhitelistedFeeCurrency
-	}
-
-	if sc.gasPriceMinimums == nil {
-		sc.gasPriceMinimums = make(map[common.Address]*big.Int)
 	}
 
 	// feeCurrency for native token CELO is nil, so we bind common.ZeroAddress as key
