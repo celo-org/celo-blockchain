@@ -277,6 +277,8 @@ func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
 	case rules.IsEHardfork:
 		return PrecompiledAddressesE
+	case rules.IsDonut:
+		return PrecompiledAddressesDonut
 	case rules.IsIstanbul:
 		return PrecompiledAddressesIstanbul
 	case rules.IsByzantium:

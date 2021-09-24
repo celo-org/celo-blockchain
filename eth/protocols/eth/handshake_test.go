@@ -21,14 +21,15 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
 // Tests that handshake failures are detected and reported correctly.
-func TestHandshake65(t *testing.T) { testHandshake(t, ETH65) }
-func TestHandshake66(t *testing.T) { testHandshake(t, ETH66) }
+func TestHandshake66(t *testing.T) { testHandshake(t, istanbul.Celo66) }
+func TestHandshake67(t *testing.T) { testHandshake(t, istanbul.Celo67) }
 
 func testHandshake(t *testing.T, protocol uint) {
 	t.Parallel()
