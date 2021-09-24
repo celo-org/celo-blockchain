@@ -283,13 +283,13 @@ func (tx *Transaction) GatewayFee() *big.Int {
 	if tx.inner.gatewayFee() != nil {
 		return new(big.Int).Set(tx.inner.gatewayFee())
 	} else {
-		return nil
+		return new(big.Int)
 	}
 }
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
 func (tx *Transaction) Fee() *big.Int {
-	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.inner.gatewayFee())
+	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
 }
 
 // Fee calculates the transaction fee (gasLimit * gasPrice + gatewayFee)
@@ -661,7 +661,7 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 	gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int,
 	feeCurrency, gatewayFeeRecipient *common.Address, gatewayFee *big.Int,
 	data []byte, accessList AccessList, ethCompatible, checkNonce bool) Message {
-	return Message{
+	m := Message{
 		from:                from,
 		to:                  to,
 		nonce:               nonce,
@@ -678,6 +678,10 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		ethCompatible:       ethCompatible,
 		checkNonce:          checkNonce,
 	}
+	if m.gatewayFee == nil {
+		m.gatewayFee = new(big.Int)
+	}
+	return m
 }
 
 // AsMessage returns the transaction as a core.Message.

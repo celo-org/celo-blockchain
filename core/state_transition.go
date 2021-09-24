@@ -23,7 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	cmath "github.com/celo-org/celo-blockchain/common/math"
+	// cmath "github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
@@ -549,8 +549,8 @@ func (st *StateTransition) distributeTxFees(eHardfork bool) error {
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
 	if is1559 && eHardfork {
-		effectiveTip := cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.gasPriceMinimum))
-		tipTxFee = tipTxFee.Mul(effectiveTip, gasUsed)
+		// effectiveTip := cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.gasPriceMinimum))
+		// tipTxFee = tipTxFee.Mul(effectiveTip, gasUsed)
 		// refund.Add(refund, (new(big.Int)).Sub())
 	}
 
