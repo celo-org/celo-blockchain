@@ -194,9 +194,7 @@ jobs:
       - run: ./scripts/publish-mobile-client.sh ${CIRCLE_SHA1} ${NPM_TOKEN_FOR_CELO_CLIENT}
 
   lightest-sync-test:
-    docker:
-      - image: circleci/node:12
-    working_directory: ~/repos/geth
+    executor: golang
     steps:
       - attach_workspace:
           at: ~/repos
