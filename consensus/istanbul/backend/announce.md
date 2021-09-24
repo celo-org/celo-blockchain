@@ -2,6 +2,8 @@
 
 While here referred as a protocol by itself, Announce is technically a subset of the Istanbul protocol, on the [RLPx] transport, that facilitates Validators to privately discover the eNodeURL of other Validators in the network, using the underlying p2p eth network. This is used by Istanbul to have direct connections between Validators, speeding up the consensus phase of block generation.
 
+It is important to note that a validator's `eNodeURL` is never shared among third parties, but directly published to specific peers. Therefore it is allowed for a validator to publish different external facing `eNodeURL` values to different validator peers.
+
 ## Basic Operation
 
 When a validator is close to being elected ([NearlyElectedValidator]), it starts periodically sending [queryEnodeMsg] messages through the p2p network. These message are regossipped by nodes, and validators reply with a direct message to the originator with an [eNodeCertificateMsg], holding their `eNodeURL`. The initial [queryEnodeMsg] contained the origin validator's `eNodeURL` encrypted with the destination public key, therefore after the direct reply, both validators are aware of each others' `eNodeURL`.
@@ -32,7 +34,7 @@ Wether a validator opens a connection or not against another validator is not in
 
 ### queryEnodeMsg (0x12)
 
-`[[dest_address: , [encrypted_enode_url: ]], version: , timestamp: ]`
+`[[dest_address: B_20, encrypted_enode_url: B], version: P, timestamp: P]`
 
 - `dest_address`: the destination validator address this message is querying to.
 - `encrypted_enode_url`: the origin's `eNodeURL` encrypted with the destination public key.
@@ -43,22 +45,21 @@ Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator]).
 
 ### enodeCertificateMsg (0x17)
 
-`[enode_url: , version: ]`
+`[enode_url: B, version: P]`
 
 - `enode_url`: the origin's plaintext `eNodeURL`.
 - `version`: the current announce version for the origin's `eNodeURL`.
 
 ### versionCertificatesMsg (0x16)
 
-`[[version: , signature: ]]`
+`[[version: P, signature: B]]`
 
 - `version`: the current highest known announce version for a validator (deduced from the signature), according to the peer that gossipped this message.
-- `signature`: the signature for the version payload (`'versionCertificate'|version`) by the emmitter of the certificate. Note that the address and public key can be deduced from this `signature`.
-
+- `signature`: the signature for the version payload string (`'versionCertificate'|version`) by the emmitter of the certificate. Note that the address and public key can be deduced from this `signature`.
 
 ## Nearly Elected Validator (NEV)
 
-A validator is a Nearly Elected Validator (NEV) if:
+A validator is a Nearly Elected Validator (NEV) if and only if:
 
 - It is a current elected validator in this epoch, or
 - It is a validator in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable` taking the value of 10.
@@ -75,54 +76,53 @@ During an inbound peer connection, the remote peer can send an [enodeCertificate
 
 #### Peer registered
 
-When a peer is registered, all version certificates should be sent to the registered peer in a [versionCertificatesMsg].
+When a peer is registered, all highest known version certificates should be sent to the registered peer in a [versionCertificatesMsg].
 
 #### Handling [queryEnodeMsg]
 
-Messages received should be only processed once, so a local cache is a must
-
-Should be regossipped as is, unless another message from the same validator origin has been regossipped in the past 5 minutes
+Messages received of this type should be only processed once.
+Should be regossipped as is, unless another message from the same validator origin has been regossipped in the past 5 minutes.
 
 #### Handling [enodeCertificateMsg]
 
-Non validators should never receive [enodeCertificateMsg].
+[enodeCertificateMsg] should be ignored by non validators.
 
 #### Handling [versionCertificatesMsg]
 
-Messages received should be only processed once, so a local cache is a must.
-when received, regossips new entries that hasn't been gossiped (by address) in 5 minutes
+Messages received of this type should be only processed once.
+When received, regossips a new [versionCertificatesMsg] with certificates that haven't been gossiped (identified by validator address only) in the past 5 minutes
+
+#### Message spawning
+
+Every 5 minutes it should regossip all the highest known version certificates for all the [NearlyElectedValidator]
 
 ### Validator Spec
 
-#### Handling [queryEnodeMsg]
+#### Replying [queryEnodeMsg]
 
 Should be replied with an [enodeCertificateMsg] if the origin is a validator and this validator is the destination, and if an already existing connection to the origin validator exists.
 
-#### Handling [enodeCertificateMsg]
+#### Receiving [enodeCertificateMsg]
 
 Should update the highest known version to the one given, even if there's no version certificate for it known by this validator.
 
 #### Query spawning
 
-One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all validators that have a higher version `eNodeURL` than the one known.
+One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all other NEV validators that have a higher version `eNodeURL` than the one currently known.
 
-The first ten (10) messages should be spaced by at least 60 seconds.
-
-The following messages should be spaced by at least 5 minutes (300 seconds).
-
-A query for a specific `<validator, version>` tuple has a retry back off period from the 11th message and onwards. The `nth` attempt should be spaced from the previous one by:
+Messages should be spaced by at least 5 minutes (300 seconds). A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
 
 ```
 timeoutMinutes = 1.5 ^ (min(n - 1, 5))
 ```
 
+Optionally, the first ten (10) query messages can be spaced by at least 60 seconds and ignoring retry back off periods for unanswered queries. This is known as the `AggressiveQueryEnodeGossip`.
+
 If the validator is no longer in the list of [NearlyElectedValidator] then it should stop sending [queryEnodeMsg] messages.
 
 #### Version certificates spawning
 
-// currently updating own announce version every 5 minutes, if node is validating
-// also every 5 minutes, gossips the whole version certificate table to peers
-// sent when updating announce version (from validator to everyone)
+When a node starts validating, it should generate and gossip a new [versionCertificateMsg]. After that, it should be renewed and regossipped every 5 minutes.
 
 ## Change Log
 
