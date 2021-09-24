@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
+	"github.com/celo-org/celo-blockchain/p2p"
 
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -267,6 +268,7 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 		blocks    = 8
 		netconfig = testnetConfig{
 			blocks:    blocks,
+			syncMode:  downloader.LightSync,
 			protocol:  protocol,
 			nopruning: true,
 		}
@@ -310,9 +312,22 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 	}
 	// serveMsg processes incoming GetTxStatusMsg and sends the response back.
 	serveMsg := func(peer *testPeer, txLookup uint64) error {
-		msg, err := peer.app.ReadMsg()
-		if err != nil {
-			return err
+		var (
+			msg p2p.Msg
+			err error
+		)
+	loop:
+		for {
+			msg, err = peer.app.ReadMsg()
+			if err != nil {
+				return err
+			}
+			switch msg.Code {
+			case GetEtherbaseMsg:
+				continue
+			default:
+				break loop
+			}
 		}
 		if msg.Code != GetTxStatusMsg {
 			return fmt.Errorf("message code mismatch: got %d, expected %d", msg.Code, GetTxStatusMsg)
@@ -340,7 +355,9 @@ func testGetTxStatusFromUnindexedPeers(t *testing.T, protocol int) {
 		}
 		data, _ := rlp.EncodeToBytes(stats)
 		reply := &reply{peer.app, TxStatusMsg, r.ReqID, data}
-		reply.send(testBufLimit)
+		if err = reply.send(testBufLimit); err != nil {
+			return err
+		}
 		return nil
 	}
 
