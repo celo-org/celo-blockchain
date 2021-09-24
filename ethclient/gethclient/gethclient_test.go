@@ -78,7 +78,7 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 	}
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
-		g.SetExtra([]byte("test"))
+		g.SetExtra(core.CreateEmptyIstanbulExtra([]byte("test")))
 	}
 	gblock := genesis.ToBlock(db)
 	engine := mockEngine.NewFaker()
