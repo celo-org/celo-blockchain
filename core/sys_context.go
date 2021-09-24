@@ -64,6 +64,10 @@ func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) (*
 		return nil, ErrNonWhitelistedFeeCurrency
 	}
 
+	if sc.gasPriceMinimums == nil {
+		sc.gasPriceMinimums = make(map[common.Address]*big.Int)
+	}
+
 	// feeCurrency for native token CELO is nil, so we bind common.ZeroAddress as key
 	var key common.Address
 	if feeCurrency == nil {
