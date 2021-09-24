@@ -342,6 +342,7 @@ func (db *Database) insert(hash common.Hash, size int, node node) {
 			c.parents++
 		}
 	})
+	//here
 	db.dirties[hash] = entry
 
 	// Update the flush-list endpoints
@@ -778,10 +779,16 @@ func (db *Database) Commit(node common.Hash, report bool, callback func(common.H
 // commit is the private locked version of Commit.
 func (db *Database) commit(hash common.Hash, batch ethdb.Batch, uncacher *cleaner, callback func(common.Hash)) error {
 	// If the node does not exist, it's a previously committed node
+	//here
+
+	db.lock.RLock()
 	node, ok := db.dirties[hash]
 	if !ok {
+		db.lock.RUnlock()
 		return nil
 	}
+	db.lock.RUnlock()
+
 	var err error
 	node.forChilds(func(child common.Hash) {
 		if err == nil {
@@ -842,6 +849,7 @@ func (c *cleaner) Put(key []byte, rlp []byte) error {
 		c.db.dirties[node.flushNext].flushPrev = node.flushPrev
 	}
 	// Remove the node from the dirty cache
+	//here
 	delete(c.db.dirties, hash)
 	c.db.dirtiesSize -= common.StorageSize(common.HashLength + int(node.size))
 	if node.children != nil {
