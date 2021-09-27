@@ -206,12 +206,8 @@ func (r *EpochSnarkData) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	if dec.Bitmap != nil {
-		r.Bitmap = new(big.Int).SetBytes(dec.Bitmap)
-	}
-	if dec.Signature != nil {
-		r.Signature = dec.Signature
-	}
+	r.Bitmap = new(big.Int).SetBytes(dec.Bitmap)
+	r.Signature = dec.Signature
 	return nil
 }
 
