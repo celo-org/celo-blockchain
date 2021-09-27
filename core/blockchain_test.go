@@ -3007,7 +3007,6 @@ func TestEIP2718Transition(t *testing.T) {
 //    gasFeeCap - gasTipCap < baseFee.
 // 6. Legacy transaction behave as expected (e.g. gasPrice = gasFeeCap = gasTipCap).
 func TestEIP1559Transition(t *testing.T) {
-	t.Skip("1559 not enabled")
 	var (
 		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 

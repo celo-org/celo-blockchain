@@ -187,7 +187,7 @@ func NewFullFaker() *MockEngine {
 
 func (e *MockEngine) accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header) {
 	// Simply touch coinbase account
-	reward := big.NewInt(1)
+	reward := big.NewInt(0)
 	state.AddBalance(header.Coinbase, reward)
 }
 
