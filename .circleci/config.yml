@@ -215,6 +215,8 @@ jobs:
             CHECKSUM=$(sha256sum go1.17.1.linux-amd64.tar.gz)
             if [[ "$CHECKSUM" != "dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef" ]]; then
               echo Checksum failed
+              echo Got "$CHECKSUM"
+              echo Expected "dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef"
               exit 1
             fi
             rm -rf /usr/local/go && tar -C /usr/local -xzf go1.17.1.linux-amd64.tar.gz
