@@ -203,8 +203,7 @@ jobs:
           command: ./scripts/check_imports.sh
 
   android:
-    docker:
-      - image: celohq/circleci:android-v2
+    executor: golang
     working_directory: ~/repos/geth
     steps:
       - checkout
