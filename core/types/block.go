@@ -18,6 +18,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -162,6 +163,33 @@ func (r *EpochSnarkData) EncodeRLP(w io.Writer) error {
 
 func (r *EpochSnarkData) IsEmpty() bool {
 	return len(r.Signature) == 0
+}
+
+// MarshalJSON marshals as JSON.
+func (r EpochSnarkData) MarshalJSON() ([]byte, error) {
+	type EpochSnarkData struct {
+		Bitmap    hexutil.Bytes
+		Signature hexutil.Bytes
+	}
+	var enc EpochSnarkData
+	enc.Bitmap = r.Bitmap.Bytes()
+	enc.Signature = r.Signature
+	return json.Marshal(&enc)
+}
+
+// UnmarshalJSON unmarshals from JSON.
+func (r *EpochSnarkData) UnmarshalJSON(input []byte) error {
+	type EpochSnarkData struct {
+		Bitmap    hexutil.Bytes
+		Signature hexutil.Bytes
+	}
+	var dec EpochSnarkData
+	if err := json.Unmarshal(input, &dec); err != nil {
+		return err
+	}
+	r.Bitmap = new(big.Int).SetBytes(dec.Bitmap)
+	r.Signature = dec.Signature
+	return nil
 }
 
 // Body is a simple (mutable, non-safe) data container for storing and moving

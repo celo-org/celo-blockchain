@@ -132,6 +132,11 @@ type HeaderRequest struct {
 // StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
 // This occurs if the total difficulty of the requested header is less than the current known TD.
 func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if req.Header == nil {
+		// A nil header is a valid response when request the header by hash, as it indicates
+		// no known block with this hash.  In this case, there is nothing for us to do here.
+		return
+	}
 	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
 		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
 	}

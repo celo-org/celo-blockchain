@@ -143,7 +143,6 @@ type BlockchainParameters struct {
 	Version                 Version `json:"version"`
 	GasForNonGoldCurrencies uint64  `json:"gasForNonGoldCurrencies"`
 	BlockGasLimit           uint64  `json:"blockGasLimit"`
-	UptimeLookbackWindow    uint64  `json:"uptimeLookbackWindow"`
 }
 
 //go:generate gencodec -type DoubleSigningSlasherParameters -field-override DoubleSigningSlasherParametersMarshaling -out gen_double_signing_slasher_parameters_json.go

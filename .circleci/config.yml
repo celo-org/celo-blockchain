@@ -4,7 +4,7 @@ parameters:
   system-contracts-cache-version:
     type: integer
     default: 1
-  # Use this git tag or commit of the monorepo to build the system contracts. 
+  # Use this git tag or commit of the monorepo to build the system contracts.
   system-contracts-monorepo-version:
     type: string
     default: "celo-core-contracts-v3.rc0"
@@ -27,6 +27,19 @@ executors:
     environment:
       GO_VERSION: "1.16.4"
       CELO_MONOREPO_BRANCH_TO_TEST: trianglesphere/e2e_tests
+      # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
+      # our CI doesn't break due to another team making changes in monorepo.
+      # * It should be updated when:
+      #     (a) changes or additions are made to the blockchain e2e tests in celo-monorepo, or
+      #     (b) a new contracts release has been merged to monorepo's master
+      #    In the latter case, we need to check whether the new contract release breaks things and update the mycelo
+      #    contracts ABI and migrations accordingly if necessary.
+      # * When updating it, update the comment with (a) the branch or commit hash, (b) the date of the change, and
+      #   (c) the contracts release it includes (`RELEASE_TAG` in the monorepo)
+
+      # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
+      # includes contracts release 5 (core-contracts.v5)
+      # CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:
@@ -119,6 +132,50 @@ jobs:
       - run: go run build/ci.go test -coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
+  istanbul-e2e-coverage:
+    executor: golang
+    resource_class: medium+
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+        # Run the tests with coverage parse the coverage and output the summary
+      - run: 
+          name: Run tests and print coverage summary
+          command: |
+            go test -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
+            go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
+            cat summary
+
+      - run: 
+          name: Post summary comment on PR
+          command: |
+            # Only post on PR if this build is running on a PR. If this build
+            # is running on a PR then CIRCLE_PULL_REQUEST contains the link to
+            # the PR.
+            if [[ ! -z ${CIRCLE_PULL_REQUEST} ]] ; then
+              # Build comment
+              echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
+              echo "\`\`\`" >> comment
+              cat summary >> comment
+              echo "\`\`\`" >> comment
+
+              # This command is quite involved, its posting the comment on the
+              # associated PR.
+              # ${CIRCLE_PULL_REQUEST##*/} expands to just the pr number at the
+              # end of the PR link.
+              # "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" evaluates to
+              # a json object with comment as the content of body with newlines
+              # replaced by '\n'. Using backtics causes there to be a round of
+              # backslash processing on the command before execution, so we
+              # need to double the backslashes in the awk command.
+              curl -u piersy:${PR_COMMENT_TOKEN} -X POST \
+              https://api.github.com/repos/celo-org/celo-blockchain/issues/${CIRCLE_PULL_REQUEST##*/}/comments \
+              -d "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" ;
+            fi
+
   lint:
     executor: golang
     steps:
@@ -210,8 +267,10 @@ jobs:
             set -e
             mkdir ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
             ssh-keygen -F github.com -l -f ~/.ssh/known_hosts | grep "github.com RSA ${GITHUB_RSA_FINGERPRINT}"
-            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo -b ${CELO_MONOREPO_BRANCH_TO_TEST}
+            git clone --depth 1 https://github.com/celo-org/celo-monorepo.git celo-monorepo
             cd celo-monorepo
+            git fetch --depth 1 origin ${CELO_MONOREPO_COMMIT_OR_BRANCH}
+            git checkout ${CELO_MONOREPO_COMMIT_OR_BRANCH}
             yarn install || yarn install
             yarn build --scope @celo/celotool --include-filtered-dependencies
       - run:
@@ -320,6 +379,10 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - coverage:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+      - istanbul-e2e-coverage:
           requires:
             - build-geth
             - prepare-system-contracts

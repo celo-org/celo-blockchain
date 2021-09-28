@@ -75,6 +75,10 @@ type Config struct {
 	// connected. It must be greater than zero.
 	MaxPeers int
 
+	// MaxLightClients is the maximum number of light clients that can be connected.
+	// It is zero if the LES server isn't running (includes the case that we are an LES client).
+	MaxLightClients int
+
 	// MaxPendingPeers is the maximum number of peers that can be pending in the
 	// handshake phase, counted separately for inbound and outbound connections.
 	// Zero defaults to preset values.
@@ -732,10 +736,11 @@ func (srv *Server) maxDialedConns() (limit int) {
 	if srv.NoDial || srv.MaxPeers == 0 {
 		return 0
 	}
+	maxEthPeers := srv.MaxPeers - srv.MaxLightClients
 	if srv.DialRatio == 0 {
-		limit = srv.MaxPeers / defaultDialRatio
+		limit = maxEthPeers / defaultDialRatio
 	} else {
-		limit = srv.MaxPeers / srv.DialRatio
+		limit = maxEthPeers / srv.DialRatio
 	}
 	if limit == 0 {
 		limit = 1
@@ -780,7 +785,7 @@ func (srv *Server) doPeerOp(fn peerOpFunc) {
 
 // run is the main loop of the server.
 func (srv *Server) run() {
-	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4())
+	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4(), "maxdialed", srv.maxDialedConns(), "maxinbound", srv.maxInboundConns())
 	defer srv.loopWG.Done()
 	defer srv.nodedb.Close()
 	defer srv.discmix.Close()

@@ -330,9 +330,12 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 
 		// Filter out the explicitly requested header by the retriever
 		if h.backend.retriever.requested(resp.ReqID) {
-			contiguousHeaders := h.syncMode != downloader.LightestSync
-			if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
-				return err
+			if len(headers) != 0 {
+				contiguousHeaders := h.syncMode != downloader.LightestSync
+				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
+					return err
+				}
+
 			}
 			deliverMsg = &Msg{
 				MsgType: MsgBlockHeaders,
@@ -347,7 +350,7 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 			}
 			if len(headers) != 0 || !filter {
 				if err := h.downloader.DeliverHeaders(p.id, headers); err != nil {
-					log.Error("Failed to deliver headers", "err", err)
+					log.Debug("Failed to deliver headers", "err", err)
 				}
 			}
 		}

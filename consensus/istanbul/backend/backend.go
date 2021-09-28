@@ -114,13 +114,15 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		logger.Crit("Failed to create recent snapshots cache", "err", err)
 	}
 
+	coreStarted := atomic.Value{}
+	coreStarted.Store(false)
 	backend := &Backend{
 		config:                             config,
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
-		coreStarted:                        false,
+		coreStarted:                        coreStarted,
 		announceRunning:                    false,
 		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		announceThreadWg:                   new(sync.WaitGroup),
@@ -222,7 +224,16 @@ type Backend struct {
 	validateState       func(block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)
 
-	coreStarted bool
+	// We need this to be an atomic value so that we can access it in a lock
+	// free way from IsValidating. This is required because StartValidating
+	// makes a call to RefreshValPeers while holding coreMu and RefreshValPeers
+	// waits for all validator peers to be deleted and then reconnects to known
+	// validators. If any of those peers has called IsValidating before
+	// RefreshValPeers tries to delete them the system gets stuck in a
+	// deadlock, the peer will never acquire coreMu because it is held by
+	// StartValidating, and StartValidating will never return because it is
+	// waiting for all peers to disconnect.
+	coreStarted atomic.Value
 	coreMu      sync.RWMutex
 
 	// Snapshots for recent blocks to speed up reorgs
@@ -326,6 +337,10 @@ type Backend struct {
 	abortCommitHook func(result *istanbulCore.StateProcessResult) bool // Method to call upon committing a proposal
 }
 
+func (sb *Backend) isCoreStarted() bool {
+	return sb.coreStarted.Load().(bool)
+}
+
 // IsProxy returns true if instance has proxy flag
 func (sb *Backend) IsProxy() bool {
 	return sb.config.Proxy
@@ -351,9 +366,7 @@ func (sb *Backend) GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine {
 // IsValidating return true if instance is validating
 func (sb *Backend) IsValidating() bool {
 	// TODO: Maybe a little laggy, but primary / replica should track the core
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
-	return sb.coreStarted
+	return sb.isCoreStarted()
 }
 
 // IsValidator return if instance is a validator (either proxied or standalone)
@@ -597,9 +610,6 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 		sb.logger.Error("verify - Error in getting the block's parent's state", "parentHash", block.Header().ParentHash.Hex(), "err", err)
 		return nil, 0, err
 	}
-
-	// Make a copy of the state
-	state = state.Copy()
 
 	// Apply this block's transactions to update the state
 	receipts, logs, usedGas, err := sb.processBlock(block, state)

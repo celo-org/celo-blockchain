@@ -69,9 +69,9 @@ type TxPool struct {
 	mined        map[common.Hash][]*types.Transaction // mined transactions by block hash
 	clearIdx     uint64                               // earliest block nr that can contain mined tx info
 
-	istanbul bool // Fork indicator whether we are in the istanbul stage.
-	donut    bool // Fork indicated whether Donut has been activated
-	eip2718  bool // Fork indicator whether we are in the eip2718 stage.
+	istanbul  bool // Fork indicator whether we are in the istanbul stage
+	donut     bool // Fork indicator whether Donut has been activated
+	eHardfork bool // Fork indicator whether E hard fork has been activated
 }
 
 // TxRelayBackend provides an interface to the mechanism that forwards transacions
@@ -326,7 +326,7 @@ func (pool *TxPool) setNewHead(head *types.Header) {
 	next := new(big.Int).Add(head.Number, big.NewInt(1))
 	pool.istanbul = pool.config.IsIstanbul(next)
 	pool.donut = pool.config.IsDonut(next)
-	pool.eip2718 = pool.config.IsEHardfork(next)
+	pool.eHardfork = pool.config.IsEHardfork(next)
 }
 
 // Stop stops the light transaction pool
@@ -392,7 +392,7 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 
 	vmRunner := pool.chain.NewEVMRunner(pool.chain.CurrentHeader(), currentState)
 	// Transactor should have enough funds to cover the costs
-	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState, vmRunner)
+	err = core.ValidateTransactorBalanceCoversTx(tx, from, currentState, vmRunner, pool.eHardfork)
 	if err != nil {
 		return err
 	}

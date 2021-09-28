@@ -28,7 +28,6 @@ func CreateCommonGenesisConfig(chainID *big.Int, adminAccountAddress common.Addr
 		ChurritoBlock: common.Big0,
 		DonutBlock:    common.Big0,
 	}
-	genesisConfig.Blockchain.UptimeLookbackWindow = genesisConfig.Istanbul.LookbackWindow
 
 	// Make admin account manager of Governance & Reserve
 	adminMultisig := MultiSigParameters{
