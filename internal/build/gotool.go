@@ -66,7 +66,7 @@ func (g *GoToolchain) Install(gobin string, args ...string) *exec.Cmd {
 	if !filepath.IsAbs(gobin) {
 		panic("GOBIN must be an absolute path")
 	}
-	tool := g.goTool("get")
+	tool := g.goTool("install")
 	tool.Env = append(tool.Env, "GOBIN="+gobin)
 	tool.Args = append(tool.Args, "-mod=readonly")
 	tool.Args = append(tool.Args, args...)
