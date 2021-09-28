@@ -3102,11 +3102,11 @@ func TestEIP1559Transition(t *testing.T) {
 	}
 
 	// 4: Ensure the tx sender paid for the gasUsed * (tip + block baseFee).
-	baseFee := uint64(0) // TODO: figure out how to implement this
+	baseFee, _ := mockSysContractCallCtx().GetGasPriceMinimum(nil)
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr1))
-	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee))
+	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee.Uint64()))
 	if actual.Cmp(expected) != 0 {
-		t.Fatalf("sender balance incorrect: expected %d, got %d", expected, actual)
+		t.Fatalf("sender paid fee incorrect: expected %d, got %d", expected, actual)
 	}
 
 	blocks, _ = GenerateChain(gspec.Config, block, engine, db, 1, func(i int, b *BlockGen) {
@@ -3130,7 +3130,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	block = chain.GetBlockByNumber(2)
 	state, _ = chain.State()
-	effectiveTip := block.Transactions()[0].GasTipCap().Uint64() - baseFee
+	effectiveTip := block.Transactions()[0].GasTipCap().Uint64() - baseFee.Uint64()
 
 	// 6+5: Ensure that miner received only the tx's effective tip.
 	actual = state.GetBalance(block.Coinbase())
@@ -3141,8 +3141,8 @@ func TestEIP1559Transition(t *testing.T) {
 
 	// 4: Ensure the tx sender paid for the gasUsed * (effectiveTip + block baseFee).
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr2))
-	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + baseFee))
+	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + baseFee.Uint64()))
 	if actual.Cmp(expected) != 0 {
-		t.Fatalf("sender balance incorrect: expected %d, got %d", expected, actual)
+		t.Fatalf("sender paid fee incorrect: expected %d, got %d", expected, actual)
 	}
 }
