@@ -197,6 +197,9 @@ func (tr *Tracker) StopTracking() error {
 	tr.sub.Unsubscribe()
 	close(tr.stopCh)
 	tr.wg.Wait()
+	// Set this to nil to mark the tracker as stopped. This must be done after
+	// waiting for wg, to avoid a data race in trackTransactions.
+	tr.sub = nil
 	tr.wg = sync.WaitGroup{}
 	return nil
 }
