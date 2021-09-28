@@ -129,6 +129,8 @@ all-musl:
 	$(GORUN) build/ci.go install -musl
 
 android:
+	@echo `go version`
+	@echo `which go`
 	@echo "Applying patch for mobile libs..."
 	git apply patches/mobileLibsForBuild.patch
 	ANDROID_NDK_HOME=$(ANDROID_NDK) $(GORUN) build/ci.go aar --local --metrics-default
