@@ -1005,10 +1005,15 @@ func doAndroidArchive(cmdline []string) {
 		signify = flag.String("signify", "", `Environment variable holding the signify signing key (e.g. ANDROID_SIGNIFY_KEY)`)
 		deploy  = flag.String("deploy", "", `Destination to deploy the archive (usually "https://oss.sonatype.org")`)
 		upload  = flag.String("upload", "", `Destination to upload the archive (usually "gethstore/builds")`)
+		dlgo    = flag.Bool("dlgo", false, "Download Go and build with it")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 	tc := new(build.GoToolchain)
+	if *dlgo {
+		csdb := build.MustLoadChecksums("build/checksums.txt")
+		tc.Root = build.DownloadGo(csdb, dlgoVersion)
+	}
 
 	// Sanity check that the SDK and NDK are installed and set
 	if os.Getenv("ANDROID_HOME") == "" {
