@@ -209,6 +209,18 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install golang 1.16.4
+          command: |
+            wget https://golang.org/dl/go1.17.1.linux-amd64.tar.gz
+            CHECKSUM= $(sha256sum go1.17.1.linux-amd64.tar.gz)
+            if [[ "$CHECKSUM" != "dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef" ]]; then
+              echo Checksum failed
+              exit 1
+            fi
+            rm -rf /usr/local/go && tar -C /usr/local -xzf go1.17.1.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
+      - run:
           name: Compile android client
           command: make android
       - persist_to_workspace:
