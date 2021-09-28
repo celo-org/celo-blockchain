@@ -595,7 +595,6 @@ func (st *StateTransition) distributeTxFees(eHardfork bool) error {
 		"gatewayFeeRecipient", *gatewayFeeRecipient, "gatewayFee", st.msg.GatewayFee(),
 		"coinbaseFeeRecipient", st.evm.Context.Coinbase, "coinbaseFee", tipTxFee,
 		"comunityFundRecipient", governanceAddress, "communityFundFee", baseTxFee)
-	fmt.Println("baseTxFee", baseTxFee)
 	if feeCurrency == nil {
 		if gatewayFeeRecipient != &common.ZeroAddress {
 			st.state.AddBalance(*gatewayFeeRecipient, st.msg.GatewayFee())
