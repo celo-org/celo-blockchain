@@ -8,6 +8,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -170,18 +171,30 @@ func TestStartStopValidators(t *testing.T) {
 
 }
 
-// func TestWaitAroundForABit(t *testing.T) {
-// 	accounts := test.Accounts(4)
-// 	gc, ec, err := test.BuildConfig(accounts)
-// 	require.NoError(t, err)
-// 	network, err := test.NewNetwork(accounts, gc, ec)
-// 	require.NoError(t, err)
-// 	defer network.Shutdown()
-// 	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-// 	// defer cancel()
+// This test is intended to ensure that epoch blocks can be correctly marshalled.
+// We previously had an open bug for this https://github.com/celo-org/celo-blockchain/issues/1574
+func TestEpochBlockMarshaling(t *testing.T) {
+	accounts := test.Accounts(1)
+	gc, ec, err := test.BuildConfig(accounts)
+	require.NoError(t, err)
 
-// 	println("------------------------------------ wait for 100s")
-// 	time.Sleep(100 * time.Second)
-// 	println("------------------------------------ waited for 100s")
+	// Configure the shortest possible epoch, uptimeLookbackWindow minimum is 3
+	// and it needs to be < (epoch -2).
+	ec.Istanbul.Epoch = 6
+	ec.Istanbul.DefaultLookbackWindow = 3
+	network, err := test.NewNetwork(accounts, gc, ec)
+	require.NoError(t, err)
+	defer network.Shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 
-// }
+	// Wait for the whole network to process the transaction.
+	err = network.AwaitBlock(ctx, 6)
+	require.NoError(t, err)
+	b := network[0].Tracker.GetProcessedBlock(6)
+
+	// Check that epoch snark data was actually unmarshalled, I.E there was
+	// something there.
+	assert.True(t, len(b.EpochSnarkData().Signature) > 0)
+	assert.True(t, b.EpochSnarkData().Bitmap.Uint64() > 0)
+}
