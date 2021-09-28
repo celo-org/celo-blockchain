@@ -110,7 +110,7 @@ Should update the highest known version to the one given, even if there's no ver
 
 One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all other NEV validators that have a higher version `eNodeURL` than the one currently known.
 
-Messages should be spaced by at least 5 minutes (300 seconds). A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
+Messages should be spaced at least 5 minutes (300 seconds) apart. A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
 
 ```
 timeoutMinutes = 1.5 ^ (min(n - 1, 5))
