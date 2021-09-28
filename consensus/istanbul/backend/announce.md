@@ -4,6 +4,17 @@ While here referred as a protocol by itself, Announce is technically a subset of
 
 It is important to note that a validator's `eNodeURL` is never shared among third parties, but directly published to specific peers. Therefore it is allowed for a validator to publish different external facing `eNodeURL` values to different validator peers.
 
+An `eNodeURL` has the following format:
+
+`enode://<hex node id>@<IP/hostname>:<tcp port>?discport=<udp discovery port>`
+
+Where `<hex node id>` is the node's serialized and hex encoded ecdsa public key. The URL parameter `discport` should only be specified if the udp discovery port differs from the tcp port.
+
+Some example `eNodeURLs` (with partially elided hex encoded public keys):
+\```
+enode://517318.......607ff3@127.0.0.1:34055
+enode://e5e2fdf.......348ce8@127.0.0.1:33503?discport=22042
+\```
 ## Basic Operation
 
 When a validator is close to being elected ([NearlyElectedValidator]), it starts periodically sending [queryEnodeMsg] messages through the p2p network. These message are regossipped by nodes, and validators reply with a direct message to the originator with an [eNodeCertificateMsg], holding their `eNodeURL`. The initial [queryEnodeMsg] contained the origin validator's `eNodeURL` encrypted with the destination public key, therefore after the direct reply, both validators are aware of each others' `eNodeURL`.
