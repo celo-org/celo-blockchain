@@ -102,15 +102,23 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 	t.Parallel()
 
 	var (
-		engine = mockEngine.NewFaker()
-
-		configNoFork  = &params.ChainConfig{HomesteadBlock: big.NewInt(1)}
+		engine       = mockEngine.NewFaker()
+		configNoFork = &params.ChainConfig{
+			HomesteadBlock: big.NewInt(0),
+			EIP150Block:    big.NewInt(0),
+			EIP155Block:    big.NewInt(0),
+			EIP158Block:    big.NewInt(0),
+			ByzantiumBlock: big.NewInt(1),
+		}
 		configProFork = &params.ChainConfig{
-			HomesteadBlock: big.NewInt(1),
-			EIP150Block:    big.NewInt(2),
-			EIP155Block:    big.NewInt(2),
-			EIP158Block:    big.NewInt(2),
-			ByzantiumBlock: big.NewInt(3),
+			HomesteadBlock:      big.NewInt(0),
+			EIP150Block:         big.NewInt(0),
+			EIP155Block:         big.NewInt(0),
+			EIP158Block:         big.NewInt(0),
+			ByzantiumBlock:      big.NewInt(1),
+			ConstantinopleBlock: big.NewInt(2),
+			PetersburgBlock:     big.NewInt(2),
+			IstanbulBlock:       big.NewInt(3),
 		}
 		dbNoFork  = rawdb.NewMemoryDatabase()
 		dbProFork = rawdb.NewMemoryDatabase()
@@ -182,7 +190,7 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 			t.Fatalf("frontier nofork <-> profork handler timeout")
 		}
 	}
-	// Progress into Homestead. Fork's match, so we don't care what the future holds
+	// Progress into Byzantium. Fork's match, so we don't care what the future holds
 	chainNoFork.InsertChain(blocksNoFork[:1])
 	chainProFork.InsertChain(blocksProFork[:1])
 
@@ -207,10 +215,10 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		select {
 		case err := <-errc:
 			if err != nil {
-				t.Fatalf("homestead nofork <-> profork failed: %v", err)
+				t.Fatalf("byzantium nofork <-> profork failed: %v", err)
 			}
 		case <-time.After(250 * time.Millisecond):
-			t.Fatalf("homestead nofork <-> profork handler timeout")
+			t.Fatalf("byzantium nofork <-> profork handler timeout")
 		}
 	}
 	// Progress into Spurious. Forks mismatch, signalling differing chains, reject
