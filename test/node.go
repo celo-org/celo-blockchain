@@ -110,8 +110,13 @@ func NewNode(
 
 	// Copy the node config so we can modify it without damaging the original
 	ncCopy := *nc
-	// p2p key and address
-	ncCopy.P2P.PrivateKey = validatorAccount.PrivateKey
+
+	// p2p key and address, this is not the same as the validator key.
+	p2pKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	ncCopy.P2P.PrivateKey = p2pKey
 
 	// Make temp datadir
 	datadir, err := ioutil.TempDir("", "celo_datadir")
