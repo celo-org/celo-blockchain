@@ -142,4 +142,8 @@ type Config struct {
 
 	// E block override (TODO: remove after the fork)
 	OverrideEHardfork *big.Int `toml:",omitempty"`
+
+	// The minimum required peers in order for syncing to be initiated, if left
+	// at 0 then the default will be used.
+	MinSyncPeers int `toml:",omitempty"`
 }

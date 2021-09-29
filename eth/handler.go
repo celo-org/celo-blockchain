@@ -110,7 +110,7 @@ type ProtocolManager struct {
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
 	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
-	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server) (*ProtocolManager, error) {
+	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server, minSyncPeers int) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -216,7 +216,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	}
 	manager.txFetcher = fetcher.NewTxFetcher(txpool.Has, txpool.AddRemotes, fetchTx)
 
-	manager.chainSync = newChainSyncer(manager)
+	manager.chainSync = newChainSyncer(manager, minSyncPeers)
 
 	return manager, nil
 }
