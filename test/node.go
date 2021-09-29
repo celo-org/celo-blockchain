@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
-	"net"
 	"os"
-	"strconv"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
@@ -25,7 +24,6 @@ import (
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
 	"github.com/celo-org/celo-blockchain/ethclient"
-	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/mycelo/genesis"
 	"github.com/celo-org/celo-blockchain/node"
@@ -69,11 +67,14 @@ var (
 			// 50ms is a really low timeout, we set this here because nodes
 			// fail the first round of consensus and so setting this higher
 			// makes tests run slower.
-			RequestTimeout:        50,
-			Epoch:                 10,
-			ProposerPolicy:        istanbul.ShuffledRoundRobin,
-			DefaultLookbackWindow: 3,
-			BlockPeriod:           0,
+			RequestTimeout:              200,
+			TimeoutBackoffFactor:        200,
+			MinResendRoundChangeTimeout: 200,
+			MaxResendRoundChangeTimeout: 10000,
+			Epoch:                       20,
+			ProposerPolicy:              istanbul.ShuffledRoundRobin,
+			DefaultLookbackWindow:       3,
+			BlockPeriod:                 0,
 		},
 	}
 )
@@ -84,6 +85,7 @@ type Node struct {
 	*node.Node
 	Config        *node.Config
 	P2PListenAddr string
+	Enode         *enode.Node
 	Eth           *eth.Ethereum
 	EthConfig     *eth.Config
 	WsClient      *ethclient.Client
@@ -155,17 +157,6 @@ func (n *Node) Start() error {
 		return err
 	}
 
-	// Give this logger context based on the node address so that we can easily
-	// trace single node execution in the logs. We set the logger only on the
-	// copy, since it is not useful for black box testing and it is also not
-	// marshalable since the implementation contains unexported fields.
-	//
-	// Note unfortunately there are many other loggers created in geth separate
-	// from this one, which means we still see a lot of output that is not
-	// attributable to a specific node.
-	nodeConfigCopy.Logger = log.New("node", n.Address.String()[2:7])
-	nodeConfigCopy.Logger.SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
-
 	n.Node, err = node.New(nodeConfigCopy)
 	if err != nil {
 		return err
@@ -206,6 +197,7 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
+
 	_, _, err = core.SetupGenesisBlock(n.Eth.ChainDb(), n.EthConfig.Genesis)
 	if err != nil {
 		return err
@@ -222,7 +214,63 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	return n.Eth.StartMining()
+	err = n.Eth.StartMining()
+	if err != nil {
+		return err
+	}
+
+	// Note we need to use the LocalNode from the p2p server because that is
+	// what is also used by the announce protocol when building enode
+	// certificates, so that is what is used by the announce protocol to check
+	// if a validator enode has changed. If we constructed the enode ourselves
+	// here we could not be sure it matches the enode from the p2p.Server.
+	n.Enode = n.Server().LocalNode().Node()
+
+	return nil
+}
+
+// Provides a short representation of a hash
+func shortAddress(a common.Address) string {
+	return hexutil.Encode(a[:2])
+}
+
+func (n *Node) AddPeers(nodes ...*Node) {
+	// Add the given nodes as peers. Although this means that nodes can reach
+	// each other nodes don't start sending consensus messages to another node
+	// until they have received an enode certificate from that node.
+	for _, no := range nodes {
+		n.Server().AddPeer(no.Enode, p2p.ValidatorPurpose)
+	}
+}
+
+// GossipEnodeCertificatge gossips this nodes enode certificates to the rest of
+// the network.
+func (n *Node) GossipEnodeCertificatge() error {
+	enodeCertificate := &istanbul.EnodeCertificate{
+		EnodeURL: n.Enode.URLv4(),
+		Version:  uint(time.Now().Unix()),
+	}
+	enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
+	if err != nil {
+		return err
+	}
+	msg := &istanbul.Message{
+		Code:    istanbul.EnodeCertificateMsg,
+		Address: n.Address,
+		Msg:     enodeCertificateBytes,
+	}
+	b := n.Eth.Engine().(*backend.Backend)
+	if err := msg.Sign(b.Sign); err != nil {
+		return err
+	}
+	payload, err := msg.Payload()
+	if err != nil {
+		return err
+	}
+	// Share enode certificates to the other nodes, nodes wont consider other
+	// nodes valid validators without seeing an enode certificate message from
+	// them.
+	return b.Gossip(payload, istanbul.EnodeCertificateMsg)
 }
 
 // Close shuts down the node and releases all resources and removes the datadir
@@ -379,27 +427,11 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 		network[i] = n
 	}
 
-	enodes := make([]*enode.Node, len(network))
-	for i, n := range network {
-		host, port, err := net.SplitHostPort(n.P2PListenAddr)
-		if err != nil {
-			return nil, err
-		}
-		portNum, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, err
-		}
-		en := enode.NewV4(&n.Key.PublicKey, net.ParseIP(host), portNum, portNum)
-		enodes[i] = en
-	}
 	// Connect nodes to each other, although this means that nodes can reach
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
-	for i, en := range enodes {
-		// Connect to the remaining nodes
-		for _, n := range network[i+1:] {
-			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-		}
+	for i := range network {
+		network[i].AddPeers(network[i+1:]...)
 	}
 
 	// Give nodes some time to connect. Also there is a race condition in
@@ -411,36 +443,8 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	// bit and cross our fingers.
 	time.Sleep(25 * time.Millisecond)
 
-	version := uint(time.Now().Unix())
-
-	// Share enode certificates between nodes, nodes wont consider other nodes
-	// valid validators without seeing an enode certificate message from them.
 	for i := range network {
-		enodeCertificate := &istanbul.EnodeCertificate{
-			EnodeURL: enodes[i].URLv4(),
-			Version:  version,
-		}
-		enodeCertificateBytes, err := rlp.EncodeToBytes(enodeCertificate)
-		if err != nil {
-			return nil, err
-		}
-
-		b := network[i].Eth.Engine().(*backend.Backend)
-		msg := &istanbul.Message{
-			Code:    istanbul.EnodeCertificateMsg,
-			Address: b.Address(),
-			Msg:     enodeCertificateBytes,
-		}
-		// Sign the message
-		if err := msg.Sign(b.Sign); err != nil {
-			return nil, err
-		}
-		p, err := msg.Payload()
-		if err != nil {
-			return nil, err
-		}
-
-		err = b.Gossip(p, istanbul.EnodeCertificateMsg)
+		err := network[i].GossipEnodeCertificatge()
 		if err != nil {
 			return nil, err
 		}
