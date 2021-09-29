@@ -44,14 +44,12 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 		return true
 	}
 
-	if sc.whitelistedCurrencies == nil {
-		whiteListedArr, err := currency.CurrencyWhitelist(sc.vmRunner)
-		if err != nil {
-			whiteListedArr = []common.Address{}
-		}
-		for _, feeCurrency := range whiteListedArr {
-			sc.whitelistedCurrencies[feeCurrency] = struct{}{}
-		}
+	whiteListedArr, err := currency.CurrencyWhitelist(sc.vmRunner)
+	if err != nil {
+		whiteListedArr = []common.Address{}
+	}
+	for _, feeCurrency := range whiteListedArr {
+		sc.whitelistedCurrencies[feeCurrency] = struct{}{}
 	}
 
 	_, ok := sc.whitelistedCurrencies[*feeCurrency]
