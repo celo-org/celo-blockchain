@@ -38,9 +38,11 @@ var (
 		Name:    "celo",
 		Version: params.Version,
 		P2P: p2p.Config{
-			MaxPeers:    100,
-			NoDiscovery: true,
-			ListenAddr:  "0.0.0.0:0",
+			MaxPeers:              100,
+			NoDiscovery:           true,
+			ListenAddr:            "0.0.0.0:0",
+			InboundThrottleTime:   200 * time.Millisecond,
+			DialHistoryExpiration: 210 * time.Millisecond,
 		},
 		NoUSB: true,
 		// It is important that HTTPHost and WSHost remain the same. This
