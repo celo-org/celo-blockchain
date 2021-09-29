@@ -53,6 +53,7 @@ var (
 
 	baseEthConfig = &eth.Config{
 		SyncMode:        downloader.FullSync,
+		MinSyncPeers:    1,
 		DatabaseCache:   256,
 		DatabaseHandles: 256,
 		TxPool:          core.DefaultTxPoolConfig,
