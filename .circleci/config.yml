@@ -155,7 +155,7 @@ jobs:
             # Only post on PR if this build is running on a PR. If this build
             # is running on a PR then CIRCLE_PULL_REQUEST contains the link to
             # the PR.
-            if [[ ! -z ${CIRCLE_PULL_REQUEST} ]] ; then
+            if [ ! git diff-index --quiet HEAD -- ./consensus/istanbul ] && [[ ! -z ${CIRCLE_PULL_REQUEST} ]] ; then
               # Build comment
               echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
               echo "\`\`\`" >> comment
