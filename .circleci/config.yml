@@ -26,7 +26,7 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
-      CELO_MONOREPO_BRANCH_TO_TEST: trianglesphere/e2e_tests
+      CELO_MONOREPO_COMMIT_OR_BRANCH: trianglesphere/e2e_tests
       # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
       # our CI doesn't break due to another team making changes in monorepo.
       # * It should be updated when:
