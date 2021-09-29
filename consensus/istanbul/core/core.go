@@ -696,11 +696,11 @@ func (c *core) stopAllTimers() {
 
 func (c *core) getRoundChangeTimeout() time.Duration {
 	/*
-		- Prior to E hardfork:
+		- Prior to Espresso:
 		Round 0 = baseTimeout + block time
 		Round n = baseTimeout + 2^n * backoff factor
 
-		- After E hardfork:
+		- After Espresso:
 		Round 0 = baseTimeout + block time
 		Round n = baseTimeout + block time + 2^n * backoff factor
 
@@ -724,7 +724,7 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 	if round == 0 {
 		return baseTimeout + blockTime
 	} else {
-		if c.backend.ChainConfig().IsEHardfork(c.backend.GetCurrentHeadBlock().Number()) {
+		if c.backend.ChainConfig().IsEHardfork(c.current.Sequence()) {
 			return baseTimeout + blockTime + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
 		} else {
 			return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
