@@ -229,7 +229,7 @@ func TestIsWebsocket(t *testing.T) {
 	assert.True(t, isWebsocket(r))
 }
 
-func createAndStartServer(t *testing.T, conf httpConfig, ws bool, wsConf wsConfig) *httpServer {
+func createAndStartServer(t *testing.T, conf *httpConfig, ws bool, wsConf *wsConfig) *httpServer {
 	t.Helper()
 
 	srv := newHTTPServer(testlog.Logger(t, log.LvlDebug), rpc.DefaultHTTPTimeouts)
