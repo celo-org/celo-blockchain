@@ -141,16 +141,10 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
         # Run the tests with coverage parse the coverage and output the summary
-      - run:
+      - run: 
           name: Run tests and print coverage summary
           command: |
-            # Halt the job if no changes happened in istanbul package
-            if [ git diff-index --quiet HEAD -- ./consensus/istanbul ]; then
-              circleci-agent step halt
-            fi
-
             go test -coverprofile cov.out -coverpkg ./consensus/istanbul/... ./e2e_test 
             go run tools/parsecov/main.go -packagePrefix github.com/celo-org/celo-blockchain/ cov.out > summary
             cat summary
@@ -161,7 +155,7 @@ jobs:
             # Only post on PR if this build is running on a PR. If this build
             # is running on a PR then CIRCLE_PULL_REQUEST contains the link to
             # the PR.
-            if [[ ! -z ${CIRCLE_PULL_REQUEST} ]] ; then
+            if [ ! git diff-index --quiet HEAD -- ./consensus/istanbul ] && [[ ! -z ${CIRCLE_PULL_REQUEST} ]] ; then
               # Build comment
               echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
               echo "\`\`\`" >> comment
