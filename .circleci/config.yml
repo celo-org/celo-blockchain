@@ -163,13 +163,18 @@ jobs:
             # Generate per PR MARKER for this comment.
             COMMENT_MARKER=`echo ${CIRCLE_PULL_REQUEST}| shasum | head -c 10`
 
+            line1=`head -n 1 summary`
+            remainder=`tail -n +2 summary`
+
             # Build comment
             echo "Coverage from tests in \`./e2e_test/...\` for \`./consensus/istanbul/...\` at commit ${CIRCLE_SHA1}" > comment
-            echo "\`\`\`" >> comment
-            cat summary >> comment
-            echo "\`\`\`" >> comment
+            echo "<details><summary>${line1}</summary><br>" >> comment
+            echo "<pre>" >> comment
+            echo "${remainder}" >> comment
+            echo "</pre>" >> comment
             # Add a per PR unique ID to the comment
             echo "CommentID: `echo ${COMMENT_MARKER}`" >> comment
+            echo "</details>" >> comment
 
             # This expansion deletes everything up to and including the final slash
             # leaving just the PR ID.
