@@ -3075,6 +3075,7 @@ func TestEIP1559Transition(t *testing.T) {
 	gspec.MustCommit(diskdb)
 
 	chain, err := NewBlockChain(diskdb, nil, gspec.Config, engine, vm.Config{}, nil, nil)
+	defer chain.Stop()
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}

@@ -264,6 +264,7 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees(eHardFork bool) error {
+	// Check if fee currency is whitelisted
 	var isWhiteListed bool
 	if eHardFork {
 		isWhiteListed = st.sysCtx.IsWhitelisted(st.msg.FeeCurrency())
@@ -282,8 +283,19 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 		feeVal.Add(feeVal, st.msg.GatewayFee())
 	}
 
+	// Check if balance <= GasFeeCap * gas + value
+	balanceCheck := feeVal
+	if st.gasFeeCap != nil {
+		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
+		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
+		balanceCheck.Add(balanceCheck, st.value)
+	}
+	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) <= 0 {
+		// fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
+		return ErrInsufficientFunds
+	}
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), eHardFork) {
-		return ErrInsufficientFundsForFees
+		return ErrInsufficientFunds
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -297,7 +309,7 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 
 func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, eHardfork bool) bool {
 	if feeCurrency == nil {
-		// 1559 Check that value + gas price >= account balance
+		// 1559 Check that account balance <= value + gas price
 		if eHardfork {
 			fee = fee.Add(fee, st.msg.Value())
 		}
@@ -396,12 +408,7 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
-	// Make sure this transaction's gas price is valid.
-	if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
-		log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
-		return ErrGasPriceDoesNotExceedMinimum
-	}
-	// Make sure that transaction gasFeeCap is greater than the baseFee (post E)
+	// Make sure that transaction gasFeeCap is greater than the baseFee (post Espresso)
 	if st.evm.ChainConfig().IsEHardfork(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
 		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 {
@@ -417,13 +424,14 @@ func (st *StateTransition) preCheck() error {
 				return fmt.Errorf("%w: address %v, maxPriorityFeePerGas: %s, maxFeePerGas: %s", ErrTipAboveFeeCap,
 					st.msg.From().Hex(), st.gasTipCap, st.gasFeeCap)
 			}
-			// This will panic if baseFee is nil, but basefee presence is verified
-			// as part of header validation.
 			if st.gasFeeCap.Cmp(st.gasPriceMinimum) < 0 {
 				return fmt.Errorf("%w: address %v, maxFeePerGas: %s baseFee: %s", ErrFeeCapTooLow,
 					st.msg.From().Hex(), st.gasFeeCap, st.gasPriceMinimum)
 			}
 		}
+	} else { // Make sure this transaction's gas price is greater than baseFee (pre Espresso)
+		log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
+		return ErrGasPriceDoesNotExceedMinimum
 	}
 
 	// // Make sure the sender is an EOA
