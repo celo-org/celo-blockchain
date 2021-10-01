@@ -65,6 +65,15 @@ var (
 			// don't actually rely on this mechanism in the tests because we
 			// pre share all the enode certificates.
 			AnnounceQueryEnodeGossipPeriod: 60,
+
+			// 50ms is a really low timeout, we set this here because nodes
+			// fail the first round of consensus and so setting this higher
+			// makes tests run slower.
+			RequestTimeout:        50,
+			Epoch:                 10,
+			ProposerPolicy:        istanbul.ShuffledRoundRobin,
+			DefaultLookbackWindow: 3,
+			BlockPeriod:           0,
 		},
 	}
 )
@@ -83,44 +92,52 @@ type Node struct {
 	Address       common.Address
 	DevKey        *ecdsa.PrivateKey
 	DevAddress    common.Address
-	Tracker       *TransactionTracker
+	Tracker       *Tracker
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
 
 // NewNode creates a new running node with the provided config.
-func NewNode(c *NodeConfig, genesis *core.Genesis) (*Node, error) {
+func NewNode(
+	validatorAccount,
+	devAccount *env.Account,
+	nc *node.Config,
+	ec *eth.Config,
+	genesis *core.Genesis,
+) (*Node, error) {
 
+	// Copy the node config so we can modify it without damaging the original
+	ncCopy := *nc
 	// p2p key and address
-	c.P2P.PrivateKey = c.ValidatorAccount.PrivateKey
+	ncCopy.P2P.PrivateKey = validatorAccount.PrivateKey
 
 	// Make temp datadir
 	datadir, err := ioutil.TempDir("", "celo_datadir")
 	if err != nil {
 		return nil, err
 	}
-	c.DataDir = datadir
+	ncCopy.DataDir = datadir
 
 	// copy the base eth config, so we can modify it without damaging the
 	// original.
-	ec := &eth.Config{}
-	err = copyObject(baseEthConfig, ec)
+	ecCopy := &eth.Config{}
+	err = copyObject(ec, ecCopy)
 	if err != nil {
 		return nil, err
 	}
-	ec.Genesis = genesis
-	ec.NetworkId = genesis.Config.ChainID.Uint64()
-	ec.Miner.Validator = c.ValidatorAccount.Address
-	ec.TxFeeRecipient = c.ValidatorAccount.Address
+	ecCopy.Genesis = genesis
+	ecCopy.NetworkId = genesis.Config.ChainID.Uint64()
+	ecCopy.Miner.Validator = validatorAccount.Address
+	ecCopy.TxFeeRecipient = validatorAccount.Address
 
 	node := &Node{
-		Config:     c.Config,
-		EthConfig:  ec,
-		Key:        c.ValidatorAccount.PrivateKey,
-		Address:    c.ValidatorAccount.Address,
-		DevAddress: c.DevAccount.Address,
-		DevKey:     c.DevAccount.PrivateKey,
-		Tracker:    NewTransactionTracker(),
+		Config:     &ncCopy,
+		EthConfig:  ecCopy,
+		Key:        validatorAccount.PrivateKey,
+		Address:    validatorAccount.Address,
+		DevAddress: devAccount.Address,
+		DevKey:     devAccount.PrivateKey,
+		Tracker:    NewTracker(),
 	}
 
 	return node, node.Start()
@@ -280,7 +297,7 @@ func (n *Node) AwaitSentTransactions(ctx context.Context) error {
 // ProcessedTxBlock returns the block that the given transaction was processed
 // in, nil will be retuned if the transaction has not been processed by this node.
 func (n *Node) ProcessedTxBlock(tx *types.Transaction) *types.Block {
-	return n.Tracker.GetProcessedBlock(tx.Hash())
+	return n.Tracker.GetProcessedBlockForTx(tx.Hash())
 }
 
 // TxFee returns the gas fee for the given transaction.
@@ -296,21 +313,6 @@ func (n *Node) TxFee(ctx context.Context, tx *types.Transaction) (*big.Int, erro
 // create, start and stop a collection of nodes.
 type Network []*Node
 
-type NodeConfig struct {
-	ValidatorAccount *env.Account
-	DevAccount       *env.Account
-	*node.Config
-}
-
-func NewNodeConfig(validatorAccount, devAccount *env.Account) *NodeConfig {
-	confCopy := *baseNodeConfig
-	return &NodeConfig{
-		ValidatorAccount: validatorAccount,
-		DevAccount:       devAccount,
-		Config:           &confCopy,
-	}
-}
-
 func Accounts(numValidators int) *env.AccountsConfig {
 	return &env.AccountsConfig{
 		Mnemonic:             env.MustNewMnemonic(),
@@ -320,24 +322,25 @@ func Accounts(numValidators int) *env.AccountsConfig {
 	}
 }
 
-func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
+// BuildConfig generates genesis and eth config instances, that can be modified
+// before passing to NewNetwork or NewNode.
+//
+// NOTE: Do not edit the Istanbul field of the returned genesis config it will
+// be overwritten with the corresponding config from the Istanbul field of the
+// returned eth config.
+func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, error) {
 	gc := genesis.CreateCommonGenesisConfig(
 		big.NewInt(1),
 		accounts.AdminAccount().Address,
-		params.IstanbulConfig{
-			Epoch:          10,
-			ProposerPolicy: uint64(istanbul.ShuffledRoundRobin),
-			LookbackWindow: 3,
-			BlockPeriod:    0,
-
-			// 50ms is a really low timeout, we set this here because nodes
-			// fail the first round of consensus and so setting this higher
-			// makes tests run slower.
-			RequestTimeout: 50,
-		},
+		params.IstanbulConfig{},
 	)
 	genesis.FundAccounts(gc, accounts.DeveloperAccounts())
-	return gc
+
+	// copy the base eth config, so we can modify it without damaging the
+	// original.
+	ec := &eth.Config{}
+	err := copyObject(baseEthConfig, ec)
+	return gc, ec, err
 }
 
 // NewNetwork generates a network of nodes that are running and mining. For
@@ -346,18 +349,30 @@ func GenesisConfig(accounts *env.AccountsConfig) *genesis.Config {
 // developer accounts provided as validator accounts. If there is an error it
 // will be returned immediately, meaning that some nodes may be running and
 // others not.
-func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, error) {
+func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, error) {
+
+	// Copy eth istanbul config fields to the genesis istanbul config.
+	// There is a ticket to remove this duplication of config.
+	// https://github.com/celo-org/celo-blockchain/issues/1693
+	gc.Istanbul = params.IstanbulConfig{
+		Epoch:          ec.Istanbul.Epoch,
+		ProposerPolicy: uint64(ec.Istanbul.ProposerPolicy),
+		LookbackWindow: ec.Istanbul.DefaultLookbackWindow,
+		BlockPeriod:    ec.Istanbul.BlockPeriod,
+		RequestTimeout: ec.Istanbul.RequestTimeout,
+	}
 
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
 
-	validatorAccounts := accounts.ValidatorAccounts()
-	network := make([]*Node, len(validatorAccounts))
-	for i := range validatorAccounts {
-		conf := NewNodeConfig(&validatorAccounts[i], &accounts.DeveloperAccounts()[i])
-		n, err := NewNode(conf, genesis)
+	va := accounts.ValidatorAccounts()
+	da := accounts.DeveloperAccounts()
+	network := make([]*Node, len(va))
+	for i := range va {
+
+		n, err := NewNode(&va[i], &da[i], baseNodeConfig, ec, genesis)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
@@ -381,12 +396,9 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
 	for i, en := range enodes {
-		for j, n := range network {
-			if j == i {
-				continue
-			}
+		// Connect to the remaining nodes
+		for _, n := range network[i+1:] {
 			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
@@ -441,6 +453,17 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config) (Network, erro
 func (n Network) AwaitTransactions(ctx context.Context, txs ...*types.Transaction) error {
 	for _, node := range n {
 		err := node.AwaitTransactions(ctx, txs...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AwaitBlock ensures that the entire network has processed a block with the given num.
+func (n Network) AwaitBlock(ctx context.Context, num uint64) error {
+	for _, node := range n {
+		err := node.Tracker.AwaitBlock(ctx, num)
 		if err != nil {
 			return err
 		}
