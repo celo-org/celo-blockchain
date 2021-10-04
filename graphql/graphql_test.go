@@ -59,7 +59,6 @@ func TestBuildSchema(t *testing.T) {
 
 // Tests that a graphQL request is successfully handled when graphql is enabled on the specified endpoint
 func TestGraphQLBlockSerialization(t *testing.T) {
-	t.Skip("fails")
 	stack := createNode(t, true, false)
 	defer stack.Close()
 	// start node
@@ -78,52 +77,52 @@ func TestGraphQLBlockSerialization(t *testing.T) {
 			code: 200,
 		},
 		{ // Should return info about latest block
-			body: `{"query": "{block{number,gasUsed,gasLimit}}","variables": null}`,
-			want: `{"data":{"block":{"number":10,"gasUsed":0,"gasLimit":11500000}}}`,
+			body: `{"query": "{block{number,gasUsed}}","variables": null}`,
+			want: `{"data":{"block":{"number":10,"gasUsed":0}}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:0){number,gasUsed,gasLimit}}","variables": null}`,
-			want: `{"data":{"block":{"number":0,"gasUsed":0,"gasLimit":11500000}}}`,
+			body: `{"query": "{block(number:0){number,gasUsed}}","variables": null}`,
+			want: `{"data":{"block":{"number":0,"gasUsed":0}}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:-1){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:-1){number,gasUsed}}","variables": null}`,
 			want: `{"data":{"block":null}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:-500){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:-500){number,gasUsed}}","variables": null}`,
 			want: `{"data":{"block":null}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:\"0\"){number,gasUsed,gasLimit}}","variables": null}`,
-			want: `{"data":{"block":{"number":0,"gasUsed":0,"gasLimit":11500000}}}`,
+			body: `{"query": "{block(number:\"0\"){number,gasUsed}}","variables": null}`,
+			want: `{"data":{"block":{"number":0,"gasUsed":0}}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:\"-33\"){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:\"-33\"){number,gasUsed}}","variables": null}`,
 			want: `{"data":{"block":null}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:\"1337\"){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:\"1337\"){number,gasUsed}}","variables": null}`,
 			want: `{"data":{"block":null}}`,
 			code: 200,
 		},
 		{
-			body: `{"query": "{block(number:\"0xbad\"){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:\"0xbad\"){number,gasUsed}}","variables": null}`,
 			want: `{"errors":[{"message":"strconv.ParseInt: parsing \"0xbad\": invalid syntax"}],"data":{}}`,
 			code: 400,
 		},
 		{ // hex strings are currently not supported. If that's added to the spec, this test will need to change
-			body: `{"query": "{block(number:\"0x0\"){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:\"0x0\"){number,gasUsed}}","variables": null}`,
 			want: `{"errors":[{"message":"strconv.ParseInt: parsing \"0x0\": invalid syntax"}],"data":{}}`,
 			code: 400,
 		},
 		{
-			body: `{"query": "{block(number:\"a\"){number,gasUsed,gasLimit}}","variables": null}`,
+			body: `{"query": "{block(number:\"a\"){number,gasUsed}}","variables": null}`,
 			want: `{"errors":[{"message":"strconv.ParseInt: parsing \"a\": invalid syntax"}],"data":{}}`,
 			code: 400,
 		},
@@ -163,7 +162,6 @@ func TestGraphQLBlockSerialization(t *testing.T) {
 }
 
 func TestGraphQLBlockSerializationEIP2718(t *testing.T) {
-	t.Skip("fails")
 	stack := createNode(t, true, true)
 	defer stack.Close()
 	// start node
@@ -178,7 +176,7 @@ func TestGraphQLBlockSerializationEIP2718(t *testing.T) {
 	}{
 		{
 			body: `{"query": "{block {number transactions { from { address } to { address } value hash type accessList { address storageKeys } index}}}"}`,
-			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0xd864c9d7d37fade6b70164740540c06dd58bb9c3f6b46101908d6339db6a6a7b","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x19b35f8187b4e15fb59a9af469dca5dfa3cd363c11d372058c12f6482477b474","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1}]}}}`,
+			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0xa863609020c7651e840465da231bcfd1c853c295d62dae6551624f800c118e5a","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x0f32fec26e145116d7927ce74dfa64334682747459481246cde86e68d3091679","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1}]}}}`,
 			code: 200,
 		},
 	} {
@@ -250,6 +248,7 @@ func createGQLService(t *testing.T, stack *node.Node) {
 		TrieTimeout:             60 * time.Minute,
 		SnapshotCache:           5,
 	}
+	ethConf.Genesis.Config.Faker = true
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
 		t.Fatalf("could not create eth backend: %v", err)
@@ -277,7 +276,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 
 	ethConf := &ethconfig.Config{
 		Genesis: &core.Genesis{
-			Config: params.IstanbulTestChainConfig,
+			Config: params.IstanbulEHFTestChainConfig,
 			Alloc: core.GenesisAlloc{
 				address: {Balance: funds},
 				// The address 0xdad sloads 0x00 and 0x01
@@ -302,6 +301,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 		TrieTimeout:             60 * time.Minute,
 		SnapshotCache:           5,
 	}
+	ethConf.Genesis.Config.Faker = true
 
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
@@ -330,7 +330,7 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 	})
 
 	// Create some blocks and import them
-	chain, _ := core.GenerateChain(params.IstanbulTestChainConfig, ethBackend.BlockChain().Genesis(),
+	chain, _ := core.GenerateChain(params.IstanbulEHFTestChainConfig, ethBackend.BlockChain().Genesis(),
 		mockEngine.NewFaker(), ethBackend.ChainDb(), 1, func(i int, b *core.BlockGen) {
 			b.SetCoinbase(common.Address{1})
 			b.AddTx(legacyTx)
