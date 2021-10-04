@@ -180,6 +180,11 @@ jobs:
             # leaving just the PR ID.
             PR_ID=${CIRCLE_PULL_REQUEST##*/}
 
+            # Note all the api paths here seem to be referencing issue comments
+            # rather than pr comments, but this is correct, since github's
+            # definition of an issue comment is a comment not attached to a
+            # review or attached to a specific section of code.
+
             # This command grabs the list of comments for this PR and selects
             # the id of the first one that contains the comment marker in its
             # body, jq returns 'null' when it doesn't find anything.
