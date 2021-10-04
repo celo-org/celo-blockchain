@@ -188,7 +188,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 				want: "could not apply tx 0 [0xf987a31ff0c71895780a7612f965a0c8b056deb54e020bb44fa478092f14c9b4]: max priority fee per gas higher than max fee per gas: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxPriorityFeePerGas: 2, maxFeePerGas: 1",
 			},
-			{
+			{ // ErrInsufficientFunds
 				// Available balance:           1000000000000000000
 				// Effective cost:                            84000
 				// FeeCap * gas:                1050000000000000000
@@ -322,6 +322,7 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		Time:       parent.Time() + 10,
 		Extra:      CreateEmptyIstanbulExtra(nil),
 	}
+	header.Extra = CreateEmptyIstanbulExtra(header.Extra)
 
 	var receipts []*types.Receipt
 	// The post-state result doesn't need to be correct (this is a bad block), but we do need something there
