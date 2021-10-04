@@ -76,7 +76,6 @@ jobs:
             - <<parameters.cache-key>>
       - attach_workspace:
           at: ~/repos
-      - run: jq -h
       - run:
           name: prepare system contracts
           # Runs make prepare-system-contracts and sets the MONOREPO_COMMIT to
