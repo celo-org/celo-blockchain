@@ -35,7 +35,7 @@ var (
 )
 
 func TestEthSuite(t *testing.T) {
-	t.Skip("fails")
+	t.Skip("Incompatible chain file.")
 	geth, err := runGeth()
 	if err != nil {
 		t.Fatalf("could not run geth: %v", err)
