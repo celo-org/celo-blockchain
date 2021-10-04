@@ -315,9 +315,6 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 
 // finalizeAndAssemble runs post-transaction state modification and assembles the final block.
 func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
-	// Need to copy the state here otherwise block production stalls. Not sure why.
-	b.state = b.state.Copy()
-
 	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts, b.randomness)
 	if err != nil {
 		return nil, fmt.Errorf("Error in FinalizeAndAssemble: %w", err)

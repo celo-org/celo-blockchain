@@ -466,6 +466,12 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	logger.Trace("Finalizing")
+	// The contract calls in Finalize() may emit logs, which we later add to an extra "block" receipt
+	// (in FinalizeAndAssemble() during construction or in `StateProcessor.process()` during verification).
+	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
+	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
+	// the hash of the last transaction in the block (if there were any).
+	state.Prepare(header.Hash(), len(txs))
 
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
