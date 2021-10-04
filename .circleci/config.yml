@@ -202,7 +202,7 @@ jobs:
               URL=https://api.github.com/repos/celo-org/celo-blockchain/issues/comments/${COMMENT_ID}
             fi
 
-            # This command is quite involved, its posting the comment on the
+            # This command is quite involved, it's posting the comment on the
             # associated PR.
             # "{\"body\":\"`awk -v ORS='\\\\n' '1' comment`\"}" evaluates to
             # a json object with comment as the content of body with newlines
