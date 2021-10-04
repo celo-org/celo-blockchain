@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -473,6 +474,13 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	// the hash of the last transaction in the block (if there were any).
 	state.Prepare(common.Hash{}, len(txs))
 
+	// The contract calls in Finalize() may emit logs, which we later add to an extra "block" receipt
+	// (in FinalizeAndAssemble() during construction or in `StateProcessor.process()` during verification).
+	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
+	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
+	// the hash of the last transaction in the block (if there were any).
+	state.Prepare(header.Hash(), len(txs))
+
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
@@ -509,14 +517,8 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	sb.Finalize(chain, header, state, txs)
-
-	// Add extra receipt for Block's Internal Transaction Logs
-	if len(state.GetLogs(common.Hash{}, header.Hash())) > 0 {
-		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = state.GetLogs(common.Hash{}, header.Hash())
-		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		receipts = append(receipts, receipt)
-	}
+	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
+	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
 	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))

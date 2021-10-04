@@ -101,16 +101,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	p.engine.Finalize(p.bc, header, statedb, block.Transactions())
 
-	if len(statedb.GetLogs(common.Hash{}, block.Hash())) > 0 {
-		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = statedb.GetLogs(common.Hash{}, block.Hash())
-		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		for i := range receipt.Logs {
-			receipt.Logs[i].TxIndex = uint(len(receipts))
-			receipt.Logs[i].TxHash = block.Hash()
-		}
-		receipts = append(receipts, receipt)
-	}
+	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
+	receipts = AddBlockReceipt(receipts, statedb, block.Hash())
 
 	return receipts, allLogs, *usedGas, nil
 }
