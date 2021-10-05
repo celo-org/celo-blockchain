@@ -284,14 +284,14 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 		feeVal.Add(feeVal, st.msg.GatewayFee())
 	}
 
-	// Check if balance <= GasFeeCap * gas + value
+	// Check if balance < GasFeeCap * gas + value
 	balanceCheck := feeVal
 	if st.gasFeeCap != nil {
 		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
 		balanceCheck.Add(balanceCheck, st.value)
 	}
-	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) <= 0 {
+	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 	}
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), eHardFork) {
