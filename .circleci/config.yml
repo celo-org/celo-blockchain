@@ -41,6 +41,10 @@ executors:
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
 
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+defaults: &defaults
+  executor: golang
+  resource_class: medium+
+
 jobs:
   build-geth:
     executor: golang
@@ -96,10 +100,6 @@ jobs:
           root: ~/repos
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
-
-  defaults: &defaults
-    executor: golang
-    resource_class: medium+
 
   unit-tests:
     <<: *defaults
