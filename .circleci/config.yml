@@ -115,7 +115,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go run build/ci.go test -v | tee /tmp/test-results/go-test.out
+            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -136,7 +136,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go run build/ci.go test -v -race | tee /tmp/test-results/go-test.out
+            go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -151,7 +151,7 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go run build/ci.go test -coverage
+      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
       - run: bash <(curl -s https://codecov.io/bash)
 
   istanbul-e2e-coverage:
