@@ -188,7 +188,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.25.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+            ./build/cache/golangci-lint-1.39.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
