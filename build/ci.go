@@ -1169,7 +1169,7 @@ func doXCodeFramework(cmdline []string) {
 	if env.MetricsDefault {
 		ldflags = ldflags + " -X 'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'"
 	}
-	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios", "-v", "github.com/celo-org/celo-blockchain/mobile")
+	bind := gomobileTool("bind", "-ldflags", ldflags, "--target", "ios,iossimulator", "-v", "github.com/celo-org/celo-blockchain/mobile")
 	bind.Env = append(bind.Env, "CGO_ENABLED=1")
 
 	if *local {
