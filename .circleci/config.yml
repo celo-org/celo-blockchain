@@ -41,7 +41,7 @@ executors:
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
 
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
-defaults: &defaults
+unit-tests-defaults: &unit-tests-defaults
   executor: golang
   resource_class: medium+
 
@@ -102,7 +102,7 @@ jobs:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
-    <<: *defaults
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -123,7 +123,7 @@ jobs:
           path: /tmp/test-results
 
   race:
-    <<: *defaults
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -144,7 +144,7 @@ jobs:
           path: /tmp/test-results
 
   coverage:
-    <<: *defaults
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -155,7 +155,7 @@ jobs:
       - run: bash <(curl -s https://codecov.io/bash)
 
   istanbul-e2e-coverage:
-    <<: *defaults
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
