@@ -399,11 +399,7 @@ workflows:
           requires:
             - build-geth
             - prepare-system-contracts
-      - unit-tests-race:
-          requires:
-            - build-geth
-            - prepare-system-contracts
-      - test-test:
+      - race:
           requires:
             - build-geth
             - prepare-system-contracts
