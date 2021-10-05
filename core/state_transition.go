@@ -228,6 +228,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRu
 		data:            msg.Data(),
 		state:           evm.StateDB,
 		gasPriceMinimum: gasPriceMinimum,
+		sysCtx:          sysCtx,
 	}
 }
 
@@ -291,8 +292,7 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 		balanceCheck.Add(balanceCheck, st.value)
 	}
 	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) <= 0 {
-		// fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
-		return ErrInsufficientFunds
+		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 	}
 	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), eHardFork) {
 		return ErrInsufficientFunds
