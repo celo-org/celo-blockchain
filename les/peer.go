@@ -1226,7 +1226,7 @@ type serverPeerSubscriber interface {
 
 // clientPeerSubscriber is an interface to notify services about added or
 // removed client peers
-type clientPeerSubscriber interface { //nolint:unused
+type clientPeerSubscriber interface { //nolint:unused,gosimple,deadcode
 	registerPeer(*clientPeer)
 	unregisterPeer(*clientPeer)
 }

@@ -43,6 +43,7 @@ import (
 	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
+
 	// "github.com/celo-org/celo-blockchain/eth/protocols/snap"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/event"

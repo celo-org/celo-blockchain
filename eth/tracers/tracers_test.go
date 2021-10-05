@@ -106,6 +106,7 @@ type callContext struct {
 	Miner      common.Address        `json:"miner"`
 }
 
+// nolint:deadcode // Used in commented out test
 // callTracerTest defines a single test to check the call tracer against.
 type callTracerTest struct {
 	Genesis *core.Genesis `json:"genesis"`

@@ -109,6 +109,7 @@ func TestCustomGenesis(t *testing.T) {
 		},
 		// Genesis file without Registry deployed
 		{
+			// nolint:gosimple
 			genesis: fmt.Sprintf(`{
 				"alloc"      : {},
 				"coinbase"   : "0x0000000000000000000000000000000000000000",

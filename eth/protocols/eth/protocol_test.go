@@ -98,7 +98,7 @@ func TestCelo67EmptyMessages(t *testing.T) {
 		BlockHeadersPacket67{1111, BlockHeadersPacket([]*types.Header{})},
 		// Bodies
 		GetBlockBodiesPacket67{1111, GetBlockBodiesPacket([]common.Hash{})},
-		BlockBodiesPacket67{1111, BlockBodiesPacket(BlockBodiesPacket{})},
+		BlockBodiesPacket67{1111, BlockBodiesPacket{}},
 		BlockBodiesRLPPacket67{1111, BlockBodiesRLPPacket([]rlp.RawValue{})},
 		// Node data
 		GetNodeDataPacket67{1111, GetNodeDataPacket([]common.Hash{})},
@@ -219,7 +219,7 @@ func TestCelo67Messages(t *testing.T) {
 			common.FromHex("f847820457f842a000000000000000000000000000000000000000000000000000000000deadc0dea000000000000000000000000000000000000000000000000000000000feedbeef"),
 		},
 		{
-			BlockBodiesPacket67{1111, BlockBodiesPacket(BlockBodiesPacket{blockBodyWithBlockHash})},
+			BlockBodiesPacket67{1111, BlockBodiesPacket{blockBodyWithBlockHash}},
 			common.FromHex("f90100820457f8fbf8f9a00000000000000000000000000000000000000000000000000000000000000000f8d6f8d2f867088504a817c8088302e2489435353535353535353535353535353535353535358202008025a064b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c12a064b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c10f867098504a817c809830334509435353535353535353535353535353535353535358202d98025a052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afba052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afbc0c0"),
 		},
 		{ // Identical to non-rlp-shortcut version

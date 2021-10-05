@@ -344,6 +344,8 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 }
 
+// nolint:deadcode
+// Should be fixed up with 1559 implementation
 // createTxCmp creates a Transaction comparator
 func createTxCmp(chain *core.BlockChain, header *types.Header, state *state.StateDB) func(tx1 *types.Transaction, tx2 *types.Transaction) int {
 	vmRunner := chain.NewEVMRunner(header, state)

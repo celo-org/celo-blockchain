@@ -1658,7 +1658,7 @@ func TestSyncAccountPerformance(t *testing.T) {
 	// Doing so would bring this number down to zero in this artificial testcase,
 	// but only add extra IO for no reason in practice.
 	if have, want := src.nTrienodeRequests, 1; have != want {
-		fmt.Printf(src.Stats())
+		fmt.Println(src.Stats())
 		t.Errorf("trie node heal requests wrong, want %d, have %d", want, have)
 	}
 }

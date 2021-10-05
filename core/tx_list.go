@@ -658,7 +658,7 @@ func (h *multiCurrencyPriceHeap) Pop() *types.Transaction {
 
 	if len(h.nilCurrencyHeap.list) > 0 {
 		cheapestHeap = h.nilCurrencyHeap
-		cheapestTxn = []*types.Transaction(h.nilCurrencyHeap.list)[0]
+		cheapestTxn = h.nilCurrencyHeap.list[0]
 	}
 
 	for _, priceHeap := range h.nonNilCurrencyHeaps {

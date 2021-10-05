@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/eth/protocols/eth"
 	"github.com/celo-org/celo-blockchain/eth/protocols/snap"
 	"github.com/celo-org/celo-blockchain/p2p"
@@ -73,7 +74,7 @@ func newPeerSet() *peerSet {
 func (ps *peerSet) registerSnapExtension(peer *snap.Peer) error {
 	// Reject the peer if it advertises `snap` without `eth` as `snap` is only a
 	// satellite protocol meaningful with the chain selection of `eth`
-	if !peer.RunningCap(eth.ProtocolName, eth.ProtocolVersions) {
+	if !peer.RunningCap(eth.ProtocolName, istanbul.ProtocolVersions) {
 		return errSnapWithoutEth
 	}
 	// Ensure nobody can double connect

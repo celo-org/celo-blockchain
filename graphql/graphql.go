@@ -251,7 +251,7 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 		return nil, err
 	}
 	return (*hexutil.Big)(tx.GasPrice()), nil
-	// TODO: Substitue GPM
+	// TODO: Substitute GPM
 	// if header.BaseFee == nil {
 	// 	return (*hexutil.Big)(tx.GasPrice()), nil
 	// }
