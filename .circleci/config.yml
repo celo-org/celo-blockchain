@@ -44,6 +44,19 @@ executors:
 unit-tests-defaults: &unit-tests-defaults
   executor: golang
   resource_class: medium+
+  steps:
+    - attach_workspace:
+        at: ~/repos
+    - restore_cache:
+        keys:
+          - go-mod-v1-{{ checksum "go.sum" }}
+    - run: go get github.com/jstemmer/go-junit-report
+    - store_artifacts:
+        path: /tmp/test-results
+        destination: raw-test-output
+    - store_test_results:
+        path: /tmp/test-results
+
 
 jobs:
   build-geth:
@@ -104,44 +117,22 @@ jobs:
   unit-tests:
     <<: *unit-tests-defaults
     steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run Tests
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
             go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
 
   race:
     <<: *unit-tests-defaults
     steps:
-      - attach_workspace:
-          at: ~/repos
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go get github.com/jstemmer/go-junit-report
       - run:
           name: Run Tests
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
             go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
-      - store_test_results:
-          path: /tmp/test-results
 
   coverage:
     <<: *unit-tests-defaults
