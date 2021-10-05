@@ -42,18 +42,18 @@ executors:
 
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 unit-tests-defaults: &unit-tests-defaults
-  steps:
-    - attach_workspace:
-        at: ~/repos
-    - restore_cache:
-        keys:
-          - go-mod-v1-{{ checksum "go.sum" }}
-    - run: go get github.com/jstemmer/go-junit-report
-    - store_artifacts:
-        path: /tmp/test-results
-        destination: raw-test-output
-    - store_test_results:
-        path: /tmp/test-results
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go get github.com/jstemmer/go-junit-report
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
 
 jobs:
   build-geth:
