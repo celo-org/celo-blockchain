@@ -233,7 +233,7 @@ jobs:
 
   ios:
     macos:
-      xcode: "11.3.1"
+      xcode: "12.5.1"
     working_directory: ~/repos/geth
     steps:
       - checkout
