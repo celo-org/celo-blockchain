@@ -235,7 +235,7 @@ func (tx *LegacyTx) DecodeRLP(s *rlp.Stream) (err error) {
 func (tx *LegacyTx) copy() TxData {
 	cpy := &LegacyTx{
 		Nonce:               tx.Nonce,
-		To:                  tx.To, // TODO: copy pointed-to address
+		To:                  copyAddressPtr(tx.To),
 		Data:                common.CopyBytes(tx.Data),
 		Gas:                 tx.Gas,
 		FeeCurrency:         tx.FeeCurrency,         // TODO: copy pointed-to address
