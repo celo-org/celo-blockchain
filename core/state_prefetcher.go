@@ -96,7 +96,6 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 // and uses the input parameters for its environment. The goal is not to execute
 // the transaction successfully, rather to warm up touched data slots.
 func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *common.Address, gaspool *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, cfg vm.Config, baseFee *big.Int) error {
-
 	// Convert the transaction into an executable message and pre-cache its sender
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
@@ -107,6 +106,11 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 	txContext := NewEVMTxContext(msg)
 	vm := vm.NewEVM(context, txContext, statedb, config, cfg)
 
-	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb), nil)
+	var sysCtx *SysContractCallCtx
+	if config.IsEHardfork(header.Number) {
+		sysVmRunner := bc.NewEVMRunner(header, statedb.Copy())
+		sysCtx = NewSysContractCallCtx(sysVmRunner)
+	}
+	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb), sysCtx)
 	return err
 }

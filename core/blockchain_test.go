@@ -2952,20 +2952,22 @@ func TestEIP2718Transition(t *testing.T) {
 				},
 			},
 		}
-		genesis = gspec.MustCommit(db)
 	)
+	gspec.Config.Faker = true
+	genesis := gspec.MustCommit(db)
 
 	blocks, _ := GenerateChain(gspec.Config, genesis, engine, db, 1, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
 
 		// One transaction to 0xAAAA
 		signer := types.LatestSigner(gspec.Config)
+		gp, _ := mockSysContractCallCtx().GetGasPriceMinimum(nil)
 		tx, _ := types.SignNewTx(key, signer, &types.AccessListTx{
-			ChainID: gspec.Config.ChainID,
-			Nonce:   0,
-			To:      &aa,
-			Gas:     30000,
-			// GasPrice: b.header.BaseFee,
+			ChainID:  gspec.Config.ChainID,
+			Nonce:    0,
+			To:       &aa,
+			Gas:      30000,
+			GasPrice: gp,
 			AccessList: types.AccessList{{
 				Address:     aa,
 				StorageKeys: []common.Hash{{0}},
@@ -3042,6 +3044,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	gspec.Config.DonutBlock = common.Big0
 	gspec.Config.EBlock = common.Big0
+	gspec.Config.Faker = true
 	genesis := gspec.MustCommit(db)
 	signer := types.LatestSigner(gspec.Config)
 	txFeeRecipient := common.Address{10}

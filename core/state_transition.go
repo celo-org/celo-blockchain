@@ -408,7 +408,7 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 
-	// Make sure that transaction gasFeeCap is greater than the baseFee (post Espresso)
+	// Make sure that transaction gasFeeCap >= baseFee (post Espresso)
 	if st.evm.ChainConfig().IsEHardfork(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
 		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 {
@@ -429,7 +429,7 @@ func (st *StateTransition) preCheck() error {
 					st.msg.From().Hex(), st.gasFeeCap, st.gasPriceMinimum)
 			}
 		}
-	} else { // Make sure this transaction's gas price is greater than baseFee (pre Espresso)
+	} else { // Make sure this transaction's gas price >= baseFee (pre Espresso)
 		if st.gasPrice.Cmp(st.gasPriceMinimum) < 0 {
 			log.Debug("Tx gas price is less than minimum", "minimum", st.gasPriceMinimum, "price", st.gasPrice)
 			return ErrGasPriceDoesNotExceedMinimum
