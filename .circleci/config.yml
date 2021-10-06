@@ -41,6 +41,13 @@ executors:
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
 
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+# Unfortunately we cannot use anchors to represent a set of standard steps and
+# then add or override one or more of those steps when referencing the anchor.
+# This would be useful because a lot of jobs share many steps, it is not
+# possible because anchors can be used to represent dictionaries but not
+# sequences, and steps are defined as a sequence. So we are limited here to only
+# reusing a small segment of our jobs. See this link for a discussion of this limitation.
+# https://stackoverflow.com/questions/4948933/is-there-a-way-to-alias-anchor-an-array-in-yaml
 unit-tests-defaults: &unit-tests-defaults
   executor: golang
   resource_class: medium+
