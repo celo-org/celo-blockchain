@@ -3099,7 +3099,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	// 3: Ensure that miner received only the tx's tip.
 	actual := state.GetBalance(txFeeRecipient)
-	expected := new(big.Int).SetUint64(block.GasUsed() * block.Transactions()[0].GasTipCap().Uint64())
+	expected := new(big.Int).SetUint64(block.GasUsed()*block.Transactions()[0].GasTipCap().Uint64() + 1) // 1 is added by accumulateRewards in consensustest.MockEngine, and will break blockchain_repair_test.go if set 0
 
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("miner balance incorrect: expected %d, got %d", expected, actual)
@@ -3138,7 +3138,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	// 6+5: Ensure that miner received only the tx's effective tip.
 	actual = state.GetBalance(block.Coinbase())
-	expected = new(big.Int).SetUint64(block.GasUsed() * effectiveTip)
+	expected = new(big.Int).SetUint64(block.GasUsed()*effectiveTip + 1) // 1 is added by accumulateRewards in consensustest.MockEngine, and will break blockchain_repair_test.go if set 0
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("miner balance incorrect: expected %d, got %d", expected, actual)
 	}
