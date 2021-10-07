@@ -176,7 +176,7 @@ func TestGraphQLBlockSerializationEIP2718(t *testing.T) {
 	}{
 		{
 			body: `{"query": "{block {number transactions { from { address } to { address } value hash type accessList { address storageKeys } index}}}"}`,
-			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0xa863609020c7651e840465da231bcfd1c853c295d62dae6551624f800c118e5a","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x0f32fec26e145116d7927ce74dfa64334682747459481246cde86e68d3091679","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1}]}}}`,
+			want: `{"data":{"block":{"number":1,"transactions":[{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x64","hash":"0x46933b8a43e70320bb41910f015c4b2aded1caaba32b55b56054e4d1811d06d6","type":0,"accessList":[],"index":0},{"from":{"address":"0x71562b71999873db5b286df957af199ec94617f7"},"to":{"address":"0x0000000000000000000000000000000000000dad"},"value":"0x32","hash":"0x03682ed7cc9cf9e9fa3bb6f58a62d6a350c09ec4d22b71b884503ae469e8640b","type":1,"accessList":[{"address":"0x0000000000000000000000000000000000000dad","storageKeys":["0x0000000000000000000000000000000000000000000000000000000000000000"]}],"index":1}]}}}`,
 			code: 200,
 		},
 	} {
@@ -309,19 +309,20 @@ func createGQLServiceWithTransactions(t *testing.T, stack *node.Node) {
 	}
 	signer := types.LatestSigner(ethConf.Genesis.Config)
 
+	gp, _ := core.MockSysContractCallCtx().GetGasPriceMinimum(nil)
 	legacyTx, _ := types.SignNewTx(key, signer, &types.LegacyTx{
 		Nonce:    uint64(0),
 		To:       &dad,
 		Value:    big.NewInt(100),
 		Gas:      50000,
-		GasPrice: new(big.Int),
+		GasPrice: gp,
 	})
 	envelopTx, _ := types.SignNewTx(key, signer, &types.AccessListTx{
 		ChainID:  ethConf.Genesis.Config.ChainID,
 		Nonce:    uint64(1),
 		To:       &dad,
 		Gas:      30000,
-		GasPrice: new(big.Int),
+		GasPrice: gp,
 		Value:    big.NewInt(50),
 		AccessList: types.AccessList{{
 			Address:     dad,
