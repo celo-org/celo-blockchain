@@ -90,9 +90,10 @@ var (
 		Name:  "trace",
 		Usage: "Write execution trace to the given file",
 	}
-	consoleFormatFlag = cli.StringFlag{
+	// (Deprecated September 2021. Use --log.json)
+	legacyConsoleFormatFlag = cli.StringFlag{
 		Name:  "consoleformat",
-		Usage: "Write console logs as 'json' or 'term'",
+		Usage: "Write console logs as 'json' or 'term' (deprecated, use --log.json)",
 	}
 	consoleOutputFlag = cli.StringFlag{
 		Name: "consoleoutput",
@@ -150,6 +151,10 @@ var Flags = []cli.Flag{
 	blockprofilerateFlag,
 	cpuprofileFlag,
 	traceFlag,
+	consoleOutputFlag,
+	legacyBacktraceAtFlag,
+	legacyDebugFlag,
+	legacyConsoleFormatFlag,
 }
 
 // This is the list of deprecated debugging flags.
@@ -161,6 +166,7 @@ var DeprecatedFlags = []cli.Flag{
 	legacyCpuprofileFlag,
 	legacyBacktraceAtFlag,
 	legacyDebugFlag,
+	legacyConsoleFormatFlag,
 }
 
 var glogger *log.GlogHandler
@@ -202,7 +208,14 @@ func init() {
 func Setup(ctx *cli.Context) error {
 	var ostream log.Handler
 	output := io.Writer(os.Stderr)
-	if ctx.GlobalBool(logjsonFlag.Name) {
+	if ctx.GlobalIsSet(legacyConsoleFormatFlag.Name) {
+		log.Warn("The flag --consoleoutput is deprecated and will be removed in the future, please use --log.json")
+		if ctx.GlobalIsSet(logjsonFlag.Name) {
+			log.Error("--consoleoutput and --log.json are mutually exclusive")
+			os.Exit(1)
+		}
+	}
+	if ctx.GlobalBool(logjsonFlag.Name) || ctx.GlobalString(legacyConsoleFormatFlag.Name) == "json" {
 		ostream = log.StreamHandler(output, log.JSONFormat())
 	} else {
 		usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
@@ -349,7 +362,7 @@ func getConsoleLogFormat(consoleFormat string, usecolor bool) log.Format {
 	if consoleFormat == "term" || len(consoleFormat) == 0 /* No explicit format specified */ {
 		return log.TerminalFormat(usecolor)
 	}
-	panic(fmt.Sprintf("Unexpected value for \"%s\" flag: \"%s\"", consoleFormatFlag.Name, consoleFormat))
+	panic(fmt.Sprintf("Unexpected value for \"%s\" flag: \"%s\"", legacyConsoleFormatFlag.Name, consoleFormat))
 }
 
 func StartPProf(address string, withMetrics bool) {
