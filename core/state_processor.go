@@ -97,11 +97,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		if p.bc.chainConfig.IsEHardfork(header.Number) {
-			var err error
-			baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
-			if err != nil {
-				return nil, nil, 0, err
-			}
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
 		if err != nil {
@@ -181,7 +177,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipien
 	var baseFee *big.Int
 	if config.IsEHardfork(header.Number) {
 		var err error
-		baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		if err != nil {
 			return nil, err
 		}

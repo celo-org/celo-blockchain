@@ -111,6 +111,7 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 // MockSysContractCallCtx returns a SysContractCallCtx mock.
 func MockSysContractCallCtx() *SysContractCallCtx {
 	return &SysContractCallCtx{
+		// Set to non-zero value to make tests stricter
 		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big3},
 	}
 }

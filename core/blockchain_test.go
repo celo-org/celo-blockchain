@@ -2961,13 +2961,12 @@ func TestEIP2718Transition(t *testing.T) {
 
 		// One transaction to 0xAAAA
 		signer := types.LatestSigner(gspec.Config)
-		gp, _ := MockSysContractCallCtx().GetGasPriceMinimum(nil)
 		tx, _ := types.SignNewTx(key, signer, &types.AccessListTx{
 			ChainID:  gspec.Config.ChainID,
 			Nonce:    0,
 			To:       &aa,
 			Gas:      30000,
-			GasPrice: gp,
+			GasPrice: MockSysContractCallCtx().GetGasPriceMinimum(nil),
 			AccessList: types.AccessList{{
 				Address:     aa,
 				StorageKeys: []common.Hash{{0}},
@@ -3106,9 +3105,9 @@ func TestEIP1559Transition(t *testing.T) {
 	}
 
 	// 4: Ensure the tx sender paid for the gasUsed * (tip + block baseFee).
-	baseFee, _ := MockSysContractCallCtx().GetGasPriceMinimum(nil)
+	baseFee := MockSysContractCallCtx().GetGasPriceMinimum(nil).Uint64()
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr1))
-	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee.Uint64()))
+	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee))
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("sender paid fee incorrect: expected %d, got %d", expected, actual)
 	}
@@ -3134,7 +3133,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	block = chain.GetBlockByNumber(2)
 	state, _ = chain.State()
-	effectiveTip := block.Transactions()[0].GasTipCap().Uint64() - baseFee.Uint64()
+	effectiveTip := block.Transactions()[0].GasTipCap().Uint64() - baseFee
 
 	// 6+5: Ensure that miner received only the tx's effective tip.
 	actual = state.GetBalance(block.Coinbase())
@@ -3145,7 +3144,7 @@ func TestEIP1559Transition(t *testing.T) {
 
 	// 4: Ensure the tx sender paid for the gasUsed * (effectiveTip + block baseFee).
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr2))
-	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + baseFee.Uint64()))
+	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + baseFee))
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("sender paid fee incorrect: expected %d, got %d", expected, actual)
 	}

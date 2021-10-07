@@ -57,11 +57,7 @@ func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 }
 
 // GetGasPriceMinimum retrieves gas price minimum for given fee currency address.
-func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) (*big.Int, error) {
-	if !sc.IsWhitelisted(feeCurrency) {
-		return nil, ErrNonWhitelistedFeeCurrency
-	}
-
+func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
 	// feeCurrency for native token CELO is nil, so we bind common.ZeroAddress as key
 	var key common.Address
 	if feeCurrency == nil {
@@ -72,9 +68,9 @@ func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) (*
 
 	gasPriceMinimum, ok := sc.gasPriceMinimums[key]
 	if !ok {
-		// Must succeed because it checked with sc.IsWhitelisted
+		// it returns FallbackGasPriceMinimum when an error occurs
 		gasPriceMinimum, _ = gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, feeCurrency)
 		sc.gasPriceMinimums[key] = gasPriceMinimum
 	}
-	return gasPriceMinimum, nil
+	return gasPriceMinimum
 }

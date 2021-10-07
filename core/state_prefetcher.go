@@ -73,7 +73,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		statedb.Prepare(tx.Hash(), i)
 		if espresso {
 			var err error
-			baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 			if err != nil {
 				return
 			}

@@ -171,10 +171,7 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 		// Assemble the transaction call message and return if the requested offset
 		var baseFee *big.Int
 		if espresso {
-			baseFee, err = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
-			if err != nil {
-				return nil, vm.BlockContext{}, nil, nil, err
-			}
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, _ := tx.AsMessage(signer, baseFee)
 		txContext := core.NewEVMTxContext(msg)
