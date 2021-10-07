@@ -163,16 +163,6 @@ var (
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
 		Value: 0,
 	}
-	LegacyBootnodesV4Flag = cli.StringFlag{
-		Name:  "bootnodesv4",
-		Usage: "Comma separated enode URLs for P2P v4 discovery bootstrap (light server, full nodes) (deprecated, use --bootnodes)",
-		Value: "",
-	}
-	LegacyBootnodesV5Flag = cli.StringFlag{
-		Name:  "bootnodesv5",
-		Usage: "Comma separated enode URLs for P2P v5 discovery bootstrap (light server, light nodes) (deprecated, use --bootnodes)",
-		Value: "",
-	}
 
 	// Deprecated in celo-blockchain 1.4.0
 	LegacyMinerGasPriceFlag = BigFlag{

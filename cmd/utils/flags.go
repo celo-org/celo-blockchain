@@ -824,14 +824,8 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 func GetBootstrapNodes(ctx *cli.Context) []string {
 	urls := params.MainnetBootnodes
 	switch {
-	// case ctx.GlobalIsSet(BootnodesFlag.Name):
-	// 	urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name):
-		if ctx.GlobalIsSet(LegacyBootnodesV4Flag.Name) {
-			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV4Flag.Name))
-		} else {
-			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-		}
+	case ctx.GlobalIsSet(BootnodesFlag.Name):
+		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
@@ -866,18 +860,12 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	urls := params.MainnetBootnodes
 	switch {
-	case ctx.GlobalIsSet(BootnodesFlag.Name) || ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name):
-		if ctx.GlobalIsSet(LegacyBootnodesV5Flag.Name) {
-			urls = SplitAndTrim(ctx.GlobalString(LegacyBootnodesV5Flag.Name))
-		} else {
-			urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-		}
 	case ctx.GlobalBool(AlfajoresFlag.Name):
 		urls = params.AlfajoresBootnodes
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		urls = params.BaklavaBootnodes
-	// case ctx.GlobalIsSet(BootnodesFlag.Name):
-	// 	urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
+	case ctx.GlobalIsSet(BootnodesFlag.Name):
+		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case cfg.BootstrapNodesV5 != nil:
 		return // already set, don't apply defaults.
 	}
