@@ -2961,7 +2961,7 @@ func TestEIP2718Transition(t *testing.T) {
 
 		// One transaction to 0xAAAA
 		signer := types.LatestSigner(gspec.Config)
-		gp, _ := mockSysContractCallCtx().GetGasPriceMinimum(nil)
+		gp, _ := MockSysContractCallCtx().GetGasPriceMinimum(nil)
 		tx, _ := types.SignNewTx(key, signer, &types.AccessListTx{
 			ChainID:  gspec.Config.ChainID,
 			Nonce:    0,
@@ -3106,7 +3106,7 @@ func TestEIP1559Transition(t *testing.T) {
 	}
 
 	// 4: Ensure the tx sender paid for the gasUsed * (tip + block baseFee).
-	baseFee, _ := mockSysContractCallCtx().GetGasPriceMinimum(nil)
+	baseFee, _ := MockSysContractCallCtx().GetGasPriceMinimum(nil)
 	actual = new(big.Int).Sub(funds, state.GetBalance(addr1))
 	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + baseFee.Uint64()))
 	if actual.Cmp(expected) != 0 {

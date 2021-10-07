@@ -89,7 +89,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		sysVmRunner := p.bc.NewEVMRunner(header, statedb.Copy())
 		sysCtx = NewSysContractCallCtx(sysVmRunner)
 		if p.bc.Config().Faker {
-			sysCtx = mockSysContractCallCtx()
+			sysCtx = MockSysContractCallCtx()
 		}
 	}
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
