@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package backend
+package backend_test
 
 import (
 	"testing"
@@ -65,7 +65,7 @@ func (p *MockPeer) PurposeIsSet(purpose p2p.PurposeFlag) bool {
 }
 
 func TestIstanbulMessage(t *testing.T) {
-	chain, backend := newBlockChain(1, true)
+	chain, backend := NewBlockChain(1, true)
 	defer chain.Stop()
 
 	// generate one msg
@@ -116,7 +116,7 @@ func TestRecentMessageCaches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		chain, backend := newBlockChain(1, true)
+		chain, backend := NewBlockChain(1, true)
 
 		// generate a msg that is not an Announce
 		data := []byte("data1")
@@ -157,7 +157,7 @@ func TestRecentMessageCaches(t *testing.T) {
 }
 
 func TestReadValidatorHandshakeMessage(t *testing.T) {
-	chain, backend := newBlockChain(2, true)
+	chain, backend := NewBlockChain(2, true)
 	defer chain.Stop()
 
 	peer := &MockPeer{

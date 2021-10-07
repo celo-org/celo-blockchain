@@ -1,4 +1,4 @@
-package backend
+package backend_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -14,13 +15,13 @@ import (
 func TestAnnounceGossipQueryMsg(t *testing.T) {
 	// Create three backends
 	numValidators := 3
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
 
-	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain0, engine0, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
-	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain1, engine1, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
 	defer chain1.Stop()
-	chain2, engine2, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
+	chain2, engine2, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[2])
 	defer chain2.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines
@@ -145,11 +146,11 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 func TestHandleEnodeCertificateMsg(t *testing.T) {
 	// Create two backends
 	numValidators := 2
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
 
-	chain0, engine0, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain0, engine0, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer chain0.Stop()
-	chain1, engine1, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
+	chain1, engine1, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[1])
 	defer chain1.Stop()
 
 	engine0Node := engine0.SelfNode()
@@ -198,9 +199,9 @@ func TestHandleEnodeCertificateMsg(t *testing.T) {
 func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	// Create one backend
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
 
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	chain, engine, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer chain.Stop()
 
 	// Wait a bit so that the announce versions are generated for the engines

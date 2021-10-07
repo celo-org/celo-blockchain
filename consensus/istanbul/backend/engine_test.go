@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package backend
+package backend_test
 
 import (
 	"bytes"
@@ -42,10 +42,10 @@ func stopEngine(engine *Backend) {
 func TestPrepare(t *testing.T) {
 	g := NewGomegaWithT(t)
 
-	chain, engine := newBlockChain(1, true)
+	chain, engine := NewBlockChain(1, true)
 	defer stopEngine(engine)
 	defer chain.Stop()
-	header := makeHeader(chain.Genesis(), engine.config)
+	header := MakeHeader(chain.Genesis(), engine.config)
 	err := engine.Prepare(chain, header)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -58,31 +58,31 @@ func TestMakeBlockWithSignature(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	genesisCfg, nodeKeys := GetGenesisAndKeys(numValidators, true)
+	chain, engine, _ := NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 
 	defer stopEngine(engine)
 	defer chain.Stop()
 	genesis := chain.Genesis()
 
-	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := MakeBlock(nodeKeys, chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	block2, err := makeBlock(nodeKeys, chain, engine, block)
+	block2, err := MakeBlock(nodeKeys, chain, engine, block)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	_, err = makeBlock(nodeKeys, chain, engine, block2)
+	_, err = MakeBlock(nodeKeys, chain, engine, block2)
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
 func TestSealCommitted(t *testing.T) {
-	chain, engine := newBlockChain(1, true)
+	chain, engine := NewBlockChain(1, true)
 	defer stopEngine(engine)
 	defer chain.Stop()
 	// In normal case, the StateProcessResult should be passed into Commit
 	engine.abortCommitHook = func(result *core.StateProcessResult) bool { return result == nil }
 
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	block := MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock, _ := engine.signBlock(block)
 
 	go func() {
@@ -107,12 +107,12 @@ func TestSealCommitted(t *testing.T) {
 
 func TestVerifyHeader(t *testing.T) {
 	g := NewGomegaWithT(t)
-	chain, engine := newBlockChain(1, true)
+	chain, engine := NewBlockChain(1, true)
 	defer stopEngine(engine)
 	defer chain.Stop()
 
 	// errEmptyAggregatedSeal case
-	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	block := MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 	block, _ = engine.signBlock(block)
 	err := engine.VerifyHeader(chain, block.Header(), false)
 	g.Expect(err).Should(BeIdenticalTo(errEmptyAggregatedSeal))
@@ -129,14 +129,14 @@ func TestVerifyHeader(t *testing.T) {
 	g.Expect(err).Should(BeIdenticalTo(errInvalidExtraDataFormat))
 
 	// invalid timestamp
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	block = MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
 	header.Time = chain.Genesis().Time() + engine.config.BlockPeriod - 1
 	err = engine.VerifyHeader(chain, header, false)
 	g.Expect(err).Should(BeIdenticalTo(errInvalidTimestamp))
 
 	// future block
-	block = makeBlockWithoutSeal(chain, engine, chain.Genesis())
+	block = MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 	header = block.Header()
 	header.Time = uint64(now().Unix() + 10)
 	err = engine.VerifyHeader(chain, header, false)
@@ -146,8 +146,8 @@ func TestVerifyHeader(t *testing.T) {
 func TestVerifySeal(t *testing.T) {
 	g := NewGomegaWithT(t)
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	genesisCfg, nodeKeys := GetGenesisAndKeys(numValidators, true)
+	chain, engine, _ := NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
 
@@ -158,7 +158,7 @@ func TestVerifySeal(t *testing.T) {
 	g.Expect(err).Should(BeIdenticalTo(errUnknownBlock))
 
 	// should verify
-	block, err := makeBlock(nodeKeys, chain, engine, genesis)
+	block, err := MakeBlock(nodeKeys, chain, engine, genesis)
 	g.Expect(err).ToNot(HaveOccurred())
 	header := block.Header()
 	err = engine.VerifySeal(header)
@@ -193,8 +193,8 @@ func TestVerifySeal(t *testing.T) {
 
 func TestVerifyHeaders(t *testing.T) {
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	genesisCfg, nodeKeys := GetGenesisAndKeys(numValidators, true)
+	chain, engine, _ := NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer stopEngine(engine)
 	defer chain.Stop()
 	genesis := chain.Genesis()
@@ -208,9 +208,9 @@ func TestVerifyHeaders(t *testing.T) {
 	for i := 0; i < size; i++ {
 		var b *types.Block
 		if i == 0 {
-			b, _ = makeBlock(nodeKeys, chain, engine, genesis)
+			b, _ = MakeBlock(nodeKeys, chain, engine, genesis)
 		} else {
-			b, _ = makeBlock(nodeKeys, chain, engine, blocks[i-1])
+			b, _ = MakeBlock(nodeKeys, chain, engine, blocks[i-1])
 		}
 
 		blocks = append(blocks, b)
@@ -303,13 +303,13 @@ func TestVerifyHeaders(t *testing.T) {
 }
 
 func TestVerifyHeaderWithoutFullChain(t *testing.T) {
-	chain, engine := newBlockChain(1, false)
+	chain, engine := NewBlockChain(1, false)
 	defer stopEngine(engine)
 	defer chain.Stop()
 
 	t.Run("should allow future block without full chain available", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+		block := MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 		header := block.Header()
 		header.Time = uint64(now().Unix() + 3)
 		err := engine.VerifyHeader(chain, header, false)
@@ -318,7 +318,7 @@ func TestVerifyHeaderWithoutFullChain(t *testing.T) {
 
 	t.Run("should reject future block without full chain available", func(t *testing.T) {
 		g := NewGomegaWithT(t)
-		block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+		block := MakeBlockWithoutSeal(chain, engine, chain.Genesis())
 		header := block.Header()
 		header.Time = uint64(now().Unix() + 10)
 		err := engine.VerifyHeader(chain, header, false)

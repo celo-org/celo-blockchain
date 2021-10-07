@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package backend
+package backend_test
 
 import (
 	"fmt"
@@ -24,13 +24,14 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 )
 
 func TestSign(t *testing.T) {
-	b := newBackend()
+	b := backendtest.NewBackend()
 	data := []byte("Here is a string....")
 	sig, err := b.Sign(data)
 	if err != nil {
@@ -41,23 +42,23 @@ func TestSign(t *testing.T) {
 	pubkey, _ := crypto.Ecrecover(hashData, sig)
 	var signer common.Address
 	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
-	if signer != getAddress() {
-		t.Errorf("address mismatch: have %v, want %s", signer.Hex(), getAddress().Hex())
+	if signer != backendtest.GetAddress() {
+		t.Errorf("address mismatch: have %v, want %s", signer.Hex(), backendtest.GetAddress().Hex())
 	}
 }
 
 func TestCheckSignature(t *testing.T) {
-	key, _ := generatePrivateKey()
+	key, _ := backendtest.GeneratePrivateKey()
 	data := []byte("Here is a string....")
 	hashData := crypto.Keccak256(data)
 	sig, _ := crypto.Sign(hashData, key)
-	b := newBackend()
-	a := getAddress()
+	b := backendtest.NewBackend()
+	a := backendtest.GetAddress()
 	err := b.CheckSignature(data, a, sig)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
-	a = getInvalidAddress()
+	a = backendtest.GetInvalidAddress()
 	err = b.CheckSignature(data, a, sig)
 	if err != errInvalidSignature {
 		t.Errorf("error mismatch: have %v, want %v", err, errInvalidSignature)
@@ -66,7 +67,7 @@ func TestCheckSignature(t *testing.T) {
 
 func TestCheckValidatorSignature(t *testing.T) {
 
-	vset, keys := newTestValidatorSet(5)
+	vset, keys := backendtest.NewTestValidatorSet(5)
 
 	// 1. Positive test: sign with validator's key should succeed
 	data := []byte("dummy data")
@@ -113,9 +114,9 @@ func TestCheckValidatorSignature(t *testing.T) {
 
 func TestNormalCommit(t *testing.T) {
 
-	chain, backend := newBlockChain(1, true)
+	chain, backend := backendtest.NewBlockChain(1, true)
 	defer chain.Stop()
-	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+	block := backendtest.MakeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
 	expectedSignature := make([]byte, types.IstanbulExtraBlsSignature)
 
@@ -143,9 +144,9 @@ func TestNormalCommit(t *testing.T) {
 
 func TestInvalidCommit(t *testing.T) {
 
-	chain, backend := newBlockChain(1, true)
+	chain, backend := backendtest.NewBlockChain(1, true)
 	defer chain.Stop()
-	block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+	block := backendtest.MakeBlockWithoutSeal(chain, backend, chain.Genesis())
 	expBlock, _ := backend.signBlock(block)
 
 	if err := backend.Commit(expBlock, types.IstanbulAggregatedSeal{Round: big.NewInt(0), Bitmap: big.NewInt(0), Signature: nil}, types.IstanbulEpochValidatorSetSeal{Bitmap: big.NewInt(0), Signature: nil}, nil); err != nil {
@@ -158,10 +159,10 @@ func TestInvalidCommit(t *testing.T) {
 
 func TestGetProposer(t *testing.T) {
 	numValidators := 1
-	genesisCfg, nodeKeys := getGenesisAndKeys(numValidators, true)
-	chain, engine, _ := newBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
+	genesisCfg, nodeKeys := backendtest.GetGenesisAndKeys(numValidators, true)
+	chain, engine, _ := backendtest.NewBlockChainWithKeys(false, common.Address{}, false, genesisCfg, nodeKeys[0])
 	defer chain.Stop()
-	if _, err := makeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {
+	if _, err := backendtest.MakeBlock(nodeKeys, chain, engine, chain.Genesis()); err != nil {
 		t.Errorf("Failed to make a block: %v", err)
 	}
 
