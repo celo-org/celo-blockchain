@@ -1749,7 +1749,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	// Override any default configs for hard coded networks.
 	switch {
-	// TODO: Case for mainnet flag?
+	case ctx.GlobalBool(MainnetFlag.Name):
+		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = params.MainnetNetworkId
+		}
+		cfg.Genesis = core.MainnetGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 	case ctx.GlobalBool(BaklavaFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			log.Info("Setting baklava id")
