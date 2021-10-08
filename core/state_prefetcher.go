@@ -72,11 +72,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		// Block precaching permitted to continue, execute the transaction
 		statedb.Prepare(tx.Hash(), i)
 		if espresso {
-			var err error
 			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
-			if err != nil {
-				return
-			}
 		}
 		if err := precacheTransaction(p.config, p.bc, nil, gaspool, statedb, header, tx, cfg, baseFee); err != nil {
 			return // Ugh, something went horribly wrong, bail out

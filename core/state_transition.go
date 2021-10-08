@@ -265,7 +265,6 @@ func (st *StateTransition) to() common.Address {
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
 func (st *StateTransition) payFees(eHardFork bool) error {
-	// Check if fee currency is whitelisted
 	var isWhiteListed bool
 	if eHardFork {
 		isWhiteListed = st.sysCtx.IsWhitelisted(st.msg.FeeCurrency())
@@ -309,7 +308,7 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 
 func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, eHardfork bool) bool {
 	if feeCurrency == nil {
-		// 1559 Check that account balance <= value + gas price
+		// 1559 Check that account balance >= value + fee
 		if eHardfork {
 			fee = fee.Add(fee, st.msg.Value())
 		}
