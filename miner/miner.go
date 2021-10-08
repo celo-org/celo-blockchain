@@ -19,6 +19,7 @@ package miner
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
@@ -59,6 +60,8 @@ type Miner struct {
 	exitCh  chan struct{}
 	startCh chan struct{}
 	stopCh  chan struct{}
+
+	wg sync.WaitGroup
 }
 
 func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *event.TypeMux, engine consensus.Engine, db ethdb.Database) *Miner {
@@ -72,8 +75,8 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 		worker:  newWorker(config, chainConfig, engine, eth, mux, db),
 		db:      db,
 	}
+	miner.wg.Add(1)
 	go miner.update()
-
 	return miner
 }
 
@@ -119,6 +122,8 @@ func (miner *Miner) recoverRandomness() {
 // the loop is exited. This to prevent a major security vuln where external parties can DOS you with blocks
 // and halt your mining operation for as long as the DOS continues.
 func (miner *Miner) update() {
+	defer miner.wg.Done()
+
 	events := miner.mux.Subscribe(downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
 	defer func() {
 		if !events.Closed() {
@@ -190,6 +195,7 @@ func (miner *Miner) Stop() {
 func (miner *Miner) Close() {
 	miner.exitCh <- struct{}{}
 	<-miner.exitCh
+	miner.wg.Wait()
 }
 
 func (miner *Miner) Mining() bool {
