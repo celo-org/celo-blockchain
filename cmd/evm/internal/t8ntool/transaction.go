@@ -26,6 +26,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
@@ -123,12 +124,22 @@ func Transaction(ctx *cli.Context) error {
 			results = append(results, result{Error: err})
 			continue
 		}
-		sender, err := types.Sender(signer, &tx)
-		if err != nil {
-			results = append(results, result{Error: err})
+		r := result{Hash: tx.Hash()}
+		if sender, err := types.Sender(signer, &tx); err != nil {
+			r.Error = err
+			results = append(results, r)
 			continue
+		} else {
+			r.Address = sender
 		}
-		results = append(results, result{Address: sender, Hash: tx.Hash()})
+
+		// Set gasForAlternativeCurrency to 0 since currently only using celo as fee currency.
+		if gas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, tx.FeeCurrency(), 0, chainConfig.IsIstanbul(new(big.Int))); err != nil {
+			r.Error = err
+		} else if tx.Gas() < gas {
+			r.Error = fmt.Errorf("%w: have %d, want %d", core.ErrIntrinsicGas, tx.Gas(), gas)
+		}
+		results = append(results, r)
 	}
 	out, err := json.MarshalIndent(results, "", "  ")
 	fmt.Println(string(out))

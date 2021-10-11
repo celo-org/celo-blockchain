@@ -225,6 +225,14 @@ func TestT9n(t *testing.T) {
 			},
 			expOut: "exp3.json",
 		},
+		{ // Transactions with too low gas
+			base: "./testdata/16",
+			input: t9nInput{
+				inTxs:  "signed_txs.rlp",
+				stFork: "Espresso",
+			},
+			expOut: "exp.json",
+		},
 	} {
 
 		args := []string{"t9n"}
