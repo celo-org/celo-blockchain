@@ -274,6 +274,11 @@ func buildFlags(env build.Environment) (flags []string) {
 	if env.MetricsDefault {
 		ld = append(ld, "-X", "'github.com/celo-org/celo-blockchain/metrics.EnabledDefaultValue=true'")
 	}
+	// Enforce the stacksize to 8M, which is the case on most platforms apart from
+	// alpine Linux.
+	if runtime.GOOS == "linux" {
+		ld = append(ld, "-extldflags", "-Wl,-z,stack-size=0x800000")
+	}
 	if len(ld) > 0 {
 		flags = append(flags, "-ldflags", strings.Join(ld, " "))
 	}
