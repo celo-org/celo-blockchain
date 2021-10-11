@@ -60,9 +60,9 @@ const (
 	SstoreResetGasEIP2200             uint64 = 5000  // Once per SSTORE operation from clean non-zero to something else
 	SstoreClearsScheduleRefundEIP2200 uint64 = 15000 // Once per SSTORE operation for clearing an originally existing storage slot
 
-	ColdAccountAccessCostEIP2929 = uint64(2600) // COLD_ACCOUNT_ACCESS_COST
-	ColdSloadCostEIP2929         = uint64(2100) // COLD_SLOAD_COST
-	WarmStorageReadCostEIP2929   = uint64(100)  // WARM_STORAGE_READ_COST
+	ColdAccountAccessCostEIP2929 = uint64(900) // COLD_ACCOUNT_ACCESS_COST
+	ColdSloadCostEIP2929         = uint64(800) // COLD_SLOAD_COST
+	WarmStorageReadCostEIP2929   = uint64(100) // WARM_STORAGE_READ_COST
 
 	// In EIP-2200: SstoreResetGas was 5000.
 	// In EIP-2929: SstoreResetGas was changed to '5000 - COLD_SLOAD_COST'.
