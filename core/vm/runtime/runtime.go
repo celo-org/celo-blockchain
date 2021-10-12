@@ -66,6 +66,7 @@ func setDefaults(cfg *Config) {
 			IstanbulBlock:       new(big.Int),
 			ChurritoBlock:       new(big.Int),
 			DonutBlock:          new(big.Int),
+			EBlock:              new(big.Int),
 		}
 	}
 	if cfg.Time == nil {

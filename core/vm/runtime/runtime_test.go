@@ -688,7 +688,6 @@ func TestColdAccountAccessCost(t *testing.T) {
 	} {
 		tracer := vm.NewStructLogger(nil)
 		Execute(tc.code, nil, &Config{
-			ChainConfig: params.IstanbulEHFTestChainConfig,
 			EVMConfig: vm.Config{
 				Debug:  true,
 				Tracer: tracer,
