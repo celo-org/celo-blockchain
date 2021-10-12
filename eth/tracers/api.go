@@ -275,6 +275,11 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 			for task := range tasks {
 				signer := types.MakeSigner(api.backend.ChainConfig(), task.block.Number())
 				blockCtx := core.NewEVMBlockContext(task.block.Header(), api.chainContext(localctx), nil)
+				var sysCtx *core.SysContractCallCtx
+				if api.backend.ChainConfig().IsEHardfork(blockCtx.BlockNumber) {
+					sysVmRunner := api.backend.VmRunnerAtHeader(task.block.Header(), task.statedb.Copy())
+					sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+				}
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer, nil)
@@ -284,7 +289,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 						TxHash:    tx.Hash(),
 					}
 					vmRunner := api.backend.VmRunnerAtHeader(task.block.Header(), task.statedb)
-					res, err := api.traceTx(localctx, msg, txctx, blockCtx, vmRunner, task.statedb, config)
+					res, err := api.traceTx(localctx, msg, txctx, blockCtx, vmRunner, task.statedb, sysCtx, config)
 					if err != nil {
 						task.results[i] = &txTraceResult{Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -506,6 +511,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -524,6 +530,11 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+	}
 	for th := 0; th < threads; th++ {
 		pend.Add(1)
 		go func() {
@@ -537,7 +548,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 					TxIndex:   task.index,
 					TxHash:    txs[task.index].Hash(),
 				}
-				res, err := api.traceTx(ctx, msg, txctx, blockCtx, vmRunner, task.statedb, config)
+				res, err := api.traceTx(ctx, msg, txctx, blockCtx, vmRunner, task.statedb, sysCtx, config)
 				if err != nil {
 					results[task.index] = &txTraceResult{Error: err.Error()}
 					continue
@@ -557,7 +568,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		statedb.Prepare(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, nil); err != nil {
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx); err != nil {
 			failed = err
 			break
 		}
@@ -597,6 +608,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -635,6 +647,11 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			canon = false
 		}
 	}
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+	}
 	for i, tx := range block.Transactions() {
 		// Prepare the trasaction for un-traced execution
 		var (
@@ -670,7 +687,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		vmenv := vm.NewEVM(vmctx, txContext, statedb, chainConfig, vmConf)
 		statedb.Prepare(tx.Hash(), i)
 		vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
-		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, nil)
+		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, sysCtx)
 		if writer != nil {
 			writer.Flush()
 		}
@@ -723,6 +740,18 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 	if err != nil {
 		return nil, err
 	}
+
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
+		s, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+		if err != nil {
+			return nil, err
+		}
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), s)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+	}
+
 	msg, vmctx, vmRunner, statedb, err := api.backend.StateAtTransaction(ctx, block, int(index), reexec)
 	if err != nil {
 		return nil, err
@@ -732,7 +761,7 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		TxIndex:   int(index),
 		TxHash:    hash,
 	}
-	return api.traceTx(ctx, msg, txctx, vmctx, vmRunner, statedb, config)
+	return api.traceTx(ctx, msg, txctx, vmctx, vmRunner, statedb, sysCtx, config)
 }
 
 // TraceCall lets you trace a given eth_call. It collects the structured logs
@@ -761,6 +790,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true)
+	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -777,7 +807,11 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	}
 	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
-
+	var sysCtx *core.SysContractCallCtx
+	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+	}
 	var traceConfig *TraceConfig
 	if config != nil {
 		traceConfig = &TraceConfig{
@@ -787,13 +821,13 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 			Reexec:    config.Reexec,
 		}
 	}
-	return api.traceTx(ctx, msg, new(Context), vmctx, vmRunner, statedb, traceConfig)
+	return api.traceTx(ctx, msg, new(Context), vmctx, vmRunner, statedb, sysCtx, traceConfig)
 }
 
 // traceTx configures a new tracer according to the provided configuration, and
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
-func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
+func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Context, vmctx vm.BlockContext, vmRunner vm.EVMRunner, statedb *state.StateDB, sysCtx *core.SysContractCallCtx, config *TraceConfig) (interface{}, error) {
 	// Assemble the structured logger or the JavaScript tracer
 	var (
 		tracer    vm.Tracer
@@ -835,7 +869,7 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 	// Call Prepare to clear out the statedb access list
 	statedb.Prepare(txctx.TxHash, txctx.TxIndex)
 
-	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), vmRunner, nil)
+	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()), vmRunner, sysCtx)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}

@@ -176,11 +176,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	var baseFee *big.Int
 	if config.IsEHardfork(header.Number) {
-		var err error
 		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
-		if err != nil {
-			return nil, err
-		}
 	}
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)
 	if err != nil {
