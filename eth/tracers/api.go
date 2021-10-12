@@ -744,11 +744,14 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
 		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
-		s, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
 		if err != nil {
 			return nil, err
 		}
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), s)
+		sysStateDB, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
+		if err != nil {
+			return nil, err
+		}
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 
