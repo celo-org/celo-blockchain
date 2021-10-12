@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 const (
@@ -152,16 +153,13 @@ func TestCustomGenesis(t *testing.T) {
 // TestRegistryInGenesis tests that initializing Geth with a default genesis block(mainnet genesis)
 // Expects registry contract is deployed.
 func TestRegistryInGenesis(t *testing.T) {
-	datadir := tmpdir(t)
-	defer os.RemoveAll(datadir)
-
 	query := fmt.Sprintf("eth.getCode(%s)", registryAddress)
 
 	// Query the custom genesis block
-	geth := runGeth(t,
-		"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--light.maxpeers", "0",
+	geth := runGeth(t, "--maxpeers", "0", "--port", "0", "--light.maxpeers", "0",
 		"--nodiscover", "--nat", "none", "--ipcdisable",
 		"--exec", query, "console")
+	time.Sleep(4 * time.Second)
 	geth.ExpectRegexp(registryCode)
 	geth.ExpectExit()
 }
