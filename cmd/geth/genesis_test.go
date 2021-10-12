@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 const (
@@ -159,7 +158,6 @@ func TestRegistryInGenesis(t *testing.T) {
 	geth := runGeth(t, "--maxpeers", "0", "--port", "0", "--light.maxpeers", "0",
 		"--nodiscover", "--nat", "none", "--ipcdisable",
 		"--exec", query, "console")
-	time.Sleep(4 * time.Second)
 	geth.ExpectRegexp(registryCode)
 	geth.ExpectExit()
 }
