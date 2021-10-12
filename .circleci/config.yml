@@ -108,6 +108,27 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
+  tong-only-test-one:
+    <<: *unit-tests-defaults
+    steps:
+      - attach_workspace:
+          at: ~/repos
+            - restore_cache:
+                keys:
+                  - go-mod-v1-{{ checksum "go.sum" }}
+            - run: go get github.com/jstemmer/go-junit-report
+            - run:
+                name: Run Tests
+                command: |
+                  mkdir -p /tmp/test-results
+                  trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+                  go test -p 1 -v ./cmd/geth -run TestRegistryInGenesis | tee /tmp/test-results/go-test.out
+            - store_artifacts:
+                path: /tmp/test-results
+                destination: raw-test-output
+            - store_test_results:
+                path: /tmp/test-results
+
   unit-tests:
     <<: *unit-tests-defaults
     steps:
@@ -442,6 +463,10 @@ workflows:
             - build-geth
             - prepare-system-contracts
       - race:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+      - tong-only-test-one:
           requires:
             - build-geth
             - prepare-system-contracts
