@@ -60,6 +60,8 @@ const (
 	SstoreResetGasEIP2200             uint64 = 5000  // Once per SSTORE operation from clean non-zero to something else
 	SstoreClearsScheduleRefundEIP2200 uint64 = 15000 // Once per SSTORE operation for clearing an originally existing storage slot
 
+	// ColdAccountAccessCostEIP2929 (2600 -> 900), ColdSloadCostEIP2929 (2100 -> 800) are modified according to CIP-0048
+	// Links: https://github.com/celo-org/celo-proposals/blob/master/CIPs/cip-0048.md
 	ColdAccountAccessCostEIP2929 = uint64(900) // COLD_ACCOUNT_ACCESS_COST
 	ColdSloadCostEIP2929         = uint64(800) // COLD_SLOAD_COST
 	WarmStorageReadCostEIP2929   = uint64(100) // WARM_STORAGE_READ_COST
