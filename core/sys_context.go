@@ -22,45 +22,52 @@ type SysContractCallCtx struct {
 	gasPriceMinimums map[common.Address]*big.Int
 }
 
-func NewSysContractCallCtx(vmRunner vm.EVMRunner) *SysContractCallCtx {
-	return &SysContractCallCtx{
+// NewSysContractCallCtx creates the SysContractCallCtx object and makes the contract calls.
+func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
+	sc = &SysContractCallCtx{
 		vmRunner:              vmRunner,
 		whitelistedCurrencies: make(map[common.Address]struct{}),
 		gasPriceMinimums:      make(map[common.Address]*big.Int),
 	}
+	// intrinsic gas
+	sc.gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(sc.vmRunner)
+	// whitelist
+	whiteListedArr, err := currency.CurrencyWhitelist(sc.vmRunner)
+	if err != nil {
+		whiteListedArr = []common.Address{}
+	}
+	for _, feeCurrency := range whiteListedArr {
+		sc.whitelistedCurrencies[feeCurrency] = struct{}{}
+	}
+	// gas price minimum
+	celoGPM, _ := gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, nil)
+	sc.gasPriceMinimums[common.ZeroAddress] = celoGPM
+
+	for feeCurrency := range sc.whitelistedCurrencies {
+		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, &feeCurrency)
+		sc.gasPriceMinimums[feeCurrency] = gasPriceMinimum
+	}
+
+	return
 }
 
 // GetIntrinsicGasForAlternativeFeeCurrency retrieves intrinsic gas for non-native fee currencies.
 func (sc *SysContractCallCtx) GetIntrinsicGasForAlternativeFeeCurrency() uint64 {
-	if sc.gasForAlternativeCurrency == 0 {
-		sc.gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(sc.vmRunner)
-	}
 	return sc.gasForAlternativeCurrency
 }
 
-// IsWhitelisted indicates if the fee currency is whitelisted.
+// IsWhitelisted indicates if the fee currency is whitelisted, or it's native token(CELO).
 func (sc *SysContractCallCtx) IsWhitelisted(feeCurrency *common.Address) bool {
 	if feeCurrency == nil {
 		return true
 	}
-
-	if len(sc.whitelistedCurrencies) == 0 {
-		whiteListedArr, err := currency.CurrencyWhitelist(sc.vmRunner)
-		if err != nil {
-			whiteListedArr = []common.Address{}
-		}
-		for _, feeCurrency := range whiteListedArr {
-			sc.whitelistedCurrencies[feeCurrency] = struct{}{}
-		}
-	}
-
 	_, ok := sc.whitelistedCurrencies[*feeCurrency]
 	return ok
 }
 
 // GetGasPriceMinimum retrieves gas price minimum for given fee currency address.
 func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *big.Int {
-	// feeCurrency for native token CELO is nil, so we bind common.ZeroAddress as key
+	// feeCurrency for native token(CELO) is nil, so we bind common.ZeroAddress as key
 	var key common.Address
 	if feeCurrency == nil {
 		key = common.ZeroAddress
@@ -70,9 +77,7 @@ func (sc *SysContractCallCtx) GetGasPriceMinimum(feeCurrency *common.Address) *b
 
 	gasPriceMinimum, ok := sc.gasPriceMinimums[key]
 	if !ok {
-		// it returns FallbackGasPriceMinimum when an error occurs
-		gasPriceMinimum, _ = gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, feeCurrency)
-		sc.gasPriceMinimums[key] = gasPriceMinimum
+		return gasprice_minimum.FallbackGasPriceMinimum
 	}
 	return gasPriceMinimum
 }
