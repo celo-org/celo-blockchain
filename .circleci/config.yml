@@ -26,8 +26,6 @@ executors:
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
-      # trianglesphere/e2e_tests
-      CELO_MONOREPO_COMMIT_OR_BRANCH: c98a1f15f4d94472bae7871feb5eac02e63ab787
       # CELO_MONOREPO_COMMIT_OR_BRANCH should point to a monorepo commit which is known to work, so that
       # our CI doesn't break due to another team making changes in monorepo.
       # * It should be updated when:
@@ -40,7 +38,7 @@ executors:
 
       # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
       # includes contracts release 5 (core-contracts.v5)
-      # CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
+      CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 jobs:
   build-geth:

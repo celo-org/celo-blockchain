@@ -41,8 +41,8 @@ func (mode SyncMode) String() string {
 		return "full"
 	case FastSync:
 		return "fast"
-	case SnapSync:
-		return "snap"
+	// case SnapSync:
+	// 	return "snap"
 	case LightSync:
 		return "light"
 	case LightestSync:
@@ -58,8 +58,8 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("full"), nil
 	case FastSync:
 		return []byte("fast"), nil
-	case SnapSync:
-		return []byte("snap"), nil
+	// case SnapSync:
+	// 	return []byte("snap"), nil
 	case LightSync:
 		return []byte("light"), nil
 	case LightestSync:
@@ -75,8 +75,8 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FullSync
 	case "fast":
 		*mode = FastSync
-	case "snap":
-		*mode = SnapSync
+	// case "snap":
+	// 	*mode = SnapSync
 	case "light":
 		*mode = LightSync
 	case "lightest":
@@ -86,6 +86,8 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 	}
 	return nil
 }
+
+// TODO: Enable snap sync mode here.
 
 // Returns true if the all headers and not just some a small, discontinuous, set of headers are fetched.
 func (mode SyncMode) SyncFullHeaderChain() bool {
