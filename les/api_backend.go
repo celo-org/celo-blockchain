@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -365,6 +366,10 @@ func (b *LesApiBackend) RPCGasInflationRate() float64 {
 
 func (b *LesApiBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
+}
+
+func (b *LesApiBackend) RPCEVMTimeout() time.Duration {
+	return b.eth.config.RPCEVMTimeout
 }
 
 func (b *LesApiBackend) RPCTxFeeCap() float64 {

@@ -20,6 +20,7 @@ package ethapi
 import (
 	"context"
 	"math/big"
+	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
 	"github.com/celo-org/celo-blockchain/accounts"
@@ -56,6 +57,7 @@ type Backend interface {
 	ExtRPCEnabled() bool
 	RPCGasInflationRate() float64 // global multiplier applied to the gas estimations
 	RPCGasCap() uint64            // global gas cap for eth_call over rpc: DoS protection
+	RPCEVMTimeout() time.Duration // global timeout for eth_call over rpc: DoS protection
 	RPCTxFeeCap() float64         // global tx fee cap for all transaction related APIs
 	RPCEthCompatibility() bool    // determines if the fields 'gasLimit' and 'baseFeePerGas' should be returned by the RPC API.
 	UnprotectedAllowed() bool     // allows only for EIP155 transactions.

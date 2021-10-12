@@ -58,6 +58,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DocRoot                 string `toml:"-"`
 		RPCGasInflationRate     float64
 		RPCGasCap               uint64
+		RPCEVMTimeout           time.Duration
 		RPCTxFeeCap             float64
 		RPCEthCompatibility     bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
@@ -107,6 +108,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DocRoot = c.DocRoot
 	enc.RPCGasInflationRate = c.RPCGasInflationRate
 	enc.RPCGasCap = c.RPCGasCap
+	enc.RPCEVMTimeout = c.RPCEVMTimeout
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
 	enc.RPCEthCompatibility = c.RPCEthCompatibility
 	enc.Checkpoint = c.Checkpoint
@@ -160,6 +162,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DocRoot                 *string `toml:"-"`
 		RPCGasInflationRate     *float64
 		RPCGasCap               *uint64
+		RPCEVMTimeout           *time.Duration
 		RPCTxFeeCap             *float64
 		RPCEthCompatibility     *bool
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
@@ -293,6 +296,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.RPCGasCap != nil {
 		c.RPCGasCap = *dec.RPCGasCap
+	}
+	if dec.RPCEVMTimeout != nil {
+		c.RPCEVMTimeout = *dec.RPCEVMTimeout
 	}
 	if dec.RPCTxFeeCap != nil {
 		c.RPCTxFeeCap = *dec.RPCTxFeeCap

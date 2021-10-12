@@ -193,6 +193,7 @@ var (
 		utils.InsecureUnlockAllowedFlag,
 		utils.RPCGlobalGasInflationRateFlag,
 		utils.RPCGlobalGasCapFlag,
+		utils.RPCGlobalEVMTimeoutFlag,
 		utils.RPCGlobalTxFeeCapFlag,
 	}
 

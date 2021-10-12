@@ -56,6 +56,7 @@ var Defaults = Config{
 	TxPool:              core.DefaultTxPoolConfig,
 	RPCGasInflationRate: 1.3,
 	RPCGasCap:           25000000,
+	RPCEVMTimeout:       5 * time.Second,
 	RPCTxFeeCap:         500, // 500 celo
 
 	Istanbul: *istanbul.DefaultConfig,
@@ -141,6 +142,9 @@ type Config struct {
 
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64
+
+	// RPCEVMTimeout is the global timeout for eth-call.
+	RPCEVMTimeout time.Duration
 
 	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
 	// send-transction variants. The unit is ether.
