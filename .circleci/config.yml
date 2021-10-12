@@ -108,7 +108,7 @@ jobs:
           paths:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
-  tong-only-test-one:
+  test-TestRegistryInGenesis-1000-times:
     <<: *unit-tests-defaults
     steps:
       - attach_workspace:
@@ -122,7 +122,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go test -p 1 -v ./cmd/geth -run TestRegistryInGenesis | tee /tmp/test-results/go-test.out
+            go test -p 1 -v ./cmd/geth -run TestRegistryInGenesis -count 1000 | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -466,10 +466,9 @@ workflows:
           requires:
             - build-geth
             - prepare-system-contracts
-      - tong-only-test-one:
+      - test-TestRegistryInGenesis-1000-times:
           requires:
             - build-geth
-            - prepare-system-contracts
       - coverage:
           requires:
             - build-geth
