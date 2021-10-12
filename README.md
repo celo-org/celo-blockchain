@@ -112,9 +112,9 @@ $ geth console
 
 This command will:
  * Start `geth` in full sync mode which will download and execute all historical block information.
- * Start up `geth`'s built-in interactive [JavaScript console](https://github.com/ethereum/go-ethereum/wiki/JavaScript-Console),
-   (via the trailing `console` subcommand) through which you can invoke all official [`web3` methods](https://github.com/ethereum/wiki/wiki/JavaScript-API)
-   as well as `geth`'s own [management APIs](https://github.com/ethereum/go-ethereum/wiki/Management-APIs).
+ * Start up `geth`'s built-in interactive [JavaScript console](https://geth.ethereum.org/docs/interacting-with-geth/javascript-console),
+   (via the trailing `console` subcommand) through which you can invoke all official [`web3` methods](https://web3js.readthedocs.io/)
+   as well as `geth`'s own [management APIs](https://geth.ethereum.org/docs/rpc/server).
    This tool is optional and if you leave it out you can always attach to an already running
    `geth` instance with `geth attach`.
 
