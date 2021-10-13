@@ -13,8 +13,6 @@ import (
 // SysContractCallCtx represents a system contract call context for a given block (represented by vm.EVMRunner).
 // It MUST sit on the header.Root of a block, which is parent of the block we intend to deal with.
 type SysContractCallCtx struct {
-	vmRunner vm.EVMRunner // vmRunner represents the parent block state on which the contract calls will be made
-
 	whitelistedCurrencies     map[common.Address]struct{}
 	gasForAlternativeCurrency uint64
 	// gasPriceMinimums stores values for whitelisted currencies keyed by their contract address
@@ -25,14 +23,13 @@ type SysContractCallCtx struct {
 // NewSysContractCallCtx creates the SysContractCallCtx object and makes the contract calls.
 func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
 	sc = &SysContractCallCtx{
-		vmRunner:              vmRunner,
 		whitelistedCurrencies: make(map[common.Address]struct{}),
 		gasPriceMinimums:      make(map[common.Address]*big.Int),
 	}
 	// intrinsic gas
-	sc.gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(sc.vmRunner)
+	sc.gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(vmRunner)
 	// whitelist
-	whiteListedArr, err := currency.CurrencyWhitelist(sc.vmRunner)
+	whiteListedArr, err := currency.CurrencyWhitelist(vmRunner)
 	if err != nil {
 		whiteListedArr = []common.Address{}
 	}
@@ -40,11 +37,11 @@ func NewSysContractCallCtx(vmRunner vm.EVMRunner) (sc *SysContractCallCtx) {
 		sc.whitelistedCurrencies[feeCurrency] = struct{}{}
 	}
 	// gas price minimum
-	celoGPM, _ := gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, nil)
+	celoGPM, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, nil)
 	sc.gasPriceMinimums[common.ZeroAddress] = celoGPM
 
 	for feeCurrency := range sc.whitelistedCurrencies {
-		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(sc.vmRunner, &feeCurrency)
+		gasPriceMinimum, _ := gasprice_minimum.GetGasPriceMinimum(vmRunner, &feeCurrency)
 		sc.gasPriceMinimums[feeCurrency] = gasPriceMinimum
 	}
 
