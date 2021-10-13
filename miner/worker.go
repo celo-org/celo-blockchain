@@ -481,5 +481,4 @@ func (w *worker) updatePendingBlock(b *blockState) {
 		trie.NewStackTrie(nil),
 	)
 	w.snapshotState = b.state.Copy()
-
 }

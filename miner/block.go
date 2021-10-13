@@ -173,13 +173,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 // selectAndApplyTransactions selects and applies transactions to the in flight block state.
 func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) error {
 	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending(true)
-
-	// TODO: should this be a fatal error?
-	if err != nil {
-		log.Error("Failed to fetch pending transactions", "err", err)
-		return nil
-	}
+	pending := w.eth.TxPool().Pending(true)
 
 	// Short circuit if there is no available pending transactions.
 	if len(pending) == 0 {
