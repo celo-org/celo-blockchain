@@ -21,10 +21,15 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"regexp"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
+	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/shared/signer"
 	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
@@ -49,6 +54,59 @@ type ValidatorData struct {
 	Address common.Address
 	Message hexutil.Bytes
 }
+
+type TypedData struct {
+	Types       Types            `json:"types"`
+	PrimaryType string           `json:"primaryType"`
+	Domain      TypedDataDomain  `json:"domain"`
+	Message     TypedDataMessage `json:"message"`
+}
+
+type Type struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+func (t *Type) isArray() bool {
+	return strings.HasSuffix(t.Type, "[]")
+}
+
+// typeName returns the canonical name of the type. If the type is 'Person[]', then
+// this method returns 'Person'
+func (t *Type) typeName() string {
+	if strings.HasSuffix(t.Type, "[]") {
+		return strings.TrimSuffix(t.Type, "[]")
+	}
+	return t.Type
+}
+
+func (t *Type) isReferenceType() bool {
+	if len(t.Type) == 0 {
+		return false
+	}
+	// Reference types must have a leading uppercase character
+	r, _ := utf8.DecodeRuneInString(t.Type)
+	return unicode.IsUpper(r)
+}
+
+type Types map[string][]Type
+
+type TypePriority struct {
+	Type  string
+	Value uint
+}
+
+type TypedDataMessage = map[string]interface{}
+
+type TypedDataDomain struct {
+	Name              string                `json:"name"`
+	Version           string                `json:"version"`
+	ChainId           *math.HexOrDecimal256 `json:"chainId"`
+	VerifyingContract string                `json:"verifyingContract"`
+	Salt              string                `json:"salt"`
+}
+
+var typedDataReferenceTypeRegexp = regexp.MustCompile(`^[A-Z](\w*)(\[\])?$`)
 
 // sign receives a request and produces a signature
 //
