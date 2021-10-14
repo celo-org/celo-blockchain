@@ -439,19 +439,6 @@ jobs:
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_cip35.sh local ~/repos/geth
 
-  end-to-end-attestations-test:
-    executor: e2e
-    resource_class: xlarge
-    steps:
-      - attach_workspace:
-          at: ~/repos
-      - run:
-          name: End-to-end test of attestations
-          no_output_timeout: 15m
-          command: |
-            export PATH=${PATH}:~/repos/golang/go/bin
-            ./ci_test_attestations.sh local ~/repos/build-geth
-
   end-to-end-replica-test:
     executor: e2e
     resource_class: xlarge
@@ -536,10 +523,6 @@ workflows:
             - checkout-monorepo
             - build-geth
       - end-to-end-validator-order-test:
-          requires:
-            - checkout-monorepo
-            - build-geth
-      - end-to-end-attestations-test:
           requires:
             - checkout-monorepo
             - build-geth
