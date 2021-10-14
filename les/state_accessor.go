@@ -25,6 +25,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
+	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
 	"github.com/celo-org/celo-blockchain/light"
 )
 
@@ -51,11 +52,17 @@ func (leth *LightEthereum) stateAtTransaction(ctx context.Context, block *types.
 	if txIndex == 0 && len(block.Transactions()) == 0 {
 		return nil, vm.BlockContext{}, nil, statedb, nil
 	}
+	// Create SysContractCallCtx
+	var sysCtx *core.SysContractCallCtx
+	if leth.chainConfig.IsEHardfork(block.Number()) {
+		vmRunner := vmcontext.NewEVMRunner(leth.blockchain, block.Header(), statedb.Copy())
+		sysCtx = core.NewSysContractCallCtx(vmRunner)
+	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(leth.blockchain.Config(), block.Number())
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
-		msg, _ := tx.AsMessage(signer, nil) // TODO check this nil
+		msg, _ := tx.AsMessage(signer, sysCtx.GetGasPriceMinimum(tx.FeeCurrency()))
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), leth.blockchain, nil)
 		statedb.Prepare(tx.Hash(), idx)
@@ -65,7 +72,7 @@ func (leth *LightEthereum) stateAtTransaction(ctx context.Context, block *types.
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(context, txContext, statedb, leth.blockchain.Config(), vm.Config{})
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner, nil); err != nil {
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner, sysCtx); err != nil {
 			return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state
