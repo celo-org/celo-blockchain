@@ -319,6 +319,7 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 	}
 	// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
 	if eHardfork {
+		fee = fee.Add(fee, st.msg.Value())
 		return balance.Cmp(fee) >= 0
 	} else {
 		return balance.Cmp(fee) > 0

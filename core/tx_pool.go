@@ -1679,14 +1679,22 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 		}
 
 		// This is required to match the logic in canPayFee() state_transition.go
-		//   - Prior to E hardfork: we require the balance to be strictly greater than the fee,
+		//   - Prior to Espresso: we require the balance to be strictly greater than the fee,
 		//     which means we reject the transaction if balance <= fee
-		//   - After E hardfork: we require the balance to be greater than or equal to the fee,
+		//   - After Espresso: we require the balance to be greater than or equal to the fee,
 		//     which means we reject the transaction if balance < fee
 		fee := tx.Fee()
-		if (eHardfork && feeCurrencyBalance.Cmp(fee) < 0) || (!eHardfork && feeCurrencyBalance.Cmp(fee) <= 0) {
-			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
-			return ErrInsufficientFunds
+		if eHardfork {
+			fee = fee.Add(fee, tx.Value())
+			if feeCurrencyBalance.Cmp(fee) < 0 {
+				log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+				return ErrInsufficientFunds
+			}
+		} else {
+			if feeCurrencyBalance.Cmp(fee) <= 0 {
+				log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+				return ErrInsufficientFunds
+			}
 		}
 
 		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
