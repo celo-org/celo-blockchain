@@ -259,8 +259,9 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	istanbul bool // Fork indicator whether we are in the istanbul stage.
-	donut    bool // Fork indicator for the Donut fork.
+	istanbul  bool // Fork indicator whether we are in the istanbul stage.
+	donut     bool // Fork indicator for the Donut fork.
+	eHardfork bool // Fork indicator for the E fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -639,7 +640,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonceTooLow
 	}
 	// Transactor should have enough funds to cover the costs
-	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner)
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner, pool.eHardfork)
 	if err != nil {
 		return err
 	}
@@ -1294,6 +1295,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	if pool.donut && !wasDonut {
 		pool.handleDonutActivation()
 	}
+	pool.eHardfork = pool.chainconfig.IsEHardfork(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1562,7 +1564,7 @@ func (pool *TxPool) demoteUnexecutables() {
 }
 
 // ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
-func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner) error {
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner, eHardfork bool) error {
 	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
 		log.Debug("Insufficient funds",
 			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
@@ -1577,10 +1579,13 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 			return err
 		}
 
-		// To match the logic in canPayFee() state_transition.go, we require the balance to be strictly greater than the fee,
-		// which means we reject the transaction if balance <= fee
+		// This is required to match the logic in canPayFee() state_transition.go
+		//   - Prior to E hardfork: we require the balance to be strictly greater than the fee,
+		//     which means we reject the transaction if balance <= fee
+		//   - After E hardfork: we require the balance to be greater than or equal to the fee,
+		//     which means we reject the transaction if balance < fee
 		fee := tx.Fee()
-		if feeCurrencyBalance.Cmp(fee) <= 0 {
+		if (eHardfork && feeCurrencyBalance.Cmp(fee) < 0) || (!eHardfork && feeCurrencyBalance.Cmp(fee) <= 0) {
 			log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
 			return ErrInsufficientFunds
 		}

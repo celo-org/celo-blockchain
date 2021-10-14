@@ -270,12 +270,17 @@ func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, 
 		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
 	}
 
-	balanceOf, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
-
+	balance, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
 	if err != nil {
 		return false
 	}
-	return balanceOf.Cmp(fee) > 0
+
+	// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
+	if st.evm.ChainConfig().IsEHardfork(st.evm.Context.BlockNumber) {
+		return balance.Cmp(fee) >= 0
+	} else {
+		return balance.Cmp(fee) > 0
+	}
 }
 
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {

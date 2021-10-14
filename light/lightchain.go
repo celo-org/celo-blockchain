@@ -298,7 +298,9 @@ func (lc *LightChain) GetBlockByHash(ctx context.Context, hash common.Hash) (*ty
 	number := lc.hc.GetBlockNumber(hash)
 	if number == nil {
 		header, err := GetHeaderByHash(ctx, lc.odr, hash)
-		if err != nil {
+		// Header may be nil, indicating the hash doesn't match any known blocks,
+		// which is a valid response to the ODR request.
+		if err != nil || header == nil {
 			return nil, errors.New("unknown block")
 		}
 		return lc.GetBlock(ctx, hash, header.Number.Uint64())
