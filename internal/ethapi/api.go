@@ -841,23 +841,9 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// this makes sure resources are cleaned up.
 	defer cancel()
 
-	// Get block number
-	var blockNumber *big.Int
-	if n, ok := blockNrOrHash.Number(); ok {
-		blockNumber = new(big.Int).SetInt64(int64(n))
-	} else if h, ok := blockNrOrHash.Hash(); ok {
-		block, err := b.BlockByHash(ctx, h)
-		if err != nil {
-			return nil, err
-		}
-		blockNumber = block.Number()
-	} else {
-		return nil, errors.New("invalid arguments; neither block nor hash specified")
-	}
-
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
-	if b.ChainConfig().IsEHardfork(blockNumber) {
+	if b.ChainConfig().IsEHardfork(header.Number) {
 		vmRunner := b.NewEVMRunner(header, state)
 		if err != nil {
 			return nil, err
