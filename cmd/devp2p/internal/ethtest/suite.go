@@ -222,38 +222,38 @@ func (s *Suite) TestMaliciousHandshake(t *utesting.T) {
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: largeString(2), Version: 64},
+				{Name: largeString(2), Version: 65},
 			},
 			ID: pub0,
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			ID: append(pub0, byte(0)),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			ID: append(pub0, pub0...),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			ID: largeBuffer(2),
 		},
 		{
 			Version: 5,
 			Caps: []p2p.Cap{
-				{Name: largeString(2), Version: 64},
+				{Name: largeString(2), Version: 65},
 			},
 			ID: largeBuffer(2),
 		},

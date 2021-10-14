@@ -36,29 +36,29 @@ func TestEthProtocolNegotiation(t *testing.T) {
 		{
 			conn: &Conn{},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
-			expected: uint32(65),
+			expected: uint32(66),
 		},
 		{
 			conn: &Conn{},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 0},
-				{Name: "eth", Version: 89},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 0},
+				{Name: "istanbul", Version: 89},
+				{Name: "istanbul", Version: 66},
 			},
-			expected: uint32(65),
+			expected: uint32(66),
 		},
 		{
 			conn: &Conn{},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "wrongProto", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "wrongProto", Version: 66},
 			},
-			expected: uint32(64),
+			expected: uint32(65),
 		},
 	}
 

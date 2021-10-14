@@ -274,8 +274,8 @@ func (c *Conn) handshake(t *utesting.T) Message {
 	ourHandshake := &Hello{
 		Version: 5,
 		Caps: []p2p.Cap{
-			{Name: "eth", Version: 64},
-			{Name: "eth", Version: 65},
+			{Name: "istanbul", Version: 64},
+			{Name: "istanbul", Version: 65},
 		},
 		ID: pub0,
 	}
@@ -305,10 +305,10 @@ func (c *Conn) handshake(t *utesting.T) Message {
 func (c *Conn) negotiateEthProtocol(caps []p2p.Cap) {
 	var highestEthVersion uint
 	for _, capability := range caps {
-		if capability.Name != "eth" {
+		if capability.Name != "istanbul" {
 			continue
 		}
-		if capability.Version > highestEthVersion && capability.Version <= 65 {
+		if capability.Version > highestEthVersion && capability.Version <= 66 {
 			highestEthVersion = capability.Version
 		}
 	}
