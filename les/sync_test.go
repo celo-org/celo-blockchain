@@ -42,6 +42,7 @@ func TestLegacyCheckpointSyncingLes3(t *testing.T) { testCheckpointSyncing(t, 3,
 func TestCheckpointSyncingLes3(t *testing.T) { testCheckpointSyncing(t, 3, 2) }
 
 func testCheckpointSyncing(t *testing.T, protocol int, syncMode int) {
+	t.Skip("We are not using checkpoints")
 	config := light.TestServerIndexerConfig
 
 	waitIndexers := func(cIndexer, bIndexer, btIndexer *core.ChainIndexer) {
