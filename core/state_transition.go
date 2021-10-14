@@ -38,8 +38,6 @@ import (
 // Used for EOA  Check
 // var emptyCodeHash = crypto.Keccak256Hash(nil)
 
-var is1559 = false
-
 /*
 The State Transitioning Model
 
@@ -573,13 +571,8 @@ func (st *StateTransition) distributeTxFees(eHardfork bool) error {
 
 	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if ehardfork).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
+	// No need to do effectiveTip calculation, because st.gasPrice == effectiveGasPrice, and effectiveTip = effectiveGasPrice - baseTxFee
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
-	// nolint will fix in 1559 activation
-	if is1559 && eHardfork {
-		// effectiveTip := cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.gasPriceMinimum))
-		// tipTxFee = tipTxFee.Mul(effectiveTip, gasUsed)
-		// refund.Add(refund, (new(big.Int)).Sub())
-	}
 
 	feeCurrency := st.msg.FeeCurrency()
 
