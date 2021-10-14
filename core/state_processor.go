@@ -86,7 +86,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		sysCtx  *SysContractCallCtx
 	)
 	if p.bc.Config().IsEHardfork(blockNumber) {
-		sysVmRunner := p.bc.NewEVMRunner(header, statedb.Copy())
+		sysVmRunner := p.bc.NewEVMRunner(header, statedb)
 		sysCtx = NewSysContractCallCtx(sysVmRunner)
 		if p.bc.Config().Faker {
 			sysCtx = MockSysContractCallCtx()

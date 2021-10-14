@@ -277,7 +277,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 				blockCtx := core.NewEVMBlockContext(task.block.Header(), api.chainContext(localctx), nil)
 				var sysCtx *core.SysContractCallCtx
 				if api.backend.ChainConfig().IsEHardfork(blockCtx.BlockNumber) {
-					sysVmRunner := api.backend.VmRunnerAtHeader(task.block.Header(), task.statedb.Copy())
+					sysVmRunner := api.backend.VmRunnerAtHeader(task.block.Header(), task.statedb)
 					sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 				}
 				// Trace all the transactions contained within
@@ -511,7 +511,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
-	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -532,7 +531,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	blockHash := block.Hash()
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	for th := 0; th < threads; th++ {
@@ -608,7 +607,6 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true)
-	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -649,7 +647,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	}
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	for i, tx := range block.Transactions() {
@@ -793,7 +791,6 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		reexec = *config.Reexec
 	}
 	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true)
-	sysStateDB := statedb.Copy()
 	if err != nil {
 		return nil, err
 	}
@@ -812,7 +809,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 	var sysCtx *core.SysContractCallCtx
 	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
-		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), sysStateDB)
+		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
 	var traceConfig *TraceConfig
