@@ -546,7 +546,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.refundGas(params.RefundQuotientEIP3529)
 	}
 
-	err = st.distributeTxFees(eHardfork)
+	err = st.distributeTxFees()
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 }
 
 // distributeTxFees calculates the amounts and recipients of transaction fees and credits the accounts.
-func (st *StateTransition) distributeTxFees(eHardfork bool) error {
+func (st *StateTransition) distributeTxFees() error {
 	// Run only primary evm.Call() with tracer
 	if st.evm.GetDebug() {
 		st.evm.SetDebug(false)
