@@ -201,8 +201,6 @@ func (sb *Backend) SetP2PServer(p2pserver consensus.P2PServer) {
 func (sb *Backend) NewWork() error {
 	sb.logger.Debug("NewWork called, acquiring core lock", "func", "NewWork")
 
-	sb.coreMu.RLock()
-	defer sb.coreMu.RUnlock()
 	if !sb.isCoreStarted() {
 		return istanbul.ErrStoppedEngine
 	}
