@@ -31,6 +31,10 @@ func (c *core) sendPrepare() {
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.
+
+// m ∈ M  <p||c, H, _, D> where quorumSize <= N <= validatorSetSize && M(m : m.digest == preparedCertificate.digest && m.height == Hc ) D == preparedCertificate.proposal, ∀ m ∈ M(∃ m1,m2 : m1.view == m2.view)
+// So we could have
+
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 

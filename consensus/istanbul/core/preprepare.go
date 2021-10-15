@@ -39,6 +39,83 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
+// Message types
+// pp
+// p
+// c
+// rc
+// H height
+// R round
+// V value
+// Rc current round
+// Rd desired round
+
+// Upon receipt of <pp, H, R, V> from proposer(H, R) where R ∈ {Rc, Rd}
+
+// // Check proposer is valid for the message's view (this may be a subsequent round)
+// headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
+// if headBlock == nil {
+// 	logger.Error("Could not determine head proposer")
+// 	return errNotFromProposer
+// }
+// proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+// if proposerForMsgRound.Address() != msg.Address {
+// 	logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
+// 	return errNotFromProposer
+// }
+
+// // If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
+// if preprepare.View.Round.Cmp(common.Big0) > 0 {
+// 	if !preprepare.HasRoundChangeCertificate() {
+// 		logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
+// 		return errMissingRoundChangeCertificate
+// 	}
+// 	subject := istanbul.Subject{
+// 		View:   preprepare.View,
+// 		Digest: preprepare.Proposal.Hash(),
+// 	}
+// 	// This also moves us to the next round if the certificate is valid.
+// 	err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
+// 	if err != nil {
+// 		logger.Warn("Invalid round change certificate with preprepare.", "err", err)
+// 		return err
+// 	}
+// } else if preprepare.HasRoundChangeCertificate() {
+// 	logger.Error("Preprepare for round 0 has a round change certificate.")
+// 	return errInvalidProposal
+// }
+
+// // Verify the proposal we received
+// if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
+// 	logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
+// 	// if it's a future block, we will handle it again after the duration
+// 	if err == consensus.ErrFutureBlock {
+// 		c.stopFuturePreprepareTimer()
+// 		c.futurePreprepareTimer = time.AfterFunc(duration, func() {
+// 			c.sendEvent(backlogEvent{
+// 				msg: msg,
+// 			})
+// 		})
+// 	}
+// 	return err
+// }
+
+// if c.current.State() == StateAcceptRequest {
+// 	logger.Trace("Accepted preprepare", "tag", "stateTransition")
+// 	c.consensusTimestamp = time.Now()
+
+// 	err := c.current.TransitionToPreprepared(preprepare)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	// Process Backlog Messages
+// 	c.backlog.updateState(c.current.View(), c.current.State())
+// 	c.sendPrepare()
+// }
+
+// return nil
+
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	defer c.handlePrePrepareTimer.UpdateSince(time.Now())
 
