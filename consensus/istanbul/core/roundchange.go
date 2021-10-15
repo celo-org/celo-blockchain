@@ -49,6 +49,30 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	}, c.address)
 }
 
+// validRCC(H, R, V, RCC<Msgs>) {
+// quorumSize <= |Msgs| <= validatorSetSize &&
+// ∀ m<rc, Hm , Rm, PC> ∈ Msgs, Hm = H && Rm >= R && (PC = nil || isValidPC(PC)) // All round changes match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
+// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs | (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) &&  // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts
+// }
+
+// validPC(PC<Msgs, Prop>) {
+// quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
+// ∀ m<C, H, R, D> ∈ Msgs, (C = p || C = c) && H = Hc && D = Prop.D // All prepare or commit messages for current height and have digest of proposal.
+// ∀ m1<H1, R1>, m2<H2, R2> ∈ Msgs, H1 = H2 && R1 == R2 // All messages have same height and round
+// }
+
+// PCRound(PC<Msgs, Prop>) {
+// ∃ R | ∀ m<C, H, Rm, D> ∈ Msgs | R = Rm // There exists a round shared by all messages.
+// return R
+// }
+//
+// quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
+// ∀ m<C, H, R, D> ∈ Msgs, (C = p || C = c) && H = Hc && D = Prop.D // All prepare or commit messages for current height and have digest of proposal.
+// ∀ m1<H1, R1>, m2<H2, R2> ∈ Msgs, H1 = H2 && R1 == R2 // All messages have same height and round
+// }
+
+// There exists m such that for all n in M != m m.x >= n.x && isValidPC(m.PC)
+
 // N messages <rc, H, R, D> where quorumSize <= N <= validatorSetSize and R >= proposal.Round && D == proposal.digest && m ∈ M && ∃m : with a valid prepared cert (where  -1 < preprared cert round <= proposal.round and max of all round change certs, and digest == proposal.digest) ... thoughts - we can have a prepared cert round of 0? even when our current round is greater than 0.
 // Resutl we start a new round with the proposal.
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {

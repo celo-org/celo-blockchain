@@ -50,19 +50,14 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 // Rc current round
 // Rd desired round
 
-// Upon receipt of <pp, H, R, V> from proposer(H, R) where R ∈ {Rc, Rd}
+// Upon receipt of <pp, H, Rd, V, RCC> from proposer(H, Rd) while state = AcceptRequest
+// if Rd > 0 && validRCC(H, Rd, V, RCC) {
 
-// // Check proposer is valid for the message's view (this may be a subsequent round)
-// headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
-// if headBlock == nil {
-// 	logger.Error("Could not determine head proposer")
-// 	return errNotFromProposer
 // }
-// proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
-// if proposerForMsgRound.Address() != msg.Address {
-// 	logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
-// 	return errNotFromProposer
+// if Rd = 0 && RCC = nil {
+
 // }
+//where R ∈ {Rc, Rd}
 
 // // If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 // if preprepare.View.Round.Cmp(common.Big0) > 0 {
@@ -184,7 +179,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errInvalidProposal
 	}
 
-	// Verify the proposal we received
+	// Verify the proposal we received this verifies that the signer is a validator, not that the signer is the proposer.
 	if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
