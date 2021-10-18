@@ -158,6 +158,7 @@ func TestRegistryInGenesis(t *testing.T) {
 	geth := runGeth(t, "--maxpeers", "0", "--port", "0", "--light.maxpeers", "0",
 		"--nodiscover", "--nat", "none", "--ipcdisable",
 		"--exec", query, "console")
+	defer geth.Cleanup()
 	geth.ExpectRegexp(registryCode)
 	geth.ExpectExit()
 }
