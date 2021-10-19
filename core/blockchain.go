@@ -18,6 +18,7 @@
 package core
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -2414,9 +2415,17 @@ func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, e
 
 	var receiptString string
 	for i, receipt := range receipts {
+		logs := make([]string, len(receipt.Logs))
+		for j, log := range receipt.Logs {
+			topics := make([]string, len(log.Topics))
+			for k, topic := range log.Topics {
+				topics[k] = topic.Hex()
+			}
+			logs[j] = fmt.Sprintf("{address: %v, topics: %v, data: %v}", log.Address.Hex(), topics, hex.EncodeToString(log.Data))
+		}
 		receiptString += fmt.Sprintf("\t %d: cumulative: %v gas: %v contract: %v status: %v tx: %v logs: %v bloom: %x state: %x\n",
 			i, receipt.CumulativeGasUsed, receipt.GasUsed, receipt.ContractAddress.Hex(),
-			receipt.Status, receipt.TxHash.Hex(), receipt.Logs, receipt.Bloom, receipt.PostState)
+			receipt.Status, receipt.TxHash.Hex(), logs, receipt.Bloom, receipt.PostState)
 	}
 	log.Error(fmt.Sprintf(`
 ########## BAD BLOCK #########
