@@ -295,11 +295,11 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 
 // canPayFee checks whether accountOwner's balance can cover transaction fee.
 //
-// For native token(CELO):
-//   - Pre-Espresso: it ensures balance >=  GasPrice * gas + gatewayFee
+// For native token(CELO) as feeCurrency:
+//   - Pre-Espresso: it ensures balance >= GasPrice * gas + gatewayFee
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value + gatewayFee
-// For non-native token:
-//   - Pre-Espresso: it ensures balance >  GasPrice * gas + gatewayFee
+// For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
+//   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee
 //   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee
 func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, espresso bool) error {
 	if feeCurrency == nil {
