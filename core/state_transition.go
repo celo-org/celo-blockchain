@@ -275,25 +275,13 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
-	feeVal := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
-
+	effectiveFee := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
 	// If GatewayFeeRecipient is unspecified, the gateway fee value is ignore and the sender is not charged.
 	if st.msg.GatewayFeeRecipient() != nil {
-		feeVal.Add(feeVal, st.msg.GatewayFee())
+		effectiveFee.Add(effectiveFee, st.msg.GatewayFee())
 	}
-
-	// Check if balance < GasFeeCap * gas + value
-	balanceCheck := feeVal
-	if st.gasFeeCap != nil {
-		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
-		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
-		balanceCheck.Add(balanceCheck, st.value)
-	}
-	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
-	}
-	if !st.canPayFee(st.msg.From(), feeVal, st.msg.FeeCurrency(), eHardFork) {
-		return ErrInsufficientFunds
+	if err := st.canPayFee(st.msg.From(), effectiveFee, st.msg.FeeCurrency(), eHardFork); err != nil {
+		return err
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
@@ -301,30 +289,52 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 
 	st.initialGas = st.msg.Gas()
 	st.gas += st.msg.Gas()
-	err := st.debitFee(st.msg.From(), feeVal, st.msg.FeeCurrency())
+	err := st.debitFee(st.msg.From(), effectiveFee, st.msg.FeeCurrency())
 	return err
 }
 
-func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, eHardfork bool) bool {
+// canPayFee checks whether accountOwner's balance can cover transaction fee.
+//
+// Pre Espresso, it checks fee against balance.
+// - For native token(CELO), it ensures balance >=  GasPrice * gas + gatewayFee
+// - For non-native token, it ensures balance >  GasPrice * gas + gatewayFee
+//
+// Post Espresso, it includes **transfer value** in the fee, and calculate the fee base on gasFeeCap rather than gasPrice.(Both from EIP-1559)
+// - For native token(CELO), it ensures balance >= GasFeeCap * gas + value + gatewayFee
+// - For non-native token, it ensures balance >= GasFeeCap * gas + gatewayFee
+func (st *StateTransition) canPayFee(accountOwner common.Address, fee *big.Int, feeCurrency *common.Address, espresso bool) error {
 	if feeCurrency == nil {
-		// 1559 Check that account balance >= value + fee
-		if eHardfork {
-			fee = fee.Add(fee, st.msg.Value())
+		balance := st.state.GetBalance(st.msg.From())
+		if espresso {
+			fee = new(big.Int).SetUint64(st.msg.Gas())
+			fee = fee.Mul(fee, st.gasFeeCap)
+			fee.Add(fee, st.value)
+			fee.Add(fee, st.msg.GatewayFee())
 		}
-		return st.state.GetBalance(accountOwner).Cmp(fee) >= 0
-	}
 
-	balance, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
-	if err != nil {
-		return false
-	}
-	// The logic in ValidateTransactorBalanceCoversTx tx_pool.go should match to this.
-	if eHardfork {
-		fee = fee.Add(fee, st.msg.Value())
-		return balance.Cmp(fee) >= 0
+		if balance.Cmp(fee) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, fee)
+		}
+		return nil
 	} else {
-		return balance.Cmp(fee) > 0
+		balance, err := currency.GetBalanceOf(st.vmRunner, accountOwner, *feeCurrency)
+		if err != nil {
+			return err
+		}
+		if espresso {
+			fee = new(big.Int).SetUint64(st.msg.Gas())
+			fee = fee.Mul(fee, st.gasFeeCap)
+			fee.Add(fee, st.msg.GatewayFee())
+			if balance.Cmp(fee) < 0 {
+				return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, fee)
+			}
+		} else {
+			if balance.Cmp(fee) <= 0 {
+				return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), balance, fee)
+			}
+		}
 	}
+	return nil
 }
 
 func (st *StateTransition) debitGas(address common.Address, amount *big.Int, feeCurrency *common.Address) error {
