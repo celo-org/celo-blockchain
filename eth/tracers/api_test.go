@@ -374,7 +374,7 @@ func TestOverriddenTraceCall(t *testing.T) {
 			config: &TraceCallConfig{
 				Tracer: &tracer,
 			},
-			expectErr: core.ErrInsufficientFunds,
+			expectErr: core.ErrInsufficientFundsForTransfer,
 			expect:    nil,
 		},
 		// Successful simple contract call
