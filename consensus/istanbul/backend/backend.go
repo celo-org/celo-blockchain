@@ -211,7 +211,6 @@ type Backend struct {
 
 	aWallets atomic.Value
 
-	wg           sync.WaitGroup
 	core         istanbulCore.Engine
 	logger       log.Logger
 	db           ethdb.Database
@@ -461,7 +460,6 @@ func (sb *Backend) Close() error {
 			concatenatedErrs = fmt.Errorf("%v; %v", concatenatedErrs, err)
 		}
 	}
-	sb.wg.Wait()
 	return concatenatedErrs
 }
 
@@ -552,12 +550,7 @@ func (sb *Backend) Commit(proposal istanbul.Proposal, aggregatedSeal types.Istan
 			return err
 		}
 	}
-	sb.wg.Add(1)
-	go func() {
-		defer sb.wg.Done()
-		sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
-	}()
-
+	sb.onNewConsensusBlock(block, result.Receipts, result.Logs, result.State)
 	return nil
 }
 
