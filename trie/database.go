@@ -781,10 +781,11 @@ func (db *Database) commit(hash common.Hash, batch ethdb.Batch, uncacher *cleane
 
 	db.lock.RLock()
 	node, ok := db.dirties[hash]
-	db.lock.RUnlock()
 	if !ok {
+		db.lock.RUnlock()
 		return nil
 	}
+	db.lock.RUnlock()
 
 	var err error
 	node.forChilds(func(child common.Hash) {
