@@ -41,6 +41,17 @@ executors:
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
 
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+# Unfortunately we cannot use anchors to represent a set of standard steps and
+# then add or override one or more of those steps when referencing the anchor.
+# This would be useful because a lot of jobs share many steps, it is not
+# possible because anchors can be used to represent dictionaries but not
+# sequences, and steps are defined as a sequence. So we are limited here to only
+# reusing a small segment of our jobs. See this link for a discussion of this limitation.
+# https://stackoverflow.com/questions/4948933/is-there-a-way-to-alias-anchor-an-array-in-yaml
+unit-tests-defaults: &unit-tests-defaults
+  executor: golang
+  resource_class: medium+
+
 jobs:
   build-geth:
     executor: golang
@@ -98,8 +109,7 @@ jobs:
             - geth/<<pipeline.parameters.system-contracts-path>>
 
   unit-tests:
-    executor: golang
-    resource_class: medium+
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -112,29 +122,47 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
-            go run build/ci.go test -v | tee /tmp/test-results/go-test.out
+            go test -p 1 -v ./... | tee /tmp/test-results/go-test.out
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
-
       - store_test_results:
           path: /tmp/test-results
 
-  coverage:
-    executor: golang
-    resource_class: medium+
+  race:
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: go run build/ci.go test -coverage
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run Tests
+          command: |
+            mkdir -p /tmp/test-results
+            trap "go-junit-report < /tmp/test-results/go-test.out > /tmp/test-results/go-test-report.xml" EXIT
+            go test -p 1 -v -race ./... | tee /tmp/test-results/go-test.out
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
+
+  coverage:
+    <<: *unit-tests-defaults
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: go test -p 1 -v -covermode=atomic -cover -coverprofile=coverage.out ./...
       - run: bash <(curl -s https://codecov.io/bash)
 
   istanbul-e2e-coverage:
-    executor: golang
-    resource_class: medium+
+    <<: *unit-tests-defaults
     steps:
       - attach_workspace:
           at: ~/repos
@@ -398,6 +426,32 @@ jobs:
             export PATH=${PATH}:~/repos/golang/go/bin
             ./ci_test_validator_order.sh local ~/repos/geth
 
+  end-to-end-cip35-eth-compatibility-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of CIP 35
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_cip35.sh local ~/repos/geth
+
+  end-to-end-replica-test:
+    executor: e2e
+    resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: ~/repos
+      - run:
+          name: End-to-end test of hotswap functionality
+          no_output_timeout: 15m
+          command: |
+            export PATH=${PATH}:~/repos/golang/go/bin
+            ./ci_test_replicas.sh local ~/repos/geth
+
 workflows:
   version: 2
   build:
@@ -410,6 +464,10 @@ workflows:
           requires:
             - build-geth
       - unit-tests:
+          requires:
+            - build-geth
+            - prepare-system-contracts
+      - race:
           requires:
             - build-geth
             - prepare-system-contracts
@@ -465,6 +523,14 @@ workflows:
             - checkout-monorepo
             - build-geth
       - end-to-end-validator-order-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-cip35-eth-compatibility-test:
+          requires:
+            - checkout-monorepo
+            - build-geth
+      - end-to-end-replica-test:
           requires:
             - checkout-monorepo
             - build-geth
