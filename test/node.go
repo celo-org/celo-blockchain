@@ -17,7 +17,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	"github.com/celo-org/celo-blockchain/core"
@@ -227,11 +226,6 @@ func (n *Node) Start() error {
 	n.Enode = n.Server().LocalNode().Node()
 
 	return nil
-}
-
-// Provides a short representation of a hash
-func shortAddress(a common.Address) string {
-	return hexutil.Encode(a[:2])
 }
 
 func (n *Node) AddPeers(nodes ...*Node) {
