@@ -30,7 +30,7 @@ func (c *core) sendPrepare() {
 	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
-// validPC(PC<Msgs, Prop>) {
+// validPC(PC<Msgs,  V>) {
 // quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
 // ∀ m<C, H, R, D> ∈ Msgs (C = p || C = c) && H = Hc && D = Prop.D // All prepare or commit messages for current height and have digest of proposal.
 // ∀ m1<H1, R1>, m2<H2, R2> ∈ Msgs H1 = H2 && R1 == R2 // All messages have same height and round
