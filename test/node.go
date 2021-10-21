@@ -277,18 +277,19 @@ func (n *Node) GossipEnodeCertificatge() error {
 
 // Close shuts down the node and releases all resources and removes the datadir
 // unless an error is returned, in which case there is no guarantee that all
-// resources are released.
+// resources are released. It is assumed that this is only called after calling
+// Start otherwise it will panic.
 func (n *Node) Close() error {
 	err := n.Tracker.StopTracking()
 	if err != nil {
 		return err
 	}
 	n.WsClient.Close()
-	if n.Node != nil {
-		err = n.Node.Close() // This also shuts down the Eth service
+	err = n.Node.Close() // This also shuts down the Eth service
+	if err != nil {
+		return err
 	}
-	os.RemoveAll(n.Config.DataDir)
-	return err
+	return os.RemoveAll(n.Config.DataDir)
 }
 
 // SendCeloTracked functions like SendCelo but also waits for the transaction to be processed.
@@ -396,10 +397,11 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 // NewNetwork generates a network of nodes that are running and mining. For
 // each provided validator account a corresponding node is created and each
 // node is also assigned a developer account, there must be at least as many
-// developer accounts provided as validator accounts. If there is an error it
-// will be returned immediately, meaning that some nodes may be running and
-// others not.
-func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, error) {
+// developer accounts provided as validator accounts. A shutdown function is
+// also returned which will shutdown and clean up the network when called.  In
+// the case that an error is returned the shutdown function will be nil and so
+// no attempt should be made to call it.
+func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, func(), error) {
 
 	// Copy eth istanbul config fields to the genesis istanbul config.
 	// There is a ticket to remove this duplication of config.
@@ -414,17 +416,17 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate genesis: %v", err)
+		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
 
 	va := accounts.ValidatorAccounts()
 	da := accounts.DeveloperAccounts()
-	network := make([]*Node, len(va))
-	for i := range va {
+	var network Network = make([]*Node, len(va))
 
+	for i := range va {
 		n, err := NewNode(&va[i], &da[i], baseNodeConfig, ec, genesis)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build node for network: %v", err)
+			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
 		network[i] = n
 	}
@@ -448,11 +450,18 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	for i := range network {
 		err := network[i].GossipEnodeCertificatge()
 		if err != nil {
-			return nil, err
+			network.Shutdown()
+			return nil, nil, err
 		}
 	}
 
-	return network, nil
+	shutdown := func() {
+		for _, err := range network.Shutdown() {
+			fmt.Println(err.Error())
+		}
+	}
+
+	return network, shutdown, nil
 }
 
 // AwaitTransactions ensures that the entire network has processed the provided transactions.
@@ -477,17 +486,19 @@ func (n Network) AwaitBlock(ctx context.Context, num uint64) error {
 	return nil
 }
 
-// Shutdown closes all nodes in the network, any errors that are encountered are
-// printed to stdout.
-func (n Network) Shutdown() {
-	for _, node := range n {
+// Shutdown closes all nodes in the network, any errors encountered when
+// shutting down nodes are returned in a slice.
+func (n Network) Shutdown() []error {
+	var errors []error
+	for i, node := range n {
 		if node != nil {
 			err := node.Close()
 			if err != nil {
-				fmt.Printf("error shutting down node %v: %v", node.Address.String(), err)
+				errors = append(errors, fmt.Errorf("error shutting down node %v index %d: %w", node.Address.String(), i, err))
 			}
 		}
 	}
+	return errors
 }
 
 // ValueTransferTransaction builds a signed value transfer transaction from the

@@ -3,10 +3,12 @@ package e2e_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +27,9 @@ func TestSendCelo(t *testing.T) {
 	accounts := test.Accounts(3)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
-	network, err := test.NewNetwork(accounts, gc, ec)
+	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
 	require.NoError(t, err)
-	defer network.Shutdown()
+	defer shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
@@ -52,9 +54,9 @@ func TestEpochBlockMarshaling(t *testing.T) {
 	// and it needs to be < (epoch -2).
 	ec.Istanbul.Epoch = 6
 	ec.Istanbul.DefaultLookbackWindow = 3
-	network, err := test.NewNetwork(accounts, gc, ec)
+	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
 	require.NoError(t, err)
-	defer network.Shutdown()
+	defer shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
@@ -76,10 +78,21 @@ func TestStartStopValidators(t *testing.T) {
 	accounts := test.Accounts(4)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
-	network, err := test.NewNetwork(accounts, gc, ec)
+	network, _, err := test.NewNetwork(accounts, gc, ec)
 	require.NoError(t, err)
-	defer network.Shutdown()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+
+	// We define our own shutdown function because we don't want to print
+	// errors about already stopped nodes. Since this test can fail while we
+	// have stopped nodes.
+	defer func() {
+		for _, err := range network.Shutdown() {
+			if !errors.Is(err, test.ErrTrackerAlreadyStopped) && !errors.Is(err, node.ErrNodeStopped) {
+				fmt.Println(err.Error())
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*40)
 	defer cancel()
 
 	var txs []*types.Transaction

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"sync"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -15,7 +14,8 @@ import (
 )
 
 var (
-	errStopped = errors.New("transaction tracker closed")
+	errStopped               = errors.New("transaction tracker closed")
+	ErrTrackerAlreadyStopped = errors.New("attempted to stop already stopped tracker")
 )
 
 // Tracker tracks processed blocks and transactions through a subscription with
@@ -193,7 +193,7 @@ func (tr *Tracker) await(ctx context.Context, condition func() bool) error {
 // StopTracking shuts down all the goroutines in the tracker.
 func (tr *Tracker) StopTracking() error {
 	if tr.sub == nil {
-		return fmt.Errorf("attempted to stop already stopped tracker - stack: \n%s", string(debug.Stack()))
+		return ErrTrackerAlreadyStopped
 	}
 	tr.sub.Unsubscribe()
 	close(tr.stopCh)
