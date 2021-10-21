@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
-	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/core/vm/vmcontext"
@@ -613,20 +612,8 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	var (
-		governanceAddress common.Address
-		err               error
-	)
-	if !st.evm.ChainConfig().Faker {
-		caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-		governanceAddress, err = contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
-	} else {
-		testCaller := testutil.NewMockEVMRunner()
-		registry := testutil.NewRegistryMock()
-		registry.AddContract(params.GovernanceRegistryId, common.HexToAddress("0x123"))
-		testCaller.RegisterContract(params.RegistrySmartContractAddress, registry)
-		governanceAddress, err = contracts.GetRegisteredAddress(testCaller, params.GovernanceRegistryId)
-	}
+	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
+	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
