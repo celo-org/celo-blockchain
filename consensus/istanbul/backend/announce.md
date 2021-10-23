@@ -11,6 +11,7 @@ For the purpose of this specification, certain terms are used that have a specif
 * Full node
 * Validator
 * Nearly Elected Validator
+* eNodeURL
 
 ### Full Node
 
@@ -29,6 +30,21 @@ A node is a Nearly Elected Validator (NEV) if and only if:
 2) It is in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable = 10`
 
 In loose terms, it means it's a validator that has a good chance of becoming an elected validator in the following epoch.
+
+### eNodeURL
+
+An `eNodeURL` has the following format:
+
+`enode://<hex node id>@<IP/hostname>:<tcp port>?discport=<udp discovery port>`
+
+Where `<hex node id>` is the node's serialized and hex encoded ecdsa public key. The URL parameter `discport` should only be specified if the udp discovery port differs from the tcp port.
+
+Some example `eNodeURLs` (with partially elided hex encoded public keys):
+
+\```
+enode://517318.......607ff3@127.0.0.1:34055
+enode://e5e2fdf.......348ce8@127.0.0.1:33503?discport=22042
+\```
 
 ## Basic Operation
 
@@ -129,7 +145,7 @@ Should update the highest known version to the one given, even if there's no ver
 
 One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all other NEV validators that have a higher version `eNodeURL` than the one currently known.
 
-Messages should be spaced by at least 5 minutes (300 seconds). A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
+Messages should be spaced at least 5 minutes (300 seconds) apart. A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
 
 ```
 timeoutMinutes = 1.5 ^ (min(n - 1, 5))
