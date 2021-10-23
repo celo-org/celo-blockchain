@@ -33,7 +33,7 @@ In loose terms, it means it's a validator that has a good chance of becoming an 
 
 ### eNodeURL
 
-An `eNodeURL` has the following format:
+An `eNodeURL` is a string specifyng the location of an eNode in the p2p network (//TODO add link to what an enode is?), and it has the following format:
 
 `enode://<hex node id>@<IP/hostname>:<tcp port>?discport=<udp discovery port>`
 
