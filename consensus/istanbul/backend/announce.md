@@ -1,8 +1,34 @@
 # Celo Announce Protocol
 
-While here referred as a protocol by itself, Announce is technically a subset of the Istanbul protocol, on the [RLPx] transport, that facilitates Validators to privately discover the eNodeURL of other Validators in the network, using the underlying p2p eth network. This is used by Istanbul to have direct connections between Validators, speeding up the consensus phase of block generation.
+While here referred as a protocol by itself, Announce is technically a subset of the Istanbul protocol, on the [RLPx] transport, that facilitates Validators to privately discover the `eNodeURL` of other Validators in the network, using the underlying p2p eth network. This is used by Istanbul to have direct connections between Validators, speeding up the consensus phase of block generation.
 
 It is important to note that a validator's `eNodeURL` is never shared among third parties, but directly published to specific peers. Therefore it is allowed for a validator to publish different external facing `eNodeURL` values to different validator peers.
+
+## Terminology
+
+For the purpose of this specification, certain terms are used that have a specific meaning, those are:
+
+* Full node
+* Validator
+* Nearly Elected Validator
+
+### Full Node
+
+A Full Node is a Celo node fully operating in the Celo p2p network.
+
+### Validator
+
+A Validator is a [FullNode] that has been started with the ability to produce blocks, even if it has not yet been elected. In the geth program,
+this is equivalent as being started with the `--mine` param.
+
+### Nearly Elected Validator (NEV)
+
+A node is a Nearly Elected Validator (NEV) if and only if:
+
+1) It is a [Validator]
+2) It is in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable = 10`
+
+In loose terms, it means it's a validator that has a good chance of becoming an elected validator in the following epoch.
 
 ## Basic Operation
 
@@ -56,13 +82,6 @@ Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator]).
 
 - `version`: the current highest known announce version for a validator (deduced from the signature), according to the peer that gossipped this message.
 - `signature`: the signature for the version payload string (`'versionCertificate'|version`) by the emmitter of the certificate. Note that the address and public key can be deduced from this `signature`.
-
-## Nearly Elected Validator (NEV)
-
-A validator is a Nearly Elected Validator (NEV) if and only if:
-
-- It is a current elected validator in this epoch, or
-- It is a validator in the result set from calling `ElectNValidatorSigners` with `additionalAboveMaxElectable` taking the value of 10.
 
 ## Spec by node type
 
@@ -138,3 +157,5 @@ https://github.com/celo-org/celo-blockchain/pull/893
 [versionCertificatesMsg]: #versionCertificatesMsg-0x16
 [enodeCertificateMsg]: #enodeCertificateMsg-0x17
 [NearlyElectedValidator]: #nearly-Elected-Validator-NEV
+[Validator]: #validator
+[FullNode]: #full-node
