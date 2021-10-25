@@ -241,6 +241,7 @@ jobs:
 
   lint:
     executor: golang
+    resource_class: medium+
     steps:
       - attach_workspace:
           at: ~/repos
