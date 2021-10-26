@@ -49,8 +49,6 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	}, c.address)
 }
 
-// N messages <rc, H, R, D> where quorumSize <= N <= validatorSetSize and R >= proposal.Round && D == proposal.digest && m ∈ M && ∃m : with a valid prepared cert (where  -1 < preprared cert round <= proposal.round and max of all round change certs, and digest == proposal.digest) ... thoughts - we can have a prepared cert round of 0? even when our current round is greater than 0.
-// Resutl we start a new round with the proposal.
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.newLogger("func", "handleRoundChangeCertificate", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
 
