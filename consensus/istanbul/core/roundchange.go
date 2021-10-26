@@ -84,18 +84,16 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 
 // Notation
 // Elements of sets are represented with lower case letters (e.g. m ∈ M).
-// Because all sets are messages we use 'm' to represent an element and if we
-// need to denote 2 messages from the same set we use 'n' to denote the second
-// message. Other variables are represented with Upper case letters (e.g. H for
-// height).
+// Because all sets are messages we use 'm' and if we need to denote 2 messages
+// from the same set we use 'n' to denote the second message. Other variables
+// are represented with Upper case letters (e.g. H for height).
 //
 // Elements of sets that are composite objects are defined by an identifier
 // followed by angled brackets contining the different variables belonging to
-// the element, the variables are separated by commas. E.g. m<A, B, C>. If
-// variables belonging to an element need to be distinguished from other
-// similarly named variables in the same scope then they are annotated with
-// the element name by appending the element name to the variable name.
-// E.g. m<Am, Bm, Cm>.
+// the element, and are separated by commas. E.g. m<A, B, C>. If variables
+// belonging to an element need to be distinguished from other similarly named
+// variables in the same scope then they can be annotated with the element name
+// by appending the element name to the variable name. E.g. m<Am, Bm, Cm>.
 //
 // If all instances of a composite object element share the same value for one
 // of its variables then that value can be used in the definition. E.g. m<A,
@@ -112,60 +110,50 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 // T - Message type
 // RCC - round change certificate
 // PC - prepared certificate
-// M - a message set
 
 // Global Variables
 // Hc - current height
 // Rc - current round
 
 // Message Types
-// PP_T - preprepare
-// P_T - prepare
-// C_T - commit
-// RC_T - round change
-// PC_T - prepared cert
+// PP - preprepare
+// P - prepare
+// C - commit
+// RC - round change
 
-// Composite object structures
-// <PP_T, H, R, V, RCC> - preprepare
-// <P_T, H, R, V> - prepare
-// <C_T, H, R, V> - commit
-// <RC_T, H, R, PC> - round change
-// <PC_T, M, V> - prepared certificate
+// Message structures
+// <PP, H, R, V, RCC> - preprepare
+// <P, H, R, V> - prepare
+// <C, H, R, V> - commit
+// <RC, H, R, PC> - round change
 
-// Math notation
 // m ∈ M - m is an element of M
 // m : C - the set of messages m such that they satisfy condition C e.g. m : m > 0
 // m ∈ M : C - the set of messages m in M such that they satisfy condition C e.g. m ∈ M : m > 0
 // |m| - the cardinality of m
-// ∃ m : C - there exists m that satisfies condition C
-// ∀ m, C1,....,Cn - forall m conditions C1 to CN are true.
+// ∃ - there exists
+// ∀ - for all
 
 //Some examples
-// ∃ m<C_T, H, R, *> ∈ M : Hm < Rm - There emists a commit message m in M such that m's height (Hm) is less than m's round (Rm) and m's value (V) is not important.
-// 1 < | m<P_T, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V| < 10 - The cardinality of prepare messages in M with height and round equal to Hc and value equal to V is greater than 1 and less than 10.
+// ∃ m<C, H, R, *> ∈ M : Hm < Rm - There emists a commit message m in M such that m's height (Hm) is less than m's round (Rm) and m's value (V) is not important.
+// 1 < | m<P, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V| < 10 - The cardinality of prepare messages in M with height and round equal to Hc and value equal to V is greater than 1 and less than 10.
 
-// validRCC(H, R, V, RCC) {
+// validRCC(H, R, V, RCC<Msgs>) {
 // // At least a quorum of round changes that match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
-// quorumSize <= | m<RC_T, H , Rm, PC> ∈ RCC : Rm >= R && (PC = nil || isValidPC(PC)) | <= validatorSetSize &&
+// quorumSize <= | m<rc, H , Rm, PCm> ∈ Msgs : Rm >= R && (PCm = nil || isValidPC(PCm)) | <= validatorSetSize &&
 // // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts and its value is V
-// ∃ m<RC_T, * , *, PCm> ∈ RCC : (∀ n<RC_T, Hn , Rn, PCn> ∈ RCC != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCm.V = V
+// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs : (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCm.V = V
 // }
 
-// validRCC(H, R, V, RCC) {
-// // At least a quorum of round changes that match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
-// M = { m<RC_T, H , Rm, PC> ∈ RCC : Rm >= R && (PC = nil || isValidPC(PC)) }
-// return quorumSize <= | M | <= validatorSetSize &&
-// // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts and its value is V
-// ∃ m<RC_T, * , *, PCm> ∈ M : (∀ n<RC_T, * , *, PCn> ∈ M != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCValue(PCm) = V
+// validPC(PC<Msgs, V>) {
+// validV(V) && // V is a valid value
+// quorumSize <= | m<Tm, Hc, Rm, V> ∈ Msgs : (Tm = p || Tm = c) && Vm = V | <= validatorSetSize && // At least a quorum of prepare or commit messages that are for the current height and same value as the prepared certificate.
+// ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ Msgs, Hm = Hn && Rm == Rn // All messages have same height and round
 // }
 
-// PCRound(<PC_T, M, *>) {
-// ∃ R : ∀ m<*, *, Rm, *> ∈ Msgs | R = Rm // There exists a round shared by all messages.
+// PCRound(PC<Msgs, Prop>) {
+// ∃ R | ∀ m<C, H, Rm, D> ∈ Msgs | R = Rm // There exists a round shared by all messages.
 // return R
-// }
-
-// PCValue(<PC_T, *, V>) {
-// return V
 // }
 //
 // quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
