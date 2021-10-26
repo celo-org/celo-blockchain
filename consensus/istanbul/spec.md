@@ -64,15 +64,41 @@ WaitingForNewRound
 `<PC_T, M, V> - prepared certificate`
 
 ### Event types
-Events are a means for the application to communicate with the consensus instance, they are never send across the network.
+Events are a means for the application to communicate with the consensus
+instance, they are never send across the network.
 
 `R_E - request`\
 `FC_E - final committed`
 
 ### Event composite object structures
-`<R_E, Hc, V> - request event, provides the value for the proposer to propose`
+`<R_E, H, V> - request event, provides the value for the proposer to propose`
 `<FC_E> - final comitted event, sent by the application to initiate a new consensus instance`
 
+### Pseudocode notation
+```
+
+Functions are represented as follows where the name of the function is foo, its
+parameters are X and Y, functions can optionally return a value.
+
+foo(X, Y) {
+	...	
+	return X
+}
+
+upon: UponCondition - upon statements are executed when the associated
+UponCondition evaluates to true
+
+UponConditions are triggered when the consensus instance has received
+sufficient messages or event such that the upon condition evaluates to true.
+Upon conditions are structured thus:
+
+<numeric qualifier> <composite message or event object to match against> <additional qualifications>
+
+E.G:
+2f+1 <C_T, Hc, Rc, V> && V != nil - 2f+1 commit messages for the current round and heigt with a non nil value.
+
+schedule <function call> after <duration> - This notation schedules the given function call to occur after the given duration.
+```
 
 ### Math notation
 `← - assignment`
@@ -88,7 +114,7 @@ Events are a means for the application to communicate with the consensus instanc
 `∃ m : C - there exists m that satisfies condition C`\
 `∀ m, C - all m satisfy condition C`
 
-### Notation examples
+### Math Notation examples
 ```
 // There exists a commit message m in M such that m's height (Hm) is
 // less than m's round (Rm) and m's value (V) is not important.
