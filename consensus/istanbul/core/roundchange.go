@@ -80,75 +80,16 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 
 // }
 
-//
-
-// Notation
-// Elements of sets are represented with lower case letters (e.g. m ∈ M).
-// Because all sets are messages we use 'm' and if we need to denote 2 messages
-// from the same set we use 'n' to denote the second message. Other variables
-// are represented with Upper case letters (e.g. H for height).
-//
-// Elements of sets that are composite objects are defined by an identifier
-// followed by angled brackets contining the different variables belonging to
-// the element, and are separated by commas. E.g. m<A, B, C>. If variables
-// belonging to an element need to be distinguished from other similarly named
-// variables in the same scope then they can be annotated with the element name
-// by appending the element name to the variable name. E.g. m<Am, Bm, Cm>.
-//
-// If all instances of a composite object element share the same value for one
-// of its variables then that value can be used in the definition. E.g. m<A,
-// B, Hc> represents a composite element with variables A B and current
-// height.
-//
-// If a composite object element has variables for which the value is not
-// important then '*' is used in the place of that variable.
-//
-// Variable names
-// H - height
-// R - round
-// V - value
-// T - Message type
-// RCC - round change certificate
-// PC - prepared certificate
-
-// Global Variables
-// Hc - current height
-// Rc - current round
-
-// Message Types
-// PP - preprepare
-// P - prepare
-// C - commit
-// RC - round change
-
-// Message structures
-// <PP, H, R, V, RCC> - preprepare
-// <P, H, R, V> - prepare
-// <C, H, R, V> - commit
-// <RC, H, R, PC> - round change
-
-// m ∈ M - m is an element of M
-// m : C - the set of messages m such that they satisfy condition C e.g. m : m > 0
-// m ∈ M : C - the set of messages m in M such that they satisfy condition C e.g. m ∈ M : m > 0
-// |m| - the cardinality of m
-// ∃ - there exists
-// ∀ - for all
-
-//Some examples
-// ∃ m<C, H, R, *> ∈ M : Hm < Rm - There emists a commit message m in M such that m's height (Hm) is less than m's round (Rm) and m's value (V) is not important.
-// 1 < | m<P, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V| < 10 - The cardinality of prepare messages in M with height and round equal to Hc and value equal to V is greater than 1 and less than 10.
-
 // validRCC(H, R, V, RCC<Msgs>) {
-// // At least a quorum of round changes that match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
-// quorumSize <= | m<rc, H , Rm, PCm> ∈ Msgs : Rm >= R && (PCm = nil || isValidPC(PCm)) | <= validatorSetSize &&
-// // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts and its value is V
-// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs : (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCm.V = V
+// quorumSize <= |Msgs| <= validatorSetSize &&
+// ∀ m<rc, Hm , Rm, PC> ∈ Msgs, Hm = H && Rm >= R && (PC = nil || isValidPC(PC)) // All round changes match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
+// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs | (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCm.V = V // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts and its value is V
 // }
 
-// validPC(PC<Msgs, V>) {
-// validV(V) && // V is a valid value
-// quorumSize <= | m<Tm, Hc, Rm, V> ∈ Msgs : (Tm = p || Tm = c) && Vm = V | <= validatorSetSize && // At least a quorum of prepare or commit messages that are for the current height and same value as the prepared certificate.
-// ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ Msgs, Hm = Hn && Rm == Rn // All messages have same height and round
+// validPC(PC<Msgs, Prop>) {
+// quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
+// ∀ m<C, H, R, D> ∈ Msgs, (C = p || C = c) && H = Hc && D = Prop.D // All prepare or commit messages for current height and have digest of proposal.
+// ∀ m1<H1, R1>, m2<H2, R2> ∈ Msgs, H1 = H2 && R1 == R2 // All messages have same height and round
 // }
 
 // PCRound(PC<Msgs, Prop>) {

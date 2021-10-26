@@ -47,7 +47,6 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 // H height
 // R round
 // V value
-// T message type
 // Vc current value
 // Rc current round
 // Rd desired round
