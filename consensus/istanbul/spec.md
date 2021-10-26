@@ -43,10 +43,10 @@ important then `*` is used in the place of that variable.
 `2f+1 - a quorum of participants`
 
 ### Participant states
-`AcceptRequest`
-`Preprepared`
-`Prepared`
-`Committed`
+`AcceptRequest`\
+`Preprepared`\
+`Prepared`\
+`Committed`\
 `WaitingForNewRound`
 
 ### Message Types
@@ -76,7 +76,6 @@ instance, they are never send across the network.
 
 ### Pseudocode notation
 ```
-
 Functions are represented as follows where the name of the function is foo, its
 parameters are X and Y, functions can optionally return a value.
 
@@ -84,7 +83,8 @@ foo(X, Y) {
 	...	
 	return X
 }
-
+```
+```
 upon: UponCondition - Pseudocode directly following upon statements is executed
 when the associated UponCondition evaluates to true
 
@@ -97,7 +97,8 @@ Upon conditions are structured thus:
 E.G:
 // 2f+1 commit messages for the current round and heigt with a non nil value.
 2f+1 <C_T, Hc, Rc, V> && V != nil
-
+```
+```
 schedule <function call> after <duration> - This notation schedules the given
 function call to occur after the given duration.
 ```
@@ -186,14 +187,12 @@ isProposer(H, R)
 Delivers the given value to the application.
 ```
 deliverValue(V)
-
 ```
 
 ##### roundChangeTimeout
 Returns the timeout for the given round 
 ```
 roundChangeTimeout(R)
-
 ```
 
 #### PCRound
