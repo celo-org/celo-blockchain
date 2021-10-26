@@ -80,8 +80,8 @@ Functions are represented as follows where the name of the function is foo, its
 parameters are X and Y, functions can optionally return a value.
 
 foo(X, Y) {
-	...	
-	return X
+  ...  
+  return X
 }
 ```
 ```
@@ -199,8 +199,8 @@ roundChangeTimeout(R)
 Return the round that is shared by all messages of the prepared certificate message set.
 ```
 PCRound(<PC_T, M, *>) {
-	∃ R : ∀ m<*, *, Rm, *> ∈ Msgs, R = Rm
-	return R
+  ∃ R : ∀ m<*, *, Rm, *> ∈ Msgs, R = Rm
+  return R
 }
 ```
 
@@ -208,7 +208,7 @@ PCRound(<PC_T, M, *>) {
 Return the value associated with a prepared certificate.
 ```
 PCValue(<PC_T, *, V>) {
-	return V
+  return V
 }
 ```
 
@@ -220,9 +220,9 @@ matching the prepared certificate value and all sharing the same height and
 round.
 ```
 validPC(<PC_T, M, V>) {
-	N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
-	return 2f+1 <= |N| <= 3f+1 &&
-	∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N, Hm = Hn && Rm = Rn 
+  N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
+  return 2f+1 <= |N| <= 3f+1 &&
+  ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N, Hm = Hn && Rm = Rn 
 }
 ```
 
@@ -237,9 +237,9 @@ greater than or equal to all other preparedCerts and its value is V
 
 ```
 validRCC(H, R, V, RCC) {
-	M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
-	return 2f+1 <= | M | <= 3f+1 &&
-	∃ m<RC_T, * , *, PCm> ∈ M : (∀ n<RC_T, * , *, PCn> ∈ M != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
+  M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
+  return 2f+1 <= | M | <= 3f+1 &&
+  ∃ m<RC_T, * , *, PCm> ∈ M : (∀ n<RC_T, * , *, PCn> ∈ M != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
 }
 ```
 
@@ -256,12 +256,12 @@ message. Hence why it has been renamed here to avoid confusion.
 
 ```
 onRoundChangeTimeout(H, R) {
-	if H = Hc && R = Rc {
-		Rd ← Rc+1
-		Sc ← WaitingForNewRound
-		M ← { m<T, Hc, Rc, Vc> : T ∈ {P_T, C_T} }
-		bc<RC_T, Hc, Rd, <PC_T, M, Vc>>
-	}
+  if H = Hc && R = Rc {
+    Rd ← Rc+1
+    Sc ← WaitingForNewRound
+    M ← { m<T, Hc, Rc, Vc> : T ∈ {P_T, C_T} }
+    bc<RC_T, Hc, Rd, <PC_T, M, Vc>>
+  }
 }
 ```
 
@@ -271,35 +271,36 @@ onRoundChangeTimeout(H, R) {
 ```
 
 upon: <FC_E>
-Hc ← Hc+1
-Rc ← 0
-Rd ← 0
-Sc ← AcceptRequest
-Vc ← nil
-schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
+  Hc ← Hc+1
+  Rc ← 0
+  Rd ← 0
+  Sc ← AcceptRequest
+  Vc ← nil
+  schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
 
 upon: <R_E, Hc, V> && Sc = AcceptRequest
-if Rc = 0 && isProposer(Hc, Rd) {
-  bc(<PP_T, Hc, 0, V, nil>)
-}
+  if Rc = 0 && isProposer(Hc, Rd) {
+    bc(<PP_T, Hc, 0, V, nil>)
+  }
 
 upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
-if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
-  Rc ← Rd
-  Vc ← V
-  Sc ← Preprepared
-  bc(<P_T, Hc, Rd, Vc>)
-}
+  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
+    Rc ← Rd
+    Vc ← V
+    Sc ← Preprepared
+    bc(<P_T, Hc, Rd, Vc>)
+  }
 
 upon: 2f+1 <T, Hc, Rd, Vc> && T ∈ {P_T, C_T} && Sc ∈ {AcceptRequest, Preprepared} 
-Sc ← Prepared
-bc(<C_T, Hc, Rd, Vc>)
-// We also set the prepared cert, but im not sure how to represent that in the current notation and
-// also not sure we need to keep it as a variable.
+  Sc ← Prepared
+  bc(<C_T, Hc, Rd, Vc>)
+  // Currently we are re-constructing the prepared cert in
+  // onRoundChangeTimeout but if feels neater to have a global variable
+  // set for it here, but I will need to update the notation to handle that.
 
 upon: 2f+1 <C_T, Hc, Rd, Vc> && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
-Sc ← Committed
-deliverValue(Vc)
+  Sc ← Committed
+  deliverValue(Vc)
 ```
 
 
@@ -309,7 +310,7 @@ This is from check message but it doesn't check the message
 it just compares current round to desired
 
 consensus/istanbul/core/backlog.go:64
-	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
+  if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
 
 Proposers can send preprepare without a single prepared certificate, this means
 that it will never be accepted by the rest of the network.
