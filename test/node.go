@@ -92,7 +92,7 @@ type Node struct {
 	Address       common.Address
 	DevKey        *ecdsa.PrivateKey
 	DevAddress    common.Address
-	Tracker       *TransactionTracker
+	Tracker       *Tracker
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -137,7 +137,7 @@ func NewNode(
 		Address:    validatorAccount.Address,
 		DevAddress: devAccount.Address,
 		DevKey:     devAccount.PrivateKey,
-		Tracker:    NewTransactionTracker(),
+		Tracker:    NewTracker(),
 	}
 
 	return node, node.Start()
@@ -297,7 +297,7 @@ func (n *Node) AwaitSentTransactions(ctx context.Context) error {
 // ProcessedTxBlock returns the block that the given transaction was processed
 // in, nil will be retuned if the transaction has not been processed by this node.
 func (n *Node) ProcessedTxBlock(tx *types.Transaction) *types.Block {
-	return n.Tracker.GetProcessedBlock(tx.Hash())
+	return n.Tracker.GetProcessedBlockForTx(tx.Hash())
 }
 
 // TxFee returns the gas fee for the given transaction.
@@ -364,7 +364,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 
 	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
 
 	va := accounts.ValidatorAccounts()
@@ -396,12 +396,9 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	// each other nodes don't start sending consensus messages to another node
 	// until they have received an enode certificate from that node.
 	for i, en := range enodes {
-		for j, n := range network {
-			if j == i {
-				continue
-			}
+		// Connect to the remaining nodes
+		for _, n := range network[i+1:] {
 			n.Server().AddPeer(en, p2p.ValidatorPurpose)
-			n.Server().AddTrustedPeer(en, p2p.ValidatorPurpose)
 		}
 	}
 
@@ -456,6 +453,17 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 func (n Network) AwaitTransactions(ctx context.Context, txs ...*types.Transaction) error {
 	for _, node := range n {
 		err := node.AwaitTransactions(ctx, txs...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AwaitBlock ensures that the entire network has processed a block with the given num.
+func (n Network) AwaitBlock(ctx context.Context, num uint64) error {
+	for _, node := range n {
+		err := node.Tracker.AwaitBlock(ctx, num)
 		if err != nil {
 			return err
 		}
