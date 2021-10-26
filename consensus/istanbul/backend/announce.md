@@ -64,11 +64,11 @@ It is important to ensure that [eNodeURL] values can't be read by nodes that are
 
 ### Minimizing network traffic
 
-In order to reduce the amount of message flooding, there's a third type of message: the [versionCertificateMsg]. Periodically (or when it's updated by the validator operators) a validator will update its version, and gossip through the network a VersionCertificateMsg holding only its own new version.
+In order to reduce the amount of message flooding, every [FullNode] participating in the p2p network must maintain a version table for the [NearlyElectedValidator] nodes in the network. This table is built and updated with one specific message from the protocol ( [versionCertificatesMsg] ).
 
-When a node (every full node in the network) receives a [versionCertificateMsg], it will update the highest known versions according to the certificates, and regossip a VersionCertificateMsg holding only the version certificates that were new to it.
+While [FullNode] instances cannot see the actual [eNodeURL] values, they can see the versions attached to them, and both filter and prune some of the messages in the protocol.
 
-This allows every validator to have an idea of what the highest known version is for every other validator's `eNodeURL`, and in the next query only request for those that are stale.
+[NearlyElectedValidator] can also use this table to understand which [eNodeURL] entries are stale, if the [eNodeURL] table entry has a version older than the version table entry.
 
 ## Basic Operation
 
