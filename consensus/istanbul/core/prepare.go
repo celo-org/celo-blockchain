@@ -30,12 +30,6 @@ func (c *core) sendPrepare() {
 	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
-// validPC(PC<Msgs, Prop>) {
-// quorumSize <= |Msgs| <= validatorSetSize && // right amount of messages
-// ∀ m<C, H, R, D> ∈ Msgs (C = p || C = c) && H = Hc && D = Prop.D // All prepare or commit messages for current height and have digest of proposal.
-// ∀ m1<H1, R1>, m2<H2, R2> ∈ Msgs H1 = H2 && R1 == R2 // All messages have same height and round
-// }
-
 // Verify a prepared certificate and return the view that all of its messages pertain to.
 
 // m ∈ M  <p||c, H, _, D> where quorumSize <= N <= validatorSetSize && M(m : m.digest == preparedCertificate.digest && m.height == Hc ) D == preparedCertificate.proposal, ∀ m ∈ M(∃ m1,m2 : m1.view == m2.view)
