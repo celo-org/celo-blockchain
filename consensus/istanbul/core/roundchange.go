@@ -49,41 +49,10 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	}, c.address)
 }
 
-// Var defs
-//
-// H height
-// R round
-// V value
-// M set of messages
-
-// Type defs
-//
-// PP<H, R, V, RCC> preprepare
-// P<H, R, V> prepare
-// C<H, R, V> commit
-// RCC<M> round change certificate
-// RC<H, R, PC> round change
-// PC<V, M> prepared certificate
-
-// Instance state
-// Hc current height
-// Rc current round
-//...
-
-// handleRoundChangeCertificate(H, R, V, RCC) {
-// if validRCC(RCC) then
-//  startNewRound(H, R, V)
-// end
-// }
-
-// startNewRound(H, R, V) {
-
-// }
-
 // validRCC(H, R, V, RCC<Msgs>) {
 // quorumSize <= |Msgs| <= validatorSetSize &&
 // ∀ m<rc, Hm , Rm, PC> ∈ Msgs, Hm = H && Rm >= R && (PC = nil || isValidPC(PC)) // All round changes match the given height and greater or equal round and either have a valid preparedCert or no preparedCert.
-// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs | (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) && PCm.V = V // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts and its value is V
+// ∃ m<rc, Hm , Rm, PCm> ∈ Msgs | (∀ n<rc, Hn , Rn, PCn> ∈ Msgs != m, PCRound(PCm) >= PCRound(PCn)) && isValidPC(PCm) &&  // There is a round change message such that its preparedCert is valid and its prepared cert round is greater than or equal to all other preparedCerts
 // }
 
 // validPC(PC<Msgs, Prop>) {
@@ -106,7 +75,6 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 
 // N messages <rc, H, R, D> where quorumSize <= N <= validatorSetSize and R >= proposal.Round && D == proposal.digest && m ∈ M && ∃m : with a valid prepared cert (where  -1 < preprared cert round <= proposal.round and max of all round change certs, and digest == proposal.digest) ... thoughts - we can have a prepared cert round of 0? even when our current round is greater than 0.
 // Resutl we start a new round with the proposal.
-
 func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.newLogger("func", "handleRoundChangeCertificate", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
 

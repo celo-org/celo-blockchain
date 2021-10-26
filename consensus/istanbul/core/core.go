@@ -456,10 +456,6 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 	return request, roundChangeCertificate, nil
 }
 
-// startNewRound(H, R, V) {
-
-// }
-
 // startNewRound starts a new round with the desired round
 func (c *core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
