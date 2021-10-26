@@ -23,7 +23,7 @@ If a composite object element has variables for which the value is not
 important then `*` is used in the place of that variable.
 
 ### Variable names
-`S - participant state`
+`S - participant state`\
 `H - height`\
 `R - round`\
 `V - value`\
@@ -33,21 +33,21 @@ important then `*` is used in the place of that variable.
 `M - a message set`
 
 ### Global Variables
-`Sc - current participant state`
+`Sc - current participant state`\
 `Hc - current height`\
 `Rc - current round`\
 `Rd - desired round`\
 `Vc - currently proposed value`\
-`f - the number of failed or malicious parcicipants that the system can tolerate`
-`3f+1 - the total number of participants`
+`f - the number of failed or malicious parcicipants that the system can tolerate`\
+`3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
 
 ### Participant states
-AcceptRequest
-Preprepared
-Prepared
-Committed
-WaitingForNewRound
+`AcceptRequest`
+`Preprepared`
+`Prepared`
+`Committed`
+`WaitingForNewRound`
 
 ### Message Types
 `PP_T - preprepare`\
@@ -71,7 +71,7 @@ instance, they are never send across the network.
 `FC_E - final committed`
 
 ### Event composite object structures
-`<R_E, H, V> - request event, provides the value for the proposer to propose`
+`<R_E, H, V> - request event, provides the value for the proposer to propose`\
 `<FC_E> - final comitted event, sent by the application to initiate a new consensus instance`
 
 ### Pseudocode notation
@@ -85,8 +85,8 @@ foo(X, Y) {
 	return X
 }
 
-upon: UponCondition - upon statements are executed when the associated
-UponCondition evaluates to true
+upon: UponCondition - Pseudocode directly following upon statements is executed
+when the associated UponCondition evaluates to true
 
 UponConditions are triggered when the consensus instance has received
 sufficient messages or event such that the upon condition evaluates to true.
@@ -95,17 +95,19 @@ Upon conditions are structured thus:
 <numeric qualifier> <composite message or event object to match against> <additional qualifications>
 
 E.G:
-2f+1 <C_T, Hc, Rc, V> && V != nil - 2f+1 commit messages for the current round and heigt with a non nil value.
+// 2f+1 commit messages for the current round and heigt with a non nil value.
+2f+1 <C_T, Hc, Rc, V> && V != nil
 
-schedule <function call> after <duration> - This notation schedules the given function call to occur after the given duration.
+schedule <function call> after <duration> - This notation schedules the given
+function call to occur after the given duration.
 ```
 
 ### Math notation
-`← - assignment`
-`= - is equal`
-`!= - is not equal`
-`&& - logical and`
-`|| - logical or`
+`← - assignment`\
+`= - is equal`\
+`!= - is not equal`\
+`&& - logical and`\
+`|| - logical or`\
 `m ∈ M - m is an element of M`\
 `m : C - the set of messages m such that they satisfy condition C e.g. m : m > 0`\
 `m ∈ M : C - the set of messages m in M such that they satisfy condition C e.g. m ∈ M : m > 0`\
