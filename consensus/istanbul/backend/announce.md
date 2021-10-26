@@ -46,13 +46,21 @@ enode://517318.......607ff3@127.0.0.1:34055
 enode://e5e2fdf.......348ce8@127.0.0.1:33503?discport=22042
 \```
 
-## Basic Operation
+## Objective
 
-When a validator is close to being elected ([NearlyElectedValidator]), it starts periodically sending [queryEnodeMsg] messages through the p2p network. These message are regossipped by nodes, and validators reply with a direct message to the originator with an [eNodeCertificateMsg], holding their `eNodeURL`. The initial [queryEnodeMsg] contained the origin validator's `eNodeURL` encrypted with the destination public key, therefore after the direct reply, both validators are aware of each others' `eNodeURL`.
+The Announce protocol objective is to allow all [NearlyElectedValidator] to maintain an updated table of `validator -> eNodeURL` for all other [NearlyElectedValidator], while somewhat concealing these values from the rest of the nodes in the network, and also avoiding an unnecessary high message traffic to achieve it. [NearlyElectedValidator] nodes can use the information from this table to open direct connections between themselves, speeding up the consensus phase.
 
-### Keeping eNodeURL's up to date
+To ensure that validator [eNodeURL] tables don't get stale, each validator's [eNodeURL] is paired with a version number. [NearlyElectedValidator] nodes should ignore [eNodeURL] entries with values from versions older than one currently in their table. The current convention used is that versions are unix timestamps from the moment of the update.
 
-To ensure that validator `eNodeURL` tables don't get stale, each validator's `eNodeURL` is paired with a version number, which is both attached to the origin [queryEnodeMsg], and in the [eNodeCertificateMsg] reply. Validators should ignore enodeurl from versions older than the highest known one. The current convention used is that versions are unix timestamps from the moment of the update.
+As part of the protocol's design, a [NearlyElectedValidator] can advertise different [eNodeURL] values for different destinations, allowing for multi-proxy implementations of the protocol. That being said, the announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` tuples. It is the proxy implementation's responsibility to ensure the correct behavior of this specification.
+
+### Concealing eNodeURL values
+
+It is important to ensure that [eNodeURL] values can't be read by nodes that are not in the [NearlyElectedValidator] set. To achieve this, they are shared in one of two ways:
+
+* Sent through a direct p2p connection from one [NearlyElectedValidator] to another ( [enodeCertificateMsg] )
+* Gossipped through the network, but encrypted with the public key of the recipient [NearlyElectedValidator] ( [queryEnodeMsg] )
+
 
 ### Minimizing network traffic
 
@@ -62,9 +70,9 @@ When a node (every full node in the network) receives a [versionCertificateMsg],
 
 This allows every validator to have an idea of what the highest known version is for every other validator's `eNodeURL`, and in the next query only request for those that are stale.
 
-### Proxy agnosticism
+## Basic Operation
 
-The announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` tuples. It is the proxy implementation's responsibility to ensure the correct behavior of this specification.
+When a validator is close to being elected ([NearlyElectedValidator]), it starts periodically sending [queryEnodeMsg] messages through the p2p network. These message are regossipped by nodes, and validators reply with a direct message to the originator with an [eNodeCertificateMsg], holding their `eNodeURL`. The initial [queryEnodeMsg] contained the origin validator's `eNodeURL` encrypted with the destination public key, therefore after the direct reply, both validators are aware of each others' `eNodeURL`.
 
 ### p2p connection management
 
@@ -175,3 +183,4 @@ https://github.com/celo-org/celo-blockchain/pull/893
 [NearlyElectedValidator]: #nearly-Elected-Validator-NEV
 [Validator]: #validator
 [FullNode]: #full-node
+[eNodeURL]: #eNodeURL
