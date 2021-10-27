@@ -92,6 +92,10 @@ All messages presented here are Istanbul messages, following the same format as 
 
 ### queryEnodeMsg (0x12)
 
+This message is sent from a [NearlyElectedValidator] and regossipped through the network, with the intention of reach out for
+other [NearlyElectedValidator] nodes and discover their [eNodeURL] values, while at the same time sending its own. Note that
+the sender sends many queries in one message, and each has its own encrypted value of the [eNodeURL].
+
 `[[dest_address: B_20, encrypted_enode_url: B], version: P, timestamp: P]`
 
 - `dest_address`: the destination validator address this message is querying to.
@@ -103,12 +107,20 @@ Max amount of encrypted node urls is 2 * size(set of [NearlyElectedValidator]).
 
 ### enodeCertificateMsg (0x17)
 
+This message holds only ONE [eNodeURL] and it's meant to be send directly from [NearlyElectedValidator] to [NearlyElectedValidator] in a direct
+connection as a response to a [queryEnodeMsg].
+
 `[enode_url: B, version: P]`
 
 - `enode_url`: the origin's plaintext `eNodeURL`.
 - `version`: the current announce version for the origin's `eNodeURL`.
 
 ### versionCertificatesMsg (0x16)
+
+This messages holds MANY version certificates. It is used mostly in two ways:
+
+- To share the WHOLE version table a [FullNode] has.
+- To share updated parts of the table of a [FullNode].
 
 `[[version: P, signature: B]]`
 
