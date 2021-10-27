@@ -1703,20 +1703,20 @@ func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Addres
 		}
 
 		if espresso {
-			// feeGap = GasFeeCap * gas + gatewayFee, as in (4)
-			feeGap := new(big.Int).SetUint64(tx.Gas())
-			feeGap.Mul(feeGap, tx.GasFeeCap())
+			// cost = GasFeeCap * gas + gatewayFee, as in (4)
+			cost := new(big.Int).SetUint64(tx.Gas())
+			cost.Mul(cost, tx.GasFeeCap())
 			if tx.GatewayFeeRecipient() != nil {
-				feeGap.Add(feeGap, tx.GatewayFee())
+				cost.Add(cost, tx.GatewayFee())
 			}
-			if balance.Cmp(feeGap) < 0 {
+			if balance.Cmp(cost) < 0 {
 				log.Debug("ValidateTransactorBalanceCoversTx: insufficient funds", "feeCurrency", tx.FeeCurrency(), "balance", balance)
 				return ErrInsufficientFunds
 			}
 		} else {
-			// fee = GasPrice * gas + gatewayFee, as in (3)
-			fee := tx.Fee()
-			if balance.Cmp(fee) <= 0 {
+			// cost = GasPrice * gas + gatewayFee, as in (3)
+			cost := tx.Fee()
+			if balance.Cmp(cost) <= 0 {
 				log.Debug("ValidateTransactorBalanceCoversTx: insufficient funds", "feeCurrency", tx.FeeCurrency(), "balance", balance)
 				return ErrInsufficientFunds
 			}
