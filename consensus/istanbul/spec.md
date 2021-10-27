@@ -249,8 +249,8 @@ validRCC(H, R, V, RCC) {
   M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
   N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
   if |N| > 0 {
-  	return 2f+1 <= | M | <= 3f+1 &&
-	∃ m<RC_T, *, *, Pcm> ∈ N : (∀ n<RC_T, * , *, PCn> ∈ N != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
+    return 2f+1 <= | M | <= 3f+1 &&
+  ∃ m<RC_T, *, *, Pcm> ∈ N : (∀ n<RC_T, * , *, PCn> ∈ N != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
   }
   return 2f+1 <= | M | <= 3f+1 &&
 }
@@ -284,36 +284,36 @@ onRoundChangeTimeout(H, R) {
 ```
 
 upon: <FC_E>
-	Hc ← Hc+1
-	Rc ← 0
-	Rd ← 0
-	Sc ← AcceptRequest
-	Vc ← nil
-	schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
+  Hc ← Hc+1
+  Rc ← 0
+  Rd ← 0
+  Sc ← AcceptRequest
+  Vc ← nil
+  schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
 
 upon: <R_E, Hc, V> && Sc = AcceptRequest
-	if Rc = 0 && isProposer(Hc, Rd) {
-	  bc(<PP_T, Hc, 0, V, nil>)
-	}
+  if Rc = 0 && isProposer(Hc, Rd) {
+    bc(<PP_T, Hc, 0, V, nil>)
+  }
 
 upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
-	if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
-	  Rc ← Rd
-	  Vc ← V
-	  Sc ← Preprepared
-	  bc(<P_T, Hc, Rd, Vc>)
-	}
+  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
+    Rc ← Rd
+    Vc ← V
+    Sc ← Preprepared
+    bc(<P_T, Hc, Rd, Vc>)
+  }
 
 upon: 2f+1 <T, Hc, Rd, Vc> && T ∈ {P_T, C_T} && Sc ∈ {AcceptRequest, Preprepared} 
-	Sc ← Prepared
-	bc(<C_T, Hc, Rd, Vc>)
-	// Currently we are re-constructing the prepared cert in
-	// onRoundChangeTimeout but if feels neater to have a global variable
-	// set for it here, but I will need to update the notation to handle that.
+  Sc ← Prepared
+  bc(<C_T, Hc, Rd, Vc>)
+  // Currently we are re-constructing the prepared cert in
+  // onRoundChangeTimeout but if feels neater to have a global variable
+  // set for it here, but I will need to update the notation to handle that.
 
 upon: 2f+1 <C_T, Hc, Rd, Vc> && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
-	Sc ← Committed
-	deliverValue(Vc)
+  Sc ← Committed
+  deliverValue(Vc)
 ```
 
 
