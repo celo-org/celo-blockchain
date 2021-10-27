@@ -1662,46 +1662,67 @@ func (pool *TxPool) demoteUnexecutables() {
 	}
 }
 
-// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost: V + GP * GL.
-func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner, eHardfork bool) error {
-	if tx.FeeCurrency() == nil && currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		log.Debug("Insufficient funds",
-			"from", from, "Transaction cost", tx.Cost(), "to", tx.To(),
-			"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
-			"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", currentState.GetBalance(from))
-		return ErrInsufficientFunds
-	} else if tx.FeeCurrency() != nil {
-		feeCurrencyBalance, err := currency.GetBalanceOf(currentVMRunner, from, *tx.FeeCurrency())
+// ValidateTransactorBalanceCoversTx validates transactor has enough funds to cover transaction cost, the rules are consistent with state_transition.
+//
+// For native token(CELO) as feeCurrency:
+//   - Pre-Espresso: it ensures balance >= GasPrice * gas + value + gatewayFee (1)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + value + gatewayFee (2)
+// For non-native tokens(cUSD, cEUR, ...) as feeCurrency:
+//   - Pre-Espresso: it ensures balance > GasPrice * gas + gatewayFee (3)
+//   - Post-Espresso: it ensures balance >= GasFeeCap * gas + gatewayFee (4)
+func ValidateTransactorBalanceCoversTx(tx *types.Transaction, from common.Address, currentState *state.StateDB, currentVMRunner vm.EVMRunner, espresso bool) error {
+	if tx.FeeCurrency() == nil {
+		balance := currentState.GetBalance(from)
+		var cost *big.Int
 
+		if espresso {
+			// cost = GasFeeCap * gas + value + gatewayFee, as in (2)
+			cost = new(big.Int).SetUint64(tx.Gas())
+			cost.Mul(cost, tx.GasFeeCap())
+			cost.Add(cost, tx.Value())
+			if tx.GatewayFeeRecipient() != nil {
+				cost.Add(cost, tx.GatewayFee())
+			}
+		} else {
+			// cost = GasPrice * gas + value + gatewayFee, as in (1)
+			cost = tx.Cost()
+		}
+
+		if balance.Cmp(cost) < 0 {
+			log.Debug("ValidateTransactorBalanceCoversTx: insufficient CELO funds",
+				"from", from, "Transaction cost", cost, "to", tx.To(),
+				"gas", tx.Gas(), "gas price", tx.GasPrice(), "nonce", tx.Nonce(),
+				"value", tx.Value(), "fee currency", tx.FeeCurrency(), "balance", balance)
+			return ErrInsufficientFunds
+		}
+	} else {
+		balance, err := currency.GetBalanceOf(currentVMRunner, from, *tx.FeeCurrency())
 		if err != nil {
-			log.Debug("validateTx error in getting fee currency balance", "feeCurrency", tx.FeeCurrency(), "error", err)
+			log.Debug("ValidateTransactorBalanceCoversTx: error in getting fee currency balance", "feeCurrency", tx.FeeCurrency())
 			return err
 		}
 
-		// This is required to match the logic in canPayFee() state_transition.go
-		//   - Prior to Espresso: we require the balance to be strictly greater than the fee,
-		//     which means we reject the transaction if balance <= fee
-		//   - After Espresso: we require the balance to be greater than or equal to the fee,
-		//     which means we reject the transaction if balance < fee
-		fee := tx.Fee()
-		if eHardfork {
-			fee = fee.Add(fee, tx.Value())
-			if feeCurrencyBalance.Cmp(fee) < 0 {
-				log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+		if espresso {
+			// feeGap = GasFeeCap * gas + gatewayFee, as in (4)
+			feeGap := new(big.Int).SetUint64(tx.Gas())
+			feeGap.Mul(feeGap, tx.GasFeeCap())
+			if tx.GatewayFeeRecipient() != nil {
+				feeGap.Add(feeGap, tx.GatewayFee())
+			}
+			if balance.Cmp(feeGap) < 0 {
+				log.Debug("ValidateTransactorBalanceCoversTx: insufficient funds", "feeCurrency", tx.FeeCurrency(), "balance", balance)
 				return ErrInsufficientFunds
 			}
 		} else {
-			if feeCurrencyBalance.Cmp(fee) <= 0 {
-				log.Debug("validateTx insufficient fee currency", "feeCurrency", tx.FeeCurrency(), "feeCurrencyBalance", feeCurrencyBalance)
+			// fee = GasPrice * gas + gatewayFee, as in (3)
+			fee := tx.Fee()
+			if balance.Cmp(fee) <= 0 {
+				log.Debug("ValidateTransactorBalanceCoversTx: insufficient funds", "feeCurrency", tx.FeeCurrency(), "balance", balance)
 				return ErrInsufficientFunds
 			}
 		}
-
-		if currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
-			log.Debug("validateTx insufficient funds", "balance", currentState.GetBalance(from).String())
-			return ErrInsufficientFunds
-		}
 	}
+
 	return nil
 }
 
