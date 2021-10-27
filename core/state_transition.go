@@ -612,23 +612,8 @@ func (st *StateTransition) distributeTxFees() error {
 		gatewayFeeRecipient = &common.ZeroAddress
 	}
 
-	var (
-		governanceAddress common.Address
-		err               error
-	)
-	//if !st.evm.ChainConfig().Faker {
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
-	fmt.Println("before", params.GovernanceRegistryId)
-	governanceAddress, err = contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
-	fmt.Println("after", governanceAddress, err)
-	//} else {
-	//	testCaller := testutil.NewMockEVMRunner()
-	//	registry := testutil.NewRegistryMock()
-	//	registry.AddContract(params.GovernanceRegistryId, common.HexToAddress("0x123"))
-	//	testCaller.RegisterContract(params.RegistrySmartContractAddress, registry)
-	//	governanceAddress, err = contracts.GetRegisteredAddress(testCaller, params.GovernanceRegistryId)
-	//}
-
+	governanceAddress, err := contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
 	if err != nil {
 		if err != contracts.ErrSmartContractNotDeployed && err != contracts.ErrRegistryContractNotDeployed {
 			return err
