@@ -41,10 +41,11 @@ Where `<hex node id>` is the node's serialized and hex encoded ecdsa public key.
 
 Some example `eNodeURLs` (with partially elided hex encoded public keys):
 
-\```
+```
 enode://517318.......607ff3@127.0.0.1:34055
+
 enode://e5e2fdf.......348ce8@127.0.0.1:33503?discport=22042
-\```
+```
 
 ## Objective
 
@@ -66,8 +67,6 @@ It is important to ensure that [eNodeURL] values can't be read by nodes that are
 
 In order to reduce the amount of message flooding, every [FullNode] participating in the p2p network must maintain a version table for the [NearlyElectedValidator] nodes in the network. This table is built and updated with one specific message from the protocol ( [versionCertificatesMsg] ).
 
-While [FullNode] instances cannot see the actual [eNodeURL] values, they can see the versions attached to them, and both filter and prune some of the messages in the protocol.
-
 [NearlyElectedValidator] can also use this table to understand which [eNodeURL] entries are stale, if the [eNodeURL] table entry has a version older than the version table entry.
 
 ## Basic Operation
@@ -80,7 +79,16 @@ Wether a validator opens a connection or not against another validator is not in
 
 ## Protocol Messages (RLP)
 
-// add types with the RLP nomenclature
+All messages presented here are Istanbul messages, following the same format as the consensus messages (see `istanbul.Message`), which are serialized in the `payload` field for standard p2p messages.
+
+`[code: P, msg: B, sender_address: B_20, signature: B]`
+
+- `code`: the message code (0x12, 0x16, or 0x17).
+- `msg`: rlp encoded data, depending on the message type (`code`), and detailed in the following subsections.
+- `sender_address`: the originator of the message.
+- `signature`: the message signature.
+
+// TODO: double check RLP types
 
 ### queryEnodeMsg (0x12)
 
