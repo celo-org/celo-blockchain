@@ -76,12 +76,19 @@ instance, they are never send across the network.
 
 ### Pseudocode notation
 ```
-Functions are represented as follows where the name of the function is foo, its
+Function definitions are represented as follows where the name of the function is foo, its
 parameters are X and Y, functions can optionally return a value.
 
 foo(X, Y) {
   ...  
   return X
+}
+```
+```
+Conditional statements are represented as follows where statements inside the
+curly braces will be executed if condition C evaluates to true.
+if C {
+  ...  
 }
 ```
 ```
@@ -101,6 +108,8 @@ E.G:
 ```
 schedule <function call> after <duration> - This notation schedules the given
 function call to occur after the given duration.
+
+bc(x) - broadcast x to all participants.
 ```
 
 ### Math notation
@@ -231,15 +240,19 @@ validPC(<PC_T, M, V>) {
 Returns true if the round change contains contains at least 2f+1 and no more
 than 3f+1 round changes that match the given height and have a round greater or
 equal than the given round and either have a valid preparedCert or no
-preparedCert. Within that quorum of round changes there is a round change
-message such that its preparedCert is valid and its preparedCert round is
-greater than or equal to all other preparedCerts and its value is V
+preparedCert. If any round change certificates have a prepared cert, then there
+must exist one with greater than or equal round to all the others and with a
+value of V.
 
 ```
 validRCC(H, R, V, RCC) {
   M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
+  N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
+  if |N| > 0 {
+  	return 2f+1 <= | M | <= 3f+1 &&
+	∃ m<RC_T, *, *, Pcm> ∈ N : (∀ n<RC_T, * , *, PCn> ∈ N != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
+  }
   return 2f+1 <= | M | <= 3f+1 &&
-  ∃ m<RC_T, * , *, PCm> ∈ M : (∀ n<RC_T, * , *, PCn> ∈ M != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
 }
 ```
 
@@ -271,36 +284,36 @@ onRoundChangeTimeout(H, R) {
 ```
 
 upon: <FC_E>
-  Hc ← Hc+1
-  Rc ← 0
-  Rd ← 0
-  Sc ← AcceptRequest
-  Vc ← nil
-  schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
+	Hc ← Hc+1
+	Rc ← 0
+	Rd ← 0
+	Sc ← AcceptRequest
+	Vc ← nil
+	schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
 
 upon: <R_E, Hc, V> && Sc = AcceptRequest
-  if Rc = 0 && isProposer(Hc, Rd) {
-    bc(<PP_T, Hc, 0, V, nil>)
-  }
+	if Rc = 0 && isProposer(Hc, Rd) {
+	  bc(<PP_T, Hc, 0, V, nil>)
+	}
 
 upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
-  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
-    Rc ← Rd
-    Vc ← V
-    Sc ← Preprepared
-    bc(<P_T, Hc, Rd, Vc>)
-  }
+	if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
+	  Rc ← Rd
+	  Vc ← V
+	  Sc ← Preprepared
+	  bc(<P_T, Hc, Rd, Vc>)
+	}
 
 upon: 2f+1 <T, Hc, Rd, Vc> && T ∈ {P_T, C_T} && Sc ∈ {AcceptRequest, Preprepared} 
-  Sc ← Prepared
-  bc(<C_T, Hc, Rd, Vc>)
-  // Currently we are re-constructing the prepared cert in
-  // onRoundChangeTimeout but if feels neater to have a global variable
-  // set for it here, but I will need to update the notation to handle that.
+	Sc ← Prepared
+	bc(<C_T, Hc, Rd, Vc>)
+	// Currently we are re-constructing the prepared cert in
+	// onRoundChangeTimeout but if feels neater to have a global variable
+	// set for it here, but I will need to update the notation to handle that.
 
 upon: 2f+1 <C_T, Hc, Rd, Vc> && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
-  Sc ← Committed
-  deliverValue(Vc)
+	Sc ← Committed
+	deliverValue(Vc)
 ```
 
 
