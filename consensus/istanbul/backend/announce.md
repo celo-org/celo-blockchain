@@ -182,7 +182,7 @@ Should upsert the [eNodeURL] received in the local [eNodeURL] table.
 
 #### Query spawning
 
-One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all other NEV validators that have a higher version `eNodeURL` than the one currently known.
+One minute (60 seconds) after a validator enters the set of [NearlyElectedValidator], it should start sending [queryEnodeMsg] messages to the network, for all other [NearlyElectedValidator] nodes that have a higher version `eNodeURL` than the one currently known.
 
 Messages should be spaced at least 5 minutes (300 seconds) apart. A query for a specific `<validator, version>` tuple has a retry back off period. The `nth` attempt should be spaced from the previous one by:
 
@@ -192,11 +192,11 @@ timeoutMinutes = 1.5 ^ (min(n - 1, 5))
 
 Optionally, the first ten (10) query messages can be spaced by at least 60 seconds and ignoring retry back off periods for unanswered queries. This is known as the `AggressiveQueryEnodeGossip`.
 
-If the validator is no longer in the list of [NearlyElectedValidator] then it should stop sending [queryEnodeMsg] messages.
+If the [Validator] is no longer in the list of [NearlyElectedValidator] then it should stop sending [queryEnodeMsg] messages.
 
 #### Version certificates spawning
 
-When a node starts validating, it should generate and gossip a new [versionCertificateMsg]. After that, it should be renewed and regossipped every 5 minutes.
+When a enters the [NearlyElectedValidator] set, it should update its [eNodeURL] version, gossip a new [versionCertificatesMsg] with its new certificate. After that, it should be renewed and regossipped every 5 minutes, until its removed from the [NearlyElectedValidator] set.
 
 ## Change Log
 
