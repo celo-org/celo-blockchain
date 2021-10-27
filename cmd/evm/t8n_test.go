@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/celo-org/celo-blockchain/cmd/evm/internal/t8ntool"
 	"github.com/celo-org/celo-blockchain/internal/cmdtest"
 	"github.com/docker/docker/pkg/reexec"
 )
@@ -237,9 +238,17 @@ func TestT9n(t *testing.T) {
 			base: "./testdata/17",
 			input: t9nInput{
 				inTxs:  "signed_txs.rlp",
-				stFork: "London",
+				stFork: "Espresso",
 			},
 			expOut: "exp.json",
+		},
+		{ // Invalid RLP
+			base: "./testdata/18",
+			input: t9nInput{
+				inTxs:  "invalid.rlp",
+				stFork: "Espresso",
+			},
+			expExitCode: t8ntool.ErrorIO,
 		},
 	} {
 
