@@ -29,6 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p/discover"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/params"
 
 	"gopkg.in/urfave/cli.v1"
 )
@@ -286,7 +287,18 @@ func listen(ln *enode.LocalNode, addr string) *net.UDPConn {
 }
 
 func parseBootnodes(ctx *cli.Context) ([]*enode.Node, error) {
-	s := utils.GetBootstrapNodes(ctx)
+	// TODO: Why is this duplication needed? Was previously GetBootstrapNodes
+	// pulled from setBootstrapNodes in cmd/utils/flags.go
+	s := params.MainnetBootnodes
+	switch {
+	case ctx.GlobalIsSet(utils.BootnodesFlag.Name):
+		s = utils.SplitAndTrim(ctx.GlobalString(utils.BootnodesFlag.Name))
+	case ctx.GlobalBool(utils.AlfajoresFlag.Name):
+		s = params.AlfajoresBootnodes
+	case ctx.GlobalBool(utils.BaklavaFlag.Name):
+		s = params.BaklavaBootnodes
+	}
+
 	if ctx.IsSet(bootnodesFlag.Name) {
 		input := ctx.String(bootnodesFlag.Name)
 		if input == "" {

@@ -48,6 +48,7 @@ var DeprecatedFlags = []cli.Flag{
 	LegacyIstanbulProposerPolicyFlag,
 	LegacyIstanbulLookbackWindowFlag,
 	LegacyEthStatsURLFlag,
+	NoUSBFlag,
 }
 
 var (
@@ -76,6 +77,10 @@ var (
 	}
 
 	// (Deprecated May 2020, shown in aliased flags section)
+	NoUSBFlag = cli.BoolFlag{
+		Name:  "nousb",
+		Usage: "Disables monitoring for and managing USB hardware wallets (deprecated)",
+	}
 	LegacyRPCEnabledFlag = cli.BoolFlag{
 		Name:  "rpc",
 		Usage: "Enable the HTTP-RPC server (deprecated, use --http)",

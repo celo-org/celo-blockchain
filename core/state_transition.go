@@ -91,7 +91,7 @@ type Message interface {
 	Value() *big.Int
 
 	Nonce() uint64
-	CheckNonce() bool
+	IsFake() bool
 	Data() []byte
 	AccessList() types.AccessList
 
@@ -424,8 +424,9 @@ func (st *StateTransition) debitFee(from common.Address, feeCurrency *common.Add
 }
 
 func (st *StateTransition) preCheck() error {
-	// Make sure this transaction's nonce is correct.
-	if st.msg.CheckNonce() {
+	// Only check transactions that are not fake
+	if !st.msg.IsFake() {
+		// Make sure this transaction's nonce is correct.
 		stNonce := st.state.GetNonce(st.msg.From())
 		if msgNonce := st.msg.Nonce(); stNonce < msgNonce {
 			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooHigh,
@@ -434,6 +435,12 @@ func (st *StateTransition) preCheck() error {
 			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooLow,
 				st.msg.From().Hex(), msgNonce, stNonce)
 		}
+		// // Make sure the sender is an EOA
+		// if codeHash := st.state.GetCodeHash(st.msg.From()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
+		// 	return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
+		// 		st.msg.From().Hex(), codeHash)
+		// }
+
 	}
 
 	// Make sure that transaction gasFeeCap >= baseFee (post Espresso)
@@ -463,12 +470,6 @@ func (st *StateTransition) preCheck() error {
 			return ErrGasPriceDoesNotExceedMinimum
 		}
 	}
-
-	// // Make sure the sender is an EOA
-	// if codeHash := st.state.GetCodeHash(st.msg.From()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
-	// 	return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
-	// 		st.msg.From().Hex(), codeHash)
-	// }
 
 	return nil
 
