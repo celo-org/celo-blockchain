@@ -45,8 +45,8 @@ type ChainContext interface {
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
-func NewEVMBlockContext(header *types.Header, chain ChainContext, txFeeRecipient *common.Address) vm.BlockContext {
-	return vmcontext.NewBlockContext(header, chain, txFeeRecipient)
+func NewEVMBlockContext(header *types.Header, chain ChainContext, txFeeRecipient *common.Address, baseFee *big.Int) vm.BlockContext {
+	return vmcontext.NewBlockContext(header, chain, txFeeRecipient, baseFee)
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.

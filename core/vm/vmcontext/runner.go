@@ -38,7 +38,7 @@ func NewEVMRunner(chain evmRunnerContext, header *types.Header, state vm.StateDB
 		newEVM: func(from common.Address) *vm.EVM {
 			// The EVM Context requires a msg, but the actual field values don't really matter for this case.
 			// Putting in zero values for gas price and tx fee recipient
-			blockContext := NewBlockContext(header, chain, nil)
+			blockContext := NewBlockContext(header, chain, nil, nil)
 			txContext := vm.TxContext{
 				Origin:   from,
 				GasPrice: common.Big0,
