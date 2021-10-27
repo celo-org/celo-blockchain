@@ -133,13 +133,9 @@ Note that validators are full nodes too, therefore they should follow the same r
 
 ### Full node (non validator) Spec
 
-#### Peer handshake
-
-During an inbound peer connection, the remote peer can send an [enodeCertificateMsg] to identify itself as a validator. This allows for preferential treatment for the p2p connection.
-
 #### Peer registered
 
-When a peer is registered, all highest known version certificates should be sent to the registered peer in a [versionCertificatesMsg].
+When a peer is registered, the whole version table should be sent to the peer in a [versionCertificatesMsg].
 
 #### Handling [queryEnodeMsg]
 
@@ -148,26 +144,41 @@ Should be regossipped as is, unless another message from the same validator orig
 
 #### Handling [enodeCertificateMsg]
 
-[enodeCertificateMsg] should be ignored by non validators.
+[enodeCertificateMsg] should be ignored by [FullNode] instances, since they should never receive one if all other participants are behaving properly. We make
+this explicit in the spec since the regossipping of this particular message would make the [eNodeURL] of the sender public, which defeats the purpose of the
+protocol.
 
 #### Handling [versionCertificatesMsg]
 
 Messages received of this type should be only processed once.
-When received, regossips a new [versionCertificatesMsg] with certificates that haven't been gossiped (identified by validator address only) in the past 5 minutes
+When received, it should upsert its version table, and then multicast to its peers a new filtered [versionCertificatesMsg] without the certificates that were not updated in the table, and also filtering out certificates if another one for the same [NearlyElectedValidator] has been gossiped in the past 5 minutes.
 
 #### Message spawning
 
-Every 5 minutes it should regossip all the highest known version certificates for all the [NearlyElectedValidator]
+Every 5 minutes it should multicast its version certificate table to all peers.
 
 ### Validator Spec
 
-#### Replying [queryEnodeMsg]
+#### Peer handshake
 
-Should be replied with an [enodeCertificateMsg] if the origin is a validator and this validator is the destination, and if an already existing connection to the origin validator exists.
+When a [NearlyElectedValidator] connects to another [NearlyElectedValidator], the inbound peer can send an [enodeCertificateMsg] to identify itself as a [NearlyElectedValidator]. This allows for preferential treatment for the p2p connection.
+
+This can happen for example if: Say `A` and `B` are both [NearlyElectedValidator] nodes and not directly connected in the p2p network. `A` sends a [queryEnodeMsg] to the network, `B` receives it and therefore decides to directly open a p2p connection to `A`. As soon as the conection is registered, it identifies itself by sending the [enodeCertificateMsg] to `A`.
+
+#### Handling [queryEnodeMsg] as a Validator
+
+1) this [Validator] is a [NearlyElectedValidator]
+2) there is an entry in the [queryEnodeMsg] addressed to this [Validator]
+3) it's already connected to the sender of the query
+
+If 1 and 2 are met, then this [Validator] should upsert the [eNodeURL] received
+If 1, 2 and 3 are met, then it should be replied with an [enodeCertificateMsg] directly.
+
+Regardless of that, the message should be regossipped through the message like any [FullNode] would do.
 
 #### Receiving [enodeCertificateMsg]
 
-Should update the highest known version to the one given, even if there's no version certificate for it known by this validator.
+Should upsert the [eNodeURL] received in the local [eNodeURL] table.
 
 #### Query spawning
 

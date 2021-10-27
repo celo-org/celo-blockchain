@@ -738,7 +738,7 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 // node. If the origin node is already a peer of any kind, an enodeCertificate will be sent.
 // Regardless, the origin node will be upserted into the val enode table
 // to ensure this node designates the origin node as a ValidatorPurpose peer.
-func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
+func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, _ *enode.Node, version uint) error {
 	logger := m.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
