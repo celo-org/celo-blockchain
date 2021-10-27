@@ -618,7 +618,9 @@ func (st *StateTransition) distributeTxFees() error {
 	)
 	//if !st.evm.ChainConfig().Faker {
 	caller := &vmcontext.SharedEVMRunner{EVM: st.evm}
+	fmt.Println("before", params.GovernanceRegistryId)
 	governanceAddress, err = contracts.GetRegisteredAddress(caller, params.GovernanceRegistryId)
+	fmt.Println("after", governanceAddress, err)
 	//} else {
 	//	testCaller := testutil.NewMockEVMRunner()
 	//	registry := testutil.NewRegistryMock()
