@@ -27,7 +27,7 @@
 # $LIB_FUZZING_ENGINE   C++ compiler argument to link fuzz target against the prebuilt engine library (e.g. libFuzzer).
 
 function compile_fuzzer {
-  path=$SRC/go-ethereum/$1
+  path=$SRC/celo-blockchain/$1
   func=$2
   fuzzer=$3
   corpusfile="${path}/testdata/${fuzzer}_seed_corpus.zip"
