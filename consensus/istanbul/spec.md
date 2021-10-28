@@ -38,7 +38,7 @@ We refer to a consensus instance to mean consensus for a specific height,
 consensus instances are independent (they have no shared state).
 
 ### Algorithm
-See supporting [functions](#Functions) and [notation](Appendix-1-Notation).
+See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
 ```
 upon: FC_E
   Hc ← Hc+1
