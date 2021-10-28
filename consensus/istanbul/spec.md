@@ -1,6 +1,221 @@
 # Specification for Celo IBFT protocol
 
-## Notation
+## Celo IBFT specification
+
+### High level overview
+
+The Celo IBFT protocol is a BFT (Byzantine Fault Tolerant) protocol that allows
+a group of participants to agree on the ordering of values by exchanging voting
+messages across a network. As long as less than 1/3rd of participants follow
+the protocol correctly then the protocol should ensure that there is only one
+ordering of values that participants agree on and also that and that they can
+continue to agree on new values, i.e. they don't get stuck.
+
+Ensuring that only one ordering is agreed upon is referred to as 'safety' and
+ensuring that the participants can continue to agree on new values is referred
+to as 'liveness'.
+
+### System model
+
+We consider a group of `3f+1` participating computers (participants) that are
+able to communicate across a network. The group should be able to tolerate `f`
+failures without losing liveness or safety.
+
+All participants know the other participants in the system and it is assumed
+that all messages are signed in some way such that participants in the protocol
+know which participant a message came from and that messages cannot be forged.
+
+Only messages from participants are considered.
+
+For messages containing a value only messages with valid values are considered.
+
+Participants are able to broadcast messages to all other participants. In the
+case that a participant is off-line or somehow inaccessible they will not
+receive broadcast messages and there is no mechanism for these messages to be
+re-sent.
+
+We refer to a consensus instance to mean consensus for a specific height,
+consensus instances are independent (they have no shared state).
+
+### Algorithm
+See supporting [functions](#Functions) and [notation](Appendix-1:-Notation).
+```
+upon: FC_E
+  Hc ← Hc+1
+  Rc ← 0
+  Rd ← 0
+  Sc ← AcceptRequest
+  Vc ← nil
+  schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
+
+upon: <R_E, Hc, V> && Sc = AcceptRequest
+  if Rc = 0 && isProposer(Hc, Rd) {
+    bc(<PP_T, Hc, 0, V, nil>)
+  }
+
+upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
+  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
+    Rc ← Rd
+    Vc ← V
+    Sc ← Preprepared
+    bc(<P_T, Hc, Rd, Vc>)
+  }
+
+upon: M ← { <T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
+  Sc ← Prepared
+  PCc ← <PC_T, M, Vc>
+  bc(<C_T, Hc, Rd, Vc>)
+
+upon: M ← { <C_T, Hc, Rd, Vc> } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
+  Sc ← Committed
+  deliverValue(Vc)
+
+upon: m<RC_T, Hc , R, PC> && (PC = nil || validPC(PC)) 
+  if R < Rd {
+    send(<RC_T, Hc, Rd, PCc>, sender(m))
+  } else if quorumRound() > Rd {
+	Rd ← quorumRound()
+	Rc ← quorumRound()
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+	if Vc != nil && isProposer(Hc, Rc) {
+      bc(<RC_T, Hc, Rc, Vc, PCc>)
+	}
+  } else if f1Round() > Rd {
+    Rd ← f1Round() 
+    Sc ← WaitingForNewRound
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+    bc(<RC_T, Hc, Rd, PCc>)
+  }
+```
+
+### Functions
+
+#### Application provided functions
+No pseudocode is provided for these functions since their implementation is
+application specific.
+
+`proposer(H,R)`\
+Returns the proposer for the given height and round.
+
+`isProposer(H, R)`\
+Returns true if the current participant is the proposer for the given height
+and round. 
+
+`deliverValue(V)`\
+Delivers the given value to the application.
+
+`roundChangeTimeout(R)`\
+Returns the timeout for the given round 
+
+`bc(<PP, H, R, V>)`\
+Broadcasts the given message to all connected participants. 
+
+`send(<C_T, H, R, V>, sender(m))`\
+Sends the given message to to the sender of another message.
+
+#### PCRound
+Asserts that all messages in the given prepared certificate share the same round and returns that round.
+```
+PCRound(<PC_T, M, *>) {
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
+  return R
+}
+```
+
+#### PCValue
+Return the value associated with a prepared certificate.
+```
+PCValue(<PC_T, *, V>) {
+  return V
+}
+```
+
+#### validPC
+
+Returns true if the message set contains prepare or commit messages from at
+least 2f+1 and no more than 3f+1 participants for current height, matching the
+prepared certificate value and all sharing the same height and round.
+```
+validPC(<PC_T, M, V>) {
+  N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
+  return 2f+1 <= |N| <= 3f+1 &&
+  ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N : Hm = Hn && Rm = Rn 
+}
+```
+
+#### validRCC
+
+Returns true if the round change contains at least 2f+1 and no more than 3f+1
+round changes that match the given height and have a round greater or equal
+than the given round and either have a valid preparedCert or no preparedCert.
+If any round change certificates have a prepared cert, then there must exist
+one with greater than or equal round to all the others and with a value of V.
+
+```
+validRCC(H, R, V, RCC) {
+  M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
+  N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
+  if |N| > 0 {
+    return 2f+1 <= |M| <= 3f+1 &&
+    ∃ m<RC_T, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RC_T, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
+  }
+  return 2f+1 <= |M| <= 3f+1 &&
+}
+```
+
+#### quorumRound
+
+Asserts that at least 2f+1 round change messages share the same round and
+returns that round.
+```
+quorumRound() {
+  M ← { m<RC_T, Hc, Rm, *>, n<RC_T, Hc, Rn, *> : Rm = Rn } &&
+  |M| >= 2f+1 &&
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
+  return R
+}
+```
+
+#### f1Round
+
+Asserts that there are at least f+1 round change messages and returns the
+lowest round from the top f+1 rounds.
+```
+f1Round() {
+  // This is saying that for any Rm there cannot be >= f+1 elements set with a
+  // larger R, since if there were that would mean that Rm is not in the top
+  // f+1 rounds. 
+  M ← { m<RC_T, Hc, Rm, *> : |{ n<RC_T, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
+  |M| >= f+1 &&
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R <= Rm
+  return R
+}
+```
+
+#### onRoundChangeTimeout
+As long as the round and height have not changed since it was scheduled
+onRoundChangeTimeout sets the desired round to be one greater than the Current
+round, sets the current state to be WaitingForNewRound and broadcasts a round
+change message.
+
+Note: This function is referred to in the code as
+`handleTimeoutAndMoveToNextRound`, which is misleading because it does not move
+to the next round, it only updates the desired round and sends a round change
+message. Hence why it has been renamed here to avoid confusion.
+
+```
+onRoundChangeTimeout(H, R) {
+  if H = Hc && R = Rc {
+    Rd ← Rc+1
+    Sc ← WaitingForNewRound
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+    bc<RC_T, Hc, Rd, PCc>
+  }
+}
+```
+
+
+## Appendix 1: Notation
 Elements of sets are represented with lower case letters (e.g. `m ∈ M`).
 Because all sets are messages we use `m` to represent an element and if we
 need to denote 2 messages from the same set we use `n` to denote the second
@@ -148,219 +363,6 @@ function call to occur after the given duration.
 // The cardinality of prepare messages in M with height and round equal
 // to Hc and value equal to V is greater than 1 and less than 10.
 1 < | m<P_T, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V| < 10
-```
-
-## Celo IBFT specification
-
-### High level overview
-
-The Celo IBFT protocol is a BFT (Byzantine Fault Tolerant) protocol that allows
-a group of participants to agree on the ordering of values by exchanging voting
-messages across a network. As long as less than 1/3rd of participants follow
-the protocol correctly then the protocol should ensure that there is only one
-ordering of values that participants agree on and also that and that they can
-continue to agree on new values, i.e. they don't get stuck.
-
-Ensuring that only one ordering is agreed upon is referred to as 'safety' and
-ensuring that the participants can continue to agree on new values is referred
-to as 'liveness'.
-
-### System model
-
-We consider a group of `3f+1` participating computers (participants) that are
-able to communicate across a network. The group should be able to tolerate `f`
-failures without losing liveness or safety.
-
-All participants know the other participants in the system and it is assumed
-that all messages are signed in some way such that participants in the protocol
-know which participant a message came from and that messages cannot be forged.
-
-Only messages from participants are considered.
-
-For messages containing a value only messages with valid values are considered.
-
-Participants are able to broadcast messages to all other participants. In the
-case that a participant is off-line or somehow inaccessible they will not
-receive broadcast messages and there is no mechanism for these messages to be
-re-sent.
-
-We refer to a consensus instance to mean consensus for a specific height,
-consensus instances are independent (they have no shared state).
-
-### Functions
-
-#### Application provided functions
-No pseudocode is provided for these functions since their implementation is
-application specific.
-
-`proposer(H,R)`\
-Returns the proposer for the given height and round.
-
-`isProposer(H, R)`\
-Returns true if the current participant is the proposer for the given height
-and round. 
-
-`deliverValue(V)`\
-Delivers the given value to the application.
-
-`roundChangeTimeout(R)`\
-Returns the timeout for the given round 
-
-`bc(<PP, H, R, V>)`\
-Broadcasts the given message to all connected participants. 
-
-`send(<C_T, H, R, V>, sender(m))`\
-Sends the given message to to the sender of another message.
-
-#### PCRound
-Asserts that all messages in the given prepared certificate share the same round and returns that round.
-```
-PCRound(<PC_T, M, *>) {
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
-  return R
-}
-```
-
-#### PCValue
-Return the value associated with a prepared certificate.
-```
-PCValue(<PC_T, *, V>) {
-  return V
-}
-```
-
-#### validPC
-
-Returns true if the message set contains prepare or commit messages from at
-least 2f+1 and no more than 3f+1 participants for current height, matching the
-prepared certificate value and all sharing the same height and round.
-```
-validPC(<PC_T, M, V>) {
-  N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
-  return 2f+1 <= |N| <= 3f+1 &&
-  ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N : Hm = Hn && Rm = Rn 
-}
-```
-
-#### validRCC
-
-Returns true if the round change contains at least 2f+1 and no more than 3f+1
-round changes that match the given height and have a round greater or equal
-than the given round and either have a valid preparedCert or no preparedCert.
-If any round change certificates have a prepared cert, then there must exist
-one with greater than or equal round to all the others and with a value of V.
-
-```
-validRCC(H, R, V, RCC) {
-  M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
-  N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
-  if |N| > 0 {
-    return 2f+1 <= |M| <= 3f+1 &&
-    ∃ m<RC_T, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RC_T, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
-  }
-  return 2f+1 <= |M| <= 3f+1 &&
-}
-```
-
-#### quorumRound
-
-Asserts that at least 2f+1 round change messages share the same round and
-returns that round.
-```
-quorumRound() {
-  M ← { m<RC_T, Hc, Rm, *>, n<RC_T, Hc, Rn, *> : Rm = Rn } &&
-  |M| >= 2f+1 &&
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
-  return R
-}
-```
-
-#### f1Round
-
-Asserts that there are at least f+1 round change messages and returns the
-lowest round from the top f+1 rounds.
-```
-f1Round() {
-  // This is saying that for any Rm there cannot be >= f+1 elements set with a
-  // larger R, since if there were that would mean that Rm is not in the top
-  // f+1 rounds. 
-  M ← { m<RC_T, Hc, Rm, *> : |{ n<RC_T, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
-  |M| >= f+1 &&
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R <= Rm
-  return R
-}
-```
-
-#### onRoundChangeTimeout
-As long as the round and height have not changed since it was scheduled
-onRoundChangeTimeout sets the desired round to be one greater than the Current
-round, sets the current state to be WaitingForNewRound and broadcasts a round
-change message.
-
-Note: This function is referred to in the code as
-`handleTimeoutAndMoveToNextRound`, which is misleading because it does not move
-to the next round, it only updates the desired round and sends a round change
-message. Hence why it has been renamed here to avoid confusion.
-
-```
-onRoundChangeTimeout(H, R) {
-  if H = Hc && R = Rc {
-    Rd ← Rc+1
-    Sc ← WaitingForNewRound
-    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc<RC_T, Hc, Rd, PCc>
-  }
-}
-```
-
-### Algorithm
-```
-upon: FC_E
-  Hc ← Hc+1
-  Rc ← 0
-  Rd ← 0
-  Sc ← AcceptRequest
-  Vc ← nil
-  schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
-
-upon: <R_E, Hc, V> && Sc = AcceptRequest
-  if Rc = 0 && isProposer(Hc, Rd) {
-    bc(<PP_T, Hc, 0, V, nil>)
-  }
-
-upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
-  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
-    Rc ← Rd
-    Vc ← V
-    Sc ← Preprepared
-    bc(<P_T, Hc, Rd, Vc>)
-  }
-
-upon: M ← { <T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
-  Sc ← Prepared
-  PCc ← <PC_T, M, Vc>
-  bc(<C_T, Hc, Rd, Vc>)
-
-upon: M ← { <C_T, Hc, Rd, Vc> } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
-  Sc ← Committed
-  deliverValue(Vc)
-
-upon: m<RC_T, Hc , R, PC> && (PC = nil || validPC(PC)) 
-  if R < Rd {
-    send(<RC_T, Hc, Rd, PCc>, sender(m))
-  } else if quorumRound() > Rd {
-	Rd ← quorumRound()
-	Rc ← quorumRound()
-    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-	if Vc != nil && isProposer(Hc, Rc) {
-      bc(<RC_T, Hc, Rc, Vc, PCc>)
-	}
-  } else if f1Round() > Rd {
-    Rd ← f1Round() 
-    Sc ← WaitingForNewRound
-    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc(<RC_T, Hc, Rd, PCc>)
-  }
 ```
 
 ## Strange things
