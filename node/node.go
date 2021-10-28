@@ -757,3 +757,4 @@ func RegisterApisFromWhitelist(apis []rpc.API, modules []string, srv *rpc.Server
 	}
 	return nil
 }
+
