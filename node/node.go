@@ -154,7 +154,9 @@ func New(conf *Config) (*Node, error) {
 
 	// Configure RPC servers.
 	node.http = newHTTPServer(node.log, conf.HTTPTimeouts)
+	log.Info("RPC http timeouts config", "read (sec):", node.http.timeouts.ReadTimeout.Seconds(), "write (sec):", node.http.timeouts.WriteTimeout.Seconds())
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
+	log.Info("RPC ws timeouts config", "read (sec):", node.ws.timeouts.ReadTimeout.Seconds(), "write (sec):", node.ws.timeouts.WriteTimeout.Seconds())
 	node.ipc = newIPCServer(node.log, conf.IPCEndpoint())
 
 	return node, nil
