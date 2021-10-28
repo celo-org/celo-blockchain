@@ -73,7 +73,7 @@ important then `*` is used in the place of that variable.
 
 ### Event types
 Events are a means for the application to communicate with the consensus
-instance, they are never send across the network.
+instance, they are never sent across the network.
 
 `R_E - request`\
 `FC_E - final committed`
