@@ -93,7 +93,7 @@ foo(X, Y) {
 Conditional statements are represented as follows where statements inside only
 one set of the curly braces will be executed if the corresponding condition C
 evaluates to true or in the case of the final else those statements will be
-executed if non of the previous conditions evaluated to true. 
+executed if none of the previous conditions evaluated to true. 
 
 if C {
   ...  
