@@ -7,20 +7,22 @@ need to denote 2 messages from the same set we use `n` to denote the second
 message. Other variables are represented with Upper case letters (e.g. `H` for
 height).
 
-Elements of sets that are composite objects are defined by an identifier
-followed by angled brackets containing the different variables belonging to
-the element, the variables are separated by commas. E.g. `m<A, B, C>`. If
-variables belonging to an element need to be distinguished from other
-similarly named variables in the same scope then they are annotated with
-the element name by appending the element name to the variable name.
-E.g. `m<Am, Bm, Cm>`.
+Composite objects are defined by a set of comma separated variables enclosed in
+angled brackets.\
+E.g. `<A, B, C>`
 
-In the case that the `m<Am, Bm, Cm>` notation is used without specifying that
-the elements are in some other set (`∈ M`) then it is implied that elements are
-in the set of all messages received by the participant for the current height.
+If we need to refer to the composite object we prefix the angled brackets with
+an identifier that is a lower case letter.\
+E.g. `m<A, B, C>`
+
+An identifier can also be provided in order to distinguish variables belonging
+to a composite object from other similarly named variables in the same scope.
+In this case the variables are annotated with the identifier by appending the
+identifier to the variable name.\
+E.g. `m<Am, Bm, Cm>`
 
 If all instances of a composite object element share the same value for one
-of its variables then that value can be used in the definition. E.g. `m<A, B, Hc>`
+of its variables then that value can be used in the definition. E.g. `<A, B, Hc>`
 represents a composite element with variables `A` `B` and current height.
 
 If a composite object element has variables for which the value is not
@@ -35,6 +37,7 @@ important then `*` is used in the place of that variable.
 `RCC - round change certificate`\
 `PC - prepared certificate`\
 `M - a message set`
+`nil - indicates that the relevant variable is not set`
 
 ### Global Variables
 `Sc - current participant state`\
@@ -107,15 +110,15 @@ if C {
 upon: UponCondition - Pseudocode directly following upon statements is executed
 when the associated UponCondition evaluates to true
 
-UponConditions are triggered when the consensus instance has received
-sufficient messages or event such that the upon condition evaluates to true.
+Upon statements are triggered upon receipt of messages or events when the
+associated upon condition evaluates to true.
 Upon conditions are structured thus:
 
-<numeric qualifier> <composite message or event object to match against> <additional qualifications>
+<composite object, set of objects or eventto match against> <additional qualifications>
 
 E.G:
-// 2f+1 commit messages for the current round and heigt with a non nil value.
-2f+1 <C_T, Hc, Rc, V> && V != nil
+// 2f+1 commit messages for the current round and height with a non nil value.
+M ← <C_T, Hc, Rc, V> && |M| = 2f+1 && V != nil
 ```
 ```
 schedule <function call> after <duration> - This notation schedules the given
@@ -129,14 +132,12 @@ function call to occur after the given duration.
 `!= - is not equal`\
 `&& - logical and`\
 `|| - logical or`\
-`m ∈ M - m is an element of M`\
-`m : C - the set of messages m such that they satisfy condition C e.g. m : m > 0`\
-`m ∈ M : C - the set of messages m in M such that they satisfy condition C e.g. m ∈ M : m > 0`\
-`x ← { m : C } - assign the set of messages m Such that they satisfy condition C to x`\
-`|m| - the cardinality of m`\
-`∃ m : C - there exists m that satisfies condition C`\
-`∀ m, C - all m satisfy condition C`
-`{X, Y} - The set containing X and Y`
+`{X, Y} - the set containing X and Y`\
+`|M| - the cardinality of M`\
+`m ∈ M - m is an element of the set M`\
+`{ m : C(m) } - set builder notiation, the set of messages m such that they satisfy condition C`\
+`∃ m : C(m) - there exists m that satisfies condition C`\
+`∀ m : C(m) - all m satisfy condition C`
 
 ### Math Notation examples
 ```
@@ -220,7 +221,7 @@ roundChangeTimeout(R)
 ##### bc
 Broadcasts the given message to all connected participants. 
 ```
-bc(m<PP, H, R, V>)
+bc(<PP, H, R, V>)
 ```
 
 ##### send and sender
@@ -228,16 +229,14 @@ Sends the given message to to the sender of another message.
 
 ```
 m<PP_T, H, R, V>
-send(n<C_T, H, R, V>, sender(m))
+send(<C_T, H, R, V>, sender(m))
 ```
-
-
 
 #### PCRound
-Return the round that is shared by all messages of the prepared certificate message set.
+Asserts that all messages in the given prepared certificate share the same round and returns that round.
 ```
 PCRound(<PC_T, M, *>) {
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R = Rm
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
   return R
 }
 ```
@@ -259,28 +258,27 @@ prepared certificate value and all sharing the same height and round.
 validPC(<PC_T, M, V>) {
   N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
   return 2f+1 <= |N| <= 3f+1 &&
-  ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N, Hm = Hn && Rm = Rn 
+  ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N : Hm = Hn && Rm = Rn 
 }
 ```
 
 #### validRCC
 
-Returns true if the round change contains contains at least 2f+1 and no more
-than 3f+1 round changes that match the given height and have a round greater or
-equal than the given round and either have a valid preparedCert or no
-preparedCert. If any round change certificates have a prepared cert, then there
-must exist one with greater than or equal round to all the others and with a
-value of V.
+Returns true if the round change contains at least 2f+1 and no more than 3f+1
+round changes that match the given height and have a round greater or equal
+than the given round and either have a valid preparedCert or no preparedCert.
+If any round change certificates have a prepared cert, then there must exist
+one with greater than or equal round to all the others and with a value of V.
 
 ```
 validRCC(H, R, V, RCC) {
   M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
   N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
   if |N| > 0 {
-    return 2f+1 <= | M | <= 3f+1 &&
-  ∃ m<RC_T, *, *, Pcm> ∈ N : (∀ n<RC_T, * , *, PCn> ∈ N != m, PCRound(PCm) >= PCRound(PCn)) && validPC(PCm) && PCValue(PCm) = V
+    return 2f+1 <= |M| <= 3f+1 &&
+    ∃ m<RC_T, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RC_T, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
   }
-  return 2f+1 <= | M | <= 3f+1 &&
+  return 2f+1 <= |M| <= 3f+1 &&
 }
 ```
 
@@ -292,7 +290,7 @@ returns that round.
 quorumRound() {
   M ← { m<RC_T, Hc, Rm, *>, n<RC_T, Hc, Rn, *> : Rm = Rn } &&
   |M| >= 2f+1 &&
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R = Rm
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
   return R
 }
 ```
@@ -308,7 +306,7 @@ f1Round() {
   // f+1 rounds. 
   M ← { m<RC_T, Hc, Rm, *> : |{ n<RC_T, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
   |M| >= f+1 &&
-  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R <= Rm
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M : R <= Rm
   return R
 }
 ```
@@ -329,6 +327,7 @@ onRoundChangeTimeout(H, R) {
   if H = Hc && R = Rc {
     Rd ← Rc+1
     Sc ← WaitingForNewRound
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     bc<RC_T, Hc, Rd, PCc>
   }
 }
@@ -336,7 +335,7 @@ onRoundChangeTimeout(H, R) {
 
 ### Algorithm
 ```
-upon: <FC_E>
+upon: FC_E
   Hc ← Hc+1
   Rc ← 0
   Rd ← 0
@@ -357,12 +356,12 @@ upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
     bc(<P_T, Hc, Rd, Vc>)
   }
 
-upon: M ← { m<T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
+upon: M ← { <T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
   Sc ← Prepared
   PCc ← <PC_T, M, Vc>
   bc(<C_T, Hc, Rd, Vc>)
 
-upon: 2f+1 <C_T, Hc, Rd, Vc> && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
+upon: M ← { <C_T, Hc, Rd, Vc> } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
   Sc ← Committed
   deliverValue(Vc)
 
