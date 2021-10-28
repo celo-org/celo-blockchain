@@ -15,6 +15,10 @@ similarly named variables in the same scope then they are annotated with
 the element name by appending the element name to the variable name.
 E.g. `m<Am, Bm, Cm>`.
 
+In the case that the `m<Am, Bm, Cm>` notation is used without specifying that
+the elements are in some other set (`∈ M`) then it is implied that elements are
+in the set of all messages received by the participant for the current height.
+
 If all instances of a composite object element share the same value for one
 of its variables then that value can be used in the definition. E.g. `m<A, B, Hc>`
 represents a composite element with variables `A` `B` and current height.
@@ -38,6 +42,7 @@ important then `*` is used in the place of that variable.
 `Rc - current round`\
 `Rd - desired round`\
 `Vc - currently proposed value`\
+`PCc - current prepared cert`
 `f - the number of failed or malicious parcicipants that the system can tolerate`\
 `3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
@@ -85,9 +90,16 @@ foo(X, Y) {
 }
 ```
 ```
-Conditional statements are represented as follows where statements inside the
-curly braces will be executed if condition C evaluates to true.
+Conditional statements are represented as follows where statements inside only
+one set of the curly braces will be executed if the corresponding condition C
+evaluates to true or in the case of the final else those statements will be
+executed if non of the previous conditions evaluated to true. 
+
 if C {
+  ...  
+} else if C {
+  ...  
+} else {
   ...  
 }
 ```
@@ -109,7 +121,6 @@ E.G:
 schedule <function call> after <duration> - This notation schedules the given
 function call to occur after the given duration.
 
-bc(x) - broadcast x to all participants.
 ```
 
 ### Math notation
@@ -125,6 +136,7 @@ bc(x) - broadcast x to all participants.
 `|m| - the cardinality of m`\
 `∃ m : C - there exists m that satisfies condition C`\
 `∀ m, C - all m satisfy condition C`
+`{X, Y} - The set containing X and Y`
 
 ### Math Notation examples
 ```
@@ -166,9 +178,10 @@ Only messages from participants are considered.
 
 For messages containing a value only messages with valid values are considered.
 
-Nodes are able to broadcast messages to all other nodes and it is assumed that
-all messages will eventually arrive, but there is no bound on the amount of
-time that it may take a message to arrive.
+Participants are able to broadcast messages to all other parcicipants. In the
+case that a participant is offline or somehow inaccessable they will not
+receive broadcast messages and there is no mechanism for these messages to be
+re-sent.
 
 We refer to a consensus instance to mean consensus for a specific height,
 consensus instances are independent (they have no shared state).
@@ -204,11 +217,27 @@ Returns the timeout for the given round
 roundChangeTimeout(R)
 ```
 
+##### bc
+Broadcasts the given message to all connected participants. 
+```
+bc(m<PP, H, R, V>)
+```
+
+##### send and sender
+Sends the given message to to the sender of another message.
+
+```
+m<PP_T, H, R, V>
+send(n<C_T, H, R, V>, sender(m))
+```
+
+
+
 #### PCRound
 Return the round that is shared by all messages of the prepared certificate message set.
 ```
 PCRound(<PC_T, M, *>) {
-  ∃ R : ∀ m<*, *, Rm, *> ∈ Msgs, R = Rm
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R = Rm
   return R
 }
 ```
@@ -224,9 +253,8 @@ PCValue(<PC_T, *, V>) {
 #### validPC
 
 Returns true if the message set contains prepare or commit messages from at
-least 2f+1 and no more than 3f+1 participants for current height and value
-matching the prepared certificate value and all sharing the same height and
-round.
+least 2f+1 and no more than 3f+1 participants for current height, matching the
+prepared certificate value and all sharing the same height and round.
 ```
 validPC(<PC_T, M, V>) {
   N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
@@ -256,6 +284,35 @@ validRCC(H, R, V, RCC) {
 }
 ```
 
+#### quorumRound
+
+Asserts that at least 2f+1 round change messages share the same round and
+returns that round.
+```
+quorumRound() {
+  M ← { m<RC_T, Hc, Rm, *>, n<RC_T, Hc, Rn, *> : Rm = Rn } &&
+  |M| >= 2f+1 &&
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R = Rm
+  return R
+}
+```
+
+#### f1Round
+
+Asserts that there are at least f+1 round change messages and returns the
+lowest round from the top f+1 rounds.
+```
+f1Round() {
+  // This is saying that for any Rm there cannot be >= f+1 elements set with a
+  // larger R, since if there were that would mean that Rm is not in the top
+  // f+1 rounds. 
+  M ← { m<RC_T, Hc, Rm, *> : |{ n<RC_T, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
+  |M| >= f+1 &&
+  ∃ R : ∀ m<*, *, Rm, *> ∈ M, R <= Rm
+  return R
+}
+```
+
 #### onRoundChangeTimeout
 As long as the round and height have not changed since it was scheduled
 onRoundChangeTimeout sets the desired round to be one greater than the Current
@@ -272,17 +329,13 @@ onRoundChangeTimeout(H, R) {
   if H = Hc && R = Rc {
     Rd ← Rc+1
     Sc ← WaitingForNewRound
-    M ← { m<T, Hc, Rc, Vc> : T ∈ {P_T, C_T} }
-    bc<RC_T, Hc, Rd, <PC_T, M, Vc>>
+    bc<RC_T, Hc, Rd, PCc>
   }
 }
 ```
 
-
-
 ### Algorithm
 ```
-
 upon: <FC_E>
   Hc ← Hc+1
   Rc ← 0
@@ -304,18 +357,32 @@ upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
     bc(<P_T, Hc, Rd, Vc>)
   }
 
-upon: 2f+1 <T, Hc, Rd, Vc> && T ∈ {P_T, C_T} && Sc ∈ {AcceptRequest, Preprepared} 
+upon: M ← { m<T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
   Sc ← Prepared
+  PCc ← <PC_T, M, Vc>
   bc(<C_T, Hc, Rd, Vc>)
-  // Currently we are re-constructing the prepared cert in
-  // onRoundChangeTimeout but if feels neater to have a global variable
-  // set for it here, but I will need to update the notation to handle that.
 
 upon: 2f+1 <C_T, Hc, Rd, Vc> && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
   Sc ← Committed
   deliverValue(Vc)
-```
 
+upon: m<RC_T, Hc , R, PC> && (PC = nil || validPC(PC)) 
+  if R < Rd {
+    send(<RC_T, Hc, Rd, PCc>, sender(m))
+  } else if quorumRound() > Rd {
+	Rd ← quorumRound()
+	Rc ← quorumRound()
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+	if Vc != nil && isProposer(Hc, Rc) {
+      bc(<RC_T, Hc, Rc, Vc, PCc>)
+	}
+  } else if f1Round() > Rd {
+    Rd ← f1Round() 
+    Sc ← WaitingForNewRound
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+    bc(<RC_T, Hc, Rd, PCc>)
+  }
+```
 
 ## Strange things
 
