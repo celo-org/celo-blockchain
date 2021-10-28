@@ -36,7 +36,7 @@ important then `*` is used in the place of that variable.
 `T - Message type`\
 `RCC - round change certificate`\
 `PC - prepared certificate`\
-`M - a message set`
+`M or N - message sets`\
 `nil - indicates that the relevant variable is not set`
 
 ### Global Variables
@@ -45,7 +45,7 @@ important then `*` is used in the place of that variable.
 `Rc - current round`\
 `Rd - desired round`\
 `Vc - currently proposed value`\
-`PCc - current prepared cert`
+`PCc - current prepared cert`\
 `f - the number of failed or malicious parcicipants that the system can tolerate`\
 `3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
