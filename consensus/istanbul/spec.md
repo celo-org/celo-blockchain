@@ -193,44 +193,24 @@ consensus instances are independent (they have no shared state).
 No pseudocode is provided for these functions since their implementation is
 application specific.
 
-##### proposer
+`proposer(H,R)`\
 Returns the proposer for the given height and round.
-```
-proposer(H, R)
-```
 
-##### isProposer
+`isProposer(H, R)`\
 Returns true if the current participant is the proposer for the given height
 and round. 
-```
-isProposer(H, R)
-```
 
-##### deliverValue
+`deliverValue(V)`\
 Delivers the given value to the application.
-```
-deliverValue(V)
-```
 
-##### roundChangeTimeout
+`roundChangeTimeout(R)`\
 Returns the timeout for the given round 
-```
-roundChangeTimeout(R)
-```
 
-##### bc
+`bc(<PP, H, R, V>)`\
 Broadcasts the given message to all connected participants. 
-```
-bc(<PP, H, R, V>)
-```
 
-##### send and sender
+`send(<C_T, H, R, V>, sender(m))`\
 Sends the given message to to the sender of another message.
-
-```
-m<PP_T, H, R, V>
-send(<C_T, H, R, V>, sender(m))
-```
 
 #### PCRound
 Asserts that all messages in the given prepared certificate share the same round and returns that round.
