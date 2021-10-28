@@ -179,8 +179,8 @@ Only messages from participants are considered.
 
 For messages containing a value only messages with valid values are considered.
 
-Participants are able to broadcast messages to all other parcicipants. In the
-case that a participant is offline or somehow inaccessable they will not
+Participants are able to broadcast messages to all other participants. In the
+case that a participant is off-line or somehow inaccessible they will not
 receive broadcast messages and there is no mechanism for these messages to be
 re-sent.
 
@@ -391,13 +391,14 @@ it just compares current round to desired
 consensus/istanbul/core/backlog.go:64
   if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
 
-Proposers can send preprepare without a single prepared certificate, this means
-that it will never be accepted by the rest of the network.
-
 ## Thoughts
 
 The future preprepare timer seems unnecessary, shouldn't the future preprepare
-message simpy be handled when moving to the future sequence?
+message simply be handled when moving to the future sequence? Actually I think
+the future prepare timer is there to ensure that the network doesn't race ahead
+of the proposed block times, but it would be better if nodes simply waited some
+amount of time from the last block rather than making a calculation based on
+the time value set by the proposer.
 
 It seems the resetResendRoundChangeTimer functions are there to ensure round
 changes get resent, but I don't think we need to represent that here because we
