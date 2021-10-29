@@ -45,7 +45,7 @@ These are the variables that are held by each instance.
 `CURRENT_ROUND`\
 `DESIRED_ROUND`\
 `CURRENT_VALUE`\
-`CURRENT_PREPARED_CERT`
+`CURRENT_PREPARED_CERTIFICATE`
 
 
 ### Algorithm
@@ -74,7 +74,7 @@ upon: <Preprepare, CURRENT_HEIGHT, DESIRED_ROUND, VALUE, ROUND_CHANGE_CERTIFICAT
 
 upon: M ← { <T, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_VALUE> : T ∈ {Prepare, Commit} } && |M| > 2f+1 && CURRENT_STATE ∈ {AcceptRequest, Preprepared} 
   CURRENT_STATE ← Prepared
-  CURRENT_PREPARED_CERT ← <PreparedCertificate, M, CURRENT_VALUE>
+  CURRENT_PREPARED_CERTIFICATE ← <PreparedCertificate, M, CURRENT_VALUE>
   bc(<Commit, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_VALUE>)
 
 upon: M ← { <Commit, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_VALUE> } && |M| > 2f+1 && CURRENT_STATE ∈ {AcceptRequest, Preprepared, Prepared} 
@@ -83,19 +83,19 @@ upon: M ← { <Commit, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_VALUE> } && |M| > 
 
 upon: m<RoundChange, CURRENT_HEIGHT , ROUND, PREPARED_CERTIFICATE> && (PREPARED_CERTIFICATE = nil || validPC(PREPARED_CERTIFICATE)) 
   if R < DESIRED_ROUND {
-    send(<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERT>, sender(m))
+    send(<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERTIFICATE>, sender(m))
   } else if quorumRound() > DESIRED_ROUND {
 	DESIRED_ROUND ← quorumRound()
 	CURRENT_ROUND ← quorumRound()
     schedule onRoundChangeTimeout(CURRENT_HEIGHT, DESIRED_ROUND) after roundChangeTimeout(DESIRED_ROUND)
 	if CURRENT_VALUE != nil && isProposer(CURRENT_HEIGHT, CURRENT_ROUND) {
-      bc(<RoundChange, CURRENT_HEIGHT, CURRENT_ROUND, CURRENT_VALUE, CURRENT_PREPARED_CERT>)
+      bc(<RoundChange, CURRENT_HEIGHT, CURRENT_ROUND, CURRENT_VALUE, CURRENT_PREPARED_CERTIFICATE>)
 	}
   } else if f1Round() > DESIRED_ROUND {
     DESIRED_ROUND ← f1Round() 
     CURRENT_STATE ← WaitingForNewRound
     schedule onRoundChangeTimeout(CURRENT_HEIGHT, DESIRED_ROUND) after roundChangeTimeout(DESIRED_ROUND)
-    bc(<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERT>)
+    bc(<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERTIFICATE>)
   }
 ```
 
@@ -158,9 +158,10 @@ validPC(<PreparedCertificate, M, VALUE>) {
 
 Returns true if the round change contains at least 2f+1 and no more than 3f+1
 round changes that match the given height and have a round greater or equal
-than the given round and either have a valid preparedCert or no preparedCert.
-If any round change certificates have a prepared cert, then there must exist
-one with greater than or equal round to all the others and with a value of V.
+than the given round and either have a valid prpared certificate or no prpared
+certificate. If any round change certificates have a prepared certificate,
+then there must exist one with greater than or equal round to all the others
+and with a value of V.
 
 ```
 validRCC(HEIGHT, ROUND, VALUE, ROUND_CHANGE_CERTIFICATE) {
@@ -221,7 +222,7 @@ onRoundChangeTimeout(HEIGHT, ROUND) {
     DESIRED_ROUND ← CURRENT_ROUND+1
     CURRENT_STATE ← WaitingForNewRound
     schedule onRoundChangeTimeout(CURRENT_HEIGHT, DESIRED_ROUND) after roundChangeTimeout(DESIRED_ROUND)
-    bc<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERT>
+    bc<RoundChange, CURRENT_HEIGHT, DESIRED_ROUND, CURRENT_PREPARED_CERTIFICATE>
   }
 }
 ```
@@ -266,19 +267,12 @@ important then `*` is used in the place of that variable.
 `Committed`\
 `WaitingForNewRound`
 
-### Message Types
-`Preprepare - preprepare`\
-`Prepare - prepare`\
-`Commit - commit`\
-`RoundChange - round change`\
-`PreparedCertificate - prepared cert`
-
 ### Message composite object structures
-`<Preprepare, HEIGHT, ROUND, VALUE, ROUND_CHANGE_CERTIFICATE> - preprepare`\
-`<Prepare, HEIGHT, ROUND, VALUE> - prepare`\
-`<Commit, HEIGHT, ROUND, VALUE> - commit`\
-`<RoundChange, HEIGHT, ROUND, PREPARED_CERTIFICATE> - round change`\
-`<PreparedCertificate, M, VALUE> - prepared certificate`
+`<Preprepare, HEIGHT, ROUND, VALUE, ROUND_CHANGE_CERTIFICATE>`\
+`<Prepare, HEIGHT, ROUND, VALUE>`\
+`<Commit, HEIGHT, ROUND, VALUE>`\
+`<RoundChange, HEIGHT, ROUND, PREPARED_CERTIFICATE>`\
+`<PreparedCertificate, M, VALUE>`
 
 ### Event composite object structures
 Events are a means for the application to communicate with the consensus
@@ -347,12 +341,12 @@ function call to occur after the given duration.
 ### Math Notation examples
 ```
 // There exists a commit message m in M such that m's height (HEIGHTm) is
-// less than m's round (ROUNDm) and m's value (V) is not important.
+// less than m's round (ROUNDm) and m's value is not important.
 ∃ m<Commit, HEIGHT, ROUND, *> ∈ M : HEIGHTm < ROUNDm
 
 // The cardinality of prepare messages in M with height and round equal
-// to CURRENT_HEIGHT and value equal to V is greater than 1 and less than 10.
-1 < | m<Prepare, CURRENT_HEIGHT, ROUNDm, Vm> ∈ M : ROUNDm = CURRENT_HEIGHT && Vm = V| < 10
+// to CURRENT_HEIGHT and value equal to VALUE is greater than 1 and less than 10.
+1 < |{ m<Prepare, CURRENT_HEIGHT, ROUNDm, VALUEm> ∈ M : ROUNDm = CURRENT_HEIGHT && VALUEm = V }| < 10
 ```
 
 ## Strange things

@@ -348,12 +348,12 @@ function call to occur after the given duration.
 ### Math Notation examples
 ```
 // There exists a commit message m in M such that m's height (Height_m) is
-// less than m's round (Round_m) and m's value (V) is not important.
+// less than m's round (Round_m) and m's Value is not important.
 ∃ m<CommitType, Height, Round, *> ∈ M : Height_m < Round_m
 
 // The cardinality of prepare messages in M with height and round equal
-// to CurrentHeight and value equal to V is greater than 1 and less than 10.
-1 < | m<PrepareType, CurrentHeight, Round_m, Vm> ∈ M : Round_m = CurrentHeight && Vm = V| < 10
+// to CurrentHeight and value equal to Value is greater than 1 and less than 10.
+1 < |{ m<PrepareType, CurrentHeight, Round_m, Value_m> ∈ M : Round_m = CurrentHeight && Value_m = Value }| < 10
 ```
 
 ## Strange things

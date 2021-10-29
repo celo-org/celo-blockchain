@@ -37,6 +37,14 @@ re-sent.
 We refer to a consensus instance to mean consensus for a specific height,
 consensus instances are independent (they have no shared state).
 
+#### Instance state
+`Sc - current participant state`\
+`Hc - current height`\
+`Rc - current round`\
+`Rd - desired round`\
+`Vc - currently proposed value`\
+`PCc - current prepared certificate`\
+
 ### Algorithm
 See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
 ```
@@ -147,9 +155,10 @@ validPC(<PC_T, M, V>) {
 
 Returns true if the round change contains at least 2f+1 and no more than 3f+1
 round changes that match the given height and have a round greater or equal
-than the given round and either have a valid preparedCert or no preparedCert.
-If any round change certificates have a prepared cert, then there must exist
-one with greater than or equal round to all the others and with a value of V.
+than the given round and either have a valid prepared certificate or no
+prepared certificate. If any round change certificates have a prepared
+certificate, then there must exist one with greater than or equal round to all
+the others and with a value of V.
 
 ```
 validRCC(H, R, V, RCC) {
@@ -254,16 +263,10 @@ important then `*` is used in the place of that variable.
 `M or N - message sets`\
 `nil - indicates that the relevant variable is not set`
 
-### Global Variables
-`Sc - current participant state`\
-`Hc - current height`\
-`Rc - current round`\
-`Rd - desired round`\
-`Vc - currently proposed value`\
-`PCc - current prepared cert`\
-`f - the number of failed or malicious parcicipants that the system can tolerate`\
+### Numbers of participants
 `3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
+`f - the number of failed or malicious parcicipants that the system can tolerate`
 
 ### Participant states
 `AcceptRequest`\
@@ -277,7 +280,7 @@ important then `*` is used in the place of that variable.
 `P_T - prepare`\
 `C_T - commit`\
 `RC_T - round change`\
-`PC_T - prepared cert`
+`PC_T - prepared certificate`
 
 ### Message composite object structures
 `<PP_T, H, R, V, RCC> - preprepare`\
@@ -362,7 +365,7 @@ function call to occur after the given duration.
 
 // The cardinality of prepare messages in M with height and round equal
 // to Hc and value equal to V is greater than 1 and less than 10.
-1 < | m<P_T, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V| < 10
+1 < |{ m<P_T, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V }| < 10
 ```
 
 ## Strange things
