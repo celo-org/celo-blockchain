@@ -19,12 +19,12 @@ package apitypes
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/internal/ethapi"
 )
 
 type ValidationInfo struct {
@@ -104,32 +104,69 @@ func (args SendTxArgs) CheckEthCompatibility() error {
 	return args.ToTransaction().CheckEthCompatibility()
 }
 
+// ToTransaction converts the arguments to a transaction.
 func (args *SendTxArgs) ToTransaction() *types.Transaction {
-	txArgs := ethapi.TransactionArgs{
-		Gas:                  &args.Gas,
-		GasPrice:             args.GasPrice,
-		MaxFeePerGas:         args.MaxFeePerGas,
-		MaxPriorityFeePerGas: args.MaxPriorityFeePerGas,
-		GatewayFee:           &args.GatewayFee,
-		Value:                &args.Value,
-		Nonce:                &args.Nonce,
-		Data:                 args.Data,
-		Input:                args.Input,
-		AccessList:           args.AccessList,
-		ChainID:              args.ChainID,
-	}
-	if args.FeeCurrency != nil {
-		feeCurrency := args.FeeCurrency.Address()
-		txArgs.FeeCurrency = &feeCurrency
-	}
-	if args.GatewayFeeRecipient != nil {
-		gatewayFeeRecipient := args.GatewayFeeRecipient.Address()
-		txArgs.GatewayFeeRecipient = &gatewayFeeRecipient
-	}
 	// Add the To-field, if specified
+	var to *common.Address
 	if args.To != nil {
-		to := args.To.Address()
-		txArgs.To = &to
+		dstAddr := args.To.Address()
+		to = &dstAddr
 	}
-	return txArgs.ToTransaction()
+
+	var input []byte
+	if args.Input != nil {
+		input = *args.Input
+	} else if args.Data != nil {
+		input = *args.Data
+	}
+
+	var data types.TxData
+	switch {
+	case args.MaxFeePerGas != nil:
+		al := types.AccessList{}
+		if args.AccessList != nil {
+			al = *args.AccessList
+		}
+		data = &types.DynamicFeeTx{
+			To:         to,
+			ChainID:    (*big.Int)(args.ChainID),
+			Nonce:      uint64(args.Nonce),
+			Gas:        uint64(args.Gas),
+			GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
+			GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
+			Value:      (*big.Int)(&args.Value),
+			Data:       input,
+			AccessList: al,
+		}
+	case args.AccessList != nil:
+		data = &types.AccessListTx{
+			To:         to,
+			ChainID:    (*big.Int)(args.ChainID),
+			Nonce:      uint64(args.Nonce),
+			Gas:        uint64(args.Gas),
+			GasPrice:   (*big.Int)(args.GasPrice),
+			Value:      (*big.Int)(&args.Value),
+			Data:       input,
+			AccessList: *args.AccessList,
+		}
+	default:
+		data = &types.LegacyTx{
+			To:         to,
+			Nonce:      uint64(args.Nonce),
+			Gas:        uint64(args.Gas),
+			GasPrice:   (*big.Int)(args.GasPrice),
+			GatewayFee: (*big.Int)(&args.GatewayFee),
+			Value:      (*big.Int)(&args.Value),
+			Data:       input,
+		}
+		if args.FeeCurrency != nil {
+			feeCurrency := args.FeeCurrency.Address()
+			data.(*types.LegacyTx).FeeCurrency = &feeCurrency
+		}
+		if args.GatewayFeeRecipient != nil {
+			gatewayFeeRecipient := args.GatewayFeeRecipient.Address()
+			data.(*types.LegacyTx).GatewayFeeRecipient = &gatewayFeeRecipient
+		}
+	}
+	return types.NewTx(data)
 }
