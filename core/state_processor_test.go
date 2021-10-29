@@ -51,12 +51,23 @@ func TestStateProcessorErrors(t *testing.T) {
 			ChurritoBlock:       big.NewInt(0),
 			DonutBlock:          big.NewInt(0),
 			EBlock:              big.NewInt(0),
+			Faker:               true,
 		}
 		signer     = types.LatestSigner(config)
 		testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	)
 	var makeTx = func(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, feeCurrency *common.Address, gatewayFeeRecipient *common.Address, gatewayFee *big.Int, data []byte) *types.Transaction {
-		tx, _ := types.SignTx(types.NewTransaction(nonce, to, amount, gasLimit, gasPrice, feeCurrency, gatewayFeeRecipient, gatewayFee, data), signer, testKey)
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{
+			Nonce:               nonce,
+			GasPrice:            gasPrice,
+			Gas:                 gasLimit,
+			FeeCurrency:         feeCurrency,
+			GatewayFeeRecipient: gatewayFeeRecipient,
+			GatewayFee:          gatewayFee,
+			To:                  &to,
+			Value:               amount,
+			Data:                data,
+		}), signer, testKey)
 		return tx
 	}
 
@@ -78,7 +89,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				Config: config,
 				Alloc: GenesisAlloc{
 					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
-						Balance: big.NewInt(1000000000000000000), // 1 ether
+						Balance: big.NewInt(params.Ether),
 						Nonce:   0,
 					},
 				},
@@ -91,101 +102,110 @@ func TestStateProcessorErrors(t *testing.T) {
 		tooBigNumber := new(big.Int).Set(bigNumber)
 		tooBigNumber.Add(tooBigNumber, common.Big1)
 		for i, tt := range []struct {
+			name string
 			txs  []*types.Transaction
 			want string
 		}{
-			{ // ErrNonceTooLow
+			{
+				name: "ErrNonceTooLow",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
 				want: "could not apply tx 1 [0x007b02f957123ca016999a9e826e6dfd4f7b36d2406f0057526aeb9a6202adfa]: nonce too low: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 0 state: 1",
 			},
-			{ // ErrNonceTooHigh
+			{
+				name: "ErrNonceTooHigh",
 				txs: []*types.Transaction{
 					makeTx(100, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
 				want: "could not apply tx 0 [0xa0f823b5e4c81b1b0528531f25f06514b8d8c766de99747ad3137577987ff0b7]: nonce too high: address 0x71562b71999873DB5b286dF957af199Ec94617F7, tx: 100 state: 0",
 			},
-			{ // ErrGasLimitReached
+			{
+				name: "ErrGasLimitReached",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(0), 21000000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
 				want: "could not apply tx 0 [0xbd4180e51b03a814b5c96016cc47575fdf777288fc165dc5ad3f9dd3e0e8dcee]: gas limit reached",
 			},
-			{ // ErrInsufficientFundsForTransfer
+			{
+				name: "ErrInsufficientFundsForTransfer",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(1000000000000000000), params.TxGas, big.NewInt(875000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0x4610b4dc2b2508d3555499e34eed7315ad3b5215ec8dbc1cb22bda45e1667cf6]: insufficient funds to pay for fees",
-				// want: "could not apply tx 0 [0x4610b4dc2b2508d3555499e34eed7315ad3b5215ec8dbc1cb22bda45e1667cf6]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1000018375000000000",
+				want: "could not apply tx 0 [0x4610b4dc2b2508d3555499e34eed7315ad3b5215ec8dbc1cb22bda45e1667cf6]: insufficient funds for gas * price + value + gatewayFee: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1000018375000000000",
 			},
-			{ // ErrInsufficientFunds
+			{
+				name: "ErrInsufficientFunds",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas, big.NewInt(900000000000000000), nil, nil, nil, nil),
 				},
-				want: "could not apply tx 0 [0x99113426d253b063416fc51259f7f78c832d49a9bf09f2748fe50fd3130e7162]: insufficient funds to pay for fees",
-				// want: "could not apply tx 0 [0x99113426d253b063416fc51259f7f78c832d49a9bf09f2748fe50fd3130e7162]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 18900000000000000000000",
+				want: "could not apply tx 0 [0x99113426d253b063416fc51259f7f78c832d49a9bf09f2748fe50fd3130e7162]: insufficient funds for gas * price + value + gatewayFee: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 18900000000000000000000",
 			},
 			// ErrGasUintOverflow
 			// One missing 'core' error is ErrGasUintOverflow: "gas uint64 overflow",
 			// In order to trigger that one, we'd have to allocate a _huge_ chunk of data, such that the
 			// multiplication len(data) +gas_per_byte overflows uint64. Not testable at the moment
-			{ // ErrIntrinsicGas
+			{
+				name: "ErrIntrinsicGas",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas-1000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
 				want: "could not apply tx 0 [0x436f2e580794590a8627d8155b638c4ed1b41375283ba19f13a5a8b76ed51fdc]: intrinsic gas too low: have 20000, want 21000",
 			},
-			{ // ErrGasLimitReached
+			{
+				name: "ErrGasLimitReached",
 				txs: []*types.Transaction{
 					makeTx(0, common.Address{}, big.NewInt(0), params.TxGas*1000, big.NewInt(875000000), nil, nil, nil, nil),
 				},
 				want: "could not apply tx 0 [0xbd4180e51b03a814b5c96016cc47575fdf777288fc165dc5ad3f9dd3e0e8dcee]: gas limit reached",
 			},
-			// TODO(Joshua): This test only partially works until 1559 support is merged
-			// { // ErrFeeCapTooLow
-			// 	txs: []*types.Transaction{
-			// 		mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(0), big.NewInt(0)),
-			// 	},
-			// 	want: "could not apply tx 0 [0xc4ab868fef0c82ae0387b742aee87907f2d0fc528fc6ea0a021459fb0fc4a4a8]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 0 baseFee: 875000000",
-			// },
-			{ // ErrTipVeryHigh
+			{
+				name: "ErrFeeCapTooLow",
+				txs: []*types.Transaction{
+					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(0), big.NewInt(0)),
+				},
+				want: "could not apply tx 0 [0xc4ab868fef0c82ae0387b742aee87907f2d0fc528fc6ea0a021459fb0fc4a4a8]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 0 baseFee: 3", // MockSysContractCallCtx expects baseFee to be 3
+			},
+			{
+				name: "ErrTipVeryHigh",
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, tooBigNumber, big.NewInt(1)),
 				},
 				want: "could not apply tx 0 [0x15b8391b9981f266b32f3ab7da564bbeb3d6c21628364ea9b32a21139f89f712]: max priority fee per gas higher than 2^256-1: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxPriorityFeePerGas bit length: 257",
 			},
-			{ // ErrFeeCapVeryHigh
+			{
+				name: "ErrFeeCapVeryHigh",
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(1), tooBigNumber),
 				},
 				want: "could not apply tx 0 [0x48bc299b83fdb345c57478f239e89814bb3063eb4e4b49f3b6057a69255c16bd]: max fee per gas higher than 2^256-1: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas bit length: 257",
 			},
-			{ // ErrTipAboveFeeCap
+			{
+				name: "ErrTipAboveFeeCap",
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(2), big.NewInt(1)),
 				},
 				want: "could not apply tx 0 [0xf987a31ff0c71895780a7612f965a0c8b056deb54e020bb44fa478092f14c9b4]: max priority fee per gas higher than max fee per gas: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxPriorityFeePerGas: 2, maxFeePerGas: 1",
 			},
-			{ // ErrInsufficientFunds
+			{
 				// Available balance:           1000000000000000000
-				// Effective cost:                   18375000021000
+				// Effective cost:                            84000
 				// FeeCap * gas:                1050000000000000000
 				// This test is designed to have the effective cost be covered by the balance, but
 				// the extended requirement on FeeCap*gas < balance to fail
+				name: "ErrInsufficientFunds",
 				txs: []*types.Transaction{
-					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(1), big.NewInt(50000000000000)),
+					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(1), big.NewInt(50_000_000_000_000)),
 				},
-				want: "could not apply tx 0 [0x413603cd096a87f41b1660d3ed3e27d62e1da78eac138961c0a1314ed43bd129]: insufficient funds to pay for fees",
-				// want: "could not apply tx 0 [0x413603cd096a87f41b1660d3ed3e27d62e1da78eac138961c0a1314ed43bd129]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1050000000000000000",
+				want: "could not apply tx 0 [0x413603cd096a87f41b1660d3ed3e27d62e1da78eac138961c0a1314ed43bd129]: insufficient funds for gas * price + value + gatewayFee: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 1050000000000000000",
 			},
 			{ // Another ErrInsufficientFunds, this one to ensure that feecap/tip of max u256 is allowed
+				name: "Another ErrInsufficientFunds",
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, bigNumber, bigNumber),
 				},
-				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds to pay for fees",
-				// want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 2431633873983640103894990685182446064918669677978451844828609264166175722438635000",
+				want: "could not apply tx 0 [0xd82a0c2519acfeac9a948258c47e784acd20651d9d80f9a1c67b4137651c3a24]: insufficient funds for gas * price + value + gatewayFee: address 0x71562b71999873DB5b286dF957af199Ec94617F7 have 1000000000000000000 want 2431633873983640103894990685182446064918669677978451844828609264166175722438635000",
 			},
 		} {
 			block := GenerateBadBlock(genesis, mockEngine.NewFaker(), tt.txs, gspec.Config)
@@ -194,7 +214,7 @@ func TestStateProcessorErrors(t *testing.T) {
 				t.Fatal("block imported without errors")
 			}
 			if have, want := err.Error(), tt.want; have != want {
-				t.Errorf("test %d:\nhave \"%v\"\nwant \"%v\"\n", i, have, want)
+				t.Errorf("test %d %v:\nhave \"%v\"\nwant \"%v\"\n", i, tt.name, have, want)
 			}
 		}
 	}

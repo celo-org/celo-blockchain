@@ -250,7 +250,7 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
 
 		celoMock := testutil.NewCeloMock()
-		result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner)
+		result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner, nil)
 		res = append(res, result.Return()...)
 		if st.Error() != nil {
 			return res, st.Error()

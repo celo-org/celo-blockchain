@@ -44,6 +44,7 @@ type blockState struct {
 	tcount   int            // tx count in cycle
 	gasPool  *core.GasPool  // available gas used to pack transactions
 	gasLimit uint64
+	sysCtx   *core.SysContractCallCtx
 
 	header         *types.Header
 	txs            []*types.Transaction
@@ -105,6 +106,7 @@ func prepareBlock(w *worker) (*blockState, error) {
 		gasLimit:       blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner),
 		header:         header,
 		txFeeRecipient: txFeeRecipient,
+		sysCtx:         core.NewSysContractCallCtx(w.chain.NewEVMRunner(header, state.Copy())),
 	}
 	b.gasPool = new(core.GasPool).AddGas(b.gasLimit)
 
@@ -302,7 +304,7 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 	snap := b.state.Snapshot()
 	vmRunner := w.chain.NewEVMRunner(b.header, b.state)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner)
+	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &txFeeRecipient, b.gasPool, b.state, b.header, tx, &b.header.GasUsed, *w.chain.GetVMConfig(), vmRunner, b.sysCtx)
 	if err != nil {
 		b.state.RevertToSnapshot(snap)
 		return nil, err

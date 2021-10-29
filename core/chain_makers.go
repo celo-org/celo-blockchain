@@ -99,12 +99,21 @@ func (b *BlockGen) AddTxWithChain(bc ChainContext, tx *types.Transaction) {
 	b.statedb.Prepare(tx.Hash(), len(b.txs))
 
 	celoMock := testutil.NewCeloMock()
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner)
+
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vm.Config{}, celoMock.Runner, MockSysContractCallCtx())
 	if err != nil {
 		panic(err)
 	}
 	b.txs = append(b.txs, tx)
 	b.receipts = append(b.receipts, receipt)
+}
+
+// MockSysContractCallCtx returns a SysContractCallCtx mock.
+func MockSysContractCallCtx() *SysContractCallCtx {
+	return &SysContractCallCtx{
+		// Set common.ZeroAddress to non-zero value to test on proper base fee distribution
+		gasPriceMinimums: map[common.Address]*big.Int{common.ZeroAddress: common.Big3},
+	}
 }
 
 // GetBalance returns the balance of the given address at the generated block.

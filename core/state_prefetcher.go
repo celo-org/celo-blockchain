@@ -55,10 +55,15 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		header   = block.Header()
 		vmRunner = p.bc.NewEVMRunner(header, statedb)
 		gaspool  = new(GasPool).AddGas(blockchain_parameters.GetBlockGasLimitOrDefault(vmRunner))
-		baseFee  *big.Int // TODO: gas price minimum
+		baseFee  *big.Int
+		sysCtx   *SysContractCallCtx
 	)
 	// Iterate over and process the individual transactions
 	byzantium := p.config.IsByzantium(block.Number())
+	espresso := p.bc.chainConfig.IsEHardfork(block.Number())
+	if espresso {
+		sysCtx = NewSysContractCallCtx(p.bc.NewEVMRunner(header, statedb))
+	}
 	for i, tx := range block.Transactions() {
 		// If block precaching was interrupted, abort
 		if interrupt != nil && atomic.LoadUint32(interrupt) == 1 {
@@ -66,6 +71,9 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		}
 		// Block precaching permitted to continue, execute the transaction
 		statedb.Prepare(tx.Hash(), i)
+		if espresso {
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+		}
 		if err := precacheTransaction(p.config, p.bc, nil, gaspool, statedb, header, tx, cfg, baseFee); err != nil {
 			return // Ugh, something went horribly wrong, bail out
 		}
@@ -94,6 +102,11 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 	txContext := NewEVMTxContext(msg)
 	vm := vm.NewEVM(context, txContext, statedb, config, cfg)
 
-	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb))
+	var sysCtx *SysContractCallCtx
+	if config.IsEHardfork(header.Number) {
+		sysVmRunner := bc.NewEVMRunner(header, statedb)
+		sysCtx = NewSysContractCallCtx(sysVmRunner)
+	}
+	_, err = ApplyMessage(vm, msg, gaspool, bc.NewEVMRunner(header, statedb), sysCtx)
 	return err
 }

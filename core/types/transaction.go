@@ -334,7 +334,7 @@ func (tx *Transaction) To() *common.Address {
 	return &cpy
 }
 
-// Cost returns amount + gasprice * gaslimit + gatewayfee.
+// Cost returns value + gasprice * gaslimit + gatewayfee.
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	total.Add(total, tx.Value())
