@@ -27,7 +27,8 @@ import (
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/tests"
-	cli "gopkg.in/urfave/cli.v1"
+
+	"gopkg.in/urfave/cli.v1"
 )
 
 var stateTestCommand = cli.Command{

@@ -111,7 +111,7 @@ func (ecb *EVMBackend) Query(returnValue interface{}, method string, args ...int
 		}
 	}
 
-	err = ecb.abi.Unpack(returnValue, method, ret)
+	err = ecb.abi.UnpackIntoInterface(returnValue, method, ret)
 
 	return gasLeft, err
 }

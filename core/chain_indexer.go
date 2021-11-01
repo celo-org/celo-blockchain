@@ -94,7 +94,7 @@ type ChainIndexer struct {
 	throttling time.Duration // Disk throttling to prevent a heavy upgrade from hogging resources
 
 	log  log.Logger
-	lock sync.RWMutex
+	lock sync.Mutex
 	// True in all sync modes except LightestSync
 	fullHeaderChainDownloaded bool
 }

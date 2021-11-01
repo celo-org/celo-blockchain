@@ -82,6 +82,37 @@ var makeTest = function(tx, rewind) {
 }
 */
 
+/*
+// callTrace is the result of a callTracer run.
+type callTrace struct {
+	Type    string          `json:"type"`
+	From    common.Address  `json:"from"`
+	To      common.Address  `json:"to"`
+	Input   hexutil.Bytes   `json:"input"`
+	Output  hexutil.Bytes   `json:"output"`
+	Gas     *hexutil.Uint64 `json:"gas,omitempty"`
+	GasUsed *hexutil.Uint64 `json:"gasUsed,omitempty"`
+	Value   *hexutil.Big    `json:"value,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	Calls   []callTrace     `json:"calls,omitempty"`
+}
+
+type callContext struct {
+	Number     math.HexOrDecimal64   `json:"number"`
+	Difficulty *math.HexOrDecimal256 `json:"difficulty"`
+	Time       math.HexOrDecimal64   `json:"timestamp"`
+	GasLimit   math.HexOrDecimal64   `json:"gasLimit"`
+	Miner      common.Address        `json:"miner"`
+}
+
+// callTracerTest defines a single test to check the call tracer against.
+type callTracerTest struct {
+	Genesis *core.Genesis `json:"genesis"`
+	Context *callContext  `json:"context"`
+	Input   string        `json:"input"`
+	Result  *callTrace    `json:"result"`
+}
+*/
 func TestPrestateTracerCreate2(t *testing.T) {
 	celoMock := testutil.NewCeloMock()
 
@@ -106,14 +137,16 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	    result: 0x60f3f640a8508fC6a86d45DF051962668E1e8AC7
 	*/
 	origin, _ := signer.Sender(tx)
-	context := vm.Context{
+	txContext := vm.TxContext{
+		Origin:   origin,
+		GasPrice: big.NewInt(1),
+	}
+	context := vm.BlockContext{
 		CanTransfer:          vmcontext.CanTransfer,
 		Transfer:             vmcontext.TobinTransfer,
-		Origin:               origin,
 		Coinbase:             common.Address{},
 		BlockNumber:          new(big.Int).SetUint64(8000000),
 		Time:                 new(big.Int).SetUint64(5),
-		GasPrice:             big.NewInt(1),
 		GetRegisteredAddress: vmcontext.GetRegisteredAddress,
 	}
 	alloc := core.GenesisAlloc{}
@@ -138,7 +171,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		t.Fatalf("failed to create call tracer: %v", err)
 	}
 	vmConfig := vm.Config{Debug: true, Tracer: tracer}
-	evm := vm.NewEVM(context, statedb, params.MainnetChainConfig, vmConfig)
+	evm := vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vmConfig)
 
 	msg, err := tx.AsMessage(signer)
 	if err != nil {
@@ -198,16 +231,17 @@ func TestCallTracer(t *testing.T) {
 			}
 			signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)))
 			origin, _ := signer.Sender(tx)
-
-			context := vm.Context{
+			txContext := vm.TxContext{
+				Origin:   origin,
+				GasPrice: tx.GasPrice(),
+			}
+			context := vm.BlockContext{
 				CanTransfer: core.CanTransfer,
 				Transfer:    vm.Transfer,
-				Origin:      origin,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				GasLimit:    uint64(test.Context.GasLimit),
-				GasPrice:    tx.GasPrice(),
 				GetRegisteredAddress: contracts.GetRegisteredAddress,
 			}
 			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
@@ -217,7 +251,7 @@ func TestCallTracer(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create call tracer: %v", err)
 			}
-			evm := vm.NewEVM(context, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
+			evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
 
 			msg, err := tx.AsMessage(signer)
 			if err != nil {
@@ -237,10 +271,32 @@ func TestCallTracer(t *testing.T) {
 				t.Fatalf("failed to unmarshal trace result: %v", err)
 			}
 
-			if !reflect.DeepEqual(ret, test.Result) {
+			if !jsonEqual(ret, test.Result) {
+				// uncomment this for easier debugging
+				//have, _ := json.MarshalIndent(ret, "", " ")
+				//want, _ := json.MarshalIndent(test.Result, "", " ")
+				//t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", string(have), string(want))
 				t.Fatalf("trace mismatch: \nhave %+v\nwant %+v", ret, test.Result)
 			}
 		})
 	}
+}
+
+// jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
+// comparison
+func jsonEqual(x, y interface{}) bool {
+	xTrace := new(callTrace)
+	yTrace := new(callTrace)
+	if xj, err := json.Marshal(x); err == nil {
+		json.Unmarshal(xj, xTrace)
+	} else {
+		return false
+	}
+	if yj, err := json.Marshal(y); err == nil {
+		json.Unmarshal(yj, yTrace)
+	} else {
+		return false
+	}
+	return reflect.DeepEqual(xTrace, yTrace)
 }
 */

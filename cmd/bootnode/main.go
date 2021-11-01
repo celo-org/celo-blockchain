@@ -46,7 +46,7 @@ func main() {
 		netrestrict      = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
 		runv4            = flag.Bool("v4", true, "run a v4 topic discovery bootnode")
 		runv5            = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
-		verbosity        = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-9)")
+		verbosity        = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-5)")
 		vmodule          = flag.String("vmodule", "", "log verbosity pattern")
 		networkId        = flag.Uint64("networkid", 0, "network ID")
 		pingIPFromPacket = flag.Bool("ping-ip-from-packet", false, "Has the discovery protocol use the IP address given by a ping packet")

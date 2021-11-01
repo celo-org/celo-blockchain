@@ -17,6 +17,7 @@
 package istanbul
 
 import (
+	"hash"
 	"math/big"
 	"reflect"
 	"testing"
@@ -24,7 +25,32 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/rlp"
+	"golang.org/x/crypto/sha3"
 )
+
+// testHasher is the helper tool for transaction/receipt list hashing.
+// The original hasher is trie, in order to get rid of import cycle,
+// use the testing hasher instead.
+type testHasher struct {
+	hasher hash.Hash
+}
+
+func newHasher() *testHasher {
+	return &testHasher{hasher: sha3.NewLegacyKeccak256()}
+}
+
+func (h *testHasher) Reset() {
+	h.hasher.Reset()
+}
+
+func (h *testHasher) Update(key, val []byte) {
+	h.hasher.Write(key)
+	h.hasher.Write(val)
+}
+
+func (h *testHasher) Hash() common.Hash {
+	return common.BytesToHash(h.hasher.Sum(nil))
+}
 
 func TestViewCompare(t *testing.T) {
 	// test equality
@@ -98,7 +124,7 @@ func dummyBlock(number int64) *types.Block {
 	feeCurrencyAddr := common.HexToAddress("02")
 	gatewayFeeRecipientAddr := common.HexToAddress("03")
 	tx := types.NewTransaction(1, common.HexToAddress("01"), big.NewInt(1), 10000, big.NewInt(10), &feeCurrencyAddr, &gatewayFeeRecipientAddr, big.NewInt(34), []byte{04})
-	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil)
+	return types.NewBlock(header, []*types.Transaction{tx}, nil, nil, newHasher())
 }
 func dummyMessage(code uint64) *Message {
 	msg := NewPrepareMessage(dummySubject(), common.HexToAddress("AABB"))
