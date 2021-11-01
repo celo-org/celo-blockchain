@@ -105,7 +105,7 @@ type Wallets struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database, peers consensus.Peers) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -117,6 +117,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	coreStarted.Store(false)
 	backend := &Backend{
 		config:                             config,
+		peers:                              peers,
 		istanbulEventMux:                   new(event.TypeMux),
 		logger:                             logger,
 		db:                                 db,
@@ -206,6 +207,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 
 type Backend struct {
 	config           *istanbul.Config
+	peers            consensus.Peers
 	istanbulEventMux *event.TypeMux
 
 	aWallets atomic.Value
@@ -237,9 +239,6 @@ type Backend struct {
 
 	// Snapshots for recent blocks to speed up reorgs
 	recentSnapshots *lru.ARCCache
-
-	// event subscription for ChainHeadEvent event
-	broadcaster consensus.Broadcaster
 
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
@@ -827,10 +826,6 @@ func (sb *Backend) hasBadProposal(hash common.Hash) bool {
 func (sb *Backend) RefreshValPeers() error {
 	logger := sb.logger.New("func", "RefreshValPeers")
 	logger.Trace("Called RefreshValPeers")
-
-	if sb.broadcaster == nil {
-		return errors.New("Broadcaster is not set")
-	}
 
 	valConnSet, err := sb.RetrieveValidatorConnSet()
 	if err != nil {

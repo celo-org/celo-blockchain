@@ -128,12 +128,14 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 	log.Info("Initialised chain configuration", "config", chainConfig)
 	chainConfig.FullHeaderChainAvailable = config.SyncMode.SyncFullHeaderChain()
 
+	peers := NewPeerSet()
+	engine := CreateConsensusEngine(stack, chainConfig, config, chainDb, peers)
 	eth := &Ethereum{
 		config:            config,
 		chainDb:           chainDb,
 		eventMux:          stack.EventMux(),
 		accountManager:    stack.AccountManager(),
-		engine:            CreateConsensusEngine(stack, chainConfig, config, chainDb),
+		engine:            engine,
 		closeBloomHandler: make(chan struct{}),
 		networkID:         config.NetworkId,
 		validator:         config.Miner.Validator,
@@ -201,7 +203,7 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
-	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, stack.Server(), stack.ProxyServer(), config.MinSyncPeers); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, stack.Server(), stack.ProxyServer(), config.MinSyncPeers, peers); err != nil {
 		return nil, err
 	}
 
@@ -253,7 +255,7 @@ func makeExtraData(extra []byte) []byte {
 }
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
-func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *Config, db ethdb.Database) consensus.Engine {
+func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *Config, db ethdb.Database, peers *peerSet) consensus.Engine {
 	if chainConfig.Faker {
 		return mockEngine.NewFaker()
 	}
@@ -264,7 +266,7 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
 		}
 
-		return istanbulBackend.New(&config.Istanbul, db)
+		return istanbulBackend.New(&config.Istanbul, db, peers)
 	}
 	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
 	return nil

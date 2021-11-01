@@ -22,12 +22,6 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
-// Broadcaster defines the interface to enqueue blocks to fetcher, find peer
-type Broadcaster interface {
-	// FindPeers retrieves peers by addresses
-	FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]Peer
-}
-
 // P2PServer defines the interface for a p2p.server to get the local node's enode and to add/remove for static/trusted peers
 type P2PServer interface {
 	// Gets this node's enode
@@ -57,4 +51,8 @@ type Peer interface {
 	Inbound() bool
 	// PurposeIsSet returns if the peer has a purpose set
 	PurposeIsSet(purpose p2p.PurposeFlag) bool
+}
+
+type Peers interface {
+	Peers() []Peer
 }

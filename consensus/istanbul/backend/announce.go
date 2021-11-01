@@ -316,7 +316,7 @@ func (sb *Backend) announceThread() {
 			if shouldQuery {
 				switch queryEnodeFrequencyState {
 				case HighFreqBeforeFirstPeerState:
-					if len(sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)) > 0 {
+					if len(sb.FindPeers(nil, p2p.AnyPurpose)) > 0 {
 						queryEnodeFrequencyState = HighFreqAfterFirstPeerState
 					}
 

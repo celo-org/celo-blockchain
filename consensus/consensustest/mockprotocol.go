@@ -41,14 +41,9 @@ var (
 	errFakeFail = errors.New("mockEngine fake fail")
 )
 
-type MockBroadcaster struct{}
+type MockPeers struct{}
 
-func (b *MockBroadcaster) Enqueue(id string, block *types.Block) {
-}
-
-func (b *MockBroadcaster) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
-	return make(map[enode.ID]consensus.Peer)
-}
+func (mp *MockPeers) Peers() []consensus.Peer { return nil }
 
 type MockP2PServer struct {
 	Node *enode.Node

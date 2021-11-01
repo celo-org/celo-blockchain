@@ -139,9 +139,6 @@ type Handler interface {
 	// HandleMsg handles a message from peer
 	HandleMsg(address common.Address, data p2p.Msg, peer Peer) (bool, error)
 
-	// SetBroadcaster sets the broadcaster to send message to peers
-	SetBroadcaster(Broadcaster)
-
 	// SetP2PServer sets the p2p server to connect/disconnect to/from peers
 	SetP2PServer(P2PServer)
 

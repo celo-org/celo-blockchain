@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -716,8 +717,8 @@ type peerSet struct {
 	closed bool
 }
 
-// newPeerSet creates a new peer set to track the active participants.
-func newPeerSet() *peerSet {
+// NewPeerSet creates a new peer set to track the active participants.
+func NewPeerSet() *peerSet {
 	return &peerSet{
 		peers: make(map[string]*peer),
 	}
@@ -763,15 +764,15 @@ func (ps *peerSet) Unregister(id string) error {
 }
 
 // Peers returns all registered peers
-func (ps *peerSet) Peers() map[string]*peer {
+func (ps *peerSet) Peers() []consensus.Peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	set := make(map[string]*peer)
-	for id, p := range ps.peers {
-		set[id] = p
+	peers := make([]consensus.Peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		peers = append(peers, p)
 	}
-	return set
+	return peers
 }
 
 // Peer retrieves the registered peer with the given id.

@@ -110,7 +110,7 @@ type ProtocolManager struct {
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux,
 	txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database,
-	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server, minSyncPeers int) (*ProtocolManager, error) {
+	cacheLimit int, whitelist map[uint64]common.Hash, server *p2p.Server, proxyServer *p2p.Server, minSyncPeers int, peers *peerSet) (*ProtocolManager, error) {
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -119,7 +119,7 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 		txpool:      txpool,
 		blockchain:  blockchain,
 		chaindb:     chaindb,
-		peers:       newPeerSet(),
+		peers:       peers,
 		whitelist:   whitelist,
 		txsyncCh:    make(chan *txsync),
 		quitSync:    make(chan struct{}),
@@ -129,7 +129,6 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 	}
 
 	if handler, ok := manager.engine.(consensus.Handler); ok {
-		handler.SetBroadcaster(manager)
 		handler.SetP2PServer(server)
 	}
 
@@ -1016,17 +1015,4 @@ func (pm *ProtocolManager) NodeInfo() *NodeInfo {
 		Config:     pm.blockchain.Config(),
 		Head:       currentBlock.Hash(),
 	}
-}
-
-func (pm *ProtocolManager) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
-	m := make(map[enode.ID]consensus.Peer)
-	for _, p := range pm.peers.Peers() {
-		id := p.Node().ID()
-		if targets[id] || (targets == nil) {
-			if p.PurposeIsSet(purpose) {
-				m[id] = p
-			}
-		}
-	}
-	return m
 }

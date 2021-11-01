@@ -50,7 +50,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	config.Validator = !isProxy
 	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
-	b, _ := New(&config, memDB).(*Backend)
+	b, _ := New(&config, memDB, &consensustest.MockPeers{}).(*Backend)
 
 	var publicKey ecdsa.PublicKey
 	if !isProxy {
@@ -81,7 +81,6 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 			return blockchain.StateAt(stateRoot)
 		},
 	)
-	b.SetBroadcaster(&consensustest.MockBroadcaster{})
 	b.SetP2PServer(consensustest.NewMockP2PServer(&publicKey))
 	b.StartAnnouncing()
 

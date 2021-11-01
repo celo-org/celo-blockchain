@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core"
@@ -256,7 +257,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		engine := New(&config, db).(*Backend)
+		engine := New(&config, db, &consensustest.MockPeers{}).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)

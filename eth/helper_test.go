@@ -69,7 +69,7 @@ func newTestProtocolManager(mode downloader.SyncMode, blocks int, generator func
 	if _, err := blockchain.InsertChain(chain); err != nil {
 		panic(err)
 	}
-	pm, err := NewProtocolManager(gspec.Config, nil, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx, pool: make(map[common.Hash]*types.Transaction)}, engine, blockchain, db, 1, nil, nil, nil, 0)
+	pm, err := NewProtocolManager(gspec.Config, nil, mode, DefaultConfig.NetworkId, evmux, &testTxPool{added: newtx, pool: make(map[common.Hash]*types.Transaction)}, engine, blockchain, db, 1, nil, nil, nil, 0, NewPeerSet())
 	if err != nil {
 		return nil, nil, err
 	}

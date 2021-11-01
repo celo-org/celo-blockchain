@@ -36,7 +36,7 @@ func (sb *Backend) getPeersFromDestAddresses(destAddresses []common.Address) map
 			}
 		}
 	}
-	return sb.broadcaster.FindPeers(targets, p2p.AnyPurpose)
+	return sb.FindPeers(targets, p2p.AnyPurpose)
 }
 
 // Multicast implements istanbul.Backend.Multicast
@@ -84,7 +84,7 @@ func (sb *Backend) Gossip(payload []byte, ethMsgCode uint64) error {
 	logger := sb.logger.New("func", "Gossip")
 
 	// Get all connected peers
-	peersToSendMsg := sb.broadcaster.FindPeers(nil, p2p.AnyPurpose)
+	peersToSendMsg := sb.FindPeers(nil, p2p.AnyPurpose)
 
 	// Mark that this node gossiped/processed this message, so that it will ignore it if
 	// one of it's peers sends the message to it.
@@ -127,4 +127,17 @@ func (sb *Backend) asyncMulticast(destPeers map[enode.ID]consensus.Peer, payload
 func (sb *Backend) Unicast(peer consensus.Peer, payload []byte, ethMsgCode uint64) {
 	peerMap := map[enode.ID]consensus.Peer{peer.Node().ID(): peer}
 	sb.asyncMulticast(peerMap, payload, ethMsgCode)
+}
+
+func (sb *Backend) FindPeers(targets map[enode.ID]bool, purpose p2p.PurposeFlag) map[enode.ID]consensus.Peer {
+	m := make(map[enode.ID]consensus.Peer)
+	for _, p := range sb.peers.Peers() {
+		id := p.Node().ID()
+		if targets[id] || (targets == nil) {
+			if p.PurposeIsSet(purpose) {
+				m[id] = p
+			}
+		}
+	}
+	return m
 }
