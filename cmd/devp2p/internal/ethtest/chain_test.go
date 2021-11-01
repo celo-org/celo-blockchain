@@ -39,9 +39,9 @@ func TestEthProtocolNegotiation(t *testing.T) {
 				ourHighestProtoVersion: 65,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			expected: uint32(65),
 		},
@@ -50,53 +50,53 @@ func TestEthProtocolNegotiation(t *testing.T) {
 				ourHighestProtoVersion: 65,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			expected: uint32(65),
 		},
 		{
 			conn: &Conn{
-				ourHighestProtoVersion: 65,
+				ourHighestProtoVersion: 66,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
-			expected: uint32(65),
+			expected: uint32(66),
 		},
 		{
 			conn: &Conn{
 				ourHighestProtoVersion: 64,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "istanbul", Version: 66},
 			},
 			expected: 64,
 		},
 		{
 			conn: &Conn{
-				ourHighestProtoVersion: 65,
+				ourHighestProtoVersion: 66,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 0},
-				{Name: "eth", Version: 89},
-				{Name: "eth", Version: 65},
+				{Name: "istanbul", Version: 0},
+				{Name: "istanbul", Version: 89},
+				{Name: "istanbul", Version: 66},
 			},
-			expected: uint32(65),
+			expected: uint32(66),
 		},
 		{
 			conn: &Conn{
 				ourHighestProtoVersion: 64,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "wrongProto", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "wrongProto", Version: 66},
 			},
 			expected: uint32(64),
 		},
@@ -105,11 +105,11 @@ func TestEthProtocolNegotiation(t *testing.T) {
 				ourHighestProtoVersion: 65,
 			},
 			caps: []p2p.Cap{
-				{Name: "eth", Version: 63},
-				{Name: "eth", Version: 64},
-				{Name: "wrongProto", Version: 65},
+				{Name: "istanbul", Version: 64},
+				{Name: "istanbul", Version: 65},
+				{Name: "wrongProto", Version: 66},
 			},
-			expected: uint32(64),
+			expected: uint32(65),
 		},
 	}
 
@@ -124,7 +124,6 @@ func TestEthProtocolNegotiation(t *testing.T) {
 // TestChain_GetHeaders tests whether the test suite can correctly
 // respond to a GetBlockHeaders request from a node.
 func TestChain_GetHeaders(t *testing.T) {
-	t.Skip("fails")
 	chainFile, err := filepath.Abs("./testdata/chain.rlp")
 	if err != nil {
 		t.Fatal(err)
