@@ -352,12 +352,11 @@ func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 
 // GasFeeCapCmp compares the fee cap of two transactions.
 func (tx *Transaction) GasFeeCapCmp(other *Transaction) int {
-	// TODO: Remove before prod release.
-	fca := tx.FeeCurrency()
-	fcb := other.FeeCurrency()
-	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
-		panic("Dev error: using GasFeeCapCmp with transactions that have differing fee currencies")
-	}
+	// fca := tx.FeeCurrency()
+	// fcb := other.FeeCurrency()
+	// if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+	// 	panic("Dev error: using GasFeeCapCmp with transactions that have differing fee currencies")
+	// }
 	return tx.inner.gasFeeCap().Cmp(other.inner.gasFeeCap())
 }
 
@@ -368,12 +367,11 @@ func (tx *Transaction) GasFeeCapIntCmp(other *big.Int) int {
 
 // GasTipCapCmp compares the gasTipCap of two transactions.
 func (tx *Transaction) GasTipCapCmp(other *Transaction) int {
-	// TODO: Remove before prod release.
-	fca := tx.FeeCurrency()
-	fcb := other.FeeCurrency()
-	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
-		panic("Dev error: using GasTipCapCmp with transactions that have differing fee currencies")
-	}
+	// fca := tx.FeeCurrency()
+	// fcb := other.FeeCurrency()
+	// if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+	// 	panic("Dev error: using GasTipCapCmp with transactions that have differing fee currencies")
+	// }
 	return tx.inner.gasTipCap().Cmp(other.inner.gasTipCap())
 }
 
