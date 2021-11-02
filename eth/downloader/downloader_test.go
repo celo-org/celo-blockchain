@@ -170,6 +170,30 @@ func (dl *downloadTester) getHeaderByHash(hash common.Hash) *types.Header {
 	return dl.ownHeaders[hash]
 }
 
+// GetHeaderByNumber retrieves a header from the testers canonical chain.
+func (dl *downloadTester) GetHeaderByNumber(number uint64) *types.Header {
+	dl.lock.RLock()
+	defer dl.lock.RUnlock()
+	return dl.getHeaderByNumber(number)
+}
+
+// getHeaderByNumber returns the header if found either within ancients or own blocks)
+// This method assumes that the caller holds at least the read-lock (dl.lock)
+func (dl *downloadTester) getHeaderByNumber(number uint64) *types.Header {
+	for _, header := range dl.ancientHeaders {
+		if header != nil && header.Number.Uint64() == number {
+			return header
+		}
+	}
+
+	for _, header := range dl.ownHeaders {
+		if header != nil && header.Number.Uint64() == number {
+			return header
+		}
+	}
+	return nil
+}
+
 // GetBlock retrieves a block from the testers canonical chain.
 func (dl *downloadTester) GetBlockByHash(hash common.Hash) *types.Block {
 	dl.lock.RLock()

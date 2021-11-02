@@ -60,12 +60,7 @@ DOG
 }
 
 function compile_fuzzer {
-  # Inputs:
-  # $1: The package to fuzz, within go-ethereum
-  # $2: The name of the fuzzing function
-  # $3: The name to give to the final fuzzing-binary
-
-  path=$GOPATH/src/github.com/ethereum/go-ethereum/$1
+  path=$SRC/celo-blockchain/$1
   func=$2
   fuzzer=$3
 
