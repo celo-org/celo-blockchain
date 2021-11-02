@@ -23,6 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/abis"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/core/vm"
 	"github.com/celo-org/celo-blockchain/params"
 )
@@ -39,12 +40,19 @@ var (
 	updateGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
 )
 
-func GetGasTipCapSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
-	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
-	// GasPriceSuggestion - GasPriceMinimum => N * GasPriceMinimum - GasPriceMinimum => (N-1) * GasPriceMinimum
-	return new(big.Int).Mul(gasPriceMinimum, new(big.Int).Sub(suggestionMultiplier, common.Big1)), err
+// GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.
+// TODO: Switch to using a caching currency manager under high load.
+func GetGasTipCapSuggestion(vmRunner vm.EVMRunner, currencyAddress *common.Address) (*big.Int, error) {
+	celoTipSuggestion := new(big.Int).Mul(common.Big2, big.NewInt(params.GWei))
+	exchangeRate, err := currency.GetExchangeRate(vmRunner, currencyAddress)
+	if err != nil {
+		return nil, err
+	}
+	return exchangeRate.FromBase(celoTipSuggestion), nil
 }
 
+// GetGasPriceSuggestion suggests a gas price the suggestionMultiplier times higher than the GPM in the appropriate currency.
+// TODO: Switch to using a caching GPM manager under high load.
 func GetGasPriceSuggestion(vmRunner vm.EVMRunner, currency *common.Address) (*big.Int, error) {
 	gasPriceMinimum, err := GetGasPriceMinimum(vmRunner, currency)
 	return new(big.Int).Mul(gasPriceMinimum, suggestionMultiplier), err
