@@ -27,7 +27,6 @@ import (
 
 var activators = map[int]func(*JumpTable){
 	3529: enable3529,
-	3198: enable3198,
 	2929: enable2929,
 	2200: enable2200,
 	1884: enable1884,
@@ -161,26 +160,4 @@ func enable2929(jt *JumpTable) {
 func enable3529(jt *JumpTable) {
 	jt[SSTORE].dynamicGas = gasSStoreEIP3529
 	jt[SELFDESTRUCT].dynamicGas = gasSelfdestructEIP3529
-}
-
-// enable3198 applies EIP-3198 (BASEFEE Opcode)
-// - Adds an opcode that returns the current block's base fee.
-func enable3198(jt *JumpTable) {
-	// New opcode
-	jt[BASEFEE] = &operation{
-		execute:     opBaseFee,
-		constantGas: GasQuickStep,
-		minStack:    minStack(0, 1),
-		maxStack:    maxStack(0, 1),
-	}
-}
-
-// opBaseFee implements BASEFEE opcode
-// TODO: Impelements
-func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	panic("opBaseFee unimplemented")
-	// baseFee, _ := uint256.FromBig(interpreter.evm.Context.BaseFee)
-	// baseFee, _ := uint256.FromBig(common.Big0)
-	// scope.Stack.push(baseFee)
-	// return nil, nil
 }
