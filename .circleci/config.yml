@@ -18,11 +18,11 @@ executors:
     working_directory: ~/repos/geth
   node-v10:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
