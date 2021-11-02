@@ -7,7 +7,9 @@ import (
 )
 
 type ValidatorChecker interface {
+	// IsElectedOrNearValidator returns true iff this node is currently a NearlyElectedValidator.
 	IsElectedOrNearValidator() (bool, error)
+	// IsValidating returns true iff the node is started and running as a Validator.
 	IsValidating() bool
 }
 

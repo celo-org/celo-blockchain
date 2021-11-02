@@ -11,6 +11,13 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p"
 )
 
+// AnnounceWorker is responsible for, while running, spawn all messages that this node
+// should send: VersionCertificates sharing, and QueryEnode messages if the node
+// is a NearlyElectedValidator.
+//
+// It automatically polls to check if it entered (or exited) NearlyElectedValidator status.
+//
+// It also periodically runs Prune in an AnnounceStatePruner.
 type AnnounceWorker interface {
 	Run()
 	UpdateVersion()

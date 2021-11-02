@@ -6,6 +6,13 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
+// ValProxyAssigmentProvider is responsible for, given a list of validator addresses,
+// returning a mapping <validator address, assigned eNode>, where each validator will
+// be assigned to an external eNode this node.
+// E.g if this node has two proxies: A and B, it is possible to assign A to a set of
+// validators, and B to another set, therefore splitting the load of validator to
+// validator connections through these proxies instances.
+// If this node has no proxy, then all values should be the self eNode.
 type ValProxyAssigmnentProvider interface {
 	// GetValProxyAssignments returns the remote validator -> external node assignments.
 	// If this is a standalone validator, it will set the external node to itself.
