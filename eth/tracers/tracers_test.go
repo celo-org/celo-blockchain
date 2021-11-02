@@ -180,7 +180,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 		t.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
 
-	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner)
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 	if _, err = st.TransitionDb(); err != nil {
 		t.Fatalf("failed to execute transaction: %v", err)
 	}
@@ -368,7 +368,7 @@ func BenchmarkTransactionTrace(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		snap := statedb.Snapshot()
-		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner)
+		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()), celoMock.Runner, nil)
 		_, err = st.TransitionDb()
 		if err != nil {
 			b.Fatal(err)

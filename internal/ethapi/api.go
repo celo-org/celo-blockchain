@@ -31,7 +31,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
-	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -842,17 +841,18 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 	// this makes sure resources are cleaned up.
 	defer cancel()
 
-	vmRunner := b.NewEVMRunner(header, state)
-	if err != nil {
-		return nil, err
+	// Create SysContractCallCtx
+	var sysCtx *core.SysContractCallCtx
+	if b.ChainConfig().IsEHardfork(header.Number) {
+		vmRunner := b.NewEVMRunner(header, state)
+		if err != nil {
+			return nil, err
+		}
+		sysCtx = core.NewSysContractCallCtx(vmRunner)
 	}
 
-	gasPriceMinimum, err := gpm.GetGasPriceMinimum(vmRunner, args.FeeCurrency)
-	if err != nil {
-		return nil, err
-	}
 	// Get a new instance of the EVM.
-	msg, err := args.ToMessage(globalGasCap, gasPriceMinimum) // TODO check this baseFee -> gasPriceMinimum
+	msg, err := args.ToMessage(globalGasCap, common.Big0) // core.ApplyMessageWithoutGasPriceMinimum below will eventually set basefee to 0
 	if err != nil {
 		return nil, err
 	}
@@ -869,8 +869,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Execute the message.
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-
-	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state))
+	result, err := core.ApplyMessageWithoutGasPriceMinimum(evm, msg, gp, b.NewEVMRunner(header, state), sysCtx)
 	if err := vmError(); err != nil {
 		return nil, err
 	}
@@ -1388,7 +1387,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 			return nil, 0, nil, err
 		}
 		vmRunner := b.NewEVMRunner(header, statedb)
-		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner)
+		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()), vmRunner, nil)
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
 		}

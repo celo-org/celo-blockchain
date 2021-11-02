@@ -19,6 +19,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -158,11 +159,21 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	if txIndex == 0 && len(block.Transactions()) == 0 {
 		return nil, vm.BlockContext{}, nil, statedb, nil
 	}
+	// Get the SysContractCallCtx
+	var sysCtx *core.SysContractCallCtx
+	espresso := eth.blockchain.Config().IsEHardfork(block.Number())
+	if espresso {
+		sysCtx = core.NewSysContractCallCtx(eth.blockchain.NewEVMRunner(block.Header(), statedb))
+	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(eth.blockchain.Config(), block.Number())
 	for idx, tx := range block.Transactions() {
 		// Assemble the transaction call message and return if the requested offset
-		msg, _ := tx.AsMessage(signer, nil)
+		var baseFee *big.Int
+		if espresso {
+			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
+		}
+		msg, _ := tx.AsMessage(signer, baseFee)
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), eth.blockchain, nil)
 		vmRunner := eth.blockchain.NewEVMRunner(block.Header(), statedb)
@@ -172,7 +183,7 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(context, txContext, statedb, eth.blockchain.Config(), vm.Config{})
 		statedb.Prepare(tx.Hash(), idx)
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner); err != nil {
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas()), vmRunner, sysCtx); err != nil {
 			return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state

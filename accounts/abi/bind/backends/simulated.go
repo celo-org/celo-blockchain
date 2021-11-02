@@ -607,16 +607,24 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	// Execute the call.
 	msg := callMsg{call}
 
-	txContext := core.NewEVMTxContext(msg)
-	evmContext := core.NewEVMBlockContext(block.Header(), b.blockchain, nil)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
+	txContext := core.NewEVMTxContext(msg)
+	evmContext := core.NewEVMBlockContext(block.Header(), b.blockchain, nil)
 	vmEnv := vm.NewEVM(evmContext, txContext, stateDB, b.config, vm.Config{NoBaseFee: true})
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
-
 	vmRunner := b.blockchain.NewEVMRunner(block.Header(), stateDB)
-
-	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner).TransitionDb()
+	var sysCtx *core.SysContractCallCtx
+	if b.config.IsEHardfork(block.Number()) {
+		parent := b.blockchain.GetBlockByNumber(block.NumberU64() - 1)
+		sysStateDB, err := b.blockchain.StateAt(parent.Root())
+		if err != nil {
+			return nil, err
+		}
+		sysVmRunner := b.blockchain.NewEVMRunner(block.Header(), sysStateDB)
+		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
+	}
+	return core.NewStateTransition(vmEnv, msg, gasPool, vmRunner, sysCtx).TransitionDb()
 }
 
 // SendTransaction updates the pending block to include the given transaction.

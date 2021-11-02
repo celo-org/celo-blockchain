@@ -27,6 +27,8 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
+// Gas price minimum serves as baseFee(EIP1559) after Espresso HF.
+
 var (
 	FallbackGasPriceMinimum *big.Int = big.NewInt(0) // gas price minimum to return if unable to fetch from contract
 	suggestionMultiplier    *big.Int = big.NewInt(5) // The multiplier that we apply to the minimum when suggesting gas price
