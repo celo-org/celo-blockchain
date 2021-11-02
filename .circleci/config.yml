@@ -16,13 +16,13 @@ executors:
     docker:
       - image: circleci/golang:1.16
     working_directory: ~/repos/geth
-  node-v10:
+  node-v12:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/geth
   e2e:
     docker:
-      - image: celohq/node10-gcloud:v3
+      - image: us.gcr.io/celo-testnet/circleci-node12:1.0.0
     working_directory: ~/repos/celo-monorepo/packages/celotool
     environment:
       GO_VERSION: "1.16.4"
@@ -77,7 +77,7 @@ jobs:
       cache-key:
         type: string
         default: system-contracts-cache-<<pipeline.parameters.system-contracts-monorepo-version>>-<<pipeline.parameters.system-contracts-path>>-v<<pipeline.parameters.system-contracts-cache-version>>
-    executor: node-v10
+    executor: node-v12
     resource_class: medium+
     steps:
       - checkout
