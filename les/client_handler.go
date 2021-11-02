@@ -335,7 +335,6 @@ func (h *clientHandler) handleMsg(p *serverPeer) error {
 				if _, err := h.fetcher.chain.InsertHeaderChain(resp.Headers, 1, contiguousHeaders); err != nil {
 					return err
 				}
-
 			}
 			deliverMsg = &Msg{
 				MsgType: MsgBlockHeaders,
