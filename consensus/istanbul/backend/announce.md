@@ -4,6 +4,8 @@ While here referred as a protocol by itself, Announce is technically a subset of
 
 It is important to note that a validator's `eNodeURL` is never shared among third parties, but directly published to specific peers. Therefore it is allowed for a validator to publish different external facing `eNodeURL` values to different validator peers.
 
+To clarify, the `eNodeURL` value itself is public, since it's used in the p2p network. What is NOT public, and the announce protocol helps in sharing among validators, is the _mapping_ between a validator and its `eNodeURL`. That is, p2p full nodes don't know (and should not know) if a peer is a validator or not.
+
 ## Terminology
 
 For the purpose of this specification, certain terms are used that have a specific meaning, those are:
@@ -12,6 +14,8 @@ For the purpose of this specification, certain terms are used that have a specif
 * Validator
 * Nearly Elected Validator
 * eNodeURL
+
+Note that node labels (Full node, Validator, Nearly Elected Validator) are not set in stone. A Full node can be restarted into a Validator, and a Validator can become a Nearly Elected Validator with enough votes from the election contract.
 
 ### Full Node
 
@@ -49,15 +53,15 @@ enode://e5e2fdf.......348ce8@127.0.0.1:33503?discport=22042
 
 ## Objective
 
-The Announce protocol objective is to allow all [NearlyElectedValidator] to maintain an updated table of `validator -> eNodeURL` for all other [NearlyElectedValidator], while somewhat concealing these values from the rest of the nodes in the network, and also avoiding an unnecessary high message traffic to achieve it. [NearlyElectedValidator] nodes can use the information from this table to open direct connections between themselves, speeding up the consensus phase.
+The Announce protocol objective is to allow all [NearlyElectedValidator] to maintain an updated table of `validatorAddress -> eNodeURL` for all other [NearlyElectedValidator], while somewhat concealing these values from the rest of the nodes in the network, and also avoiding an unnecessary high message traffic to achieve it. [NearlyElectedValidator] nodes can use the information from this table to open direct connections between themselves, speeding up the consensus phase.
 
 To ensure that validator [eNodeURL] tables don't get stale, each validator's [eNodeURL] is paired with a version number. [NearlyElectedValidator] nodes should ignore [eNodeURL] entries with values from versions older than one currently in their table. The current convention used is that versions are unix timestamps from the moment of the update.
 
-As part of the protocol's design, a [NearlyElectedValidator] can advertise different [eNodeURL] values for different destinations, allowing for multi-proxy implementations of the protocol. That being said, the announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` tuples. It is the proxy implementation's responsibility to ensure the correct behavior of this specification.
+As part of the protocol's design, a [NearlyElectedValidator] can advertise different [eNodeURL] values for different destinations. This is important since validators can live behind multiple proxies and thus have more than one [eNodeURL]. That being said, the announce protocol itself is agnostic to the concept of proxies, it cares only for the sharing of `<validator address, validator eNodeUrl>` mapping tuples. It is the proxy implementation's responsibility to ensure the correct behavior of this specification.
 
 ### Concealing eNodeURL values
 
-It is important to ensure that [eNodeURL] values can't be read by nodes that are not in the [NearlyElectedValidator] set. To achieve this, they are shared in one of two ways:
+It is important to ensure that validator [eNodeURL] values can't be discovered by nodes that are not in the [NearlyElectedValidator] set. To achieve this, they are shared in one of two ways:
 
 * Sent through a direct p2p connection from one [NearlyElectedValidator] to another ( [enodeCertificateMsg] )
 * Gossipped through the network, but encrypted with the public key of the recipient [NearlyElectedValidator] ( [queryEnodeMsg] )
@@ -94,7 +98,8 @@ All messages presented here are Istanbul messages, following the same format as 
 
 This message is sent from a [NearlyElectedValidator] and regossipped through the network, with the intention of reach out for
 other [NearlyElectedValidator] nodes and discover their [eNodeURL] values, while at the same time sending its own. Note that
-the sender sends many queries in one message, and each has its own encrypted value of the [eNodeURL].
+the sender sends many queries in one message. A query is a pair `<destination address, encrypted eNodeURL>` so that only the
+destination address can decrypt the encrypted [eNodeURL] in it.
 
 `[[dest_address: B_20, encrypted_enode_url: B], version: P, timestamp: P]`
 
@@ -146,7 +151,7 @@ Should be regossipped as is, unless another message from the same validator orig
 
 [enodeCertificateMsg] should be ignored by [FullNode] instances, since they should never receive one if all other participants are behaving properly. We make
 this explicit in the spec since the regossipping of this particular message would make the [eNodeURL] of the sender public, which defeats the purpose of the
-protocol.
+protocol. While this should never happen, there are some border cases where a node can be a [Validator] with queries yet unanswered, and then restarted into a [FullNode], thus receiving query replies that should no longer apply to it.
 
 #### Handling [versionCertificatesMsg]
 
@@ -167,14 +172,16 @@ This can happen for example if: Say `A` and `B` are both [NearlyElectedValidator
 
 #### Handling [queryEnodeMsg] as a Validator
 
-1) this [Validator] is a [NearlyElectedValidator]
-2) there is an entry in the [queryEnodeMsg] addressed to this [Validator]
-3) it's already connected to the sender of the query
+If:
 
-If 1 and 2 are met, then this [Validator] should upsert the [eNodeURL] received
-If 1, 2 and 3 are met, then it should be replied with an [enodeCertificateMsg] directly.
+* this [Validator] is a [NearlyElectedValidator]
+* there is an entry in the [queryEnodeMsg] addressed to this [Validator]
 
-Regardless of that, the message should be regossipped through the message like any [FullNode] would do.
+Then this [Validator] should upsert the [eNodeURL] received.
+
+If, in addition, this [Validator] is already connected to the sender of the query, it should reply with an [enodeCertificateMsg] directly.
+
+Regardless of all that, the message should be regossipped through the message like any [FullNode] would do.
 
 #### Receiving [enodeCertificateMsg]
 
@@ -196,7 +203,7 @@ If the [Validator] is no longer in the list of [NearlyElectedValidator] then it 
 
 #### Version certificates spawning
 
-When a enters the [NearlyElectedValidator] set, it should update its [eNodeURL] version, gossip a new [versionCertificatesMsg] with its new certificate. After that, it should be renewed and regossipped every 5 minutes, until its removed from the [NearlyElectedValidator] set.
+When a [Validator] enters the [NearlyElectedValidator] set, it should update its [eNodeURL] version, gossip a new [versionCertificatesMsg] with its new certificate. After that, it should be renewed and regossipped every 5 minutes, until its removed from the [NearlyElectedValidator] set.
 
 ## Change Log
 
