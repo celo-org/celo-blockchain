@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
+	"github.com/celo-org/celo-blockchain/core"
 	ethCore "github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
@@ -38,6 +39,7 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -466,6 +468,13 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 	logger := sb.logger.New("func", "Finalize", "block", header.Number.Uint64(), "epochSize", sb.config.Epoch)
 	logger.Trace("Finalizing")
 
+	// The contract calls in Finalize() may emit logs, which we later add to an extra "block" receipt
+	// (in FinalizeAndAssemble() during construction or in `StateProcessor.process()` during verification).
+	// They are looked up using the zero hash instead of a transaction hash, and so we need to first call
+	// `state.Prepare()` so that they get filed under the zero hash. Otherwise, they would get filed under
+	// the hash of the last transaction in the block (if there were any).
+	state.Prepare(common.Hash{}, header.Hash(), len(txs))
+
 	snapshot := state.Snapshot()
 	vmRunner := sb.chain.NewEVMRunner(header, state)
 	err := sb.setInitialGoldTokenTotalSupplyIfUnset(vmRunner)
@@ -502,17 +511,11 @@ func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, receipts []*types.Receipt, randomness *types.Randomness) (*types.Block, error) {
 
 	sb.Finalize(chain, header, state, txs)
-
-	// Add extra receipt for Block's Internal Transaction Logs
-	if len(state.GetLogs(common.Hash{})) > 0 {
-		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = state.GetLogs(common.Hash{})
-		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		receipts = append(receipts, receipt)
-	}
+	// Add the block receipt with logs from the non-transaction core contract calls (if there were any)
+	receipts = core.AddBlockReceipt(receipts, state, header.Hash())
 
 	// Assemble and return the final block for sealing
-	block := types.NewBlock(header, txs, receipts, randomness)
+	block := types.NewBlock(header, txs, receipts, randomness, new(trie.Trie))
 	return block, nil
 }
 
@@ -627,12 +630,10 @@ func (sb *Backend) updateReplicaStateLoop(bc *ethCore.BlockChain) {
 	for {
 		select {
 		case chainEvent := <-chainEventCh:
-			sb.coreMu.RLock()
-			if !sb.coreStarted && sb.replicaState != nil {
+			if !sb.isCoreStarted() && sb.replicaState != nil {
 				consensusBlock := new(big.Int).Add(chainEvent.Block.Number(), common.Big1)
 				sb.replicaState.NewChainHead(consensusBlock)
 			}
-			sb.coreMu.RUnlock()
 		case err := <-chainEventSub.Err():
 			log.Error("Error in istanbul's subscription to the blockchain's chain event", "err", err)
 			return
@@ -647,7 +648,7 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 	onNewConsensusBlock func(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB)) error {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	if sb.coreStarted {
+	if sb.isCoreStarted() {
 		return istanbul.ErrStartedEngine
 	}
 
@@ -662,7 +663,7 @@ func (sb *Backend) SetCallBacks(hasBadBlock func(common.Hash) bool,
 func (sb *Backend) StartValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if sb.coreStarted {
+	if sb.isCoreStarted() {
 		return istanbul.ErrStartedEngine
 	}
 
@@ -682,7 +683,7 @@ func (sb *Backend) StartValidating() error {
 		sb.UpdateAnnounceVersion()
 	}
 
-	sb.coreStarted = true
+	sb.coreStarted.Store(true)
 
 	// coreStarted must be true by this point for validator peers to be successfully added
 	if !sb.config.Proxied {
@@ -698,14 +699,14 @@ func (sb *Backend) StartValidating() error {
 func (sb *Backend) StopValidating() error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
-	if !sb.coreStarted {
+	if !sb.isCoreStarted() {
 		return istanbul.ErrStoppedEngine
 	}
 	sb.logger.Info("Stopping istanbul.Engine validating")
 	if err := sb.core.Stop(); err != nil {
 		return err
 	}
-	sb.coreStarted = false
+	sb.coreStarted.Store(false)
 
 	return nil
 }

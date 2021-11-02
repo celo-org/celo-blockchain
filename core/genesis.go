@@ -33,6 +33,7 @@ import (
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 //go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
@@ -145,10 +146,10 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-	return SetupGenesisBlockWithOverride(db, genesis, nil, nil)
+	return SetupGenesisBlockWithOverride(db, genesis, nil)
 }
 
-func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideChurrito, overrideDonut *big.Int) (*params.ChainConfig, common.Hash, error) {
+func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideEHardfork *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && (genesis.Config == nil || genesis.Config.Istanbul == nil) {
 		return params.MainnetChainConfig, common.Hash{}, errGenesisNoConfig
 	}
@@ -171,7 +172,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// We have the genesis block in database(perhaps in ancient database)
 	// but the corresponding state is missing.
 	header := rawdb.ReadHeader(db, stored, 0)
-	s, err := state.New(header.Root, state.NewDatabaseWithCache(db, 0, ""), nil)
+	s, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil)
 	if err != nil {
 		if genesis == nil {
 			genesis = MainnetGenesisBlock()
@@ -203,11 +204,8 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
-	if overrideChurrito != nil {
-		newcfg.ChurritoBlock = overrideChurrito
-	}
-	if overrideDonut != nil {
-		newcfg.DonutBlock = overrideDonut
+	if overrideEHardfork != nil {
+		newcfg.EBlock = overrideEHardfork
 	}
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
 		return newcfg, common.Hash{}, err
@@ -282,7 +280,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	statedb.Commit(false)
 	statedb.Database().TrieDB().Commit(root, true, nil)
 
-	return types.NewBlock(head, nil, nil, nil)
+	return types.NewBlock(head, nil, nil, nil, new(trie.Trie))
 }
 
 // StoreGenesisSupply computes the total supply of the genesis block and stores

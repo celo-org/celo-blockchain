@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 
 	"github.com/celo-org/celo-blockchain/cmd/evm/internal/compiler"
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var compileCommand = cli.Command{

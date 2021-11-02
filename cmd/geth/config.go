@@ -31,9 +31,8 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/params"
-	whisper "github.com/celo-org/celo-blockchain/whisper/whisperv6"
 	"github.com/naoina/toml"
-	cli "gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -74,9 +73,19 @@ type ethstatsConfig struct {
 	URL string `toml:",omitempty"`
 }
 
+// whisper has been deprecated, but clients out there might still have [Shh]
+// in their config, which will crash. Cut them some slack by keeping the
+// config, and displaying a message that those config switches are ineffectual.
+// To be removed circa Q1 2021 -- @gballet.
+type whisperDeprecatedConfig struct {
+	MaxMessageSize                        uint32  `toml:",omitempty"`
+	MinimumAcceptedPOW                    float64 `toml:",omitempty"`
+	RestrictConnectionBetweenLightClients bool    `toml:",omitempty"`
+}
+
 type gethConfig struct {
 	Eth      eth.Config
-	Shh      whisper.Config
+	Shh      whisperDeprecatedConfig
 	Node     node.Config
 	Ethstats ethstatsConfig
 }
@@ -111,7 +120,6 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	// Load defaults.
 	cfg := gethConfig{
 		Eth:  eth.DefaultConfig,
-		Shh:  whisper.DefaultConfig,
 		Node: defaultNodeConfig(),
 	}
 
@@ -119,6 +127,10 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	if file := ctx.GlobalString(configFileFlag.Name); file != "" {
 		if err := loadConfig(file, &cfg); err != nil {
 			utils.Fatalf("%v", err)
+		}
+
+		if cfg.Shh != (whisperDeprecatedConfig{}) {
+			log.Warn("Deprecated whisper config detected. Whisper has been moved to github.com/ethereum/whisper")
 		}
 	}
 
@@ -136,47 +148,29 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 		cfg.Ethstats.URL = ctx.GlobalString(utils.LegacyEthStatsURLFlag.Name)
 		log.Warn("The flag --ethstats is deprecated and will be removed in the future, please use --celostats")
 	}
-	utils.SetShhConfig(ctx, stack, &cfg.Shh)
+	utils.SetShhConfig(ctx, stack)
 
 	return stack, cfg
 }
 
 // enableWhisper returns true in case one of the whisper flags is set.
-func enableWhisper(ctx *cli.Context) bool {
+func checkWhisper(ctx *cli.Context) {
 	for _, flag := range whisperFlags {
 		if ctx.GlobalIsSet(flag.GetName()) {
-			return true
+			log.Warn("deprecated whisper flag detected. Whisper has been moved to github.com/ethereum/whisper")
 		}
 	}
-	return false
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
 func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
-	if ctx.GlobalIsSet(utils.OverrideChurritoFlag.Name) {
-		cfg.Eth.OverrideChurrito = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideChurritoFlag.Name))
-	}
-	if ctx.GlobalIsSet(utils.OverrideDonutFlag.Name) {
-		cfg.Eth.OverrideDonut = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideDonutFlag.Name))
+	if ctx.GlobalIsSet(utils.OverrideEHardforkFlag.Name) {
+		cfg.Eth.OverrideEHardfork = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideEHardforkFlag.Name))
 	}
 	backend := utils.RegisterEthService(stack, &cfg.Eth)
 
-	// Whisper must be explicitly enabled by specifying at least 1 whisper flag or in dev mode
-	shhEnabled := enableWhisper(ctx)
-	shhAutoEnabled := !ctx.GlobalIsSet(utils.WhisperEnabledFlag.Name) && ctx.GlobalIsSet(utils.DeveloperFlag.Name)
-	if shhEnabled || shhAutoEnabled {
-		if ctx.GlobalIsSet(utils.WhisperMaxMessageSizeFlag.Name) {
-			cfg.Shh.MaxMessageSize = uint32(ctx.Int(utils.WhisperMaxMessageSizeFlag.Name))
-		}
-		if ctx.GlobalIsSet(utils.WhisperMinPOWFlag.Name) {
-			cfg.Shh.MinimumAcceptedPOW = ctx.Float64(utils.WhisperMinPOWFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.WhisperRestrictConnectionBetweenLightClientsFlag.Name) {
-			cfg.Shh.RestrictConnectionBetweenLightClients = true
-		}
-		utils.RegisterShhService(stack, &cfg.Shh)
-	}
+	checkWhisper(ctx)
 	// Configure GraphQL if requested
 	if ctx.GlobalIsSet(utils.GraphQLEnabledFlag.Name) {
 		utils.RegisterGraphQLService(stack, backend, cfg.Node)

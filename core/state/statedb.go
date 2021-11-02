@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state/snapshot"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -42,9 +43,6 @@ type revision struct {
 var (
 	// emptyRoot is the known root hash of an empty trie.
 	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-
-	// emptyCode is the known hash of the empty EVM bytecode.
-	emptyCode = crypto.Keccak256Hash(nil)
 )
 
 type proofList [][]byte
@@ -58,7 +56,7 @@ func (n *proofList) Delete(key []byte) error {
 	panic("not supported")
 }
 
-// StateDBs within the ethereum protocol are used to store anything
+// StateDB structs within the ethereum protocol are used to store anything
 // within the merkle trie. StateDBs take care of caching and storing
 // nested states. It's the general query interface to retrieve:
 // * Contracts
@@ -95,6 +93,9 @@ type StateDB struct {
 
 	preimages map[common.Hash][]byte
 
+	// Per-transaction access list
+	accessList *accessList
+
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
 	journal        *journal
@@ -115,7 +116,7 @@ type StateDB struct {
 	SnapshotCommits      time.Duration
 }
 
-// Create a new state from a given trie.
+// New creates a new state from a given trie.
 func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) {
 	tr, err := db.OpenTrie(root)
 	if err != nil {
@@ -131,6 +132,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		logs:                make(map[common.Hash][]*types.Log),
 		preimages:           make(map[common.Hash][]byte),
 		journal:             newJournal(),
+		accessList:          newAccessList(),
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
@@ -180,6 +182,7 @@ func (s *StateDB) Reset(root common.Hash) error {
 			s.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
 		}
 	}
+	s.accessList = newAccessList()
 	return nil
 }
 
@@ -250,7 +253,7 @@ func (s *StateDB) Empty(addr common.Address) bool {
 	return so == nil || so.empty()
 }
 
-// Retrieve the balance from the given address or 0 if object not found
+// GetBalance retrieves the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -315,10 +318,10 @@ func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 func (s *StateDB) GetProof(a common.Address) ([][]byte, error) {
 	var proof proofList
 	err := s.trie.Prove(crypto.Keccak256(a.Bytes()), 0, &proof)
-	return [][]byte(proof), err
+	return proof, err
 }
 
-// GetProof returns the StorageProof for given key
+// GetStorageProof returns the StorageProof for given key
 func (s *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, error) {
 	var proof proofList
 	trie := s.StorageTrie(a)
@@ -326,7 +329,7 @@ func (s *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, 
 		return proof, errors.New("storage trie for requested address does not exist")
 	}
 	err := trie.Prove(crypto.Keccak256(key.Bytes()), 0, &proof)
-	return [][]byte(proof), err
+	return proof, err
 }
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
@@ -560,7 +563,7 @@ func (s *StateDB) setStateObject(object *stateObject) {
 	s.stateObjects[object.Address()] = object
 }
 
-// Retrieve a state object or create a new state object if nil.
+// GetOrNewStateObject retrieves a state object or create a new state object if nil.
 func (s *StateDB) GetOrNewStateObject(addr common.Address) *stateObject {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
@@ -589,7 +592,10 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 		s.journal.append(resetObjectChange{prev: prev, prevdestruct: prevdestruct})
 	}
 	s.setStateObject(newobj)
-	return newobj, prev
+	if prev != nil && !prev.deleted {
+		return newobj, prev
+	}
+	return newobj, nil
 }
 
 // CreateAccount explicitly creates a state object. If a state object with the address
@@ -696,6 +702,14 @@ func (s *StateDB) Copy() *StateDB {
 	for hash, preimage := range s.preimages {
 		state.preimages[hash] = preimage
 	}
+
+	// Do we need to copy the access list? In practice: No. At the start of a
+	// transaction, the access list is empty. In practice, we only ever copy state
+	// _between_ transactions/blocks, never in the middle of a transaction.
+	// However, it doesn't cost us much to copy an empty list, so we do it anyway
+	// to not blow up if we ever decide copy it in the middle of a transaction
+	state.accessList = s.accessList.Copy()
+
 	if s.snaps != nil {
 		// In order for the miner to be able to use and make additions
 		// to the snapshot tree, we need to copy that aswell.
@@ -822,6 +836,7 @@ func (s *StateDB) Prepare(thash, bhash common.Hash, ti int) {
 	s.thash = thash
 	s.bhash = bhash
 	s.txIndex = ti
+	s.accessList = newAccessList()
 }
 
 func (s *StateDB) clearJournalAndRefund() {
@@ -841,11 +856,12 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
+	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			// Write any contract code associated with the state object
 			if obj.code != nil && obj.dirtyCode {
-				s.db.TrieDB().InsertBlob(common.BytesToHash(obj.CodeHash()), obj.code)
+				rawdb.WriteCode(codeWriter, common.BytesToHash(obj.CodeHash()), obj.code)
 				obj.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie
@@ -857,6 +873,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if len(s.stateObjectsDirty) > 0 {
 		s.stateObjectsDirty = make(map[common.Address]struct{})
 	}
+	if codeWriter.ValueSize() > 0 {
+		if err := codeWriter.Write(); err != nil {
+			log.Crit("Failed to commit dirty codes", "error", err)
+		}
+	}
 	// Write the account trie changes, measuing the amount of wasted time
 	var start time.Time
 	if metrics.EnabledExpensive {
@@ -865,16 +886,12 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	// The onleaf func is called _serially_, so we can reuse the same account
 	// for unmarshalling every time.
 	var account Account
-	root, err := s.trie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err := s.trie.Commit(func(path []byte, leaf []byte, parent common.Hash) error {
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
 		}
 		if account.Root != emptyRoot {
 			s.db.TrieDB().Reference(account.Root, parent)
-		}
-		code := common.BytesToHash(account.CodeHash)
-		if code != emptyCode {
-			s.db.TrieDB().Reference(code, parent)
 		}
 		return nil
 	})
@@ -902,4 +919,39 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
 	}
 	return root, err
+}
+
+// AddAddressToAccessList adds the given address to the access list
+func (s *StateDB) AddAddressToAccessList(addr common.Address) {
+	if s.accessList.AddAddress(addr) {
+		s.journal.append(accessListAddAccountChange{&addr})
+	}
+}
+
+// AddSlotToAccessList adds the given (address, slot)-tuple to the access list
+func (s *StateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
+	addrMod, slotMod := s.accessList.AddSlot(addr, slot)
+	if addrMod {
+		// In practice, this should not happen, since there is no way to enter the
+		// scope of 'address' without having the 'address' become already added
+		// to the access list (via call-variant, create, etc).
+		// Better safe than sorry, though
+		s.journal.append(accessListAddAccountChange{&addr})
+	}
+	if slotMod {
+		s.journal.append(accessListAddSlotChange{
+			address: &addr,
+			slot:    &slot,
+		})
+	}
+}
+
+// AddressInAccessList returns true if the given address is in the access list.
+func (s *StateDB) AddressInAccessList(addr common.Address) bool {
+	return s.accessList.ContainsAddress(addr)
+}
+
+// SlotInAccessList returns true if the given (address, slot)-tuple is in the access list.
+func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addressPresent bool, slotPresent bool) {
+	return s.accessList.Contains(addr, slot)
 }

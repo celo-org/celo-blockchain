@@ -101,7 +101,7 @@ type CodeRequest struct {
 
 // StoreResult stores the retrieved data in local database
 func (req *CodeRequest) StoreResult(db ethdb.Database) {
-	db.Put(req.Hash[:], req.Data)
+	rawdb.WriteCode(db, req.Hash, req.Data)
 }
 
 // BlockRequest is the ODR request type for retrieving block bodies
@@ -131,6 +131,11 @@ type HeaderRequest struct {
 // StoreResult handles storing the canonical hash if `InsertHeaderChain` has not already
 // This occurs if the total difficulty of the requested header is less than the current known TD.
 func (req *HeaderRequest) StoreResult(db ethdb.Database) {
+	if req.Header == nil {
+		// A nil header is a valid response when request the header by hash, as it indicates
+		// no known block with this hash.  In this case, there is nothing for us to do here.
+		return
+	}
 	if rawdb.ReadCanonicalHash(db, req.Header.Number.Uint64()) == (common.Hash{}) {
 		rawdb.WriteCanonicalHash(db, req.Header.Hash(), req.Header.Number.Uint64())
 	}
@@ -152,10 +157,8 @@ func (req *ReceiptsRequest) StoreResult(db ethdb.Database) {
 	}
 }
 
-// ChtRequest is the ODR request type for state/storage trie entries
+// ChtRequest is the ODR request type for retrieving header by Canonical Hash Trie
 type ChtRequest struct {
-	Untrusted        bool   // Indicator whether the result retrieved is trusted or not
-	PeerId           string // The specified peer id from which to retrieve data.
 	Config           *IndexerConfig
 	ChtNum, BlockNum uint64
 	ChtRoot          common.Hash
@@ -168,11 +171,9 @@ type ChtRequest struct {
 func (req *ChtRequest) StoreResult(db ethdb.Database) {
 	hash, num := req.Header.Hash(), req.Header.Number.Uint64()
 
-	if !req.Untrusted {
-		rawdb.WriteHeader(db, req.Header)
-		rawdb.WriteTd(db, hash, num, big.NewInt(int64(req.BlockNum+1)))
-		rawdb.WriteCanonicalHash(db, hash, num)
-	}
+	rawdb.WriteHeader(db, req.Header)
+	rawdb.WriteTd(db, hash, num, big.NewInt(int64(req.BlockNum+1)))
+	rawdb.WriteCanonicalHash(db, hash, num)
 }
 
 // BloomRequest is the ODR request type for retrieving bloom filters from a CHT structure

@@ -158,6 +158,7 @@ const (
 	ErrInvalidResponse
 	ErrTooManyTimeouts
 	ErrMissingKey
+	ErrForkIDRejected
 )
 
 func (e errCode) String() string {
@@ -180,12 +181,7 @@ var errorToString = map[int]string{
 	ErrInvalidResponse:         "Invalid response",
 	ErrTooManyTimeouts:         "Too many request timeouts",
 	ErrMissingKey:              "Key missing from list",
-}
-
-type announceBlock struct {
-	Hash   common.Hash // Hash of one particular block being announced
-	Number uint64      // Number of one particular block being announced
-	Td     *big.Int    // Total difficulty of one particular block being announced
+	ErrForkIDRejected:          "ForkID rejected",
 }
 
 // announceData is the network packet for the block announcements.
@@ -207,7 +203,7 @@ func (a *announceData) sanityCheck() error {
 
 // sign adds a signature to the block announcement by the given privKey
 func (a *announceData) sign(privKey *ecdsa.PrivateKey) {
-	rlp, _ := rlp.EncodeToBytes(announceBlock{a.Hash, a.Number, a.Td})
+	rlp, _ := rlp.EncodeToBytes(blockInfo{a.Hash, a.Number, a.Td})
 	sig, _ := crypto.Sign(crypto.Keccak256(rlp), privKey)
 	a.Update = a.Update.add("sign", sig)
 }
@@ -218,7 +214,7 @@ func (a *announceData) checkSignature(id enode.ID, update keyValueMap) error {
 	if err := update.get("sign", &sig); err != nil {
 		return err
 	}
-	rlp, _ := rlp.EncodeToBytes(announceBlock{a.Hash, a.Number, a.Td})
+	rlp, _ := rlp.EncodeToBytes(blockInfo{a.Hash, a.Number, a.Td})
 	recPubkey, err := crypto.SigToPub(crypto.Keccak256(rlp), sig)
 	if err != nil {
 		return err

@@ -38,6 +38,7 @@ import (
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 var (
@@ -72,7 +73,7 @@ func newTestBlockchain() *testBlockChain {
 }
 
 func (bc *testBlockChain) CurrentBlock() *types.Block {
-	return types.NewBlock(&types.Header{}, nil, nil, nil)
+	return types.NewBlock(&types.Header{}, nil, nil, nil, new(trie.Trie))
 }
 
 func (bc *testBlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
@@ -289,7 +290,7 @@ func TestInvalidTransactions(t *testing.T) {
 
 	// Should observe insufficient funds error when the balance doesn't cover transaction costs.
 	pool.currentState.AddBalance(from, big.NewInt(1))
-	if err := pool.AddRemote(tx); err != ErrInsufficientFunds {
+	if err := pool.AddRemote(tx); !errors.Is(err, ErrInsufficientFunds) {
 		t.Error("expected", ErrInsufficientFunds)
 	}
 
@@ -314,7 +315,7 @@ func TestInvalidTransactions(t *testing.T) {
 	pool.currentState.SetNonce(from, 1)
 	pool.currentState.AddBalance(from, big.NewInt(0xffffffffffffff))
 	tx = transaction(0, 100000, key)
-	if err := pool.AddRemote(tx); err != ErrNonceTooLow {
+	if err := pool.AddRemote(tx); !errors.Is(err, ErrNonceTooLow) {
 		t.Error("expected", ErrNonceTooLow)
 	}
 
@@ -1240,7 +1241,7 @@ func TestTransactionAllowedTxSize(t *testing.T) {
 		t.Fatalf("expected rejection on slightly oversize transaction")
 	}
 	// Try adding a transaction of random not allowed size
-	if err := pool.addRemoteSync(pricedDataTransaction(2, pool.currentMaxGas, big.NewInt(1), key, dataSize+1+uint64(rand.Intn(int(10*txMaxSize))))); err == nil {
+	if err := pool.addRemoteSync(pricedDataTransaction(2, pool.currentMaxGas, big.NewInt(1), key, dataSize+1+uint64(rand.Intn(10*txMaxSize)))); err == nil {
 		t.Fatalf("expected rejection on oversize transaction")
 	}
 	// Run some sanity checks on the pool internals

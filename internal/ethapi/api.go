@@ -427,7 +427,7 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args SendTxArgs
 //
 // The key used to calculate the signature is decrypted with the given password.
 //
-// https://github.com/celo-org/celo-blockchain/wiki/Management-APIs#personal_sign
+// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
 func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
@@ -473,7 +473,7 @@ func (s *PrivateAccountAPI) Decrypt(ctx context.Context, ciphertext hexutil.Byte
 // Note, the signature must conform to the secp256k1 curve R, S and V values, where
 // the V value must be 27 or 28 for legacy reasons.
 //
-// https://github.com/celo-org/celo-blockchain/wiki/Management-APIs#personal_ecRecover
+// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_ecRecover
 func (s *PrivateAccountAPI) EcRecover(ctx context.Context, data, sig hexutil.Bytes) (common.Address, error) {
 	if len(sig) != crypto.SignatureLength {
 		return common.Address{}, fmt.Errorf("signature must be %d bytes long", crypto.SignatureLength)
@@ -572,7 +572,7 @@ func (s *PublicBlockChainAPI) GetProof(ctx context.Context, address common.Addre
 			if storageError != nil {
 				return nil, storageError
 			}
-			storageProof[i] = StorageResult{key, (*hexutil.Big)(state.GetState(address, common.HexToHash(key)).Big()), common.ToHexArray(proof)}
+			storageProof[i] = StorageResult{key, (*hexutil.Big)(state.GetState(address, common.HexToHash(key)).Big()), toHexSlice(proof)}
 		} else {
 			storageProof[i] = StorageResult{key, &hexutil.Big{}, []string{}}
 		}
@@ -586,7 +586,7 @@ func (s *PublicBlockChainAPI) GetProof(ctx context.Context, address common.Addre
 
 	return &AccountResult{
 		Address:      address,
-		AccountProof: common.ToHexArray(accountProof),
+		AccountProof: toHexSlice(accountProof),
 		Balance:      (*hexutil.Big)(state.GetBalance(address)),
 		CodeHash:     codeHash,
 		Nonce:        hexutil.Uint64(state.GetNonce(address)),
@@ -742,7 +742,7 @@ func (args *CallArgs) ToMessage(globalGasCap uint64) types.Message {
 
 	var data []byte
 	if args.Data != nil {
-		data = []byte(*args.Data)
+		data = *args.Data
 	}
 
 	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, args.FeeCurrency, args.GatewayFeeRecipient, args.GatewayFee.ToInt(), data, args.EthCompatible, false)
@@ -972,9 +972,12 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 
 // EstimateGas returns an estimate of the amount of gas needed to execute the
 // given transaction against the current pending block.
-func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
-	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-	return DoEstimateGas(ctx, s.b, args, blockNrOrHash, s.b.RPCGasCap())
+func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs, blockNrOrHash *rpc.BlockNumberOrHash) (hexutil.Uint64, error) {
+	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+	if blockNrOrHash != nil {
+		bNrOrHash = *blockNrOrHash
+	}
+	return DoEstimateGas(ctx, s.b, args, bNrOrHash, s.b.RPCGasCap())
 }
 
 // ExecutionResult groups all structured logs emitted by the EVM
@@ -1343,40 +1346,36 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		return nil, nil
 	}
 	receipt := receipts[index]
+	fields := generateReceiptResponse(receipt, tx, blockHash, blockNumber, index)
+	return fields, nil
+}
 
-	var signer types.Signer = types.FrontierSigner{}
-	if tx.Protected() {
-		signer = types.NewEIP155Signer(tx.ChainId())
+// GetBlockReceipt returns "system calls" receipt for the block with the given block hash.
+func (s *PublicTransactionPoolAPI) GetBlockReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
+	block, err := s.b.BlockByHash(ctx, hash)
+	if block == nil || err != nil {
+		// If no header with that hash is found, err gives "header for hash not found".
+		// But we return nil with no error, to match the behavior of eth_getBlockByHash and eth_getTransactionReceipt in these cases.
+		return nil, nil
 	}
-	from, _ := types.Sender(signer, tx)
-
-	fields := map[string]interface{}{
-		"blockHash":         blockHash,
-		"blockNumber":       hexutil.Uint64(blockNumber),
-		"transactionHash":   hash,
-		"transactionIndex":  hexutil.Uint64(index),
-		"from":              from,
-		"to":                tx.To(),
-		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
-		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
-		"contractAddress":   nil,
-		"logs":              receipt.Logs,
-		"logsBloom":         receipt.Bloom,
+	index := uint64(block.Transactions().Len())
+	blockNumber := block.NumberU64()
+	receipts, err := s.b.GetReceipts(ctx, block.Hash())
+	// GetReceipts() doesn't return an error if things go wrong, so we also check len(receipts)
+	if err != nil || len(receipts) < int(index) {
+		return nil, err
 	}
 
-	// Assign receipt status or post state.
-	if len(receipt.PostState) > 0 {
-		fields["root"] = hexutil.Bytes(receipt.PostState)
+	var receipt *types.Receipt
+	if len(receipts) == int(index) {
+		// The block didn't have any logs from system calls and no receipt was created.
+		// So we create an empty receipt to return, similarly to how system receipts are created.
+		receipt = types.NewReceipt(nil, false, 0)
+		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 	} else {
-		fields["status"] = hexutil.Uint(receipt.Status)
+		receipt = receipts[index]
 	}
-	if receipt.Logs == nil {
-		fields["logs"] = [][]*types.Log{}
-	}
-	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
-	if receipt.ContractAddress != (common.Address{}) {
-		fields["contractAddress"] = receipt.ContractAddress
-	}
+	fields := generateReceiptResponse(receipt, nil, hash, blockNumber, index)
 	return fields, nil
 }
 
@@ -1867,4 +1866,56 @@ func checkTxFee(cm *currency.CurrencyManager, feeCurrency *common.Address, fee *
 		return fmt.Errorf("tx fee (%.2f ether) exceeds the configured cap (%.2f celo)", feeFloat, cap)
 	}
 	return nil
+}
+
+// toHexSlice creates a slice of hex-strings based on []byte.
+func toHexSlice(b [][]byte) []string {
+	r := make([]string, len(b))
+	for i := range b {
+		r[i] = hexutil.Encode(b[i])
+	}
+	return r
+}
+
+// generateReceiptResponse is a helper function which generates the response for GetTransactionReceipt() and GetBlockReceipt()
+func generateReceiptResponse(receipt *types.Receipt, tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) map[string]interface{} {
+	fields := map[string]interface{}{
+		"blockHash":         blockHash,
+		"blockNumber":       hexutil.Uint64(blockNumber),
+		"transactionHash":   common.Hash{},
+		"transactionIndex":  hexutil.Uint64(index),
+		"from":              common.Address{},
+		"to":                nil,
+		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
+		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
+		"contractAddress":   nil,
+		"logs":              receipt.Logs,
+		"logsBloom":         receipt.Bloom,
+	}
+
+	// Assign receipt status or post state.
+	if len(receipt.PostState) > 0 {
+		fields["root"] = hexutil.Bytes(receipt.PostState)
+	} else {
+		fields["status"] = hexutil.Uint(receipt.Status)
+	}
+	if receipt.Logs == nil {
+		fields["logs"] = [][]*types.Log{}
+	}
+	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
+	if receipt.ContractAddress != (common.Address{}) {
+		fields["contractAddress"] = receipt.ContractAddress
+	}
+	if tx == nil {
+		fields["transactionHash"] = blockHash
+	} else {
+		fields["transactionHash"] = tx.Hash()
+		var signer types.Signer = types.FrontierSigner{}
+		if tx.Protected() {
+			signer = types.NewEIP155Signer(tx.ChainId())
+		}
+		fields["from"], _ = types.Sender(signer, tx)
+		fields["to"] = tx.To()
+	}
+	return fields
 }

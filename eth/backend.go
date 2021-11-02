@@ -121,7 +121,7 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideChurrito, config.OverrideDonut)
+	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideEHardfork)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
@@ -175,6 +175,7 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 			TrieDirtyDisabled:   config.NoPruning,
 			TrieTimeLimit:       config.TrieTimeout,
 			SnapshotLimit:       config.SnapshotCache,
+			Preimages:           config.Preimages,
 		}
 	)
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)
@@ -220,7 +221,7 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), eth}
 
-	eth.dialCandidates, err = eth.setupDiscovery(&stack.Config().P2P)
+	eth.dialCandidates, err = eth.setupDiscovery()
 	if err != nil {
 		return nil, err
 	}

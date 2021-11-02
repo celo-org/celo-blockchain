@@ -76,6 +76,10 @@ type Config struct {
 	// connected. It must be greater than zero.
 	MaxPeers int
 
+	// MaxLightClients is the maximum number of light clients that can be connected.
+	// It is zero if the LES server isn't running (includes the case that we are an LES client).
+	MaxLightClients int
+
 	// MaxPendingPeers is the maximum number of peers that can be pending in the
 	// handshake phase, counted separately for inbound and outbound connections.
 	// Zero defaults to preset values.
@@ -176,7 +180,7 @@ type Server struct {
 
 	// Hooks for testing. These are useful because we can inhibit
 	// the whole protocol stack.
-	newTransport func(net.Conn) transport
+	newTransport func(net.Conn, *ecdsa.PublicKey) transport
 	newPeerHook  func(*Peer)
 	listenFunc   func(network, addr string) (net.Listener, error)
 
@@ -308,7 +312,7 @@ type conn struct {
 
 type transport interface {
 	// The two handshakes.
-	doEncHandshake(prv *ecdsa.PrivateKey, dialDest *ecdsa.PublicKey) (*ecdsa.PublicKey, error)
+	doEncHandshake(prv *ecdsa.PrivateKey) (*ecdsa.PublicKey, error)
 	doProtoHandshake(our *protoHandshake) (*protoHandshake, error)
 	// The MsgReadWriter can only be used after the encryption
 	// handshake has completed. The code uses conn.id to track this
@@ -732,10 +736,11 @@ func (srv *Server) maxDialedConns() (limit int) {
 	if srv.NoDial || srv.MaxPeers == 0 {
 		return 0
 	}
+	maxEthPeers := srv.MaxPeers - srv.MaxLightClients
 	if srv.DialRatio == 0 {
-		limit = srv.MaxPeers / defaultDialRatio
+		limit = maxEthPeers / defaultDialRatio
 	} else {
-		limit = srv.MaxPeers / srv.DialRatio
+		limit = maxEthPeers / srv.DialRatio
 	}
 	if limit == 0 {
 		limit = 1
@@ -780,7 +785,7 @@ func (srv *Server) doPeerOp(fn peerOpFunc) {
 
 // run is the main loop of the server.
 func (srv *Server) run() {
-	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4())
+	srv.log.Info("Started P2P networking", "self", srv.localnode.Node().URLv4(), "maxdialed", srv.maxDialedConns(), "maxinbound", srv.maxInboundConns())
 	defer srv.loopWG.Done()
 	defer srv.nodedb.Close()
 	defer srv.discmix.Close()
@@ -932,7 +937,7 @@ running:
 				purpose := static[c.node.ID()].Add(trusted[c.node.ID()])
 				p := srv.launchPeer(c, purpose)
 				peers[c.node.ID()] = p
-				srv.log.Debug("Adding p2p peer", "peercount", len(peers), "id", p.ID(), "conn", c.flags, "addr", p.RemoteAddr(), "name", truncateName(c.name))
+				srv.log.Debug("Adding p2p peer", "peercount", len(peers), "id", p.ID(), "conn", c.flags, "addr", p.RemoteAddr(), "name", p.Name())
 				srv.dialsched.peerAdded(c)
 				if p.Inbound() {
 					inboundCount++
@@ -1045,13 +1050,18 @@ func (srv *Server) listenLoop() {
 		<-slots
 
 		var (
-			fd  net.Conn
-			err error
+			fd      net.Conn
+			err     error
+			lastLog time.Time
 		)
 		for {
 			fd, err = srv.listener.Accept()
 			if netutil.IsTemporaryError(err) {
-				srv.log.Debug("Temporary read error", "err", err)
+				if time.Since(lastLog) > 1*time.Second {
+					srv.log.Debug("Temporary read error", "err", err)
+					lastLog = time.Now()
+				}
+				time.Sleep(time.Millisecond * 200)
 				continue
 			} else if err != nil {
 				srv.log.Debug("Read error", "err", err)
@@ -1105,7 +1115,13 @@ func (srv *Server) checkInboundConn(fd net.Conn, remoteIP net.IP) error {
 // as a peer. It returns when the connection has been added as a peer
 // or the handshakes have failed.
 func (srv *Server) SetupConn(fd net.Conn, flags connFlag, dialDest *enode.Node) error {
-	c := &conn{fd: fd, transport: srv.newTransport(fd), flags: flags, cont: make(chan error)}
+	c := &conn{fd: fd, flags: flags, cont: make(chan error)}
+	if dialDest == nil {
+		c.transport = srv.newTransport(fd, nil)
+	} else {
+		c.transport = srv.newTransport(fd, dialDest.Pubkey())
+	}
+
 	err := srv.setupConn(c, flags, dialDest)
 	if err != nil {
 		c.close(err)
@@ -1134,16 +1150,12 @@ func (srv *Server) setupConn(c *conn, flags connFlag, dialDest *enode.Node) erro
 	}
 
 	// Run the RLPx handshake.
-	remotePubkey, err := c.doEncHandshake(srv.PrivateKey, dialPubkey)
+	remotePubkey, err := c.doEncHandshake(srv.PrivateKey)
 	if err != nil {
 		srv.log.Trace("Failed RLPx handshake", "addr", c.fd.RemoteAddr(), "conn", c.flags, "err", err)
 		return err
 	}
 	if dialDest != nil {
-		// For dialed connections, check that the remote public key matches.
-		if dialPubkey.X.Cmp(remotePubkey.X) != 0 || dialPubkey.Y.Cmp(remotePubkey.Y) != 0 {
-			return DiscUnexpectedIdentity
-		}
 		c.node = dialDest
 	} else {
 		c.node = nodeFromConn(remotePubkey, c.fd)
@@ -1183,13 +1195,6 @@ func nodeFromConn(pubkey *ecdsa.PublicKey, conn net.Conn) *enode.Node {
 		port = tcp.Port
 	}
 	return enode.NewV4(pubkey, ip, port, port)
-}
-
-func truncateName(s string) string {
-	if len(s) > 20 {
-		return s[:20] + "..."
-	}
-	return s
 }
 
 // checkpoint sends the conn to run, which performs the

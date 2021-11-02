@@ -242,29 +242,29 @@ loop:
 		b.state.Prepare(tx.Hash(), common.Hash{}, b.tcount)
 
 		logs, err := b.commitTransaction(w, tx, txFeeRecipient)
-		switch err {
-		case core.ErrGasLimitReached:
+		switch {
+		case errors.Is(err, core.ErrGasLimitReached):
 			// Pop the current out-of-gas transaction without shifting in the next from the account
 			log.Trace("Gas limit exceeded for current block", "sender", from)
 			txs.Pop()
 
-		case core.ErrNonceTooLow:
+		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
 			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Shift()
 
-		case core.ErrNonceTooHigh:
+		case errors.Is(err, core.ErrNonceTooHigh):
 			// Reorg notification data race between the transaction pool and miner, skip account =
 			log.Trace("Skipping account with hight nonce", "sender", from, "nonce", tx.Nonce())
 			txs.Pop()
 
-		case core.ErrGasPriceDoesNotExceedMinimum:
+		case errors.Is(err, core.ErrGasPriceDoesNotExceedMinimum):
 			// We are below the GPM, so we can stop (the rest of the transactions will either have
 			// even lower gas price or won't be mineable yet due to their nonce)
 			log.Trace("Skipping remaining transaction below the gas price minimum")
 			break loop
 
-		case nil:
+		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			b.tcount++
@@ -314,9 +314,6 @@ func (b *blockState) commitTransaction(w *worker, tx *types.Transaction, txFeeRe
 
 // finalizeAndAssemble runs post-transaction state modification and assembles the final block.
 func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
-	// Need to copy the state here otherwise block production stalls. Not sure why.
-	b.state = b.state.Copy()
-
 	block, err := w.engine.FinalizeAndAssemble(w.chain, b.header, b.state, b.txs, b.receipts, b.randomness)
 	if err != nil {
 		return nil, fmt.Errorf("Error in FinalizeAndAssemble: %w", err)
@@ -329,15 +326,10 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 		}
 	}
 
-	if len(b.state.GetLogs(common.Hash{})) > 0 {
-		receipt := types.NewReceipt(nil, false, 0)
-		receipt.Logs = b.state.GetLogs(common.Hash{})
-		for i := range receipt.Logs {
-			receipt.Logs[i].TxIndex = uint(len(b.receipts))
-		}
-		receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-		b.receipts = append(b.receipts, receipt)
-	}
+	// FinalizeAndAssemble adds the "block receipt" to then calculate the Bloom filter and receipts hash.
+	// But it doesn't return the receipts.  So we have to add the "block receipt" to b.receipts here, for
+	// use in calculating the "pending" block (and also in the `task`, though we could remove it from that).
+	b.receipts = core.AddBlockReceipt(b.receipts, b.state, block.Hash())
 
 	return block, nil
 }

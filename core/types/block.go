@@ -18,6 +18,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -35,7 +36,7 @@ import (
 )
 
 var (
-	EmptyRootHash       = DeriveSha(Transactions{})
+	EmptyRootHash       = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 	EmptyRandomness     = Randomness{}
 	EmptyEpochSnarkData = EpochSnarkData{}
 )
@@ -183,6 +184,33 @@ func (r *EpochSnarkData) IsEmpty() bool {
 	return len(r.Signature) == 0
 }
 
+// MarshalJSON marshals as JSON.
+func (r EpochSnarkData) MarshalJSON() ([]byte, error) {
+	type EpochSnarkData struct {
+		Bitmap    hexutil.Bytes
+		Signature hexutil.Bytes
+	}
+	var enc EpochSnarkData
+	enc.Bitmap = r.Bitmap.Bytes()
+	enc.Signature = r.Signature
+	return json.Marshal(&enc)
+}
+
+// UnmarshalJSON unmarshals from JSON.
+func (r *EpochSnarkData) UnmarshalJSON(input []byte) error {
+	type EpochSnarkData struct {
+		Bitmap    hexutil.Bytes
+		Signature hexutil.Bytes
+	}
+	var dec EpochSnarkData
+	if err := json.Unmarshal(input, &dec); err != nil {
+		return err
+	}
+	r.Bitmap = new(big.Int).SetBytes(dec.Bitmap)
+	r.Signature = dec.Signature
+	return nil
+}
+
 // Body is a simple (mutable, non-safe) data container for storing and moving
 // a block's data contents (transactions and uncles) together.
 type Body struct {
@@ -249,14 +277,14 @@ type storageblock struct {
 //
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs and receipts.
-func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness) *Block {
+func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness, hasher Hasher) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: &EmptyEpochSnarkData}
 
 	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
 		b.header.TxHash = EmptyRootHash
 	} else {
-		b.header.TxHash = DeriveSha(Transactions(txs))
+		b.header.TxHash = DeriveSha(Transactions(txs), hasher)
 		b.transactions = make(Transactions, len(txs))
 		copy(b.transactions, txs)
 	}
@@ -264,7 +292,7 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomnes
 	if len(receipts) == 0 {
 		b.header.ReceiptHash = EmptyRootHash
 	} else {
-		b.header.ReceiptHash = DeriveSha(Receipts(receipts))
+		b.header.ReceiptHash = DeriveSha(Receipts(receipts), hasher)
 		b.header.Bloom = CreateBloom(receipts)
 	}
 

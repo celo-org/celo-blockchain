@@ -118,7 +118,7 @@ func (r *BlockRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if r.Header == nil {
 		return errHeaderUnavailable
 	}
-	if r.Header.TxHash != types.DeriveSha(types.Transactions(body.Transactions)) {
+	if r.Header.TxHash != types.DeriveSha(types.Transactions(body.Transactions), new(trie.Trie)) {
 		return errTxHashMismatch
 	}
 	// Validations passed, encode and store RLP
@@ -146,13 +146,18 @@ func (r *HeaderRequest) CanSend(peer *serverPeer) bool {
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
 func (r *HeaderRequest) Request(reqId uint64, peer *serverPeer) error {
-	if r.Origin.Hash != (common.Hash{}) {
+	if r.isByHash() {
 		peer.Log().Debug("Requesting block header", "hash", r.Origin.Hash)
 		return peer.requestHeadersByHash(reqId, r.Origin.Hash, 1, 0, false)
 	} else {
 		peer.Log().Debug("Requesting block header", "number", r.Origin.Number)
 		return peer.requestHeadersByNumber(reqId, *r.Origin.Number, 1, 0, false)
 	}
+}
+
+// Whether the request specified the block hash (rather than block number)
+func (r *HeaderRequest) isByHash() bool {
+	return r.Origin.Hash != common.Hash{}
 }
 
 // Validate processes an ODR request reply message from the LES network
@@ -164,7 +169,15 @@ func (r *HeaderRequest) Validate(db ethdb.Database, msg *Msg) error {
 		return errInvalidMessageType
 	}
 	headers := msg.Obj.([]*types.Header)
-	if len(headers) != 1 {
+	if len(headers) == 0 && r.isByHash() {
+		// For requests by number, we only send to peers for which we know the block number
+		// is within the range of what they have, so if they don't send us the header we reject
+		// the response and try other peers.
+		// However, for requests by hash, we have no way of knowing ahead of time whether the peer
+		// should have it or not (e.g. what if there is no such block?).  So we need to accept
+		// 'no match' as a valid response, to avoid ODR endlessly trying to send to different peers.
+		return nil
+	} else if len(headers) != 1 {
 		return errInvalidEntryCount
 	}
 	if r.Origin.Hash != (common.Hash{}) && headers[0].Hash() != r.Origin.Hash {
@@ -219,7 +232,7 @@ func (r *ReceiptsRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if r.Header == nil {
 		return errHeaderUnavailable
 	}
-	if r.Header.ReceiptHash != types.DeriveSha(receipt) {
+	if r.Header.ReceiptHash != types.DeriveSha(receipt, new(trie.Trie)) {
 		return errReceiptHashMismatch
 	}
 	// Validations passed, store and return
@@ -372,11 +385,7 @@ func (r *ChtRequest) CanSend(peer *serverPeer) bool {
 	peer.lock.RLock()
 	defer peer.lock.RUnlock()
 
-	if r.Untrusted {
-		return peer.headInfo.Number >= r.BlockNum && peer.id == r.PeerId
-	} else {
-		return peer.headInfo.Number >= r.Config.ChtConfirms && r.ChtNum <= (peer.headInfo.Number-r.Config.ChtConfirms)/r.Config.ChtSize
-	}
+	return peer.headInfo.Number >= r.Config.ChtConfirms && r.ChtNum <= (peer.headInfo.Number-r.Config.ChtConfirms)/r.Config.ChtSize
 }
 
 // Request sends an ODR request to the LES network (implementation of LesOdrRequest)
@@ -415,39 +424,34 @@ func (r *ChtRequest) Validate(db ethdb.Database, msg *Msg) error {
 	if err := rlp.DecodeBytes(headerEnc, header); err != nil {
 		return errHeaderUnavailable
 	}
-
 	// Verify the CHT
-	// Note: For untrusted CHT request, there is no proof response but
-	// header data.
-	var node light.ChtNode
-	if !r.Untrusted {
-		var encNumber [8]byte
-		binary.BigEndian.PutUint64(encNumber[:], r.BlockNum)
+	var (
+		node      light.ChtNode
+		encNumber [8]byte
+	)
+	binary.BigEndian.PutUint64(encNumber[:], r.BlockNum)
 
-		reads := &readTraceDB{db: nodeSet}
-		value, err := trie.VerifyProof(r.ChtRoot, encNumber[:], reads)
-		if err != nil {
-			return fmt.Errorf("merkle proof verification failed: %v", err)
-		}
-		if len(reads.reads) != nodeSet.KeyCount() {
-			return errUselessNodes
-		}
-
-		if err := rlp.DecodeBytes(value, &node); err != nil {
-			return err
-		}
-		if node.Hash != header.Hash() {
-			return errCHTHashMismatch
-		}
-		if r.BlockNum != header.Number.Uint64() {
-			return errCHTNumberMismatch
-		}
+	reads := &readTraceDB{db: nodeSet}
+	value, err := trie.VerifyProof(r.ChtRoot, encNumber[:], reads)
+	if err != nil {
+		return fmt.Errorf("merkle proof verification failed: %v", err)
+	}
+	if len(reads.reads) != nodeSet.KeyCount() {
+		return errUselessNodes
+	}
+	if err := rlp.DecodeBytes(value, &node); err != nil {
+		return err
+	}
+	if node.Hash != header.Hash() {
+		return errCHTHashMismatch
+	}
+	if r.BlockNum != header.Number.Uint64() {
+		return errCHTNumberMismatch
 	}
 	// Verifications passed, store and return
 	r.Header = header
 	r.Proof = nodeSet
-	r.Td = node.Td // For untrusted request, td here is nil, todo improve the les/2 protocol
-
+	r.Td = node.Td
 	return nil
 }
 

@@ -203,7 +203,7 @@ func (sb *Backend) NewWork() error {
 
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
-	if !sb.coreStarted {
+	if !sb.isCoreStarted() {
 		return istanbul.ErrStoppedEngine
 	}
 
