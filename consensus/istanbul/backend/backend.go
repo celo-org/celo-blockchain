@@ -37,6 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/contracts"
 	"github.com/celo-org/celo-blockchain/contracts/election"
+	"github.com/celo-org/celo-blockchain/trie"
 
 	"github.com/celo-org/celo-blockchain/contracts/random"
 	"github.com/celo-org/celo-blockchain/contracts/validators"
@@ -574,7 +575,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 	}
 
 	// check block body
-	txnHash := types.DeriveSha(block.Transactions())
+	txnHash := types.DeriveSha(block.Transactions(), new(trie.Trie))
 	if txnHash != block.Header().TxHash {
 		return nil, 0, errMismatchTxhashes
 	}

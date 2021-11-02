@@ -29,6 +29,7 @@ import (
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	elog "github.com/celo-org/celo-blockchain/log"
+	"github.com/celo-org/celo-blockchain/trie"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -38,7 +39,7 @@ func makeBlock(number int64) *types.Block {
 		GasUsed: 0,
 		Time:    uint64(0),
 	}
-	return types.NewBlock(header, nil, nil, nil)
+	return types.NewBlock(header, nil, nil, nil, new(trie.Trie))
 }
 
 func newTestProposalWithNum(num int64) istanbul.Proposal {

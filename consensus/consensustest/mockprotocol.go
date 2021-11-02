@@ -35,6 +35,7 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rpc"
+	"github.com/celo-org/celo-blockchain/trie"
 )
 
 var (
@@ -201,7 +202,7 @@ func (e *MockEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	header.Root = statedb.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 
 	// Header seems complete, assemble into a block and return
-	return types.NewBlock(header, txs, receipts, randomness), nil
+	return types.NewBlock(header, txs, receipts, randomness, new(trie.Trie)), nil
 }
 
 func (e *MockEngine) Author(header *types.Header) (common.Address, error) {

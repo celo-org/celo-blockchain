@@ -32,7 +32,7 @@ type lesTxRelay struct {
 	txSent    map[common.Hash]*types.Transaction
 	txPending map[common.Hash]struct{}
 	peerList  []*serverPeer
-	lock      sync.RWMutex
+	lock      sync.Mutex
 	stop      chan struct{}
 
 	retriever *retrieveManager

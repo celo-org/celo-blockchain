@@ -32,7 +32,7 @@ import (
 
 // SignerFn is a signer function callback when a contract requires a method to
 // sign the transaction before submission.
-type SignerFn func(types.Signer, common.Address, *types.Transaction) (*types.Transaction, error)
+type SignerFn func(common.Address, *types.Transaction) (*types.Transaction, error)
 
 // CallOpts is the collection of options to fine tune a contract call request.
 type CallOpts struct {
@@ -132,10 +132,13 @@ func (c *BoundContract) TxObj(opts *TransactOpts, method string, params ...inter
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, params ...interface{}) error {
+func (c *BoundContract) Call(opts *CallOpts, results *[]interface{}, method string, params ...interface{}) error {
 	// Don't crash on a lazy user
 	if opts == nil {
 		opts = new(CallOpts)
+	}
+	if results == nil {
+		results = new([]interface{})
 	}
 	// Pack the input, call and unpack the results
 	input, err := c.abi.Pack(method, params...)
@@ -164,7 +167,10 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, 
 		}
 	} else {
 		output, err = c.backend.CallContract(ctx, msg, opts.BlockNumber)
-		if err == nil && len(output) == 0 {
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
 			// Make sure we have a contract to operate on, and bail out otherwise.
 			if code, err = c.backend.CodeAt(ctx, c.address, opts.BlockNumber); err != nil {
 				return err
@@ -173,10 +179,14 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, 
 			}
 		}
 	}
-	if err != nil {
+
+	if len(*results) == 0 {
+		res, err := c.abi.Unpack(method, output)
+		*results = res
 		return err
 	}
-	return c.abi.Unpack(result, method, output)
+	res := *results
+	return c.abi.UnpackIntoInterface(res[0], method, output)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
@@ -308,11 +318,7 @@ func (c *BoundContract) transactionFor(opts *TransactOpts, contract *common.Addr
 	if opts.Signer == nil {
 		return nil, errors.New("no signer to authorize the transaction with")
 	}
-	var signer types.Signer = types.HomesteadSigner{}
-	if opts.ChainID != nil {
-		signer = types.NewEIP155Signer(opts.ChainID)
-	}
-	signedTx, err := opts.Signer(signer, opts.From, rawTx)
+	signedTx, err := opts.Signer(opts.From, rawTx)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +365,7 @@ func (c *BoundContract) FilterLogs(opts *FilterOpts, name string, query ...[]int
 	// Append the event selector to the query parameters and construct the topic set
 	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -408,7 +414,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 	// Append the event selector to the query parameters and construct the topic set
 	query = append([][]interface{}{{c.abi.Events[name].ID}}, query...)
 
-	topics, err := makeTopics(query...)
+	topics, err := abi.MakeTopics(query...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -432,7 +438,7 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 // UnpackLog unpacks a retrieved log into the provided output structure.
 func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) error {
 	if len(log.Data) > 0 {
-		if err := c.abi.Unpack(out, event, log.Data); err != nil {
+		if err := c.abi.UnpackIntoInterface(out, event, log.Data); err != nil {
 			return err
 		}
 	}
@@ -442,7 +448,7 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 			indexed = append(indexed, arg)
 		}
 	}
-	return parseTopics(out, indexed, log.Topics[1:])
+	return abi.ParseTopics(out, indexed, log.Topics[1:])
 }
 
 // UnpackLogIntoMap unpacks a retrieved log into the provided map.
@@ -458,7 +464,7 @@ func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event strin
 			indexed = append(indexed, arg)
 		}
 	}
-	return parseTopicsIntoMap(out, indexed, log.Topics[1:])
+	return abi.ParseTopicsIntoMap(out, indexed, log.Topics[1:])
 }
 
 // ensureContext is a helper method to ensure a context is not nil, even if the

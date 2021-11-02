@@ -29,13 +29,16 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/mclock"
 	"github.com/celo-org/celo-blockchain/core"
+	"github.com/celo-org/celo-blockchain/core/forkid"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
+	lps "github.com/celo-org/celo-blockchain/les/lespay/server"
 	"github.com/celo-org/celo-blockchain/les/utils"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/p2p"
+	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/params"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -125,7 +128,7 @@ type peerCommons struct {
 	frozen       uint32    // Flag whether the peer is frozen.
 	announceType uint64    // New block announcement type.
 	serving      uint32    // The status indicates the peer is served.
-	headInfo     blockInfo // Latest block information.
+	headInfo     blockInfo // Last announced block information.
 
 	// Background task queue for caching peer tasks and executing in order.
 	sendQueue *utils.ExecQueue
@@ -245,7 +248,7 @@ func (p *peerCommons) sendReceiveHandshake(sendList keyValueList) (keyValueList,
 // network IDs, difficulties, head and genesis blocks. Besides the basic handshake
 // fields, server and client can exchange and resolve some specified fields through
 // two callback functions.
-func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, sendCallback func(*keyValueList), recvCallback func(keyValueMap) error) error {
+func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, forkID forkid.ID, forkFilter forkid.Filter, sendCallback func(*keyValueList), recvCallback func(keyValueMap) error) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -254,11 +257,19 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	// Add some basic handshake fields
 	send = send.add("protocolVersion", uint64(p.version))
 	send = send.add("networkId", p.network)
+	// Note: the head info announced at handshake is only used in case of server peers
+	// but dummy values are still announced by clients for compatibility with older servers
 	send = send.add("headTd", td)
 	send = send.add("headHash", head)
 	send = send.add("headNum", headNum)
 	send = send.add("genesisHash", genesis)
 
+	// If the protocol version is beyond les4, then pass the forkID
+	// as well. Check http://eips.ethereum.org/EIPS/eip-2124 for more
+	// spec detail.
+	if p.version >= lpv4 {
+		send = send.add("forkID", forkID)
+	}
 	// Add client-specified or server-specified fields
 	if sendCallback != nil {
 		sendCallback(&send)
@@ -272,22 +283,12 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	if size > allowedUpdateBytes {
 		return errResp(ErrRequestRejected, "")
 	}
-	var rGenesis, rHash common.Hash
-	var rVersion, rNetwork, rNum uint64
-	var rTd *big.Int
+	var rGenesis common.Hash
+	var rVersion, rNetwork uint64
 	if err := recv.get("protocolVersion", &rVersion); err != nil {
 		return err
 	}
 	if err := recv.get("networkId", &rNetwork); err != nil {
-		return err
-	}
-	if err := recv.get("headTd", &rTd); err != nil {
-		return err
-	}
-	if err := recv.get("headHash", &rHash); err != nil {
-		return err
-	}
-	if err := recv.get("headNum", &rNum); err != nil {
 		return err
 	}
 	if err := recv.get("genesisHash", &rGenesis); err != nil {
@@ -302,7 +303,16 @@ func (p *peerCommons) handshake(td *big.Int, head common.Hash, headNum uint64, g
 	if int(rVersion) != p.version {
 		return errResp(ErrProtocolVersionMismatch, "%d (!= %d)", rVersion, p.version)
 	}
-	p.headInfo = blockInfo{Hash: rHash, Number: rNum, Td: rTd}
+	// Check forkID if the protocol version is beyond the les4
+	if p.version >= lpv4 {
+		var forkID forkid.ID
+		if err := recv.get("forkID", &forkID); err != nil {
+			return err
+		}
+		if err := forkFilter(forkID); err != nil {
+			return errResp(ErrForkIDRejected, "%v", err)
+		}
+	}
 	if recvCallback != nil {
 		return recvCallback(recv)
 	}
@@ -467,7 +477,7 @@ func (p *serverPeer) requestTxStatus(reqID uint64, txHashes []common.Hash) error
 	return p.sendRequest(GetTxStatusMsg, reqID, txHashes, len(txHashes))
 }
 
-// SendTxStatus creates a reply with a batch of transactions to be added to the remote transaction pool.
+// sendTxs creates a reply with a batch of transactions to be added to the remote transaction pool.
 func (p *serverPeer) sendTxs(reqID uint64, amount int, txs rlp.RawValue) error {
 	p.Log().Debug("Sending batch of transactions", "amount", amount, "size", len(txs))
 	sizeFactor := (len(txs) + txSizeCostLimit/2) / txSizeCostLimit
@@ -653,9 +663,11 @@ func (p *serverPeer) updateHead(hash common.Hash, number uint64, td *big.Int) {
 }
 
 // Handshake executes the les protocol handshake, negotiating version number,
-// network IDs, difficulties, head and genesis blocks.
-func (p *serverPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, server *LesServer) error {
-	return p.handshake(td, head, headNum, genesis, func(lists *keyValueList) {
+// network IDs and genesis blocks.
+func (p *serverPeer) Handshake(genesis common.Hash, forkid forkid.ID, forkFilter forkid.Filter) error {
+	// Note: there is no need to share local head with a server but older servers still
+	// require these fields so we announce zero values.
+	return p.handshake(common.Big0, common.Hash{}, 0, genesis, forkid, forkFilter, func(lists *keyValueList) {
 		// Add some client-specific handshake fields
 		//
 		// Enable signed announcement randomly even the server is not trusted.
@@ -665,6 +677,21 @@ func (p *serverPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 		}
 		*lists = (*lists).add("announceType", p.announceType)
 	}, func(recv keyValueMap) error {
+		var (
+			rHash common.Hash
+			rNum  uint64
+			rTd   *big.Int
+		)
+		if err := recv.get("headTd", &rTd); err != nil {
+			return err
+		}
+		if err := recv.get("headHash", &rHash); err != nil {
+			return err
+		}
+		if err := recv.get("headNum", &rNum); err != nil {
+			return err
+		}
+		p.headInfo = blockInfo{Hash: rHash, Number: rNum, Td: rTd}
 		if recv.get("serveChainSince", &p.chainSince) != nil {
 			p.onlyAnnounce = true
 		}
@@ -803,6 +830,8 @@ type clientPeer struct {
 	// RequestProcessed is called
 	responseLock  sync.Mutex
 	responseCount uint64 // Counter to generate an unique id for request processing.
+
+	balance *lps.NodeBalance
 
 	// invalidLock is used for protecting invalidCount.
 	invalidLock  sync.RWMutex
@@ -972,18 +1001,25 @@ func (p *clientPeer) sendAnnounce(request announceData) error {
 	return p2p.Send(p.rw, AnnounceMsg, request)
 }
 
+// allowInactive implements clientPoolPeer
+func (p *clientPeer) allowInactive() bool {
+	return false
+}
+
 // updateCapacity updates the request serving capacity assigned to a given client
 // and also sends an announcement about the updated flow control parameters
 func (p *clientPeer) updateCapacity(cap uint64) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	p.fcParams = flowcontrol.ServerParams{MinRecharge: cap, BufLimit: cap * bufLimitRatio}
-	p.fcClient.UpdateParams(p.fcParams)
-	var kvList keyValueList
-	kvList = kvList.add("flowControl/MRR", cap)
-	kvList = kvList.add("flowControl/BL", cap*bufLimitRatio)
-	p.queueSend(func() { p.sendAnnounce(announceData{Update: kvList}) })
+	if cap != p.fcParams.MinRecharge {
+		p.fcParams = flowcontrol.ServerParams{MinRecharge: cap, BufLimit: cap * bufLimitRatio}
+		p.fcClient.UpdateParams(p.fcParams)
+		var kvList keyValueList
+		kvList = kvList.add("flowControl/MRR", cap)
+		kvList = kvList.add("flowControl/BL", cap*bufLimitRatio)
+		p.queueSend(func() { p.sendAnnounce(announceData{Update: kvList}) })
+	}
 }
 
 // freezeClient temporarily puts the client in a frozen state which means all
@@ -991,7 +1027,7 @@ func (p *clientPeer) updateCapacity(cap uint64) {
 // after a short time if the client's buffer value is at least in the slightly positive
 // region. The client is also notified about being frozen/unfrozen with a Stop/Resume
 // message.
-func (p *clientPeer) freezeClient() {
+func (p *clientPeer) freezeClient() { //nolint:unused
 	if p.version < lpv3 {
 		// if Stop/Resume is not supported then just drop the peer after setting
 		// its frozen status permanently
@@ -1022,8 +1058,11 @@ func (p *clientPeer) freezeClient() {
 
 // Handshake executes the les protocol handshake, negotiating version number,
 // network IDs, difficulties, head and genesis blocks.
-func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, server *LesServer) error {
-	return p.handshake(td, head, headNum, genesis, func(lists *keyValueList) {
+func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, forkID forkid.ID, forkFilter forkid.Filter, server *LesServer) error {
+	// Note: clientPeer.headInfo should contain the last head announced to the client by us.
+	// The values announced in the handshake are dummy values for compatibility reasons and should be ignored.
+	p.headInfo = blockInfo{Hash: head, Number: headNum, Td: td}
+	return p.handshake(td, head, headNum, genesis, forkID, forkFilter, func(lists *keyValueList) {
 		// Add some information which services server can offer.
 		if !server.config.UltraLightOnlyAnnounce {
 			*lists = (*lists).add("serveHeaders", nil)
@@ -1070,7 +1109,7 @@ func (p *clientPeer) Handshake(td *big.Int, head common.Hash, headNum uint64, ge
 				// set default announceType on server side
 				p.announceType = announceTypeSimple
 			}
-			p.fcClient = flowcontrol.NewClientNode(server.fcManager, server.defParams)
+			p.fcClient = flowcontrol.NewClientNode(server.fcManager, p.fcParams)
 		}
 		return nil
 	})
@@ -1097,7 +1136,7 @@ type serverPeerSubscriber interface {
 
 // clientPeerSubscriber is an interface to notify services about added or
 // removed client peers
-type clientPeerSubscriber interface {
+type clientPeerSubscriber interface { //nolint:unused
 	registerPeer(*clientPeer)
 	unregisterPeer(*clientPeer)
 }
@@ -1105,18 +1144,18 @@ type clientPeerSubscriber interface {
 // clientPeerSet represents the set of active client peers currently
 // participating in the Light Ethereum sub-protocol.
 type clientPeerSet struct {
-	peers map[string]*clientPeer
+	peers map[enode.ID]*clientPeer
 	// subscribers is a batch of subscribers and peerset will notify
 	// these subscribers when the peerset changes(new client peer is
 	// added or removed)
-	subscribers []clientPeerSubscriber
+	subscribers []clientPeerSubscriber //nolint:unused
 	closed      bool
 	lock        sync.RWMutex
 }
 
 // newClientPeerSet creates a new peer set to track the client peers.
 func newClientPeerSet() *clientPeerSet {
-	return &clientPeerSet{peers: make(map[string]*clientPeer)}
+	return &clientPeerSet{peers: make(map[enode.ID]*clientPeer)}
 }
 
 // subscribe adds a service to be notified about added or removed
@@ -1146,17 +1185,17 @@ func (ps *clientPeerSet) unSubscribe(sub clientPeerSubscriber) { // nolint:unuse
 
 // register adds a new peer into the peer set, or returns an error if the
 // peer is already known.
-func (ps *clientPeerSet) register(peer *clientPeer) error {
+func (ps *clientPeerSet) register(peer *clientPeer) error { //nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
 	if ps.closed {
 		return errClosed
 	}
-	if _, exist := ps.peers[peer.id]; exist {
+	if _, exist := ps.peers[peer.ID()]; exist {
 		return errAlreadyRegistered
 	}
-	ps.peers[peer.id] = peer
+	ps.peers[peer.ID()] = peer
 	for _, sub := range ps.subscribers {
 		sub.registerPeer(peer)
 	}
@@ -1166,7 +1205,7 @@ func (ps *clientPeerSet) register(peer *clientPeer) error {
 // unregister removes a remote peer from the peer set, disabling any further
 // actions to/from that particular entity. It also initiates disconnection
 // at the networking layer.
-func (ps *clientPeerSet) unregister(id string) error {
+func (ps *clientPeerSet) unregister(id enode.ID) error { //nolint:unused
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -1183,11 +1222,11 @@ func (ps *clientPeerSet) unregister(id string) error {
 }
 
 // ids returns a list of all registered peer IDs
-func (ps *clientPeerSet) ids() []string { // nolint:unused
+func (ps *clientPeerSet) ids() []enode.ID { // nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	var ids []string
+	var ids []enode.ID
 	for id := range ps.peers {
 		ids = append(ids, id)
 	}
@@ -1195,7 +1234,7 @@ func (ps *clientPeerSet) ids() []string { // nolint:unused
 }
 
 // peer retrieves the registered peer with the given id.
-func (ps *clientPeerSet) peer(id string) *clientPeer {
+func (ps *clientPeerSet) peer(id enode.ID) *clientPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -1203,7 +1242,7 @@ func (ps *clientPeerSet) peer(id string) *clientPeer {
 }
 
 // len returns if the current number of peers in the set.
-func (ps *clientPeerSet) len() int {
+func (ps *clientPeerSet) len() int { //nolint:unused
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
@@ -1405,13 +1444,13 @@ func (ps *serverPeerSet) close() {
 // also run the LES protocol. We can't drop them although they are useless
 // for us(server) but for other protocols(e.g. ETH) upon the devp2p they
 // may be useful.
-type serverSet struct {
+type serverSet struct { //nolint:unused
 	lock   sync.Mutex
 	set    map[string]*clientPeer
 	closed bool
 }
 
-func newServerSet() *serverSet {
+func newServerSet() *serverSet { //nolint:unused
 	return &serverSet{set: make(map[string]*clientPeer)}
 }
 
@@ -1429,7 +1468,7 @@ func (s *serverSet) register(peer *clientPeer) error {
 	return nil
 }
 
-func (s *serverSet) unregister(peer *clientPeer) error {
+func (s *serverSet) unregister(peer *clientPeer) error { //nolint:unused
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -1444,7 +1483,7 @@ func (s *serverSet) unregister(peer *clientPeer) error {
 	return nil
 }
 
-func (s *serverSet) close() {
+func (s *serverSet) close() { //nolint:unused
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
