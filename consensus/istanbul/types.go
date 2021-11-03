@@ -18,6 +18,7 @@ package istanbul
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -1040,4 +1041,68 @@ func (sd *ValEnodesShareData) DecodeRLP(s *rlp.Stream) error {
 	}
 	sd.ValEnodes = msg.ValEnodes
 	return nil
+}
+
+var (
+	// errInvalidSigningFn is returned when the consensus signing function is invalid.
+	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
+)
+
+type EcdsaInfo struct {
+	Address   common.Address   // Ethereum address of the ECDSA signing key
+	PublicKey *ecdsa.PublicKey // The signer public key
+
+	decrypt  DecryptFn    // Decrypt function to decrypt ECIES ciphertext
+	sign     SignerFn     // Signer function to authorize hashes with
+	signHash HashSignerFn // Signer function to create random seed
+}
+
+func NewEcdsaInfo(ecdsaAddress common.Address, publicKey *ecdsa.PublicKey,
+	decryptFn DecryptFn, signFn SignerFn, signHashFn HashSignerFn) *EcdsaInfo {
+	return &EcdsaInfo{
+		Address:   ecdsaAddress,
+		PublicKey: publicKey,
+		decrypt:   decryptFn,
+		sign:      signFn,
+		signHash:  signHashFn,
+	}
+}
+
+// Sign hashes and signs the data with the ecdsa account
+func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
+	if ei.sign == nil {
+		return nil, errInvalidSigningFn
+	}
+	return ei.sign(accounts.Account{Address: ei.Address}, accounts.MimetypeIstanbul, data)
+}
+
+// SignHash signs the given hash with the ecdsa account
+func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
+	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
+}
+
+// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
+// decrypted
+func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
+	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
+}
+
+type BlsInfo struct {
+	Address common.Address // Ethereum address of the BLS signing key
+	sign    BLSSignerFn    // Signer function to authorize BLS messages
+}
+
+func NewBlsInfo(blsAddress common.Address, signBLSFn BLSSignerFn) *BlsInfo {
+	return &BlsInfo{
+		Address: blsAddress,
+		sign:    signBLSFn,
+	}
+}
+
+// Sign signs with the bls account
+func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
+	if bi.sign == nil {
+		return blscrypto.SerializedSignature{}, errInvalidSigningFn
+	}
+	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
 }

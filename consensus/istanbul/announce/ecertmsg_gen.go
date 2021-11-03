@@ -1,4 +1,4 @@
-package backend
+package announce
 
 import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -12,7 +12,7 @@ type EnodeCertificateMsgGenerator interface {
 	// each external enode this node possesses. A unproxied validator will have one enode, while a
 	// proxied validator may have one for each proxy.. Each enode is a key in the returned map, and the
 	// value is the certificate message.
-	GenerateEnodeCertificateMsgs(ei *EcdsaInfo, version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error)
+	GenerateEnodeCertificateMsgs(ei *istanbul.EcdsaInfo, version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error)
 }
 
 type ecmg struct {
@@ -27,7 +27,7 @@ func NewEnodeCertificateMsgGenerator(efeg ExternalFacingEnodeGetter) EnodeCertif
 	}
 }
 
-func (e *ecmg) GenerateEnodeCertificateMsgs(ei *EcdsaInfo, version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
+func (e *ecmg) GenerateEnodeCertificateMsgs(ei *istanbul.EcdsaInfo, version uint) (map[enode.ID]*istanbul.EnodeCertMsg, error) {
 	logger := e.logger.New("func", "generateEnodeCertificateMsgs")
 
 	enodeCertificateMsgs := make(map[enode.ID]*istanbul.EnodeCertMsg)

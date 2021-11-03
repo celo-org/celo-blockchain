@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/accounts"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -56,55 +55,9 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-var (
-	// errInvalidSigningFn is returned when the consensus signing function is invalid.
-	errInvalidSigningFn = errors.New("invalid signing function for istanbul messages")
-)
-
-type EcdsaInfo struct {
-	Address   common.Address   // Ethereum address of the ECDSA signing key
-	PublicKey *ecdsa.PublicKey // The signer public key
-
-	decrypt  istanbul.DecryptFn    // Decrypt function to decrypt ECIES ciphertext
-	sign     istanbul.SignerFn     // Signer function to authorize hashes with
-	signHash istanbul.HashSignerFn // Signer function to create random seed
-}
-
-// Sign hashes and signs the data with the ecdsa account
-func (ei EcdsaInfo) Sign(data []byte) ([]byte, error) {
-	if ei.sign == nil {
-		return nil, errInvalidSigningFn
-	}
-	return ei.sign(accounts.Account{Address: ei.Address}, accounts.MimetypeIstanbul, data)
-}
-
-// SignHash signs the given hash with the ecdsa account
-func (ei EcdsaInfo) SignHash(hash common.Hash) ([]byte, error) {
-	return ei.signHash(accounts.Account{Address: ei.Address}, hash.Bytes())
-}
-
-// Decrypt is a decrypt callback function to request an ECIES ciphertext to be
-// decrypted
-func (ei EcdsaInfo) Decrypt(payload []byte) ([]byte, error) {
-	return ei.decrypt(accounts.Account{Address: ei.Address}, payload, nil, nil)
-}
-
-type BlsInfo struct {
-	Address common.Address       // Ethereum address of the BLS signing key
-	sign    istanbul.BLSSignerFn // Signer function to authorize BLS messages
-}
-
-// Sign signs with the bls account
-func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (blscrypto.SerializedSignature, error) {
-	if bi.sign == nil {
-		return blscrypto.SerializedSignature{}, errInvalidSigningFn
-	}
-	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
-}
-
 type Wallets struct {
-	Ecdsa EcdsaInfo
-	Bls   BlsInfo
+	Ecdsa istanbul.EcdsaInfo
+	Bls   istanbul.BlsInfo
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
@@ -205,16 +158,16 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 	pruner := NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
 
 	var vpap ValProxyAssigmnentProvider
-	var ecertGenerator EnodeCertificateMsgGenerator
+	var ecertGenerator announce.EnodeCertificateMsgGenerator
 	var onNewEnodeMsgs OnNewEnodeCertsMsgSentFn
 	if backend.IsProxiedValidator() {
-		ecertGenerator = NewEnodeCertificateMsgGenerator(
-			NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
+		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(
+			announce.NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
 		)
 		vpap = NewProxiedValProxyAssigmentProvider(backend.proxiedValidatorEngine.GetValidatorProxyAssignments)
 		onNewEnodeMsgs = backend.proxiedValidatorEngine.SendEnodeCertsToAllProxies
 	} else {
-		ecertGenerator = NewEnodeCertificateMsgGenerator(NewSelfExternalFacingEnodeGetter(backend.SelfNode))
+		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(announce.NewSelfExternalFacingEnodeGetter(backend.SelfNode))
 		vpap = NewSelfValProxyAssigmentProvider(backend.SelfNode)
 		onNewEnodeMsgs = nil
 	}
@@ -462,23 +415,14 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 
 // Authorize implements istanbul.Backend.Authorize
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
-	bls := BlsInfo{
-		Address: blsAddress,
-		sign:    signBLSFn,
-	}
-	ecdsa := EcdsaInfo{
-		Address:   ecdsaAddress,
-		PublicKey: publicKey,
-		decrypt:   decryptFn,
-		sign:      signFn,
-		signHash:  signHashFn,
-	}
+	bls := istanbul.NewBlsInfo(blsAddress, signBLSFn)
+	ecdsa := istanbul.NewEcdsaInfo(ecdsaAddress, publicKey, decryptFn, signFn, signHashFn)
 	w := &Wallets{
-		Ecdsa: ecdsa,
-		Bls:   bls,
+		Ecdsa: *ecdsa,
+		Bls:   *bls,
 	}
 	sb.aWallets.Store(w)
-	sb.core.SetAddress(ecdsaAddress)
+	sb.core.SetAddress(w.Ecdsa.Address)
 }
 
 func (sb *Backend) wallets() *Wallets {

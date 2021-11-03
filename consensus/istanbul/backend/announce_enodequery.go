@@ -47,7 +47,7 @@ func generateEncryptedEnodeURLs(plogger log.Logger, enodeQueries []*enodeQuery) 
 // public key, from which their validator signer address is derived.
 // Note: It is referred to as a "query" because the sender does not know the recipients enode.
 // The recipient is expected to respond by opening a direct connection with an enode certificate.
-func generateQueryEnodeMsg(plogger log.Logger, ei *EcdsaInfo, version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+func generateQueryEnodeMsg(plogger log.Logger, ei *istanbul.EcdsaInfo, version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
 	logger := plogger.New("func", "generateQueryEnodeMsg")
 
 	encryptedEnodeURLs, err := generateEncryptedEnodeURLs(logger, enodeQueries)
@@ -79,7 +79,7 @@ func generateQueryEnodeMsg(plogger log.Logger, ei *EcdsaInfo, version uint, enod
 type EnodeQueryGossiper interface {
 	// GossipEnodeQueries will generate, encrypt, and gossip through the p2p network a new
 	// QueryEnodeMsg with the enodeQueries given.
-	GossipEnodeQueries(*EcdsaInfo, []*enodeQuery) (*istanbul.Message, error)
+	GossipEnodeQueries(*istanbul.EcdsaInfo, []*enodeQuery) (*istanbul.Message, error)
 }
 
 type eqg struct {
@@ -96,7 +96,7 @@ func NewEnodeQueryGossiper(announceVersion announce.VersionReader, gossipFn func
 	}
 }
 
-func (e *eqg) GossipEnodeQueries(ei *EcdsaInfo, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+func (e *eqg) GossipEnodeQueries(ei *istanbul.EcdsaInfo, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
 	version := e.announceVersion.Get()
 	var err error
 	qeMsg, err := generateQueryEnodeMsg(e.logger, ei, version, enodeQueries)

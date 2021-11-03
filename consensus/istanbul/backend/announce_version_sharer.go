@@ -30,7 +30,7 @@ func NewAnnounceVersionSharer(
 	network AnnounceNetwork,
 	state *AnnounceState,
 	ovcp OutboundVersionCertificateProcessor,
-	ecertGenerator EnodeCertificateMsgGenerator,
+	ecertGenerator announce.EnodeCertificateMsgGenerator,
 	ecertHolder announce.EnodeCertificateMsgHolder,
 	onNewEnodeMsgsFn OnNewEnodeCertsMsgSentFn,
 ) AnnounceVersionSharer {
@@ -62,7 +62,7 @@ type avs struct {
 
 	ovcp OutboundVersionCertificateProcessor
 
-	ecertGenerator EnodeCertificateMsgGenerator
+	ecertGenerator announce.EnodeCertificateMsgGenerator
 	ecertHolder    announce.EnodeCertificateMsgHolder
 
 	onNewMsgsFn OnNewEnodeCertsMsgSentFn
