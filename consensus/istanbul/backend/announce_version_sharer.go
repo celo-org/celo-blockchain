@@ -75,7 +75,7 @@ func (a *avs) ShareVersion(version uint) error {
 		return err
 	}
 
-	w := a.aWallets.Load().(*Wallets)
+	w := a.aWallets.Load().(*istanbul.Wallets)
 
 	// Don't send any of the following messages if this node is not in the validator conn set
 	if !validatorConnSet[w.Ecdsa.Address] {

@@ -30,7 +30,7 @@ type worker struct {
 	aWallets          *atomic.Value
 	version           announce.Version
 	initialWaitPeriod time.Duration
-	checker           ValidatorChecker
+	checker           announce.ValidatorChecker
 	state             *AnnounceState
 	pruner            AnnounceStatePruner
 	vcGossiper        VersionCertificateGossiper
@@ -48,7 +48,7 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	aWallets *atomic.Value,
 	version announce.Version,
 	state *AnnounceState,
-	checker ValidatorChecker,
+	checker announce.ValidatorChecker,
 	pruner AnnounceStatePruner,
 	vcGossiper VersionCertificateGossiper,
 	enodeGossiper announce.EnodeQueryGossiper,
@@ -74,8 +74,8 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	}
 }
 
-func (m *worker) wallets() *Wallets {
-	return m.aWallets.Load().(*Wallets)
+func (m *worker) wallets() *istanbul.Wallets {
+	return m.aWallets.Load().(*istanbul.Wallets)
 }
 
 func (w *worker) Stop() {

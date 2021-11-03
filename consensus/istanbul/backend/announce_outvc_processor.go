@@ -5,6 +5,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
@@ -12,7 +13,7 @@ type OutboundVersionCertificateProcessor interface {
 	Process(*AnnounceState, []*istanbul.VersionCertificate, common.Address) error
 }
 
-func NewOutboundVCProcessor(checker ValidatorChecker,
+func NewOutboundVCProcessor(checker announce.ValidatorChecker,
 	addrProvider AddressProvider,
 	vcGossiper VersionCertificateGossiper) OutboundVersionCertificateProcessor {
 	return &ovcp{
@@ -25,7 +26,7 @@ func NewOutboundVCProcessor(checker ValidatorChecker,
 
 type ovcp struct {
 	logger       log.Logger
-	checker      ValidatorChecker
+	checker      announce.ValidatorChecker
 	addrProvider AddressProvider
 	vcGossiper   VersionCertificateGossiper
 }

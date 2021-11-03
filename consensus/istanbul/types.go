@@ -1106,3 +1106,8 @@ func (bi *BlsInfo) Sign(data []byte, extra []byte, useComposite, cip22 bool) (bl
 	}
 	return bi.sign(accounts.Account{Address: bi.Address}, data, extra, useComposite, cip22)
 }
+
+type Wallets struct {
+	Ecdsa EcdsaInfo
+	Bls   BlsInfo
+}

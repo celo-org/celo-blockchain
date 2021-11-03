@@ -7,6 +7,22 @@ import (
 	"github.com/celo-org/celo-blockchain/log"
 )
 
+// QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
+type QueryEnodeGossipFrequencyState int
+
+const (
+	// HighFreqBeforeFirstPeerState will send out a query enode message every 1 minute until the first peer is established
+	HighFreqBeforeFirstPeerState QueryEnodeGossipFrequencyState = iota
+
+	// HighFreqAfterFirstPeerState will send out an query enode message every 1 minute for the first 10 query enode messages after the first peer is established.
+	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
+	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
+	HighFreqAfterFirstPeerState
+
+	// LowFreqState will send out an query every config.AnnounceQueryEnodeGossipPeriod seconds
+	LowFreqState
+)
+
 // announceTaskState encapsulates the state needed to guide the behavior of the announce protocol
 // thread. This type is designed to be used from A SINGLE THREAD only.
 type announceTaskState struct {

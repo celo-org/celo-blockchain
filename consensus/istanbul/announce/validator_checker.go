@@ -1,9 +1,10 @@
-package backend
+package announce
 
 import (
 	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
 type ValidatorChecker interface {
@@ -36,7 +37,7 @@ func (c *checker) IsElectedOrNearValidator() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	w := c.aWallets.Load().(*Wallets)
+	w := c.aWallets.Load().(*istanbul.Wallets)
 	return validatorConnSet[w.Ecdsa.Address], nil
 }
 

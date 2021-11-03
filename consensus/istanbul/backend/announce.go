@@ -47,22 +47,6 @@ var (
 	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
 )
 
-// QueryEnodeGossipFrequencyState specifies how frequently to gossip query enode messages
-type QueryEnodeGossipFrequencyState int
-
-const (
-	// HighFreqBeforeFirstPeerState will send out a query enode message every 1 minute until the first peer is established
-	HighFreqBeforeFirstPeerState QueryEnodeGossipFrequencyState = iota
-
-	// HighFreqAfterFirstPeerState will send out an query enode message every 1 minute for the first 10 query enode messages after the first peer is established.
-	// This is on the assumption that when this node first establishes a peer, the p2p network that this node is in may
-	// be partitioned with the broader p2p network. We want to give that p2p network some time to connect to the broader p2p network.
-	HighFreqAfterFirstPeerState
-
-	// LowFreqState will send out an query every config.AnnounceQueryEnodeGossipPeriod seconds
-	LowFreqState
-)
-
 // AddressProvider provides the different addresses the announce manager needs
 type AddressProvider interface {
 	SelfNode() *enode.Node
@@ -102,7 +86,7 @@ type AnnounceManager struct {
 
 	state *AnnounceState
 
-	checker ValidatorChecker
+	checker announce.ValidatorChecker
 
 	ovcp OutboundVersionCertificateProcessor
 
@@ -126,7 +110,7 @@ func NewAnnounceManager(
 	network AnnounceNetwork, proxyContext ProxyContext,
 	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache GossipCache,
-	checker ValidatorChecker,
+	checker announce.ValidatorChecker,
 	ovcp OutboundVersionCertificateProcessor,
 	ecertHolder announce.EnodeCertificateMsgHolder,
 	vcGossiper VersionCertificateGossiper,
@@ -166,8 +150,8 @@ func (m *AnnounceManager) Close() error {
 	return m.state.versionCertificateTable.Close()
 }
 
-func (m *AnnounceManager) wallets() *Wallets {
-	return m.aWallets.Load().(*Wallets)
+func (m *AnnounceManager) wallets() *istanbul.Wallets {
+	return m.aWallets.Load().(*istanbul.Wallets)
 }
 
 // The announceThread will:

@@ -55,11 +55,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-type Wallets struct {
-	Ecdsa istanbul.EcdsaInfo
-	Bls   istanbul.BlsInfo
-}
-
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
@@ -96,7 +91,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		blocksFinalizedGasUsedGauge:        metrics.NewRegisteredGauge("consensus/istanbul/blocks/gasused", nil),
 		sleepGauge:                         metrics.NewRegisteredGauge("consensus/istanbul/backend/sleep", nil),
 	}
-	backend.aWallets.Store(&Wallets{})
+	backend.aWallets.Store(&istanbul.Wallets{})
 	if config.LoadTestCSVFile != "" {
 		if f, err := os.Create(config.LoadTestCSVFile); err == nil {
 			backend.csvRecorder = metrics.NewCSVRecorder(f, "blockNumber", "txCount", "gasUsed", "round",
@@ -152,7 +147,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 	})
 
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
-	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
+	checker := announce.NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
 	ovcp := NewOutboundVCProcessor(checker, backend, vcGossiper)
 	ecertHolder := announce.NewLockedHolder()
 	pruner := NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
@@ -192,7 +187,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 
 func createAnnounceWorker(backend *Backend, state *AnnounceState, ovcp OutboundVersionCertificateProcessor,
 	vcGossiper VersionCertificateGossiper,
-	checker ValidatorChecker, pruner AnnounceStatePruner,
+	checker announce.ValidatorChecker, pruner AnnounceStatePruner,
 	vpap ValProxyAssigmnentProvider, avs AnnounceVersionSharer) AnnounceWorker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {
@@ -417,7 +412,7 @@ func (sb *Backend) SendDelegateSignMsgToProxiedValidator(msg []byte) error {
 func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey *ecdsa.PublicKey, decryptFn istanbul.DecryptFn, signFn istanbul.SignerFn, signBLSFn istanbul.BLSSignerFn, signHashFn istanbul.HashSignerFn) {
 	bls := istanbul.NewBlsInfo(blsAddress, signBLSFn)
 	ecdsa := istanbul.NewEcdsaInfo(ecdsaAddress, publicKey, decryptFn, signFn, signHashFn)
-	w := &Wallets{
+	w := &istanbul.Wallets{
 		Ecdsa: *ecdsa,
 		Bls:   *bls,
 	}
@@ -425,8 +420,8 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 	sb.core.SetAddress(w.Ecdsa.Address)
 }
 
-func (sb *Backend) wallets() *Wallets {
-	return sb.aWallets.Load().(*Wallets)
+func (sb *Backend) wallets() *istanbul.Wallets {
+	return sb.aWallets.Load().(*istanbul.Wallets)
 }
 
 // Address implements istanbul.Backend.Address
