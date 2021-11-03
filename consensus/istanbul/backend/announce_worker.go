@@ -38,7 +38,7 @@ type worker struct {
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
 	vpap              announce.ValProxyAssigmnentProvider
-	avs               AnnounceVersionSharer
+	avs               announce.VersionSharer
 
 	updateAnnounceVersionCh chan struct{}
 	announceThreadQuit      chan struct{}
@@ -55,7 +55,7 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
 	vpap announce.ValProxyAssigmnentProvider,
-	avs AnnounceVersionSharer) AnnounceWorker {
+	avs announce.VersionSharer) AnnounceWorker {
 	return &worker{
 		logger:                  log.New("module", "announceWorker"),
 		aWallets:                aWallets,

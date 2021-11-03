@@ -153,7 +153,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 
 	var vpap announce.ValProxyAssigmnentProvider
 	var ecertGenerator announce.EnodeCertificateMsgGenerator
-	var onNewEnodeMsgs OnNewEnodeCertsMsgSentFn
+	var onNewEnodeMsgs announce.OnNewEnodeCertsMsgSentFn
 	if backend.IsProxiedValidator() {
 		ecertGenerator = announce.NewEnodeCertificateMsgGenerator(
 			announce.NewProxiedExternalFacingEnodeGetter(backend.proxiedValidatorEngine.GetProxiesAndValAssignments),
@@ -166,7 +166,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 		onNewEnodeMsgs = nil
 	}
 
-	avs := NewAnnounceVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
+	avs := announce.NewVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
 	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
 	return NewAnnounceManager(
 		backend.config,
@@ -187,7 +187,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
 	vcGossiper announce.VersionCertificateGossiper,
 	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
-	vpap announce.ValProxyAssigmnentProvider, avs AnnounceVersionSharer) AnnounceWorker {
+	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) AnnounceWorker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))

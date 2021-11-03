@@ -1,16 +1,15 @@
-package backend
+package announce
 
 import (
 	"sync/atomic"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
-type AnnounceVersionSharer interface {
+type VersionSharer interface {
 	// ShareVersion generates announce data structures and
 	// and shares them with relevant nodes.
 	// It will:
@@ -25,15 +24,15 @@ type AnnounceVersionSharer interface {
 
 type OnNewEnodeCertsMsgSentFn func(map[enode.ID]*istanbul.EnodeCertMsg) error
 
-func NewAnnounceVersionSharer(
+func NewVersionSharer(
 	aWallets *atomic.Value,
-	network announce.Network,
-	state *announce.AnnounceState,
-	ovcp announce.OutboundVersionCertificateProcessor,
-	ecertGenerator announce.EnodeCertificateMsgGenerator,
-	ecertHolder announce.EnodeCertificateMsgHolder,
+	network Network,
+	state *AnnounceState,
+	ovcp OutboundVersionCertificateProcessor,
+	ecertGenerator EnodeCertificateMsgGenerator,
+	ecertHolder EnodeCertificateMsgHolder,
 	onNewEnodeMsgsFn OnNewEnodeCertsMsgSentFn,
-) AnnounceVersionSharer {
+) VersionSharer {
 	// noop func
 	var onNewMsgsFn OnNewEnodeCertsMsgSentFn = func(map[enode.ID]*istanbul.EnodeCertMsg) error { return nil }
 	if onNewEnodeMsgsFn != nil {
@@ -56,14 +55,14 @@ type avs struct {
 
 	aWallets *atomic.Value
 
-	network announce.Network
+	network Network
 
-	state *announce.AnnounceState
+	state *AnnounceState
 
-	ovcp announce.OutboundVersionCertificateProcessor
+	ovcp OutboundVersionCertificateProcessor
 
-	ecertGenerator announce.EnodeCertificateMsgGenerator
-	ecertHolder    announce.EnodeCertificateMsgHolder
+	ecertGenerator EnodeCertificateMsgGenerator
+	ecertHolder    EnodeCertificateMsgHolder
 
 	onNewMsgsFn OnNewEnodeCertsMsgSentFn
 }
