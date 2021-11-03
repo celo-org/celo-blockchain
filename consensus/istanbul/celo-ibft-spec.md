@@ -6,10 +6,12 @@
 
 The Celo IBFT protocol is a BFT (Byzantine Fault Tolerant) protocol that allows
 a group of participants to agree on the ordering of values by exchanging voting
-messages across a network. As long as less than 1/3rd of participants deviate
-from the protocol then the protocol should ensure that there is only one
-ordering of values that participants agree on and also that and that they can
-continue to agree on new values, i.e. they don't get stuck.
+messages across a network. The voting proceeds in rounds and for each round a
+specific participant is able to propose the value to be agreed upon they are
+known as the proposer. As long as less than 1/3rd of participants deviate from
+the protocol then the protocol should ensure that there is only one ordering of
+values that participants agree on and also that and that they can continue to
+agree on new values, i.e. they don't get stuck.
 
 Ensuring that only one ordering is agreed upon is referred to as 'safety' and
 ensuring that the participants can continue to agree on new values is referred
