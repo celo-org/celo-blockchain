@@ -41,16 +41,6 @@ type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
-type AnnounceNetwork interface {
-	// Gossip gossips protocol messages
-	Gossip(payload []byte, ethMsgCode uint64) error
-	// RetrieveValidatorConnSet returns the validator connection set
-	RetrieveValidatorConnSet() (map[common.Address]bool, error)
-	// Multicast will send the eth message (with the message's payload and msgCode field set to the params
-	// payload and ethMsgCode respectively) to the nodes with the signing address in the destAddresses param.
-	Multicast(destAddresses []common.Address, payload []byte, ethMsgCode uint64, sendToSelf bool) error
-}
-
 type PeerCounterFn func(purpose p2p.PurposeFlag) int
 
 type AnnounceManager struct {
@@ -62,7 +52,7 @@ type AnnounceManager struct {
 
 	addrProvider announce.AddressProvider
 	proxyContext ProxyContext
-	network      AnnounceNetwork
+	network      announce.Network
 
 	vcGossiper announce.VersionCertificateGossiper
 
@@ -91,7 +81,7 @@ type AnnounceManager struct {
 func NewAnnounceManager(
 	config *istanbul.Config,
 	aWallets *atomic.Value,
-	network AnnounceNetwork, proxyContext ProxyContext,
+	network announce.Network, proxyContext ProxyContext,
 	addrProvider announce.AddressProvider, state *announce.AnnounceState,
 	gossipCache GossipCache,
 	checker announce.ValidatorChecker,

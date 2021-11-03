@@ -27,7 +27,7 @@ type OnNewEnodeCertsMsgSentFn func(map[enode.ID]*istanbul.EnodeCertMsg) error
 
 func NewAnnounceVersionSharer(
 	aWallets *atomic.Value,
-	network AnnounceNetwork,
+	network announce.Network,
 	state *announce.AnnounceState,
 	ovcp announce.OutboundVersionCertificateProcessor,
 	ecertGenerator announce.EnodeCertificateMsgGenerator,
@@ -56,7 +56,7 @@ type avs struct {
 
 	aWallets *atomic.Value
 
-	network AnnounceNetwork
+	network announce.Network
 
 	state *announce.AnnounceState
 
