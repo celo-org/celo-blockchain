@@ -5,19 +5,18 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
 type AnnounceState struct {
-	valEnodeTable           *enodes.ValidatorEnodeDB
-	versionCertificateTable *enodes.VersionCertificateDB
+	valEnodeTable           *announce.ValidatorEnodeDB
+	versionCertificateTable *announce.VersionCertificateDB
 
 	lastVersionCertificatesGossiped *announce.AddressTime
 	lastQueryEnodeGossiped          *announce.AddressTime
 }
 
-func NewAnnounceState(valEnodeTable *enodes.ValidatorEnodeDB, versionCertificateTable *enodes.VersionCertificateDB) *AnnounceState {
+func NewAnnounceState(valEnodeTable *announce.ValidatorEnodeDB, versionCertificateTable *announce.VersionCertificateDB) *AnnounceState {
 	return &AnnounceState{
 		valEnodeTable:                   valEnodeTable,
 		versionCertificateTable:         versionCertificateTable,

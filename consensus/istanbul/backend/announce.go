@@ -27,7 +27,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
@@ -528,6 +527,6 @@ func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
 	return onStop()
 }
 
-func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*vet.VersionCertificateEntryInfo, error) {
+func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*announce.VersionCertificateEntryInfo, error) {
 	return m.state.versionCertificateTable.Info()
 }

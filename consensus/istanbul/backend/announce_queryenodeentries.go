@@ -6,7 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
@@ -16,10 +16,10 @@ type QueryEnodeEntryProvider interface {
 
 type qeep struct {
 	logger        log.Logger
-	valEnodeTable *enodes.ValidatorEnodeDB
+	valEnodeTable *announce.ValidatorEnodeDB
 }
 
-func NewQueryEnodeEntryProvider(valEnodeTable *enodes.ValidatorEnodeDB) QueryEnodeEntryProvider {
+func NewQueryEnodeEntryProvider(valEnodeTable *announce.ValidatorEnodeDB) QueryEnodeEntryProvider {
 	return &qeep{
 		logger:        log.New("module", "announceQueryEnodeEntryProvider"),
 		valEnodeTable: valEnodeTable,

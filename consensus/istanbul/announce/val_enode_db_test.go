@@ -1,4 +1,4 @@
-package enodes
+package announce
 
 import (
 	"testing"

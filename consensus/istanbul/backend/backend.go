@@ -30,7 +30,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
@@ -113,7 +112,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	}
 
 	backend.vph = newVPH(backend)
-	valEnodeTable, err := enodes.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
+	valEnodeTable, err := announce.OpenValidatorEnodeDB(config.ValidatorEnodeDBPath, backend.vph)
 	if err != nil {
 		logger.Crit("Can't open ValidatorEnodeDB", "err", err, "dbpath", config.ValidatorEnodeDBPath)
 	}
@@ -138,7 +137,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 }
 
 func createAnnounceManager(backend *Backend) *AnnounceManager {
-	versionCertificateTable, err := enodes.OpenVersionCertificateDB(backend.config.VersionCertificateDBPath)
+	versionCertificateTable, err := announce.OpenVersionCertificateDB(backend.config.VersionCertificateDBPath)
 	if err != nil {
 		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
 	}
@@ -266,7 +265,7 @@ type Backend struct {
 
 	gossipCache GossipCache
 
-	valEnodeTable *enodes.ValidatorEnodeDB
+	valEnodeTable *announce.ValidatorEnodeDB
 
 	announceManager *AnnounceManager
 

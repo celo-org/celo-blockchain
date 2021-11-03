@@ -4,7 +4,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
@@ -12,10 +12,10 @@ type VersionCertificateGossiper interface {
 	// GossipAllFrom gossips all version certificates to every peer. Only the entries
 	// that are new to a node will end up being regossiped throughout the
 	// network.
-	GossipAllFrom(*enodes.VersionCertificateDB) error
+	GossipAllFrom(*announce.VersionCertificateDB) error
 	// SendAllFrom sends all VersionCertificates this node
 	// has to a specific peer.
-	SendAllFrom(*enodes.VersionCertificateDB, consensus.Peer) error
+	SendAllFrom(*announce.VersionCertificateDB, consensus.Peer) error
 	// Gossip will send the given version certificates to all peers.
 	Gossip(versionCertificates []*istanbul.VersionCertificate) error
 }
@@ -33,7 +33,7 @@ type vcGossiper struct {
 	gossip func(payload []byte) error
 }
 
-func (vg *vcGossiper) GossipAllFrom(vcDb *enodes.VersionCertificateDB) error {
+func (vg *vcGossiper) GossipAllFrom(vcDb *announce.VersionCertificateDB) error {
 	allVersionCertificates, err := vcDb.GetAll()
 	if err != nil {
 		vg.logger.Warn("Error getting all version certificates", "err", err)
@@ -52,7 +52,7 @@ func (vg *vcGossiper) Gossip(versionCertificates []*istanbul.VersionCertificate)
 	return vg.gossip(payload)
 }
 
-func (vg *vcGossiper) SendAllFrom(vcDb *enodes.VersionCertificateDB, peer consensus.Peer) error {
+func (vg *vcGossiper) SendAllFrom(vcDb *announce.VersionCertificateDB, peer consensus.Peer) error {
 	logger := vg.logger.New("func", "SendAllFrom")
 	allVersionCertificates, err := vcDb.GetAll()
 	if err != nil {
