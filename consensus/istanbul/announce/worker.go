@@ -1,61 +1,68 @@
-package backend
+package announce
 
 import (
+	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 )
 
-// AnnounceWorker is responsible for, while running, spawn all messages that this node
+// Worker is responsible for, while running, spawn all messages that this node
 // should send: VersionCertificates sharing, and QueryEnode messages if the node
 // is a NearlyElectedValidator.
 //
 // It automatically polls to check if it entered (or exited) NearlyElectedValidator status.
 //
 // It also periodically runs Prune in an AnnounceStatePruner.
-type AnnounceWorker interface {
+type Worker interface {
 	Run()
 	UpdateVersion()
 	GetVersion() uint
 	Stop()
+
+	// UpdateVersionTo is only public for testing purposes
+	UpdateVersionTo(version uint) error
+	// GenerateAndGossipQueryEnode is only public for testing purposes
+	GenerateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error)
 }
 
 type worker struct {
 	logger            log.Logger
 	aWallets          *atomic.Value
-	version           announce.Version
+	version           Version
 	initialWaitPeriod time.Duration
-	checker           announce.ValidatorChecker
-	state             *announce.AnnounceState
-	pruner            announce.AnnounceStatePruner
-	vcGossiper        announce.VersionCertificateGossiper
-	enodeGossiper     announce.EnodeQueryGossiper
+	checker           ValidatorChecker
+	state             *AnnounceState
+	pruner            AnnounceStatePruner
+	vcGossiper        VersionCertificateGossiper
+	enodeGossiper     EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
-	vpap              announce.ValProxyAssigmnentProvider
-	avs               announce.VersionSharer
+	vpap              ValProxyAssigmnentProvider
+	avs               VersionSharer
 
 	updateAnnounceVersionCh chan struct{}
 	announceThreadQuit      chan struct{}
 }
 
-func NewAnnounceWorker(initialWaitPeriod time.Duration,
+type PeerCounterFn func(purpose p2p.PurposeFlag) int
+
+func NewWorker(initialWaitPeriod time.Duration,
 	aWallets *atomic.Value,
-	version announce.Version,
-	state *announce.AnnounceState,
-	checker announce.ValidatorChecker,
-	pruner announce.AnnounceStatePruner,
-	vcGossiper announce.VersionCertificateGossiper,
-	enodeGossiper announce.EnodeQueryGossiper,
+	version Version,
+	state *AnnounceState,
+	checker ValidatorChecker,
+	pruner AnnounceStatePruner,
+	vcGossiper VersionCertificateGossiper,
+	enodeGossiper EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
-	vpap announce.ValProxyAssigmnentProvider,
-	avs announce.VersionSharer) AnnounceWorker {
+	vpap ValProxyAssigmnentProvider,
+	avs VersionSharer) Worker {
 	return &worker{
 		logger:                  log.New("module", "announceWorker"),
 		aWallets:                aWallets,
@@ -137,7 +144,7 @@ func (w *worker) Run() {
 				// Regardless, send the queryEnode so that it will at least be
 				// processed by this node's peers. This is especially helpful when a network
 				// is first starting up.
-				if _, err := w.generateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
+				if _, err := w.GenerateAndGossipQueryEnode(st.queryEnodeFrequencyState == LowFreqState); err != nil {
 					w.logger.Warn("Error in generating and gossiping queryEnode", "err", err)
 				}
 			}
@@ -159,19 +166,19 @@ func (w *worker) Run() {
 	}
 }
 
-// generateAndGossipAnnounce will generate the lastest announce msg from this node
+// GenerateAndGossipAnnounce will generate the lastest announce msg from this node
 // and then broadcast it to it's peers, which should then gossip the announce msg
 // message throughout the p2p network if there has not been a message sent from
 // this node within the last announceGossipCooldownDuration.
 // Note that this function must ONLY be called by the announceThread.
-func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error) {
+func (w *worker) GenerateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbul.Message, error) {
 	logger := w.logger.New("func", "generateAndGossipQueryEnode")
 	logger.Trace("generateAndGossipQueryEnode called")
 
 	wts := w.wallets()
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	qeep := announce.NewQueryEnodeEntryProvider(w.state.ValEnodeTable)
+	qeep := NewQueryEnodeEntryProvider(w.state.ValEnodeTable)
 	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, wts.Ecdsa.Address)
 	if err != nil {
 		return nil, err
@@ -186,7 +193,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 		return nil, err
 	}
 
-	var enodeQueries []*announce.EnodeQuery
+	var enodeQueries []*EnodeQuery
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			externalEnode := valProxyAssignments[valEnodeEntry.Address]
@@ -195,7 +202,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 			}
 
 			externalEnodeURL := externalEnode.URLv4()
-			enodeQueries = append(enodeQueries, &announce.EnodeQuery{
+			enodeQueries = append(enodeQueries, &EnodeQuery{
 				RecipientAddress:   valEnodeEntry.Address,
 				RecipientPublicKey: valEnodeEntry.PublicKey,
 				EnodeURL:           externalEnodeURL,
@@ -217,16 +224,20 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 }
 
 func (w *worker) updateAnnounceVersion() {
-	version := istanbul.GetTimestamp()
+	w.UpdateVersionTo(istanbul.GetTimestamp())
+}
+
+func (w *worker) UpdateVersionTo(version uint) error {
 	currVersion := w.version.Get()
 	if version <= currVersion {
 		w.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)
-		return
+		return errors.New("Announce version is not newer than the existing version")
 	}
 	if err := w.avs.ShareVersion(version); err != nil {
 		w.logger.Warn("Error updating announce version", "err", err)
-		return
+		return err
 	}
 	w.logger.Debug("Updating announce version", "announceVersion", version)
 	w.version.Set(version)
+	return nil
 }

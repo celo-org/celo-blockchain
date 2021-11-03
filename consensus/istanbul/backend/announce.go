@@ -29,7 +29,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
-	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
@@ -40,8 +39,6 @@ var (
 type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
-
-type PeerCounterFn func(purpose p2p.PurposeFlag) int
 
 type AnnounceManager struct {
 	logger log.Logger
@@ -64,7 +61,7 @@ type AnnounceManager struct {
 
 	ovcp announce.OutboundVersionCertificateProcessor
 
-	worker AnnounceWorker
+	worker announce.Worker
 
 	vpap announce.ValProxyAssigmnentProvider
 
@@ -89,7 +86,7 @@ func NewAnnounceManager(
 	ecertHolder announce.EnodeCertificateMsgHolder,
 	vcGossiper announce.VersionCertificateGossiper,
 	vpap announce.ValProxyAssigmnentProvider,
-	worker AnnounceWorker) *AnnounceManager {
+	worker announce.Worker) *AnnounceManager {
 
 	am := &AnnounceManager{
 		logger:           log.New("module", "announceManager"),

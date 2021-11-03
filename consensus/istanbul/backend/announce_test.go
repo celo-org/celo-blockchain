@@ -96,8 +96,8 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 
 	// Generate query enode message for engine0
 	// TODO: refactor this test to remove the hard dependency on the generate&gossip fn
-	wk := engine0.announceManager.worker.(*worker)
-	qeMsg, err := wk.generateAndGossipQueryEnode(false)
+	wk := engine0.announceManager.worker.(announce.Worker)
+	qeMsg, err := wk.GenerateAndGossipQueryEnode(false)
 	if err != nil {
 		t.Errorf("Error in generating a query enode message.  Error: %v", err)
 	}
@@ -211,8 +211,8 @@ func TestSetAndShareUpdatedAnnounceVersion(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	announceVersion := engine.GetAnnounceVersion() + 10000
-	wrk := engine.announceManager.worker.(*worker)
-	if err := wrk.avs.ShareVersion(announceVersion); err != nil {
+	wrk := engine.announceManager.worker.(announce.Worker)
+	if err := wrk.UpdateVersionTo(announceVersion); err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
 	}
 

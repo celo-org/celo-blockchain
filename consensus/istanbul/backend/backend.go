@@ -187,7 +187,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
 	vcGossiper announce.VersionCertificateGossiper,
 	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
-	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) AnnounceWorker {
+	vpap announce.ValProxyAssigmnentProvider, avs announce.VersionSharer) announce.Worker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
@@ -205,7 +205,7 @@ func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp 
 	if backend.config.Epoch <= 10 {
 		waitPeriod = 5 * time.Second
 	}
-	return NewAnnounceWorker(
+	return announce.NewWorker(
 		waitPeriod,
 		&backend.aWallets,
 		announceVersion,
