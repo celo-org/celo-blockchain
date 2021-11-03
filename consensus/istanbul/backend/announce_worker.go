@@ -171,7 +171,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 	wts := w.wallets()
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	qeep := NewQueryEnodeEntryProvider(w.state.ValEnodeTable)
+	qeep := announce.NewQueryEnodeEntryProvider(w.state.ValEnodeTable)
 	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, wts.Ecdsa.Address)
 	if err != nil {
 		return nil, err

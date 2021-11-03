@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -68,7 +69,7 @@ func TestAnnounceGossipQueryMsg(t *testing.T) {
 	}
 
 	// Verify that engine0 will query for both engine1 and engine2's enodeURL
-	qeep := NewQueryEnodeEntryProvider(engine0.valEnodeTable)
+	qeep := announce.NewQueryEnodeEntryProvider(engine0.valEnodeTable)
 	qeEntries, err := qeep.GetQueryEnodeValEnodeEntries(false, engine0.wallets().Ecdsa.Address)
 	if err != nil {
 		t.Errorf("Error in retrieving entries for queryEnode request")
