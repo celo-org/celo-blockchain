@@ -5,6 +5,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
@@ -30,7 +31,7 @@ func NewAnnounceVersionSharer(
 	state *AnnounceState,
 	ovcp OutboundVersionCertificateProcessor,
 	ecertGenerator EnodeCertificateMsgGenerator,
-	ecertHolder EnodeCertificateMsgHolder,
+	ecertHolder announce.EnodeCertificateMsgHolder,
 	onNewEnodeMsgsFn OnNewEnodeCertsMsgSentFn,
 ) AnnounceVersionSharer {
 	// noop func
@@ -62,7 +63,7 @@ type avs struct {
 	ovcp OutboundVersionCertificateProcessor
 
 	ecertGenerator EnodeCertificateMsgGenerator
-	ecertHolder    EnodeCertificateMsgHolder
+	ecertHolder    announce.EnodeCertificateMsgHolder
 
 	onNewMsgsFn OnNewEnodeCertsMsgSentFn
 }

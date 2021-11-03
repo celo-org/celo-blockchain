@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	vet "github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
@@ -43,8 +44,6 @@ const (
 )
 
 var (
-	errInvalidEnodeCertMsgMapInconsistentVersion = errors.New("invalid enode certificate message map because of inconsistent version")
-
 	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
 )
 
@@ -115,7 +114,7 @@ type AnnounceManager struct {
 	announceMu       sync.RWMutex
 	announceThreadWg *sync.WaitGroup
 
-	ecertHolder EnodeCertificateMsgHolder
+	ecertHolder announce.EnodeCertificateMsgHolder
 }
 
 // NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
@@ -129,7 +128,7 @@ func NewAnnounceManager(
 	gossipCache GossipCache,
 	checker ValidatorChecker,
 	ovcp OutboundVersionCertificateProcessor,
-	ecertHolder EnodeCertificateMsgHolder,
+	ecertHolder announce.EnodeCertificateMsgHolder,
 	vcGossiper VersionCertificateGossiper,
 	vpap ValProxyAssigmnentProvider,
 	worker AnnounceWorker) *AnnounceManager {

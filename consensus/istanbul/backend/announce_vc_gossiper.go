@@ -9,8 +9,14 @@ import (
 )
 
 type VersionCertificateGossiper interface {
+	// GossipAllFrom gossips all version certificates to every peer. Only the entries
+	// that are new to a node will end up being regossiped throughout the
+	// network.
 	GossipAllFrom(*enodes.VersionCertificateDB) error
+	// SendAllFrom sends all VersionCertificates this node
+	// has to a specific peer.
 	SendAllFrom(*enodes.VersionCertificateDB, consensus.Peer) error
+	// Gossip will send the given version certificates to all peers.
 	Gossip(versionCertificates []*istanbul.VersionCertificate) error
 }
 
@@ -27,9 +33,6 @@ type vcGossiper struct {
 	gossip func(payload []byte) error
 }
 
-// GossipAllFrom sends all version certificates to every peer. Only the entries
-// that are new to a node will end up being regossiped throughout the
-// network.
 func (vg *vcGossiper) GossipAllFrom(vcDb *enodes.VersionCertificateDB) error {
 	allVersionCertificates, err := vcDb.GetAll()
 	if err != nil {
@@ -49,8 +52,6 @@ func (vg *vcGossiper) Gossip(versionCertificates []*istanbul.VersionCertificate)
 	return vg.gossip(payload)
 }
 
-// SendVersionCertificateTable sends all VersionCertificates this node
-// has to a peer
 func (vg *vcGossiper) SendAllFrom(vcDb *enodes.VersionCertificateDB, peer consensus.Peer) error {
 	logger := vg.logger.New("func", "SendAllFrom")
 	allVersionCertificates, err := vcDb.GetAll()

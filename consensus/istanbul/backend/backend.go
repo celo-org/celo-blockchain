@@ -30,7 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/enodes"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/internal/replica"
 	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
@@ -201,7 +201,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
 	checker := NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
 	ovcp := NewOutboundVCProcessor(checker, backend, vcGossiper)
-	ecertHolder := NewLockedHolder()
+	ecertHolder := announce.NewLockedHolder()
 	pruner := NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
 
 	var vpap ValProxyAssigmnentProvider

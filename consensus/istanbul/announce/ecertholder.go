@@ -1,11 +1,16 @@
-package backend
+package announce
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
+)
+
+var (
+	errInvalidEnodeCertMsgMapInconsistentVersion = errors.New("invalid enode certificate message map because of inconsistent version")
 )
 
 type EnodeCertificateMsgHolder interface {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/announce"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/log"
 )
@@ -77,6 +77,8 @@ func generateQueryEnodeMsg(plogger log.Logger, ei *EcdsaInfo, version uint, enod
 }
 
 type EnodeQueryGossiper interface {
+	// GossipEnodeQueries will generate, encrypt, and gossip through the p2p network a new
+	// QueryEnodeMsg with the enodeQueries given.
 	GossipEnodeQueries(*EcdsaInfo, []*enodeQuery) (*istanbul.Message, error)
 }
 
