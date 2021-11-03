@@ -37,18 +37,32 @@ re-sent.
 We refer to a consensus instance to mean consensus for a specific height,
 consensus instances are independent (they have no shared state).
 
-#### Instance state
-`Sc - current participant state`\
-`Hc - current height`\
-`Rc - current round`\
-`Rd - desired round`\
-`Vc - currently proposed value`\
-`PCc - current prepared certificate`\
+We assume the existence of an application that feeds values to be agreed upon
+to the consensus instance and also receives agreed upon values from the
+consensus. The application also provides application specific implementations
+for certain functions that the consensus algorithm relies upon, such as a
+function that determines the validity of a value. 
 
 ### Algorithm
+
+Variable names                  |Instance state                          
+--------------------------------|----------------------------------------
+`H - height`                    |`Hc - current height`                                      
+`R - round          `           |`Rc - current round`                    
+`V - value`                     |`Rd - desired round`                    
+`T - Message type`              |`Vc - currently proposed value`         
+`RCC - round change certificate`|`PCc - current prepared certificate`    
+`PC - prepared certificate`     |`Sc - current participant state`        
+`S - participant state`         |
+`M or N - message sets`         |
+
 See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
 ```
-upon: FC_E
+
+// Upon receiving this event the algorithm transitions to the next height the
+// final committed event signifies that the application has accepted the agreed
+// upon value for the current height.
+upon: <FinalCommittedEvent>
   Hc ← Hc+1
   Rc ← 0
   Rd ← 0
@@ -56,43 +70,58 @@ upon: FC_E
   Vc ← nil
   schedule onRoundChangeTimeout(Hc, 0) after roundChangeTimeout(0)
 
-upon: <R_E, Hc, V> && Sc = AcceptRequest
+// A request event is a request to reach agreement on the provided value, if this parcicipant
+// is the proposer it will propose that value by sending a preprepared message.
+upon: <RequestEvent, Hc, V> && Sc = AcceptRequest
   if Rc = 0 && isProposer(Hc, Rd) {
-    bc(<PP_T, Hc, 0, V, nil>)
+    bc(<Preprepare, Hc, 0, V, nil>)
   }
 
-upon: <PP_T, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
+// When receiving a preprepare from a proposer participants will vote for the
+// value (if valid) by sending a prepare message.
+upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
   if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
     Rc ← Rd
     Vc ← V
     Sc ← Preprepared
-    bc(<P_T, Hc, Rd, Vc>)
+    bc(<Prepare, Hc, Rd, Vc>)
   }
 
-upon: M ← { <T, Hc, Rd, Vc> : T ∈ {P_T, C_T} } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
+// When a participant sees at least 2f+1 prepare or commit messages for a value
+// it will send a commit message for that value.
+upon: M ← { <T, Hc, Rd, Vc> : T ∈ {Prepare, Commit} } && |M| >= 2f+1 && Sc ∈ {AcceptRequest, Preprepared} 
   Sc ← Prepared
-  PCc ← <PC_T, M, Vc>
-  bc(<C_T, Hc, Rd, Vc>)
+  PCc ← <PreparedCertificate, M, Vc>
+  bc(<Commit, Hc, Rd, Vc>)
 
-upon: M ← { <C_T, Hc, Rd, Vc> } && |M| > 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
+// When a participant sees at least 2f+1 commit messages for a vlaue, they
+// consider that value committed (agreed) and pass the value to the application,
+// which will in turn issue a final committed event if the value is considered
+// valid by the application.
+upon: M ← { <Commit, Hc, Rd, Vc> } && |M| >= 2f+1 && Sc ∈ {AcceptRequest, Preprepared, Prepared} 
   Sc ← Committed
   deliverValue(Vc)
 
-upon: m<RC_T, Hc , R, PC> && (PC = nil || validPC(PC)) 
+// Upon receipt of a round change if that round change is old, send the participant's round
+// change back to the sender to help them catch up. Othewise if there are at least 2f+1 round
+// change messages sharing the same round then switch to it. Otherwise if there are at least
+// f+1 round change messages switch to the higest round that is less than or equal to the top
+// f+1 rounds.
+upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC)) 
   if R < Rd {
-    send(<RC_T, Hc, Rd, PCc>, sender(m))
+    send(<RoundChange, Hc, Rd, PCc>, sender(m))
   } else if quorumRound() > Rd {
 	Rd ← quorumRound()
 	Rc ← quorumRound()
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
 	if Vc != nil && isProposer(Hc, Rc) {
-      bc(<RC_T, Hc, Rc, Vc, PCc>)
+      bc(<RoundChange, Hc, Rc, Vc, PCc>)
 	}
   } else if f1Round() > Rd {
     Rd ← f1Round() 
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc(<RC_T, Hc, Rd, PCc>)
+    bc(<RoundChange, Hc, Rd, PCc>)
   }
 ```
 
@@ -118,13 +147,13 @@ Returns the timeout for the given round
 `bc(<PP, H, R, V>)`\
 Broadcasts the given message to all connected participants. 
 
-`send(<C_T, H, R, V>, sender(m))`\
+`send(<Commit, H, R, V>, sender(m))`\
 Sends the given message to to the sender of another message.
 
 #### PCRound
 Asserts that all messages in the given prepared certificate share the same round and returns that round.
 ```
-PCRound(<PC_T, M, *>) {
+PCRound(<PreparedCertificate, M, *>) {
   ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
   return R
 }
@@ -133,7 +162,7 @@ PCRound(<PC_T, M, *>) {
 #### PCValue
 Return the value associated with a prepared certificate.
 ```
-PCValue(<PC_T, *, V>) {
+PCValue(<PreparedCertificate, *, V>) {
   return V
 }
 ```
@@ -144,8 +173,8 @@ Returns true if the message set contains prepare or commit messages from at
 least 2f+1 and no more than 3f+1 participants for current height, matching the
 prepared certificate value and all sharing the same height and round.
 ```
-validPC(<PC_T, M, V>) {
-  N ← { m<T, Hc, *, Vm> ∈ M : (T = P_T || T = C_T) && Vm = V } 
+validPC(<PreparedCertificate, M, V>) {
+  N ← { m<T, Hc, *, Vm> ∈ M : (T = Prepare || T = Commit) && Vm = V } 
   return 2f+1 <= |N| <= 3f+1 &&
   ∀ m<*, Hm, Rm, *>, n<*, Hn, Rn, *> ∈ N : Hm = Hn && Rm = Rn 
 }
@@ -162,11 +191,11 @@ the others and with a value of V.
 
 ```
 validRCC(H, R, V, RCC) {
-  M ← { m<RC_T, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
-  N ← { m<RC_T, Hm , Rm, PC> ∈ M : PC != nil }
+  M ← { m<RoundChange, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
+  N ← { m<RoundChange, Hm , Rm, PC> ∈ M : PC != nil }
   if |N| > 0 {
     return 2f+1 <= |M| <= 3f+1 &&
-    ∃ m<RC_T, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RC_T, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
+    ∃ m<RoundChange, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RoundChange, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
   }
   return 2f+1 <= |M| <= 3f+1 &&
 }
@@ -178,7 +207,7 @@ Asserts that at least 2f+1 round change messages share the same round and
 returns that round.
 ```
 quorumRound() {
-  M ← { m<RC_T, Hc, Rm, *>, n<RC_T, Hc, Rn, *> : Rm = Rn } &&
+  M ← { m<RoundChange, Hc, Rm, *>, n<RoundChange, Hc, Rn, *> : Rm = Rn } &&
   |M| >= 2f+1 &&
   ∃ R : ∀ m<*, *, Rm, *> ∈ M : R = Rm
   return R
@@ -194,7 +223,7 @@ f1Round() {
   // This is saying that for any Rm there cannot be >= f+1 elements set with a
   // larger R, since if there were that would mean that Rm is not in the top
   // f+1 rounds. 
-  M ← { m<RC_T, Hc, Rm, *> : |{ n<RC_T, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
+  M ← { m<RoundChange, Hc, Rm, *> : |{ n<RoundChange, Hc, Rn, *> : Rm < Rn }| < f+1 } &&
   |M| >= f+1 &&
   ∃ R : ∀ m<*, *, Rm, *> ∈ M : R <= Rm
   return R
@@ -218,7 +247,7 @@ onRoundChangeTimeout(H, R) {
     Rd ← Rc+1
     Sc ← WaitingForNewRound
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-    bc<RC_T, Hc, Rd, PCc>
+    bc<RoundChange, Hc, Rd, PCc>
   }
 }
 ```
@@ -252,17 +281,6 @@ represents a composite element with variables `A` `B` and current height.
 If a composite object element has variables for which the value is not
 important then `*` is used in the place of that variable.
 
-### Variable names
-`S - participant state`\
-`H - height`\
-`R - round`\
-`V - value`\
-`T - Message type`\
-`RCC - round change certificate`\
-`PC - prepared certificate`\
-`M or N - message sets`\
-`nil - indicates that the relevant variable is not set`
-
 ### Numbers of participants
 `3f+1 - the total number of participants`\
 `2f+1 - a quorum of participants`
@@ -275,30 +293,30 @@ important then `*` is used in the place of that variable.
 `Committed`\
 `WaitingForNewRound`
 
-### Message Types
-`PP_T - preprepare`\
-`P_T - prepare`\
-`C_T - commit`\
-`RC_T - round change`\
-`PC_T - prepared certificate`
+### Variable names
+`S - participant state`\
+`H - height`\
+`R - round`\
+`V - value`\
+`T - Message type`\
+`RCC - round change certificate`\
+`PC - prepared certificate`\
+`M or N - message sets`\
+`nil - indicates that the relevant variable is not set`
 
 ### Message composite object structures
-`<PP_T, H, R, V, RCC> - preprepare`\
-`<P_T, H, R, V> - prepare`\
-`<C_T, H, R, V> - commit`\
-`<RC_T, H, R, PC> - round change`\
-`<PC_T, M, V> - prepared certificate`
+`<Preprepare, H, R, V, RCC>`\
+`<Prepare, H, R, V>`\
+`<Commit, H, R, V>`\
+`<RoundChange, H, R, PC>`\
+`<PreparedCertificate, M, V>`
 
-### Event types
+### Event composite object structures
 Events are a means for the application to communicate with the consensus
 instance, they are never sent across the network.
 
-`R_E - request`\
-`FC_E - final committed`
-
-### Event composite object structures
-`<R_E, H, V> - request event, provides the value for the proposer to propose`\
-`<FC_E> - final comitted event, sent by the application to initiate a new consensus instance`
+`<RequestEvent, H, V> - request event, provides the value for the proposer to propose`\
+`<FinalCommittedEvent> - final committed event, sent by the application to initiate a new consensus instance`
 
 ### Pseudocode notation
 ```
@@ -336,7 +354,7 @@ Upon conditions are structured thus:
 
 E.G:
 // 2f+1 commit messages for the current round and height with a non nil value.
-M ← <C_T, Hc, Rc, V> && |M| = 2f+1 && V != nil
+M ← <Commit, Hc, Rc, V> && |M| = 2f+1 && V != nil
 ```
 ```
 schedule <function call> after <duration> - This notation schedules the given
@@ -361,11 +379,11 @@ function call to occur after the given duration.
 ```
 // There exists a commit message m in M such that m's height (Hm) is
 // less than m's round (Rm) and m's value (V) is not important.
-∃ m<C_T, H, R, *> ∈ M : Hm < Rm
+∃ m<Commit, H, R, *> ∈ M : Hm < Rm
 
 // The cardinality of prepare messages in M with height and round equal
 // to Hc and value equal to V is greater than 1 and less than 10.
-1 < |{ m<P_T, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V }| < 10
+1 < |{ m<Prepare, Hc, Rm, Vm> ∈ M : Rm = Hc && Vm = V }| < 10
 ```
 
 ## Strange things
