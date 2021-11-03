@@ -141,15 +141,15 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 	if err != nil {
 		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
 	}
-	vcGossiper := NewVcGossiper(func(payload []byte) error {
+	vcGossiper := announce.NewVcGossiper(func(payload []byte) error {
 		return backend.Gossip(payload, istanbul.VersionCertificatesMsg)
 	})
 
-	state := NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
+	state := announce.NewAnnounceState(backend.valEnodeTable, versionCertificateTable)
 	checker := announce.NewValidatorChecker(&backend.aWallets, backend.RetrieveValidatorConnSet, backend.IsValidating)
-	ovcp := NewOutboundVCProcessor(checker, backend, vcGossiper)
+	ovcp := announce.NewOutboundVCProcessor(checker, backend, vcGossiper)
 	ecertHolder := announce.NewLockedHolder()
-	pruner := NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
+	pruner := announce.NewAnnounceStatePruner(backend.RetrieveValidatorConnSet)
 
 	var vpap ValProxyAssigmnentProvider
 	var ecertGenerator announce.EnodeCertificateMsgGenerator
@@ -184,9 +184,9 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 		worker)
 }
 
-func createAnnounceWorker(backend *Backend, state *AnnounceState, ovcp OutboundVersionCertificateProcessor,
-	vcGossiper VersionCertificateGossiper,
-	checker announce.ValidatorChecker, pruner AnnounceStatePruner,
+func createAnnounceWorker(backend *Backend, state *announce.AnnounceState, ovcp announce.OutboundVersionCertificateProcessor,
+	vcGossiper announce.VersionCertificateGossiper,
+	checker announce.ValidatorChecker, pruner announce.AnnounceStatePruner,
 	vpap ValProxyAssigmnentProvider, avs AnnounceVersionSharer) AnnounceWorker {
 	announceVersion := announce.NewAtomicVersion()
 	peerCounter := func(purpose p2p.PurposeFlag) int {

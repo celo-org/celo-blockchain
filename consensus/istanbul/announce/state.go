@@ -1,27 +1,26 @@
-package backend
+package announce
 
 import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
 type AnnounceState struct {
-	valEnodeTable           *announce.ValidatorEnodeDB
-	versionCertificateTable *announce.VersionCertificateDB
+	ValEnodeTable           *ValidatorEnodeDB
+	VersionCertificateTable *VersionCertificateDB
 
-	lastVersionCertificatesGossiped *announce.AddressTime
-	lastQueryEnodeGossiped          *announce.AddressTime
+	LastVersionCertificatesGossiped *AddressTime
+	LastQueryEnodeGossiped          *AddressTime
 }
 
-func NewAnnounceState(valEnodeTable *announce.ValidatorEnodeDB, versionCertificateTable *announce.VersionCertificateDB) *AnnounceState {
+func NewAnnounceState(valEnodeTable *ValidatorEnodeDB, versionCertificateTable *VersionCertificateDB) *AnnounceState {
 	return &AnnounceState{
-		valEnodeTable:                   valEnodeTable,
-		versionCertificateTable:         versionCertificateTable,
-		lastQueryEnodeGossiped:          announce.NewAddressTime(),
-		lastVersionCertificatesGossiped: announce.NewAddressTime(),
+		ValEnodeTable:                   valEnodeTable,
+		VersionCertificateTable:         versionCertificateTable,
+		LastQueryEnodeGossiped:          NewAddressTime(),
+		LastVersionCertificatesGossiped: NewAddressTime(),
 	}
 }
 
@@ -54,20 +53,20 @@ func (p *pruner) Prune(state *AnnounceState) error {
 		p.logger.Warn("Error in pruning announce data structures", "err", err)
 	}
 
-	state.lastQueryEnodeGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
-		return !validatorConnSet[remoteAddress] && time.Since(t) >= queryEnodeGossipCooldownDuration
+	state.LastQueryEnodeGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
+		return !validatorConnSet[remoteAddress] && time.Since(t) >= QueryEnodeGossipCooldownDuration
 	})
 
-	if err := state.valEnodeTable.PruneEntries(validatorConnSet); err != nil {
+	if err := state.ValEnodeTable.PruneEntries(validatorConnSet); err != nil {
 		p.logger.Trace("Error in pruning valEnodeTable", "err", err)
 		return err
 	}
 
-	state.lastVersionCertificatesGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
-		return !validatorConnSet[remoteAddress] && time.Since(t) >= versionCertificateGossipCooldownDuration
+	state.LastVersionCertificatesGossiped.RemoveIf(func(remoteAddress common.Address, t time.Time) bool {
+		return !validatorConnSet[remoteAddress] && time.Since(t) >= VersionCertificateGossipCooldownDuration
 	})
 
-	if err := state.versionCertificateTable.Prune(validatorConnSet); err != nil {
+	if err := state.VersionCertificateTable.Prune(validatorConnSet); err != nil {
 		p.logger.Trace("Error in pruning versionCertificateTable", "err", err)
 		return err
 	}

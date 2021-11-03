@@ -31,9 +31,9 @@ type worker struct {
 	version           announce.Version
 	initialWaitPeriod time.Duration
 	checker           announce.ValidatorChecker
-	state             *AnnounceState
-	pruner            AnnounceStatePruner
-	vcGossiper        VersionCertificateGossiper
+	state             *announce.AnnounceState
+	pruner            announce.AnnounceStatePruner
+	vcGossiper        announce.VersionCertificateGossiper
 	enodeGossiper     announce.EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
@@ -47,10 +47,10 @@ type worker struct {
 func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	aWallets *atomic.Value,
 	version announce.Version,
-	state *AnnounceState,
+	state *announce.AnnounceState,
 	checker announce.ValidatorChecker,
-	pruner AnnounceStatePruner,
-	vcGossiper VersionCertificateGossiper,
+	pruner announce.AnnounceStatePruner,
+	vcGossiper announce.VersionCertificateGossiper,
 	enodeGossiper announce.EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
@@ -116,7 +116,7 @@ func (w *worker) Run() {
 			st.updateAnnounceThreadStatus(w.logger, w.initialWaitPeriod, w.updateAnnounceVersion)
 
 		case <-st.shareVersionCertificatesTicker.C:
-			if err := w.vcGossiper.GossipAllFrom(w.state.versionCertificateTable); err != nil {
+			if err := w.vcGossiper.GossipAllFrom(w.state.VersionCertificateTable); err != nil {
 				w.logger.Warn("Error gossiping all version certificates")
 			}
 
@@ -171,7 +171,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 	wts := w.wallets()
 	// Retrieve the set valEnodeEntries (and their publicKeys)
 	// for the queryEnode message
-	qeep := NewQueryEnodeEntryProvider(w.state.valEnodeTable)
+	qeep := NewQueryEnodeEntryProvider(w.state.ValEnodeTable)
 	valEnodeEntries, err := qeep.GetQueryEnodeValEnodeEntries(enforceRetryBackoff, wts.Ecdsa.Address)
 	if err != nil {
 		return nil, err
@@ -208,7 +208,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 		if qeMsg, err = w.enodeGossiper.GossipEnodeQueries(&wts.Ecdsa, enodeQueries); err != nil {
 			return nil, err
 		}
-		if err = w.state.valEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
+		if err = w.state.ValEnodeTable.UpdateQueryEnodeStats(valEnodeEntries); err != nil {
 			return nil, err
 		}
 	}

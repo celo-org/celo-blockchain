@@ -28,8 +28,8 @@ type OnNewEnodeCertsMsgSentFn func(map[enode.ID]*istanbul.EnodeCertMsg) error
 func NewAnnounceVersionSharer(
 	aWallets *atomic.Value,
 	network AnnounceNetwork,
-	state *AnnounceState,
-	ovcp OutboundVersionCertificateProcessor,
+	state *announce.AnnounceState,
+	ovcp announce.OutboundVersionCertificateProcessor,
 	ecertGenerator announce.EnodeCertificateMsgGenerator,
 	ecertHolder announce.EnodeCertificateMsgHolder,
 	onNewEnodeMsgsFn OnNewEnodeCertsMsgSentFn,
@@ -58,9 +58,9 @@ type avs struct {
 
 	network AnnounceNetwork
 
-	state *AnnounceState
+	state *announce.AnnounceState
 
-	ovcp OutboundVersionCertificateProcessor
+	ovcp announce.OutboundVersionCertificateProcessor
 
 	ecertGenerator announce.EnodeCertificateMsgGenerator
 	ecertHolder    announce.EnodeCertificateMsgHolder

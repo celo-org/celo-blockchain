@@ -33,24 +33,9 @@ import (
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 )
 
-// ==============================================
-//
-// define the constants and function for the sendAnnounce thread
-
-const (
-	queryEnodeGossipCooldownDuration         = 5 * time.Minute
-	versionCertificateGossipCooldownDuration = 5 * time.Minute
-)
-
 var (
 	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
 )
-
-// AddressProvider provides the different addresses the announce manager needs
-type AddressProvider interface {
-	SelfNode() *enode.Node
-	ValidatorAddress() common.Address
-}
 
 type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
@@ -75,19 +60,19 @@ type AnnounceManager struct {
 
 	aWallets *atomic.Value
 
-	addrProvider AddressProvider
+	addrProvider announce.AddressProvider
 	proxyContext ProxyContext
 	network      AnnounceNetwork
 
-	vcGossiper VersionCertificateGossiper
+	vcGossiper announce.VersionCertificateGossiper
 
 	gossipCache GossipCache
 
-	state *AnnounceState
+	state *announce.AnnounceState
 
 	checker announce.ValidatorChecker
 
-	ovcp OutboundVersionCertificateProcessor
+	ovcp announce.OutboundVersionCertificateProcessor
 
 	worker AnnounceWorker
 
@@ -107,12 +92,12 @@ func NewAnnounceManager(
 	config *istanbul.Config,
 	aWallets *atomic.Value,
 	network AnnounceNetwork, proxyContext ProxyContext,
-	addrProvider AddressProvider, state *AnnounceState,
+	addrProvider announce.AddressProvider, state *announce.AnnounceState,
 	gossipCache GossipCache,
 	checker announce.ValidatorChecker,
-	ovcp OutboundVersionCertificateProcessor,
+	ovcp announce.OutboundVersionCertificateProcessor,
 	ecertHolder announce.EnodeCertificateMsgHolder,
-	vcGossiper VersionCertificateGossiper,
+	vcGossiper announce.VersionCertificateGossiper,
 	vpap ValProxyAssigmnentProvider,
 	worker AnnounceWorker) *AnnounceManager {
 
@@ -146,7 +131,7 @@ func (m *AnnounceManager) Close() error {
 	// No need to close valEnodeTable since it's a reference,
 	// the creator of this announce manager is the responsible for
 	// closing it.
-	return m.state.versionCertificateTable.Close()
+	return m.state.VersionCertificateTable.Close()
 }
 
 func (m *AnnounceManager) wallets() *istanbul.Wallets {
@@ -286,7 +271,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 	// If the target is not a peer and should be a ValidatorPurpose peer, this
 	// will designate the target as a ValidatorPurpose peer and send an enodeCertificate
 	// during the istanbul handshake.
-	if err := m.state.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
+	if err := m.state.ValEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: address, Node: node, Version: version}}); err != nil {
 		return err
 	}
 	return nil
@@ -340,8 +325,8 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
 	if msg.Address != m.addrProvider.ValidatorAddress() {
-		if lastGossiped, ok := m.state.lastQueryEnodeGossiped.Get(msg.Address); ok {
-			if time.Since(lastGossiped) < queryEnodeGossipCooldownDuration {
+		if lastGossiped, ok := m.state.LastQueryEnodeGossiped.Get(msg.Address); ok {
+			if time.Since(lastGossiped) < announce.QueryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 				return nil
 			}
@@ -353,7 +338,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 		return err
 	}
 
-	m.state.lastQueryEnodeGossiped.Set(msg.Address, time.Now())
+	m.state.LastQueryEnodeGossiped.Set(msg.Address, time.Now())
 
 	return nil
 }
@@ -361,7 +346,7 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 // SendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
 func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error {
-	return m.vcGossiper.SendAllFrom(m.state.versionCertificateTable, peer)
+	return m.vcGossiper.SendAllFrom(m.state.VersionCertificateTable, peer)
 }
 
 func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
@@ -475,7 +460,7 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 		return errUnauthorizedAnnounceMessage
 	}
 
-	if err := m.state.valEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
+	if err := m.state.ValEnodeTable.UpsertVersionAndEnode([]*istanbul.AddressEntry{{Address: msg.Address, Node: parsedNode, Version: enodeCertificate.Version}}); err != nil {
 		logger.Warn("Error in upserting a val enode table entry", "error", err)
 		return err
 	}
@@ -528,5 +513,5 @@ func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
 }
 
 func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*announce.VersionCertificateEntryInfo, error) {
-	return m.state.versionCertificateTable.Info()
+	return m.state.VersionCertificateTable.Info()
 }

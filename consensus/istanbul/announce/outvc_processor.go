@@ -1,11 +1,10 @@
-package backend
+package announce
 
 import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
@@ -13,7 +12,7 @@ type OutboundVersionCertificateProcessor interface {
 	Process(*AnnounceState, []*istanbul.VersionCertificate, common.Address) error
 }
 
-func NewOutboundVCProcessor(checker announce.ValidatorChecker,
+func NewOutboundVCProcessor(checker ValidatorChecker,
 	addrProvider AddressProvider,
 	vcGossiper VersionCertificateGossiper) OutboundVersionCertificateProcessor {
 	return &ovcp{
@@ -26,7 +25,7 @@ func NewOutboundVCProcessor(checker announce.ValidatorChecker,
 
 type ovcp struct {
 	logger       log.Logger
-	checker      announce.ValidatorChecker
+	checker      ValidatorChecker
 	addrProvider AddressProvider
 	vcGossiper   VersionCertificateGossiper
 }
@@ -55,12 +54,12 @@ func (o *ovcp) Process(state *AnnounceState, versionCertificates []*istanbul.Ver
 				HighestKnownVersion: entry.Version,
 			})
 		}
-		if err := state.valEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
+		if err := state.ValEnodeTable.UpsertHighestKnownVersion(valEnodeEntries); err != nil {
 			o.logger.Warn("Error upserting val enode table entries", "err", err)
 		}
 	}
 
-	newVCs, err := state.versionCertificateTable.Upsert(versionCertificates)
+	newVCs, err := state.VersionCertificateTable.Upsert(versionCertificates)
 	if err != nil {
 		o.logger.Warn("Error upserting version certificate table entries", "err", err)
 	}
@@ -71,12 +70,12 @@ func (o *ovcp) Process(state *AnnounceState, versionCertificates []*istanbul.Ver
 	var versionCertificatesToRegossip []*istanbul.VersionCertificate
 
 	for _, entry := range newVCs {
-		lastGossipTime, ok := state.lastVersionCertificatesGossiped.Get(entry.Address())
-		if ok && time.Since(lastGossipTime) >= versionCertificateGossipCooldownDuration && entry.Address() != o.addrProvider.ValidatorAddress() {
+		lastGossipTime, ok := state.LastVersionCertificatesGossiped.Get(entry.Address())
+		if ok && time.Since(lastGossipTime) >= VersionCertificateGossipCooldownDuration && entry.Address() != o.addrProvider.ValidatorAddress() {
 			continue
 		}
 		versionCertificatesToRegossip = append(versionCertificatesToRegossip, entry)
-		state.lastVersionCertificatesGossiped.Set(entry.Address(), time.Now())
+		state.LastVersionCertificatesGossiped.Set(entry.Address(), time.Now())
 	}
 
 	if len(versionCertificatesToRegossip) > 0 {
