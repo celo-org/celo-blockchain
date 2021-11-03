@@ -34,7 +34,7 @@ type worker struct {
 	state             *AnnounceState
 	pruner            AnnounceStatePruner
 	vcGossiper        VersionCertificateGossiper
-	enodeGossiper     EnodeQueryGossiper
+	enodeGossiper     announce.EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
 	vpap              ValProxyAssigmnentProvider
@@ -51,7 +51,7 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	checker ValidatorChecker,
 	pruner AnnounceStatePruner,
 	vcGossiper VersionCertificateGossiper,
-	enodeGossiper EnodeQueryGossiper,
+	enodeGossiper announce.EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
 	vpap ValProxyAssigmnentProvider,
@@ -186,7 +186,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 		return nil, err
 	}
 
-	var enodeQueries []*enodeQuery
+	var enodeQueries []*announce.EnodeQuery
 	for _, valEnodeEntry := range valEnodeEntries {
 		if valEnodeEntry.PublicKey != nil {
 			externalEnode := valProxyAssignments[valEnodeEntry.Address]
@@ -195,10 +195,10 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 			}
 
 			externalEnodeURL := externalEnode.URLv4()
-			enodeQueries = append(enodeQueries, &enodeQuery{
-				recipientAddress:   valEnodeEntry.Address,
-				recipientPublicKey: valEnodeEntry.PublicKey,
-				enodeURL:           externalEnodeURL,
+			enodeQueries = append(enodeQueries, &announce.EnodeQuery{
+				RecipientAddress:   valEnodeEntry.Address,
+				RecipientPublicKey: valEnodeEntry.PublicKey,
+				EnodeURL:           externalEnodeURL,
 			})
 		}
 	}
@@ -217,7 +217,7 @@ func (w *worker) generateAndGossipQueryEnode(enforceRetryBackoff bool) (*istanbu
 }
 
 func (w *worker) updateAnnounceVersion() {
-	version := getTimestamp()
+	version := istanbul.GetTimestamp()
 	currVersion := w.version.Get()
 	if version <= currVersion {
 		w.logger.Debug("Announce version is not newer than the existing version", "existing version", currVersion, "attempted new version", version)

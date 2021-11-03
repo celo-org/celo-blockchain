@@ -1,4 +1,4 @@
-package backend
+package announce
 
 import (
 	"crypto/ecdsa"
@@ -6,33 +6,32 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/crypto/ecies"
 	"github.com/celo-org/celo-blockchain/log"
 )
 
-type enodeQuery struct {
-	recipientAddress   common.Address
-	recipientPublicKey *ecdsa.PublicKey
-	enodeURL           string
+type EnodeQuery struct {
+	RecipientAddress   common.Address
+	RecipientPublicKey *ecdsa.PublicKey
+	EnodeURL           string
 }
 
 // generateEncryptedEnodeURLs returns the encryptedEnodeURLs to be sent in an enode query.
-func generateEncryptedEnodeURLs(plogger log.Logger, enodeQueries []*enodeQuery) ([]*istanbul.EncryptedEnodeURL, error) {
+func generateEncryptedEnodeURLs(plogger log.Logger, enodeQueries []*EnodeQuery) ([]*istanbul.EncryptedEnodeURL, error) {
 	logger := plogger.New("func", "generateEncryptedEnodeURLs")
 
 	var encryptedEnodeURLs []*istanbul.EncryptedEnodeURL
 	for _, param := range enodeQueries {
-		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.enodeURL, "publicKey", param.recipientPublicKey)
-		publicKey := ecies.ImportECDSAPublic(param.recipientPublicKey)
-		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.enodeURL), nil, nil)
+		logger.Debug("encrypting enodeURL", "externalEnodeURL", param.EnodeURL, "publicKey", param.RecipientPublicKey)
+		publicKey := ecies.ImportECDSAPublic(param.RecipientPublicKey)
+		encEnodeURL, err := ecies.Encrypt(rand.Reader, publicKey, []byte(param.EnodeURL), nil, nil)
 		if err != nil {
-			logger.Error("Error in encrypting enodeURL", "enodeURL", param.enodeURL, "publicKey", publicKey)
+			logger.Error("Error in encrypting enodeURL", "enodeURL", param.EnodeURL, "publicKey", publicKey)
 			return nil, err
 		}
 
 		encryptedEnodeURLs = append(encryptedEnodeURLs, &istanbul.EncryptedEnodeURL{
-			DestAddress:       param.recipientAddress,
+			DestAddress:       param.RecipientAddress,
 			EncryptedEnodeURL: encEnodeURL,
 		})
 	}
@@ -47,7 +46,7 @@ func generateEncryptedEnodeURLs(plogger log.Logger, enodeQueries []*enodeQuery) 
 // public key, from which their validator signer address is derived.
 // Note: It is referred to as a "query" because the sender does not know the recipients enode.
 // The recipient is expected to respond by opening a direct connection with an enode certificate.
-func generateQueryEnodeMsg(plogger log.Logger, ei *istanbul.EcdsaInfo, version uint, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+func generateQueryEnodeMsg(plogger log.Logger, ei *istanbul.EcdsaInfo, version uint, enodeQueries []*EnodeQuery) (*istanbul.Message, error) {
 	logger := plogger.New("func", "generateQueryEnodeMsg")
 
 	encryptedEnodeURLs, err := generateEncryptedEnodeURLs(logger, enodeQueries)
@@ -63,7 +62,7 @@ func generateQueryEnodeMsg(plogger log.Logger, ei *istanbul.EcdsaInfo, version u
 	msg := istanbul.NewQueryEnodeMessage(&istanbul.QueryEnodeData{
 		EncryptedEnodeURLs: encryptedEnodeURLs,
 		Version:            version,
-		Timestamp:          getTimestamp(),
+		Timestamp:          istanbul.GetTimestamp(),
 	}, ei.Address)
 	// Sign the announce message
 	if err := msg.Sign(ei.Sign); err != nil {
@@ -79,16 +78,16 @@ func generateQueryEnodeMsg(plogger log.Logger, ei *istanbul.EcdsaInfo, version u
 type EnodeQueryGossiper interface {
 	// GossipEnodeQueries will generate, encrypt, and gossip through the p2p network a new
 	// QueryEnodeMsg with the enodeQueries given.
-	GossipEnodeQueries(*istanbul.EcdsaInfo, []*enodeQuery) (*istanbul.Message, error)
+	GossipEnodeQueries(*istanbul.EcdsaInfo, []*EnodeQuery) (*istanbul.Message, error)
 }
 
 type eqg struct {
 	logger          log.Logger
-	announceVersion announce.VersionReader
+	announceVersion VersionReader
 	gossip          func([]byte) error
 }
 
-func NewEnodeQueryGossiper(announceVersion announce.VersionReader, gossipFn func([]byte) error) EnodeQueryGossiper {
+func NewEnodeQueryGossiper(announceVersion VersionReader, gossipFn func([]byte) error) EnodeQueryGossiper {
 	return &eqg{
 		logger:          log.New("module", "enodeQueryGossiper"),
 		announceVersion: announceVersion,
@@ -96,7 +95,7 @@ func NewEnodeQueryGossiper(announceVersion announce.VersionReader, gossipFn func
 	}
 }
 
-func (e *eqg) GossipEnodeQueries(ei *istanbul.EcdsaInfo, enodeQueries []*enodeQuery) (*istanbul.Message, error) {
+func (e *eqg) GossipEnodeQueries(ei *istanbul.EcdsaInfo, enodeQueries []*EnodeQuery) (*istanbul.Message, error) {
 	version := e.announceVersion.Get()
 	var err error
 	qeMsg, err := generateQueryEnodeMsg(e.logger, ei, version, enodeQueries)

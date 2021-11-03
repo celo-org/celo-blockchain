@@ -199,7 +199,7 @@ func createAnnounceWorker(backend *Backend, state *AnnounceState, ovcp OutboundV
 		return len(backend.broadcaster.FindPeers(nil, p2p.AnyPurpose))
 	}
 
-	enodeGossiper := NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
+	enodeGossiper := announce.NewEnodeQueryGossiper(announceVersion, func(payload []byte) error {
 		return backend.Gossip(payload, istanbul.QueryEnodeMsg)
 	})
 	// Gossip the announce after a minute.

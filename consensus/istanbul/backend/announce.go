@@ -441,11 +441,6 @@ func (m *AnnounceManager) GetAnnounceVersion() uint {
 	return m.worker.GetVersion()
 }
 
-func getTimestamp() uint {
-	// Unix() returns a int64, but we need a uint for the golang rlp encoding implmentation. Warning: This timestamp value will be truncated in 2106.
-	return uint(time.Now().Unix())
-}
-
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
