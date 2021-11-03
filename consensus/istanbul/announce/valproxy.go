@@ -1,4 +1,4 @@
-package backend
+package announce
 
 import (
 	"github.com/celo-org/celo-blockchain/common"

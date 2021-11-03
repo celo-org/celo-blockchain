@@ -37,7 +37,7 @@ type worker struct {
 	enodeGossiper     announce.EnodeQueryGossiper
 	config            *istanbul.Config
 	countPeers        PeerCounterFn
-	vpap              ValProxyAssigmnentProvider
+	vpap              announce.ValProxyAssigmnentProvider
 	avs               AnnounceVersionSharer
 
 	updateAnnounceVersionCh chan struct{}
@@ -54,7 +54,7 @@ func NewAnnounceWorker(initialWaitPeriod time.Duration,
 	enodeGossiper announce.EnodeQueryGossiper,
 	config *istanbul.Config,
 	countPeersFn PeerCounterFn,
-	vpap ValProxyAssigmnentProvider,
+	vpap announce.ValProxyAssigmnentProvider,
 	avs AnnounceVersionSharer) AnnounceWorker {
 	return &worker{
 		logger:                  log.New("module", "announceWorker"),

@@ -76,7 +76,7 @@ type AnnounceManager struct {
 
 	worker AnnounceWorker
 
-	vpap ValProxyAssigmnentProvider
+	vpap announce.ValProxyAssigmnentProvider
 
 	announceRunning  bool
 	announceMu       sync.RWMutex
@@ -98,7 +98,7 @@ func NewAnnounceManager(
 	ovcp announce.OutboundVersionCertificateProcessor,
 	ecertHolder announce.EnodeCertificateMsgHolder,
 	vcGossiper announce.VersionCertificateGossiper,
-	vpap ValProxyAssigmnentProvider,
+	vpap announce.ValProxyAssigmnentProvider,
 	worker AnnounceWorker) *AnnounceManager {
 
 	am := &AnnounceManager{
