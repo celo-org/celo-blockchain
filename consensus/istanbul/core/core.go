@@ -334,15 +334,10 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 
 // Send message to all current validators
 func (c *core) broadcast(msg *istanbul.Message) {
-	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List()))
+	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List())...)
 }
 
-// Send message to a specific address
-func (c *core) unicast(msg *istanbul.Message, addr common.Address) {
-	c.sendMsgTo(msg, []common.Address{addr})
-}
-
-func (c *core) sendMsgTo(msg *istanbul.Message, addresses []common.Address) {
+func (c *core) sendMsgTo(msg *istanbul.Message, addresses ...common.Address) {
 	logger := c.newLogger("func", "sendMsgTo")
 
 	payload, err := c.finalizeMessage(msg)

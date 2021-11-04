@@ -34,7 +34,7 @@ func (c *core) sendRoundChange() {
 
 // sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
 func (c *core) sendRoundChangeAgain(addr common.Address) {
-	c.unicast(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
+	c.sendMsgTo(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
 }
 
 // buildRoundChangeMsg creates a round change msg for the given round
