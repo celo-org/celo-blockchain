@@ -13,6 +13,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend/backendtest"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -50,7 +51,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	config.Validator = !isProxy
 	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
-	b, _ := New(&config, memDB).(*Backend)
+	b, _ := New(&config, memDB, istanbulCore.NewDefaultMessageSender()).(*Backend)
 
 	var publicKey ecdsa.PublicKey
 	if !isProxy {

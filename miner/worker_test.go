@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -254,7 +255,7 @@ func getAuthorizedIstanbulEngine() consensus.Istanbul {
 	config.ValidatorEnodeDBPath = ""
 	config.VersionCertificateDBPath = ""
 
-	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase())
+	engine := istanbulBackend.New(config, rawdb.NewMemoryDatabase(), istanbulCore.NewDefaultMessageSender())
 	engine.(*istanbulBackend.Backend).SetBroadcaster(&consensustest.MockBroadcaster{})
 	engine.(*istanbulBackend.Backend).SetP2PServer(consensustest.NewMockP2PServer(nil))
 	engine.(*istanbulBackend.Backend).Authorize(address, address, &testBankKey.PublicKey, decryptFn, signerFn, signBLSFn, signHashFn)

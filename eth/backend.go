@@ -32,6 +32,7 @@ import (
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	istanbulBackend "github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -94,6 +95,12 @@ type Ethereum struct {
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
 func New(stack *node.Node, config *Config) (*Ethereum, error) {
+	return NewConfigured(stack, config, istanbulCore.NewDefaultMessageSender())
+}
+
+// NewConfigured creates a new ethereum service but will use the provided
+// sender instead of constructing a default sender of sender is not nil.
+func NewConfigured(stack *node.Node, config *Config, sender istanbulCore.MessageSender) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if !config.SyncMode.SyncFullBlockChain() {
 		return nil, errors.New("can't run eth.Ethereum in light sync mode or lightest sync mode, use les.LightEthereum")
@@ -133,7 +140,7 @@ func New(stack *node.Node, config *Config) (*Ethereum, error) {
 		chainDb:           chainDb,
 		eventMux:          stack.EventMux(),
 		accountManager:    stack.AccountManager(),
-		engine:            CreateConsensusEngine(stack, chainConfig, config, chainDb),
+		engine:            CreateConsensusEngine(stack, chainConfig, config, chainDb, sender),
 		closeBloomHandler: make(chan struct{}),
 		networkID:         config.NetworkId,
 		validator:         config.Miner.Validator,
@@ -253,21 +260,20 @@ func makeExtraData(extra []byte) []byte {
 }
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
-func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *Config, db ethdb.Database) consensus.Engine {
+func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *Config, db ethdb.Database, sender istanbulCore.MessageSender) consensus.Engine {
 	if chainConfig.Faker {
 		return mockEngine.NewFaker()
 	}
-	// If Istanbul is requested, set it up
-	if chainConfig.Istanbul != nil {
-		log.Debug("Setting up Istanbul consensus engine")
-		if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
-			log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
-		}
-
-		return istanbulBackend.New(&config.Istanbul, db)
+	// Only istanbul consensus is supported
+	if chainConfig.Istanbul == nil {
+		log.Crit(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
 	}
-	log.Error(fmt.Sprintf("Only Istanbul Consensus is supported: %v", chainConfig))
-	return nil
+
+	log.Debug("Setting up Istanbul consensus engine")
+	if err := istanbul.ApplyParamsChainConfigToConfig(chainConfig, &config.Istanbul); err != nil {
+		log.Crit("Invalid Configuration for Istanbul Engine", "err", err)
+	}
+	return istanbulBackend.New(&config.Istanbul, db, sender)
 }
 
 // APIs return the collection of RPC services the ethereum package offers.

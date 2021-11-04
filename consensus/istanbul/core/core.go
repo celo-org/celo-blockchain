@@ -110,6 +110,7 @@ type core struct {
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
+	sender            MessageSender
 	backend           CoreBackend
 	events            *event.TypeMuxSubscription
 	finalCommittedSub *event.TypeMuxSubscription
@@ -150,14 +151,21 @@ type core struct {
 }
 
 // New creates an Istanbul consensus core
-func New(backend CoreBackend, config *istanbul.Config) Engine {
+func New(backend CoreBackend, config *istanbul.Config, sender MessageSender) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
 	}
 
+	// Check to see if this is a DefaultMessageSender, if se we need to set the
+	// backend on it.
+	if s, ok := sender.(*DefaultMessageSender); ok {
+		s.setBackend(backend)
+	}
+
 	c := &core{
 		config:                    config,
+		sender:                    sender,
 		address:                   backend.Address(),
 		logger:                    log.New(),
 		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
@@ -346,10 +354,10 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses ...common.Address) {
 		return
 	}
 
-	// Send payload to the specified addresses
-	if err := c.backend.Multicast(addresses, payload, istanbul.ConsensusMsg, true); err != nil {
+	// Send to others
+	err = c.sender.Send(payload, addresses)
+	if err != nil {
 		logger.Error("Failed to send message", "m", msg, "err", err)
-		return
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
@@ -256,7 +257,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		engine := New(&config, db).(*Backend)
+		engine := New(&config, db, istanbulCore.NewDefaultMessageSender()).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
