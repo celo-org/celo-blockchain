@@ -27,7 +27,7 @@ func TestSendCelo(t *testing.T) {
 	accounts := test.Accounts(3)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
-	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
+	network, shutdown, err := test.NewNetwork(accounts, gc, ec, test.NewDefaultComponentFactory())
 	require.NoError(t, err)
 	defer shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -54,7 +54,7 @@ func TestEpochBlockMarshaling(t *testing.T) {
 	// and it needs to be < (epoch -2).
 	ec.Istanbul.Epoch = 6
 	ec.Istanbul.DefaultLookbackWindow = 3
-	network, shutdown, err := test.NewNetwork(accounts, gc, ec)
+	network, shutdown, err := test.NewNetwork(accounts, gc, ec, test.NewDefaultComponentFactory())
 	require.NoError(t, err)
 	defer shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -78,7 +78,7 @@ func TestStartStopValidators(t *testing.T) {
 	accounts := test.Accounts(4)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
-	network, _, err := test.NewNetwork(accounts, gc, ec)
+	network, _, err := test.NewNetwork(accounts, gc, ec, test.NewDefaultComponentFactory())
 	require.NoError(t, err)
 
 	// We define our own shutdown function because we don't want to print

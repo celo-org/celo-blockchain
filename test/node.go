@@ -5,10 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	ethereum "github.com/celo-org/celo-blockchain"
@@ -17,6 +19,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/backend"
+	istanbulCore "github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
@@ -33,7 +36,7 @@ import (
 )
 
 var (
-	baseNodeConfig *node.Config = &node.Config{
+	BaseNodeConfig *node.Config = &node.Config{
 		Name:    "celo",
 		Version: params.Version,
 		P2P: p2p.Config{
@@ -81,6 +84,24 @@ var (
 	}
 )
 
+// Component factory builds components that can be used to customise node
+// behaviour.
+type ComponentFactory interface {
+	MessageSender() istanbulCore.MessageSender
+}
+
+func NewDefaultComponentFactory() *DefaultComponentFactory {
+	return &DefaultComponentFactory{}
+}
+
+// DefaultComponentFactory provides default component implementations.
+type DefaultComponentFactory struct {
+}
+
+func (e *DefaultComponentFactory) MessageSender() istanbulCore.MessageSender {
+	return istanbulCore.NewDefaultMessageSender()
+}
+
 // Node provides an enhanced interface to node.Node with useful additions, the
 // *node.Node is embedded so that its api is available through Node.
 type Node struct {
@@ -97,6 +118,7 @@ type Node struct {
 	DevKey        *ecdsa.PrivateKey
 	DevAddress    common.Address
 	Tracker       *Tracker
+	Sender        istanbulCore.MessageSender
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -108,6 +130,7 @@ func NewNode(
 	nc *node.Config,
 	ec *eth.Config,
 	genesis *core.Genesis,
+	sender istanbulCore.MessageSender,
 ) (*Node, error) {
 
 	// Copy the node config so we can modify it without damaging the original
@@ -147,6 +170,7 @@ func NewNode(
 		DevAddress: devAccount.Address,
 		DevKey:     devAccount.PrivateKey,
 		Tracker:    NewTracker(),
+		Sender:     sender,
 	}
 
 	return node, node.Start()
@@ -179,7 +203,7 @@ func (n *Node) Start() error {
 	}
 
 	// Register eth service
-	n.Eth, err = eth.New(n.Node, ethConfigCopy)
+	n.Eth, err = eth.NewConfigured(n.Node, ethConfigCopy, n.Sender)
 	if err != nil {
 		return err
 	}
@@ -394,15 +418,10 @@ func BuildConfig(accounts *env.AccountsConfig) (*genesis.Config, *eth.Config, er
 	return gc, ec, err
 }
 
-// NewNetwork generates a network of nodes that are running and mining. For
-// each provided validator account a corresponding node is created and each
-// node is also assigned a developer account, there must be at least as many
-// developer accounts provided as validator accounts. A shutdown function is
-// also returned which will shutdown and clean up the network when called.  In
-// the case that an error is returned the shutdown function will be nil and so
-// no attempt should be made to call it.
-func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (Network, func(), error) {
-
+// ConfigureGenesis configures the genesis block and returns the associated
+// genesis object.  It takes the eth.Config param so that it can copy the
+// istanbul config from the eth.Config into the genesis.Config.
+func ConfigureGenesis(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config) (*core.Genesis, error) {
 	// Copy eth istanbul config fields to the genesis istanbul config.
 	// There is a ticket to remove this duplication of config.
 	// https://github.com/celo-org/celo-blockchain/issues/1693
@@ -414,7 +433,55 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 		RequestTimeout: ec.Istanbul.RequestTimeout,
 	}
 
-	genesis, err := genesis.GenerateGenesis(accounts, gc, "../compiled-system-contracts")
+	contractsPath, err := findCompiledSystemContractsPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate genesis: %v", err)
+	}
+	genesis, err := genesis.GenerateGenesis(accounts, gc, contractsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate genesis: %v", err)
+	}
+	return genesis, nil
+}
+
+func findCompiledSystemContractsPath() (string, error) {
+	path := "."
+
+	// We will look for the go.mod file that resides at the repo root.
+	for {
+		_, err := os.Stat(filepath.Join(path, "go.mod"))
+		if err == nil {
+			contractsPath := filepath.Join(path, "compiled-system-contracts")
+			_, err := os.Stat(contractsPath)
+			if err != nil {
+				return "", fmt.Errorf("unable to find compiled-system-contracts, have you run 'make compiled-system-contracts'? error: %v", err)
+			}
+			return contractsPath, nil
+		} else if !os.IsNotExist(err) {
+			return "", fmt.Errorf("encountered an error while searching for compiled-system-contracts: %v", err)
+		}
+		a, err := filepath.Abs(path)
+		if err != nil {
+			return "", fmt.Errorf("encountered an error while searching for compiled-system-contracts: %v", err)
+		}
+		if a == "/" {
+			return "", errors.New("reached the drive root while searching for compiled system contracts")
+		}
+
+		path = filepath.Join("..", path)
+	}
+}
+
+// NewNetwork generates a network of nodes that are running and mining. For
+// each provided validator account a corresponding node is created and each
+// node is also assigned a developer account, there must be at least as many
+// developer accounts provided as validator accounts. A shutdown function is
+// also returned which will shutdown and clean up the network when called.  In
+// the case that an error is returned the shutdown function will be nil and so
+// no attempt should be made to call it.
+func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config, cf ComponentFactory) (Network, func(), error) {
+
+	genesis, err := ConfigureGenesis(accounts, gc, ec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate genesis: %v", err)
 	}
@@ -424,7 +491,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	var network Network = make([]*Node, len(va))
 
 	for i := range va {
-		n, err := NewNode(&va[i], &da[i], baseNodeConfig, ec, genesis)
+		n, err := NewNode(&va[i], &da[i], BaseNodeConfig, ec, genesis, cf.MessageSender())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}
