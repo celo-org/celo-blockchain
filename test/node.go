@@ -120,6 +120,7 @@ type Node struct {
 	Tracker       *Tracker
 	Sender        istanbulCore.MessageSender
 	Timers        *istanbulCore.Timers
+	Backend       *backend.Backend
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -211,6 +212,8 @@ func (n *Node) Start() error {
 		return err
 	}
 
+	n.Backend = n.Eth.Engine().(*backend.Backend)
+
 	err = n.Node.Start()
 	if err != nil {
 		return err
@@ -288,8 +291,7 @@ func (n *Node) GossipEnodeCertificatge() error {
 		Address: n.Address,
 		Msg:     enodeCertificateBytes,
 	}
-	b := n.Eth.Engine().(*backend.Backend)
-	if err := msg.Sign(b.Sign); err != nil {
+	if err := msg.Sign(n.Backend.Sign); err != nil {
 		return err
 	}
 	payload, err := msg.Payload()
@@ -299,7 +301,7 @@ func (n *Node) GossipEnodeCertificatge() error {
 	// Share enode certificates to the other nodes, nodes wont consider other
 	// nodes valid validators without seeing an enode certificate message from
 	// them.
-	return b.Gossip(payload, istanbul.EnodeCertificateMsg)
+	return n.Backend.Gossip(payload, istanbul.EnodeCertificateMsg)
 }
 
 // Close shuts down the node and releases all resources and removes the datadir
