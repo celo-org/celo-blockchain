@@ -3,6 +3,7 @@ package istanbul_tests
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -14,19 +15,19 @@ import (
 // CapturingMessageSender is a sender implementation that cpatures messages
 // sent on a channel.
 type CapturingMessageSender struct {
-	msgs chan msgAndDest
+	Msgs chan MsgAndDest
 }
 
-// msgAndDest simply wraps messages and the target destinations so that they
+// MsgAndDest simply wraps messages and the target destinations so that they
 // can be sent as one down a channel.
-type msgAndDest struct {
-	msg  *istanbul.Message
-	dest []common.Address
+type MsgAndDest struct {
+	Msg  *istanbul.Message
+	Dest []common.Address
 }
 
 func NewCapturingMessageSender() *CapturingMessageSender {
 	return &CapturingMessageSender{
-		msgs: make(chan msgAndDest),
+		Msgs: make(chan MsgAndDest),
 	}
 }
 
@@ -36,15 +37,44 @@ func (s *CapturingMessageSender) Send(payload []byte, addresses []common.Address
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decode message after sending: %v", err))
 	}
-	mnd := msgAndDest{
-		msg:  msg,
-		dest: addresses,
+	mnd := MsgAndDest{
+		Msg:  msg,
+		Dest: addresses,
 	}
-	s.msgs <- mnd
+	s.Msgs <- mnd
 	return nil
 }
 
-func TestIstanbul(t *testing.T) {
+type Timer interface {
+	AfterFunc(time.Duration, func())
+	Stop()
+}
+
+func NewTestTimer() *TestTimer {
+	return &TestTimer{}
+}
+
+type TestTimer struct {
+	F func()
+}
+
+func (t *TestTimer) AfterFunc(_ time.Duration, f func()) {
+	t.F = f
+}
+
+func (t *TestTimer) Stop() {
+	t.F = nil
+}
+
+func NewTestTimers() *core.Timers {
+	return &core.Timers{
+		RoundChange:       NewTestTimer(),
+		ResendRoundChange: NewTestTimer(),
+		FuturePreprepare:  NewTestTimer(),
+	}
+}
+
+func TestCommit(t *testing.T) {
 	accounts := test.Accounts(3)
 	gc, ec, err := test.BuildConfig(accounts)
 	require.NoError(t, err)
@@ -56,6 +86,6 @@ func TestIstanbul(t *testing.T) {
 	require.NoError(t, err)
 	defer n.Close()
 
-	m := <-sender.msgs
-	println(m.msg.Code)
+	m := <-sender.Msgs
+	println(m.Msg.Code)
 }
