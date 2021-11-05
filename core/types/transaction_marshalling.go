@@ -80,7 +80,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.GatewayFee = (*hexutil.Big)(tx.GatewayFee)
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
-		// TODO: Th compatible + hash here?
+		enc.EthCompatible = tx.EthCompatible
 	case *AccessListTx:
 		enc.ChainID = (*hexutil.Big)(tx.ChainID)
 		enc.AccessList = &tx.AccessList
