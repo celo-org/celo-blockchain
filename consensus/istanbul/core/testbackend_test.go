@@ -411,7 +411,7 @@ func newTestSystemWithBackend(n, f uint64) *testSystem {
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, &config, NewDefaultMessageSender()).(*core)
+		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 
@@ -444,7 +444,7 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, &config, NewDefaultMessageSender()).(*core)
+		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 

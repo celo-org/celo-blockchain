@@ -51,7 +51,7 @@ func newBlockChainWithKeys(isProxy bool, proxiedValAddress common.Address, isPro
 	config.Validator = !isProxy
 	istanbul.ApplyParamsChainConfigToConfig(genesis.Config, &config)
 
-	b, _ := New(&config, memDB, istanbulCore.NewDefaultMessageSender()).(*Backend)
+	b, _ := New(&config, memDB, istanbulCore.NewDefaultMessageSender(), istanbulCore.NewDefaultTimers()).(*Backend)
 
 	var publicKey ecdsa.PublicKey
 	if !isProxy {

@@ -116,12 +116,7 @@ type core struct {
 	finalCommittedSub *event.TypeMuxSubscription
 	timeoutSub        *event.TypeMuxSubscription
 
-	futurePreprepareTimer           *time.Timer
-	resendRoundChangeMessageTimer   *time.Timer
-	resendRoundChangeMessageTimerMu sync.Mutex
-
-	roundChangeTimer   *time.Timer
-	roundChangeTimerMu sync.RWMutex
+	timers *Timers
 
 	validateFn func([]byte, []byte) (common.Address, error)
 
@@ -151,7 +146,7 @@ type core struct {
 }
 
 // New creates an Istanbul consensus core
-func New(backend CoreBackend, config *istanbul.Config, sender MessageSender) Engine {
+func New(backend CoreBackend, config *istanbul.Config, sender MessageSender, timers *Timers) Engine {
 	rsdb, err := newRoundStateDB(config.RoundStateDBPath, nil)
 	if err != nil {
 		log.Crit("Failed to open RoundStateDB", "err", err)
@@ -166,6 +161,7 @@ func New(backend CoreBackend, config *istanbul.Config, sender MessageSender) Eng
 	c := &core{
 		config:                    config,
 		sender:                    sender,
+		timers:                    timers,
 		address:                   backend.Address(),
 		logger:                    log.New(),
 		selectProposer:            validator.GetProposerSelector(config.ProposerPolicy),
@@ -680,35 +676,10 @@ func (c *core) isProposer() bool {
 	return c.current.IsProposer(c.address)
 }
 
-func (c *core) stopFuturePreprepareTimer() {
-	if c.futurePreprepareTimer != nil {
-		c.futurePreprepareTimer.Stop()
-		c.futurePreprepareTimer = nil
-	}
-}
-
-func (c *core) stopRoundChangeTimer() {
-	c.roundChangeTimerMu.Lock()
-	if c.roundChangeTimer != nil {
-		c.roundChangeTimer.Stop()
-		c.roundChangeTimer = nil
-	}
-	c.roundChangeTimerMu.Unlock()
-}
-
-func (c *core) stopResendRoundChangeTimer() {
-	c.resendRoundChangeMessageTimerMu.Lock()
-	defer c.resendRoundChangeMessageTimerMu.Unlock()
-	if c.resendRoundChangeMessageTimer != nil {
-		c.resendRoundChangeMessageTimer.Stop()
-		c.resendRoundChangeMessageTimer = nil
-	}
-}
-
 func (c *core) stopAllTimers() {
-	c.stopFuturePreprepareTimer()
-	c.stopRoundChangeTimer()
-	c.stopResendRoundChangeTimer()
+	c.timers.FuturePreprepare.Stop()
+	c.timers.RoundChange.Stop()
+	c.timers.ResendRoundChange.Stop()
 }
 
 func (c *core) getRoundChangeTimeout() time.Duration {
@@ -759,11 +730,9 @@ func (c *core) resetRoundChangeTimer() {
 
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	timeout := c.getRoundChangeTimeout()
-	c.roundChangeTimerMu.Lock()
-	c.roundChangeTimer = time.AfterFunc(timeout, func() {
+	c.timers.RoundChange.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
 	})
-	c.roundChangeTimerMu.Unlock()
 
 	if c.current.DesiredRound().Cmp(common.Big1) > 0 {
 		logger := c.newLogger("func", "resetRoundChangeTimer")
@@ -776,7 +745,7 @@ func (c *core) resetRoundChangeTimer() {
 // Reset then, if in StateWaitingForNewRound and on round whose timeout is greater than MinResendRoundChangeTimeout,
 // set a timer that is at most MaxResendRoundChangeTimeout that causes a resendRoundChangeEvent to be processed.
 func (c *core) resetResendRoundChangeTimer() {
-	c.stopResendRoundChangeTimer()
+	c.timers.ResendRoundChange.Stop()
 	if c.current.State() == StateWaitingForNewRound {
 		minResendTimeout := time.Duration(c.config.MinResendRoundChangeTimeout) * time.Millisecond
 		resendTimeout := c.getRoundChangeTimeout() / 2
@@ -788,9 +757,7 @@ func (c *core) resetResendRoundChangeTimer() {
 			resendTimeout = maxResendTimeout
 		}
 		view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
-		c.resendRoundChangeMessageTimerMu.Lock()
-		defer c.resendRoundChangeMessageTimerMu.Unlock()
-		c.resendRoundChangeMessageTimer = time.AfterFunc(resendTimeout, func() {
+		c.timers.ResendRoundChange.AfterFunc(resendTimeout, func() {
 			c.sendEvent(resendRoundChangeEvent{view})
 		})
 

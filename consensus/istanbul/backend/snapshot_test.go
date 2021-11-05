@@ -257,7 +257,7 @@ func TestValSetChange(t *testing.T) {
 			headers: make(map[uint64]*types.Header),
 		}
 
-		engine := New(&config, db, istanbulCore.NewDefaultMessageSender()).(*Backend)
+		engine := New(&config, db, istanbulCore.NewDefaultMessageSender(), istanbulCore.NewDefaultTimers()).(*Backend)
 
 		privateKey := accounts.accounts[tt.validators[0]]
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +52,7 @@ func TestIstanbul(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := NewCapturingMessageSender()
-	n, err := test.NewNode(&accounts.ValidatorAccounts()[0], &accounts.DeveloperAccounts()[0], test.BaseNodeConfig, ec, genesis, sender)
+	n, err := test.NewNode(&accounts.ValidatorAccounts()[0], &accounts.DeveloperAccounts()[0], test.BaseNodeConfig, ec, genesis, sender, core.NewDefaultTimers())
 	require.NoError(t, err)
 	defer n.Close()
 

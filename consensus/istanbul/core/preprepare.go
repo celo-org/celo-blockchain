@@ -112,8 +112,8 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
 		// if it's a future block, we will handle it again after the duration
 		if err == consensus.ErrFutureBlock {
-			c.stopFuturePreprepareTimer()
-			c.futurePreprepareTimer = time.AfterFunc(duration, func() {
+			c.timers.FuturePreprepare.Stop()
+			c.timers.FuturePreprepare.AfterFunc(duration, func() {
 				c.sendEvent(backlogEvent{
 					msg: msg,
 				})

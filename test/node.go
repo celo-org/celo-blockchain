@@ -119,6 +119,7 @@ type Node struct {
 	DevAddress    common.Address
 	Tracker       *Tracker
 	Sender        istanbulCore.MessageSender
+	Timers        *istanbulCore.Timers
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -131,6 +132,7 @@ func NewNode(
 	ec *eth.Config,
 	genesis *core.Genesis,
 	sender istanbulCore.MessageSender,
+	timers *istanbulCore.Timers,
 ) (*Node, error) {
 
 	// Copy the node config so we can modify it without damaging the original
@@ -171,6 +173,7 @@ func NewNode(
 		DevKey:     devAccount.PrivateKey,
 		Tracker:    NewTracker(),
 		Sender:     sender,
+		Timers:     timers,
 	}
 
 	return node, node.Start()
@@ -203,7 +206,7 @@ func (n *Node) Start() error {
 	}
 
 	// Register eth service
-	n.Eth, err = eth.NewConfigured(n.Node, ethConfigCopy, n.Sender)
+	n.Eth, err = eth.NewConfigured(n.Node, ethConfigCopy, n.Sender, n.Timers)
 	if err != nil {
 		return err
 	}
@@ -491,7 +494,7 @@ func NewNetwork(accounts *env.AccountsConfig, gc *genesis.Config, ec *eth.Config
 	var network Network = make([]*Node, len(va))
 
 	for i := range va {
-		n, err := NewNode(&va[i], &da[i], BaseNodeConfig, ec, genesis, cf.MessageSender())
+		n, err := NewNode(&va[i], &da[i], BaseNodeConfig, ec, genesis, cf.MessageSender(), istanbulCore.NewDefaultTimers())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to build node for network: %v", err)
 		}

@@ -105,7 +105,7 @@ type Wallets struct {
 }
 
 // New creates an Ethereum backend for Istanbul core engine.
-func New(config *istanbul.Config, db ethdb.Database, sender istanbulCore.MessageSender) consensus.Istanbul {
+func New(config *istanbul.Config, db ethdb.Database, sender istanbulCore.MessageSender, timers *istanbulCore.Timers) consensus.Istanbul {
 	// Allocate the snapshot caches and create the engine
 	logger := log.New()
 	recentSnapshots, err := lru.NewARC(inmemorySnapshots)
@@ -153,7 +153,7 @@ func New(config *istanbul.Config, db ethdb.Database, sender istanbulCore.Message
 		}
 	}
 
-	backend.core = istanbulCore.New(backend, backend.config, sender)
+	backend.core = istanbulCore.New(backend, backend.config, sender, timers)
 
 	if config.Validator {
 		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
