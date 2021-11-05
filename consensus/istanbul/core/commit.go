@@ -32,14 +32,14 @@ import (
 // TODO: Eventually make this governable
 const maxValidators = uint32(150)
 
-func (c *core) sendCommit() {
+func (c *Core) sendCommit() {
 	logger := c.newLogger("func", "sendCommit")
 	logger.Trace("Sending commit")
 	sub := c.current.Subject()
 	c.broadcastCommit(sub)
 }
 
-func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
+func (c *Core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false, false)
 	if err != nil {
@@ -50,7 +50,7 @@ func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.Serialize
 
 // Generates serialized epoch data for use in the Plumo SNARK circuit.
 // Block number and hash may be information for a pending block.
-func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
+func (c *Core) generateEpochValidatorSetData(blockNumber uint64, round uint8, blockHash common.Hash, newValSet istanbul.ValidatorSet) ([]byte, []byte, bool, error) {
 	if !istanbul.IsLastBlockOfEpoch(blockNumber, c.config.Epoch) {
 		return nil, nil, false, errNotLastBlockInEpoch
 	}
@@ -91,7 +91,7 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 	return message, extraData, true, err
 }
 
-func (c *core) broadcastCommit(sub *istanbul.Subject) {
+func (c *Core) broadcastCommit(sub *istanbul.Subject) {
 	logger := c.newLogger("func", "broadcastCommit")
 
 	committedSeal, err := c.generateCommittedSeal(sub)
@@ -127,7 +127,7 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	c.broadcast(istMsg)
 }
 
-func (c *core) handleCommit(msg *istanbul.Message) error {
+func (c *Core) handleCommit(msg *istanbul.Message) error {
 	defer c.handleCommitTimer.UpdateSince(time.Now())
 	commit := msg.Commit()
 	err := c.checkMessage(istanbul.MsgCommit, commit.Subject.View)
@@ -152,7 +152,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	return c.handleCheckedCommitForCurrentSequence(msg, commit)
 }
 
-func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
+func (c *Core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
 	// Retrieve the validator set for the previous proposal (which should
@@ -185,7 +185,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	return nil
 }
 
-func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
+func (c *Core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
 	validator := c.current.GetValidatorByAddress(msg.Address)
 	if validator == nil {
@@ -249,7 +249,7 @@ func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, comm
 }
 
 // verifyCommit verifies if the received COMMIT message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
+func (c *Core) verifyCommit(commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "verifyCommit")
 
 	sub := c.current.Subject()
@@ -262,13 +262,13 @@ func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
-func (c *core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
+func (c *Core) verifyCommittedSeal(comSub *istanbul.CommittedSubject, src istanbul.Validator) error {
 	seal := PrepareCommittedSeal(comSub.Subject.Digest, comSub.Subject.View.Round)
 	return blscrypto.VerifySignature(src.BLSPublicKey(), seal, []byte{}, comSub.CommittedSeal, false, false)
 }
 
 // verifyEpochValidatorSetSeal verifies the epoch validator set seal in the received COMMIT message
-func (c *core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
+func (c *Core) verifyEpochValidatorSetSeal(comSub *istanbul.CommittedSubject, blockNumber uint64, newValSet istanbul.ValidatorSet, src istanbul.Validator) error {
 	if blockNumber == 0 {
 		return nil
 	}

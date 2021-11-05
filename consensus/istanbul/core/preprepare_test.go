@@ -35,7 +35,7 @@ func TestHandlePreprepare(t *testing.T) {
 	N := uint64(4) // replica 0 is the proposer, it will send messages to others
 	F := uint64(1) // F does not affect tests
 
-	getRoundState := func(c *core) *roundStateImpl {
+	getRoundState := func(c *Core) *roundStateImpl {
 		return c.current.(*rsSaveDecorator).rs.(*roundStateImpl)
 	}
 
@@ -53,7 +53,7 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
+					backend.engine.(*Core).Start()
 				}
 				return sys
 			},
@@ -70,7 +70,7 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
+					backend.engine.(*Core).Start()
 				}
 				return sys
 			},
@@ -90,8 +90,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys.backends = sys.backends[1:]
 
 				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					if i != 0 {
 						// replica 0 is the proposer
 						getRoundState(c).state = StatePreprepared
@@ -112,8 +112,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					if i != 0 {
 						getRoundState(c).state = StatePreprepared
 						getRoundState(c).sequence = big.NewInt(10)
@@ -136,8 +136,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).sequence = big.NewInt(10)
 					getRoundState(c).round = big.NewInt(10)
@@ -159,8 +159,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -180,8 +180,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -190,7 +190,7 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
 				// Duplicate messages
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, istanbul.EmptyPreparedCertificate())
 				roundChangeCertificate.RoundChangeMessages[1] = roundChangeCertificate.RoundChangeMessages[0]
 				return roundChangeCertificate
 			},
@@ -204,8 +204,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -222,14 +222,14 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				view1 := *(sys.backends[0].engine.(*core).current.View())
+				view1 := *(sys.backends[0].engine.(*Core).current.View())
 
 				var view2 istanbul.View
 				view2.Sequence = big.NewInt(view1.Sequence.Int64())
 				view2.Round = big.NewInt(view1.Round.Int64() + 1)
 
 				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{view1, view2}, makeBlock(1))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, preparedCertificate)
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -242,8 +242,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).state = StatePreprepared
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
@@ -259,8 +259,8 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(2))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, preparedCertificate)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, makeBlock(2))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -274,8 +274,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
@@ -285,8 +285,8 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(1))
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, preparedCertificate)
+				preparedCertificate := sys.getPreparedCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, makeBlock(1))
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, preparedCertificate)
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -300,8 +300,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
@@ -311,7 +311,7 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, istanbul.EmptyPreparedCertificate())
+				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, istanbul.EmptyPreparedCertificate())
 				return roundChangeCertificate
 			},
 			makeBlock(1),
@@ -325,8 +325,8 @@ func TestHandlePreprepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
+					backend.engine.(*Core).Start()
+					c := backend.engine.(*Core)
 					getRoundState(c).round = big.NewInt(int64(N))
 					getRoundState(c).desiredRound = getRoundState(c).round
 					if i != 0 {
@@ -336,7 +336,7 @@ func TestHandlePreprepare(t *testing.T) {
 				return sys
 			},
 			func(sys *testSystem) istanbul.RoundChangeCertificate {
-				v1 := *(sys.backends[0].engine.(*core).current.View())
+				v1 := *(sys.backends[0].engine.(*Core).current.View())
 				v2 := istanbul.View{Sequence: v1.Sequence, Round: big.NewInt(v1.Round.Int64() + 1)}
 				v3 := istanbul.View{Sequence: v1.Sequence, Round: big.NewInt(v1.Round.Int64() + 2)}
 				roundChangeCertificate := sys.getRoundChangeCertificate(t, []istanbul.View{v1, v2, v3}, istanbul.EmptyPreparedCertificate())
@@ -359,7 +359,7 @@ func TestHandlePreprepare(t *testing.T) {
 			defer sys.Stop(true)
 
 			v0 := sys.backends[0]
-			r0 := v0.engine.(*core)
+			r0 := v0.engine.(*Core)
 
 			curView := r0.current.View()
 
@@ -383,7 +383,7 @@ func TestHandlePreprepare(t *testing.T) {
 					continue
 				}
 
-				c := v.engine.(*core)
+				c := v.engine.(*Core)
 
 				// run each backends and verify handlePreprepare function.
 				if err := c.handlePreprepare(msg); err != nil {
@@ -459,11 +459,11 @@ func benchMarkHandleRoundChange(n int, b *testing.B) {
 	N := uint64(n)
 	F := uint64(1) // F does not affect tests
 	sys := NewMutedTestSystemWithBackend(N, F)
-	c := sys.backends[0].engine.(*core)
+	c := sys.backends[0].engine.(*Core)
 	c.Start()
-	sys.backends[1].engine.(*core).Start()
+	sys.backends[1].engine.(*Core).Start()
 	// getPreparedCertificate defaults to 50% commits, 50% prepares. Modify the function to change the ratio.
-	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, makeBlock(1))
+	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, makeBlock(1))
 	msg, err := sys.backends[1].getRoundChangeMessage(istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)}, preparedCertificate)
 	if err != nil {
 		b.Errorf("Error creating a round change message. err: %v", err)
@@ -506,7 +506,7 @@ func BenchmarkHandleRoundChange_200(b *testing.B) {
 // filled round change messages (i.e. the round change messages have prepared certificates that are not empty)
 func benchMarkHandlePreprepare(n int, b *testing.B) {
 	// Setup
-	getRoundState := func(c *core) *roundStateImpl {
+	getRoundState := func(c *Core) *roundStateImpl {
 		return c.current.(*rsSaveDecorator).rs.(*roundStateImpl)
 	}
 	N := uint64(n)
@@ -514,21 +514,21 @@ func benchMarkHandlePreprepare(n int, b *testing.B) {
 	sys := NewMutedTestSystemWithBackend(N, F)
 
 	for i, backend := range sys.backends {
-		backend.engine.(*core).Start()
-		c := backend.engine.(*core)
+		backend.engine.(*Core).Start()
+		c := backend.engine.(*Core)
 		getRoundState(c).round = big.NewInt(int64(N))
 		getRoundState(c).desiredRound = getRoundState(c).round
 		if i != 0 {
 			getRoundState(c).state = StateAcceptRequest
 		}
 	}
-	c := sys.backends[0].engine.(*core)
+	c := sys.backends[0].engine.(*Core)
 
 	// Create pre-prepare
 	block := makeBlock(1)
 	nextView := istanbul.View{Round: big.NewInt(int64(N)), Sequence: big.NewInt(1)}
 	// getPreparedCertificate defaults to 50% commits, 50% prepares. Modify the function to change the ratio.
-	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*core).current.View())}, block)
+	preparedCertificate := sys.getPreparedCertificate(b, []istanbul.View{*(sys.backends[0].engine.(*Core).current.View())}, block)
 	roundChangeCertificate := sys.getRoundChangeCertificate(b, []istanbul.View{nextView}, preparedCertificate)
 	msg, err := sys.backends[0].getPreprepareMessage(nextView, roundChangeCertificate, block)
 	if err != nil {

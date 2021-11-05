@@ -24,7 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
+func (c *Core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
 	logger := c.newLogger("func", "sendPreprepare")
 
 	// If I'm the proposer and I have the same sequence with the proposal
@@ -39,7 +39,7 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 	}
 }
 
-func (c *core) handlePreprepare(msg *istanbul.Message) error {
+func (c *Core) handlePreprepare(msg *istanbul.Message) error {
 	defer c.handlePrePrepareTimer.UpdateSince(time.Now())
 
 	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)

@@ -31,7 +31,7 @@ import (
 
 func TestCheckRequestMsg(t *testing.T) {
 	valSet := newTestValidatorSet(4)
-	c := &core{
+	c := &Core{
 		current: newRoundState(&istanbul.View{
 			Sequence: big.NewInt(1),
 			Round:    big.NewInt(0),
@@ -84,7 +84,7 @@ func TestStoreRequestMsg(t *testing.T) {
 		events: new(event.TypeMux),
 	}
 	valSet := newTestValidatorSet(4)
-	c := &core{
+	c := &Core{
 		config:  istanbul.DefaultConfig,
 		logger:  log.New("backend", "test", "id", 0),
 		backend: backend,

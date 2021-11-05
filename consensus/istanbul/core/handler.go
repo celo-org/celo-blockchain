@@ -25,7 +25,7 @@ import (
 )
 
 // Start implements core.Engine.Start
-func (c *core) Start() error {
+func (c *Core) Start() error {
 
 	roundState, err := c.createRoundState()
 	if err != nil {
@@ -55,7 +55,7 @@ func (c *core) Start() error {
 }
 
 // Stop implements core.Engine.Stop
-func (c *core) Stop() error {
+func (c *Core) Stop() error {
 	c.stopAllTimers()
 	c.unsubscribeEvents()
 
@@ -71,7 +71,7 @@ func (c *core) Stop() error {
 // ----------------------------------------------------------------------------
 
 // Subscribe both internal and external events
-func (c *core) subscribeEvents() {
+func (c *Core) subscribeEvents() {
 	c.events = c.backend.EventMux().Subscribe(
 		// external events
 		istanbul.RequestEvent{},
@@ -89,13 +89,13 @@ func (c *core) subscribeEvents() {
 }
 
 // Unsubscribe all events
-func (c *core) unsubscribeEvents() {
+func (c *Core) unsubscribeEvents() {
 	c.events.Unsubscribe()
 	c.timeoutSub.Unsubscribe()
 	c.finalCommittedSub.Unsubscribe()
 }
 
-func (c *core) handleEvents() {
+func (c *Core) handleEvents() {
 	// Clear state
 	defer c.handlerWg.Done()
 
@@ -158,11 +158,11 @@ func (c *core) handleEvents() {
 }
 
 // sendEvent sends events to mux
-func (c *core) sendEvent(ev interface{}) {
+func (c *Core) sendEvent(ev interface{}) {
 	c.backend.EventMux().Post(ev)
 }
 
-func (c *core) handleMsg(payload []byte) error {
+func (c *Core) handleMsg(payload []byte) error {
 	logger := c.newLogger("func", "handleMsg")
 
 	// Decode message and check its signature
@@ -183,7 +183,7 @@ func (c *core) handleMsg(payload []byte) error {
 	return c.handleCheckedMsg(msg, src)
 }
 
-func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
+func (c *Core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
 	logger := c.newLogger("func", "handleCheckedMsg", "from", msg.Address)
 
 	// Store the message if it's a future message
@@ -213,7 +213,7 @@ func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) e
 	return errInvalidMessage
 }
 
-func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {
+func (c *Core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {
 	logger := c.newLogger("func", "handleTimeoutAndMoveToNextRound", "timed_out_seq", timedOutView.Sequence, "timed_out_round", timedOutView.Round)
 
 	// Avoid races where message is enqueued then a later event advances sequence or desired round.
@@ -227,7 +227,7 @@ func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) erro
 	return c.waitForDesiredRound(nextRound)
 }
 
-func (c *core) handleResendRoundChangeEvent(desiredView *istanbul.View) error {
+func (c *Core) handleResendRoundChangeEvent(desiredView *istanbul.View) error {
 	logger := c.newLogger("func", "handleResendRoundChangeEvent", "set_at_seq", desiredView.Sequence, "set_at_desiredRound", desiredView.Round)
 
 	// Avoid races where message is enqueued then a later event advances sequence or desired round.

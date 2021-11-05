@@ -207,7 +207,7 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			sys := NewTestSystemWithBackend(N, F)
 			for i, backend := range sys.backends {
-				c := backend.engine.(*core)
+				c := backend.engine.(*Core)
 				c.Start()
 				certificate := test.getCertificate(t, sys)
 				subject := istanbul.Subject{
@@ -257,7 +257,7 @@ func TestHandleRoundChange(t *testing.T) {
 			"normal case with valid prepared certificate",
 			noopPrepare,
 			func(t *testing.T, sys *testSystem) istanbul.PreparedCertificate {
-				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
+				return sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*Core).current.View()}, makeBlock(1))
 			},
 			nil,
 		},
@@ -265,7 +265,7 @@ func TestHandleRoundChange(t *testing.T) {
 			"normal case with invalid prepared certificate",
 			noopPrepare,
 			func(t *testing.T, sys *testSystem) istanbul.PreparedCertificate {
-				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*core).current.View()}, makeBlock(1))
+				preparedCert := sys.getPreparedCertificate(t, []istanbul.View{*sys.backends[0].engine.(*Core).current.View()}, makeBlock(1))
 				preparedCert.PrepareOrCommitMessages[0] = preparedCert.PrepareOrCommitMessages[1]
 				return preparedCert
 			},
@@ -274,7 +274,7 @@ func TestHandleRoundChange(t *testing.T) {
 		{
 			"valid message for future round",
 			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(10)
+				sys.backends[0].engine.(*Core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(10)
 			},
 			func(t *testing.T, _ *testSystem) istanbul.PreparedCertificate {
 				return istanbul.EmptyPreparedCertificate()
@@ -284,7 +284,7 @@ func TestHandleRoundChange(t *testing.T) {
 		{
 			"invalid message for future sequence",
 			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).sequence = big.NewInt(10)
+				sys.backends[0].engine.(*Core).current.(*rsSaveDecorator).rs.(*roundStateImpl).sequence = big.NewInt(10)
 			},
 			buildEmptyCertificate,
 			errFutureMessage,
@@ -292,7 +292,7 @@ func TestHandleRoundChange(t *testing.T) {
 		{
 			"invalid message for previous round",
 			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(0)
+				sys.backends[0].engine.(*Core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(0)
 			},
 			buildEmptyCertificate,
 			nil,
@@ -307,12 +307,12 @@ func TestHandleRoundChange(t *testing.T) {
 			defer closer()
 
 			for _, v := range sys.backends {
-				v.engine.(*core).Start()
+				v.engine.(*Core).Start()
 			}
 			test.prepareSystem(sys)
 
 			v0 := sys.backends[0]
-			r0 := v0.engine.(*core)
+			r0 := v0.engine.(*Core)
 
 			curView := r0.current.View()
 			nextView := &istanbul.View{
@@ -331,7 +331,7 @@ func TestHandleRoundChange(t *testing.T) {
 					continue
 				}
 
-				c := v.engine.(*core)
+				c := v.engine.(*Core)
 
 				// run each backends and verify handlePreprepare function.
 				err := c.handleRoundChange(msg)
@@ -571,7 +571,7 @@ func TestPeriodicRoundChanges(t *testing.T) {
 	go sys.distributeIstMsgs(t, sys, istMsgDistribution)
 
 	for _, b := range sys.backends {
-		b.engine.(*core).waitForDesiredRound(big.NewInt(5))
+		b.engine.(*Core).waitForDesiredRound(big.NewInt(5))
 	}
 
 	// Expect at least one repeat RC before move to next round.

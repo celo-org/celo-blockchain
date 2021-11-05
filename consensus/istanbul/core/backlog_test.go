@@ -37,7 +37,7 @@ func TestCheckMessage(t *testing.T) {
 		events: new(event.TypeMux),
 	}
 	valSet := newTestValidatorSet(4)
-	c := &core{
+	c := &Core{
 		logger:  testLogger,
 		backend: backend,
 		current: newRoundState(&istanbul.View{

@@ -94,7 +94,7 @@ func TestVerifyProposal(t *testing.T) {
 	close := sys.Run(true)
 	defer close()
 
-	backendCore := sys.backends[0].engine.(*core)
+	backendCore := sys.backends[0].engine.(*Core)
 	backend := backendCore.backend.(*testSystemBackend)
 
 	testCases := []struct {
@@ -194,7 +194,7 @@ func TestEpochSnarkData(t *testing.T) {
 
 	<-time.After(1 * time.Second)
 
-	backendCore := sys.backends[0].engine.(*core)
+	backendCore := sys.backends[0].engine.(*Core)
 	privateKey, _ := bls.DeserializePrivateKey(sys.backends[0].blsKey)
 	defer privateKey.Destroy()
 

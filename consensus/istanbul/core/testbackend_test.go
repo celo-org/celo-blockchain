@@ -266,11 +266,11 @@ func (self *testSystemBackend) UpdateReplicaState(seq *big.Int) { /* pass */ }
 
 func (self *testSystemBackend) finalizeAndReturnMessage(msg *istanbul.Message) (istanbul.Message, error) {
 	message := new(istanbul.Message)
-	data, err := self.engine.(*core).finalizeMessage(msg)
+	data, err := self.engine.(*Core).finalizeMessage(msg)
 	if err != nil {
 		return *message, err
 	}
-	err = message.FromPayload(data, self.engine.(*core).validateFn)
+	err = message.FromPayload(data, self.engine.(*Core).validateFn)
 	return *message, err
 }
 
@@ -298,7 +298,7 @@ func (self *testSystemBackend) getCommitMessage(view istanbul.View, proposal ist
 		Digest: proposal.Hash(),
 	}
 
-	committedSeal, err := self.engine.(*core).generateCommittedSeal(subject)
+	committedSeal, err := self.engine.(*Core).generateCommittedSeal(subject)
 	if err != nil {
 		return istanbul.Message{}, err
 	}
@@ -411,7 +411,7 @@ func newTestSystemWithBackend(n, f uint64) *testSystem {
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*core)
+		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*Core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 
@@ -444,7 +444,7 @@ func NewTestSystemWithBackendDonut(n, f, epoch uint64, donutBlock int64) *testSy
 		backend.key = *keys[i]
 		backend.blsKey = blsKeys[i]
 
-		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*core)
+		core := New(backend, &config, NewDefaultMessageSender(), NewDefaultTimers()).(*Core)
 		core.logger = testLogger
 		core.validateFn = backend.CheckValidatorSignature
 

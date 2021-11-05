@@ -104,7 +104,7 @@ type CoreBackend interface {
 	UpdateReplicaState(seq *big.Int)
 }
 
-type core struct {
+type Core struct {
 	config         *istanbul.Config
 	address        common.Address
 	logger         log.Logger
@@ -158,7 +158,7 @@ func New(backend CoreBackend, config *istanbul.Config, sender MessageSender, tim
 		s.setBackend(backend)
 	}
 
-	c := &core{
+	c := &Core{
 		config:                    config,
 		sender:                    sender,
 		timers:                    timers,
@@ -191,12 +191,12 @@ func New(backend CoreBackend, config *istanbul.Config, sender MessageSender, tim
 
 // ----------------------------------------------------------------------------
 
-func (c *core) SetAddress(address common.Address) {
+func (c *Core) SetAddress(address common.Address) {
 	c.address = address
 	c.logger = log.New("address", address)
 }
 
-func (c *core) CurrentView() *istanbul.View {
+func (c *Core) CurrentView() *istanbul.View {
 	// CurrentView is called by Prepare which is called by miner.worker the
 	// main loop, we need to synchronise this access with the write which occurs
 	// in Stop, which is called from the miner's update loop.
@@ -208,9 +208,9 @@ func (c *core) CurrentView() *istanbul.View {
 	return c.current.View()
 }
 
-func (c *core) CurrentRoundState() RoundState { return c.current }
+func (c *Core) CurrentRoundState() RoundState { return c.current }
 
-func (c *core) ParentCommits() MessageSet {
+func (c *Core) ParentCommits() MessageSet {
 	// ParentCommits is called by Prepare which is called by miner.worker the
 	// main loop, we need to synchronise this access with the write which
 	// occurs in Stop, which is called from the miner's update loop.
@@ -222,7 +222,7 @@ func (c *core) ParentCommits() MessageSet {
 	return c.current.ParentCommits()
 }
 
-func (c *core) ForceRoundChange() {
+func (c *Core) ForceRoundChange() {
 	// timeout current DesiredView
 	view := &istanbul.View{Sequence: c.current.Sequence(), Round: c.current.DesiredRound()}
 	c.sendEvent(timeoutAndMoveToNextRoundEvent{view})
@@ -299,7 +299,7 @@ func UnionOfSeals(aggregatedSignature types.IstanbulAggregatedSeal, seals Messag
 }
 
 // Appends the current view and state to the given context.
-func (c *core) newLogger(ctx ...interface{}) log.Logger {
+func (c *Core) newLogger(ctx ...interface{}) log.Logger {
 	var seq, round, desired *big.Int
 	var state State
 	var epoch uint64
@@ -319,7 +319,7 @@ func (c *core) newLogger(ctx ...interface{}) log.Logger {
 	return logger.New("cur_seq", seq, "cur_epoch", epoch, "cur_round", round, "des_round", desired, "state", state, "address", c.address)
 }
 
-func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
+func (c *Core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 	// Add sender address
 	msg.Address = c.address
 
@@ -337,11 +337,11 @@ func (c *core) finalizeMessage(msg *istanbul.Message) ([]byte, error) {
 }
 
 // Send message to all current validators
-func (c *core) broadcast(msg *istanbul.Message) {
+func (c *Core) broadcast(msg *istanbul.Message) {
 	c.sendMsgTo(msg, istanbul.MapValidatorsToAddresses(c.current.ValidatorSet().List())...)
 }
 
-func (c *core) sendMsgTo(msg *istanbul.Message, addresses ...common.Address) {
+func (c *Core) sendMsgTo(msg *istanbul.Message, addresses ...common.Address) {
 	logger := c.newLogger("func", "sendMsgTo")
 
 	payload, err := c.finalizeMessage(msg)
@@ -357,7 +357,7 @@ func (c *core) sendMsgTo(msg *istanbul.Message, addresses ...common.Address) {
 	}
 }
 
-func (c *core) commit() error {
+func (c *Core) commit() error {
 	logger := c.newLogger("func", "commit", "proposal", c.current.Proposal())
 	err := c.current.TransitionToCommitted()
 	if err != nil {
@@ -432,7 +432,7 @@ func GetAggregatedEpochValidatorSetSeal(blockNumber, epoch uint64, seals Message
 }
 
 // Generates the next preprepare request and associated round change certificate
-func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
+func (c *Core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbul.Request, istanbul.RoundChangeCertificate, error) {
 	logger := c.newLogger("func", "getPreprepareWithRoundChangeCertificate", "for_round", round)
 
 	roundChangeCertificate, err := c.roundChangeSet.getCertificate(round, c.current.ValidatorSet().MinQuorumSize())
@@ -468,7 +468,7 @@ func (c *core) getPreprepareWithRoundChangeCertificate(round *big.Int) (*istanbu
 }
 
 // startNewRound starts a new round with the desired round
-func (c *core) startNewRound(round *big.Int) error {
+func (c *Core) startNewRound(round *big.Int) error {
 	logger := c.newLogger("func", "startNewRound", "tag", "stateTransition")
 
 	if round.Cmp(c.current.Round()) == 0 {
@@ -518,7 +518,7 @@ func (c *core) startNewRound(round *big.Int) error {
 }
 
 // startNewSequence starts a new sequence with round 0.
-func (c *core) startNewSequence() error {
+func (c *Core) startNewSequence() error {
 	// Try to get most recent block
 	headBlock, headAuthor := c.backend.GetCurrentHeadBlockAndAuthor()
 
@@ -577,7 +577,7 @@ func (c *core) startNewSequence() error {
 }
 
 // All actions that occur when transitioning to waiting for round change state.
-func (c *core) waitForDesiredRound(r *big.Int) error {
+func (c *Core) waitForDesiredRound(r *big.Int) error {
 	logger := c.newLogger("func", "waitForDesiredRound", "new_desired_round", r)
 
 	// Don't wait for an older round
@@ -606,7 +606,7 @@ func (c *core) waitForDesiredRound(r *big.Int) error {
 	return nil
 }
 
-func (c *core) createRoundState() (RoundState, error) {
+func (c *Core) createRoundState() (RoundState, error) {
 	var roundState RoundState
 
 	logger := c.newLogger("func", "createRoundState")
@@ -647,7 +647,7 @@ func (c *core) createRoundState() (RoundState, error) {
 }
 
 // resetRoundState will modify the RoundState to start a new sequence
-func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
+func (c *Core) resetRoundState(view *istanbul.View, validatorSet istanbul.ValidatorSet, nextProposer istanbul.Validator) error {
 	// TODO remove this when we refactor startNewRound()
 	if view.Round.Cmp(common.Big0) != 0 {
 		c.logger.Crit("BUG: DevError: trying to start a new sequence with round != 0", "wanted_round", view.Round)
@@ -669,20 +669,20 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 
 }
 
-func (c *core) isProposer() bool {
+func (c *Core) isProposer() bool {
 	if c.current == nil {
 		return false
 	}
 	return c.current.IsProposer(c.address)
 }
 
-func (c *core) stopAllTimers() {
+func (c *Core) stopAllTimers() {
 	c.timers.FuturePreprepare.Stop()
 	c.timers.RoundChange.Stop()
 	c.timers.ResendRoundChange.Stop()
 }
 
-func (c *core) getRoundChangeTimeout() time.Duration {
+func (c *Core) getRoundChangeTimeout() time.Duration {
 	/*
 		- Prior to Espresso:
 		Round 0 = baseTimeout + block time
@@ -722,7 +722,7 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 
 // Reset then set the timer that causes a timeoutAndMoveToNextRoundEvent to be processed.
 // This may also reset the timer for the next resendRoundChangeEvent.
-func (c *core) resetRoundChangeTimer() {
+func (c *Core) resetRoundChangeTimer() {
 	// Stop all timers here since all 'resends' happen within the interval of a round's timeout.
 	// (Races are handled anyway by checking the seq and desired round haven't changed between
 	// submitting and processing events).
@@ -744,7 +744,7 @@ func (c *core) resetRoundChangeTimer() {
 
 // Reset then, if in StateWaitingForNewRound and on round whose timeout is greater than MinResendRoundChangeTimeout,
 // set a timer that is at most MaxResendRoundChangeTimeout that causes a resendRoundChangeEvent to be processed.
-func (c *core) resetResendRoundChangeTimer() {
+func (c *Core) resetResendRoundChangeTimer() {
 	c.timers.ResendRoundChange.Stop()
 	if c.current.State() == StateWaitingForNewRound {
 		minResendTimeout := time.Duration(c.config.MinResendRoundChangeTimeout) * time.Millisecond
@@ -768,18 +768,18 @@ func (c *core) resetResendRoundChangeTimer() {
 
 // Rebroadcast RoundChange message for desired round if still in StateWaitingForNewRound.
 // Do not advance desired round. Then clear/reset timer so we may rebroadcast again.
-func (c *core) resendRoundChangeMessage() {
+func (c *Core) resendRoundChangeMessage() {
 	if c.current.State() == StateWaitingForNewRound {
 		c.sendRoundChange()
 	}
 	c.resetResendRoundChangeTimer()
 }
 
-func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+func (c *Core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return istanbul.CheckValidatorSignature(c.current.ValidatorSet(), data, sig)
 }
 
-func (c *core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
+func (c *Core) verifyProposal(proposal istanbul.Proposal) (time.Duration, error) {
 	logger := c.newLogger("func", "verifyProposal", "proposal", proposal.Hash())
 	if verificationStatus, isCached := c.current.GetProposalVerificationStatus(proposal.Hash()); isCached {
 		logger.Trace("verification status cache hit", "verificationStatus", verificationStatus)

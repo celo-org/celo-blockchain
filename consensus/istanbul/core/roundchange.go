@@ -28,17 +28,17 @@ import (
 )
 
 // sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
-func (c *core) sendRoundChange() {
+func (c *Core) sendRoundChange() {
 	c.broadcast(c.buildRoundChangeMsg(c.current.DesiredRound()))
 }
 
 // sendRoundChange sends a ROUND CHANGE message for the current desired round back to a single address
-func (c *core) sendRoundChangeAgain(addr common.Address) {
+func (c *Core) sendRoundChangeAgain(addr common.Address) {
 	c.sendMsgTo(c.buildRoundChangeMsg(c.current.DesiredRound()), addr)
 }
 
 // buildRoundChangeMsg creates a round change msg for the given round
-func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
+func (c *Core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	nextView := &istanbul.View{
 		Round:    new(big.Int).Set(round),
 		Sequence: new(big.Int).Set(c.current.View().Sequence),
@@ -49,7 +49,7 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	}, c.address)
 }
 
-func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
+func (c *Core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.newLogger("func", "handleRoundChangeCertificate", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
 
 	if len(roundChangeCertificate.RoundChangeMessages) > c.current.ValidatorSet().Size() || len(roundChangeCertificate.RoundChangeMessages) < c.current.ValidatorSet().MinQuorumSize() {
@@ -142,7 +142,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 	return c.startNewRound(proposal.View.Round)
 }
 
-func (c *core) handleRoundChange(msg *istanbul.Message) error {
+func (c *Core) handleRoundChange(msg *istanbul.Message) error {
 	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
 	rc := msg.RoundChange()

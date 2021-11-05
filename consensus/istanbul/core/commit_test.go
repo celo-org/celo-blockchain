@@ -54,7 +54,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					// same view as the expected one to everyone
 					c.current = newTestRoundState(
 						expectedSubject.View,
@@ -77,7 +77,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -107,7 +107,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -140,7 +140,7 @@ func TestHandleCommit(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
@@ -171,7 +171,7 @@ func TestHandleCommit(t *testing.T) {
 
 				for i, backend := range sys.backends {
 					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -202,20 +202,20 @@ OUTER:
 		test.system.Run(false)
 
 		v0 := test.system.backends[0]
-		r0 := v0.engine.(*core)
+		r0 := v0.engine.(*Core)
 
 		for i, v := range test.system.backends {
 			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
 			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
 			defer privateKey.Destroy()
 
-			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+			hash := PrepareCommittedSeal(v.engine.(*Core).current.Proposal().Hash(), v.engine.(*Core).current.Round())
 			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 			defer signature.Destroy()
 			signatureBytes, _ := signature.Serialize()
 
 			msg := istanbul.NewCommitMessage(
-				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes},
+				&istanbul.CommittedSubject{Subject: v.engine.(*Core).current.Subject(), CommittedSeal: signatureBytes},
 				validator.Address(),
 			)
 
@@ -374,7 +374,7 @@ func TestVerifyCommit(t *testing.T) {
 		},
 	}
 	for i, test := range testCases {
-		c := sys.backends[0].engine.(*core)
+		c := sys.backends[0].engine.(*Core)
 		c.current = test.roundState
 
 		if err := c.verifyCommit(test.commit); err != test.expected {
@@ -402,7 +402,7 @@ func BenchmarkHandleCommit(b *testing.B) {
 	}
 
 	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
+		c := backend.engine.(*Core)
 		// same view as the expected one to everyone
 		c.current = newTestRoundState(
 			expectedSubject.View,
@@ -418,7 +418,7 @@ func BenchmarkHandleCommit(b *testing.B) {
 	sys.Run(false)
 
 	v0 := sys.backends[0]
-	r0 := v0.engine.(*core)
+	r0 := v0.engine.(*Core)
 
 	var im *istanbul.Message
 	for i, v := range sys.backends {
@@ -426,12 +426,12 @@ func BenchmarkHandleCommit(b *testing.B) {
 		privateKey, _ := bls.DeserializePrivateKey(sys.validatorsKeys[i])
 		defer privateKey.Destroy()
 
-		hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
+		hash := PrepareCommittedSeal(v.engine.(*Core).current.Proposal().Hash(), v.engine.(*Core).current.Round())
 		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
 		defer signature.Destroy()
 		signatureBytes, _ := signature.Serialize()
 		im = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
-			Subject:       v.engine.(*core).current.Subject(),
+			Subject:       v.engine.(*Core).current.Subject(),
 			CommittedSeal: signatureBytes,
 		}, validator.Address())
 	}

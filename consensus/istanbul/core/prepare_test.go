@@ -121,7 +121,7 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			for _, backend := range sys.backends {
-				c := backend.engine.(*core)
+				c := backend.engine.(*Core)
 				view, err := c.verifyPreparedCertificate(test.certificate)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
@@ -167,7 +167,7 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 
 					c.current = newTestRoundState(
 						&istanbul.View{
@@ -201,7 +201,7 @@ func TestHandlePrepare(t *testing.T) {
 					proposal)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
@@ -235,7 +235,7 @@ func TestHandlePrepare(t *testing.T) {
 					proposal)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					c.current = newTestRoundState(
 						&istanbul.View{
 							Round:    big.NewInt(0),
@@ -260,7 +260,7 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -288,7 +288,7 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -316,7 +316,7 @@ func TestHandlePrepare(t *testing.T) {
 				sys := NewTestSystemWithBackend(N, F)
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					if i == 0 {
 						// replica 0 is the proposer
 						c.current = newTestRoundState(
@@ -346,7 +346,7 @@ func TestHandlePrepare(t *testing.T) {
 				sys.backends = sys.backends[2*int(F)+1:]
 
 				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
+					c := backend.engine.(*Core)
 					c.current = newTestRoundState(
 						expectedSubject.View,
 						backend.peers,
@@ -370,11 +370,11 @@ func TestHandlePrepare(t *testing.T) {
 			test.system.Run(false)
 
 			v0 := test.system.backends[0]
-			r0 := v0.engine.(*core)
+			r0 := v0.engine.(*Core)
 
 			for i, v := range test.system.backends {
 				validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-				msg := istanbul.NewPrepareMessage(v.engine.(*core).current.Subject(), validator.Address())
+				msg := istanbul.NewPrepareMessage(v.engine.(*Core).current.Subject(), validator.Address())
 				err := r0.handlePrepare(msg)
 				if err != nil {
 					if err != test.expectedErr {
@@ -522,7 +522,7 @@ func TestVerifyPrepare(t *testing.T) {
 		},
 	}
 	for i, test := range testCases {
-		c := sys.backends[0].engine.(*core)
+		c := sys.backends[0].engine.(*Core)
 		c.current = test.roundState
 
 		if err := c.verifyPrepare(test.prepare); err != nil {
@@ -542,7 +542,7 @@ func BenchmarkHandlePrepare(b *testing.B) {
 	// sys := NewTestSystemWithBackend(N, F)
 
 	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
+		c := backend.engine.(*Core)
 
 		c.current = newTestRoundState(
 			&istanbul.View{
@@ -561,8 +561,8 @@ func BenchmarkHandlePrepare(b *testing.B) {
 	sys.Run(false)
 
 	v0 := sys.backends[0]
-	c := v0.engine.(*core)
-	m, _ := Encode(v0.engine.(*core).current.Subject())
+	c := v0.engine.(*Core)
+	m, _ := Encode(v0.engine.(*Core).current.Subject())
 	msg := istanbul.Message{
 		Code:    istanbul.MsgPrepare,
 		Msg:     m,

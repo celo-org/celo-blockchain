@@ -24,14 +24,14 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-func (c *core) sendPrepare() {
+func (c *Core) sendPrepare() {
 	logger := c.newLogger("func", "sendPrepare")
 	logger.Debug("Sending prepare")
 	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.
-func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
+func (c *Core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
@@ -123,7 +123,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 }
 
 // Extract the view from a PreparedCertificate that has already been verified.
-func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
+func (c *Core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
 	if len(preparedCertificate.PrepareOrCommitMessages) < c.current.ValidatorSet().MinQuorumSize() {
 		return nil, errInvalidPreparedCertificateNumMsgs
 	}
@@ -138,7 +138,7 @@ func (c *core) getViewFromVerifiedPreparedCertificate(preparedCertificate istanb
 	return subject.View, nil
 }
 
-func (c *core) handlePrepare(msg *istanbul.Message) error {
+func (c *Core) handlePrepare(msg *istanbul.Message) error {
 	defer c.handlePrepareTimer.UpdateSince(time.Now())
 	// Decode PREPARE message
 	prepare := msg.Prepare()
@@ -189,7 +189,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 }
 
 // verifyPrepare verifies if the received PREPARE message is equivalent to our subject
-func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
+func (c *Core) verifyPrepare(prepare *istanbul.Subject) error {
 	logger := c.newLogger("func", "verifyPrepare", "prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
 
 	sub := c.current.Subject()

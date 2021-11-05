@@ -36,7 +36,7 @@ func TestMalformedMessageDecoding(t *testing.T) {
 	defer closer()
 
 	v0 := sys.backends[0]
-	r0 := v0.engine.(*core)
+	r0 := v0.engine.(*Core)
 
 	m := istanbul.NewPrepareMessage(&istanbul.Subject{
 		View: &istanbul.View{
@@ -123,7 +123,7 @@ func BenchmarkHandleMsg(b *testing.B) {
 	// sys := NewTestSystemWithBackend(N, F)
 
 	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
+		c := backend.engine.(*Core)
 
 		c.current = newTestRoundState(
 			&istanbul.View{
@@ -143,8 +143,8 @@ func BenchmarkHandleMsg(b *testing.B) {
 
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
-	c := v0.engine.(*core)
-	sub := v0.engine.(*core).current.Subject()
+	c := v0.engine.(*Core)
+	sub := v0.engine.(*Core).current.Subject()
 
 	payload, _ := Encode(sub)
 	msg := istanbul.Message{
@@ -175,7 +175,7 @@ func newInitializedTestSystem(b *testing.B, useRoundStateDB bool) *testSystem {
 	// sys := NewTestSystemWithBackend(N, F)
 
 	for i, backend := range sys.backends {
-		c := backend.engine.(*core)
+		c := backend.engine.(*Core)
 
 		if useRoundStateDB {
 			rsdb, err := newRoundStateDB(b.TempDir(), nil)
@@ -229,10 +229,10 @@ func bemchmarkE2EHandleCommit(b *testing.B, sys *testSystem) {
 
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
-	c := v0.engine.(*core)
-	subject := v0.engine.(*core).current.Subject()
+	c := v0.engine.(*Core)
+	subject := v0.engine.(*Core).current.Subject()
 
-	committedSeal, err := v0.engine.(*core).generateCommittedSeal(subject)
+	committedSeal, err := v0.engine.(*Core).generateCommittedSeal(subject)
 	if err != nil {
 		b.Errorf("Got error: %v", err)
 	}
@@ -283,8 +283,8 @@ func BenchmarkE2EHandlePrepare(b *testing.B) {
 func benchmarkE2EHandlePrepare(b *testing.B, sys *testSystem) {
 	v0 := sys.backends[0]
 	v1 := sys.backends[1]
-	c := v0.engine.(*core)
-	sub := v0.engine.(*core).current.Subject()
+	c := v0.engine.(*Core)
+	sub := v0.engine.(*Core).current.Subject()
 
 	payload, _ := Encode(sub)
 	msg := istanbul.Message{

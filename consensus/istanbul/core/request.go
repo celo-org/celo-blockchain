@@ -23,7 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-func (c *core) handleRequest(request *istanbul.Request) error {
+func (c *Core) handleRequest(request *istanbul.Request) error {
 	logger := c.newLogger("func", "handleRequest")
 
 	err := c.checkRequestMsg(request)
@@ -52,7 +52,7 @@ func (c *core) handleRequest(request *istanbul.Request) error {
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the sequence of proposal is larger than current sequence
 // return errOldMessage if the sequence of proposal is smaller than current sequence
-func (c *core) checkRequestMsg(request *istanbul.Request) error {
+func (c *Core) checkRequestMsg(request *istanbul.Request) error {
 	if request == nil || request.Proposal == nil {
 		return errInvalidMessage
 	}
@@ -70,7 +70,7 @@ var (
 	maxNumberForRequestsQueue = big.NewInt(2 << (63 - 2))
 )
 
-func (c *core) storeRequestMsg(request *istanbul.Request) {
+func (c *Core) storeRequestMsg(request *istanbul.Request) {
 	logger := c.newLogger("func", "storeRequestMsg")
 
 	if request.Proposal.Number().Cmp(maxNumberForRequestsQueue) >= 0 {
@@ -86,7 +86,7 @@ func (c *core) storeRequestMsg(request *istanbul.Request) {
 	c.pendingRequests.Push(request, -request.Proposal.Number().Int64())
 }
 
-func (c *core) processPendingRequests() {
+func (c *Core) processPendingRequests() {
 	c.pendingRequestsMu.Lock()
 	defer c.pendingRequestsMu.Unlock()
 

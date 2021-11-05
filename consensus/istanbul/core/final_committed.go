@@ -16,7 +16,7 @@
 
 package core
 
-func (c *core) handleFinalCommitted() error {
+func (c *Core) handleFinalCommitted() error {
 	logger := c.newLogger("func", "handleFinalCommitted")
 	logger.Trace("Received a final committed proposal")
 	return c.startNewSequence()

@@ -48,7 +48,7 @@ var (
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the message view is larger than current view
 // return errOldMessage if the message view is smaller than current view
-func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
+func (c *Core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
 	if msgView == nil || msgView.Sequence == nil || msgView.Round == nil {
 		return errInvalidMessage
 	}
