@@ -274,6 +274,7 @@ func (tx *LegacyTx) copy() TxData {
 		Gas:                 tx.Gas,
 		FeeCurrency:         tx.FeeCurrency,         // TODO: copy pointed-to address
 		GatewayFeeRecipient: tx.GatewayFeeRecipient, // TODO: copy pointed-to address
+		EthCompatible:       tx.EthCompatible,
 		// These are initialized below.
 		GatewayFee: new(big.Int),
 		Value:      new(big.Int),

@@ -53,6 +53,9 @@ type txJSON struct {
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
+
+	// Whether this is an ethereum-compatible transaction (i.e. with FeeCurrency, GatewayFeeRecipient and GatewayFee omitted)
+	EthCompatible bool `json:"ethCompatible" rlp:"-"`
 }
 
 // MarshalJSON marshals as JSON with a hash.
