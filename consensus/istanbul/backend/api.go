@@ -196,7 +196,7 @@ func (api *API) GetCurrentRoundState() (*core.RoundStateSummary, error) {
 	if !api.istanbul.isCoreStarted() {
 		return nil, istanbul.ErrStoppedEngine
 	}
-	return api.istanbul.core.CurrentRoundState().Summary(), nil
+	return api.istanbul.Core.CurrentRoundState().Summary(), nil
 }
 
 func (api *API) ForceRoundChange() (bool, error) {
@@ -206,7 +206,7 @@ func (api *API) ForceRoundChange() (bool, error) {
 	if !api.istanbul.isCoreStarted() {
 		return false, istanbul.ErrStoppedEngine
 	}
-	api.istanbul.core.ForceRoundChange()
+	api.istanbul.Core.ForceRoundChange()
 	return true, nil
 }
 

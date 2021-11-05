@@ -671,7 +671,7 @@ func (sb *Backend) StartValidating() error {
 	}
 
 	sb.logger.Info("Starting istanbul.Engine validating")
-	if err := sb.core.Start(); err != nil {
+	if err := sb.Core.Start(); err != nil {
 		return err
 	}
 
@@ -702,7 +702,7 @@ func (sb *Backend) StopValidating() error {
 		return istanbul.ErrStoppedEngine
 	}
 	sb.logger.Info("Stopping istanbul.Engine validating")
-	if err := sb.core.Stop(); err != nil {
+	if err := sb.Core.Stop(); err != nil {
 		return err
 	}
 	sb.coreStarted.Store(false)
@@ -977,14 +977,14 @@ func (sb *Backend) addParentSeal(chain consensus.ChainHeaderReader, header *type
 		// This typically happens in round > 0, since round 0 typically hits the "time.Sleep()"
 		// above.
 		// When this happens, loop until sb.core moves to the next sequence, with a limit of 500ms.
-		seq := waitCoreToReachSequence(sb.core, header.Number)
+		seq := waitCoreToReachSequence(sb.Core, header.Number)
 		if seq == nil {
 			return parentExtra.AggregatedSeal
 		}
 
 		logger = logger.New("parentAggregatedSeal", parentExtra.AggregatedSeal.String(), "cur_seq", seq)
 
-		parentCommits := sb.core.ParentCommits()
+		parentCommits := sb.Core.ParentCommits()
 		if parentCommits == nil || parentCommits.Size() == 0 {
 			logger.Debug("No additional seals to combine with ParentAggregatedSeal")
 			return parentExtra.AggregatedSeal

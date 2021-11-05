@@ -153,7 +153,7 @@ func New(config *istanbul.Config, db ethdb.Database, sender istanbulCore.Message
 		}
 	}
 
-	backend.core = istanbulCore.New(backend, backend.config, sender, timers)
+	backend.Core = istanbulCore.New(backend, backend.config, sender, timers)
 
 	if config.Validator {
 		rs, err := replica.NewState(config.Replica, config.ReplicaStateDBPath, backend.StartValidating, backend.StopValidating)
@@ -210,7 +210,7 @@ type Backend struct {
 
 	aWallets atomic.Value
 
-	core         istanbulCore.Engine
+	Core         istanbulCore.Engine
 	logger       log.Logger
 	db           ethdb.Database
 	chain        consensus.ChainContext
@@ -416,7 +416,7 @@ func (sb *Backend) Authorize(ecdsaAddress, blsAddress common.Address, publicKey 
 		Bls:   bls,
 	}
 	sb.aWallets.Store(w)
-	sb.core.SetAddress(ecdsaAddress)
+	sb.Core.SetAddress(ecdsaAddress)
 }
 
 func (sb *Backend) wallets() *Wallets {
