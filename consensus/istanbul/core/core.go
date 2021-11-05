@@ -506,14 +506,14 @@ func (c *Core) startNewRound(round *big.Int) error {
 	c.processPendingRequests()
 	c.backlog.updateState(c.current.View(), c.current.State())
 
-	if c.isProposer() && request != nil {
+	if c.IsProposer() && request != nil {
 		c.sendPreprepare(request, roundChangeCertificate)
 	}
 	c.resetRoundChangeTimer()
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewRound", "tag", "stateTransition", "old_proposer", prevProposer)
-	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	logger.Debug("New round", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", c.current.Proposer(), "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.IsProposer())
 	return nil
 }
 
@@ -572,7 +572,7 @@ func (c *Core) startNewSequence() error {
 
 	// Some round info will have changed.
 	logger = c.newLogger("func", "startNewSequence", "tag", "stateTransition", "old_proposer", prevProposer, "head_block", headBlock.Number().Uint64(), "head_block_hash", headBlock.Hash())
-	logger.Debug("New sequence", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", nextProposer, "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.isProposer())
+	logger.Debug("New sequence", "new_round", newView.Round, "new_seq", newView.Sequence, "new_proposer", nextProposer, "valSet", c.current.ValidatorSet().List(), "size", c.current.ValidatorSet().Size(), "isProposer", c.IsProposer())
 	return nil
 }
 
@@ -669,7 +669,7 @@ func (c *Core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 
 }
 
-func (c *Core) isProposer() bool {
+func (c *Core) IsProposer() bool {
 	if c.current == nil {
 		return false
 	}
