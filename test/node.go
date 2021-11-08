@@ -121,6 +121,7 @@ type Node struct {
 	Sender        istanbulCore.MessageSender
 	Timers        *istanbulCore.Timers
 	Backend       *backend.Backend
+	Core          *istanbulCore.Core
 	// The transactions that this node has sent.
 	SentTxs []*types.Transaction
 }
@@ -212,7 +213,9 @@ func (n *Node) Start() error {
 		return err
 	}
 
+	// Set backend and core on the node, they provide useful functionality
 	n.Backend = n.Eth.Engine().(*backend.Backend)
+	n.Core = n.Backend.Core.(*istanbulCore.Core)
 
 	err = n.Node.Start()
 	if err != nil {
@@ -387,6 +390,18 @@ func (n *Node) TxFee(ctx context.Context, tx *types.Transaction) (*big.Int, erro
 		return nil, err
 	}
 	return big.NewInt(0).Mul(new(big.Int).SetUint64(r.GasUsed), tx.GasPrice()), nil
+}
+
+// HandleConsensusMessage forwards the given conensus message to this node's
+// core component.
+func (n *Node) HandleConsensusMessage(m *istanbul.Message) error {
+	p, err := m.Payload()
+	if err != nil {
+		return err
+	}
+	return n.Backend.EventMux().Post(istanbul.MessageEvent{
+		Payload: p,
+	})
 }
 
 // Network represents a network of nodes and provides functionality to easily

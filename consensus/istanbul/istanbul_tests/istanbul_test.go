@@ -8,8 +8,11 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/core"
+	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/mycelo/env"
 	"github.com/celo-org/celo-blockchain/test"
 	"github.com/stretchr/testify/require"
+	"gotest.tools/assert"
 )
 
 // CapturingMessageSender is a sender implementation that cpatures messages
@@ -82,10 +85,62 @@ func TestCommit(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := NewCapturingMessageSender()
-	n, err := test.NewNode(&accounts.ValidatorAccounts()[0], &accounts.DeveloperAccounts()[0], test.BaseNodeConfig, ec, genesis, sender, core.NewDefaultTimers())
+	n, err := test.NewNode(&accounts.ValidatorAccounts()[0], &accounts.DeveloperAccounts()[0], test.BaseNodeConfig, ec, genesis, sender, NewTestTimers())
 	require.NoError(t, err)
 	defer n.Close()
 
+	if n.Core.CurrentRoundState().IsProposer(accounts.ValidatorAccounts()[0].Address) {
+		// send our proposeal back to us
+		mnd := <-sender.Msgs
+		require.Equal(t, istanbul.MsgPreprepare, mnd.Msg.Code)
+		err := n.HandleConsensusMessage(mnd.Msg)
+		require.NoError(t, err)
+
+		m := <-sender.Msgs
+		println(m.Msg.Code)
+		// if mnd.Msg.Code
+		//Make prepare messages
+		// s := n.Core.CurrentRoundState().Subject()
+		// m1 := istanbul.NewPrepareMessage(s, accounts.ValidatorAccounts()[1].Address)
+		// m2 := istanbul.NewPrepareMessage(s, accounts.ValidatorAccounts()[2].Address)
+
+	} else {
+		// Send a proposal
+		r := n.Core.CurrentRoundState().PendingRequest()
+		pp := &istanbul.Preprepare{
+			View:                   n.Core.CurrentView(),
+			Proposal:               r.Proposal,
+			RoundChangeCertificate: istanbul.RoundChangeCertificate{},
+		}
+		proposerAdress := n.Core.CurrentRoundState().Proposer().Address()
+		m := istanbul.NewPreprepareMessage(pp, proposerAdress)
+		accountMap := make(map[common.Address]env.Account)
+		for _, a := range accounts.ValidatorAccounts() {
+			accountMap[a.Address] = a
+		}
+		sf := func(data []byte) ([]byte, error) {
+			hashData := crypto.Keccak256(data)
+			return crypto.Sign(hashData, accountMap[proposerAdress].PrivateKey)
+		}
+		err = m.Sign(sf)
+		require.NoError(t, err)
+		// Send preprepare
+		err := n.HandleConsensusMessage(m)
+		require.NoError(t, err)
+		prepare := <-sender.Msgs
+		require.Equal(t, istanbul.MsgPrepare, prepare.Msg.Code)
+		// Handle own prepare
+		err = n.HandleConsensusMessage(prepare.Msg)
+		require.NoError(t, err)
+
+		// Handle other prepare
+		otherPrepare := istanbul.NewPrepareMessage(prepare.Msg.Prepare(), proposerAdress)
+		err = otherPrepare.Sign(sf)
+		err = n.HandleConsensusMessage(otherPrepare)
+		require.NoError(t, err)
+
+	}
+
 	m := <-sender.Msgs
-	println(m.Msg.Code)
+	assert.Equal(t, istanbul.MsgCommit, m.Msg.Code)
 }

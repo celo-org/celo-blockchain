@@ -122,10 +122,11 @@ type Core struct {
 
 	backlog MsgBacklog
 
-	rsdb      RoundStateDB
-	current   RoundState
-	currentMu sync.RWMutex
-	handlerWg *sync.WaitGroup
+	rsdb         RoundStateDB
+	current      RoundState
+	currentIsSet sync.WaitGroup
+	currentMu    sync.RWMutex
+	handlerWg    *sync.WaitGroup
 
 	roundChangeSet *roundChangeSet
 
@@ -178,6 +179,8 @@ func New(backend CoreBackend, config *istanbul.Config, sender MessageSender, tim
 		handlePrepareTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil),
 		handleCommitTimer:         metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil),
 	}
+	// Wait group to wait for current to be set
+	c.currentIsSet.Add(1)
 	msgBacklog := newMsgBacklog(
 		func(msg *istanbul.Message) {
 			c.sendEvent(backlogEvent{
@@ -208,7 +211,10 @@ func (c *Core) CurrentView() *istanbul.View {
 	return c.current.View()
 }
 
-func (c *Core) CurrentRoundState() RoundState { return c.current }
+func (c *Core) CurrentRoundState() RoundState {
+	c.currentIsSet.Wait()
+	return c.current
+}
 
 func (c *Core) ParentCommits() MessageSet {
 	// ParentCommits is called by Prepare which is called by miner.worker the
