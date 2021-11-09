@@ -49,7 +49,9 @@ receive broadcast messages and there is no mechanism for these messages to be
 re-sent.
 
 We refer to a consensus instance to mean consensus for a specific height,
-consensus instances are independent (they have no shared state).
+consensus instances are independent (they have no shared state), that is
+messages or values from the previous height have no bearing on the outcome of
+the current height
 
 We assume the existence of an application that feeds values to be agreed upon
 to the consensus instance and also receives agreed upon values from the
