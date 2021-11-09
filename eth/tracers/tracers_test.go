@@ -16,11 +16,7 @@
 package tracers
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
-	"encoding/json"
 	"math/big"
-	"reflect"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -36,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/tests"
 )
 
+<<<<<<< HEAD
 // To generate a new callTracer test, copy paste the makeTest method below into
 // a Geth console and call it with a transaction hash you which to export.
 
@@ -83,6 +80,8 @@ var makeTest = function(tx, rewind) {
 }
 */
 
+=======
+>>>>>>> 6b9c77f06 (eth/tracers: package restructuring (#23857))
 // callTrace is the result of a callTracer run.
 type callTrace struct {
 	Type    string          `json:"type"`
@@ -97,6 +96,7 @@ type callTrace struct {
 	Calls   []callTrace     `json:"calls,omitempty"`
 }
 
+<<<<<<< HEAD
 // TestZeroValueToNotExitCall tests the calltracer(s) on the following:
 // Tx to A, A calls B with zero value. B does not already exist.
 // Expected: that enter/exit is invoked and the inner call is shown in the result
@@ -277,6 +277,8 @@ func jsonEqual(x, y interface{}) bool {
 	return reflect.DeepEqual(xTrace, yTrace)
 }
 
+=======
+>>>>>>> 6b9c77f06 (eth/tracers: package restructuring (#23857))
 func BenchmarkTransactionTrace(b *testing.B) {
 	celoMock := testutil.NewCeloMock()
 	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
