@@ -82,9 +82,6 @@ var (
 	errMismatchTxhashes = errors.New("mismatch transactions hashes")
 	// errInvalidValidatorSetDiff is returned if the header contains invalid validator set diff
 	errInvalidValidatorSetDiff = errors.New("invalid validator set diff")
-	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
-	// an unregistered validator
-	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 	// errNotAValidator is returned when the node is not configured as a validator
 	errNotAValidator = errors.New("Not configured as a validator")
 )

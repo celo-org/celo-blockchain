@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the celo library. If not, see <http://www.gnu.org/licenses/>.
 
-package backend
+package announce
 
 import (
 	"encoding/hex"
@@ -26,7 +26,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/announce"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/proxy"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -34,61 +33,65 @@ import (
 
 var (
 	errNodeMissingEnodeCertificate = errors.New("Node is missing enode certificate")
+
+	// errUnauthorizedAnnounceMessage is returned when the received announce message is from
+	// an unregistered validator
+	errUnauthorizedAnnounceMessage = errors.New("unauthorized announce message")
 )
 
 type ProxyContext interface {
 	GetProxiedValidatorEngine() proxy.ProxiedValidatorEngine
 }
 
-type AnnounceManager struct {
+type Manager struct {
 	logger log.Logger
 
 	config *istanbul.Config
 
 	aWallets *atomic.Value
 
-	addrProvider announce.AddressProvider
+	addrProvider AddressProvider
 	proxyContext ProxyContext
-	network      announce.Network
+	network      Network
 
-	vcGossiper announce.VersionCertificateGossiper
+	vcGossiper VersionCertificateGossiper
 
 	gossipCache istanbul.GossipCache
 
-	state *announce.AnnounceState
+	state *AnnounceState
 
-	checker announce.ValidatorChecker
+	checker ValidatorChecker
 
-	ovcp announce.OutboundVersionCertificateProcessor
+	ovcp OutboundVersionCertificateProcessor
 
-	worker announce.Worker
+	worker Worker
 
-	vpap announce.ValProxyAssigmnentProvider
+	vpap ValProxyAssigmnentProvider
 
 	announceRunning  bool
 	announceMu       sync.RWMutex
 	announceThreadWg *sync.WaitGroup
 
-	ecertHolder announce.EnodeCertificateMsgHolder
+	ecertHolder EnodeCertificateMsgHolder
 }
 
-// NewAnnounceManager creates a new AnnounceManager using the valEnodeTable given. It is
-// the responsibility of the caller to close the valEnodeTable, the AnnounceManager will
+// NewManager creates a new Manager using the valEnodeTable given. It is
+// the responsibility of the caller to close the valEnodeTable, the Manager will
 // not do it.
-func NewAnnounceManager(
+func NewManager(
 	config *istanbul.Config,
 	aWallets *atomic.Value,
-	network announce.Network, proxyContext ProxyContext,
-	addrProvider announce.AddressProvider, state *announce.AnnounceState,
+	network Network, proxyContext ProxyContext,
+	addrProvider AddressProvider, state *AnnounceState,
 	gossipCache istanbul.GossipCache,
-	checker announce.ValidatorChecker,
-	ovcp announce.OutboundVersionCertificateProcessor,
-	ecertHolder announce.EnodeCertificateMsgHolder,
-	vcGossiper announce.VersionCertificateGossiper,
-	vpap announce.ValProxyAssigmnentProvider,
-	worker announce.Worker) *AnnounceManager {
+	checker ValidatorChecker,
+	ovcp OutboundVersionCertificateProcessor,
+	ecertHolder EnodeCertificateMsgHolder,
+	vcGossiper VersionCertificateGossiper,
+	vpap ValProxyAssigmnentProvider,
+	worker Worker) *Manager {
 
-	am := &AnnounceManager{
+	am := &Manager{
 		logger:           log.New("module", "announceManager"),
 		aWallets:         aWallets,
 		config:           config,
@@ -110,18 +113,18 @@ func NewAnnounceManager(
 	return am
 }
 
-func (m *AnnounceManager) isProxiedValidator() bool {
+func (m *Manager) isProxiedValidator() bool {
 	return m.config.Proxied && m.config.Validator
 }
 
-func (m *AnnounceManager) Close() error {
+func (m *Manager) Close() error {
 	// No need to close valEnodeTable since it's a reference,
 	// the creator of this announce manager is the responsible for
 	// closing it.
 	return m.state.VersionCertificateTable.Close()
 }
 
-func (m *AnnounceManager) wallets() *istanbul.Wallets {
+func (m *Manager) wallets() *istanbul.Wallets {
 	return m.aWallets.Load().(*istanbul.Wallets)
 }
 
@@ -131,14 +134,14 @@ func (m *AnnounceManager) wallets() *istanbul.Wallets {
 // 3) Periodically prune announce-related data structures
 // 4) Gossip announce messages periodically when requested
 // 5) Update announce version when requested
-func (m *AnnounceManager) announceThread() {
+func (m *Manager) announceThread() {
 	defer m.announceThreadWg.Done()
 	m.worker.Run()
 }
 
 // This function will handle a queryEnode message.
-func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
-	logger := m.logger.New("func", "handleQueryEnodeMsg")
+func (m *Manager) HandleQueryEnodeMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "HandleQueryEnodeMsg")
 
 	msg := new(istanbul.Message)
 
@@ -223,7 +226,7 @@ func (m *AnnounceManager) handleQueryEnodeMsg(addr common.Address, peer consensu
 // node. If the origin node is already a peer of any kind, an enodeCertificate will be sent.
 // Regardless, the origin node will be upserted into the val enode table
 // to ensure this node designates the origin node as a ValidatorPurpose peer.
-func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
+func (m *Manager) answerQueryEnodeMsg(address common.Address, node *enode.Node, version uint) error {
 	logger := m.logger.New("func", "answerQueryEnodeMsg", "address", address)
 
 	// Get the external enode that this validator is assigned to
@@ -268,7 +271,7 @@ func (m *AnnounceManager) answerQueryEnodeMsg(address common.Address, node *enod
 // message. This is to force all validators that send a queryEnode message to
 // create as succint message as possible, and prevent any possible network DOS attacks
 // via extremely large queryEnode message.
-func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
+func (m *Manager) validateQueryEnode(msgAddress common.Address, qeData *istanbul.QueryEnodeData) (bool, error) {
 	logger := m.logger.New("func", "validateQueryEnode", "msg address", msgAddress)
 
 	// Check if there are any duplicates in the queryEnode message
@@ -306,14 +309,14 @@ func (m *AnnounceManager) validateQueryEnode(msgAddress common.Address, qeData *
 // enforce the cooldown period for future messages originating from the origin validator.
 // This is circumvented by caching the hashes of messages that are regossiped
 // with sb.selfRecentMessages to prevent future regossips.
-func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
+func (m *Manager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp uint, payload []byte) error {
 	logger := m.logger.New("func", "regossipQueryEnode", "queryEnodeSourceAddress", msg.Address, "msgTimestamp", msgTimestamp)
 
 	// Don't throttle messages from our own address so that proxies always regossip
 	// query enode messages sent from the proxied validator
 	if msg.Address != m.addrProvider.ValidatorAddress() {
 		if lastGossiped, ok := m.state.LastQueryEnodeGossiped.Get(msg.Address); ok {
-			if time.Since(lastGossiped) < announce.QueryEnodeGossipCooldownDuration {
+			if time.Since(lastGossiped) < QueryEnodeGossipCooldownDuration {
 				logger.Trace("Already regossiped msg from this source address within the cooldown period, not regossiping.")
 				return nil
 			}
@@ -332,12 +335,12 @@ func (m *AnnounceManager) regossipQueryEnode(msg *istanbul.Message, msgTimestamp
 
 // SendVersionCertificateTable sends all VersionCertificates this node
 // has to a peer
-func (m *AnnounceManager) SendVersionCertificateTable(peer consensus.Peer) error {
+func (m *Manager) SendVersionCertificateTable(peer consensus.Peer) error {
 	return m.vcGossiper.SendAllFrom(m.state.VersionCertificateTable, peer)
 }
 
-func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
-	logger := m.logger.New("func", "handleVersionCertificatesMsg")
+func (m *Manager) HandleVersionCertificatesMsg(addr common.Address, peer consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "HandleVersionCertificatesMsg")
 	logger.Trace("Handling version certificates msg")
 
 	// Since this is a gossiped messaged, mark that the peer gossiped it (and presumably processed it) and check to see if this node already processed it
@@ -387,25 +390,25 @@ func (m *AnnounceManager) handleVersionCertificatesMsg(addr common.Address, peer
 }
 
 // UpdateAnnounceVersion will asynchronously update the announce version.
-func (m *AnnounceManager) UpdateAnnounceVersion() {
+func (m *Manager) UpdateAnnounceVersion() {
 	m.worker.UpdateVersion()
 }
 
 // GetAnnounceVersion will retrieve the current announce version.
-func (m *AnnounceManager) GetAnnounceVersion() uint {
+func (m *Manager) GetAnnounceVersion() uint {
 	return m.worker.GetVersion()
 }
 
 // RetrieveEnodeCertificateMsgMap gets the most recent enode certificate messages.
 // May be nil if no message was generated as a result of the core not being
 // started, or if a proxy has not received a message from its proxied validator
-func (m *AnnounceManager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
+func (m *Manager) RetrieveEnodeCertificateMsgMap() map[enode.ID]*istanbul.EnodeCertMsg {
 	return m.ecertHolder.Get()
 }
 
-// handleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
-func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
-	logger := m.logger.New("func", "handleEnodeCertificateMsg")
+// HandleEnodeCertificateMsg handles an enode certificate message for proxied and standalone validators.
+func (m *Manager) HandleEnodeCertificateMsg(_ consensus.Peer, payload []byte) error {
+	logger := m.logger.New("func", "HandleEnodeCertificateMsg")
 
 	var msg istanbul.Message
 	// Decode payload into msg
@@ -460,11 +463,11 @@ func (m *AnnounceManager) handleEnodeCertificateMsg(_ consensus.Peer, payload []
 	return nil
 }
 
-func (m *AnnounceManager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
+func (m *Manager) SetEnodeCertificateMsgMap(enodeCertMsgMap map[enode.ID]*istanbul.EnodeCertMsg) error {
 	return m.ecertHolder.Set(enodeCertMsgMap)
 }
 
-func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
+func (m *Manager) StartAnnouncing(onStart func() error) error {
 	m.announceMu.Lock()
 	defer m.announceMu.Unlock()
 	if m.announceRunning {
@@ -483,7 +486,7 @@ func (m *AnnounceManager) StartAnnouncing(onStart func() error) error {
 	return nil
 }
 
-func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
+func (m *Manager) StopAnnouncing(onStop func() error) error {
 	m.announceMu.Lock()
 	defer m.announceMu.Unlock()
 
@@ -499,6 +502,19 @@ func (m *AnnounceManager) StopAnnouncing(onStop func() error) error {
 	return onStop()
 }
 
-func (m *AnnounceManager) GetVersionCertificateTableInfo() (map[string]*announce.VersionCertificateEntryInfo, error) {
+func (m *Manager) GetVersionCertificateTableInfo() (map[string]*VersionCertificateEntryInfo, error) {
 	return m.state.VersionCertificateTable.Info()
+}
+
+// IsAnnounceRunning returns true iff the anounce Worker thread is running, without locking
+// for access.
+func (m *Manager) IsAnnounceRunning() bool {
+	m.announceMu.RLock()
+	defer m.announceMu.RUnlock()
+	return m.announceRunning
+}
+
+// Worker returns the worker used by this manager.
+func (m *Manager) Worker() Worker {
+	return m.worker
 }

@@ -136,7 +136,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 	return backend
 }
 
-func createAnnounceManager(backend *Backend) *AnnounceManager {
+func createAnnounceManager(backend *Backend) *announce.Manager {
 	versionCertificateTable, err := announce.OpenVersionCertificateDB(backend.config.VersionCertificateDBPath)
 	if err != nil {
 		backend.logger.Crit("Can't open VersionCertificateDB", "err", err, "dbpath", backend.config.VersionCertificateDBPath)
@@ -168,7 +168,7 @@ func createAnnounceManager(backend *Backend) *AnnounceManager {
 
 	avs := announce.NewVersionSharer(&backend.aWallets, backend, state, ovcp, ecertGenerator, ecertHolder, onNewEnodeMsgs)
 	worker := createAnnounceWorker(backend, state, ovcp, vcGossiper, checker, pruner, vpap, avs)
-	return NewAnnounceManager(
+	return announce.NewManager(
 		backend.config,
 		&backend.aWallets,
 		backend,
@@ -267,7 +267,7 @@ type Backend struct {
 
 	valEnodeTable *announce.ValidatorEnodeDB
 
-	announceManager *AnnounceManager
+	announceManager *announce.Manager
 
 	delegateSignFeed  event.Feed
 	delegateSignScope event.SubscriptionScope
