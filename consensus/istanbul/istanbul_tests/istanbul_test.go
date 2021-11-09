@@ -78,18 +78,18 @@ func NewTestTimers() *core.Timers {
 }
 
 func TestCommit(t *testing.T) {
-	accounts := test.Accounts(3)
-	gc, ec, err := test.BuildConfig(accounts)
+	ac := test.AccountConfig(3, 0)
+	gc, ec, err := test.BuildConfig(ac)
 	require.NoError(t, err)
-	genesis, err := test.ConfigureGenesis(accounts, gc, ec)
+	genesis, err := test.ConfigureGenesis(ac, gc, ec)
 	require.NoError(t, err)
 
 	sender := NewCapturingMessageSender()
-	n, err := test.NewNode(&accounts.ValidatorAccounts()[0], &accounts.DeveloperAccounts()[0], test.BaseNodeConfig, ec, genesis, sender, NewTestTimers())
+	n, err := test.NewNode(&ac.ValidatorAccounts()[0], test.BaseNodeConfig, ec, genesis, sender, NewTestTimers())
 	require.NoError(t, err)
 	defer n.Close()
 
-	if n.Core.CurrentRoundState().IsProposer(accounts.ValidatorAccounts()[0].Address) {
+	if n.Core.CurrentRoundState().IsProposer(ac.ValidatorAccounts()[0].Address) {
 		// send our proposeal back to us
 		mnd := <-sender.Msgs
 		require.Equal(t, istanbul.MsgPreprepare, mnd.Msg.Code)
@@ -115,7 +115,7 @@ func TestCommit(t *testing.T) {
 		proposerAdress := n.Core.CurrentRoundState().Proposer().Address()
 		m := istanbul.NewPreprepareMessage(pp, proposerAdress)
 		accountMap := make(map[common.Address]env.Account)
-		for _, a := range accounts.ValidatorAccounts() {
+		for _, a := range ac.ValidatorAccounts() {
 			accountMap[a.Address] = a
 		}
 		sf := func(data []byte) ([]byte, error) {
@@ -136,6 +136,7 @@ func TestCommit(t *testing.T) {
 		// Handle other prepare
 		otherPrepare := istanbul.NewPrepareMessage(prepare.Msg.Prepare(), proposerAdress)
 		err = otherPrepare.Sign(sf)
+		require.NoError(t, err)
 		err = n.HandleConsensusMessage(otherPrepare)
 		require.NoError(t, err)
 
