@@ -2,6 +2,18 @@
 
 ## Celo IBFT specification
 
+This document is an attempt to specify at a conceptual level, the consensus
+algorithm currently used by the Celo blockchain. It attempts to distill
+everything that is pertinent to consensus and eschew all that is not. Where
+consensus is the problem of agreeing on a sequence of values in a decentralized
+manner.
+
+It is not trying to specify everything that lives under `consensus/istanbul`.
+
+By doing this we allow for a clean and clear specification of the consensus,
+conversely this specification does not resemble the code and mapping this to
+the code and vice versa, requires considerable effort.
+
 ### High level overview
 
 The Celo IBFT protocol is a BFT (Byzantine Fault Tolerant) protocol that allows
