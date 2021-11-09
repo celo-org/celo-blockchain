@@ -53,7 +53,7 @@ type AnnounceManager struct {
 
 	vcGossiper announce.VersionCertificateGossiper
 
-	gossipCache GossipCache
+	gossipCache istanbul.GossipCache
 
 	state *announce.AnnounceState
 
@@ -80,7 +80,7 @@ func NewAnnounceManager(
 	aWallets *atomic.Value,
 	network announce.Network, proxyContext ProxyContext,
 	addrProvider announce.AddressProvider, state *announce.AnnounceState,
-	gossipCache GossipCache,
+	gossipCache istanbul.GossipCache,
 	checker announce.ValidatorChecker,
 	ovcp announce.OutboundVersionCertificateProcessor,
 	ecertHolder announce.EnodeCertificateMsgHolder,

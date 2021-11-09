@@ -72,7 +72,7 @@ func New(config *istanbul.Config, db ethdb.Database) consensus.Istanbul {
 		db:                                 db,
 		recentSnapshots:                    recentSnapshots,
 		coreStarted:                        coreStarted,
-		gossipCache:                        NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
+		gossipCache:                        istanbul.NewLRUGossipCache(inmemoryPeers, inmemoryMessages),
 		updatingCachedValidatorConnSetCond: sync.NewCond(&sync.Mutex{}),
 		finalizationTimer:                  metrics.NewRegisteredTimer("consensus/istanbul/backend/finalize", nil),
 		rewardDistributionTimer:            metrics.NewRegisteredTimer("consensus/istanbul/backend/rewards", nil),
@@ -263,7 +263,7 @@ type Backend struct {
 	// interface to the p2p server
 	p2pserver consensus.P2PServer
 
-	gossipCache GossipCache
+	gossipCache istanbul.GossipCache
 
 	valEnodeTable *announce.ValidatorEnodeDB
 
