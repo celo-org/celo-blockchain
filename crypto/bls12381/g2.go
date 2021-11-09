@@ -284,9 +284,8 @@ func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	if t[1].equal(t[3]) {
 		if t[0].equal(t[2]) {
 			return g.Double(r, p1)
-		} else {
-			return r.Zero()
 		}
+		return r.Zero()
 	}
 	g.f.subAssign(t[1], t[3])     // h = u2 - u1
 	g.f.double(t[4], t[1])        // 2h

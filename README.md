@@ -6,7 +6,7 @@ Official golang implementation of the Celo blockchain, based off of the [officia
 [![Codecov](https://img.shields.io/codecov/c/github/celo-org/celo-blockchain)](https://codecov.io/gh/celo-org/celo-blockchain)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://chat.celo.org)
 
-Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for a guide to the Celo networks and how to get started.
+Prebuilt [Docker](https://en.wikipedia.org/wiki/Docker_\(software\)) images are available for immediate use: [us.gcr.io/celo-testnet/celo-node](https://us.gcr.io/celo-testnet/celo-node). See [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for a guide to the Celo networks and how to get started.
 
 Documentation for Celo more generally can be found at [docs.celo.org](https://docs.celo.org/)
 
@@ -86,7 +86,7 @@ panic: Can't read bytecode for monorepo/packages/protocol/build/contracts/Fixidi
 
 ## Running Celo
 
-Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
+Please see the [docs.celo.org/getting-started](https://docs.celo.org/getting-started/choosing-a-network) for instructions on how to run a node connected the Celo network using the prebuilt Docker image.
 
 Going through all the possible command line flags is out of scope here, please consult `geth --help` for more complete information.
 We've enumerated a few common parameter combos to get you up to speed quickly on how you can run your own Celo blockchain client instance.

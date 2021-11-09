@@ -147,6 +147,7 @@ var (
 // 		t8ntool.TraceDisableMemoryFlag,
 // 		t8ntool.TraceDisableStackFlag,
 // 		t8ntool.TraceDisableReturnDataFlag,
+//  	t8ntool.OutputBasedir,
 // 		t8ntool.OutputAllocFlag,
 // 		t8ntool.OutputResultFlag,
 // 		t8ntool.InputAllocFlag,
