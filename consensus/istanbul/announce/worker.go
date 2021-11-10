@@ -78,6 +78,7 @@ func NewWorker(initialWaitPeriod time.Duration,
 		vpap:                    vpap,
 		avs:                     avs,
 		updateAnnounceVersionCh: make(chan struct{}, 1),
+		announceThreadQuit:      make(chan struct{}),
 	}
 }
 
@@ -86,7 +87,7 @@ func (m *worker) wallets() *istanbul.Wallets {
 }
 
 func (w *worker) Stop() {
-	close(w.announceThreadQuit)
+	w.announceThreadQuit <- struct{}{}
 }
 
 func (w *worker) GetVersion() uint {
@@ -102,7 +103,6 @@ func (w *worker) UpdateVersion() {
 }
 
 func (w *worker) Run() {
-	w.announceThreadQuit = make(chan struct{})
 	shouldQueryAndAnnounce := func() (bool, bool) {
 		var err error
 		shouldQuery, err := w.checker.IsElectedOrNearValidator()
