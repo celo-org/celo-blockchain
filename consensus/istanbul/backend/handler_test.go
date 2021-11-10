@@ -207,8 +207,10 @@ func TestReadValidatorHandshakeMessage(t *testing.T) {
 	block := backend.currentBlock()
 	valSet := backend.getValidators(block.Number().Uint64(), block.Hash())
 	// set backend to a different validator
-	backend.wallets().Ecdsa.Address = valSet.GetByIndex(1).Address()
-
+	// use the atomic load & store to avoid race conditions
+	w := *backend.wallets()
+	w.Ecdsa.Address = valSet.GetByIndex(1).Address()
+	backend.aWallets.Store(&w)
 	isValidator, err = backend.readValidatorHandshakeMessage(peer)
 	if err != nil {
 		t.Errorf("Error from readValidatorHandshakeMessage with valid message %v", err)
