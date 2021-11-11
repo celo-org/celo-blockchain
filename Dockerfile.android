@@ -1,5 +1,5 @@
 # celohq/circleci:android-v3
-# Note: Please build and pus hthis image this image as
+# Note: Please build and push this image this image as
 # us.gcr.io/celo-testnet/android:vx after updating the dockerfile.
 # It is not automatically built.
 

@@ -33,8 +33,7 @@ import (
 
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
-// TODO(Joshua): Replace with call to GPM or faked GPM
-var genericBaseFee = big.NewInt(2)
+var genericBaseFee = big.NewInt(2) // set a constant gas price to be above the GPM.
 
 var waitDeployedTests = map[string]struct {
 	code        string
