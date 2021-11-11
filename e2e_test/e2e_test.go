@@ -125,6 +125,11 @@ func TestCusdFeeTxPrunedWhenInsufficientCusdBalance(t *testing.T) {
 	// Just double check the tx was processed
 	processed := network[0].Tracker.GetProcessedTx(tx.Hash())
 	assert.NotNil(t, processed)
+
+	b, err := network[0].WsClient.BalanceAt(ctx, network[0].DevAddress, nil)
+	require.NoError(t, err)
+	// check celo was not used to pay the fees.
+	assert.Equal(t, token.MustNew("50000").BigInt(), b)
 }
 
 func CusdTransaction(
