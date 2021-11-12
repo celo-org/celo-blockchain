@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	ethereum "github.com/celo-org/celo-blockchain"
-
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
@@ -243,7 +241,7 @@ func (n *Node) Close() error {
 
 // SendCeloTracked functions like SendCelo but also waits for the transaction to be processed.
 func (n *Node) SendCeloTracked(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
-	tx, err := n.SendCelo(ctx, recipient, value)
+	tx, err := n.SendCelo(ctx, recipient, value, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +254,7 @@ func (n *Node) SendCeloTracked(ctx context.Context, recipient common.Address, va
 
 // SendCelo submits a value transfer transaction to the network to send celo to
 // the recipient. The submitted transaction is returned.
-func (n *Node) SendCelo(ctx context.Context, recipient common.Address, value int64) (*types.Transaction, error) {
+func (n *Node) SendCelo(ctx context.Context, recipient common.Address, value int64, feeCurrencyAddress *common.Address) (*types.Transaction, error) {
 	signer := types.MakeSigner(n.EthConfig.Genesis.Config, common.Big0)
 	tx, err := ValueTransferTransaction(
 		n.WsClient,
@@ -265,7 +263,8 @@ func (n *Node) SendCelo(ctx context.Context, recipient common.Address, value int
 		recipient,
 		n.Nonce,
 		big.NewInt(value),
-		signer)
+		signer,
+		feeCurrencyAddress)
 
 	if err != nil {
 		return nil, err
@@ -495,6 +494,7 @@ func ValueTransferTransaction(
 	nonce uint64,
 	value *big.Int,
 	signer types.Signer,
+	feeCurrencyAddress *common.Address,
 ) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -504,14 +504,15 @@ func ValueTransferTransaction(
 		return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 	}
 
-	msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value}
-	gasLimit, err := client.EstimateGas(ctx, msg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
-	}
+	// msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value}
+	// gasLimit, err := client.EstimateGas(ctx, msg)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to estimate gas needed: %v", err)
+	// }
+	var gasLimit uint64 = 200000
 
 	// Create the transaction and sign it
-	rawTx := types.NewTransactionEthCompatible(nonce, recipient, value, gasLimit, gasPrice, nil)
+	rawTx := types.NewTransaction(nonce, recipient, value, gasLimit, gasPrice, feeCurrencyAddress, nil, nil, nil)
 	signed, err := types.SignTx(rawTx, signer, senderKey)
 	if err != nil {
 		return nil, err
