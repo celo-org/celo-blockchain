@@ -99,8 +99,18 @@ func TestCusdFeeTxPrunedWhenInsufficientCusdBalance(t *testing.T) {
 	// require.NoError(t, err)
 	// tx, err := test.ValueTransferTransaction(network[0].WsClient, network[0].DevKey, network[0].DevAddress, network[1].DevAddress, network[0].Nonce, big.NewInt(50000), signer)
 
+	println(token.MustNew("50000").BigInt().String())
 	abi := contract.AbiFor("StableToken")
 	stableToken := bind.NewBoundContract(env.MustProxyAddressFor("StableToken"), *abi, network[0].WsClient)
+
+	opts := &bind.CallOpts{
+		From: network[0].DevAddress,
+	}
+	var results []interface{}
+	// check starting balance
+	err = stableToken.Call(opts, &results, "balanceOf", network[0].DevAddress)
+	require.NoError(t, err)
+	assert.Equal(t, token.MustNew("50000").BigInt(), results[0].(*big.Int))
 
 	transactor, err := bind.NewKeyedTransactorWithChainID(network[0].DevKey, gc.ChainID)
 	require.NoError(t, err)
@@ -130,6 +140,13 @@ func TestCusdFeeTxPrunedWhenInsufficientCusdBalance(t *testing.T) {
 	require.NoError(t, err)
 	// check celo was not used to pay the fees.
 	assert.Equal(t, token.MustNew("50000").BigInt(), b)
+
+	// params := []interface{}{network[0].DevAddress.String()}
+	results = make([]interface{}, 0)
+
+	err = stableToken.Call(opts, &results, "balanceOf", network[0].DevAddress)
+	require.NoError(t, err)
+	assert.Equal(t, big.NewInt(0), results[0].(*big.Int))
 }
 
 func CusdTransaction(
