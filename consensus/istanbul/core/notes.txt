@@ -1,0 +1,15 @@
+
+
+
+1. Core is rejecting messages based on the current validator set, which is the
+validators defined by the current height. If we assume that in an epoch all
+validators rotate and none of them do so simultaneously, but instead that first
+one validator changes receives the new block and realises they have been
+elected and then a second and so on. The first validator will send its
+consensus messages to all the validators that it sees, but none of those nodes
+will know that they are validators yet and will discard the messages. The next
+validator's message will only reach the first validators message and so on.
+Averaging out over the whole set of validators we see that each validator will
+receive messages from 1/2 of the other validators. This is not enogh to commit
+to a value and so there will be a round change. This is an extreme case but it
+highlights problems with this approach.
