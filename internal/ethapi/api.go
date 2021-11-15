@@ -848,7 +848,7 @@ func DoCall(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash 
 
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
-	if b.ChainConfig().IsEHardfork(header.Number) {
+	if b.ChainConfig().IsEspresso(header.Number) {
 		vmRunner := b.NewEVMRunner(header, state)
 		if err != nil {
 			return nil, err
@@ -1557,7 +1557,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 	fields := generateReceiptResponse(receipt, signer, tx, blockHash, blockNumber, index)
 	// Assign the effective gas price paid
-	if !s.b.ChainConfig().IsEHardfork(bigblock) {
+	if !s.b.ChainConfig().IsEspresso(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
 	} else {
 		header, err := s.b.HeaderByHash(ctx, blockHash)

@@ -266,9 +266,9 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	istanbul  bool // Fork indicator whether we are in the istanbul stage.
-	donut     bool // Fork indicator for the Donut fork.
-	eHardfork bool // Fork indicator for the E fork.
+	istanbul bool // Fork indicator whether we are in the istanbul stage.
+	donut    bool // Fork indicator for the Donut fork.
+	espresso bool // Fork indicator for the Espresso fork.
 
 	currentState    *state.StateDB // Current state in the blockchain head
 	currentVMRunner vm.EVMRunner   // Current EVMRunner
@@ -660,11 +660,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Accept only legacy transactions until EIP-2718/2930 activates.
-	if !pool.eHardfork && tx.Type() != types.LegacyTxType {
+	if !pool.espresso && tx.Type() != types.LegacyTxType {
 		return ErrTxTypeNotSupported
 	}
 	// Reject dynamic fee transactions until EIP-1559 activates.
-	if !pool.eHardfork && tx.Type() == types.DynamicFeeTxType {
+	if !pool.espresso && tx.Type() == types.DynamicFeeTxType {
 		return ErrTxTypeNotSupported
 	}
 	// Reject transactions over defined size to prevent DOS attacks
@@ -712,7 +712,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrNonceTooLow
 	}
 	// Transactor should have enough funds to cover the costs
-	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner, pool.eHardfork)
+	err = ValidateTransactorBalanceCoversTx(tx, from, pool.currentState, pool.currentVMRunner, pool.espresso)
 	if err != nil {
 		return err
 	}
@@ -1255,7 +1255,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	// because of another transaction (e.g. higher gas price).
 	if reset != nil {
 		pool.demoteUnexecutables()
-		if reset.newHead != nil && pool.chainconfig.IsEHardfork(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
+		if reset.newHead != nil && pool.chainconfig.IsEspresso(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 			pool.priced.SetBaseFee(pool.ctx())
 		}
 	}
@@ -1387,7 +1387,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	if pool.donut && !wasDonut {
 		pool.handleDonutActivation()
 	}
-	pool.eHardfork = pool.chainconfig.IsEHardfork(next)
+	pool.espresso = pool.chainconfig.IsEspresso(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the

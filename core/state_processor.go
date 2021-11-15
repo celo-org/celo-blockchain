@@ -85,7 +85,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		baseFee *big.Int
 		sysCtx  *SysContractCallCtx
 	)
-	if p.bc.Config().IsEHardfork(blockNumber) {
+	if p.bc.Config().IsEspresso(blockNumber) {
 		sysVmRunner := p.bc.NewEVMRunner(header, statedb)
 		sysCtx = NewSysContractCallCtx(sysVmRunner)
 		if p.bc.Config().Faker {
@@ -96,7 +96,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if p.bc.chainConfig.IsEHardfork(header.Number) {
+		if p.bc.chainConfig.IsEspresso(header.Number) {
 			baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), baseFee)
@@ -175,7 +175,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, gp *GasPool
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, txFeeRecipient *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) (*types.Receipt, error) {
 	var baseFee *big.Int
-	if config.IsEHardfork(header.Number) {
+	if config.IsEspresso(header.Number) {
 		baseFee = sysCtx.GetGasPriceMinimum(tx.FeeCurrency())
 	}
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), baseFee)

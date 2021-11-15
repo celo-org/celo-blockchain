@@ -161,7 +161,7 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	}
 	// Get the SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
-	espresso := eth.blockchain.Config().IsEHardfork(block.Number())
+	espresso := eth.blockchain.Config().IsEspresso(block.Number())
 	if espresso {
 		sysCtx = core.NewSysContractCallCtx(eth.blockchain.NewEVMRunner(block.Header(), statedb))
 	}

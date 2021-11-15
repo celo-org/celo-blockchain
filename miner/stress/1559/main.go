@@ -186,7 +186,7 @@ func makeGenesis(faucets []*ecdsa.PrivateKey) *core.Genesis {
 	genesis := core.DefaultBaklavaGenesisBlock()
 
 	genesis.Config = params.BaklavaChainConfig
-	genesis.Config.EBlock = espressoBlock
+	genesis.Config.EspressoBlock = espressoBlock
 
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.EIP150Hash = common.Hash{}

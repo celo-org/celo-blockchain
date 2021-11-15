@@ -60,7 +60,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 	)
 	// Iterate over and process the individual transactions
 	byzantium := p.config.IsByzantium(block.Number())
-	espresso := p.bc.chainConfig.IsEHardfork(block.Number())
+	espresso := p.bc.chainConfig.IsEspresso(block.Number())
 	if espresso {
 		sysCtx = NewSysContractCallCtx(p.bc.NewEVMRunner(header, statedb))
 	}
@@ -103,7 +103,7 @@ func precacheTransaction(config *params.ChainConfig, bc *BlockChain, author *com
 	vm := vm.NewEVM(context, txContext, statedb, config, cfg)
 
 	var sysCtx *SysContractCallCtx
-	if config.IsEHardfork(header.Number) {
+	if config.IsEspresso(header.Number) {
 		sysVmRunner := bc.NewEVMRunner(header, statedb)
 		sysCtx = NewSysContractCallCtx(sysVmRunner)
 	}

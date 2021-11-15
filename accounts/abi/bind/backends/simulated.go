@@ -564,7 +564,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
 	}
 	head := b.blockchain.CurrentHeader()
-	if !b.blockchain.Config().IsEHardfork(head.Number) {
+	if !b.blockchain.Config().IsEspresso(head.Number) {
 		// If there's no basefee, then it must be a non-1559 execution
 		if call.GasPrice == nil {
 			call.GasPrice = new(big.Int)
@@ -615,7 +615,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	vmRunner := b.blockchain.NewEVMRunner(block.Header(), stateDB)
 	var sysCtx *core.SysContractCallCtx
-	if b.config.IsEHardfork(block.Number()) {
+	if b.config.IsEspresso(block.Number()) {
 		parent := b.blockchain.GetBlockByNumber(block.NumberU64() - 1)
 		sysStateDB, err := b.blockchain.StateAt(parent.Root())
 		if err != nil {

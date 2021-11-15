@@ -208,7 +208,7 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool, vmRunner vm.EVMRunner, sysCtx *SysContractCallCtx) *StateTransition {
 	var gasPriceMinimum *big.Int
-	if evm.ChainConfig().IsEHardfork(evm.Context.BlockNumber) {
+	if evm.ChainConfig().IsEspresso(evm.Context.BlockNumber) {
 		gasPriceMinimum = sysCtx.GetGasPriceMinimum(msg.FeeCurrency())
 	} else {
 		gasPriceMinimum, _ = gpm.GetGasPriceMinimum(vmRunner, msg.FeeCurrency())
@@ -262,9 +262,9 @@ func (st *StateTransition) to() common.Address {
 }
 
 // payFees deducts gas and gateway fees from sender balance and adds the purchased amount of gas to the state.
-func (st *StateTransition) payFees(eHardFork bool) error {
+func (st *StateTransition) payFees(espresso bool) error {
 	var isWhiteListed bool
-	if eHardFork {
+	if espresso {
 		isWhiteListed = st.sysCtx.IsWhitelisted(st.msg.FeeCurrency())
 	} else {
 		isWhiteListed = currency.IsWhitelisted(st.vmRunner, st.msg.FeeCurrency())
@@ -274,7 +274,7 @@ func (st *StateTransition) payFees(eHardFork bool) error {
 		return ErrNonWhitelistedFeeCurrency
 	}
 
-	if err := st.canPayFee(st.msg.From(), st.msg.FeeCurrency(), eHardFork); err != nil {
+	if err := st.canPayFee(st.msg.From(), st.msg.FeeCurrency(), espresso); err != nil {
 		return err
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -437,7 +437,7 @@ func (st *StateTransition) preCheck() error {
 	}
 
 	// Make sure that transaction gasFeeCap >= baseFee (post Espresso)
-	if st.evm.ChainConfig().IsEHardfork(st.evm.Context.BlockNumber) {
+	if st.evm.ChainConfig().IsEspresso(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
 		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 {
 			if l := st.gasFeeCap.BitLen(); l > 256 {
@@ -516,14 +516,14 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
-	eHardfork := st.evm.ChainConfig().IsEHardfork(st.evm.Context.BlockNumber)
+	espresso := st.evm.ChainConfig().IsEspresso(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
 	// Calculate intrinsic gas, check clauses 5-6
 	gasForAlternativeCurrency := uint64(0)
 	// If the fee currency is nil, do not retrieve the intrinsic gas adjustment from the chain state, as it will not be used.
 	if msg.FeeCurrency() != nil {
-		if eHardfork {
+		if espresso {
 			gasForAlternativeCurrency = st.sysCtx.GetIntrinsicGasForAlternativeFeeCurrency()
 		} else {
 			gasForAlternativeCurrency = blockchain_parameters.GetIntrinsicGasForAlternativeFeeCurrencyOrDefault(st.vmRunner)
@@ -539,7 +539,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.msg.Gas(), gas)
 	}
 	// Check clauses 3-4, pay the fees (which buys gas), and subtract the intrinsic gas
-	err = st.payFees(eHardfork)
+	err = st.payFees(espresso)
 	if err != nil {
 		log.Error("Transaction failed to buy gas", "err", err, "gas", gas)
 		return nil, err
@@ -552,7 +552,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	// Set up the initial access list.
-	if rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber); eHardfork {
+	if rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber); espresso {
 		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
 	}
 	var (
@@ -567,7 +567,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		ret, st.gas, vmerr = st.evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
-	if !eHardfork {
+	if !espresso {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
 		st.refundGas(params.RefundQuotient)
 	} else {
@@ -600,7 +600,7 @@ func (st *StateTransition) distributeTxFees() error {
 	totalTxFee := new(big.Int).Mul(gasUsed, st.gasPrice)
 	from := st.msg.From()
 
-	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if ehardfork).
+	// Divide the transaction into a base (the minimum transaction fee) and tip (any extra, or min(max tip, feecap - GPM) if espresso).
 	baseTxFee := new(big.Int).Mul(gasUsed, st.gasPriceMinimum)
 	// No need to do effectiveTip calculation, because st.gasPrice == effectiveGasPrice, and effectiveTip = effectiveGasPrice - baseTxFee
 	tipTxFee := new(big.Int).Sub(totalTxFee, baseTxFee)
