@@ -504,6 +504,8 @@ func ValueTransferTransaction(
 		return nil, fmt.Errorf("failed to suggest gas price: %v", err)
 	}
 
+	gasPrice.Div(gasPrice, big.NewInt(10))
+
 	// msg := ethereum.CallMsg{From: sender, To: &recipient, GasPrice: gasPrice, Value: value}
 	// gasLimit, err := client.EstimateGas(ctx, msg)
 	// if err != nil {

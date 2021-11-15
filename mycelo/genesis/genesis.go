@@ -54,8 +54,8 @@ func FundAccounts(genesisConfig *Config, accounts []env.Account) {
 	ceurBalances := make([]Balance, len(accounts))
 	goldBalances := make([]Balance, len(accounts))
 	for i, acc := range accounts {
-		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("0"))}     // 50k cUSD
-		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("0"))}     // 50k cEUR
+		cusdBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cUSD
+		ceurBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k cEUR
 		goldBalances[i] = Balance{Account: acc.Address, Amount: (*big.Int)(token.MustNew("50000"))} // 50k CELO
 	}
 	genesisConfig.StableTokenEUR.InitialBalances = ceurBalances

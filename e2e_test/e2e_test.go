@@ -199,8 +199,40 @@ func TestSendCeloPayFeesInCusd(t *testing.T) {
 	// Send 1 celo from the dev account attached to node 0 to the dev account
 	// attached to node 1.
 	cusdAddr := env.MustProxyAddressFor("StableToken")
-	tx, err := network[0].SendCelo(ctx, network[1].DevAddress, 1, &cusdAddr)
+
+	signer := types.MakeSigner(network[0].EthConfig.Genesis.Config, common.Big0)
+	tx, err := test.ValueTransferTransaction(
+		network[0].WsClient,
+		network[0].DevKey,
+		network[0].DevAddress,
+		network[1].DevAddress,
+		network[0].Nonce,
+		big.NewInt(1),
+		signer,
+		&cusdAddr)
+	// tx, err := network[0].SendCelo(ctx, network[1].DevAddress, 1, &cusdAddr)
 	require.NoError(t, err)
+
+	err = network[0].WsClient.SendTransaction(ctx, tx)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 2)
+
+	p, q := network[0].Eth.TxPool().Stats()
+	println(p, q)
+
+	pending, queued := network[0].Eth.TxPool().Content()
+	for k, v := range pending {
+		if k == network[0].DevAddress && v[0].Hash() == tx.Hash() {
+			t.Fatalf("Transaction should have been processed")
+		}
+	}
+
+	for k, v := range queued {
+		if k == network[0].DevAddress && v[0].Hash() == tx.Hash() {
+			t.Fatalf("Transaction should have been processed")
+		}
+	}
 	// signer := types.MakeSigner(network[0].EthConfig.Genesis.Config, common.Big0)
 	// tx, err := CusdTransaction(network[0].WsClient, network[0].DevKey, network[0].DevAddress, network[1].DevAddress, network[0].Nonce, big.NewInt(5), signer)
 
