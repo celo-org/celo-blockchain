@@ -96,7 +96,7 @@ upon: <RequestEvent, Hc, V> && Sc = AcceptRequest
 // When receiving a preprepare from a proposer participants will vote for the
 // value (if valid) by sending a prepare message.
 upon: <Preprepare, Hc, Rd, V, RCC> from proposer(Hc, Rd) && Sc = AcceptRequest
-  if (Rd > 0 && validRCC(Hc, Rd, V, RCC)) || (Rd = 0 && RCC = nil)  {
+  if (Rd > 0 && validRCC(V, RCC)) || (Rd = 0 && RCC = nil)  {
     Rc ← Rd
     Vc ← V
     Sc ← Preprepared
@@ -199,16 +199,16 @@ validPC(<PreparedCertificate, M, V>) {
 #### validRCC
 
 Returns true if the round change contains at least 2f+1 and no more than 3f+1
-round changes that match the given height and have a round greater or equal
-than the given round and either have a valid prepared certificate or no
-prepared certificate. If any round change certificates have a prepared
-certificate, then there must exist one with greater than or equal round to all
-the others and with a value of V.
+round changes for the current height, with a round greater or equal to the
+desired round and either have a valid prepared certificate or no prepared
+certificate. If any round change certificates have a prepared certificate, then
+there must exist one with round greater than or equal to all the others and
+with a value of V.
 
 ```
-validRCC(H, R, V, RCC) {
-  M ← { m<RoundChange, Hm , Rm, PC> ∈ RCC : Hm = H && Rm >= R && (PC = nil || validPC(PC)) }
-  N ← { m<RoundChange, Hm , Rm, PC> ∈ M : PC != nil }
+validRCC(V, RCC) {
+  M ← { m<RoundChange, Hm , Rm, PC> ∈ RCC : Hm = Hc && Rm >= Rd && (PC = nil || validPC(PC)) }
+  N ← { m<RoundChange, * , *, PC> ∈ M : PC != nil }
   if |N| > 0 {
     return 2f+1 <= |M| <= 3f+1 &&
     ∃ m<RoundChange, *, *, Pcm> ∈ N : validPC(PCm) && PCValue(PCm) = V && ∀ n<RoundChange, * , *, PCn> ∈ N != m : PCRound(PCm) >= PCRound(PCn)
