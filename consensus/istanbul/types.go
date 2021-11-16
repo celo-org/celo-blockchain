@@ -707,6 +707,23 @@ func (m *Message) Copy() *Message {
 	}
 }
 
+// View returns the messages view if it has one.
+func (m *Message) View() *View {
+	switch m.Code {
+	case MsgPreprepare:
+		return m.prePrepare.View
+	case MsgPrepare:
+		return m.prepare.View
+	case MsgCommit:
+		return m.committedSubject.Subject.View
+	case MsgRoundChange:
+		return m.roundChange.View
+	default:
+		// Return nil if the message type does not have a view.
+		return nil
+	}
+}
+
 // MapMessagesToSenders map a list of Messages to the list of the sender addresses
 func MapMessagesToSenders(messages []Message) []common.Address {
 	returnList := make([]common.Address, len(messages))
