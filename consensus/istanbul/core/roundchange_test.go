@@ -271,32 +271,6 @@ func TestHandleRoundChange(t *testing.T) {
 			},
 			errInvalidPreparedCertificateDuplicate,
 		},
-		{
-			"valid message for future round",
-			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(10)
-			},
-			func(t *testing.T, _ *testSystem) istanbul.PreparedCertificate {
-				return istanbul.EmptyPreparedCertificate()
-			},
-			nil,
-		},
-		{
-			"invalid message for future sequence",
-			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).sequence = big.NewInt(10)
-			},
-			buildEmptyCertificate,
-			errFutureMessage,
-		},
-		{
-			"invalid message for previous round",
-			func(sys *testSystem) {
-				sys.backends[0].engine.(*core).current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(0)
-			},
-			buildEmptyCertificate,
-			nil,
-		},
 	}
 
 	for _, test := range testCases {
