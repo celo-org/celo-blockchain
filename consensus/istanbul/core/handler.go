@@ -202,7 +202,8 @@ func (c *core) handleMsg(payload []byte) error {
 	}
 	// Prior views are always old.
 	if v.Cmp(desiredView) < 0 {
-		if msg.Code == istanbul.MsgPreprepare {
+		switch msg.Code {
+		case istanbul.MsgPreprepare:
 			preprepare := msg.Preprepare()
 			// Git validator set for the given proposal
 			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
@@ -215,6 +216,21 @@ func (c *core) handleMsg(payload []byte) error {
 				logger.Warn("Would have sent a commit message for an old block")
 				return nil
 			}
+		case istanbul.MsgCommit:
+			commit := msg.Commit()
+			// Discard messages from previous views, unless they are commits from the previous sequence,
+			// with the same round as what we wound up finalizing, as we would be able to include those
+			// to create the ParentAggregatedSeal for our next proposal.
+			lastSubject, err := c.backend.LastSubject()
+			if err != nil {
+				return err
+			} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
+				return errOldMessage
+			} else if lastSubject.View.Sequence.Cmp(common.Big0) == 0 {
+				// Don't handle commits for the genesis block, will cause underflows
+				return errOldMessage
+			}
+			return c.handleCheckedCommitForPreviousSequence(msg, commit)
 		}
 		return errOldMessage
 	}
