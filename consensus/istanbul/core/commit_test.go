@@ -23,7 +23,6 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-bls-go/bls"
@@ -72,69 +71,6 @@ func TestHandleCommit(t *testing.T) {
 			false,
 		},
 		{
-			// future message
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePreprepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round: big.NewInt(0),
-								// proposal from 1 round in the future
-								Sequence: big.NewInt(0).Add(proposal.Number(), common.Big1),
-							},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errFutureMessage,
-			false,
-		},
-		{
-			// past message
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePreprepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round: big.NewInt(0),
-								// we're 2 blocks before so this is indeed a
-								// very old proposal and will error as expected
-								// with an old error message
-								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big2),
-							},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errOldMessage,
-			false,
-		},
-		{
 			// jump state
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
@@ -161,38 +97,6 @@ func TestHandleCommit(t *testing.T) {
 			}(),
 			nil,
 			false,
-		},
-		{
-			// message from previous sequence and round matching last proposal
-			// this should pass the message check, but will return an error in
-			// handleCheckedCommitForPreviousSequence, because the proposal hashes won't match.
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					backend.Commit(newTestProposalWithNum(3), types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
-					c := backend.engine.(*core)
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePrepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round:    big.NewInt(1),
-								Sequence: big.NewInt(0).Sub(proposal.Number(), common.Big1),
-							},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errInconsistentSubject,
-			true,
 		},
 		// TODO: double send message
 	}
