@@ -231,40 +231,6 @@ func (tx *LegacyTx) DecodeRLP(s *rlp.Stream) (err error) {
 	return err
 }
 
-// // MarshalJSON encodes the web3 RPC transaction format.
-// func (tx *LegacyTx) MarshalJSON() ([]byte, error) {
-// 	hash := tx.Hash()
-// 	data := tx.data
-// 	data.Hash = &hash
-// 	return data.MarshalJSON()
-// }
-
-// // UnmarshalJSON decodes the web3 RPC transaction format.
-// func (tx *LegacyTx) UnmarshalJSON(input []byte) error {
-// 	var dec txdata
-// 	if err := dec.UnmarshalJSON(input); err != nil {
-// 		return err
-// 	}
-// 	withSignature := dec.V.Sign() != 0 || dec.R.Sign() != 0 || dec.S.Sign() != 0
-// 	if withSignature {
-// 		var V byte
-// 		if isProtectedV(dec.V) {
-// 			chainID := deriveChainId(dec.V).Uint64()
-// 			V = byte(dec.V.Uint64() - 35 - 2*chainID)
-// 		} else {
-// 			V = byte(dec.V.Uint64() - 27)
-// 		}
-// 		if !crypto.ValidateSignatureValues(V, dec.R, dec.S, false) {
-// 			return ErrInvalidSig
-// 		}
-// 	}
-// 	*tx = Transaction{
-// 		data: dec,
-// 		time: time.Now(),
-// 	}
-// 	return nil
-// }
-
 // copy creates a deep copy of the transaction data and initializes all fields.
 func (tx *LegacyTx) copy() TxData {
 	cpy := &LegacyTx{
