@@ -107,30 +107,6 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			"errOldMessage",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
-					if i != 0 {
-						getRoundState(c).state = StatePreprepared
-						getRoundState(c).sequence = big.NewInt(10)
-						getRoundState(c).round = big.NewInt(10)
-						getRoundState(c).desiredRound = getRoundState(c).round
-					}
-				}
-				return sys
-			},
-			func(_ *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
-			},
-			makeBlock(1),
-			errOldMessage,
-			false,
-		},
-		{
 			"test existing block",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)

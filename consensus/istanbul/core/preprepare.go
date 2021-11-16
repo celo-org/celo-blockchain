@@ -54,26 +54,6 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 		return errInvalidProposal
 	}
 
-	// Ensure we have the same view with the PREPREPARE message.
-	if err := c.checkMessage(istanbul.MsgPreprepare, preprepare.View); err != nil {
-		if err == errOldMessage {
-			// Get validator set for the given proposal
-			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
-			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
-			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
-
-			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
-			// However, we log a WARN for potential future debugging value.
-			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Warn("Would have sent a commit message for an old block")
-				return nil
-			}
-		}
-		// Probably shouldn't errFutureMessage as we should have moved to that round in handleRoundChangeCertificate
-		logger.Trace("Check preprepare failed", "err", err)
-		return err
-	}
-
 	// Check proposer is valid for the message's view (this may be a subsequent round)
 	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
 	if headBlock == nil {
