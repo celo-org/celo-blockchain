@@ -48,13 +48,14 @@ type Prestate struct {
 // ExecutionResult contains the execution status after running a state test, any
 // error that might have occurred and a dump of the final state if requested.
 type ExecutionResult struct {
-	StateRoot   common.Hash    `json:"stateRoot"`
-	TxRoot      common.Hash    `json:"txRoot"`
-	ReceiptRoot common.Hash    `json:"receiptRoot"`
-	LogsHash    common.Hash    `json:"logsHash"`
-	Bloom       types.Bloom    `json:"logsBloom"        gencodec:"required"`
-	Receipts    types.Receipts `json:"receipts"`
-	Rejected    []*rejectedTx  `json:"rejected,omitempty"`
+	StateRoot   common.Hash         `json:"stateRoot"`
+	TxRoot      common.Hash         `json:"txRoot"`
+	ReceiptRoot common.Hash         `json:"receiptRoot"`
+	LogsHash    common.Hash         `json:"logsHash"`
+	Bloom       types.Bloom         `json:"logsBloom"        gencodec:"required"`
+	Receipts    types.Receipts      `json:"receipts"`
+	Rejected    []*rejectedTx       `json:"rejected,omitempty"`
+	GasUsed     math.HexOrDecimal64 `json:"gasUsed"`
 }
 
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
@@ -268,6 +269,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		LogsHash:    rlpHash(statedb.Logs()),
 		Receipts:    receipts,
 		Rejected:    rejectedTxs,
+		GasUsed:     (math.HexOrDecimal64)(gasUsed),
 	}
 	return statedb, execRs, nil
 }

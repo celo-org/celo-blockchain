@@ -37,6 +37,7 @@
         "index": 1,
         "error": "nonce too low: address 0x52CF5391f5e56A5C1B61A72cEb8AbB90440928E2, tx: 0 state: 1"
       }
-    ]
+    ],
+    "gasUsed": "0x5208"
   }
 }
