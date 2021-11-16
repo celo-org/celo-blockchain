@@ -255,62 +255,6 @@ func TestHandlePrepare(t *testing.T) {
 			errInconsistentSubject,
 		},
 		{
-			"future message",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePreprepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round:    big.NewInt(2),
-								Sequence: big.NewInt(3),
-							},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errFutureMessage,
-		},
-		{
-			"subject not match",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePreprepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round:    big.NewInt(0),
-								Sequence: big.NewInt(0),
-							},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errOldMessage,
-		},
-		{
 			"subject not match",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)

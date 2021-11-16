@@ -144,10 +144,6 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	prepare := msg.Prepare()
 	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
 
-	if err := c.checkMessage(istanbul.MsgPrepare, prepare.View); err != nil {
-		return err
-	}
-
 	if err := c.verifyPrepare(prepare); err != nil {
 		return err
 	}
