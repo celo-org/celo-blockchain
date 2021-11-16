@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -178,37 +179,82 @@ func (c *core) handleMsg(payload []byte) error {
 		return istanbul.ErrUnauthorizedAddress
 	}
 
-	return c.handleCheckedMsg(msg, src)
-}
+	// Update logger context
+	logger = logger.New("from", msg.Address)
 
-func (c *core) handleCheckedMsg(msg *istanbul.Message, src istanbul.Validator) error {
-	logger := c.newLogger("func", "handleCheckedMsg", "from", msg.Address)
+	// Basic checks
 
-	// Store the message if it's a future message
-	catchFutureMessages := func(err error) error {
-		if err == errFutureMessage {
-			// Store in backlog (if it's not from self)
-			if msg.Address != c.address {
-				c.backlog.store(msg)
-			}
-		}
-		return err
-	}
-
+	// Check msg code
 	switch msg.Code {
-	case istanbul.MsgPreprepare:
-		return catchFutureMessages(c.handlePreprepare(msg))
-	case istanbul.MsgPrepare:
-		return catchFutureMessages(c.handlePrepare(msg))
-	case istanbul.MsgCommit:
-		return catchFutureMessages(c.handleCommit(msg))
-	case istanbul.MsgRoundChange:
-		return catchFutureMessages(c.handleRoundChange(msg))
+	case istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange:
+		// No problem
 	default:
 		logger.Error("Invalid message", "m", msg)
 	}
 
-	return errInvalidMessage
+	v := msg.View()
+	if v == nil || v.Sequence == nil || v.Round == nil {
+		return errInvalidMessage
+	}
+
+	// Prior seqs are always old.
+	if v.Sequence.Cmp(c.current.Sequence()) < 0 {
+		return errOldMessage
+	}
+
+	// Future seqs are always future.
+	if v.Sequence.Cmp(c.current.Sequence()) > 0 {
+		// Store in backlog (if it's not from self)
+		if msg.Address != c.address {
+			c.backlog.store(msg)
+		}
+		return errFutureMessage
+	}
+
+	// Same sequence. Msgs for a round < desiredRound are always old.
+	if v.Round.Cmp(c.current.DesiredRound()) < 0 {
+		return errOldMessage
+	}
+
+	// We will never do consensus on any round less than desiredRound.
+	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
+		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
+	}
+
+	// When waiting for a proposal or value to propose commits and prepares are
+	// considered future messages.
+	s := c.current.State()
+	if (s == StateWaitingForNewRound || s == StateAcceptRequest) &&
+		(msg.Code == istanbul.MsgCommit || msg.Code == istanbul.MsgPrepare) {
+		// Store in backlog (if it's not from self)
+		if msg.Address != c.address {
+			c.backlog.store(msg)
+		}
+		return errFutureMessage
+	}
+
+	// Messages other than round change with a higher than current round are considered future messages.
+	if msg.Code != istanbul.MsgRoundChange && v.Round.Cmp(c.current.DesiredRound()) > 0 {
+		// Store in backlog (if it's not from self)
+		if msg.Address != c.address {
+			c.backlog.store(msg)
+		}
+		return errFutureMessage
+	}
+
+	switch msg.Code {
+	case istanbul.MsgPreprepare:
+		return c.handlePreprepare(msg)
+	case istanbul.MsgPrepare:
+		return c.handlePrepare(msg)
+	case istanbul.MsgCommit:
+		return c.handleCommit(msg)
+	case istanbul.MsgRoundChange:
+		return c.handleRoundChange(msg)
+	default:
+		return errInvalidMessage
+	}
+
 }
 
 func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {
