@@ -13,3 +13,43 @@ Averaging out over the whole set of validators we see that each validator will
 receive messages from 1/2 of the other validators. This is not enogh to commit
 to a value and so there will be a round change. This is an extreme case but it
 highlights problems with this approach.
+
+2. The check of
+
+	// We will never do consensus on any round less than desiredRound.
+	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
+		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
+	}
+
+Seems redundant becasue that should never be able to happen, if its a sanity
+check then this seems to be the wrong place for it. It should instead be
+executed after changing the current or desiered round. Checking it for each
+message is a waste.
+
+3. There is significant processing dedicated to outputting a warning that I do not understand.
+
+	preprepare := msg.Preprepare()
+	// Git validator set for the given proposal
+	valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+	prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+	proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
+
+	// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
+	// However, we log a WARN for potential future debugging value.
+	if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+		logger.Warn("Would have sent a commit message for an old block")
+		return nil
+	}
+
+The message says would have send a commit for an old block, its not clear what
+that means because we don't send commits for old blocks.
+
+4. We perform the following check when adding a future message to the backlog.
+
+	// Store in backlog (if it's not from self)
+	if msg.Address != c.address {
+		c.backlog.store(msg)
+	}
+
+It seems like an impossible situation to be in. I don't think we ever decrement
+round or sequence, so this shouldn't be needed.
