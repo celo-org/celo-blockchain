@@ -231,6 +231,15 @@ func (c *core) handleMsg(payload []byte) error {
 				return errOldMessage
 			}
 			return c.handleCheckedCommitForPreviousSequence(msg, commit)
+		case istanbul.MsgRoundChange:
+			rc := msg.RoundChange()
+			// If the RC message is for the current sequence but a prior round, help the sender fast forward
+			// by sending back to it (not broadcasting) a round change message for our desired round.
+			if rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
+				logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", rc.View.Round)
+				c.sendRoundChangeAgain(msg.Address)
+				return nil
+			}
 		}
 		return errOldMessage
 	}
