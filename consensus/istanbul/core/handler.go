@@ -196,9 +196,26 @@ func (c *core) handleMsg(payload []byte) error {
 	if v == nil || v.Sequence == nil || v.Round == nil {
 		return errInvalidMessage
 	}
+	desiredView := &istanbul.View{
+		Round:    c.current.DesiredRound(),
+		Sequence: c.current.Sequence(),
+	}
+	// Prior views are always old.
+	if v.Cmp(desiredView) < 0 {
+		if msg.Code == istanbul.MsgPreprepare {
+			preprepare := msg.Preprepare()
+			// Git validator set for the given proposal
+			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
+			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
+			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
 
-	// Prior seqs are always old.
-	if v.Sequence.Cmp(c.current.Sequence()) < 0 {
+			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
+			// However, we log a WARN for potential future debugging value.
+			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
+				logger.Warn("Would have sent a commit message for an old block")
+				return nil
+			}
+		}
 		return errOldMessage
 	}
 
@@ -209,11 +226,6 @@ func (c *core) handleMsg(payload []byte) error {
 			c.backlog.store(msg)
 		}
 		return errFutureMessage
-	}
-
-	// Same sequence. Msgs for a round < desiredRound are always old.
-	if v.Round.Cmp(c.current.DesiredRound()) < 0 {
-		return errOldMessage
 	}
 
 	// We will never do consensus on any round less than desiredRound.
