@@ -37,8 +37,7 @@ import (
 	"github.com/celo-org/celo-blockchain/params"
 )
 
-// TODO(Joshua): Replace with call to GPM or faked GPM
-var genericBaseFee = big.NewInt(2)
+var genericBaseFee = big.NewInt(2) // set a constant gas price to be above the GPM.
 
 func TestSimulatedBackend(t *testing.T) {
 	key, _ := crypto.GenerateKey() // nolint: gosec
