@@ -560,6 +560,7 @@ func (l *txList) LastElement() *types.Transaction {
 // price-sorted transactions to discard when the pool fills up. If baseFee is set
 // then the heap is sorted based on the effective tip based on the given base fee.
 // If baseFee is nil then the sorting is based on gasFeeCap.
+// The fee currencies for each transaction should be the same.
 type priceHeap struct {
 	baseFee *big.Int // heap should always be re-sorted after baseFee is changed
 	list    []*types.Transaction
