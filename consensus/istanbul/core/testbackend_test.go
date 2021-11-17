@@ -391,17 +391,10 @@ func newTestValidatorSet(n int) istanbul.ValidatorSet {
 	return validator.NewSet(validators)
 }
 
-func newTestSystemWithBackend(n, f uint64) *testSystem {
+func newTestSystemWithBackendConfigured(n, f uint64, config istanbul.Config) *testSystem {
 
 	validators, blsKeys, keys := generateValidators(int(n))
 	sys := newTestSystem(n, f, blsKeys)
-	config := *istanbul.DefaultConfig
-	config.ProposerPolicy = istanbul.RoundRobin
-	config.RoundStateDBPath = ""
-	config.RequestTimeout = 300
-	config.TimeoutBackoffFactor = 100
-	config.MinResendRoundChangeTimeout = 1000
-	config.MaxResendRoundChangeTimeout = 10000
 
 	for i := uint64(0); i < n; i++ {
 		vset := validator.NewSet(validators)
@@ -419,6 +412,17 @@ func newTestSystemWithBackend(n, f uint64) *testSystem {
 	}
 
 	return sys
+}
+func newTestSystemWithBackend(n, f uint64) *testSystem {
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = 300
+	config.TimeoutBackoffFactor = 100
+	config.MinResendRoundChangeTimeout = 1000
+	config.MaxResendRoundChangeTimeout = 10000
+	return newTestSystemWithBackendConfigured(n, f, config)
+
 }
 
 // FIXME: int64 is needed for N and F

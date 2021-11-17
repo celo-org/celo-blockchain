@@ -17,14 +17,399 @@
 package core
 
 import (
+	"math"
 	"math/big"
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Tests that handleMsg handles messages as expected. I.E. correctly rejects
+// messages that are too old/new/invalid and not rejecting valid messages.
+// Note that due to the way rlp decoding works nil pointers are not possible in
+// a decoded object, thus we do not attempt to check messages with missing
+// values in this test.
+func TestHandleMsg(t *testing.T) {
+	N := uint64(4)
+	F := uint64(1)
+
+	config := *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = math.MaxUint64 // We don't want the rounds changing unless we set them
+	sys := newTestSystemWithBackendConfigured(N, F, config)
+
+	closer := sys.Run(true)
+	defer closer()
+
+	b := sys.backends[0]
+	c := b.engine.(*core)
+	block1 := makeBlock(1)
+
+	// Sanity check valid preprepare is handled without error
+	currentSequence := c.current.Sequence()
+	desiredRound := c.current.DesiredRound()
+	m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+		View: &istanbul.View{
+			Sequence: currentSequence,
+			Round:    desiredRound,
+		},
+		Proposal: block1,
+	}, b.address)
+
+	err := m.Sign(b.Sign)
+	require.NoError(t, err)
+	payload, err := m.Payload()
+	require.NoError(t, err)
+	err = c.handleMsg(payload)
+	require.NoError(t, err)
+
+	// check simplifies signing and encoding the message, calling
+	// handleMsg and checking the result.
+	check := func(t *testing.T, m *istanbul.Message, c *core, expectError bool) {
+		err := m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		if expectError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+	checkErr := func(t *testing.T, m *istanbul.Message, c *core) {
+		check(t, m, c, true)
+	}
+	checkNoErr := func(t *testing.T, m *istanbul.Message, c *core) {
+		check(t, m, c, false)
+	}
+
+	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
+	t.Run("Rejects messages with invalid code", func(t *testing.T) {
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+				View: &istanbul.View{
+					Sequence: currentSequence,
+					Round:    desiredRound,
+				},
+				Digest: block1.Hash(),
+			}, b.address)
+			m.Code = 99
+			checkErr(t, m, c)
+		}
+	})
+
+	t.Run("Rejects non consensus messages", func(t *testing.T) {
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+				View: &istanbul.View{
+					Sequence: currentSequence,
+					Round:    desiredRound,
+				},
+				Digest: block1.Hash(),
+			}, b.address)
+			p, err := m.Payload()
+			require.NoError(t, err)
+			m = istanbul.NewForwardMessage(&istanbul.ForwardMessage{
+				Code:          m.Code,
+				Msg:           p,
+				DestAddresses: []common.Address{{}},
+			}, b.address)
+			checkErr(t, m, c)
+		}
+	})
+
+	t.Run("Commit for last subject", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(0),
+			Round:    big.NewInt(1),
+		}
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+
+			sub := &istanbul.Subject{
+				View:   v,
+				Digest: common.Hash{},
+			}
+			committedSeal, err := c.generateCommittedSeal(sub)
+			require.NoError(t, err)
+			m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+				Subject:       sub,
+				CommittedSeal: committedSeal[:],
+			}, b.Address())
+			checkErr(t, m, c)
+		}
+	})
+
+	checkErrMsgTypes := func(msgView *istanbul.View, c *core) {
+		m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+			View:     msgView,
+			Proposal: block1,
+		}, b.address)
+		check(t, m, c, true)
+
+		m = istanbul.NewPrepareMessage(&istanbul.Subject{
+			View:   msgView,
+			Digest: block1.Hash(),
+		}, b.Address())
+		check(t, m, c, true)
+
+		sub := &istanbul.Subject{
+			View:   msgView,
+			Digest: block1.Hash(),
+		}
+		committedSeal, err := c.generateCommittedSeal(sub)
+		require.NoError(t, err)
+		m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:       sub,
+			CommittedSeal: committedSeal[:],
+		}, b.Address())
+		check(t, m, c, true)
+		m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
+			View:                msgView,
+			PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+		}, b.Address())
+		check(t, m, c, true)
+	}
+
+	// Set the current sequence and round such that we can send old messages.
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).round = big.NewInt(2)
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).desiredRound = big.NewInt(2)
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).sequence = big.NewInt(2)
+
+	t.Run("Rejects older sequences", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(1),
+			Round:    big.NewInt(2),
+		}
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			checkErrMsgTypes(v, c)
+		}
+	})
+
+	t.Run("Rejects older rounds", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(1),
+		}
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			checkErrMsgTypes(v, c)
+		}
+	})
+
+	t.Run("Rejects future sequences", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(3),
+			Round:    big.NewInt(2),
+		}
+		for _, testState := range testStates {
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			checkErrMsgTypes(v, c)
+		}
+	})
+
+	t.Run("Future rounds", func(t *testing.T) {
+		v := &istanbul.View{
+			Sequence: big.NewInt(2),
+			Round:    big.NewInt(3),
+		}
+		for _, testState := range testStates {
+			// All message types except for round changes are rejected if they
+			// have a future round.
+
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+				View:     v,
+				Proposal: block1,
+			}, b.address)
+			checkErr(t, m, c)
+
+			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+				View:   v,
+				Digest: block1.Hash(),
+			}, b.Address())
+			checkErr(t, m, c)
+
+			sub := &istanbul.Subject{
+				View:   v,
+				Digest: block1.Hash(),
+			}
+			committedSeal, err := c.generateCommittedSeal(sub)
+			require.NoError(t, err)
+			m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+				Subject:       sub,
+				CommittedSeal: committedSeal[:],
+			}, b.Address())
+			checkErr(t, m, c)
+
+			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
+				View:                v,
+				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+			}, b.Address())
+			checkNoErr(t, m, c)
+		}
+	})
+
+	// Reset the system to avoid conflicts from previously processed messages.
+	config = *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = math.MaxUint64 // Avoid round changes
+	sys = newTestSystemWithBackendConfigured(N, F, config)
+
+	closer = sys.Run(true)
+	defer closer()
+
+	b = sys.backends[0]
+	c = b.engine.(*core)
+
+	currentView := &istanbul.View{
+		Sequence: c.current.Sequence(),
+		Round:    c.current.DesiredRound(),
+	}
+	t.Run("Current view state AcceptRequest or WaitingForNewRound", func(t *testing.T) {
+		for _, testState := range []State{StateAcceptRequest, StateWaitingForNewRound} {
+			// Only preprepares and round changes should be accepted.
+
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+				View:     currentView,
+				Proposal: block1,
+			}, b.address)
+			err := m.Sign(b.Sign)
+			require.NoError(t, err)
+			payload, err := m.Payload()
+			require.NoError(t, err)
+			err = c.handleMsg(payload)
+			require.NoError(t, err)
+			// Reset state since the previous message changes it
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+
+			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+				View:   currentView,
+				Digest: block1.Hash(),
+			}, b.Address())
+			checkErr(t, m, c)
+
+			sub := &istanbul.Subject{
+				View:   currentView,
+				Digest: block1.Hash(),
+			}
+			committedSeal, err := c.generateCommittedSeal(sub)
+			require.NoError(t, err)
+			m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+				Subject:       sub,
+				CommittedSeal: committedSeal[:],
+			}, b.Address())
+			checkErr(t, m, c)
+
+			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
+				View:                currentView,
+				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+			}, b.Address())
+			checkNoErr(t, m, c)
+		}
+	})
+
+	t.Run("Current view state Preprepared, Prepared or Committed", func(t *testing.T) {
+		for _, testState := range []State{StatePreprepared, StatePrepared, StateCommitted} {
+			// All messages should be accepted
+			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
+			m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+				View:     currentView,
+				Proposal: block1,
+			}, b.address)
+			err := m.Sign(b.Sign)
+			require.NoError(t, err)
+			payload, err := m.Payload()
+			require.NoError(t, err)
+			err = c.handleMsg(payload)
+			require.NoError(t, err)
+
+			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+				View:   currentView,
+				Digest: block1.Hash(),
+			}, b.Address())
+			checkNoErr(t, m, c)
+
+			sub := &istanbul.Subject{
+				View:   currentView,
+				Digest: block1.Hash(),
+			}
+			committedSeal, err := c.generateCommittedSeal(sub)
+			require.NoError(t, err)
+			m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+				Subject:       sub,
+				CommittedSeal: committedSeal[:],
+			}, b.Address())
+			checkNoErr(t, m, c)
+
+			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
+				View:                currentView,
+				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
+			}, b.Address())
+			checkNoErr(t, m, c)
+		}
+	})
+
+	// Reset the system to avoid conflicts from previously processed messages.
+	config = *istanbul.DefaultConfig
+	config.ProposerPolicy = istanbul.RoundRobin
+	config.RoundStateDBPath = ""
+	config.RequestTimeout = math.MaxUint64 // Avoid round changes
+	sys = newTestSystemWithBackendConfigured(N, F, config)
+
+	closer = sys.Run(true)
+	defer closer()
+
+	b = sys.backends[0]
+	c = b.engine.(*core)
+
+	c.current.Sequence().SetInt64(1)
+	c.current.DesiredRound().SetInt64(0)
+	c.current.Round().SetInt64(0)
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StateAcceptRequest
+
+	t.Run("Commit for previous sequence", func(t *testing.T) {
+
+		// fake commit to set the last subject
+		b.Commit(block1, types.IstanbulAggregatedSeal{}, types.IstanbulEpochValidatorSetSeal{}, nil)
+
+		// Set the sequence forward
+		c.current.Sequence().SetInt64(2)
+		c.current.DesiredRound().SetInt64(0)
+		c.current.Round().SetInt64(0)
+		c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePrepared
+
+		sub := &istanbul.Subject{
+			View: &istanbul.View{
+				Sequence: big.NewInt(1),
+				// testSystemBackend.LastSubject() returns a hardcoded round of 1 for the last subject.
+				// so we set Round to 1
+				Round: big.NewInt(1),
+			},
+			Digest: block1.Hash(),
+		}
+		committedSeal, err := c.generateCommittedSeal(sub)
+		require.NoError(t, err)
+		m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:       sub,
+			CommittedSeal: committedSeal[:],
+		}, b.Address())
+		checkNoErr(t, m, c)
+	})
+
+}
 
 // notice: the normal case have been tested in integration tests.
 func TestMalformedMessageDecoding(t *testing.T) {
