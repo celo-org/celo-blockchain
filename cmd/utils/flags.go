@@ -630,27 +630,27 @@ var (
 		Value: DirectoryString("."),
 	}
 
-	// Gas price oracle settings
-	GpoBlocksFlag = cli.IntFlag{
-		Name:  "gpo.blocks",
-		Usage: "Number of recent blocks to check for gas prices",
-		// Value: ethconfig.Defaults.GPO.Blocks,
-	}
-	GpoPercentileFlag = cli.IntFlag{
-		Name:  "gpo.percentile",
-		Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
-		// Value: ethconfig.Defaults.GPO.Percentile,
-	}
-	GpoMaxGasPriceFlag = cli.Int64Flag{
-		Name:  "gpo.maxprice",
-		Usage: "Maximum gas price will be recommended by gpo",
-		// Value: ethconfig.Defaults.GPO.MaxPrice.Int64(),
-	}
-	GpoIgnoreGasPriceFlag = cli.Int64Flag{
-		Name:  "gpo.ignoreprice",
-		Usage: "Gas price below which gpo will ignore transactions",
-		// Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
-	}
+	// // Gas price oracle settings
+	// GpoBlocksFlag = cli.IntFlag{
+	// 	Name:  "gpo.blocks",
+	// 	Usage: "Number of recent blocks to check for gas prices",
+	// 	// Value: ethconfig.Defaults.GPO.Blocks,
+	// }
+	// GpoPercentileFlag = cli.IntFlag{
+	// 	Name:  "gpo.percentile",
+	// 	Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices",
+	// 	// Value: ethconfig.Defaults.GPO.Percentile,
+	// }
+	// GpoMaxGasPriceFlag = cli.Int64Flag{
+	// 	Name:  "gpo.maxprice",
+	// 	Usage: "Maximum gas price will be recommended by gpo",
+	// 	// Value: ethconfig.Defaults.GPO.MaxPrice.Int64(),
+	// }
+	// GpoIgnoreGasPriceFlag = cli.Int64Flag{
+	// 	Name:  "gpo.ignoreprice",
+	// 	Usage: "Gas price below which gpo will ignore transactions",
+	// 	// Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
+	// }
 
 	// Metrics flags
 
