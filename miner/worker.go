@@ -234,10 +234,6 @@ func (w *worker) isRunning() bool {
 // close terminates all background threads maintained by the worker.
 // Note the worker does not support being closed multiple times.
 func (w *worker) close() {
-	// TODO(Joshua): Close prefetchers that were launched & controlled by "state"
-	// if w.current != nil && w.current.state != nil {
-	// 	w.current.state.StopPrefetcher()
-	// }
 	atomic.StoreInt32(&w.running, 0)
 	close(w.exitCh)
 }
@@ -249,6 +245,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -303,6 +304,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return

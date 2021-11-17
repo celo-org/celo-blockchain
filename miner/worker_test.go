@@ -197,7 +197,6 @@ func TestGenerateBlockAndImport(t *testing.T) {
 		chainConfig *params.ChainConfig
 		db          = rawdb.NewMemoryDatabase()
 	)
-	// chainConfig = params.IstanbulTestChainConfig
 	chainConfig = params.IstanbulEHFTestChainConfig
 
 	engine = mockEngine.NewFaker()
