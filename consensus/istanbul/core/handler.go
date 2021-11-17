@@ -209,13 +209,13 @@ func (c *core) handleMsg(payload []byte) error {
 	case istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange:
 		// No problem
 	default:
-		logger.Error("Invalid message", "m", msg)
-	}
-
-	v := msg.View()
-	if v == nil || v.Sequence == nil || v.Round == nil {
 		return errInvalidMessage
 	}
+	// Because of the way that rlp handles decoding, it is not possible to
+	// decode a nil view or a view with nil fields. The View method will only
+	// return nil if the message is not one of Preprepare, Prepare, Commit or
+	// RoundChange.
+	v := msg.View()
 	desiredView := &istanbul.View{
 		Round:    c.current.DesiredRound(),
 		Sequence: c.current.Sequence(),
@@ -234,7 +234,6 @@ func (c *core) handleMsg(payload []byte) error {
 			// However, we log a WARN for potential future debugging value.
 			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
 				logger.Warn("Would have sent a commit message for an old block")
-				return nil
 			}
 		case istanbul.MsgCommit:
 			commit := msg.Commit()
@@ -258,7 +257,6 @@ func (c *core) handleMsg(payload []byte) error {
 			if rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
 				logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", rc.View.Round)
 				c.sendRoundChangeAgain(msg.Address)
-				return nil
 			}
 		}
 		return errOldMessage
