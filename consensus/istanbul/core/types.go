@@ -78,6 +78,16 @@ func (s State) Cmp(y State) int {
 	return 0
 }
 
+// Returns true if this state is one of the given states.
+func (s State) In(set ...State) bool {
+	for _, state := range set {
+		if s == state {
+			return true
+		}
+	}
+	return false
+}
+
 // ==============================================
 //
 // helper functions

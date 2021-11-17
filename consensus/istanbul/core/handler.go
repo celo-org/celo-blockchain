@@ -161,6 +161,26 @@ func (c *core) sendEvent(ev interface{}) {
 	c.backend.EventMux().Post(ev)
 }
 
+// Returns true if this message is considered a future message.
+func IsFutureMsg(currentSequence, desiredRound *big.Int, currentState State, msgView *istanbul.View, msgCode uint64) bool {
+
+	// Future sequences indicate a future message.
+	if msgView.Sequence.Cmp(currentSequence) > 0 {
+		return true
+	}
+	// Future rounds inidcate a future message except for round changes
+	if msgView.Round.Cmp(desiredRound) > 0 && msgCode != istanbul.MsgRoundChange {
+		return true
+	}
+	// If we are waiting for a proposal or a proposed value then commit and
+	// prpepare messages are considered future.
+	if currentState.In(StateWaitingForNewRound, StateAcceptRequest) &&
+		(msgCode == istanbul.MsgCommit || msgCode == istanbul.MsgPrepare) {
+		return true
+	}
+	return false
+}
+
 func (c *core) handleMsg(payload []byte) error {
 	logger := c.newLogger("func", "handleMsg")
 
@@ -244,34 +264,13 @@ func (c *core) handleMsg(payload []byte) error {
 		return errOldMessage
 	}
 
-	// Future seqs are always future.
-	if v.Sequence.Cmp(c.current.Sequence()) > 0 {
-		// Store in backlog (if it's not from self)
-		if msg.Address != c.address {
-			c.backlog.store(msg)
-		}
-		return errFutureMessage
-	}
-
 	// We will never do consensus on any round less than desiredRound.
 	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
 		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
 	}
 
-	// When waiting for a proposal or value to propose commits and prepares are
-	// considered future messages.
-	s := c.current.State()
-	if (s == StateWaitingForNewRound || s == StateAcceptRequest) &&
-		(msg.Code == istanbul.MsgCommit || msg.Code == istanbul.MsgPrepare) {
-		// Store in backlog (if it's not from self)
-		if msg.Address != c.address {
-			c.backlog.store(msg)
-		}
-		return errFutureMessage
-	}
-
-	// Messages other than round change with a higher than current round are considered future messages.
-	if msg.Code != istanbul.MsgRoundChange && v.Round.Cmp(c.current.DesiredRound()) > 0 {
+	// Check if the message is a future message and if so add it to the backlog
+	if IsFutureMsg(c.current.Sequence(), c.current.DesiredRound(), c.current.State(), v, msg.Code) {
 		// Store in backlog (if it's not from self)
 		if msg.Address != c.address {
 			c.backlog.store(msg)

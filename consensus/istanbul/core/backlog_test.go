@@ -213,10 +213,7 @@ func TestCheckMessage(t *testing.T) {
 
 func TestStoreBacklog(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
-	backlog := newMsgBacklog(
-		func(msg *istanbul.Message) {},
-		func(msgCode uint64, msgView *istanbul.View) error { return nil },
-	).(*msgBacklogImpl)
+	backlog := newMsgBacklog(nil).(*msgBacklogImpl)
 	defer backlog.clearBacklogForSeq(12)
 
 	v10 := &istanbul.View{
@@ -292,10 +289,7 @@ func TestClearBacklogForSequence(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
 
 	processed := false
-	backlog := newMsgBacklog(
-		func(msg *istanbul.Message) { processed = true },
-		func(msgCode uint64, msgView *istanbul.View) error { return nil },
-	).(*msgBacklogImpl)
+	backlog := newMsgBacklog(nil).(*msgBacklogImpl)
 
 	// The backlog's state is sequence number 1, round 0.  Store future messages with sequence number 2
 	p1 := validator.New(common.BytesToAddress([]byte("12345667890")), blscrypto.SerializedPublicKey{})
@@ -336,10 +330,7 @@ func TestClearBacklogForSequence(t *testing.T) {
 func TestProcessFutureBacklog(t *testing.T) {
 	testLogger.SetHandler(elog.StdoutHandler)
 
-	backlog := newMsgBacklog(
-		func(msg *istanbul.Message) {},
-		func(msgCode uint64, msgView *istanbul.View) error { return nil },
-	).(*msgBacklogImpl)
+	backlog := newMsgBacklog(nil).(*msgBacklogImpl)
 	defer backlog.clearBacklogForSeq(12)
 
 	futureSequence := big.NewInt(10)
@@ -426,21 +417,25 @@ func TestProcessBacklog(t *testing.T) {
 }
 
 func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
-
-	testLogger.SetHandler(elog.StdoutHandler)
-
-	processedMsgs := make(chan uint64, 100)
-	registerCall := func(msg *istanbul.Message) {
-		processedMsgs <- msg.Code
-		// we expect only one msg
-		close(processedMsgs)
+	vset := newTestValidatorSet(1)
+	backend := &testSystemBackend{
+		events: new(event.TypeMux),
+		peers:  vset,
 	}
-
-	backlog := newMsgBacklog(
-		registerCall,
-		func(msgCode uint64, msgView *istanbul.View) error { return nil },
-	).(*msgBacklogImpl)
-	defer backlog.clearBacklogForSeq(12)
+	testLogger.SetHandler(elog.StdoutHandler)
+	valSet := newTestValidatorSet(4)
+	c := &core{
+		logger:  testLogger,
+		backend: backend,
+		current: newRoundState(&istanbul.View{
+			Sequence: big.NewInt(1),
+			Round:    big.NewInt(0),
+		}, valSet, valSet.GetByIndex(0)),
+	}
+	backlog := newMsgBacklog(c).(*msgBacklogImpl)
+	c.current.(*roundStateImpl).state = State(msg.Code)
+	c.subscribeEvents()
+	defer c.unsubscribeEvents()
 
 	v := &istanbul.View{
 		Round:    big.NewInt(0),
@@ -455,8 +450,9 @@ func testProcessBacklog(t *testing.T, msg *istanbul.Message) {
 	timeout := time.NewTimer(1 * time.Second)
 
 	select {
-	case got := <-processedMsgs:
-		if got != msg.Code {
+	case got := <-c.events.Chan():
+		if got.Data.(backlogEvent).msg != msg {
+			// if got != msg.Code {
 			t.Errorf("Expected different msg: have: %v, want: %v", got, msg.Code)
 		}
 	case <-timeout.C:
