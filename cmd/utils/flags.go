@@ -417,11 +417,6 @@ var (
 		Name:  "miner.extradata",
 		Usage: "Block extra data set by the miner (default = client version)",
 	}
-	// MinerGasPriceFlag = BigFlag{
-	// 	Name:  "miner.gasprice",
-	// 	Usage: "Minimum gas price for mining a transaction",
-	// 	Value: ethconfig.Defaults.Miner.GasPrice,
-	// }
 
 	// Account settings
 
