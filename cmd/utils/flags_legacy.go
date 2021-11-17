@@ -181,17 +181,6 @@ var (
 		Usage: "GraphQL server listening port (deprecated, graphql can only be enabled on the HTTP-RPC server endpoint, use --graphql)",
 		Value: node.DefaultHTTPPort,
 	}
-
-	// LegacyGpoBlocksFlag = cli.IntFlag{
-	// 	Name:  "gpoblocks",
-	// 	Usage: "Number of recent blocks to check for gas prices (deprecated, use --gpo.blocks)",
-	// 	Value: ethconfig.Defaults.GPO.Blocks,
-	// }
-	// LegacyGpoPercentileFlag = cli.IntFlag{
-	// 	Name:  "gpopercentile",
-	// 	Usage: "Suggested gas price is the given percentile of a set of recent transaction gas prices (deprecated, use --gpo.percentile)",
-	// 	Value: ethconfig.Defaults.GPO.Percentile,
-	// }
 )
 
 // showDeprecated displays deprecated flags that will be soon removed from the codebase.
