@@ -172,12 +172,7 @@ func New(backend CoreBackend, config *istanbul.Config) Engine {
 		handlePrepareTimer:        metrics.NewRegisteredTimer("consensus/istanbul/core/handle_prepare", nil),
 		handleCommitTimer:         metrics.NewRegisteredTimer("consensus/istanbul/core/handle_commit", nil),
 	}
-	msgBacklog := newMsgBacklog(
-		func(msg *istanbul.Message) {
-			c.sendEvent(backlogEvent{
-				msg: msg,
-			})
-		}, c.checkMessage)
+	msgBacklog := newMsgBacklog(c)
 	c.backlog = msgBacklog
 	c.validateFn = c.checkValidatorSignature
 	return c

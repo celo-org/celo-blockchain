@@ -114,13 +114,12 @@ type msgBacklogImpl struct {
 	currentView  *istanbul.View
 	currentState State
 
-	backlogsMu   *sync.Mutex
-	msgProcessor func(*istanbul.Message)
-	checkMessage func(msgCode uint64, msgView *istanbul.View) error
-	logger       log.Logger
+	backlogsMu *sync.Mutex
+	kore       *core
+	logger     log.Logger
 }
 
-func newMsgBacklog(msgProcessor func(*istanbul.Message), checkMessage func(msgCode uint64, msgView *istanbul.View) error) MsgBacklog {
+func newMsgBacklog(c *core) MsgBacklog {
 	initialView := &istanbul.View{
 		Round:    big.NewInt(0),
 		Sequence: big.NewInt(1),
@@ -134,10 +133,9 @@ func newMsgBacklog(msgProcessor func(*istanbul.Message), checkMessage func(msgCo
 		currentView:  initialView,
 		currentState: StateAcceptRequest,
 
-		msgProcessor: msgProcessor,
-		checkMessage: checkMessage,
-		backlogsMu:   new(sync.Mutex),
-		logger:       log.New("type", "MsgBacklog"),
+		kore:       c,
+		backlogsMu: new(sync.Mutex),
+		logger:     log.New("type", "MsgBacklog"),
 	}
 }
 
@@ -284,21 +282,14 @@ func (c *msgBacklogImpl) processBacklog() {
 
 				logger := logger.New("m", msg, "msg_view", view)
 
-				err := c.checkMessage(msg.Code, view)
-
-				if err == errFutureMessage {
+				if IsFutureMsg(c.kore.current.Sequence(), c.kore.current.DesiredRound(), c.kore.current.State(), view, msg.Code) {
 					logger.Debug("Future message in backlog for seq, pushing back to the backlog")
 					processedMsgsFuture++
 					return true
 				}
-
-				if err == nil {
-					logger.Trace("Post backlog event")
-					processedMsgsEnqueued++
-					go c.msgProcessor(msg)
-				} else {
-					logger.Trace("Skip the backlog event", "err", err)
-				}
+				logger.Trace("Post backlog event")
+				processedMsgsEnqueued++
+				go c.kore.sendEvent(backlogEvent{msg})
 				return false
 			})
 		}
