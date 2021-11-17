@@ -60,7 +60,6 @@ func TestSimulatedBackend(t *testing.T) {
 	}
 
 	// generate a transaction and confirm you can retrieve it
-	// // head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	code := `6060604052600a8060106000396000f360606040526008565b00`
@@ -161,7 +160,6 @@ func TestNewAdjustTimeFail(t *testing.T) {
 	sim := simTestBackend(testAddr)
 
 	// Create tx and send
-	// // head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(genericBaseFee, big.NewInt(1))
 
 	tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil, nil, nil, nil)
