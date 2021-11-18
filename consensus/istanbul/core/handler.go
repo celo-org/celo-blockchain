@@ -278,6 +278,28 @@ func (c *core) handleMsg(payload []byte) error {
 
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
+		logger.Trace("Got preprepare message", "m", msg)
+
+		preprepare := msg.Preprepare()
+		logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
+
+		// Verify that the proposal is for the sequence number of the view we verified.
+		if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+			logger.Warn("Received preprepare with invalid block number")
+			return errInvalidProposal
+		}
+
+		// Check proposer is valid for the message's view (this may be a subsequent round)
+		headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
+		if headBlock == nil {
+			logger.Error("Could not determine head proposer")
+			return errNotFromProposer
+		}
+		proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+		if proposerForMsgRound.Address() != msg.Address {
+			logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
+			return errNotFromProposer
+		}
 		return c.handlePreprepare(msg)
 	case istanbul.MsgPrepare:
 		return c.handlePrepare(msg)

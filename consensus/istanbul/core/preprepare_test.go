@@ -65,48 +65,6 @@ func TestHandlePreprepare(t *testing.T) {
 			false,
 		},
 		{
-			"proposal sequence doesn't match message sequence",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-				}
-				return sys
-			},
-			func(_ *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
-			},
-			makeBlock(3),
-			errInvalidProposal,
-			false,
-		},
-		{
-			"non-proposer",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				// force remove replica 0, let replica 1 be the proposer
-				sys.backends = sys.backends[1:]
-
-				for i, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
-					if i != 0 {
-						// replica 0 is the proposer
-						getRoundState(c).state = StatePreprepared
-					}
-				}
-				return sys
-			},
-			func(_ *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
-			},
-			makeBlock(1),
-			errNotFromProposer,
-			false,
-		},
-		{
 			"test existing block",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
