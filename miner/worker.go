@@ -292,7 +292,7 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 		}
 		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
 		baseFeeFn, toCELO := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
-		feesCelo := totalFees(block, b.receipts, baseFeeFn, toCELO)
+		feesCelo := totalFees(block, b.receipts, baseFeeFn, toCELO, w.chainConfig.IsEHardfork(b.header.Number))
 		log.Info("Commit new mining work", "number", block.Number(), "txs", b.tcount, "gas", block.GasUsed(),
 			"fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
 
