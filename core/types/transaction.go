@@ -274,20 +274,26 @@ func (tx *Transaction) ChainId() *big.Int {
 	return tx.inner.chainID()
 }
 
-// TODO: Comment + fixup
-func (tx *Transaction) FeeCurrency() *common.Address         { return tx.inner.feeCurrency() }
+// FeeCurrency returns the fee currency of the transaction. Nil implies paying in CELO.
+func (tx *Transaction) FeeCurrency() *common.Address { return tx.inner.feeCurrency() }
+
+// GatewayFeeRecipient returns the address to the send the gateway fee to. Nil implies no recipient.
 func (tx *Transaction) GatewayFeeRecipient() *common.Address { return tx.inner.gatewayFeeRecipient() }
 
-// TODO: Should this return 0 if not set?
+// GatewayFee returns the fee that should be paid to the gateway fee recipient.
+// Will not return nil, but instead returns 0 if the underlying transction does not have a gatewayfee.
 func (tx *Transaction) GatewayFee() *big.Int {
 	if tx.inner.gatewayFee() != nil {
 		return new(big.Int).Set(tx.inner.gatewayFee())
 	} else {
-		return new(big.Int)
+		return big.NewInt(0)
 	}
 }
+
+// EthCompatible returns true iff the RLP form of the LegacyTx does not have the celo specific fields.
 func (tx *Transaction) EthCompatible() bool { return tx.inner.ethCompatible() }
 
+// Fee calculates the fess paid by the transaction include the gateway fee.
 func (tx *Transaction) Fee() *big.Int {
 	return Fee(tx.inner.gasPrice(), tx.inner.gas(), tx.GatewayFee())
 }
