@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	mockEngine "github.com/celo-org/celo-blockchain/consensus/consensustest"
+	"github.com/celo-org/celo-blockchain/contracts/currency"
 	"github.com/celo-org/celo-blockchain/contracts/testutil"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/state"
@@ -2061,8 +2062,15 @@ func TestDualHeapEviction(t *testing.T) {
 	}
 
 	add(false)
+	txCtx := txPoolContext{
+		&SysContractCallCtx{
+			gasPriceMinimums: make(map[common.Address]*big.Int),
+		},
+		&currency.CurrencyManager{},
+	}
 	for baseFee = 0; baseFee <= 1000; baseFee += 100 {
-		pool.priced.SetBaseFee(big.NewInt(int64(baseFee)))
+		txCtx.SysContractCallCtx.gasPriceMinimums[common.ZeroAddress] = big.NewInt(int64(baseFee))
+		pool.priced.SetBaseFee(&txCtx)
 		add(true)
 		check(highCap, "fee cap")
 		add(false)

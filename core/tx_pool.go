@@ -475,7 +475,7 @@ func (pool *TxPool) SetGasPrice(price *big.Int) {
 	// if the min miner fee increased, remove transactions below the new threshold
 	if price.Cmp(old) > 0 {
 		// pool.priced is sorted by GasFeeCap, so we have to iterate through pool.all instead
-		drop := pool.all.RemotesBelowTip(price)
+		drop := pool.all.RemotesBelowTip(price, pool.ctx())
 		for _, tx := range drop {
 			pool.removeTx(tx.Hash(), false)
 		}
@@ -601,8 +601,10 @@ func (pool *TxPool) Pending(enforceTips bool) (map[common.Address]types.Transact
 
 		// If the miner requests tip enforcement, cap the lists now
 		if enforceTips && !pool.locals.contains(addr) {
+			txCtx := pool.ctx()
 			for i, tx := range txs {
-				if tx.EffectiveGasTipIntCmp(pool.gasPrice, pool.priced.urgent.baseFee) < 0 {
+				curr, _ := txCtx.GetCurrency(tx.FeeCurrency())
+				if tx.EffectiveGasTipIntCmp(curr.FromCELO(pool.gasPrice), txCtx.GetGasPriceMinimum(tx.FeeCurrency())) < 0 {
 					txs = txs[:i]
 					break
 				}
@@ -1254,9 +1256,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	if reset != nil {
 		pool.demoteUnexecutables()
 		if reset.newHead != nil && pool.chainconfig.IsEHardfork(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
-			// pendingBaseFee := misc.CalcBaseFee(pool.chainconfig, reset.newHead)
-			// TODO(joshua): Set GPM & currency conversion here
-			pool.priced.SetBaseFee(nil)
+			pool.priced.SetBaseFee(pool.ctx())
 		}
 	}
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
@@ -1975,10 +1975,11 @@ func (t *txLookup) RemoteToLocals(locals *accountSet) int {
 }
 
 // RemotesBelowTip finds all remote transactions below the given tip threshold.
-func (t *txLookup) RemotesBelowTip(threshold *big.Int) types.Transactions {
+func (t *txLookup) RemotesBelowTip(threshold *big.Int, txCtx *txPoolContext) types.Transactions {
 	found := make(types.Transactions, 0, 128)
 	t.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
-		if tx.GasTipCapIntCmp(threshold) < 0 {
+		curr, _ := txCtx.GetCurrency(tx.FeeCurrency())
+		if tx.GasTipCapIntCmp(curr.FromCELO(threshold)) < 0 {
 			found = append(found, tx)
 		}
 		return true

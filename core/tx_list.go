@@ -616,9 +616,9 @@ func (h *priceHeap) Pop() interface{} {
 // is based on gasFeeCap.
 type multiCurrencyPriceHeap struct {
 	currencyCmpFn       func(*big.Int, *common.Address, *big.Int, *common.Address) int
-	baseFee             *big.Int                      // heap should always be re-sorted after baseFee is changed
-	nonNilCurrencyHeaps map[common.Address]*priceHeap // Heap of prices of all the stored non-nil currency transactions
-	nilCurrencyHeap     *priceHeap                    // Heap of prices of all the stored nil currency transactions
+	baseFeeFn           func(*common.Address) *big.Int // heap should always be re-sorted after baseFee is changed
+	nonNilCurrencyHeaps map[common.Address]*priceHeap  // Heap of prices of all the stored non-nil currency transactions
+	nilCurrencyHeap     *priceHeap                     // Heap of prices of all the stored nil currency transactions
 
 }
 
@@ -629,7 +629,7 @@ func (h *multiCurrencyPriceHeap) Add(tx *types.Transaction) {
 	} else {
 		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
 			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
-				baseFee: h.baseFee,
+				baseFee: h.baseFeeFn(fc),
 			}
 
 		}
@@ -644,7 +644,7 @@ func (h *multiCurrencyPriceHeap) Push(tx *types.Transaction) {
 	} else {
 		if _, ok := h.nonNilCurrencyHeaps[*fc]; !ok {
 			h.nonNilCurrencyHeaps[*fc] = &priceHeap{
-				baseFee: h.baseFee,
+				baseFee: h.baseFeeFn(fc),
 			}
 
 		}
@@ -705,16 +705,12 @@ func (h *multiCurrencyPriceHeap) Clear() {
 	}
 }
 
-func (h *multiCurrencyPriceHeap) SetBaseFee(baseFee *big.Int, txCtx *txPoolContext) {
+func (h *multiCurrencyPriceHeap) SetBaseFee(txCtx *txPoolContext) {
 	h.currencyCmpFn = txCtx.CmpValues
-	h.nilCurrencyHeap.baseFee = baseFee
+	h.baseFeeFn = txCtx.GetGasPriceMinimum
+	h.nilCurrencyHeap.baseFee = txCtx.GetGasPriceMinimum(nil)
 	for currencyAddr, heap := range h.nonNilCurrencyHeaps {
-		currency, err := txCtx.GetCurrency(&currencyAddr)
-		if err != nil {
-			// TODO: Log error
-			continue
-		}
-		heap.baseFee = currency.FromCELO(baseFee)
+		heap.baseFee = txCtx.GetGasPriceMinimum(&currencyAddr)
 	}
 
 }
@@ -746,7 +742,6 @@ const (
 
 // newTxPricedList creates a new price-sorted transaction heap.
 func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
-	// TODO: basefees
 	txCtx := ctx.Load().(txPoolContext)
 	return &txPricedList{
 		ctx: ctx,
@@ -755,27 +750,16 @@ func newTxPricedList(all *txLookup, ctx *atomic.Value) *txPricedList {
 			currencyCmpFn:       txCtx.CmpValues,
 			nilCurrencyHeap:     &priceHeap{},
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
+			baseFeeFn:           txCtx.GetGasPriceMinimum,
 		},
 		floating: multiCurrencyPriceHeap{
 			currencyCmpFn:       txCtx.CmpValues,
 			nilCurrencyHeap:     &priceHeap{},
 			nonNilCurrencyHeaps: make(map[common.Address]*priceHeap),
+			baseFeeFn:           txCtx.GetGasPriceMinimum,
 		},
 	}
 }
-
-// // Gets the price heap for the given currency
-// func (l *txPricedList) getPriceHeap(tx *types.Transaction) *priceHeap {
-// 	feeCurrency := tx.FeeCurrency()
-// 	if feeCurrency == nil {
-// 		return l.nilCurrencyHeap
-// 	} else {
-// 		if _, ok := l.nonNilCurrencyHeaps[*feeCurrency]; !ok {
-// 			l.nonNilCurrencyHeaps[*feeCurrency] = new(priceHeap)
-// 		}
-// 		return l.nonNilCurrencyHeaps[*feeCurrency]
-// 	}
-// }
 
 // Put inserts a new transaction into the heap.
 func (l *txPricedList) Put(tx *types.Transaction, local bool) {
@@ -912,66 +896,7 @@ func (l *txPricedList) Reheap() {
 
 // SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
 // necessary to call right before SetBaseFee when processing a new block.
-func (l *txPricedList) SetBaseFee(baseFee *big.Int) {
-	txCtx := l.ctx.Load().(txPoolContext)
-	l.urgent.baseFee = baseFee // todo remove?
-	l.urgent.SetBaseFee(baseFee, &txCtx)
+func (l *txPricedList) SetBaseFee(txCtx *txPoolContext) {
+	l.urgent.SetBaseFee(txCtx)
 	l.Reheap()
 }
-
-// // Retrieves the heap with the lowest normalized price at it's head
-// func (l *txPricedList) getHeapWithMinHead() (*priceHeap, *types.Transaction) {
-// 	// Initialize it to the nilCurrencyHeap
-// 	var cheapestHeap *priceHeap
-// 	var cheapestTxn *types.Transaction
-
-// 	if len(*l.nilCurrencyHeap) > 0 {
-// 		cheapestHeap = l.nilCurrencyHeap
-// 		cheapestTxn = []*types.Transaction(*l.nilCurrencyHeap)[0]
-// 	}
-
-// 	ctx := l.ctx.Load().(txPoolContext)
-// 	for _, priceHeap := range l.nonNilCurrencyHeaps {
-// 		if len(*priceHeap) > 0 {
-// 			if cheapestHeap == nil {
-// 				cheapestHeap = priceHeap
-// 				cheapestTxn = []*types.Transaction(*cheapestHeap)[0]
-// 			} else {
-// 				txn := []*types.Transaction(*priceHeap)[0]
-// 				if ctx.CmpValues(txn.GasPrice(), txn.FeeCurrency(), cheapestTxn.GasPrice(), cheapestTxn.FeeCurrency()) < 0 {
-// 					cheapestHeap = priceHeap
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return cheapestHeap, cheapestTxn
-// }
-
-// // Retrieves the tx with the lowest normalized price among all the heaps
-// func (l *txPricedList) getMinPricedTx() *types.Transaction {
-// 	_, minTx := l.getHeapWithMinHead()
-
-// 	return minTx
-// }
-
-// // Retrieves the total number of txns within the priced list
-// func (l *txPricedList) Len() int {
-// 	totalLen := len(*l.nilCurrencyHeap)
-// 	for _, h := range l.nonNilCurrencyHeaps {
-// 		totalLen += len(*h)
-// 	}
-
-// 	return totalLen
-// }
-
-// // Pops the tx with the lowest normalized price.
-// func (l *txPricedList) pop() *types.Transaction {
-// 	cheapestHeap, _ := l.getHeapWithMinHead()
-
-// 	if cheapestHeap != nil {
-// 		return heap.Pop(cheapestHeap).(*types.Transaction)
-// 	} else {
-// 		return nil
-// 	}
-// }
