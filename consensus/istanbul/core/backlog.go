@@ -44,52 +44,6 @@ var (
 	acceptMaxFutureMessagesPruneBatch   = 100
 )
 
-// checkMessage checks the message state
-// return errInvalidMessage if the message is invalid
-// return errFutureMessage if the message view is larger than current view
-// return errOldMessage if the message view is smaller than current view
-func (c *core) checkMessage(msgCode uint64, msgView *istanbul.View) error {
-	if msgView == nil || msgView.Sequence == nil || msgView.Round == nil {
-		return errInvalidMessage
-	}
-
-	// First compare sequences. Prior seqs are always old. Future seqs are always future.
-	if msgView.Sequence.Cmp(c.current.Sequence()) < 0 {
-		return errOldMessage
-	} else if msgView.Sequence.Cmp(c.current.Sequence()) > 0 {
-		return errFutureMessage
-	}
-
-	// We will never do consensus on any round less than desiredRound.
-	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
-		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
-	}
-
-	// Same sequence. Msgs for a round < desiredRound are always old.
-	if msgView.Round.Cmp(c.current.DesiredRound()) < 0 {
-		return errOldMessage
-	}
-
-	// Msg is now correct sequence and >= desiredRound.
-
-	// RoundChange messages are accepted in all states and for current or future rounds.
-	if msgCode == istanbul.MsgRoundChange {
-		return nil
-	}
-
-	// WaitingForNewRound and StateAcceptRequest: accepts Preprepare (including for rounds >= desiredRound), other messages are future.
-	if (c.current.State() == StateWaitingForNewRound || c.current.State() == StateAcceptRequest) && msgCode != istanbul.MsgPreprepare {
-		return errFutureMessage
-	}
-
-	// For states(StatePreprepared, StatePrepared, StateCommitted): can accept all message types on same round.
-	if msgView.Round.Cmp(c.current.DesiredRound()) > 0 {
-		return errFutureMessage
-	}
-
-	return nil
-}
-
 // MsgBacklog represent a backlog of future messages
 // It works by:
 //     - allowing storing messages with "store()"
