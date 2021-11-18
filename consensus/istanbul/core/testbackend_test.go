@@ -580,11 +580,3 @@ func (sys *testSystem) getRoundChangeCertificate(t ErrorReporter, views []istanb
 	}
 	return roundChangeCertificate
 }
-
-// ==============================================
-//
-// helper functions.
-
-func getPublicKeyAddress(privateKey *ecdsa.PrivateKey) common.Address {
-	return crypto.PubkeyToAddress(privateKey.PublicKey)
-}

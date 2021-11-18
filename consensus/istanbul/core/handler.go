@@ -193,8 +193,8 @@ func (c *core) handleMsg(payload []byte) error {
 	}
 
 	// Only accept message if the address is valid
-	_, src := c.current.ValidatorSet().GetByAddress(msg.Address)
-	if src == nil {
+	_, validator := c.current.ValidatorSet().GetByAddress(msg.Address)
+	if validator == nil {
 		logger.Error("Invalid address in message", "m", msg)
 		return istanbul.ErrUnauthorizedAddress
 	}
@@ -314,6 +314,28 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 		return c.handlePrepare(msg)
 	case istanbul.MsgCommit:
+		commit := msg.Commit()
+
+		if err := c.verifyCommittedSeal(commit, validator); err != nil {
+			return errInvalidCommittedSeal
+		}
+
+		newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+		if err != nil {
+			return err
+		}
+
+		if err := c.verifyEpochValidatorSetSeal(commit, c.current.Proposal().Number().Uint64(), newValSet, validator); err != nil {
+			return errInvalidEpochValidatorSetSeal
+		}
+
+		// ensure that the commit is for the current proposal
+		d := c.current.Subject().Digest
+		if commit.Subject.Digest != d {
+			logger.Warn("Inconsistent subjects between commit and proposal", "expected", d, "got", commit.Subject.Digest)
+			return errInconsistentSubject
+		}
+
 		return c.handleCommit(msg)
 	case istanbul.MsgRoundChange:
 		return c.handleRoundChange(msg)

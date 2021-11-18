@@ -481,6 +481,94 @@ func TestHandleMsgExtraPrepareValidation(t *testing.T) {
 
 }
 
+func TestHandleMsgExtraCommitValidation(t *testing.T) {
+
+	sys := NewTestSystemWithBackend(4, 1)
+	closer := sys.Run(true)
+	defer closer()
+	b := sys.backends[0]
+	c := b.engine.(*core)
+
+	p := &istanbul.Preprepare{
+		View:     c.current.View(),
+		Proposal: makeBlock(1),
+	}
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).preprepare = p
+	c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = StatePreprepared
+
+	t.Run("Commit subject mismatch rejected", func(t *testing.T) {
+		sub := &istanbul.Subject{
+			View:   c.current.View(),
+			Digest: common.Hash{},
+		}
+
+		committedSeal, err := c.generateCommittedSeal(sub)
+		require.NoError(t, err)
+		m := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:       sub,
+			CommittedSeal: committedSeal[:],
+		}, b.Address())
+		err = m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+
+	t.Run("Invalid committed seal", func(t *testing.T) {
+		sub := &istanbul.Subject{
+			View:   c.current.View(),
+			Digest: common.Hash{},
+		}
+
+		committedSeal, err := c.generateCommittedSeal(sub)
+		require.NoError(t, err)
+		m := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:       sub,
+			CommittedSeal: append(committedSeal[:], 1),
+		}, b.Address())
+		err = m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+
+	t.Run("Invalid epoch seal", func(t *testing.T) {
+
+		// Make this an epoch block
+		c.current.Sequence().SetUint64(c.config.Epoch)
+
+		block := makeBlock(int64(c.config.Epoch))
+
+		// Set the proposal
+		p := &istanbul.Preprepare{
+			View:     c.current.View(),
+			Proposal: block,
+		}
+		c.current.(*rsSaveDecorator).rs.(*roundStateImpl).preprepare = p
+
+		sub := &istanbul.Subject{
+			View:   c.current.View(),
+			Digest: block.Hash(),
+		}
+		committedSeal, err := c.generateCommittedSeal(sub)
+		require.NoError(t, err)
+		m := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:       sub,
+			CommittedSeal: committedSeal[:],
+		}, b.Address())
+		err = m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+}
+
 // notice: the normal case have been tested in integration tests.
 func TestMalformedMessageDecoding(t *testing.T) {
 	N := uint64(4)
