@@ -57,7 +57,6 @@ type RoundState interface {
 	DesiredRound() *big.Int
 	State() State
 	GetPrepareOrCommitSize() int
-	GetValidatorByAddress(address common.Address) istanbul.Validator
 	ValidatorSet() istanbul.ValidatorSet
 	Proposer() istanbul.Validator
 	IsProposer(address common.Address) bool
@@ -234,14 +233,6 @@ func (rs *roundStateImpl) ValidatorSet() istanbul.ValidatorSet {
 	defer rs.mu.RUnlock()
 
 	return rs.validatorSet
-}
-
-func (rs *roundStateImpl) GetValidatorByAddress(address common.Address) istanbul.Validator {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
-
-	_, validator := rs.validatorSet.GetByAddress(address)
-	return validator
 }
 
 func (rs *roundStateImpl) Preprepare() *istanbul.Preprepare {

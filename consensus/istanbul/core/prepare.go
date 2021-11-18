@@ -76,7 +76,7 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 		if message.Code == istanbul.MsgCommit {
 			commit := message.Commit()
 			// Verify the committedSeal
-			src := c.current.GetValidatorByAddress(signer)
+			_, src := c.current.ValidatorSet().GetByAddress(signer)
 			err = c.verifyCommittedSeal(commit, src)
 			if err != nil {
 				logger.Error("Commit seal did not contain signature from message signer.", "err", err)
