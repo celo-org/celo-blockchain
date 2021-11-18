@@ -42,29 +42,9 @@ func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate 
 func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	defer c.handlePrePrepareTimer.UpdateSince(time.Now())
 
-	logger := c.newLogger("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address)
-	logger.Trace("Got preprepare message", "m", msg)
-
 	preprepare := msg.Preprepare()
-	logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
-
-	// Verify that the proposal is for the sequence number of the view we verified.
-	if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
-		logger.Warn("Received preprepare with invalid block number")
-		return errInvalidProposal
-	}
-
-	// Check proposer is valid for the message's view (this may be a subsequent round)
-	headBlock, headProposer := c.backend.GetCurrentHeadBlockAndAuthor()
-	if headBlock == nil {
-		logger.Error("Could not determine head proposer")
-		return errNotFromProposer
-	}
-	proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
-	if proposerForMsgRound.Address() != msg.Address {
-		logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
-		return errNotFromProposer
-	}
+	logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", preprepare.Proposal.Number(),
+		"msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
 
 	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
 	if preprepare.View.Round.Cmp(common.Big0) > 0 {

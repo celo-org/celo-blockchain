@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/core/types"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -409,6 +410,45 @@ func TestHandleMsg(t *testing.T) {
 		checkNoErr(t, m, c)
 	})
 
+}
+
+func TestHandleMsgExtraPreprepareValidation(t *testing.T) {
+
+	sys := NewTestSystemWithBackend(4, 1)
+	closer := sys.Run(true)
+	defer closer()
+	b := sys.backends[0]
+	c := b.engine.(*core)
+
+	t.Run("Invalid proposals rejected", func(t *testing.T) {
+		m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+			View:     c.current.View(),
+			Proposal: makeBlock(c.current.Sequence().Int64() + 2),
+		}, b.address)
+
+		spew.Dump(m.Preprepare())
+		err := m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+
+	t.Run("Proposals from non-proposer rejected", func(t *testing.T) {
+		m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
+			View:     c.current.View(),
+			Proposal: makeBlock(c.current.Sequence().Int64()),
+		}, sys.backends[1].address)
+
+		spew.Dump(m.Preprepare())
+		err := m.Sign(sys.backends[1].Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
 }
 
 // notice: the normal case have been tested in integration tests.
