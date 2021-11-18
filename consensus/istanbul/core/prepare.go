@@ -17,7 +17,6 @@
 package core
 
 import (
-	"reflect"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -144,10 +143,6 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	prepare := msg.Prepare()
 	logger := c.newLogger("func", "handlePrepare", "tag", "handleMsg", "msg_round", prepare.View.Round, "msg_seq", prepare.View.Sequence, "msg_digest", prepare.Digest.String())
 
-	if err := c.verifyPrepare(prepare); err != nil {
-		return err
-	}
-
 	// Add the PREPARE message to current round state
 	if err := c.current.AddPrepare(msg); err != nil {
 		logger.Error("Failed to add PREPARE message to round state", "err", err)
@@ -179,19 +174,6 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 		c.backlog.updateState(c.current.View(), c.current.State())
 
 		c.sendCommit()
-	}
-
-	return nil
-}
-
-// verifyPrepare verifies if the received PREPARE message is equivalent to our subject
-func (c *core) verifyPrepare(prepare *istanbul.Subject) error {
-	logger := c.newLogger("func", "verifyPrepare", "prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
-
-	sub := c.current.Subject()
-	if !reflect.DeepEqual(prepare, sub) {
-		logger.Warn("Inconsistent subjects between PREPARE and proposal", "expected", sub, "got", prepare)
-		return errInconsistentSubject
 	}
 
 	return nil

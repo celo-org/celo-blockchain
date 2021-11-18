@@ -21,11 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
-	"github.com/celo-org/celo-blockchain/crypto"
-	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 func TestVerifyPreparedCertificate(t *testing.T) {
@@ -255,33 +251,6 @@ func TestHandlePrepare(t *testing.T) {
 			errInconsistentSubject,
 		},
 		{
-			"subject not match",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for i, backend := range sys.backends {
-					c := backend.engine.(*core)
-					if i == 0 {
-						// replica 0 is the proposer
-						c.current = newTestRoundState(
-							expectedSubject.View,
-							backend.peers,
-						)
-						c.current.(*roundStateImpl).state = StatePreprepared
-					} else {
-						c.current = newTestRoundState(
-							&istanbul.View{
-								Round:    big.NewInt(0),
-								Sequence: big.NewInt(1)},
-							backend.peers,
-						)
-					}
-				}
-				return sys
-			}(),
-			errInconsistentSubject,
-		},
-		{
 			"less than 2F+1",
 			func() *testSystem {
 				sys := NewTestSystemWithBackend(N, F)
@@ -366,114 +335,6 @@ func TestHandlePrepare(t *testing.T) {
 				t.Errorf("subject mismatch: have %v, want %v", subject, expectedSubject)
 			}
 		})
-	}
-}
-
-// round is not checked for now
-func TestVerifyPrepare(t *testing.T) {
-
-	// for log purpose
-	privateKey, _ := crypto.GenerateKey()
-	blsPrivateKey, _ := blscrypto.ECDSAToBLS(privateKey)
-	blsPublicKey, _ := blscrypto.PrivateToPublic(blsPrivateKey)
-	peer := validator.New(getPublicKeyAddress(privateKey), blsPublicKey)
-	valSet := validator.NewSet([]istanbul.ValidatorData{
-		{
-			Address:      peer.Address(),
-			BLSPublicKey: blsPublicKey,
-		},
-	})
-
-	sys := NewTestSystemWithBackend(uint64(1), uint64(0))
-
-	testCases := []struct {
-		expected error
-
-		prepare    *istanbul.Subject
-		roundState RoundState
-	}{
-		{
-			// normal case
-			expected: nil,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				valSet,
-			),
-		},
-		{
-			// old message
-			expected: errInconsistentSubject,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
-				valSet,
-			),
-		},
-		{
-			// different digest
-			expected: errInconsistentSubject,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				Digest: common.BytesToHash([]byte("1234567890")),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
-				valSet,
-			),
-		},
-		{
-			// malicious package(lack of sequence)
-			expected: errInconsistentSubject,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: nil},
-				Digest: newTestProposal().Hash(),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(1)},
-				valSet,
-			),
-		},
-		{
-			// wrong PREPARE message with same sequence but different round
-			expected: errInconsistentSubject,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(1), Sequence: big.NewInt(0)},
-				Digest: newTestProposal().Hash(),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				valSet,
-			),
-		},
-		{
-			// wrong PREPARE message with same round but different sequence
-			expected: errInconsistentSubject,
-			prepare: &istanbul.Subject{
-				View:   &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(1)},
-				Digest: newTestProposal().Hash(),
-			},
-			roundState: newTestRoundState(
-				&istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(0)},
-				valSet,
-			),
-		},
-	}
-	for i, test := range testCases {
-		c := sys.backends[0].engine.(*core)
-		c.current = test.roundState
-
-		if err := c.verifyPrepare(test.prepare); err != nil {
-			if err != test.expected {
-				t.Errorf("result %d: error mismatch: have %v, want %v", i, err, test.expected)
-			}
-		}
 	}
 }
 

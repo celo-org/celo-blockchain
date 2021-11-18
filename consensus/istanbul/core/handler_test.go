@@ -451,6 +451,36 @@ func TestHandleMsgExtraPreprepareValidation(t *testing.T) {
 	})
 }
 
+func TestHandleMsgExtraPrepareValidation(t *testing.T) {
+
+	sys := NewTestSystemWithBackend(4, 1)
+	closer := sys.Run(true)
+	defer closer()
+	b := sys.backends[0]
+	c := b.engine.(*core)
+
+	t.Run("Prepare subject mismatch rejected", func(t *testing.T) {
+		p := &istanbul.Preprepare{
+			View:     c.current.View(),
+			Proposal: makeBlock(1),
+		}
+		c.current.(*rsSaveDecorator).rs.(*roundStateImpl).preprepare = p
+
+		m := istanbul.NewPrepareMessage(&istanbul.Subject{
+			View:   c.current.View(),
+			Digest: common.Hash{},
+		}, b.address)
+		spew.Dump(m.Preprepare())
+		err := m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+
+}
+
 // notice: the normal case have been tested in integration tests.
 func TestMalformedMessageDecoding(t *testing.T) {
 	N := uint64(4)
