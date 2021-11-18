@@ -341,11 +341,11 @@ func (b *blockState) finalizeAndAssemble(w *worker) (*types.Block, error) {
 }
 
 // totalFees computes total consumed fees in CELO. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
+func totalFees(block *types.Block, receipts []*types.Receipt, baseFeeFn func(*common.Address) *big.Int, toCELO func(*big.Int, *common.Address) *big.Int) *big.Float {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
-		// TODO(Joshua): User tx.EffectiveGasTip instead of gas price
-		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.GasPrice()))
+		fee := toCELO(new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), tx.EffectiveGasTipValue(baseFeeFn(tx.FeeCurrency()))), tx.FeeCurrency())
+		feesWei.Add(feesWei, fee)
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 }
