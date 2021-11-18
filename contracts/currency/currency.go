@@ -49,6 +49,14 @@ type Currency struct {
 	toCELORate ExchangeRate
 }
 
+// NewCurrency creates a new currency object
+func NewCurrency(address common.Address, toCELORate ExchangeRate) *Currency {
+	return &Currency{
+		Address:    address,
+		toCELORate: toCELORate,
+	}
+}
+
 // ToCELO converts an currency's token amount to a CELO amount
 func (c *Currency) ToCELO(tokenAmount *big.Int) *big.Int {
 	return c.toCELORate.ToBase(tokenAmount)
@@ -161,10 +169,7 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 		return nil, err
 	}
 
-	val = &Currency{
-		Address:    *currencyAddress,
-		toCELORate: *currencyExchangeRate,
-	}
+	val = NewCurrency(*currencyAddress, *currencyExchangeRate)
 
 	cc.currencyCache[*currencyAddress] = val
 

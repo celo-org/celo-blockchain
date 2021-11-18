@@ -27,7 +27,7 @@ func CheckTxFee(cp currency.Provider, feeCurrencyAddress *common.Address, fee *b
 	if feeCurrency.CmpToCurrency(fee, weiCap, &currency.CELOCurrency) > 0 {
 		feeFloat := float64(fee.Uint64())
 		curr := "celo"
-		if feeCurrency != nil {
+		if feeCurrencyAddress != nil {
 			feeFloat /= params.Ether
 			curr = feeCurrencyAddress.Hex()
 		}
