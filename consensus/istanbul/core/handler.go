@@ -276,6 +276,9 @@ func (c *core) handleMsg(payload []byte) error {
 		return errFutureMessage
 	}
 
+	// At this point we know that messages are either for the current sequence
+	// or round or its a round change for the current sequence and current or
+	// future round.
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		logger.Trace("Got preprepare message", "m", msg)
@@ -302,6 +305,13 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 		return c.handlePreprepare(msg)
 	case istanbul.MsgPrepare:
+		prepare := msg.Prepare()
+		logger := c.newLogger("prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
+		d := c.current.Subject().Digest
+		if prepare.Digest != d {
+			logger.Warn("Inconsistent digest between PREPARE and proposal", "expected", d, "got", prepare.Digest)
+			return errInconsistentSubject
+		}
 		return c.handlePrepare(msg)
 	case istanbul.MsgCommit:
 		return c.handleCommit(msg)
