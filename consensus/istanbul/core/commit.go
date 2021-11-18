@@ -19,7 +19,6 @@ package core
 import (
 	"errors"
 	"math/big"
-	"reflect"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
@@ -162,31 +161,7 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 
 func (c *core) handleCommit(msg *istanbul.Message) error {
 	defer c.handleCommitTimer.UpdateSince(time.Now())
-	commit := msg.Commit()
 	logger := c.newLogger("func", "handleCommit", "tag", "handleMsg")
-	_, validator := c.current.ValidatorSet().GetByAddress(msg.Address)
-	if validator == nil {
-		return errInvalidValidatorAddress
-	}
-
-	if err := c.verifyCommittedSeal(commit, validator); err != nil {
-		return errInvalidCommittedSeal
-	}
-
-	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
-	if err != nil {
-		return err
-	}
-
-	if err := c.verifyEpochValidatorSetSeal(commit, c.current.Proposal().Number().Uint64(), newValSet, validator); err != nil {
-		return errInvalidEpochValidatorSetSeal
-	}
-
-	// ensure that the commit is in the current proposal
-	if err := c.verifyCommit(commit); err != nil {
-		return err
-	}
-
 	// Add the COMMIT message to current round state
 	if err := c.current.AddCommit(msg); err != nil {
 		logger.Error("Failed to record commit message", "m", msg, "err", err)
@@ -223,19 +198,6 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	}
 	return nil
 
-}
-
-// verifyCommit verifies if the received COMMIT message is equivalent to our subject
-func (c *core) verifyCommit(commit *istanbul.CommittedSubject) error {
-	logger := c.newLogger("func", "verifyCommit")
-
-	sub := c.current.Subject()
-	if !reflect.DeepEqual(commit.Subject, sub) {
-		logger.Warn("Inconsistent subjects between commit and proposal", "expected", sub, "got", commit)
-		return errInconsistentSubject
-	}
-
-	return nil
 }
 
 // verifyCommittedSeal verifies the commit seal in the received COMMIT message
