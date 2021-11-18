@@ -185,13 +185,15 @@ func (b *blockState) selectAndApplyTransactions(ctx context.Context, w *worker) 
 	// TODO: Properly inject the basefee & toCELO function here
 	// txComparator := createTxCmp(w.chain, b.header, b.state)
 	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, nil, nil)
+		baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, localTxs, baseFeeFn, toCElOFn)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit local transactions: %w", err)
 		}
 	}
 	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, nil, nil)
+		baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		txs := types.NewTransactionsByPriceAndNonce(b.signer, remoteTxs, baseFeeFn, toCElOFn)
 		if err := b.commitTransactions(ctx, w, txs, b.txFeeRecipient); err != nil {
 			return fmt.Errorf("Failed to commit remote transactions: %w", err)
 		}
@@ -348,16 +350,21 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 }
 
-// nolint:deadcode
-// Should be fixed up with 1559 implementation
-// createTxCmp creates a Transaction comparator
-func createTxCmp(chain *core.BlockChain, header *types.Header, state *state.StateDB) func(tx1 *types.Transaction, tx2 *types.Transaction) int {
+// createConversionFunctions creates a function to convert any currency to Celo and a function to get the gas price minimum for that currency.
+// Both functions internally cache their results.
+func createConversionFunctions(sysCtx *core.SysContractCallCtx, chain *core.BlockChain, header *types.Header, state *state.StateDB) (func(feeCurrency *common.Address) *big.Int, func(amount *big.Int, feeCurrency *common.Address) *big.Int) {
 	vmRunner := chain.NewEVMRunner(header, state)
 	currencyManager := currency.NewManager(vmRunner)
 
-	return func(tx1 *types.Transaction, tx2 *types.Transaction) int {
-		return currencyManager.CmpValues(tx1.GasPrice(), tx1.FeeCurrency(), tx2.GasPrice(), tx2.FeeCurrency())
+	baseFeeFn := func(feeCurrency *common.Address) *big.Int {
+		return sysCtx.GetGasPriceMinimum(feeCurrency)
 	}
+	toCeloFn := func(amount *big.Int, feeCurrency *common.Address) *big.Int {
+		curr, _ := currencyManager.GetCurrency(feeCurrency)
+		return curr.ToCELO(amount)
+	}
+
+	return baseFeeFn, toCeloFn
 }
 
 func (b *blockState) close() {

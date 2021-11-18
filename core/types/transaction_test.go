@@ -462,8 +462,14 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		}
 		expectedCount += count
 	}
+	baseFeeFn := func(fc *common.Address) *big.Int {
+		if fc != nil {
+			panic("unsupported fee currency")
+		}
+		return baseFee
+	}
 	// Sort the transactions and cross check the nonce ordering
-	txset := NewTransactionsByPriceAndNonce(signer, groups, baseFee, toCELOMockFn)
+	txset := NewTransactionsByPriceAndNonce(signer, groups, baseFeeFn, toCELOMockFn)
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {
@@ -520,7 +526,8 @@ func TestTransactionTimeSort(t *testing.T) {
 		groups[addr] = append(groups[addr], tx)
 	}
 	// Sort the transactions and cross check the nonce ordering
-	txset := NewTransactionsByPriceAndNonce(signer, groups, nil, toCELOMockFn)
+	baseFeeFn := func(*common.Address) *big.Int { return nil }
+	txset := NewTransactionsByPriceAndNonce(signer, groups, baseFeeFn, toCELOMockFn)
 
 	txs := Transactions{}
 	for tx := txset.Peek(); tx != nil; tx = txset.Peek() {

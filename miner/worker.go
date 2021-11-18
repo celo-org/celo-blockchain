@@ -347,9 +347,8 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				// TODO(Joshua): How to inject the basefee here?
-				// createTxCmp(w.chain, b.header, b.state)
-				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, nil, nil)
+				baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, baseFeeFn, toCElOFn)
 				tcount := b.tcount
 				b.commitTransactions(ctx, w, txset, txFeeRecipient)
 				// Only update the snapshot if any new transactons were added

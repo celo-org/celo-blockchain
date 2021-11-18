@@ -522,21 +522,20 @@ func (s TxByNonce) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // TxWithMinerFee wraps a transaction with its gas price or effective miner gasTipCap
 type TxWithMinerFee struct {
 	tx       *Transaction
-	minerFee *big.Int
+	minerFee *big.Int // in CELO
 }
 
 // NewTxWithMinerFee creates a wrapped transaction, calculating the effective
-// miner gasTipCap if a base fee is provided.
+// miner gasTipCap if a base fee is provided. The MinerFee is converted to CELO.
 // Returns error in case of a negative effective miner gasTipCap.
-func NewTxWithMinerFee(tx *Transaction, baseFee *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) (*TxWithMinerFee, error) {
-	// TODO(Joshua): Need to figure out what the baseFee is.
-	minerFee, err := tx.EffectiveGasTip(baseFee)
+func NewTxWithMinerFee(tx *Transaction, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) (*TxWithMinerFee, error) {
+	minerFee, err := tx.EffectiveGasTip(baseFeeFn(tx.FeeCurrency()))
 	if err != nil {
 		return nil, err
 	}
 	return &TxWithMinerFee{
 		tx:       tx,
-		minerFee: minerFee,
+		minerFee: toCELO(minerFee, tx.FeeCurrency()),
 	}, nil
 }
 
@@ -572,12 +571,11 @@ func (s *TxByPriceAndTime) Pop() interface{} {
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
 type TransactionsByPriceAndNonce struct {
-	txs     map[common.Address]Transactions // Per account nonce-sorted list of transactions
-	heads   TxByPriceAndTime                // Next transaction for each unique account (price heap)
-	signer  Signer                          // Signer for the set of transactions
-	baseFee *big.Int                        // Current base fee
-
-	toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int // Current exchange rate to CELO
+	txs       map[common.Address]Transactions                             // Per account nonce-sorted list of transactions
+	heads     TxByPriceAndTime                                            // Next transaction for each unique account (price heap)
+	signer    Signer                                                      // Signer for the set of transactions
+	baseFeeFn func(feeCurrency *common.Address) *big.Int                  // Function to get the basefee for the specified feecurrency.
+	toCELO    func(amount *big.Int, feeCurrency *common.Address) *big.Int // Current exchange rate to CELO
 }
 
 // NewTransactionsByPriceAndNonce creates a transaction set that can retrieve
@@ -586,12 +584,12 @@ type TransactionsByPriceAndNonce struct {
 // Note, the input map is reowned so the caller should not interact any more with
 // if after providing it to the constructor.
 // Note: txCmpFunc should handle the basefee
-func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFee *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) *TransactionsByPriceAndNonce {
+func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFeeFn func(feeCurrency *common.Address) *big.Int, toCELO func(amount *big.Int, feeCurrency *common.Address) *big.Int) *TransactionsByPriceAndNonce {
 	// Initialize a price and received time based heap with the head transactions
 	heads := make(TxByPriceAndTime, 0, len(txs))
 	for from, accTxs := range txs {
 		acc, _ := Sender(signer, accTxs[0])
-		wrapped, err := NewTxWithMinerFee(accTxs[0], baseFee, toCELO)
+		wrapped, err := NewTxWithMinerFee(accTxs[0], baseFeeFn, toCELO)
 		// Remove transaction if sender doesn't match from, or if wrapping fails.
 		if acc != from || err != nil {
 			delete(txs, from)
@@ -604,11 +602,11 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
-		txs:     txs,
-		heads:   heads,
-		signer:  signer,
-		baseFee: baseFee,
-		toCELO:  toCELO,
+		txs:       txs,
+		heads:     heads,
+		signer:    signer,
+		baseFeeFn: baseFeeFn,
+		toCELO:    toCELO,
 	}
 }
 
@@ -624,7 +622,7 @@ func (t *TransactionsByPriceAndNonce) Peek() *Transaction {
 func (t *TransactionsByPriceAndNonce) Shift() {
 	acc, _ := Sender(t.signer, t.heads[0].tx)
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
-		if wrapped, err := NewTxWithMinerFee(txs[0], t.baseFee, t.toCELO); err == nil {
+		if wrapped, err := NewTxWithMinerFee(txs[0], t.baseFeeFn, t.toCELO); err == nil {
 			t.heads[0], t.txs[acc] = wrapped, txs[1:]
 			heap.Fix(&t.heads, 0)
 			return
