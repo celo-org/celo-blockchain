@@ -127,7 +127,10 @@ type ValidatorSet interface {
 	GetIndex(addr common.Address) int
 	// Get validator by index
 	GetByIndex(i uint64) Validator
-	// Get validator by given address
+
+	// Get validator by given address, returns the index of the validator and
+	// the validator. If there is no validator with the given address then -1
+	// and nil are returned.
 	GetByAddress(addr common.Address) (int, Validator)
 	// CointainByAddress indicates if a validator with the given address is present
 	ContainsByAddress(add common.Address) bool

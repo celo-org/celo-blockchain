@@ -164,7 +164,7 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	defer c.handleCommitTimer.UpdateSince(time.Now())
 	commit := msg.Commit()
 	logger := c.newLogger("func", "handleCommit", "tag", "handleMsg")
-	validator := c.current.GetValidatorByAddress(msg.Address)
+	_, validator := c.current.ValidatorSet().GetByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
 	}

@@ -129,11 +129,6 @@ func (rsp *rsSaveDecorator) ValidatorSet() istanbul.ValidatorSet { return rsp.rs
 // GetPrepareOrCommitSize implements RoundState.GetPrepareOrCommitSize
 func (rsp *rsSaveDecorator) GetPrepareOrCommitSize() int { return rsp.rs.GetPrepareOrCommitSize() }
 
-// GetValidatorByAddress implements RoundState.GetValidatorByAddress
-func (rsp *rsSaveDecorator) GetValidatorByAddress(address common.Address) istanbul.Validator {
-	return rsp.rs.GetValidatorByAddress(address)
-}
-
 // GetProposalVerificationStatus implements RoundState.GetProposalVerificationStatus
 func (rsp *rsSaveDecorator) GetProposalVerificationStatus(proposalHash common.Hash) (verificationStatus error, isChecked bool) {
 	return rsp.rs.GetProposalVerificationStatus(proposalHash)
