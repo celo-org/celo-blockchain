@@ -127,11 +127,6 @@ func (c *core) broadcastCommit(sub *istanbul.Subject) {
 	c.broadcast(istMsg)
 }
 
-func (c *core) handleCommit(msg *istanbul.Message) error {
-	defer c.handleCommitTimer.UpdateSince(time.Now())
-	return c.handleCheckedCommitForCurrentSequence(msg, msg.Commit())
-}
-
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
 	logger := c.newLogger("func", "handleCheckedCommitForPreviousSequence", "tag", "handleMsg", "msg_view", commit.Subject.View)
 	headBlock := c.backend.GetCurrentHeadBlock()
@@ -165,8 +160,10 @@ func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, com
 	return nil
 }
 
-func (c *core) handleCheckedCommitForCurrentSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {
-	logger := c.newLogger("func", "handleCheckedCommitForCurrentSequence", "tag", "handleMsg")
+func (c *core) handleCommit(msg *istanbul.Message) error {
+	defer c.handleCommitTimer.UpdateSince(time.Now())
+	commit := msg.Commit()
+	logger := c.newLogger("func", "handleCommit", "tag", "handleMsg")
 	validator := c.current.GetValidatorByAddress(msg.Address)
 	if validator == nil {
 		return errInvalidValidatorAddress
