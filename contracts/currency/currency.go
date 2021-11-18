@@ -127,6 +127,11 @@ type CurrencyManager struct {
 	_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
+type Provider interface {
+	// GetCurrency retrieves fee currency
+	GetCurrency(currencyAddress *common.Address) (*Currency, error)
+}
+
 // NewManager creates a new CurrencyManager
 func NewManager(vmRunner vm.EVMRunner) *CurrencyManager {
 	return newManager(GetExchangeRate, vmRunner)
