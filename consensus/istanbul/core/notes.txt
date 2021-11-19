@@ -53,3 +53,9 @@ that means because we don't send commits for old blocks.
 
 It seems like an impossible situation to be in. I don't think we ever decrement
 round or sequence, so this shouldn't be needed.
+
+5. Backend.Validators and Backend.ParentBlockValidators are being used in
+several places where the randomness added to the set is not required, thus
+resulting in many unnecessary contract calls to get the randomness. This
+happens when handling commit messages and preprepare messages. So potentially
+hundreds of times per block.
