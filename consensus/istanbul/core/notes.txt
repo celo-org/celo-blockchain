@@ -59,3 +59,5 @@ several places where the randomness added to the set is not required, thus
 resulting in many unnecessary contract calls to get the randomness. This
 happens when handling commit messages and preprepare messages. So potentially
 hundreds of times per block.
+
+6. Multiple proposals, how is that handled? I think first one wins.
