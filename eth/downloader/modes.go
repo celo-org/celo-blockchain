@@ -60,6 +60,7 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("fast"), nil
 	// case SnapSync:
 	// 	return []byte("snap"), nil
+	// TODO: Implement snap sync
 	case LightSync:
 		return []byte("light"), nil
 	case LightestSync:
@@ -77,6 +78,7 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = FastSync
 	// case "snap":
 	// 	*mode = SnapSync
+	// TODO: Implement snap sync
 	case "light":
 		*mode = LightSync
 	case "lightest":
@@ -87,7 +89,7 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// TODO: Enable snap sync mode here.
+// TODO: Enable snap sync mode here. (https://github.com/celo-org/celo-blockchain/issues/1735)
 
 // Returns true if the all headers and not just some a small, discontinuous, set of headers are fetched.
 func (mode SyncMode) SyncFullHeaderChain() bool {
