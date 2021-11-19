@@ -531,12 +531,6 @@ web3._extend({
 			inputFormatter: []
 		}),
 		new web3._extend.Method({
-			name: 'setGasLimit',
-			call: 'miner_setGasLimit',
-			params: 1,
-			inputFormatter: [web3._extend.utils.fromDecimal]
-		}),
-		new web3._extend.Method({
 			name: 'stop',
 			call: 'miner_stop',
 			params: 0,
