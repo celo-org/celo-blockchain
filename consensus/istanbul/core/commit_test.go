@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 	"github.com/celo-org/celo-bls-go/bls"
 )
 
@@ -55,6 +56,7 @@ func TestHandleCommit(t *testing.T) {
 						expectedSubject.View,
 						backend.peers,
 					)
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current))
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -80,6 +82,7 @@ func TestHandleCommit(t *testing.T) {
 						},
 						backend.peers,
 					)
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current))
 
 					// only replica0 stays at StatePreprepared
 					// other replicas are at StatePrepared
