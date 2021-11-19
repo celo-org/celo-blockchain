@@ -70,7 +70,7 @@ func (s *PublicEthereumAPI) MaxPriorityFeePerGas(ctx context.Context, feeCurrenc
 	return (*hexutil.Big)(tipcap), err
 }
 
-// TODO: remove feeHistory?
+// TODO: Implement FeeHistory (https://github.com/celo-org/celo-blockchain/issues/1744)
 // type feeHistoryResult struct {
 // 	OldestBlock  *hexutil.Big     `json:"oldestBlock"`
 // 	Reward       [][]*hexutil.Big `json:"reward,omitempty"`
