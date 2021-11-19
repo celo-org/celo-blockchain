@@ -23,6 +23,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 // Start implements core.Engine.Start
@@ -34,6 +35,7 @@ func (c *core) Start() error {
 	}
 
 	c.current = roundState
+	c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(roundState))
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.

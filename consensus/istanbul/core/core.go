@@ -28,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/prque"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
 	"github.com/celo-org/celo-blockchain/core/types"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
@@ -109,6 +110,8 @@ type core struct {
 	address        common.Address
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
+
+	algo *algorithm.Algorithm
 
 	backend           CoreBackend
 	events            *event.TypeMuxSubscription
@@ -650,7 +653,6 @@ func (c *core) resetRoundState(view *istanbul.View, validatorSet istanbul.Valida
 		newParentCommits = newMessageSet(c.backend.ParentBlockValidators(headBlock))
 	}
 	return c.current.StartNewSequence(view.Sequence, validatorSet, nextProposer, newParentCommits)
-
 }
 
 func (c *core) isProposer() bool {
