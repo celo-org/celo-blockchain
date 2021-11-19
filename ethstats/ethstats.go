@@ -115,6 +115,8 @@ type fullNodeBackend interface {
 	BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
 	CurrentBlock() *types.Block
 	SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
+	SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error)
 }
 
 // StatsPayload todo: document this
@@ -1222,11 +1224,11 @@ func (s *Service) reportStats(conn *connWrapper) error {
 		sync := fullBackend.Downloader().Progress()
 		syncing = fullBackend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
 
-		price, _ := fullBackend.SuggestPrice(context.Background(), nil)
+		price, _ := fullBackend.CurrentGasPriceMinimum(context.Background(), nil)
 		gasprice = int(price.Uint64())
-		// if basefee := fullBackend.CurrentHeader().BaseFee; basefee != nil {
-		// 	gasprice += int(basefee.Uint64())
-		// }
+		tip, _ := fullBackend.SuggestGasTipCap(context.Background(), nil)
+		gasprice += int(tip.Uint64())
+
 	} else {
 		sync := s.backend.Downloader().Progress()
 		syncing = s.backend.CurrentHeader().Number.Uint64() >= sync.HighestBlock
