@@ -10,7 +10,6 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 ADD . /go-ethereum
 RUN cd /go-ethereum && make all-musl
-# RUN cd /go-ethereum && go run build/ci.go install
 
 # Pull all binaries into a second stage deploy alpine container
 FROM alpine:latest
