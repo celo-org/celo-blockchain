@@ -569,6 +569,36 @@ func TestHandleMsgExtraCommitValidation(t *testing.T) {
 	})
 }
 
+func TestHandleMsgExtraRoundChangeValidation(t *testing.T) {
+	sys := NewTestSystemWithBackend(4, 1)
+	closer := sys.Run(true)
+	defer closer()
+	b := sys.backends[0]
+	c := b.engine.(*core)
+	spew.Dump(c.current.View())
+
+	pc := istanbul.EmptyPreparedCertificate()
+	pc.Proposal = makeBlock(1)
+	// Prepared certificates with no messages are considered empty and not
+	// checked so add an empty message here.
+	pc.PrepareOrCommitMessages = []istanbul.Message{{}}
+	t.Run("Invalid prepared certificate", func(t *testing.T) {
+		m := istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
+			View: &istanbul.View{
+				Sequence: c.current.Sequence(),
+				Round:    big.NewInt(c.current.Round().Int64() + 1),
+			},
+			PreparedCertificate: pc,
+		}, b.Address())
+		err := m.Sign(b.Sign)
+		require.NoError(t, err)
+		payload, err := m.Payload()
+		require.NoError(t, err)
+		err = c.handleMsg(payload)
+		require.Error(t, err)
+	})
+}
+
 // notice: the normal case have been tested in integration tests.
 func TestMalformedMessageDecoding(t *testing.T) {
 	N := uint64(4)

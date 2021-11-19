@@ -147,17 +147,6 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 
 	rc := msg.RoundChange()
 	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
-
-	// Verify the PREPARED certificate if present.
-	if rc.HasPreparedCertificate() {
-		preparedView, err := c.verifyPreparedCertificate(rc.PreparedCertificate)
-		if err != nil {
-			return err
-		} else if preparedView == nil || preparedView.Round.Cmp(rc.View.Round) > 0 {
-			return errInvalidRoundChangeViewMismatch
-		}
-	}
-
 	roundView := rc.View
 
 	// Add the ROUND CHANGE message to its message set.
