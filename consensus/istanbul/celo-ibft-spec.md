@@ -127,12 +127,12 @@ upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC))
   if R < Rd {
     send(<RoundChange, Hc, Rd, PCc>, sender(m))
   } else if quorumRound() > Rd {
-	Rd ← quorumRound()
-	Rc ← quorumRound()
+    Rd ← quorumRound()
+    Rc ← quorumRound()
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
-	if Vc != nil && isProposer(Hc, Rc) {
+    if Vc != nil && isProposer(Hc, Rc) {
       bc(<RoundChange, Hc, Rc, Vc, PCc>)
-	}
+    }
   } else if f1Round() > Rd {
     Rd ← f1Round() 
     Sc ← WaitingForNewRound
