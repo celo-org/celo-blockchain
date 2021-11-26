@@ -728,6 +728,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrIntrinsicGas
 	}
 
+	// TODO(ponti): we can compare with the absolute gas price floor for each currency to cut more wrong txs
+	if tx.GasPrice().Cmp(common.Big0) <= 0 {
+		log.Debug("invalid gasPrice", "gasPrice", tx.GasPrice())
+		return ErrGasPriceDoesNotExceedMinimum
+	}
+
 	return nil
 }
 

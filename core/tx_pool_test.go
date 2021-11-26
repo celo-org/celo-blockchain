@@ -475,6 +475,20 @@ func TestTransactionVeryHighValues(t *testing.T) {
 	}
 }
 
+func TestTransactionZeroGasPrice(t *testing.T) {
+	t.Parallel()
+
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(1), 200000, big.NewInt(0), nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	from, _ := deriveSender(tx)
+	pool.currentState.AddBalance(from, big.NewInt(100000000000000))
+	if err := pool.AddRemote(tx); err != ErrGasPriceDoesNotExceedMinimum {
+		t.Error("expected", ErrGasPriceDoesNotExceedMinimum, "got", err)
+	}
+}
+
 func TestTransactionChainFork(t *testing.T) {
 	t.Parallel()
 
