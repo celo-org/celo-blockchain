@@ -131,7 +131,7 @@ upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC))
     Rc ← quorumRound()
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     if Vc != nil && isProposer(Hc, Rc) {
-      bc(<RoundChange, Hc, Rc, Vc, PCc>)
+      bc(<Preprepare, Hc, Rc, Vc, PCc>)
     }
   } else if f1Round() > Rd {
     Rd ← f1Round() 
