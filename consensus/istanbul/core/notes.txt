@@ -61,3 +61,12 @@ happens when handling commit messages and preprepare messages. So potentially
 hundreds of times per block.
 
 6. Multiple proposals, how is that handled? I think first one wins.
+
+7. Rather than having createRoundState and newRoundState which both return
+RoundState objects it might be nicer to just load state directly in core.Start
+and use that to create a new round state.
+
+8. istanbul.StartValidating returns an error that is not checked.
+
+miner/worker.go:206
+			istanbul.StartValidating()
