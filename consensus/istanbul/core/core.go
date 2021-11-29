@@ -569,7 +569,7 @@ func (c *core) startNewSequence() error {
 func (c *core) waitForDesiredRound(r *big.Int) error {
 	logger := c.newLogger("func", "waitForDesiredRound", "new_desired_round", r)
 
-	// Don't wait for an older round
+	// Don't wait for an older or equal round
 	if c.current.DesiredRound().Cmp(r) >= 0 {
 		logger.Trace("New desired round not greater than current desired round")
 		return nil

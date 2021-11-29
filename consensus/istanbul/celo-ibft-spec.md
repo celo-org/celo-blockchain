@@ -421,9 +421,39 @@ amount of time from the last block rather than making a calculation based on
 the time value set by the proposer.
 
 It seems the resetResendRoundChangeTimer functions are there to ensure round
-changes get resent, but I don't think we need to represent that here because we
-assumed reliable broadcast.
+changes get resent, we need to represent that here because we don't assume
+reliable broadcast.
 
 When a round change timeout occurs it starts the timer for the next round
 change, which will result in another round change message being broadcast for
-the newer round, so why do we need the resendRoundChangeMessage functionality.
+the newer round, so why do we need the resendRoundChangeMessage functionality?
+
+I think nodes can get stuck:
+
+Say all nodes are at round 0 they all time out and send round changes for round 1 so they all move to round one.
+
+Now f+1 nodes timeout and send round changes for round 2 they have desired round 2 current round 1. The remaining 2f
+nodes receive the f+1 round changes and set desired round to 2 and schedule
+roundChangeTimeout with a target round of 2.
+
+Now if those 2f nodes have their scheduled roundChangeTimeout execute before
+they have updated their current round to 2 roundChangeTimeout will be a no-op.
+if the round changes sent by these 2f nodes are lost then they will never
+schedule any further round changes without outside intervention.
+
+The other nodes will have their round changes for round expire and their
+current round will be 1 meaning that their roundChangeTimeouts will also be
+no-ops. 
+
+And then the network is stuck
+
+I think nodes can get stuck2:
+
+Everyone times out and Sends a round change for round 1. All the round change
+messages are lost.  So all nodes have Rc 0 and Rd 1 state WaitingForNewRound.
+And their next round change timeout is looking for Rc to be equal to 1 because
+Rd was set to 1. But Rc is only ever set when receiving a preprepare or
+receiving a quorum of round changes.  So the next roundChangeTimeout will be a
+no op and then no more will be scheduled.
+
+This is why we need the resend round change timer.
