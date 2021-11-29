@@ -129,6 +129,7 @@ upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC))
   } else if quorumRound() > Rd {
     Rd ← quorumRound()
     Rc ← quorumRound()
+    Sc ← AcceptRequest
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     if Vc != nil && isProposer(Hc, Rc) {
       bc(<Preprepare, Hc, Rc, Vc, PCc>)
