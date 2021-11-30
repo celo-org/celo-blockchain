@@ -56,7 +56,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			View:   preprepare.View,
 			Digest: preprepare.Proposal.Hash(),
 		}
-		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
+		err := c.handleRoundChangeCertificate(c.roundChangeSet, c.current, subject, preprepare.RoundChangeCertificate)
 		if err != nil {
 			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
 			return err

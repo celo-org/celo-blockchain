@@ -49,10 +49,10 @@ func (c *core) buildRoundChangeMsg(round *big.Int) *istanbul.Message {
 	}, c.address)
 }
 
-func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
+func (c *core) handleRoundChangeCertificate(rcs *roundChangeSet, current RoundState, proposal istanbul.Subject, roundChangeCertificate istanbul.RoundChangeCertificate) error {
 	logger := c.newLogger("func", "handleRoundChangeCertificate", "proposal_round", proposal.View.Round, "proposal_seq", proposal.View.Sequence, "proposal_digest", proposal.Digest.String())
 
-	if len(roundChangeCertificate.RoundChangeMessages) > c.current.ValidatorSet().Size() || len(roundChangeCertificate.RoundChangeMessages) < c.current.ValidatorSet().MinQuorumSize() {
+	if len(roundChangeCertificate.RoundChangeMessages) > current.ValidatorSet().Size() || len(roundChangeCertificate.RoundChangeMessages) < current.ValidatorSet().MinQuorumSize() {
 		return errInvalidRoundChangeCertificateNumMsgs
 	}
 
@@ -129,7 +129,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		decodedMessages[i] = *roundChange
 		// TODO(joshua): startNewRound needs these round change messages to generate a
 		// round change certificate even if this node is not the next proposer
-		c.roundChangeSet.Add(roundChange.View.Round, &message)
+		rcs.Add(roundChange.View.Round, &message)
 	}
 
 	if maxRound.Cmp(big.NewInt(-1)) > 0 && proposal.Digest != preferredDigest {

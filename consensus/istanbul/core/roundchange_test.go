@@ -214,7 +214,7 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 					View:   &view,
 					Digest: makeBlock(0).Hash(),
 				}
-				err := c.handleRoundChangeCertificate(subject, certificate)
+				err := c.handleRoundChangeCertificate(c.roundChangeSet, c.current, subject, certificate)
 
 				if err != test.expectedErr {
 					t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
