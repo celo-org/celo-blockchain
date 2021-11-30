@@ -136,10 +136,7 @@ func (c *core) handleRoundChangeCertificate(proposal istanbul.Subject, roundChan
 		return errInvalidPreparedCertificateDigestMismatch
 	}
 
-	// May have already moved to this round based on quorum round change messages.
-	logger.Trace("Trying to move to round change certificate's round", "target round", proposal.View.Round)
-
-	return c.startNewRound(proposal.View.Round)
+	return nil
 }
 
 func (c *core) handleRoundChange(msg *istanbul.Message) error {
