@@ -219,9 +219,6 @@ func TestHandleRoundChangeCertificate(t *testing.T) {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch for test case %v: have %v, want %v", i, err, test.expectedErr)
 				}
-				if err == nil && c.current.View().Cmp(&view) != 0 {
-					t.Errorf("view mismatch for test case %v: have %v, want %v", i, c.current.View(), view)
-				}
 			}
 			for _, backend := range sys.backends {
 				backend.engine.Stop()

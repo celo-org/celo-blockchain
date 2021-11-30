@@ -56,12 +56,20 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			View:   preprepare.View,
 			Digest: preprepare.Proposal.Hash(),
 		}
-		// This also moves us to the next round if the certificate is valid.
 		err := c.handleRoundChangeCertificate(subject, preprepare.RoundChangeCertificate)
 		if err != nil {
 			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
 			return err
 		}
+		// May have already moved to this round based on quorum round change messages.
+		logger.Trace("Trying to move to round change certificate's round", "target round", preprepare.View.Round)
+		// If the round change certificate was valid then move to the round of the preprepare.
+		err = c.startNewRound(preprepare.View.Round)
+		if err != nil {
+			logger.Warn("Failed to move to new round", "err", err)
+			return err
+		}
+
 	} else if preprepare.HasRoundChangeCertificate() {
 		logger.Error("Preprepare for round 0 has a round change certificate.")
 		return errInvalidProposal
