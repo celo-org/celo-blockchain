@@ -28,6 +28,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/math"
 	"github.com/celo-org/celo-blockchain/crypto"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
 
@@ -357,31 +358,35 @@ func (tx *Transaction) RawSignatureValues() (v, r, s *big.Int) {
 }
 
 // GasFeeCapCmp compares the fee cap of two transactions.
+// The two transactions must have the same fee currency for the result to be valid.
 func (tx *Transaction) GasFeeCapCmp(other *Transaction) int {
-	// fca := tx.FeeCurrency()
-	// fcb := other.FeeCurrency()
-	// if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
-	// 	panic("Dev error: using GasFeeCapCmp with transactions that have differing fee currencies")
-	// }
+	fca := tx.FeeCurrency()
+	fcb := other.FeeCurrency()
+	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+		log.Error("Dev error: using GasFeeCapCmp with transactions that have differing fee currencies")
+	}
 	return tx.inner.gasFeeCap().Cmp(other.inner.gasFeeCap())
 }
 
 // GasFeeCapIntCmp compares the fee cap of the transaction against the given fee cap.
+// `other` must be in the same fee currency that the transaction is using.
 func (tx *Transaction) GasFeeCapIntCmp(other *big.Int) int {
 	return tx.inner.gasFeeCap().Cmp(other)
 }
 
 // GasTipCapCmp compares the gasTipCap of two transactions.
+// The two transactions must have the same fee currency for the result to be valid.
 func (tx *Transaction) GasTipCapCmp(other *Transaction) int {
-	// fca := tx.FeeCurrency()
-	// fcb := other.FeeCurrency()
-	// if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
-	// 	panic("Dev error: using GasTipCapCmp with transactions that have differing fee currencies")
-	// }
+	fca := tx.FeeCurrency()
+	fcb := other.FeeCurrency()
+	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+		log.Error("Dev error: using GasTipCapCmp with transactions that have differing fee currencies")
+	}
 	return tx.inner.gasTipCap().Cmp(other.inner.gasTipCap())
 }
 
 // GasTipCapIntCmp compares the gasTipCap of the transaction against the given gasTipCap.
+// `other` must be in the same fee currency that the transaction is using.
 func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
 	return tx.inner.gasTipCap().Cmp(other)
 }
@@ -389,7 +394,8 @@ func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
 // EffectiveGasTip returns the effective miner gasTipCap for the given base fee.
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
-// Note: The returned value is in the FeeCurrency of the transaction
+// Note: `baseFee` must be in the same FeeCurrency as the transactions and
+// The returned value is in the FeeCurrency of the transaction
 func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
 	if baseFee == nil {
 		return tx.GasTipCap(), nil
@@ -404,14 +410,21 @@ func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
 // error in case the effective gasTipCap is negative
-// Note: The returned value is in the FeeCurrency of the transaction
+// Note: `baseFee` must be in the same FeeCurrency as the transactions and
+// the returned value is in the FeeCurrency of the transaction
 func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int) *big.Int {
 	effectiveTip, _ := tx.EffectiveGasTip(baseFee)
 	return effectiveTip
 }
 
 // EffectiveGasTipCmp compares the effective gasTipCap of two transactions assuming the given base fee.
+// `other` must has the same feecurrency as `tx` and `baseFee` must be in the same fee currency.
 func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int) int {
+	fca := tx.FeeCurrency()
+	fcb := other.FeeCurrency()
+	if (fca == nil && fcb != nil) || (fca != nil && fcb == nil) || (fca != nil && fcb != nil && *fca != *fcb) {
+		log.Error("Dev error: using EffectiveGasTipCmp with transactions that have differing fee currencies")
+	}
 	if baseFee == nil {
 		return tx.GasTipCapCmp(other)
 	}
@@ -419,6 +432,7 @@ func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int) 
 }
 
 // EffectiveGasTipIntCmp compares the effective gasTipCap of a transaction to the given gasTipCap.
+// `other` and `baseFee` must be in the same fee currency.
 func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) int {
 	if baseFee == nil {
 		return tx.GasTipCapIntCmp(other)
