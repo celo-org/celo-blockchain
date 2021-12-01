@@ -35,7 +35,7 @@ func (c *core) Start() error {
 	}
 
 	c.current = roundState
-	c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(roundState))
+	c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(roundState, c))
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.
@@ -279,8 +279,8 @@ func (c *core) handleMsg(payload []byte) error {
 	}
 
 	// At this point we know that messages are either for the current sequence
-	// or round or its a round change for the current sequence and current or
-	// future round.
+	// and desired round or its a round change for the current sequence and
+	// desired or future round.
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
 		logger.Trace("Got preprepare message", "m", msg)

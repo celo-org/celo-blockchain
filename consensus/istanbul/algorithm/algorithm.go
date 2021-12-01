@@ -35,16 +35,19 @@ const (
 )
 
 type Msg struct {
-	MsgType Type
-	Height  uint64
-	Round   uint64
-	Val     Value
+	MsgType         Type
+	Height          uint64
+	Round           uint64
+	Val             Value
+	RoundChangeCert *Value
 }
 
 type Oracle interface {
 	CurrentState() State
 	QuorumCommit(height, round uint64, val Value) bool
 	QuorumPrepare(height, round uint64, val Value) bool
+	DesiredRound() uint64
+	ValidRoundChangeCert(height, round uint64, val Value, rcc *Value) bool
 }
 
 type Algorithm struct {
@@ -58,12 +61,16 @@ func NewAlgorithm(o Oracle) *Algorithm {
 }
 
 // the bool represents whether we are committed or not
-// Maybe we could return the state and say transitioned to state, but then that duplicates information in the message.
+// Maybe we could return the state and say transitioned to state, but then that
+// duplicates information in the message.  Note that this method is only called
+// with messages at the current height and desired round of the instance,
+// except for round changes that can have the desired or higher round.
 func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 	h := m.Height
 	r := m.Round
 	t := m.MsgType
 	v := m.Val
+	rcc := m.RoundChangeCert
 	oracle := a.O
 	s := oracle.CurrentState()
 
@@ -73,8 +80,9 @@ func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 		return nil, true
 	}
 
-	// We are not yet prepared and see a quorum of prepares, send a commit.
-	if s < Prepared && oracle.QuorumPrepare(h, r, v) {
+	// We are not yet prepared and see a quorum of prepares (where a commit
+	// also counts as a prepare), send a commit.
+	if t.In(Prepare, Commit) && s < Prepared && oracle.QuorumPrepare(h, r, v) {
 		// We send a commit
 		return &Msg{
 			MsgType: Commit,
@@ -82,6 +90,18 @@ func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 			Round:   r,
 			Val:     v,
 		}, false
+	}
+
+	if t == Propose && s == AcceptRequest {
+		if (r == 0 && rcc == nil) || (r > 0 && a.O.ValidRoundChangeCert(h, r, v, rcc)) {
+			// We send a prepare
+			return &Msg{
+				MsgType: Prepare,
+				Height:  h,
+				Round:   r,
+				Val:     v,
+			}, false
+		}
 	}
 	return nil, false
 }

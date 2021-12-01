@@ -17,11 +17,12 @@
 package core
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 func (c *core) sendPreprepare(request *istanbul.Request, roundChangeCertificate istanbul.RoundChangeCertificate) {
@@ -45,63 +46,57 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 	preprepare := msg.Preprepare()
 	logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", preprepare.Proposal.Number(),
 		"msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
-
-	// If round > 0, handle the ROUND CHANGE certificate. If round = 0, it should not have a ROUND CHANGE certificate
-	if preprepare.View.Round.Cmp(common.Big0) > 0 {
-		if !preprepare.HasRoundChangeCertificate() {
-			logger.Error("Preprepare for non-zero round did not contain a round change certificate.")
-			return errMissingRoundChangeCertificate
-		}
-		subject := istanbul.Subject{
-			View:   preprepare.View,
-			Digest: preprepare.Proposal.Hash(),
-		}
-		err := c.handleRoundChangeCertificate(c.roundChangeSet, c.current, subject, preprepare.RoundChangeCertificate)
-		if err != nil {
-			logger.Warn("Invalid round change certificate with preprepare.", "err", err)
-			return err
-		}
-		// May have already moved to this round based on quorum round change messages.
+	// Set the rcc
+	var rccID *algorithm.Value
+	var err error
+	rccID, err = c.algo.O.(*RoundStateOracle).SetRoundChangeCertificate(preprepare)
+	if err != nil {
+		return fmt.Errorf("failed to set round change certificate in oracle: %w", err)
+	}
+	if preprepare.View.Round.Uint64() > 0 {
 		logger.Trace("Trying to move to round change certificate's round", "target round", preprepare.View.Round)
-		// If the round change certificate was valid then move to the round of the preprepare.
-		err = c.startNewRound(preprepare.View.Round)
+		err := c.startNewRound(preprepare.View.Round)
 		if err != nil {
 			logger.Warn("Failed to move to new round", "err", err)
 			return err
 		}
-
-	} else if preprepare.HasRoundChangeCertificate() {
-		logger.Error("Preprepare for round 0 has a round change certificate.")
-		return errInvalidProposal
 	}
-
-	// Verify the proposal we received
-	if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
-		logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
-		// if it's a future block, we will handle it again after the duration
-		if err == consensus.ErrFutureBlock {
-			c.stopFuturePreprepareTimer()
-			c.futurePreprepareTimer = time.AfterFunc(duration, func() {
-				c.sendEvent(backlogEvent{
-					msg: msg,
+	m, _ := c.algo.HandleMessage(&algorithm.Msg{
+		MsgType:         algorithm.Type(msg.Code),
+		Height:          preprepare.View.Sequence.Uint64(),
+		Round:           preprepare.View.Round.Uint64(),
+		Val:             algorithm.Value(preprepare.Proposal.Hash()),
+		RoundChangeCert: rccID,
+	})
+	if m != nil && m.MsgType == algorithm.Prepare {
+		// Verify the proposal we received
+		if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
+			logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
+			// if it's a future block, we will handle it again after the duration
+			if err == consensus.ErrFutureBlock {
+				c.stopFuturePreprepareTimer()
+				c.futurePreprepareTimer = time.AfterFunc(duration, func() {
+					c.sendEvent(backlogEvent{
+						msg: msg,
+					})
 				})
-			})
-		}
-		return err
-	}
-
-	if c.current.State() == StateAcceptRequest {
-		logger.Trace("Accepted preprepare", "tag", "stateTransition")
-		c.consensusTimestamp = time.Now()
-
-		err := c.current.TransitionToPreprepared(preprepare)
-		if err != nil {
+			}
 			return err
 		}
 
-		// Process Backlog Messages
-		c.backlog.updateState(c.current.View(), c.current.State())
-		c.sendPrepare()
+		if c.current.State() == StateAcceptRequest {
+			logger.Trace("Accepted preprepare", "tag", "stateTransition")
+			c.consensusTimestamp = time.Now()
+
+			err := c.current.TransitionToPreprepared(preprepare)
+			if err != nil {
+				return err
+			}
+
+			// Process Backlog Messages
+			c.backlog.updateState(c.current.View(), c.current.State())
+			c.sendPrepare()
+		}
 	}
 
 	return nil
