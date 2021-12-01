@@ -56,7 +56,7 @@ func TestHandleCommit(t *testing.T) {
 						expectedSubject.View,
 						backend.peers,
 					)
-					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current))
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 
 					if i == 0 {
 						// replica 0 is the proposer
@@ -82,7 +82,7 @@ func TestHandleCommit(t *testing.T) {
 						},
 						backend.peers,
 					)
-					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current))
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 
 					// only replica0 stays at StatePreprepared
 					// other replicas are at StatePrepared

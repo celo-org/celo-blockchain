@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
 	"testing"
@@ -321,7 +322,7 @@ func TestHandlePreprepare(t *testing.T) {
 
 				// run each backends and verify handlePreprepare function.
 				if err := c.handlePreprepare(msg); err != nil {
-					if err != test.expectedErr {
+					if !errors.Is(err, test.expectedErr) {
 						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 					}
 					return
