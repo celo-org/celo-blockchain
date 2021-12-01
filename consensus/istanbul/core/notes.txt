@@ -70,3 +70,11 @@ and use that to create a new round state.
 
 miner/worker.go:206
 			istanbul.StartValidating()
+
+9. In order to split ot round change cert verification from core we need to separate the following functions from core
+validateFn
+verifyPreparedCertificate
+  validateFn
+  backend.NextBlockValidators - maybe we can just use the current validtor set here.
+  verifyCommittedSeal
+  verifyEpochValidatorSetSeal
