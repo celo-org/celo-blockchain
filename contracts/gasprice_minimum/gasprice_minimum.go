@@ -36,8 +36,9 @@ var (
 )
 
 var (
-	getGasPriceMinimumMethod    = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", params.MaxGasForGetGasPriceMinimum)
-	updateGasPriceMinimumMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
+	getGasPriceMinimumMethod      = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "getGasPriceMinimum", params.MaxGasForGetGasPriceMinimum)
+	getGasPriceMinimumFloorMethod = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "gasPriceMinimumFloor", params.MaxGasForGetGasPriceMinimum)
+	updateGasPriceMinimumMethod   = contracts.NewRegisteredContractMethod(params.GasPriceMinimumRegistryId, abis.GasPriceMinimum, "updateGasPriceMinimum", params.MaxGasForUpdateGasPriceMinimum)
 )
 
 // GetGasTipCapSuggestion suggests a max tip of 2GWei in the appropriate currency.
@@ -86,6 +87,22 @@ func GetGasPriceMinimum(vmRunner vm.EVMRunner, currency *common.Address) (*big.I
 	}
 
 	return gasPriceMinimum, err
+}
+
+func GetGasPriceMinimumFloor(vmRunner vm.EVMRunner) (*big.Int, error) {
+	var err error
+
+	var gasPriceMinimumFloor *big.Int
+	err = getGasPriceMinimumFloorMethod.Query(vmRunner, &gasPriceMinimumFloor)
+
+	if err == contracts.ErrSmartContractNotDeployed || err == contracts.ErrRegistryContractNotDeployed {
+		return FallbackGasPriceMinimum, nil
+	}
+	if err != nil {
+		return FallbackGasPriceMinimum, err
+	}
+
+	return gasPriceMinimumFloor, err
 }
 
 func UpdateGasPriceMinimum(vmRunner vm.EVMRunner, lastUsedGas uint64) (*big.Int, error) {
