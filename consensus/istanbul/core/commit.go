@@ -173,13 +173,14 @@ func (c *core) handleCommit(msg *istanbul.Message) error {
 	logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
 
 	commit := msg.Commit()
-	m, committed := c.algo.HandleMessage(&algorithm.Msg{
+	m, round, _ := c.algo.HandleMessage(&algorithm.Msg{
 		Height:  commit.Subject.View.Sequence.Uint64(),
 		Round:   commit.Subject.View.Round.Uint64(),
 		MsgType: algorithm.Type(msg.Code),
 		Val:     algorithm.Value(commit.Subject.Digest),
 	})
-	if committed {
+	// If the target round is set to 0 then we have committed
+	if round != nil && *round == 0 {
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
 		err := c.commit()
 		if err != nil {

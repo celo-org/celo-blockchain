@@ -164,7 +164,7 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 	logger.Trace("Accepted prepare")
 
-	m, _ := c.algo.HandleMessage(&algorithm.Msg{
+	m, _, _ := c.algo.HandleMessage(&algorithm.Msg{
 		Height:  prepare.View.Sequence.Uint64(),
 		Round:   prepare.View.Round.Uint64(),
 		MsgType: algorithm.Type(msg.Code),

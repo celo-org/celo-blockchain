@@ -61,7 +61,7 @@ func (c *core) handlePreprepare(msg *istanbul.Message) error {
 			return err
 		}
 	}
-	m, _ := c.algo.HandleMessage(&algorithm.Msg{
+	m, _, _ := c.algo.HandleMessage(&algorithm.Msg{
 		MsgType:         algorithm.Type(msg.Code),
 		Height:          preprepare.View.Sequence.Uint64(),
 		Round:           preprepare.View.Round.Uint64(),

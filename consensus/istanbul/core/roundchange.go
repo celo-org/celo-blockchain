@@ -25,6 +25,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 // sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
@@ -149,21 +150,18 @@ func (c *core) handleRoundChange(msg *istanbul.Message) error {
 		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
 		return err
 	}
-
-	// Skip to the highest round we know F+1 (one honest validator) is at, but
-	// don't start a round until we have a quorum who want to start a given round.
-	ffRound := c.roundChangeSet.MaxRound(c.current.ValidatorSet().F() + 1)
-	quorumRound := c.roundChangeSet.MaxOnOneRound(c.current.ValidatorSet().MinQuorumSize())
-	logger = logger.New("ffRound", ffRound, "quorumRound", quorumRound)
 	logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
-	// On f+1 round changes we send a round change and wait for the next round if we haven't done so already
-	// On quorum round change messages we go to the next round immediately.
-	if quorumRound != nil && quorumRound.Cmp(c.current.DesiredRound()) >= 0 {
-		logger.Debug("Got quorum round change messages, starting new round.")
-		return c.startNewRound(quorumRound)
-	} else if ffRound != nil {
-		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.")
-		c.waitForDesiredRound(ffRound)
+	_, round, desiredRound := c.algo.HandleMessage(&algorithm.Msg{
+		Height:  rc.View.Sequence.Uint64(),
+		Round:   rc.View.Round.Uint64(),
+		MsgType: algorithm.Type(msg.Code),
+	})
+	if round != nil {
+		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
+		return c.startNewRound(new(big.Int).SetUint64(*round))
+	} else if desiredRound != nil {
+		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
+		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
 	}
 
 	return nil
