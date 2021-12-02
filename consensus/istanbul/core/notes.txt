@@ -93,3 +93,22 @@ have the block synchronisation protocol, but we shouldn't be relying on that.
 12. When half the network progresses in this way, the remaini
 
 What if a commit is a fake commit?
+
+13. When processing round change cert and round changes are different, with the
+round change cert, nodes only switch to the round of the proposal. Even if
+there is a quorum of round changes for a much higher round. If they were to
+process those round changes normally they would switch to that round and then
+not be able to accept the proposal.
+
+So what if I receive a proposal from a node with a round change cert with
+higher number round changes. I accept and start working on it but if I then
+receive some of the higher round changes I will swich rounds and not be able to
+continue on that proposal.
+
+So to clarify, if I receive a round change cert with enough round changes of
+higher rounds such that I now have 3f+1 round changes for a higher round there
+is no point prepareing the proposal, since it can never be confirmed.
+
+So these 2 streams of processing should be streamlined.
+
+
