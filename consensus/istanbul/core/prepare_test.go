@@ -119,7 +119,11 @@ func TestVerifyPreparedCertificate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			for _, backend := range sys.backends {
 				c := backend.engine.(*core)
-				view, err := c.verifyPreparedCertificate(test.certificate)
+				var expectedRound uint64
+				if test.expectedView != nil {
+					expectedRound = test.expectedView.Round.Uint64()
+				}
+				view, err := c.verifyPreparedCertificate(test.certificate, expectedRound)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

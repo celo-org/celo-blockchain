@@ -106,7 +106,7 @@ func (c *core) handleRoundChangeCertificate(rcs *roundChangeSet, current RoundSt
 
 		if roundChange.HasPreparedCertificate() {
 			msgLogger.Trace("Round change message has prepared certificate")
-			preparedView, err := c.verifyPreparedCertificate(roundChange.PreparedCertificate)
+			preparedView, err := c.verifyPreparedCertificate(roundChange.PreparedCertificate, proposal.View.Round.Uint64())
 			if err != nil {
 				return err
 			}
@@ -117,9 +117,7 @@ func (c *core) handleRoundChangeCertificate(rcs *roundChangeSet, current RoundSt
 			// blocks that were not committed.
 			// Also reject round change messages where the prepared view is greater than the round change view.
 			msgLogger = msgLogger.New("prepared_round", preparedView.Round, "prepared_seq", preparedView.Sequence)
-			if preparedView == nil || preparedView.Round.Cmp(proposal.View.Round) > 0 {
-				return errInvalidRoundChangeViewMismatch
-			} else if preparedView.Round.Cmp(maxRound) > 0 {
+			if preparedView.Round.Cmp(maxRound) > 0 {
 				msgLogger.Trace("Prepared certificate is latest in round change certificate")
 				maxRound = preparedView.Round
 				preferredDigest = roundChange.PreparedCertificate.Proposal.Hash()
