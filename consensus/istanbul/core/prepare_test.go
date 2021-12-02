@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 func TestVerifyPreparedCertificate(t *testing.T) {
@@ -177,6 +178,7 @@ func TestHandlePrepare(t *testing.T) {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 				}
 				return sys
 			}(),
@@ -211,6 +213,7 @@ func TestHandlePrepare(t *testing.T) {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 				}
 				return sys
 			}(),
@@ -245,6 +248,7 @@ func TestHandlePrepare(t *testing.T) {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 				}
 				return sys
 			}(),
@@ -269,6 +273,7 @@ func TestHandlePrepare(t *testing.T) {
 						// replica 0 is the proposer
 						c.current.(*roundStateImpl).state = StatePreprepared
 					}
+					c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 				}
 				return sys
 			}(),
