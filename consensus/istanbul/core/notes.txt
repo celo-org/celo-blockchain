@@ -78,3 +78,18 @@ verifyPreparedCertificate
   backend.NextBlockValidators - maybe we can just use the current validtor set here.
   verifyCommittedSeal
   verifyEpochValidatorSetSeal
+
+10. What if we receive round changes that cause us to round change to round 5 but then receive a preprepare for a lower round.
+This can't happen because we would not process a lower veiw message, so the proposer has to catch up in this setting.
+
+11. Can nodes agree blocks at different rounds, it seems the answer is yes. In
+the scenario that all nodes send commits but only one node receives all the
+commits. That node will commit, the remaining nodes will round change.
+
+So if half the network commits, then the other half gets stuck? Except that we
+have the block synchronisation protocol, but we shouldn't be relying on that.
+
+11. So in the case that one validator commits in round 0 but the others move to round 1, that single validaotr will round change meaning that when the other validators come to agree the block then there will be a huge wait for them to catch up.
+12. When half the network progresses in this way, the remaini
+
+What if a commit is a fake commit?
