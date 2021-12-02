@@ -21,6 +21,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 func (c *core) sendPrepare() {
@@ -154,25 +155,28 @@ func (c *core) handlePrepare(msg *istanbul.Message) error {
 	logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 	logger.Trace("Accepted prepare")
 
+	m, _ := c.algo.HandleMessage(&algorithm.Msg{
+		Height:  prepare.View.Sequence.Uint64(),
+		Round:   prepare.View.Round.Uint64(),
+		MsgType: algorithm.Type(msg.Code),
+		Val:     algorithm.Value(prepare.Digest),
+	})
+
 	// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 	// before Prepared state.
-	// TODO(joshua): Remove state comparisons (or change the cmp function)
-	if (preparesAndCommits >= minQuorumSize) && c.current.State().Cmp(StatePrepared) < 0 {
-
+	if m != nil && m.MsgType == algorithm.Commit {
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
-			logger.Error("Failed to create and set preprared certificate", "err", err)
+			logger.Error("Failed to create and set prepared certificate", "err", err)
 			return err
 		}
-		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
 		// Update metrics.
 		if !c.consensusTimestamp.IsZero() {
 			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		}
-
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
-
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
 		c.sendCommit()
 	}
 
