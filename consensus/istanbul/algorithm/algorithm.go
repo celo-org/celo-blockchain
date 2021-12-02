@@ -47,6 +47,8 @@ type Oracle interface {
 	QuorumCommit(height, round uint64, val Value) bool
 	QuorumPrepare(height, round uint64, val Value) bool
 	DesiredRound() uint64
+	QuorumRoundChange() uint64
+	FPlus1RoundChange() uint64
 	ValidRoundChangeCert(height, round uint64, val Value, rcc *Value) bool
 }
 
@@ -60,12 +62,12 @@ func NewAlgorithm(o Oracle) *Algorithm {
 	}
 }
 
-// the bool represents whether we are committed or not
-// Maybe we could return the state and say transitioned to state, but then that
-// duplicates information in the message.  Note that this method is only called
-// with messages at the current height and desired round of the instance,
-// except for round changes that can have the desired or higher round.
-func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
+// HandleMessage handles the given message and returns at most one of 3
+// results. A message indicates a state transition and that message needs to be
+// sent. A round indicates that the instance should move to that round if the
+// round is 0 it indicates that we should have committed. A desiredRound
+// indicates that the instance should wait for the desired round.
+func (a *Algorithm) HandleMessage(m *Msg) (msg *Msg, round, desiredRound *uint64) {
 	h := m.Height
 	r := m.Round
 	t := m.MsgType
@@ -77,7 +79,8 @@ func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 	// We see a quorum of commits and we are not yet committed, then move to
 	// committed state.
 	if t == Commit && s < Committed && oracle.QuorumCommit(h, r, v) {
-		return nil, true
+		var round uint64 = 0
+		return nil, &round, nil
 	}
 
 	// We are not yet prepared and see a quorum of prepares (where a commit
@@ -89,7 +92,7 @@ func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 			Height:  h,
 			Round:   r,
 			Val:     v,
-		}, false
+		}, nil, nil
 	}
 
 	if t == Propose && s == AcceptRequest {
@@ -100,8 +103,19 @@ func (a *Algorithm) HandleMessage(m *Msg) (*Msg, bool) {
 				Height:  h,
 				Round:   r,
 				Val:     v,
-			}, false
+			}, nil, nil
 		}
 	}
-	return nil, false
+
+	if t == RoundChange {
+		qr := a.O.QuorumRoundChange()
+		if qr >= a.O.DesiredRound() {
+			return nil, &qr, nil
+		}
+		f1r := a.O.FPlus1RoundChange()
+		if f1r > a.O.DesiredRound() {
+			return nil, nil, &f1r
+		}
+	}
+	return nil, nil, nil
 }
