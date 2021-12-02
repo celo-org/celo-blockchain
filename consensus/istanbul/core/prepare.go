@@ -31,7 +31,7 @@ func (c *core) sendPrepare() {
 }
 
 // Verify a prepared certificate and return the view that all of its messages pertain to.
-func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate) (*istanbul.View, error) {
+func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate, targetRound uint64) (*istanbul.View, error) {
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
 
 	// Validate the attached proposal
@@ -112,12 +112,21 @@ func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCe
 
 		// Verify that the view is the same for all of the messages
 		if view == nil {
+			// Check that the prepared certificate round is not newer than the
+			// target round. If it is then there is no point switching to the
+			// target round since it is already old.
+			if subject.View.Round.Uint64() > targetRound {
+				return nil, errInvalidRoundChangeViewMismatch
+			}
 			view = subject.View
 		} else {
 			if view.Cmp(subject.View) != 0 {
 				return nil, errInvalidPreparedCertificateInconsistentViews
 			}
 		}
+	}
+	if view == nil {
+		return nil, errInvalidRoundChangeViewMismatch
 	}
 	return view, nil
 }

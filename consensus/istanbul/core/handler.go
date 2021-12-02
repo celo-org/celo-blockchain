@@ -345,11 +345,9 @@ func (c *core) handleMsg(payload []byte) error {
 
 		// Verify the PREPARED certificate if present.
 		if rc.HasPreparedCertificate() {
-			preparedView, err := c.verifyPreparedCertificate(rc.PreparedCertificate)
+			_, err := c.verifyPreparedCertificate(rc.PreparedCertificate, rc.View.Round.Uint64())
 			if err != nil {
 				return err
-			} else if preparedView == nil || preparedView.Round.Cmp(rc.View.Round) > 0 {
-				return errInvalidRoundChangeViewMismatch
 			}
 		}
 		return c.handleRoundChange(msg)
