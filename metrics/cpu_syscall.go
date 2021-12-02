@@ -19,7 +19,7 @@
 package metrics
 
 import (
-	"syscall"
+	syscall "golang.org/x/sys/unix"
 
 	"github.com/celo-org/celo-blockchain/log"
 )

@@ -222,3 +222,30 @@ func TestRegistryInGenesis(t *testing.T) {
 		chain.Stop()
 	}
 }
+
+// TestGenesisHashes checks the congruity of default genesis data to corresponding hardcoded genesis hash values.
+func TestGenesisHashes(t *testing.T) {
+	cases := []struct {
+		genesis *Genesis
+		hash    common.Hash
+	}{
+		{
+			genesis: DefaultAlfajoresGenesisBlock(),
+			hash:    params.AlfajoresGenesisHash,
+		},
+		{
+			genesis: DefaultBaklavaGenesisBlock(),
+			hash:    params.BaklavaGenesisHash,
+		},
+		{
+			genesis: MainnetGenesisBlock(),
+			hash:    params.MainnetGenesisHash,
+		},
+	}
+	for i, c := range cases {
+		b := c.genesis.MustCommit(rawdb.NewMemoryDatabase())
+		if got := b.Hash(); got != c.hash {
+			t.Errorf("case: %d, want: %s, got: %s", i, c.hash.Hex(), got.Hex())
+		}
+	}
+}

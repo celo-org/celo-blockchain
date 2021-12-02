@@ -199,7 +199,55 @@ var PrecompiledContractsDonut = map[common.Address]PrecompiledContract{
 	cip26Address:             &getValidatorBLS{},
 }
 
+// PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
+// contracts used in the Berlin release.
+var PrecompiledContractsE = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}): &blake2F{},
+
+	// Celo Precompiled Contracts
+	transferAddress:              &transfer{},
+	fractionMulExpAddress:        &fractionMulExp{},
+	proofOfPossessionAddress:     &proofOfPossession{},
+	getValidatorAddress:          &getValidator{},
+	numberValidatorsAddress:      &numberValidators{},
+	epochSizeAddress:             &epochSize{},
+	blockNumberFromHeaderAddress: &blockNumberFromHeader{},
+	hashHeaderAddress:            &hashHeader{},
+	getParentSealBitmapAddress:   &getParentSealBitmap{},
+	getVerifiedSealBitmapAddress: &getVerifiedSealBitmap{},
+
+	// New in Donut hard fork
+	ed25519Address:           &ed25519Verify{},
+	b12_381G1AddAddress:      &bls12381G1Add{},
+	b12_381G1MulAddress:      &bls12381G1Mul{},
+	b12_381G1MultiExpAddress: &bls12381G1MultiExp{},
+	b12_381G2AddAddress:      &bls12381G2Add{},
+	b12_381G2MulAddress:      &bls12381G2Mul{},
+	b12_381G2MultiExpAddress: &bls12381G2MultiExp{},
+	b12_381PairingAddress:    &bls12381Pairing{},
+	b12_381MapFpToG1Address:  &bls12381MapG1{},
+	b12_381MapFp2ToG2Address: &bls12381MapG2{},
+	b12_377G1AddAddress:      &bls12377G1Add{},
+	b12_377G1MulAddress:      &bls12377G1Mul{},
+	b12_377G1MultiExpAddress: &bls12377G1MultiExp{},
+	b12_377G2AddAddress:      &bls12377G2Add{},
+	b12_377G2MulAddress:      &bls12377G2Mul{},
+	b12_377G2MultiExpAddress: &bls12377G2MultiExp{},
+	b12_377PairingAddress:    &bls12377Pairing{},
+	cip20Address:             &cip20HashFunctions{Cip20HashesDonut},
+	cip26Address:             &getValidatorBLS{},
+}
+
 var (
+	PrecompiledAddressesE         []common.Address
 	PrecompiledAddressesDonut     []common.Address
 	PrecompiledAddressesIstanbul  []common.Address
 	PrecompiledAddressesByzantium []common.Address
@@ -211,13 +259,32 @@ func init() {
 		PrecompiledAddressesHomestead = append(PrecompiledAddressesHomestead, k)
 	}
 	for k := range PrecompiledContractsByzantium {
-		PrecompiledAddressesHomestead = append(PrecompiledAddressesByzantium, k)
+		PrecompiledAddressesByzantium = append(PrecompiledAddressesByzantium, k)
 	}
 	for k := range PrecompiledContractsIstanbul {
 		PrecompiledAddressesIstanbul = append(PrecompiledAddressesIstanbul, k)
 	}
 	for k := range PrecompiledContractsDonut {
 		PrecompiledAddressesDonut = append(PrecompiledAddressesDonut, k)
+	}
+	for k := range PrecompiledContractsE {
+		PrecompiledAddressesE = append(PrecompiledAddressesE, k)
+	}
+}
+
+// ActivePrecompiles returns the precompiles enabled with the current configuration.
+func ActivePrecompiles(rules params.Rules) []common.Address {
+	switch {
+	case rules.IsEHardfork:
+		return PrecompiledAddressesE
+	case rules.IsDonut:
+		return PrecompiledAddressesDonut
+	case rules.IsIstanbul:
+		return PrecompiledAddressesIstanbul
+	case rules.IsByzantium:
+		return PrecompiledAddressesByzantium
+	default:
+		return PrecompiledAddressesHomestead
 	}
 }
 

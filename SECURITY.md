@@ -4,11 +4,13 @@
 
 Public announcements of new releases with security fixes and of disclosure of any vulnerabilities will be made in the Celo Forum's [Security Announcements](https://forum.celo.org/c/security-announcements/) channel.
 
+
 ## Reporting a Vulnerability
 
 We’re extremely grateful for security researchers and users that report vulnerabilities to the Celo community. All reports are thoroughly investigated.
 
 **Please do not file a public ticket** mentioning any vulnerability.
+
 
 The Celo community asks that all suspected vulnerabilities be privately and responsibly disclosed.
 

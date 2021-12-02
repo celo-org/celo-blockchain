@@ -141,9 +141,8 @@ var Forks = map[string]*params.ChainConfig{
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(5),
 	},
-	// This specification is subject to change, but is for now identical to Istanbul
-	// for cross-client testing purposes
-	"Berlin": {
+
+	"Espresso": {
 		ChainID:             big.NewInt(1),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
@@ -153,6 +152,23 @@ var Forks = map[string]*params.ChainConfig{
 		ConstantinopleBlock: big.NewInt(0),
 		PetersburgBlock:     big.NewInt(0),
 		IstanbulBlock:       big.NewInt(0),
+		ChurritoBlock:       big.NewInt(0),
+		DonutBlock:          big.NewInt(0),
+		EBlock:              big.NewInt(0),
+	},
+	"DonutToEspressoAt5": {
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		ChurritoBlock:       big.NewInt(0),
+		DonutBlock:          big.NewInt(0),
+		EBlock:              big.NewInt(5),
 	},
 }
 

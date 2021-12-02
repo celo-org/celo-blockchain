@@ -27,6 +27,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/shared/signer"
+	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 )
 
 var (
@@ -198,7 +199,7 @@ func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAd
 // signTypedData is identical to the capitalized version, except that it also returns the hash (preimage)
 // - the signature preimage (hash)
 func (api *SignerAPI) signTypedData(ctx context.Context, addr common.MixedcaseAddress,
-	typedData signer.TypedData, validationMessages *ValidationMessages) (hexutil.Bytes, hexutil.Bytes, error) {
+	typedData signer.TypedData, validationMessages *apitypes.ValidationMessages) (hexutil.Bytes, hexutil.Bytes, error) {
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
 	if err != nil {
 		return nil, nil, err

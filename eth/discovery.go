@@ -19,7 +19,6 @@ package eth
 import (
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/core/forkid"
-	"github.com/celo-org/celo-blockchain/p2p/dnsdisc"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
 	"github.com/celo-org/celo-blockchain/rlp"
 )
@@ -61,13 +60,4 @@ func (eth *Ethereum) startEthEntryUpdate(ln *enode.LocalNode) {
 func (eth *Ethereum) currentEthEntry() *ethEntry {
 	return &ethEntry{ForkID: forkid.NewID(eth.blockchain.Config(), eth.blockchain.Genesis().Hash(),
 		eth.blockchain.CurrentHeader().Number.Uint64())}
-}
-
-// setupDiscovery creates the node discovery source for the eth protocol.
-func (eth *Ethereum) setupDiscovery() (enode.Iterator, error) {
-	if len(eth.config.DiscoveryURLs) == 0 {
-		return nil, nil
-	}
-	client := dnsdisc.NewClient(dnsdisc.Config{})
-	return client.NewIterator(eth.config.DiscoveryURLs...)
 }

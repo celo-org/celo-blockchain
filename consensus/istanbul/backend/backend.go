@@ -571,7 +571,7 @@ func (sb *Backend) Verify(proposal istanbul.Proposal) (*istanbulCore.StateProces
 
 	// check bad block
 	if sb.hasBadProposal(block.Hash()) {
-		return nil, 0, core.ErrBlacklistedHash
+		return nil, 0, core.ErrBannedHash
 	}
 
 	// check block body

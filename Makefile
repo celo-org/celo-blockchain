@@ -139,8 +139,9 @@ android:
 	@echo "Remove patch for mobile libs..."
 	git apply -R patches/mobileLibsForBuild.patch
 	
+
 ios:
-	DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
+	CGO_ENABLED=1 DISABLE_BITCODE=true $(GORUN) build/ci.go xcode --local --metrics-default
 	pushd "$(GOBIN)"; rm -rf Geth.framework.tgz; tar -czvf Geth.framework.tgz Geth.framework; popd
 	# Geth.framework is a static framework, so we have to also keep the other static libs it depends on
 	# in order to link it to the final app
@@ -165,12 +166,11 @@ clean: clean-geth
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.
 
 devtools:
-	env GOBIN= go get -u golang.org/x/tools/cmd/stringer
-	env GOBIN= go get -u github.com/kevinburke/go-bindata/go-bindata
-	env GOBIN= go get -u github.com/fjl/gencodec
-	env GOBIN= go get -u github.com/golang/protobuf/protoc-gen-go
+	env GOBIN= go install golang.org/x/tools/cmd/stringer@latest
+	env GOBIN= go install github.com/kevinburke/go-bindata/go-bindata@latest
+	env GOBIN= go install github.com/fjl/gencodec@latest
+	env GOBIN= go install github.com/golang/protobuf/protoc-gen-go@latest
 	env GOBIN= go install ./cmd/abigen
-	@type "npm" 2> /dev/null || echo 'Please install node.js and npm'
 	@type "solc" 2> /dev/null || echo 'Please install solc'
 	@type "protoc" 2> /dev/null || echo 'Please install protoc'
 

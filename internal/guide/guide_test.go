@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/accounts/keystore"
+	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/core/types"
 )
 
@@ -75,7 +76,8 @@ func TestAccountManagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create signer account: %v", err)
 	}
-	tx, chain := new(types.Transaction), big.NewInt(1)
+	tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), nil, nil, nil, nil)
+	chain := big.NewInt(1)
 
 	// Sign a transaction with a single authorization
 	if _, err := ks.SignTxWithPassphrase(signer, "Signer password", tx, chain); err != nil {

@@ -31,37 +31,39 @@ import (
 	"github.com/celo-org/celo-blockchain/core/bloombits"
 	"github.com/celo-org/celo-blockchain/core/rawdb"
 	"github.com/celo-org/celo-blockchain/core/types"
-	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/eth/filters"
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/internal/ethapi"
-	lpc "github.com/celo-org/celo-blockchain/les/lespay/client"
+	"github.com/celo-org/celo-blockchain/les/vflux"
+	vfc "github.com/celo-org/celo-blockchain/les/vflux/client"
 	"github.com/celo-org/celo-blockchain/light"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
+	"github.com/celo-org/celo-blockchain/p2p/enr"
 	"github.com/celo-org/celo-blockchain/params"
+	"github.com/celo-org/celo-blockchain/rlp"
 	"github.com/celo-org/celo-blockchain/rpc"
 )
 
 type LightEthereum struct {
 	lesCommons
 
-	peers          *serverPeerSet
-	reqDist        *requestDistributor
-	retriever      *retrieveManager
-	odr            *LesOdr
-	relay          *lesTxRelay
-	handler        *clientHandler
-	txPool         *light.TxPool
-	blockchain     *light.LightChain
-	serverPool     *serverPool
-	chainreader    *LightChainReader
-	valueTracker   *lpc.ValueTracker
-	dialCandidates enode.Iterator
-	pruner         *pruner
+	peers              *serverPeerSet
+	reqDist            *requestDistributor
+	retriever          *retrieveManager
+	odr                *LesOdr
+	relay              *lesTxRelay
+	handler            *clientHandler
+	txPool             *light.TxPool
+	blockchain         *light.LightChain
+	serverPool         *vfc.ServerPool
+	chainreader        *LightChainReader
+	serverPoolIterator enode.Iterator
+	pruner             *pruner
 
 	bloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	bloomIndexer  *core.ChainIndexer             // Bloom indexer operating during block imports
@@ -72,12 +74,14 @@ type LightEthereum struct {
 	accountManager *accounts.Manager
 	netRPCService  *ethapi.PublicNetAPI
 
-	networkId uint64
-	p2pServer *p2p.Server
+	networkId  uint64
+	p2pServer  *p2p.Server
+	p2pConfig  *p2p.Config
+	udpEnabled bool
 }
 
 // New creates an instance of the light client.
-func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
+func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 	var chainName string
 	syncMode := config.SyncMode
 	var fullChainAvailable bool
@@ -91,11 +95,11 @@ func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 		panic("Unexpected sync mode: " + syncMode.String())
 	}
 
-	chainDb, err := stack.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/")
+	chainDb, err := stack.OpenDatabase(chainName, config.DatabaseCache, config.DatabaseHandles, "eth/db/chaindata/", false)
 	if err != nil {
 		return nil, err
 	}
-	lespayDb, err := stack.OpenDatabase("lespay", 0, 0, "eth/db/lespay")
+	lesDb, err := stack.OpenDatabase("les.client", 0, 0, "eth/db/lesclient/", false)
 	if err != nil {
 		return nil, err
 	}
@@ -114,35 +118,35 @@ func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 			chainConfig: chainConfig,
 			iConfig:     light.DefaultClientIndexerConfig,
 			chainDb:     chainDb,
+			lesDb:       lesDb,
 			closeCh:     make(chan struct{}),
 		},
 		peers:          peers,
 		eventMux:       stack.EventMux(),
 		reqDist:        newRequestDistributor(peers, &mclock.System{}),
 		accountManager: stack.AccountManager(),
-		engine:         eth.CreateConsensusEngine(stack, chainConfig, config, chainDb),
+		engine:         ethconfig.CreateConsensusEngine(stack, chainConfig, config, chainDb),
 		networkId:      config.NetworkId,
 		bloomRequests:  make(chan chan *bloombits.Retrieval),
-		valueTracker:   lpc.NewValueTracker(lespayDb, &mclock.System{}, requestList, time.Minute, 1/float64(time.Hour), 1/float64(time.Hour*100), 1/float64(time.Hour*1000)),
 		p2pServer:      stack.Server(),
+		p2pConfig:      &stack.Config().P2P,
+		udpEnabled:     stack.Config().P2P.DiscoveryV5,
 	}
-	peers.subscribe((*vtSubscription)(leth.valueTracker))
 
-	dnsdisc, err := leth.setupDiscovery()
-	if err != nil {
-		return nil, err
+	var prenegQuery vfc.QueryFunc
+	if leth.udpEnabled {
+		prenegQuery = leth.prenegQuery
 	}
-	leth.serverPool = newServerPool(lespayDb, []byte("serverpool:"), leth.valueTracker, dnsdisc, time.Second, nil, &mclock.System{}, config.UltraLightServers)
-	peers.subscribe(leth.serverPool)
-	leth.dialCandidates = leth.serverPool.dialIterator
+	leth.serverPool, leth.serverPoolIterator = vfc.NewServerPool(lesDb, []byte("serverpool:"), time.Second, prenegQuery, &mclock.System{}, config.UltraLightServers, requestList)
+	leth.serverPool.AddMetrics(suggestedTimeoutGauge, totalValueGauge, serverSelectableGauge, serverConnectedGauge, sessionValueMeter, serverDialedMeter)
 
-	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool.getTimeout)
+	leth.retriever = newRetrieveManager(peers, leth.reqDist, leth.serverPool.GetTimeout)
 	leth.relay = newLesTxRelay(peers, leth.retriever)
 
-	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.retriever)
+	leth.odr = NewLesOdr(chainDb, light.DefaultClientIndexerConfig, leth.peers, leth.retriever)
 	// If the full chain is not available then indexing each block header isn't possible.
 	if fullChainAvailable {
-		leth.bloomIndexer = eth.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
+		leth.bloomIndexer = core.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations, fullChainAvailable)
 		leth.chtIndexer = light.NewChtIndexer(chainDb, leth.odr, params.CHTFrequency, params.HelperTrieConfirmations, config.LightNoPrune, fullChainAvailable)
 		leth.bloomTrieIndexer = light.NewBloomTrieIndexer(chainDb, leth.odr, params.BloomBitsBlocksClient, params.BloomTrieFrequency, config.LightNoPrune, fullChainAvailable)
 	}
@@ -183,7 +187,7 @@ func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), leth}
+	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, leth}
 
 	leth.chainreader = &LightChainReader{
 		config:     leth.chainConfig,
@@ -208,24 +212,82 @@ func New(stack *node.Node, config *eth.Config) (*LightEthereum, error) {
 	stack.RegisterProtocols(leth.Protocols())
 	stack.RegisterLifecycle(leth)
 
+	// Check for unclean shutdown
+	if uncleanShutdowns, discards, err := rawdb.PushUncleanShutdownMarker(chainDb); err != nil {
+		log.Error("Could not update unclean-shutdown-marker list", "error", err)
+	} else {
+		if discards > 0 {
+			log.Warn("Old unclean shutdowns found", "count", discards)
+		}
+		for _, tstamp := range uncleanShutdowns {
+			t := time.Unix(int64(tstamp), 0)
+			log.Warn("Unclean shutdown detected", "booted", t,
+				"age", common.PrettyAge(t))
+		}
+	}
 	return leth, nil
 }
 
-// vtSubscription implements serverPeerSubscriber
-type vtSubscription lpc.ValueTracker
-
-// registerPeer implements serverPeerSubscriber
-func (v *vtSubscription) registerPeer(p *serverPeer) {
-	vt := (*lpc.ValueTracker)(v)
-	p.setValueTracker(vt, vt.Register(p.ID()))
-	p.updateVtParams()
+// VfluxRequest sends a batch of requests to the given node through discv5 UDP TalkRequest and returns the responses
+func (s *LightEthereum) VfluxRequest(n *enode.Node, reqs vflux.Requests) vflux.Replies {
+	if !s.udpEnabled {
+		return nil
+	}
+	reqsEnc, _ := rlp.EncodeToBytes(&reqs)
+	repliesEnc, _ := s.p2pServer.DiscV5.TalkRequest(s.serverPool.DialNode(n), "vfx", reqsEnc)
+	var replies vflux.Replies
+	if len(repliesEnc) == 0 || rlp.DecodeBytes(repliesEnc, &replies) != nil {
+		return nil
+	}
+	return replies
 }
 
-// unregisterPeer implements serverPeerSubscriber
-func (v *vtSubscription) unregisterPeer(p *serverPeer) {
-	vt := (*lpc.ValueTracker)(v)
-	vt.Unregister(p.ID())
-	p.setValueTracker(nil, nil)
+// vfxVersion returns the version number of the "les" service subdomain of the vflux UDP
+// service, as advertised in the ENR record
+func (s *LightEthereum) vfxVersion(n *enode.Node) uint {
+	if n.Seq() == 0 {
+		var err error
+		if !s.udpEnabled {
+			return 0
+		}
+		if n, err = s.p2pServer.DiscV5.RequestENR(n); n != nil && err == nil && n.Seq() != 0 {
+			s.serverPool.Persist(n)
+		} else {
+			return 0
+		}
+	}
+
+	var les []rlp.RawValue
+	if err := n.Load(enr.WithEntry("les", &les)); err != nil || len(les) < 1 {
+		return 0
+	}
+	var version uint
+	rlp.DecodeBytes(les[0], &version) // Ignore additional fields (for forward compatibility).
+	return version
+}
+
+// prenegQuery sends a capacity query to the given server node to determine whether
+// a connection slot is immediately available
+func (s *LightEthereum) prenegQuery(n *enode.Node) int {
+	if s.vfxVersion(n) < 1 {
+		// UDP query not supported, always try TCP connection
+		return 1
+	}
+
+	var requests vflux.Requests
+	requests.Add("les", vflux.CapacityQueryName, vflux.CapacityQueryReq{
+		Bias:      180,
+		AddTokens: []vflux.IntOrInf{{}},
+	})
+	replies := s.VfluxRequest(n, requests)
+	var cqr vflux.CapacityQueryReply
+	if replies.Get(0, &cqr) != nil || len(cqr) != 1 { // Note: Get returns an error if replies is nil
+		return -1
+	}
+	if cqr[0] > 0 {
+		return 1
+	}
+	return 0
 }
 
 type LightDummyAPI struct{}
@@ -274,7 +336,7 @@ func (s *LightEthereum) APIs() []rpc.API {
 		}, {
 			Namespace: "eth",
 			Version:   "1.0",
-			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
+			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true, 5*time.Minute),
 			Public:    true,
 		}, {
 			Namespace: "net",
@@ -287,9 +349,9 @@ func (s *LightEthereum) APIs() []rpc.API {
 			Service:   NewPrivateLightAPI(&s.lesCommons),
 			Public:    false,
 		}, {
-			Namespace: "lespay",
+			Namespace: "vflux",
 			Version:   "1.0",
-			Service:   lpc.NewPrivateClientAPI(s.valueTracker),
+			Service:   s.serverPool.API(),
 			Public:    false,
 		},
 	}...)
@@ -305,7 +367,7 @@ func (s *LightEthereum) Engine() consensus.Engine           { return s.engine }
 func (s *LightEthereum) LesVersion() int                    { return int(ClientProtocolVersions[0]) }
 func (s *LightEthereum) Downloader() *downloader.Downloader { return s.handler.downloader }
 func (s *LightEthereum) EventMux() *event.TypeMux           { return s.eventMux }
-func (s *LightEthereum) ServerPool() *serverPool            { return s.serverPool }
+func (s *LightEthereum) ServerPool() *vfc.ServerPool        { return s.serverPool }
 
 // Protocols returns all the currently configured network protocols to start.
 func (s *LightEthereum) Protocols() []p2p.Protocol {
@@ -314,7 +376,7 @@ func (s *LightEthereum) Protocols() []p2p.Protocol {
 			return p.Info()
 		}
 		return nil
-	}, s.dialCandidates)
+	}, s.serverPoolIterator)
 }
 
 // Start implements node.Lifecycle, starting all internal goroutines needed by the
@@ -322,7 +384,16 @@ func (s *LightEthereum) Protocols() []p2p.Protocol {
 func (s *LightEthereum) Start() error {
 	log.Warn("Light client mode is an experimental feature")
 
-	s.serverPool.start()
+	if s.udpEnabled && s.p2pServer.DiscV5 == nil {
+		s.udpEnabled = false
+		log.Error("Discovery v5 is not initialized")
+	}
+	discovery, err := s.setupDiscovery()
+	if err != nil {
+		return err
+	}
+	s.serverPool.AddSource(discovery)
+	s.serverPool.Start()
 	// Start bloom request workers.
 	s.wg.Add(bloomServiceThreads)
 	s.startBloomHandlers(params.BloomBitsBlocksClient)
@@ -339,8 +410,7 @@ func (s *LightEthereum) GetRandomPeerEtherbase() common.Address {
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
 	close(s.closeCh)
-	s.serverPool.stop()
-	s.valueTracker.Stop()
+	s.serverPool.Stop()
 	s.peers.close()
 	s.reqDist.close()
 	s.odr.Stop()
@@ -357,7 +427,9 @@ func (s *LightEthereum) Stop() error {
 	s.engine.Close()
 	s.pruner.close()
 	s.eventMux.Stop()
+	rawdb.PopUncleanShutdownMarker(s.chainDb)
 	s.chainDb.Close()
+	s.lesDb.Close()
 	s.wg.Wait()
 	log.Info("Light ethereum stopped")
 	return nil

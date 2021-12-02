@@ -22,7 +22,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
+	"golang.org/x/crypto/sha3"
 )
 
 // Genesis hashes to enforce below configs on.
@@ -138,6 +138,13 @@ var (
 		BlockPeriod:    1,
 	}, true, false}
 
+	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
+		Epoch:          300,
+		ProposerPolicy: 0,
+		RequestTimeout: 1000,
+		BlockPeriod:    1,
+	}, true, false}
+
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
 		Epoch:          30000,
 		ProposerPolicy: 0,
@@ -166,12 +173,18 @@ func (c *TrustedCheckpoint) HashEqual(hash common.Hash) bool {
 
 // Hash returns the hash of checkpoint's four key fields(index, sectionHead, chtRoot and bloomTrieRoot).
 func (c *TrustedCheckpoint) Hash() common.Hash {
-	buf := make([]byte, 8+3*common.HashLength)
-	binary.BigEndian.PutUint64(buf, c.SectionIndex)
-	copy(buf[8:], c.SectionHead.Bytes())
-	copy(buf[8+common.HashLength:], c.CHTRoot.Bytes())
-	copy(buf[8+2*common.HashLength:], c.BloomRoot.Bytes())
-	return crypto.Keccak256Hash(buf)
+	var sectionIndex [8]byte
+	binary.BigEndian.PutUint64(sectionIndex[:], c.SectionIndex)
+
+	w := sha3.NewLegacyKeccak256()
+	w.Write(sectionIndex[:])
+	w.Write(c.SectionHead[:])
+	w.Write(c.CHTRoot[:])
+	w.Write(c.BloomRoot[:])
+
+	var h common.Hash
+	w.Sum(h[:0])
+	return h
 }
 
 // Empty returns an indicator whether the checkpoint is regarded as empty.
@@ -219,7 +232,6 @@ type ChainConfig struct {
 	EBlock              *big.Int `json:"dBlock,omitempty"`              // E switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
-
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
 	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise

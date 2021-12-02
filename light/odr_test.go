@@ -43,7 +43,7 @@ import (
 var (
 	testBankKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
-	testBankFunds   = big.NewInt(100000000)
+	testBankFunds   = big.NewInt(1_000_000_000_000_000_000)
 
 	acc1Key, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 	acc2Key, _ = crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
@@ -243,14 +243,14 @@ func odrContractCall(ctx context.Context, db ethdb.Database, bc *core.BlockChain
 
 		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), nil, nil, nil, data, false, false)}
+		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), new(big.Int), new(big.Int), nil, nil, nil, data, nil, false, false)}
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(header, chain, nil)
-		vmenv := vm.NewEVM(context, txContext, st, config, vm.Config{})
+		vmenv := vm.NewEVM(context, txContext, st, config, vm.Config{NoBaseFee: true})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
 
 		celoMock := testutil.NewCeloMock()
-		result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner)
+		result, _ := core.ApplyMessage(vmenv, msg, gp, celoMock.Runner, nil)
 		res = append(res, result.Return()...)
 		if st.Error() != nil {
 			return res, st.Error()
@@ -264,15 +264,15 @@ func testChainGen(i int, block *core.BlockGen) {
 	switch i {
 	case 0:
 		// In block 1, the test bank sends account #1 some ether.
-		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
+		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
 		block.AddTx(tx)
 	case 1:
 		// In block 2, the test bank sends some more ether to account #1.
 		// acc1Addr passes it on to account #2.
 		// acc1Addr creates a test contract.
-		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
+		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, testBankKey)
 		nonce := block.TxNonce(acc1Addr)
-		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
+		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1_000_000_000_000_000), params.TxGas, nil, nil, nil, nil, nil), signer, acc1Key)
 		nonce++
 		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, big.NewInt(0), nil, nil, nil, testContractCode), signer, acc1Key)
 		testContractAddr = crypto.CreateAddress(acc1Addr, nonce)
@@ -291,9 +291,11 @@ func testChainGen(i int, block *core.BlockGen) {
 
 func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 	var (
-		sdb     = rawdb.NewMemoryDatabase()
-		ldb     = rawdb.NewMemoryDatabase()
-		gspec   = core.Genesis{Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}}}
+		sdb   = rawdb.NewMemoryDatabase()
+		ldb   = rawdb.NewMemoryDatabase()
+		gspec = core.Genesis{
+			Alloc: core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+		}
 		genesis = gspec.MustCommit(sdb)
 	)
 	gspec.MustCommit(ldb)

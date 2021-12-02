@@ -23,16 +23,13 @@ import (
 	"io"
 	"math/big"
 	"reflect"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/common/hexutil"
-	"github.com/celo-org/celo-blockchain/crypto"
 	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 	"github.com/celo-org/celo-blockchain/rlp"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -109,22 +106,6 @@ func (h *Header) EmptyBody() bool {
 // EmptyReceipts returns true if there are no receipts for this header/block.
 func (h *Header) EmptyReceipts() bool {
 	return h.ReceiptHash == EmptyRootHash
-}
-
-// hasherPool holds LegacyKeccak hashers.
-var hasherPool = sync.Pool{
-	New: func() interface{} {
-		return sha3.NewLegacyKeccak256()
-	},
-}
-
-func rlpHash(x interface{}) (h common.Hash) {
-	sha := hasherPool.Get().(crypto.KeccakState)
-	defer hasherPool.Put(sha)
-	sha.Reset()
-	rlp.Encode(sha, x)
-	sha.Read(h[:])
-	return h
 }
 
 type Randomness struct {
@@ -240,19 +221,6 @@ type Block struct {
 	ReceivedFrom interface{}
 }
 
-// DeprecatedTd is an old relic for extracting the TD of a block. It is in the
-// code solely to facilitate upgrading the database from the old format to the
-// new, after which it should be deleted. Do not use!
-func (b *Block) DeprecatedTd() *big.Int {
-	return b.td
-}
-
-// [deprecated by eth/63]
-// StorageBlock defines the RLP encoding of a Block stored in the
-// state database. The StorageBlock encoding contains fields that
-// would otherwise need to be recomputed.
-type StorageBlock Block
-
 // "external" block encoding. used for eth protocol, etc.
 type extblock struct {
 	Header         *Header
@@ -261,23 +229,13 @@ type extblock struct {
 	EpochSnarkData *EpochSnarkData
 }
 
-// [deprecated by eth/63]
-// "storage" block encoding. used for database.
-type storageblock struct {
-	Header         *Header
-	Txs            []*Transaction
-	Randomness     *Randomness
-	EpochSnarkData *EpochSnarkData
-	TD             *big.Int
-}
-
 // NewBlock creates a new block. The input data is copied,
 // changes to header and to the field values will not affect the
 // block.
 //
 // The values of TxHash, ReceiptHash and Bloom in header
 // are ignored and set to values derived from the given txs and receipts.
-func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness, hasher Hasher) *Block {
+func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt, randomness *Randomness, hasher TrieHasher) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int), randomness: randomness, epochSnarkData: &EmptyEpochSnarkData}
 
 	// TODO: panic if len(txs) != len(receipts)
@@ -344,16 +302,6 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 		Randomness:     b.randomness,
 		EpochSnarkData: b.epochSnarkData,
 	})
-}
-
-// [deprecated by eth/63]
-func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
-	var sb storageblock
-	if err := s.Decode(&sb); err != nil {
-		return err
-	}
-	b.header, b.transactions, b.randomness, b.epochSnarkData = sb.Header, sb.Txs, sb.Randomness, sb.EpochSnarkData
-	return nil
 }
 
 // TODO: copies
