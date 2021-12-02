@@ -102,13 +102,16 @@ not be able to accept the proposal.
 
 So what if I receive a proposal from a node with a round change cert with
 higher number round changes. I accept and start working on it but if I then
-receive some of the higher round changes I will swich rounds and not be able to
+receive some of the higher round changes I will switch rounds and not be able to
 continue on that proposal.
 
 So to clarify, if I receive a round change cert with enough round changes of
 higher rounds such that I now have 3f+1 round changes for a higher round there
-is no point prepareing the proposal, since it can never be confirmed.
+is no point preparing the proposal, since it can never be confirmed.
 
 So these 2 streams of processing should be streamlined.
 
-
+14. Thoughts on round changes. Its ok to have a prepared cert that is much older
+than the proposal, it is still a prepared cert and it could be the only one.
+Since if nodes send no messages and timeout with round changes for a new round
+then there is no new prepared cert to have.
