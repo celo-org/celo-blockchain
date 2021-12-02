@@ -276,7 +276,7 @@ func (api *API) traceChain(ctx context.Context, start, end *types.Block, config 
 				signer := types.MakeSigner(api.backend.ChainConfig(), task.block.Number())
 				blockCtx := core.NewEVMBlockContext(task.block.Header(), api.chainContext(localctx), nil)
 				var sysCtx *core.SysContractCallCtx
-				if api.backend.ChainConfig().IsEHardfork(blockCtx.BlockNumber) {
+				if api.backend.ChainConfig().IsEspresso(blockCtx.BlockNumber) {
 					sysVmRunner := api.backend.VmRunnerAtHeader(task.block.Header(), task.statedb)
 					sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 				}
@@ -530,7 +530,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	blockHash := block.Hash()
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
 		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
@@ -640,13 +640,13 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		chainConfigCopy := new(params.ChainConfig)
 		*chainConfigCopy = *chainConfig
 		chainConfig = chainConfigCopy
-		if E := config.LogConfig.Overrides.EBlock; E != nil {
-			chainConfig.EBlock = E
+		if E := config.LogConfig.Overrides.EspressoBlock; E != nil {
+			chainConfig.EspressoBlock = E
 			canon = false
 		}
 	}
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
 		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}
@@ -740,7 +740,7 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 	}
 
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
 		parent, err := api.blockByNumber(ctx, rpc.BlockNumber(blockNumber-1))
 		if err != nil {
 			return nil, err
@@ -808,7 +808,7 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	vmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 	var sysCtx *core.SysContractCallCtx
-	if api.backend.ChainConfig().IsEHardfork(block.Number()) {
+	if api.backend.ChainConfig().IsEspresso(block.Number()) {
 		sysVmRunner := api.backend.VmRunnerAtHeader(block.Header(), statedb)
 		sysCtx = core.NewSysContractCallCtx(sysVmRunner)
 	}

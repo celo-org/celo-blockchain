@@ -54,7 +54,7 @@ func (leth *LightEthereum) stateAtTransaction(ctx context.Context, block *types.
 	}
 	// Create SysContractCallCtx
 	var sysCtx *core.SysContractCallCtx
-	if leth.chainConfig.IsEHardfork(block.Number()) {
+	if leth.chainConfig.IsEspresso(block.Number()) {
 		vmRunner := vmcontext.NewEVMRunner(leth.blockchain, block.Header(), statedb.Copy())
 		sysCtx = core.NewSysContractCallCtx(vmRunner)
 	}

@@ -203,7 +203,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
 	if overrideEHardfork != nil {
-		newcfg.EBlock = overrideEHardfork
+		newcfg.EspressoBlock = overrideEHardfork
 	}
 
 	if err := newcfg.CheckConfigForkOrder(); err != nil {

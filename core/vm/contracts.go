@@ -275,7 +275,7 @@ func init() {
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
-	case rules.IsEHardfork:
+	case rules.IsEspresso:
 		return PrecompiledAddressesE
 	case rules.IsDonut:
 		return PrecompiledAddressesDonut
