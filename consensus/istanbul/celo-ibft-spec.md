@@ -61,6 +61,12 @@ function that determines the validity of a value.
 
 ### Algorithm
 
+See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
+
+Note all state modifications are contained in the following code block,
+supporting functions cannot modify state, they all operate without side
+effects.
+
 Variable names                  |Instance state                          
 --------------------------------|----------------------------------------
 `H - height`                    |`Hc - current height`                                      
@@ -72,7 +78,6 @@ Variable names                  |Instance state
 `S - participant state`         |
 `M or N - message sets`         |
 
-See supporting [functions](#Functions) and [notation](#Appendix-1-Notation).
 ```
 
 // Upon receiving this event the algorithm transitions to the next height the
@@ -140,9 +145,31 @@ upon: m<RoundChange, Hc , R, PC> && (PC = nil || validPC(PC))
     schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
     bc(<RoundChange, Hc, Rd, PCc>)
   }
+
+// Functions that modify instance state.
+
+// As long as the round and height have not changed since it was scheduled
+// onRoundChangeTimeout sets the desired round to be one greater than the Current
+// round, sets the current state to be WaitingForNewRound and broadcasts a round
+// change message.
+// 
+// Note: This function is referred to in the code as
+// `handleTimeoutAndMoveToNextRound`, which is misleading because it does not move
+// to the next round, it only updates the desired round and sends a round change
+// message. Hence why it has been renamed here to avoid confusion.
+onRoundChangeTimeout(H, R) {
+  if H = Hc && R = Rc {
+    Rd ← Rc+1
+    Sc ← WaitingForNewRound
+    schedule onRoundChangeTimeout(Hc, Rd) after roundChangeTimeout(Rd)
+    bc<RoundChange, Hc, Rd, PCc>
+  }
+}
 ```
 
-### Functions
+### Supporting Functions
+
+These functions can read global state but cannot modify it.
 
 #### Application provided functions
 No pseudocode is provided for these functions since their implementation is
