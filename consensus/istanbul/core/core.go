@@ -111,7 +111,8 @@ type core struct {
 	logger         log.Logger
 	selectProposer istanbul.ProposerSelector
 
-	algo *algorithm.Algorithm
+	algo   *algorithm.Algorithm
+	oracle *RoundStateOracle
 
 	backend           CoreBackend
 	events            *event.TypeMuxSubscription

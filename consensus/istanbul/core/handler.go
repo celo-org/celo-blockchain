@@ -37,7 +37,8 @@ func (c *core) Start() error {
 	}
 
 	c.current = roundState
-	c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(roundState, c))
+	c.oracle = NewRoundStateOracle(roundState, c)
+	c.algo = algorithm.NewAlgorithm(c.oracle)
 	c.roundChangeSet = newRoundChangeSet(c.current.ValidatorSet())
 
 	// Reset the Round Change timer for the current round to timeout.
@@ -185,6 +186,47 @@ func IsFutureMsg(currentSequence, desiredRound *big.Int, currentState State, msg
 	return false
 }
 
+// buildAlgorithmMsg builds an algorithm message from an istanbul message. It
+// takes the oracle because it needs to validate round change certificates and
+// generate an associated id. This is pretty clunky, ideally we could represent
+// the round change certificate in more detail in the algorithm message and
+// then the round change certificate verification logic could be moved to the
+// algorithm, but this will be a bit of work.
+func buildAlgorithmMsg(msg *istanbul.Message, o *RoundStateOracle) (*algorithm.Msg, error) {
+	m := &algorithm.Msg{
+		MsgType: algorithm.Type(msg.Code),
+	}
+	switch msg.Code {
+	case istanbul.MsgPreprepare:
+		p := msg.Preprepare()
+		rccID, err := o.SetRoundChangeCertificate(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set round change certificate in oracle: %w", err)
+		}
+		m.Height = p.View.Sequence.Uint64()
+		m.Round = p.View.Round.Uint64()
+		m.Val = algorithm.Value(p.Proposal.Hash())
+		m.RoundChangeCert = rccID
+	case istanbul.MsgPrepare:
+		p := msg.Prepare()
+		m.Height = p.View.Sequence.Uint64()
+		m.Round = p.View.Round.Uint64()
+		m.Val = algorithm.Value(p.Digest)
+	case istanbul.MsgCommit:
+		c := msg.Commit()
+		m.Height = c.Subject.View.Sequence.Uint64()
+		m.Round = c.Subject.View.Round.Uint64()
+		m.Val = algorithm.Value(c.Subject.Digest)
+	case istanbul.MsgRoundChange:
+		r := msg.RoundChange()
+		m.Height = r.View.Sequence.Uint64()
+		m.Round = r.View.Round.Uint64()
+	default:
+		return nil, errInvalidMessage
+	}
+	return m, nil
+}
+
 func (c *core) handleMsg(payload []byte) error {
 	logger := c.newLogger("func", "handleMsg")
 
@@ -206,15 +248,11 @@ func (c *core) handleMsg(payload []byte) error {
 	// Update logger context
 	logger = logger.New("from", msg.Address)
 
-	// Basic checks
-
-	// Check msg code
-	switch msg.Code {
-	case istanbul.MsgPreprepare, istanbul.MsgPrepare, istanbul.MsgCommit, istanbul.MsgRoundChange:
-		// No problem
-	default:
-		return errInvalidMessage
+	m, err := buildAlgorithmMsg(msg, c.oracle)
+	if err != nil {
+		return err
 	}
+
 	// Because of the way that rlp handles decoding, it is not possible to
 	// decode a nil view or a view with nil fields. The View method will only
 	// return nil if the message is not one of Preprepare, Prepare, Commit or
@@ -312,13 +350,7 @@ func (c *core) handleMsg(payload []byte) error {
 
 		logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", preprepare.Proposal.Number(),
 			"msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
-		// Set the rcc
-		var rccID *algorithm.Value
-		var err error
-		rccID, err = c.algo.O.(*RoundStateOracle).SetRoundChangeCertificate(preprepare)
-		if err != nil {
-			return fmt.Errorf("failed to set round change certificate in oracle: %w", err)
-		}
+
 		if preprepare.View.Round.Uint64() > 0 {
 			logger.Trace("Trying to move to round change certificate's round", "target round", preprepare.View.Round)
 			err := c.startNewRound(preprepare.View.Round)
@@ -327,13 +359,9 @@ func (c *core) handleMsg(payload []byte) error {
 				return err
 			}
 		}
-		m, _, _ := c.algo.HandleMessage(&algorithm.Msg{
-			MsgType:         algorithm.Type(msg.Code),
-			Height:          preprepare.View.Sequence.Uint64(),
-			Round:           preprepare.View.Round.Uint64(),
-			Val:             algorithm.Value(preprepare.Proposal.Hash()),
-			RoundChangeCert: rccID,
-		})
+
+		// handle the message
+		m, _, _ = c.algo.HandleMessage(m)
 		if m != nil && m.MsgType == algorithm.Prepare {
 			// Verify the proposal we received
 			if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
@@ -387,13 +415,7 @@ func (c *core) handleMsg(payload []byte) error {
 		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 		logger.Trace("Accepted prepare")
-
-		m, _, _ := c.algo.HandleMessage(&algorithm.Msg{
-			Height:  prepare.View.Sequence.Uint64(),
-			Round:   prepare.View.Round.Uint64(),
-			MsgType: algorithm.Type(msg.Code),
-			Val:     algorithm.Value(prepare.Digest),
-		})
+		m, _, _ := c.algo.HandleMessage(m)
 
 		// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
 		// before Prepared state.
@@ -447,13 +469,7 @@ func (c *core) handleMsg(payload []byte) error {
 		numberOfCommits := c.current.Commits().Size()
 		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
-
-		m, round, _ := c.algo.HandleMessage(&algorithm.Msg{
-			Height:  commit.Subject.View.Sequence.Uint64(),
-			Round:   commit.Subject.View.Round.Uint64(),
-			MsgType: algorithm.Type(msg.Code),
-			Val:     algorithm.Value(commit.Subject.Digest),
-		})
+		m, round, _ := c.algo.HandleMessage(m)
 		// If the target round is set to 0 then we have committed
 		if round != nil && *round == 0 {
 			logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
