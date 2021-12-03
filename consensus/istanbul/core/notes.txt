@@ -115,3 +115,15 @@ So these 2 streams of processing should be streamlined.
 than the proposal, it is still a prepared cert and it could be the only one.
 Since if nodes send no messages and timeout with round changes for a new round
 then there is no new prepared cert to have.
+
+15. Had a horrible time debugging an issue where I had set the value of the
+current round in a test to 2. The problem was that in core when starting a new
+sequence we set the Round to common.Big0, subsequently setting the Round to 2
+changed the value of Big0 to 2. We need to be really careful when using big
+ints of this kind of problem, and we should probably avoid use of common.BigX
+for this reason.
+
+consensus/istanbul/core/core.go:528
+		Round:    new(big.Int).Set(common.Big0),
+
+16. We are not running the benchmarks, we probably should do that in CI
