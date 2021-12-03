@@ -399,6 +399,23 @@ func TestTransactionNegativeValue(t *testing.T) {
 	}
 }
 
+func TestTransactionGasPriceLessThanFloor(t *testing.T) {
+	t.Parallel()
+
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	ctx := pool.currentCtx.Load().(txPoolContext)
+	ctx.celoGasPriceMinimumFloor = common.Big2
+	pool.currentCtx.Store(ctx)
+	tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, big.NewInt(1), 200000, big.NewInt(1), nil, nil, nil, nil), types.HomesteadSigner{}, key)
+	from, _ := deriveSender(tx)
+	pool.currentState.AddBalance(from, big.NewInt(100000000000000))
+	if err := pool.AddRemote(tx); err != ErrGasPriceDoesNotExceedMinimumFloor {
+		t.Error("expected", ErrGasPriceDoesNotExceedMinimumFloor, "got", err)
+	}
+}
+
 func TestTransactionChainFork(t *testing.T) {
 	t.Parallel()
 
