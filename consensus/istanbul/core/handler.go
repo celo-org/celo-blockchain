@@ -227,6 +227,13 @@ func buildAlgorithmMsg(msg *istanbul.Message, o *RoundStateOracle) (*algorithm.M
 	return m, nil
 }
 
+func view(m *algorithm.Msg) *istanbul.View {
+	return &istanbul.View{
+		Round:    new(big.Int).SetUint64(m.Round),
+		Sequence: new(big.Int).SetUint64(m.Height),
+	}
+}
+
 func (c *core) handleMsg(payload []byte) error {
 	logger := c.newLogger("func", "handleMsg")
 
@@ -253,17 +260,8 @@ func (c *core) handleMsg(payload []byte) error {
 		return err
 	}
 
-	// Because of the way that rlp handles decoding, it is not possible to
-	// decode a nil view or a view with nil fields. The View method will only
-	// return nil if the message is not one of Preprepare, Prepare, Commit or
-	// RoundChange.
-	v := msg.View()
-	desiredView := &istanbul.View{
-		Round:    c.current.DesiredRound(),
-		Sequence: c.current.Sequence(),
-	}
 	// Prior views are always old.
-	if v.Cmp(desiredView) < 0 {
+	if view(m).Cmp(c.current.View()) < 0 {
 		switch msg.Code {
 		case istanbul.MsgPreprepare:
 			preprepare := msg.Preprepare()
@@ -278,26 +276,24 @@ func (c *core) handleMsg(payload []byte) error {
 				logger.Warn("Would have sent a commit message for an old block")
 			}
 		case istanbul.MsgCommit:
-			commit := msg.Commit()
 			// Discard messages from previous views, unless they are commits from the previous sequence,
 			// with the same round as what we wound up finalizing, as we would be able to include those
 			// to create the ParentAggregatedSeal for our next proposal.
 			lastSubject, err := c.backend.LastSubject()
 			if err != nil {
 				return err
-			} else if commit.Subject.View.Cmp(lastSubject.View) != 0 {
+			} else if view(m).Cmp(lastSubject.View) != 0 {
 				return errOldMessage
 			} else if lastSubject.View.Sequence.Cmp(common.Big0) == 0 {
 				// Don't handle commits for the genesis block, will cause underflows
 				return errOldMessage
 			}
-			return c.handleCheckedCommitForPreviousSequence(msg, commit)
+			return c.handleCheckedCommitForPreviousSequence(msg, msg.Commit())
 		case istanbul.MsgRoundChange:
-			rc := msg.RoundChange()
 			// If the RC message is for the current sequence but a prior round, help the sender fast forward
 			// by sending back to it (not broadcasting) a round change message for our desired round.
-			if rc.View.Sequence.Cmp(c.current.Sequence()) == 0 {
-				logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", rc.View.Round)
+			if m.Height == c.current.Sequence().Uint64() {
+				logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", m.Round)
 				c.sendRoundChangeAgain(msg.Address)
 			}
 		}
@@ -310,7 +306,7 @@ func (c *core) handleMsg(payload []byte) error {
 	}
 
 	// Check if the message is a future message and if so add it to the backlog
-	if IsFutureMsg(c.current.Sequence(), c.current.DesiredRound(), c.current.State(), v, msg.Code) {
+	if IsFutureMsg(c.current.Sequence(), c.current.DesiredRound(), c.current.State(), view(m), msg.Code) {
 		// Store in backlog (if it's not from self)
 		if msg.Address != c.address {
 			c.backlog.store(msg)
@@ -318,6 +314,8 @@ func (c *core) handleMsg(payload []byte) error {
 		return errFutureMessage
 	}
 
+	numberOfCommits := c.current.Commits().Size()
+	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	// At this point we know that messages are either for the current sequence
 	// and desired round or its a round change for the current sequence and
 	// desired or future round.
@@ -326,10 +324,10 @@ func (c *core) handleMsg(payload []byte) error {
 		logger.Trace("Got preprepare message", "m", msg)
 
 		preprepare := msg.Preprepare()
-		logger = logger.New("msg_num", preprepare.Proposal.Number(), "msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
+		logger = logger.New("msg_num", m.Height, "msg_round", m.Round, "msg_hash", m.Val)
 
 		// Verify that the proposal is for the sequence number of the view we verified.
-		if preprepare.View.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
+		if m.Height != preprepare.Proposal.Number().Uint64() {
 			logger.Warn("Received preprepare with invalid block number")
 			return errInvalidProposal
 		}
@@ -340,7 +338,7 @@ func (c *core) handleMsg(payload []byte) error {
 			logger.Error("Could not determine head proposer")
 			return errNotFromProposer
 		}
-		proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, preprepare.View.Round.Uint64())
+		proposerForMsgRound := c.selectProposer(c.current.ValidatorSet(), headProposer, m.Round)
 		if proposerForMsgRound.Address() != msg.Address {
 			logger.Warn("Ignore preprepare message from non-proposer", "actual_proposer", proposerForMsgRound.Address())
 			return errNotFromProposer
@@ -348,58 +346,37 @@ func (c *core) handleMsg(payload []byte) error {
 
 		defer c.handlePrePrepareTimer.UpdateSince(time.Now())
 
-		logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", preprepare.Proposal.Number(),
-			"msg_hash", preprepare.Proposal.Hash(), "msg_seq", preprepare.View.Sequence, "msg_round", preprepare.View.Round)
+		logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", m.Height,
+			"msg_hash", m.Val, "msg_seq", m.Height, "msg_round", m.Round)
 
-		if preprepare.View.Round.Uint64() > 0 {
-			logger.Trace("Trying to move to round change certificate's round", "target round", preprepare.View.Round)
-			err := c.startNewRound(preprepare.View.Round)
+		if m.Round > 0 {
+			logger.Trace("Trying to move to round change certificate's round", "target round", m.Round)
+			err := c.startNewRound(new(big.Int).SetUint64(m.Round))
 			if err != nil {
 				logger.Warn("Failed to move to new round", "err", err)
 				return err
 			}
 		}
-
-		// handle the message
-		m, _, _ = c.algo.HandleMessage(m)
-		if m != nil && m.MsgType == algorithm.Prepare {
-			// Verify the proposal we received
-			if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
-				logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
-				// if it's a future block, we will handle it again after the duration
-				if err == consensus.ErrFutureBlock {
-					c.stopFuturePreprepareTimer()
-					c.futurePreprepareTimer = time.AfterFunc(duration, func() {
-						c.sendEvent(backlogEvent{
-							msg: msg,
-						})
+		// Verify the proposal we received
+		if duration, err := c.verifyProposal(preprepare.Proposal); err != nil {
+			logger.Warn("Failed to verify proposal", "err", err, "duration", duration)
+			// if it's a future block, we will handle it again after the duration
+			if err == consensus.ErrFutureBlock {
+				c.stopFuturePreprepareTimer()
+				c.futurePreprepareTimer = time.AfterFunc(duration, func() {
+					c.sendEvent(backlogEvent{
+						msg: msg,
 					})
-				}
-				return err
+				})
 			}
-
-			if c.current.State() == StateAcceptRequest {
-				logger.Trace("Accepted preprepare", "tag", "stateTransition")
-				c.consensusTimestamp = time.Now()
-
-				err := c.current.TransitionToPreprepared(preprepare)
-				if err != nil {
-					return err
-				}
-
-				// Process Backlog Messages
-				c.backlog.updateState(c.current.View(), c.current.State())
-				c.sendPrepare()
-			}
+			return err
 		}
 
-		return nil
 	case istanbul.MsgPrepare:
-		prepare := msg.Prepare()
-		logger := c.newLogger("prepare_round", prepare.View.Round, "prepare_seq", prepare.View.Sequence, "prepare_digest", prepare.Digest.String())
+		logger := c.newLogger("prepare_round", m.Round, "prepare_seq", m.Height, "prepare_digest", m.Val)
 		d := c.current.Subject().Digest
-		if prepare.Digest != d {
-			logger.Warn("Inconsistent digest between PREPARE and proposal", "expected", d, "got", prepare.Digest)
+		if common.Hash(m.Val) != d {
+			logger.Warn("Inconsistent digest between PREPARE and proposal", "expected", d, "got", m.Val)
 			return errInconsistentSubject
 		}
 		defer c.handlePrepareTimer.UpdateSince(time.Now())
@@ -412,30 +389,12 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 
 		preparesAndCommits := c.current.GetPrepareOrCommitSize()
-		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 		logger.Trace("Accepted prepare")
-		m, _, _ := c.algo.HandleMessage(m)
-
-		// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
-		// before Prepared state.
-		if m != nil && m.MsgType == algorithm.Commit {
-			err := c.current.TransitionToPrepared(minQuorumSize)
-			if err != nil {
-				logger.Error("Failed to create and set prepared certificate", "err", err)
-				return err
-			}
-			// Update metrics.
-			if !c.consensusTimestamp.IsZero() {
-				c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
-			}
-			// Process Backlog Messages
-			c.backlog.updateState(c.current.View(), c.current.State())
-			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
-			c.sendCommit()
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		}
-
-		return nil
 	case istanbul.MsgCommit:
 		commit := msg.Commit()
 
@@ -454,8 +413,8 @@ func (c *core) handleMsg(payload []byte) error {
 
 		// ensure that the commit is for the current proposal
 		d := c.current.Subject().Digest
-		if commit.Subject.Digest != d {
-			logger.Warn("Inconsistent subjects between commit and proposal", "expected", d, "got", commit.Subject.Digest)
+		if common.Hash(m.Val) != d {
+			logger.Warn("Inconsistent subjects between commit and proposal", "expected", d, "got", m.Val)
 			return errInconsistentSubject
 		}
 
@@ -466,69 +425,75 @@ func (c *core) handleMsg(payload []byte) error {
 			logger.Error("Failed to record commit message", "m", msg, "err", err)
 			return err
 		}
-		numberOfCommits := c.current.Commits().Size()
-		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
-		m, round, _ := c.algo.HandleMessage(m)
-		// If the target round is set to 0 then we have committed
-		if round != nil && *round == 0 {
-			logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
-			err := c.commit()
-			if err != nil {
-				logger.Error("Failed to commit()", "err", err)
-				return err
-			}
-		} else if m != nil && m.MsgType == algorithm.Commit {
-			err := c.current.TransitionToPrepared(minQuorumSize)
-			if err != nil {
-				logger.Error("Failed to create and set prepared certificate", "err", err)
-				return err
-			}
-			// Process Backlog Messages
-			c.backlog.updateState(c.current.View(), c.current.State())
-			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-			c.sendCommit()
-		}
-		return nil
 	case istanbul.MsgRoundChange:
 
 		rc := msg.RoundChange()
 
 		// Verify the PREPARED certificate if present.
 		if rc.HasPreparedCertificate() {
-			_, err := c.verifyPreparedCertificate(rc.PreparedCertificate, rc.View.Round.Uint64())
+			_, err := c.verifyPreparedCertificate(rc.PreparedCertificate, m.Round)
 			if err != nil {
 				return err
 			}
 		}
 		logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
 
-		logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
-		roundView := rc.View
+		logger = logger.New("msg_round", m.Round, "msg_seq", m.Height)
 
 		// Add the ROUND CHANGE message to its message set.
-		if err := c.roundChangeSet.Add(roundView.Round, msg); err != nil {
-			logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
+		if err := c.roundChangeSet.Add(view(m).Round, msg); err != nil {
+			logger.Warn("Failed to add round change message", "roundView", view(m), "err", err)
 			return err
 		}
 		logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
-		_, round, desiredRound := c.algo.HandleMessage(&algorithm.Msg{
-			Height:  rc.View.Sequence.Uint64(),
-			Round:   rc.View.Round.Uint64(),
-			MsgType: algorithm.Type(msg.Code),
-		})
-		if round != nil {
-			logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
-			return c.startNewRound(new(big.Int).SetUint64(*round))
-		} else if desiredRound != nil {
-			logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
-			c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
-		}
-
-		return nil
 	default:
 		return errInvalidMessage
 	}
+
+	// handle the message
+	toSend, round, desiredRound := c.algo.HandleMessage(m)
+	switch {
+	case toSend != nil && toSend.MsgType == algorithm.Prepare:
+		logger.Trace("Accepted preprepare", "tag", "stateTransition")
+		c.consensusTimestamp = time.Now()
+
+		err := c.current.TransitionToPreprepared(msg.Preprepare())
+		if err != nil {
+			return err
+		}
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
+		c.sendPrepare()
+	// If the target round is set to 0 then we have committed
+	case round != nil && *round == 0:
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
+		err := c.commit()
+		if err != nil {
+			logger.Error("Failed to commit()", "err", err)
+			return err
+		}
+	case toSend != nil && toSend.MsgType == algorithm.Commit:
+		// Change to prepared state if we've received enough PREPARE messages
+		// and we are not yet in the prepared state.
+		err := c.current.TransitionToPrepared(minQuorumSize)
+		if err != nil {
+			logger.Error("Failed to create and set prepared certificate", "err", err)
+			return err
+		}
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+		c.sendCommit()
+	case round != nil:
+		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
+		return c.startNewRound(new(big.Int).SetUint64(*round))
+	case desiredRound != nil:
+		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
+		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
+	}
+	return nil
 
 }
 
