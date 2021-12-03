@@ -427,12 +427,12 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 	if canBail {
 		return nil, nil
 	}
-
+	txCtx := l.ctx.Load().(txPoolContext)
 	// Filter out all the transactions above the account's funds
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
 		if feeCurrency := tx.FeeCurrency(); feeCurrency == nil {
 			log.Trace("Transaction Filter", "hash", tx.Hash(), "Fee currency", tx.FeeCurrency(), "Cost", tx.Cost(), "Cost Limit", nativeCostLimit, "Gas", tx.Gas(), "Gas Limit", gasLimit)
-			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit
+			return tx.Cost().Cmp(nativeCostLimit) > 0 || tx.Gas() > gasLimit || txCtx.celoGasPriceMinimumFloor.Cmp(tx.GasPrice()) > 0
 		} else {
 			feeLimit := feeLimits[*feeCurrency]
 			fee := tx.Fee()
@@ -443,6 +443,8 @@ func (l *txList) Filter(nativeCostLimit *big.Int, feeLimits map[common.Address]*
 			return fee.Cmp(feeLimit) >= 0 ||
 				// The value of the tx is greater than the native balance of the account
 				tx.Value().Cmp(nativeCostLimit) > 0 ||
+				// The gas price is smaller that the gasPriceMinimumFloor
+				txCtx.CmpValues(txCtx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 ||
 				// The gas used is greater than the gas limit
 				tx.Gas() > gasLimit
 		}

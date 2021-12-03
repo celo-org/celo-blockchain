@@ -31,6 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/contracts/blockchain_parameters"
 	"github.com/celo-org/celo-blockchain/contracts/currency"
+	gpm "github.com/celo-org/celo-blockchain/contracts/gasprice_minimum"
 	"github.com/celo-org/celo-blockchain/core/state"
 	"github.com/celo-org/celo-blockchain/core/types"
 	"github.com/celo-org/celo-blockchain/core/vm"
@@ -247,6 +248,7 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 type txPoolContext struct {
 	*SysContractCallCtx
 	*currency.CurrencyManager
+	celoGasPriceMinimumFloor *big.Int
 }
 
 // TxPool contains all currently known transactions. Transactions
@@ -726,6 +728,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if tx.Gas() < intrGas {
 		log.Debug("validateTx gas less than intrinsic gas", "tx.Gas", tx.Gas(), "intrinsic Gas", intrGas)
 		return ErrIntrinsicGas
+	}
+
+	ctx := pool.currentCtx.Load().(txPoolContext)
+	if ctx.CmpValues(ctx.celoGasPriceMinimumFloor, nil, tx.GasPrice(), tx.FeeCurrency()) > 0 {
+		log.Debug("gasPrice less than the minimum floor", "gasPrice", tx.GasPrice(), "feeCurrency", tx.FeeCurrency(), "gasPriceMinimumFloor (Celo)", ctx.celoGasPriceMinimumFloor)
+		return ErrGasPriceDoesNotExceedMinimumFloor
 	}
 
 	return nil
@@ -1367,10 +1375,12 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 	pool.currentVMRunner = pool.chain.NewEVMRunner(newHead, statedb)
 	pool.currentMaxGas = blockchain_parameters.GetBlockGasLimitOrDefault(pool.currentVMRunner)
+	gasPriceMinimumFloor, _ := gpm.GetGasPriceMinimumFloor(pool.currentVMRunner)
 	// atomic store of the new txPoolContext
 	newCtx := txPoolContext{
 		NewSysContractCallCtx(pool.currentVMRunner),
 		currency.NewManager(pool.currentVMRunner),
+		gasPriceMinimumFloor,
 	}
 	pool.currentCtx.Store(newCtx)
 
