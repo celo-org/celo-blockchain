@@ -25,7 +25,6 @@ import (
 
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
-	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
 )
 
 // sendRoundChange broadcasts a ROUND CHANGE message with the current desired round.
@@ -133,35 +132,6 @@ func (c *core) handleRoundChangeCertificate(rcs *roundChangeSet, current RoundSt
 
 	if maxRound.Cmp(big.NewInt(-1)) > 0 && proposal.Digest != preferredDigest {
 		return errInvalidPreparedCertificateDigestMismatch
-	}
-
-	return nil
-}
-
-func (c *core) handleRoundChange(msg *istanbul.Message) error {
-	logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
-
-	rc := msg.RoundChange()
-	logger = logger.New("msg_round", rc.View.Round, "msg_seq", rc.View.Sequence)
-	roundView := rc.View
-
-	// Add the ROUND CHANGE message to its message set.
-	if err := c.roundChangeSet.Add(roundView.Round, msg); err != nil {
-		logger.Warn("Failed to add round change message", "roundView", roundView, "err", err)
-		return err
-	}
-	logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
-	_, round, desiredRound := c.algo.HandleMessage(&algorithm.Msg{
-		Height:  rc.View.Sequence.Uint64(),
-		Round:   rc.View.Round.Uint64(),
-		MsgType: algorithm.Type(msg.Code),
-	})
-	if round != nil {
-		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
-		return c.startNewRound(new(big.Int).SetUint64(*round))
-	} else if desiredRound != nil {
-		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
-		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
 	}
 
 	return nil
