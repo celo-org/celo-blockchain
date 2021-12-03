@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestPreprepare(v *istanbul.View) *istanbul.Preprepare {
@@ -46,7 +47,6 @@ func TestHandlePreprepare(t *testing.T) {
 		getCert         func(*testSystem) istanbul.RoundChangeCertificate
 		expectedRequest istanbul.Proposal
 		expectedErr     error
-		existingBlock   bool
 	}{
 		{
 			"normal case",
@@ -63,30 +63,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			newTestProposal(),
 			nil,
-			false,
-		},
-		{
-			"test existing block",
-			func() *testSystem {
-				sys := NewTestSystemWithBackend(N, F)
-
-				for _, backend := range sys.backends {
-					backend.engine.(*core).Start()
-					c := backend.engine.(*core)
-					getRoundState(c).state = StatePreprepared
-					getRoundState(c).sequence = big.NewInt(10)
-					getRoundState(c).round = big.NewInt(10)
-					getRoundState(c).desiredRound = getRoundState(c).round
-				}
-				return sys
-			},
-			func(_ *testSystem) istanbul.RoundChangeCertificate {
-				return istanbul.RoundChangeCertificate{}
-			},
-			// In the method testbackend_test.go:HasBlockMatching(), it will return true if the proposal's block number == 5
-			makeBlock(5),
-			nil,
-			true,
 		},
 		{
 			"ROUND CHANGE certificate missing",
@@ -107,7 +83,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			errMissingRoundChangeCertificate,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate invalid, duplicate messages.",
@@ -131,7 +106,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			errInvalidRoundChangeCertificateDuplicate,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate contains PREPARED certificate with inconsistent views among the cert's messages",
@@ -169,7 +143,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			errInvalidPreparedCertificateInconsistentViews,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate contains PREPARED certificate for a different block.",
@@ -200,7 +173,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			errInvalidPreparedCertificateDigestMismatch,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate for N+1 round with valid PREPARED certificates",
@@ -226,7 +198,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			nil,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate for N+1 round with empty PREPARED certificates",
@@ -251,7 +222,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			nil,
-			false,
 		},
 		{
 			"ROUND CHANGE certificate for N+1 or later rounds with empty PREPARED certificates",
@@ -279,7 +249,6 @@ func TestHandlePreprepare(t *testing.T) {
 			},
 			makeBlock(1),
 			nil,
-			false,
 		},
 	}
 
@@ -299,9 +268,6 @@ func TestHandlePreprepare(t *testing.T) {
 			curView := r0.current.View()
 
 			preprepareView := curView
-			if test.existingBlock {
-				preprepareView = &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(5)}
-			}
 
 			msg := istanbul.NewPreprepareMessage(
 				&istanbul.Preprepare{
@@ -311,6 +277,10 @@ func TestHandlePreprepare(t *testing.T) {
 				},
 				v0.Address(),
 			)
+			err := msg.Sign(v0.Sign)
+			require.NoError(t, err)
+			payload, err := msg.Payload()
+			require.NoError(t, err)
 
 			for i, v := range sys.backends {
 				// i == 0 is primary backend, it is responsible for send PRE-PREPARE messages to others.
@@ -321,7 +291,7 @@ func TestHandlePreprepare(t *testing.T) {
 				c := v.engine.(*core)
 
 				// run each backends and verify handlePreprepare function.
-				if err := c.handlePreprepare(msg); err != nil {
+				if err := c.handleMsg(payload); err != nil {
 					if !errors.Is(err, test.expectedErr) {
 						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 					}
@@ -332,29 +302,15 @@ func TestHandlePreprepare(t *testing.T) {
 					t.Errorf("state mismatch: have %v, want %v", c.current.State(), StatePreprepared)
 				}
 
-				if !test.existingBlock && !reflect.DeepEqual(c.current.Subject().View, curView) {
-					t.Errorf("view mismatch: have %v, want %v", c.current.Subject().View, curView)
-				}
-
-				if test.existingBlock && len(v.sentMsgs) > 0 {
-					t.Errorf("expecting to ignore commits for old messages %v", v.sentMsgs)
-				} else {
-					continue
-				}
-
 				// verify prepare messages
 				decodedMsg := new(istanbul.Message)
-				err := decodedMsg.FromPayload(v.sentMsgs[0], nil)
+				err = decodedMsg.FromPayload(v.sentMsgs[0], nil)
 				if err != nil {
 					t.Errorf("error mismatch: have %v, want nil", err)
 				}
 
-				expectedCode := istanbul.MsgPrepare
-				if test.existingBlock {
-					expectedCode = istanbul.MsgCommit
-				}
-				if decodedMsg.Code != expectedCode {
-					t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, expectedCode)
+				if decodedMsg.Code != istanbul.MsgPrepare {
+					t.Errorf("message code mismatch: have %v, want %v", decodedMsg.Code, istanbul.MsgPrepare)
 				}
 
 				subject := decodedMsg.Prepare()
@@ -362,27 +318,11 @@ func TestHandlePreprepare(t *testing.T) {
 					subject = decodedMsg.Commit().Subject
 				}
 
-				if err != nil {
-					t.Errorf("error mismatch: have %v, want nil", err)
-				}
-
 				expectedSubject := c.current.Subject()
-				if test.existingBlock {
-					expectedSubject = &istanbul.Subject{View: &istanbul.View{Round: big.NewInt(0), Sequence: big.NewInt(5)},
-						Digest: test.expectedRequest.Hash()}
-				}
-
 				if !reflect.DeepEqual(subject, expectedSubject) {
 					t.Errorf("subject mismatch: have %v, want %v", subject, expectedSubject)
 				}
 
-				if expectedCode == istanbul.MsgCommit {
-					_, srcValidator := c.current.ValidatorSet().GetByAddress(v.address)
-
-					if err := c.verifyCommittedSeal(decodedMsg.Commit(), srcValidator); err != nil {
-						t.Errorf("invalid seal.  verify commmited seal error: %v, subject: %v, committedSeal: %v", err, expectedSubject, decodedMsg.Commit().CommittedSeal)
-					}
-				}
 			}
 		})
 	}
@@ -470,10 +410,15 @@ func benchMarkHandlePreprepare(n int, b *testing.B) {
 		b.Errorf("Error creating a pre-prepare message. err: %v", err)
 	}
 
+	err = msg.Sign(sys.backends[0].Sign)
+	require.NoError(b, err)
+	payload, err := msg.Payload()
+	require.NoError(b, err)
+
 	// benchmarked portion
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = c.handlePreprepare(&msg)
+		err = c.handleMsg(payload)
 		if err != nil {
 			b.Errorf("Error handling the pre-prepare message. err: %v", err)
 		}
