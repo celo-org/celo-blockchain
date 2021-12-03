@@ -1,8 +1,25 @@
 package algorithm
 
+import (
+	"fmt"
+
+	"github.com/celo-org/celo-blockchain/common/hexutil"
+)
+
 type Value [32]byte
 
+func (v Value) String() string {
+	return hexutil.Encode(v[:])
+}
+
 type Type uint8
+
+const (
+	Propose Type = iota
+	Prepare
+	Commit
+	RoundChange
+)
 
 func (t Type) In(types ...Type) bool {
 	for _, x := range types {
@@ -13,14 +30,22 @@ func (t Type) In(types ...Type) bool {
 	return false
 }
 
-type State uint8
+func (t Type) String() string {
+	switch t {
+	case Propose:
+		return "Propose"
+	case Prepare:
+		return "Prepare"
+	case Commit:
+		return "Commit"
+	case RoundChange:
+		return "RoundChange"
+	default:
+		return fmt.Sprintf("unrecognised type: %d", t)
+	}
+}
 
-const (
-	Propose Type = iota
-	Prepare
-	Commit
-	RoundChange
-)
+type State uint8
 
 // We define these in a separate const block to the message types to maintain
 // the equivalence with the istanbul states. This is because the iota
