@@ -22,7 +22,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
-	"github.com/celo-org/celo-bls-go/bls"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandleCommit(t *testing.T) {
@@ -107,22 +107,22 @@ OUTER:
 		v0 := test.system.backends[0]
 		r0 := v0.engine.(*core)
 
-		for i, v := range test.system.backends {
-			validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-			privateKey, _ := bls.DeserializePrivateKey(test.system.validatorsKeys[i])
-			defer privateKey.Destroy()
-
+		for _, v := range test.system.backends {
 			hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
-			signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
-			defer signature.Destroy()
-			signatureBytes, _ := signature.Serialize()
+
+			signatureBytes, err := v.SignBLS(hash, []byte{}, false, false)
+			require.NoError(t, err)
 
 			msg := istanbul.NewCommitMessage(
-				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes},
-				validator.Address(),
+				&istanbul.CommittedSubject{Subject: v.engine.(*core).current.Subject(), CommittedSeal: signatureBytes[:]},
+				v.Address(),
 			)
+			err = msg.Sign(v.Sign)
+			require.NoError(t, err)
+			payload, err := msg.Payload()
+			require.NoError(t, err)
 
-			if err := r0.handleCommit(msg); err != nil {
+			if err := r0.handleMsg(payload); err != nil {
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}
@@ -199,6 +199,9 @@ func BenchmarkHandleCommit(b *testing.B) {
 			// replica 0 is the proposer
 			c.current.(*roundStateImpl).state = StatePrepared
 		}
+		// Set the algo, which would normally be set on core.Start but
+		// cannot be because we are manually setting current.
+		c.algo = algorithm.NewAlgorithm(NewRoundStateOracle(c.current, c))
 	}
 
 	sys.Run(false)
@@ -206,25 +209,24 @@ func BenchmarkHandleCommit(b *testing.B) {
 	v0 := sys.backends[0]
 	r0 := v0.engine.(*core)
 
-	var im *istanbul.Message
-	for i, v := range sys.backends {
-		validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-		privateKey, _ := bls.DeserializePrivateKey(sys.validatorsKeys[i])
-		defer privateKey.Destroy()
-
+	var payload []byte
+	for _, v := range sys.backends {
 		hash := PrepareCommittedSeal(v.engine.(*core).current.Proposal().Hash(), v.engine.(*core).current.Round())
-		signature, _ := privateKey.SignMessage(hash, []byte{}, false, false)
-		defer signature.Destroy()
-		signatureBytes, _ := signature.Serialize()
-		im = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+		signatureBytes, err := v.SignBLS(hash, []byte{}, false, false)
+		require.NoError(b, err)
+		im := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 			Subject:       v.engine.(*core).current.Subject(),
-			CommittedSeal: signatureBytes,
-		}, validator.Address())
+			CommittedSeal: signatureBytes[:],
+		}, v.Address())
+		err = im.Sign(v.Sign)
+		require.NoError(b, err)
+		payload, err = im.Payload()
+		require.NoError(b, err)
 	}
 	// benchmarked portion
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := r0.handleCommit(im)
+		err := r0.handleMsg(payload)
 		if err != nil {
 			b.Errorf("Error handling the pre-prepare message. err: %v", err)
 		}
