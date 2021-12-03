@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/validator"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoundChangeSet(t *testing.T) {
@@ -286,6 +287,11 @@ func TestHandleRoundChange(t *testing.T) {
 				PreparedCertificate: test.getCert(t, sys),
 			}, v0.Address())
 
+			err := msg.Sign(v0.Sign)
+			require.NoError(t, err)
+			payload, err := msg.Payload()
+			require.NoError(t, err)
+
 			for i, v := range sys.backends {
 				// i == 0 is primary backend, it is responsible for send ROUND CHANGE messages to others.
 				if i == 0 {
@@ -295,7 +301,7 @@ func TestHandleRoundChange(t *testing.T) {
 				c := v.engine.(*core)
 
 				// run each backends and verify handlePreprepare function.
-				err := c.handleRoundChange(msg)
+				err := c.handleMsg(payload)
 				if err != test.expectedErr {
 					t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 				}

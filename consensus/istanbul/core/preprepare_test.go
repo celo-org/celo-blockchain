@@ -343,11 +343,15 @@ func benchMarkHandleRoundChange(n int, b *testing.B) {
 	if err != nil {
 		b.Errorf("Error creating a round change message. err: %v", err)
 	}
+	err = msg.Sign(sys.backends[1].Sign)
+	require.NoError(b, err)
+	payload, err := msg.Payload()
+	require.NoError(b, err)
 
 	// benchmarked portion
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = c.handleRoundChange(&msg)
+		err = c.handleMsg(payload)
 		if err != nil {
 			b.Errorf("Error handling the round change message. err: %v", err)
 		}
