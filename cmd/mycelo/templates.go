@@ -60,6 +60,7 @@ func (e localEnv) createGenesisConfig(env *env.Environment) (*genesis.Config, er
 
 	// Add balances to developer accounts
 	genesis.FundAccounts(genesisConfig, env.Accounts().DeveloperAccounts())
+	genesis.FundAccounts(genesisConfig, env.Accounts().ValidatorAccounts())
 
 	return genesisConfig, nil
 }

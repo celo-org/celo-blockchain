@@ -91,7 +91,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	// need to consult the chain for defaults. It's definitely a London tx.
 	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
 		// In this clause, user left some fields unspecified.
-		if b.ChainConfig().IsEspresso(head.Number) && (args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0) {
+		if b.ChainConfig().IsEspresso(head.Number) && (args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0) && false {
 			if args.MaxPriorityFeePerGas == nil {
 				tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
 				if err != nil {
