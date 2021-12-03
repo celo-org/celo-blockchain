@@ -374,7 +374,46 @@ func (c *core) handleMsg(payload []byte) error {
 			logger.Warn("Inconsistent digest between PREPARE and proposal", "expected", d, "got", prepare.Digest)
 			return errInconsistentSubject
 		}
-		return c.handlePrepare(msg)
+		defer c.handlePrepareTimer.UpdateSince(time.Now())
+		// Decode PREPARE message
+
+		// Add the PREPARE message to current round state
+		if err := c.current.AddPrepare(msg); err != nil {
+			logger.Error("Failed to add PREPARE message to round state", "err", err)
+			return err
+		}
+
+		preparesAndCommits := c.current.GetPrepareOrCommitSize()
+		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
+		logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
+		logger.Trace("Accepted prepare")
+
+		m, _, _ := c.algo.HandleMessage(&algorithm.Msg{
+			Height:  prepare.View.Sequence.Uint64(),
+			Round:   prepare.View.Round.Uint64(),
+			MsgType: algorithm.Type(msg.Code),
+			Val:     algorithm.Value(prepare.Digest),
+		})
+
+		// Change to Prepared state if we've received enough PREPARE messages and we are in earlier state
+		// before Prepared state.
+		if m != nil && m.MsgType == algorithm.Commit {
+			err := c.current.TransitionToPrepared(minQuorumSize)
+			if err != nil {
+				logger.Error("Failed to create and set prepared certificate", "err", err)
+				return err
+			}
+			// Update metrics.
+			if !c.consensusTimestamp.IsZero() {
+				c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
+			}
+			// Process Backlog Messages
+			c.backlog.updateState(c.current.View(), c.current.State())
+			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
+			c.sendCommit()
+		}
+
+		return nil
 	case istanbul.MsgCommit:
 		commit := msg.Commit()
 
