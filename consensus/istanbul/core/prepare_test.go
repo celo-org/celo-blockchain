@@ -23,6 +23,7 @@ import (
 
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyPreparedCertificate(t *testing.T) {
@@ -294,10 +295,13 @@ func TestHandlePrepare(t *testing.T) {
 			v0 := test.system.backends[0]
 			r0 := v0.engine.(*core)
 
-			for i, v := range test.system.backends {
-				validator := r0.current.ValidatorSet().GetByIndex(uint64(i))
-				msg := istanbul.NewPrepareMessage(v.engine.(*core).current.Subject(), validator.Address())
-				err := r0.handlePrepare(msg)
+			for _, v := range test.system.backends {
+				msg := istanbul.NewPrepareMessage(v.engine.(*core).current.Subject(), v.Address())
+				err := msg.Sign(v.Sign)
+				require.NoError(t, err)
+				payload, err := msg.Payload()
+				require.NoError(t, err)
+				err = r0.handleMsg(payload)
 				if err != nil {
 					if err != test.expectedErr {
 						t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
@@ -353,10 +357,12 @@ func BenchmarkHandlePrepare(b *testing.B) {
 	F := uint64(1) // F does not affect tests
 
 	sys := NewMutedTestSystemWithBackend(N, F)
-	// sys := NewTestSystemWithBackend(N, F)
 
 	for i, backend := range sys.backends {
 		c := backend.engine.(*core)
+		// Start core so that algorithm.Algorithm is created
+		err := c.Start()
+		require.NoError(b, err)
 
 		c.current = newTestRoundState(
 			&istanbul.View{
@@ -372,7 +378,8 @@ func BenchmarkHandlePrepare(b *testing.B) {
 		}
 	}
 
-	sys.Run(false)
+	shutdown := sys.Run(false)
+	defer shutdown()
 
 	v0 := sys.backends[0]
 	c := v0.engine.(*core)
@@ -380,13 +387,17 @@ func BenchmarkHandlePrepare(b *testing.B) {
 	msg := istanbul.Message{
 		Code:    istanbul.MsgPrepare,
 		Msg:     m,
-		Address: c.current.ValidatorSet().GetByIndex(uint64(1)).Address(),
+		Address: v0.Address(),
 	}
+	err := msg.Sign(v0.Sign)
+	require.NoError(b, err)
+	payload, err := msg.Payload()
+	require.NoError(b, err)
 
 	// benchmarked portion
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := c.handlePrepare(&msg)
+		err := c.handleMsg(payload)
 		if err != nil {
 			b.Errorf("Error handling the pre-prepare message. err: %v", err)
 		}
