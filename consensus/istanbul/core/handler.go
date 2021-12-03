@@ -437,7 +437,43 @@ func (c *core) handleMsg(payload []byte) error {
 			return errInconsistentSubject
 		}
 
-		return c.handleCommit(msg)
+		defer c.handleCommitTimer.UpdateSince(time.Now())
+		logger := c.newLogger("func", "handleCommit", "tag", "handleMsg")
+		// Add the COMMIT message to current round state
+		if err := c.current.AddCommit(msg); err != nil {
+			logger.Error("Failed to record commit message", "m", msg, "err", err)
+			return err
+		}
+		numberOfCommits := c.current.Commits().Size()
+		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
+		logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
+
+		m, round, _ := c.algo.HandleMessage(&algorithm.Msg{
+			Height:  commit.Subject.View.Sequence.Uint64(),
+			Round:   commit.Subject.View.Round.Uint64(),
+			MsgType: algorithm.Type(msg.Code),
+			Val:     algorithm.Value(commit.Subject.Digest),
+		})
+		// If the target round is set to 0 then we have committed
+		if round != nil && *round == 0 {
+			logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
+			err := c.commit()
+			if err != nil {
+				logger.Error("Failed to commit()", "err", err)
+				return err
+			}
+		} else if m != nil && m.MsgType == algorithm.Commit {
+			err := c.current.TransitionToPrepared(minQuorumSize)
+			if err != nil {
+				logger.Error("Failed to create and set prepared certificate", "err", err)
+				return err
+			}
+			// Process Backlog Messages
+			c.backlog.updateState(c.current.View(), c.current.State())
+			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+			c.sendCommit()
+		}
+		return nil
 	case istanbul.MsgRoundChange:
 
 		rc := msg.RoundChange()
