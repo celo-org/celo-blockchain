@@ -413,6 +413,21 @@ const GasPriceMinimumStr = `[
 		"type": "function"
 	},
 	{
+    "constant": true,
+    "inputs": [],
+    "name": "gasPriceMinimumFloor",
+    "outputs": [
+			{ 
+				"internalType": "uint256", 
+				"name": "", 
+				"type": "uint256"
+			}
+		],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+	{
 		"constant": false,
 		"inputs": [
 			{
