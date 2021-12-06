@@ -475,6 +475,7 @@ func (c *core) handleMsg(payload []byte) error {
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
+		return nil
 	}
 	// If the target round is set to 0 then we have committed
 	if round != nil && *round == 0 {
@@ -486,6 +487,7 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 		// Change to prepared state if we've received enough PREPARE messages
 		// and we are not yet in the prepared state.
+		return nil
 	}
 	if toSend != nil && toSend.MsgType == algorithm.Commit {
 		err := c.current.TransitionToPrepared(minQuorumSize)
@@ -497,6 +499,7 @@ func (c *core) handleMsg(payload []byte) error {
 		c.backlog.updateState(c.current.View(), c.current.State())
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.sendCommit()
+		return nil
 	}
 	return nil
 
