@@ -888,7 +888,7 @@ func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
 
 	// flag it as before donut
 	pool.donut = false
-	pool.eHardfork = false
+	pool.espresso = false
 
 	pool.AddRemotesSync([]*types.Transaction{
 		protectedTransaction(0, 100000, key),
@@ -927,7 +927,7 @@ func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
 
 	// In E fork
 	// flag it as E hard fork
-	pool.eHardfork = true
+	pool.espresso = true
 	pool.AddRemotesSync([]*types.Transaction{
 		transaction(3, 100000, key),
 		protectedTransaction(4, 100000, key),
@@ -938,10 +938,10 @@ func TestPoolReAcceptingUnprotectedTxsFromEFork(t *testing.T) {
 
 	pending, queued = pool.Stats()
 	if pending != 5 {
-		t.Fatalf("after expresso, pending transactions mismatched: have %d, want %d", pending, 5)
+		t.Fatalf("after espresso, pending transactions mismatched: have %d, want %d", pending, 5)
 	}
 	if queued != 5 {
-		t.Fatalf("after expresso, queued transactions mismatched: have %d, want %d", queued, 5)
+		t.Fatalf("after espresso, queued transactions mismatched: have %d, want %d", queued, 5)
 	}
 
 	if err := validateTxPoolInternals(pool); err != nil {
