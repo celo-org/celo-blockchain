@@ -63,20 +63,22 @@ func (o *RoundStateOracle) QuorumPrepare(height, round uint64, value algorithm.V
 	return o.rs.GetPrepareOrCommitSize() >= o.rs.ValidatorSet().MinQuorumSize()
 }
 
-func (o *RoundStateOracle) QuorumRoundChange() uint64 {
+func (o *RoundStateOracle) QuorumRoundChange() *uint64 {
 	quorumRound := o.c.roundChangeSet.MaxOnOneRound(o.c.current.ValidatorSet().MinQuorumSize())
 	if quorumRound != nil {
-		return quorumRound.Uint64()
+		r := quorumRound.Uint64()
+		return &r
 	}
-	return 0
+	return nil
 }
 
-func (o *RoundStateOracle) FPlus1RoundChange() uint64 {
+func (o *RoundStateOracle) FPlus1RoundChange() *uint64 {
 	fRound := o.c.roundChangeSet.MaxRound(o.c.current.ValidatorSet().F() + 1)
 	if fRound != nil {
-		return fRound.Uint64()
+		r := fRound.Uint64()
+		return &r
 	}
-	return 0
+	return nil
 }
 
 // SetRoundChangeCertificate maps a round change certificate to an id and

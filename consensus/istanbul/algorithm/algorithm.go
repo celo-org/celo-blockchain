@@ -72,8 +72,8 @@ type Oracle interface {
 	QuorumCommit(height, round uint64, val Value) bool
 	QuorumPrepare(height, round uint64, val Value) bool
 	DesiredRound() uint64
-	QuorumRoundChange() uint64
-	FPlus1RoundChange() uint64
+	QuorumRoundChange() *uint64
+	FPlus1RoundChange() *uint64
 	ValidRoundChangeCert(height, round uint64, val Value, rcc *Value) bool
 }
 
@@ -134,12 +134,12 @@ func (a *Algorithm) HandleMessage(m *Msg) (msg *Msg, round, desiredRound *uint64
 
 	if t == RoundChange {
 		qr := a.O.QuorumRoundChange()
-		if qr >= a.O.DesiredRound() {
-			return nil, &qr, nil
+		if qr != nil && *qr >= a.O.DesiredRound() {
+			return nil, qr, nil
 		}
 		f1r := a.O.FPlus1RoundChange()
-		if f1r > a.O.DesiredRound() {
-			return nil, nil, &f1r
+		if f1r != nil && *f1r > a.O.DesiredRound() {
+			return nil, nil, f1r
 		}
 	}
 	return nil, nil, nil
