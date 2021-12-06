@@ -260,10 +260,8 @@ func (c *core) handleMsg(payload []byte) error {
 		return err
 	}
 
-	desiredRound := c.current.DesiredRound().Uint64()
-	currentHeight := c.current.Sequence().Uint64()
 	// Prior views are always old.
-	if m.Height < currentHeight || m.Height == currentHeight && m.Round < desiredRound {
+	if view(m).Cmp(c.current.View()) < 0 {
 		switch msg.Code {
 		case istanbul.MsgPreprepare:
 			preprepare := msg.Preprepare()
@@ -294,7 +292,7 @@ func (c *core) handleMsg(payload []byte) error {
 		case istanbul.MsgRoundChange:
 			// If the RC message is for the current sequence but a prior round, help the sender fast forward
 			// by sending back to it (not broadcasting) a round change message for our desired round.
-			if m.Height == currentHeight {
+			if m.Height == c.current.Sequence().Uint64() {
 				logger.Trace("Sending round change for desired round to node with a previous desired round", "msg_round", m.Round)
 				c.sendRoundChangeAgain(msg.Address)
 			}
@@ -316,6 +314,8 @@ func (c *core) handleMsg(payload []byte) error {
 		return errFutureMessage
 	}
 
+	numberOfCommits := c.current.Commits().Size()
+	minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 	// At this point we know that messages are either for the current sequence
 	// and desired round or its a round change for the current sequence and
 	// desired or future round.
@@ -372,23 +372,6 @@ func (c *core) handleMsg(payload []byte) error {
 			return err
 		}
 
-		// handle the message
-		m, _, _ = c.algo.HandleMessage(m)
-		if m != nil && m.MsgType == algorithm.Prepare {
-			logger.Trace("Accepted preprepare", "tag", "stateTransition")
-			c.consensusTimestamp = time.Now()
-
-			err := c.current.TransitionToPreprepared(preprepare)
-			if err != nil {
-				return err
-			}
-
-			// Process Backlog Messages
-			c.backlog.updateState(c.current.View(), c.current.State())
-			c.sendPrepare()
-		}
-
-		return nil
 	case istanbul.MsgPrepare:
 		logger := c.newLogger("prepare_round", m.Round, "prepare_seq", m.Height, "prepare_digest", m.Val)
 		d := c.current.Subject().Digest
@@ -406,29 +389,12 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 
 		preparesAndCommits := c.current.GetPrepareOrCommitSize()
-		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 		logger.Trace("Accepted prepare")
-		m, _, _ := c.algo.HandleMessage(m)
-		// Change to prepared state if we've received enough PREPARE messages
-		// and we are not yet in the prepared state.
-		if m != nil && m.MsgType == algorithm.Commit {
-			err := c.current.TransitionToPrepared(minQuorumSize)
-			if err != nil {
-				logger.Error("Failed to create and set prepared certificate", "err", err)
-				return err
-			}
-			// Update metrics.
-			if !c.consensusTimestamp.IsZero() {
-				c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
-			}
-			// Process Backlog Messages
-			c.backlog.updateState(c.current.View(), c.current.State())
-			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition")
-			c.sendCommit()
+		// Update metrics.
+		if !c.consensusTimestamp.IsZero() {
+			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
 		}
-
-		return nil
 	case istanbul.MsgCommit:
 		commit := msg.Commit()
 
@@ -459,30 +425,7 @@ func (c *core) handleMsg(payload []byte) error {
 			logger.Error("Failed to record commit message", "m", msg, "err", err)
 			return err
 		}
-		numberOfCommits := c.current.Commits().Size()
-		minQuorumSize := c.current.ValidatorSet().MinQuorumSize()
 		logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
-		m, round, _ := c.algo.HandleMessage(m)
-		// If the target round is set to 0 then we have committed
-		if round != nil && *round == 0 {
-			logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
-			err := c.commit()
-			if err != nil {
-				logger.Error("Failed to commit()", "err", err)
-				return err
-			}
-		} else if m != nil && m.MsgType == algorithm.Commit {
-			err := c.current.TransitionToPrepared(minQuorumSize)
-			if err != nil {
-				logger.Error("Failed to create and set prepared certificate", "err", err)
-				return err
-			}
-			// Process Backlog Messages
-			c.backlog.updateState(c.current.View(), c.current.State())
-			logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-			c.sendCommit()
-		}
-		return nil
 	case istanbul.MsgRoundChange:
 
 		rc := msg.RoundChange()
@@ -517,6 +460,42 @@ func (c *core) handleMsg(payload []byte) error {
 	default:
 		return errInvalidMessage
 	}
+
+	// handle the message
+	toSend, round, _ := c.algo.HandleMessage(m)
+	if toSend != nil && toSend.MsgType == algorithm.Prepare {
+		logger.Trace("Accepted preprepare", "tag", "stateTransition")
+		c.consensusTimestamp = time.Now()
+
+		err := c.current.TransitionToPreprepared(msg.Preprepare())
+		if err != nil {
+			return err
+		}
+
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
+		c.sendPrepare()
+	}
+	// If the target round is set to 0 then we have committed
+	if round != nil && *round == 0 {
+		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
+		err := c.commit()
+		if err != nil {
+			logger.Error("Failed to commit()", "err", err)
+			return err
+		}
+	} else if toSend != nil && toSend.MsgType == algorithm.Commit {
+		err := c.current.TransitionToPrepared(minQuorumSize)
+		if err != nil {
+			logger.Error("Failed to create and set prepared certificate", "err", err)
+			return err
+		}
+		// Process Backlog Messages
+		c.backlog.updateState(c.current.View(), c.current.State())
+		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
+		c.sendCommit()
+	}
+	return nil
 
 }
 
