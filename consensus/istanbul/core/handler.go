@@ -484,7 +484,10 @@ func (c *core) handleMsg(payload []byte) error {
 			logger.Error("Failed to commit()", "err", err)
 			return err
 		}
-	} else if toSend != nil && toSend.MsgType == algorithm.Commit {
+		// Change to prepared state if we've received enough PREPARE messages
+		// and we are not yet in the prepared state.
+	}
+	if toSend != nil && toSend.MsgType == algorithm.Commit {
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
 			logger.Error("Failed to create and set prepared certificate", "err", err)
