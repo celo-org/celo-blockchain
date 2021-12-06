@@ -447,22 +447,12 @@ func (c *core) handleMsg(payload []byte) error {
 			return err
 		}
 		logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
-		_, round, desiredRound := c.algo.HandleMessage(m)
-		if round != nil {
-			logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
-			return c.startNewRound(new(big.Int).SetUint64(*round))
-		} else if desiredRound != nil {
-			logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
-			c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
-		}
-
-		return nil
 	default:
 		return errInvalidMessage
 	}
 
 	// handle the message
-	toSend, round, _ := c.algo.HandleMessage(m)
+	toSend, round, desiredRound := c.algo.HandleMessage(m)
 	if toSend != nil && toSend.MsgType == algorithm.Prepare {
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
 		c.consensusTimestamp = time.Now()
@@ -501,6 +491,15 @@ func (c *core) handleMsg(payload []byte) error {
 		c.sendCommit()
 		return nil
 	}
+	if round != nil {
+		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
+		return c.startNewRound(new(big.Int).SetUint64(*round))
+	} else if desiredRound != nil {
+		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
+		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
+		return nil
+	}
+
 	return nil
 
 }
