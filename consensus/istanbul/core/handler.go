@@ -453,7 +453,8 @@ func (c *core) handleMsg(payload []byte) error {
 
 	// handle the message
 	toSend, round, desiredRound := c.algo.HandleMessage(m)
-	if toSend != nil && toSend.MsgType == algorithm.Prepare {
+	switch {
+	case toSend != nil && toSend.MsgType == algorithm.Prepare:
 		logger.Trace("Accepted preprepare", "tag", "stateTransition")
 		c.consensusTimestamp = time.Now()
 
@@ -465,21 +466,17 @@ func (c *core) handleMsg(payload []byte) error {
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 		c.sendPrepare()
-		return nil
-	}
 	// If the target round is set to 0 then we have committed
-	if round != nil && *round == 0 {
+	case round != nil && *round == 0:
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
 		err := c.commit()
 		if err != nil {
 			logger.Error("Failed to commit()", "err", err)
 			return err
 		}
+	case toSend != nil && toSend.MsgType == algorithm.Commit:
 		// Change to prepared state if we've received enough PREPARE messages
 		// and we are not yet in the prepared state.
-		return nil
-	}
-	if toSend != nil && toSend.MsgType == algorithm.Commit {
 		err := c.current.TransitionToPrepared(minQuorumSize)
 		if err != nil {
 			logger.Error("Failed to create and set prepared certificate", "err", err)
@@ -489,18 +486,13 @@ func (c *core) handleMsg(payload []byte) error {
 		c.backlog.updateState(c.current.View(), c.current.State())
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
 		c.sendCommit()
-		return nil
-	}
-	if round != nil {
+	case round != nil:
 		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
 		return c.startNewRound(new(big.Int).SetUint64(*round))
-	}
-	if desiredRound != nil {
+	case desiredRound != nil:
 		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
 		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
-		return nil
 	}
-
 	return nil
 
 }
