@@ -288,11 +288,6 @@ func (c *core) handleMsg(payload []byte) error {
 		return errOldMessage
 	}
 
-	// We will never do consensus on any round less than desiredRound.
-	if c.current.Round().Cmp(c.current.DesiredRound()) > 0 {
-		panic(fmt.Errorf("Current and desired round mismatch! cur=%v des=%v", c.current.Round(), c.current.DesiredRound()))
-	}
-
 	// Check if the message is a future message and if so add it to the backlog
 	if IsFutureMsg(c.current.Sequence(), c.current.DesiredRound(), c.current.State(), view(m), msg.Code) {
 		// Store in backlog (if it's not from self)
