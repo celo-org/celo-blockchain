@@ -67,6 +67,10 @@ type Msg struct {
 	RoundChangeCert *Value
 }
 
+func (m *Msg) String() string {
+	return fmt.Sprintf("T: %12v H: %12d R: %4d V: %v", m.MsgType, m.Height, m.Round, m.Val)
+}
+
 type Oracle interface {
 	CurrentState() State
 	QuorumCommit(height, round uint64, val Value) bool
