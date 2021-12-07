@@ -268,7 +268,7 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 		if args.AccessList != nil {
 			al = *args.AccessList
 		}
-		if args.GatewayFeeRecipient != nil {
+		if args.FeeCurrency != nil || args.GatewayFeeRecipient != nil {
 			data = &types.CeloDynamicFeeTx{
 				To:                  args.To,
 				ChainID:             (*big.Int)(args.ChainID),
