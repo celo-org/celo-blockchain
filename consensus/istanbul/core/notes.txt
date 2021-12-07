@@ -129,3 +129,7 @@ consensus/istanbul/core/core.go:528
 16. We are not running the benchmarks, we probably should do that in CI
 
 17. startNewRound to take uint64
+
+18. perfectly healthy validators can have "downtime" even when they sign blocks. This is because blocks can be finalised with different rounds.
+
+So imagine that all nodes commit for block x at round 1 but only 1/3 of validators receive those commits and commit the block. The rest of the network progreses to round 2 and commits block x in round 2.
