@@ -187,7 +187,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
 	}
 
-	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, leth}
+	leth.ApiBackend = &LesApiBackend{stack.Config().ExtRPCEnabled(), true, leth}
 
 	leth.chainreader = &LightChainReader{
 		config:     leth.chainConfig,

@@ -506,20 +506,6 @@ func (pool *TxPool) setGasLimit(gasLimit uint64) {
 	}
 }
 
-// handleDonutActivation removes from the pool all transactions without EIP-155 replay protection
-func (pool *TxPool) handleDonutActivation() {
-	toRemove := make(map[common.Hash]struct{})
-	pool.all.Range(func(hash common.Hash, tx *types.Transaction, _ bool) bool {
-		if !tx.Protected() {
-			toRemove[hash] = struct{}{}
-		}
-		return true
-	}, true, true)
-	for hash := range toRemove {
-		pool.removeTx(hash, true)
-	}
-}
-
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *TxPool) Nonce(addr common.Address) uint64 {
@@ -651,7 +637,7 @@ func (pool *TxPool) ctx() *txPoolContext {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	if pool.donut && !tx.Protected() {
+	if pool.donut && !pool.espresso && !tx.Protected() {
 		return ErrUnprotectedTransaction
 	}
 	if tx.EthCompatible() && !pool.donut {
@@ -1391,12 +1377,8 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
-	wasDonut := pool.donut
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.donut = pool.chainconfig.IsDonut(next)
-	if pool.donut && !wasDonut {
-		pool.handleDonutActivation()
-	}
 	pool.espresso = pool.chainconfig.IsEspresso(next)
 }
 
