@@ -91,27 +91,29 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	// need to consult the chain for defaults. It's definitely a London tx.
 	if args.MaxPriorityFeePerGas == nil || args.MaxFeePerGas == nil {
 		// In this clause, user left some fields unspecified.
-		if b.ChainConfig().IsEspresso(head.Number) && (args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0) {
-			if args.MaxPriorityFeePerGas == nil {
-				tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
-				if err != nil {
-					return err
+		if b.ChainConfig().IsEspresso(head.Number) {
+			if args.GasPrice == nil || args.GasPrice.ToInt().Cmp(big.NewInt(0)) == 0 {
+				if args.MaxPriorityFeePerGas == nil {
+					tip, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
+					if err != nil {
+						return err
+					}
+					args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
 				}
-				args.MaxPriorityFeePerGas = (*hexutil.Big)(tip)
-			}
-			if args.MaxFeePerGas == nil {
-				gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
-				if err != nil {
-					return err
+				if args.MaxFeePerGas == nil {
+					gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
+					if err != nil {
+						return err
+					}
+					gasFeeCap := new(big.Int).Add(
+						(*big.Int)(args.MaxPriorityFeePerGas),
+						new(big.Int).Mul(gasPriceMinimum, big.NewInt(2)),
+					)
+					args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
 				}
-				gasFeeCap := new(big.Int).Add(
-					(*big.Int)(args.MaxPriorityFeePerGas),
-					new(big.Int).Mul(gasPriceMinimum, big.NewInt(2)),
-				)
-				args.MaxFeePerGas = (*hexutil.Big)(gasFeeCap)
-			}
-			if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
-				return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+				if args.MaxFeePerGas.ToInt().Cmp(args.MaxPriorityFeePerGas.ToInt()) < 0 {
+					return fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", args.MaxFeePerGas, args.MaxPriorityFeePerGas)
+				}
 			}
 		} else {
 			if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
@@ -121,16 +123,6 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 				price, err := b.SuggestGasTipCap(ctx, args.FeeCurrency)
 				if err != nil {
 					return err
-				}
-				if b.ChainConfig().IsEspresso(head.Number) {
-					gasPriceMinimum, err := b.CurrentGasPriceMinimum(ctx, args.FeeCurrency)
-					if err != nil {
-						return err
-					}
-					// The legacy tx gas price suggestion should not add 2x base fee
-					// because all fees are consumed, so it would result in a spiral
-					// upwards.
-					price.Add(price, gasPriceMinimum)
 				}
 				args.GasPrice = (*hexutil.Big)(price)
 			}
