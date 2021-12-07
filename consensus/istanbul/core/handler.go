@@ -263,18 +263,6 @@ func (c *core) handleMsg(payload []byte) error {
 	// Prior views are always old.
 	if view(m).Cmp(c.current.View()) < 0 {
 		switch msg.Code {
-		case istanbul.MsgPreprepare:
-			preprepare := msg.Preprepare()
-			// Git validator set for the given proposal
-			valSet := c.backend.ParentBlockValidators(preprepare.Proposal)
-			prevBlockAuthor := c.backend.AuthorForBlock(preprepare.Proposal.Number().Uint64() - 1)
-			proposer := c.selectProposer(valSet, prevBlockAuthor, preprepare.View.Round.Uint64())
-
-			// We no longer broadcast a COMMIT if this is a PREPREPARE from the correct proposer for an existing block.
-			// However, we log a WARN for potential future debugging value.
-			if proposer.Address() == msg.Address && c.backend.HasBlock(preprepare.Proposal.Hash(), preprepare.Proposal.Number()) {
-				logger.Warn("Would have sent a commit message for an old block")
-			}
 		case istanbul.MsgCommit:
 			// Discard messages from previous views, unless they are commits from the previous sequence,
 			// with the same round as what we wound up finalizing, as we would be able to include those
