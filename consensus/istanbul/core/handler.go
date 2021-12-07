@@ -26,6 +26,7 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 	"github.com/celo-org/celo-blockchain/consensus/istanbul/algorithm"
+	blscrypto "github.com/celo-org/celo-blockchain/crypto/bls"
 )
 
 // Start implements core.Engine.Start
@@ -436,7 +437,6 @@ func (c *core) handleMsg(payload []byte) error {
 
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
-		c.sendPrepare()
 	// If the target round is set to 0 then we have committed
 	case round != nil && *round == 0:
 		logger.Trace("Got a quorum of commits", "tag", "stateTransition", "commits", numberOfCommits, "quorum", minQuorumSize)
@@ -456,7 +456,6 @@ func (c *core) handleMsg(payload []byte) error {
 		// Process Backlog Messages
 		c.backlog.updateState(c.current.View(), c.current.State())
 		logger.Trace("Got quorum prepares or commits", "tag", "stateTransition", "commits", c.current.Commits, "prepares", c.current.Prepares)
-		c.sendCommit()
 	case round != nil:
 		logger.Debug("Got quorum round change messages, starting new round.", "quorumRound", round)
 		return c.startNewRound(new(big.Int).SetUint64(*round))
@@ -464,8 +463,57 @@ func (c *core) handleMsg(payload []byte) error {
 		logger.Debug("Got f+1 round change messages, sending own round change message and waiting for next round.", "ffRound", desiredRound)
 		c.waitForDesiredRound(new(big.Int).SetUint64(*desiredRound))
 	}
+
+	if toSend != nil {
+		istMsg, err := c.buildIstanbulMsg(toSend)
+		if err != nil {
+			logger.Error("Failed to build istanbul message", "Err", err)
+		}
+		c.broadcast(istMsg)
+	}
 	return nil
 
+}
+
+func (c *core) buildIstanbulMsg(m *algorithm.Msg) (*istanbul.Message, error) {
+	sub := &istanbul.Subject{
+		View:   view(m),
+		Digest: common.Hash(m.Val),
+	}
+	var msg *istanbul.Message
+	switch m.MsgType {
+	case algorithm.Prepare:
+		msg = istanbul.NewPrepareMessage(sub, c.address)
+	case algorithm.Commit:
+		committedSeal, err := c.generateCommittedSeal(sub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate committed seal: %v", err)
+		}
+		currentBlockNumber := c.current.Proposal().Number().Uint64()
+		newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get next block's validators: %v", err)
+		}
+		epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
+		if err != nil && err != errNotLastBlockInEpoch {
+			return nil, fmt.Errorf("failed to create epoch validator set data: %v", err)
+		}
+		var epochValidatorSetSeal blscrypto.SerializedSignature
+		if err == nil {
+			epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData, epochValidatorSetExtraData, true, cip22)
+			if err != nil {
+				return nil, fmt.Errorf("failed to sign epoch validator set seal: %v", err)
+			}
+		}
+		msg = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			Subject:               sub,
+			CommittedSeal:         committedSeal[:],
+			EpochValidatorSetSeal: epochValidatorSetSeal[:],
+		}, c.address)
+	default:
+		return nil, fmt.Errorf("unsupported message type %v", m.MsgType)
+	}
+	return msg, nil
 }
 
 func (c *core) handleTimeoutAndMoveToNextRound(timedOutView *istanbul.View) error {

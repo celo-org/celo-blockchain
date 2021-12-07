@@ -30,13 +30,6 @@ import (
 // TODO: Eventually make this governable
 const maxValidators = uint32(150)
 
-func (c *core) sendCommit() {
-	logger := c.newLogger("func", "sendCommit")
-	logger.Trace("Sending commit")
-	sub := c.current.Subject()
-	c.broadcastCommit(sub)
-}
-
 func (c *core) generateCommittedSeal(sub *istanbul.Subject) (blscrypto.SerializedSignature, error) {
 	seal := PrepareCommittedSeal(sub.Digest, sub.View.Round)
 	committedSeal, err := c.backend.SignBLS(seal, []byte{}, false, false)
@@ -87,42 +80,6 @@ func (c *core) generateEpochValidatorSetData(blockNumber uint64, round uint8, bl
 	)
 	// This is after the Donut hardfork, so signify this uses CIP22.
 	return message, extraData, true, err
-}
-
-func (c *core) broadcastCommit(sub *istanbul.Subject) {
-	logger := c.newLogger("func", "broadcastCommit")
-
-	committedSeal, err := c.generateCommittedSeal(sub)
-	if err != nil {
-		logger.Error("Failed to commit seal", "err", err)
-		return
-	}
-
-	currentBlockNumber := c.current.Proposal().Number().Uint64()
-	newValSet, err := c.backend.NextBlockValidators(c.current.Proposal())
-	if err != nil {
-		logger.Error("Failed to get next block's validators", "err", err)
-		return
-	}
-	epochValidatorSetData, epochValidatorSetExtraData, cip22, err := c.generateEpochValidatorSetData(currentBlockNumber, uint8(sub.View.Round.Uint64()), sub.Digest, newValSet)
-	if err != nil && err != errNotLastBlockInEpoch {
-		logger.Error("Failed to create epoch validator set data", "err", err)
-		return
-	}
-	var epochValidatorSetSeal blscrypto.SerializedSignature
-	if err == nil {
-		epochValidatorSetSeal, err = c.backend.SignBLS(epochValidatorSetData, epochValidatorSetExtraData, true, cip22)
-		if err != nil {
-			logger.Error("Failed to sign epoch validator set seal", "err", err)
-			return
-		}
-	}
-	istMsg := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
-		Subject:               sub,
-		CommittedSeal:         committedSeal[:],
-		EpochValidatorSetSeal: epochValidatorSetSeal[:],
-	}, c.address)
-	c.broadcast(istMsg)
 }
 
 func (c *core) handleCheckedCommitForPreviousSequence(msg *istanbul.Message, commit *istanbul.CommittedSubject) error {

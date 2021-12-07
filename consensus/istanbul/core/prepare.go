@@ -21,12 +21,6 @@ import (
 	"github.com/celo-org/celo-blockchain/consensus/istanbul"
 )
 
-func (c *core) sendPrepare() {
-	logger := c.newLogger("func", "sendPrepare")
-	logger.Debug("Sending prepare")
-	c.broadcast(istanbul.NewPrepareMessage(c.current.Subject(), c.address))
-}
-
 // Verify a prepared certificate and return the view that all of its messages pertain to.
 func (c *core) verifyPreparedCertificate(preparedCertificate istanbul.PreparedCertificate, targetRound uint64) (*istanbul.View, error) {
 	logger := c.newLogger("func", "verifyPreparedCertificate", "proposal_number", preparedCertificate.Proposal.Number(), "proposal_hash", preparedCertificate.Proposal.Hash().String())
