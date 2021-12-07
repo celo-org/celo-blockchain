@@ -253,12 +253,14 @@ func (c *core) handleMsg(payload []byte) error {
 	}
 
 	// Update logger context
-	logger = logger.New("from", msg.Address)
+	logger = logger.New("from", msg.Address, "curr_view", c.current.View())
 
 	m, err := buildAlgorithmMsg(msg, c.oracle)
 	if err != nil {
 		return err
 	}
+	logger = logger.New("msg", m)
+	logger.Debug("Handling consensus message")
 
 	// Prior views are always old.
 	if view(m).Cmp(c.current.View()) < 0 {
@@ -304,11 +306,7 @@ func (c *core) handleMsg(payload []byte) error {
 	// desired or future round.
 	switch msg.Code {
 	case istanbul.MsgPreprepare:
-		logger.Trace("Got preprepare message", "m", msg)
-
 		preprepare := msg.Preprepare()
-		logger = logger.New("msg_num", m.Height, "msg_round", m.Round, "msg_hash", m.Val)
-
 		// Verify that the proposal is for the sequence number of the view we verified.
 		if m.Height != preprepare.Proposal.Number().Uint64() {
 			logger.Warn("Received preprepare with invalid block number")
@@ -328,9 +326,6 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 
 		defer c.handlePrePrepareTimer.UpdateSince(time.Now())
-
-		logger := c.newLogger().New("func", "handlePreprepare", "tag", "handleMsg", "from", msg.Address, "msg_num", m.Height,
-			"msg_hash", m.Val, "msg_seq", m.Height, "msg_round", m.Round)
 
 		if m.Round > 0 {
 			logger.Trace("Trying to move to round change certificate's round", "target round", m.Round)
@@ -354,9 +349,7 @@ func (c *core) handleMsg(payload []byte) error {
 			}
 			return err
 		}
-
 	case istanbul.MsgPrepare:
-		logger := c.newLogger("prepare_round", m.Round, "prepare_seq", m.Height, "prepare_digest", m.Val)
 		d := c.current.Subject().Digest
 		if common.Hash(m.Val) != d {
 			logger.Warn("Inconsistent digest between PREPARE and proposal", "expected", d, "got", m.Val)
@@ -372,8 +365,7 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 
 		preparesAndCommits := c.current.GetPrepareOrCommitSize()
-		logger = logger.New("prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
-		logger.Trace("Accepted prepare")
+		logger.Trace("Accepted prepare", "prepares_and_commits", preparesAndCommits, "commits", c.current.Commits().Size(), "prepares", c.current.Prepares().Size())
 		// Update metrics.
 		if !c.consensusTimestamp.IsZero() {
 			c.consensusPrepareTimeGauge.Update(time.Since(c.consensusTimestamp).Nanoseconds())
@@ -402,10 +394,9 @@ func (c *core) handleMsg(payload []byte) error {
 		}
 
 		defer c.handleCommitTimer.UpdateSince(time.Now())
-		logger := c.newLogger("func", "handleCommit", "tag", "handleMsg")
 		// Add the COMMIT message to current round state
 		if err := c.current.AddCommit(msg); err != nil {
-			logger.Error("Failed to record commit message", "m", msg, "err", err)
+			logger.Error("Failed to record commit message", "err", err)
 			return err
 		}
 		logger.Trace("Accepted commit for current sequence", "Number of commits", numberOfCommits)
@@ -420,13 +411,10 @@ func (c *core) handleMsg(payload []byte) error {
 				return err
 			}
 		}
-		logger := c.newLogger("func", "handleRoundChange", "tag", "handleMsg", "from", msg.Address)
-
-		logger = logger.New("msg_round", m.Round, "msg_seq", m.Height)
 
 		// Add the ROUND CHANGE message to its message set.
 		if err := c.roundChangeSet.Add(view(m).Round, msg); err != nil {
-			logger.Warn("Failed to add round change message", "roundView", view(m), "err", err)
+			logger.Warn("Failed to add round change message", "err", err)
 			return err
 		}
 		logger.Trace("Got round change message", "rcs", c.roundChangeSet.String())
