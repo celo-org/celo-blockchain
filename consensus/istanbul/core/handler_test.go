@@ -29,6 +29,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// check simplifies signing and encoding the message, calling
+// handleMsg and checking the result.
+func check(t *testing.T, m *istanbul.Message, b *testSystemBackend, expectError bool) {
+	err := m.Sign(b.Sign)
+	require.NoError(t, err)
+	payload, err := m.Payload()
+	require.NoError(t, err)
+	err = b.engine.(*core).handleMsg(payload)
+	if expectError {
+		require.Error(t, err)
+	} else {
+		require.NoError(t, err)
+	}
+}
+
+func checkErr(t *testing.T, m *istanbul.Message, b *testSystemBackend) {
+	check(t, m, b, true)
+}
+func checkNoErr(t *testing.T, m *istanbul.Message, b *testSystemBackend) {
+	check(t, m, b, false)
+}
+
 // Tests that handleMsg handles messages as expected. I.E. correctly rejects
 // messages that are too old/new/invalid and not rejecting valid messages.
 // Note that due to the way rlp decoding works nil pointers are not possible in
@@ -54,48 +76,12 @@ func TestHandleMsg(t *testing.T) {
 	// Sanity check valid preprepare is handled without error
 	currentSequence := c.current.Sequence()
 	desiredRound := c.current.DesiredRound()
-	m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
-		View: &istanbul.View{
-			Sequence: currentSequence,
-			Round:    desiredRound,
-		},
-		Proposal: block1,
-	}, b.address)
-
-	err := m.Sign(b.Sign)
-	require.NoError(t, err)
-	payload, err := m.Payload()
-	require.NoError(t, err)
-	err = c.handleMsg(payload)
-	require.NoError(t, err)
-
-	// check simplifies signing and encoding the message, calling
-	// handleMsg and checking the result.
-	check := func(t *testing.T, m *istanbul.Message, c *core, expectError bool) {
-		err := m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		if expectError {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-		}
-	}
-
-	checkErr := func(t *testing.T, m *istanbul.Message, c *core) {
-		check(t, m, c, true)
-	}
-	checkNoErr := func(t *testing.T, m *istanbul.Message, c *core) {
-		check(t, m, c, false)
-	}
 
 	testStates := []State{StateAcceptRequest, StatePreprepared, StatePrepared, StateCommitted, StateWaitingForNewRound}
 	t.Run("Rejects messages with invalid code", func(t *testing.T) {
 		for _, testState := range testStates {
 			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
-			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+			m := istanbul.NewPrepareMessage(&istanbul.Subject{
 				View: &istanbul.View{
 					Sequence: currentSequence,
 					Round:    desiredRound,
@@ -103,14 +89,14 @@ func TestHandleMsg(t *testing.T) {
 				Digest: block1.Hash(),
 			}, b.address)
 			m.Code = 99
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 		}
 	})
 
 	t.Run("Rejects non consensus messages", func(t *testing.T) {
 		for _, testState := range testStates {
 			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
-			m = istanbul.NewPrepareMessage(&istanbul.Subject{
+			m := istanbul.NewPrepareMessage(&istanbul.Subject{
 				View: &istanbul.View{
 					Sequence: currentSequence,
 					Round:    desiredRound,
@@ -124,7 +110,7 @@ func TestHandleMsg(t *testing.T) {
 				Msg:           p,
 				DestAddresses: []common.Address{{}},
 			}, b.address)
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 		}
 	})
 
@@ -142,26 +128,26 @@ func TestHandleMsg(t *testing.T) {
 			}
 			committedSeal, err := c.generateCommittedSeal(sub)
 			require.NoError(t, err)
-			m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+			m := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 				Subject:       sub,
 				CommittedSeal: committedSeal[:],
 			}, b.Address())
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 		}
 	})
 
-	checkErrMsgTypes := func(msgView *istanbul.View, c *core) {
+	checkErrMsgTypes := func(msgView *istanbul.View, b *testSystemBackend) {
 		m := istanbul.NewPreprepareMessage(&istanbul.Preprepare{
 			View:     msgView,
 			Proposal: block1,
 		}, b.address)
-		check(t, m, c, true)
+		checkErr(t, m, b)
 
 		m = istanbul.NewPrepareMessage(&istanbul.Subject{
 			View:   msgView,
 			Digest: block1.Hash(),
 		}, b.Address())
-		check(t, m, c, true)
+		checkErr(t, m, b)
 
 		sub := &istanbul.Subject{
 			View:   msgView,
@@ -173,12 +159,12 @@ func TestHandleMsg(t *testing.T) {
 			Subject:       sub,
 			CommittedSeal: committedSeal[:],
 		}, b.Address())
-		check(t, m, c, true)
+		checkErr(t, m, b)
 		m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 			View:                msgView,
 			PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 		}, b.Address())
-		check(t, m, c, true)
+		checkErr(t, m, b)
 	}
 
 	// Set the current sequence and round such that we can send old messages.
@@ -193,7 +179,7 @@ func TestHandleMsg(t *testing.T) {
 		}
 		for _, testState := range testStates {
 			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
-			checkErrMsgTypes(v, c)
+			checkErrMsgTypes(v, b)
 		}
 	})
 
@@ -204,7 +190,7 @@ func TestHandleMsg(t *testing.T) {
 		}
 		for _, testState := range testStates {
 			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
-			checkErrMsgTypes(v, c)
+			checkErrMsgTypes(v, b)
 		}
 	})
 
@@ -215,7 +201,7 @@ func TestHandleMsg(t *testing.T) {
 		}
 		for _, testState := range testStates {
 			c.current.(*rsSaveDecorator).rs.(*roundStateImpl).state = testState
-			checkErrMsgTypes(v, c)
+			checkErrMsgTypes(v, b)
 		}
 	})
 
@@ -233,13 +219,13 @@ func TestHandleMsg(t *testing.T) {
 				View:     v,
 				Proposal: block1,
 			}, b.address)
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 
 			m = istanbul.NewPrepareMessage(&istanbul.Subject{
 				View:   v,
 				Digest: block1.Hash(),
 			}, b.Address())
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 
 			sub := &istanbul.Subject{
 				View:   v,
@@ -251,13 +237,13 @@ func TestHandleMsg(t *testing.T) {
 				Subject:       sub,
 				CommittedSeal: committedSeal[:],
 			}, b.Address())
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 
 			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 				View:                v,
 				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 			}, b.Address())
-			checkNoErr(t, m, c)
+			checkNoErr(t, m, b)
 		}
 	})
 
@@ -300,7 +286,7 @@ func TestHandleMsg(t *testing.T) {
 				View:   currentView,
 				Digest: block1.Hash(),
 			}, b.Address())
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 
 			sub := &istanbul.Subject{
 				View:   currentView,
@@ -312,13 +298,13 @@ func TestHandleMsg(t *testing.T) {
 				Subject:       sub,
 				CommittedSeal: committedSeal[:],
 			}, b.Address())
-			checkErr(t, m, c)
+			checkErr(t, m, b)
 
 			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 				View:                currentView,
 				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 			}, b.Address())
-			checkNoErr(t, m, c)
+			checkNoErr(t, m, b)
 		}
 	})
 
@@ -330,18 +316,13 @@ func TestHandleMsg(t *testing.T) {
 				View:     currentView,
 				Proposal: block1,
 			}, b.address)
-			err := m.Sign(b.Sign)
-			require.NoError(t, err)
-			payload, err := m.Payload()
-			require.NoError(t, err)
-			err = c.handleMsg(payload)
-			require.NoError(t, err)
+			checkNoErr(t, m, b)
 
 			m = istanbul.NewPrepareMessage(&istanbul.Subject{
 				View:   currentView,
 				Digest: block1.Hash(),
 			}, b.Address())
-			checkNoErr(t, m, c)
+			checkNoErr(t, m, b)
 
 			sub := &istanbul.Subject{
 				View:   currentView,
@@ -353,13 +334,13 @@ func TestHandleMsg(t *testing.T) {
 				Subject:       sub,
 				CommittedSeal: committedSeal[:],
 			}, b.Address())
-			checkNoErr(t, m, c)
+			checkNoErr(t, m, b)
 
 			m = istanbul.NewRoundChangeMessage(&istanbul.RoundChange{
 				View:                currentView,
 				PreparedCertificate: istanbul.EmptyPreparedCertificate(),
 			}, b.Address())
-			checkNoErr(t, m, c)
+			checkNoErr(t, m, b)
 		}
 	})
 
@@ -403,11 +384,11 @@ func TestHandleMsg(t *testing.T) {
 		}
 		committedSeal, err := c.generateCommittedSeal(sub)
 		require.NoError(t, err)
-		m = istanbul.NewCommitMessage(&istanbul.CommittedSubject{
+		m := istanbul.NewCommitMessage(&istanbul.CommittedSubject{
 			Subject:       sub,
 			CommittedSeal: committedSeal[:],
 		}, b.Address())
-		checkNoErr(t, m, c)
+		checkNoErr(t, m, b)
 	})
 
 }
@@ -425,14 +406,7 @@ func TestHandleMsgExtraPreprepareValidation(t *testing.T) {
 			View:     c.current.View(),
 			Proposal: makeBlock(c.current.Sequence().Int64() + 2),
 		}, b.address)
-
-		spew.Dump(m.Preprepare())
-		err := m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 
 	t.Run("Proposals from non-proposer rejected", func(t *testing.T) {
@@ -440,14 +414,7 @@ func TestHandleMsgExtraPreprepareValidation(t *testing.T) {
 			View:     c.current.View(),
 			Proposal: makeBlock(c.current.Sequence().Int64()),
 		}, sys.backends[1].address)
-
-		spew.Dump(m.Preprepare())
-		err := m.Sign(sys.backends[1].Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 }
 
@@ -470,13 +437,7 @@ func TestHandleMsgExtraPrepareValidation(t *testing.T) {
 			View:   c.current.View(),
 			Digest: common.Hash{},
 		}, b.address)
-		spew.Dump(m.Preprepare())
-		err := m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 
 }
@@ -508,12 +469,7 @@ func TestHandleMsgExtraCommitValidation(t *testing.T) {
 			Subject:       sub,
 			CommittedSeal: committedSeal[:],
 		}, b.Address())
-		err = m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 
 	t.Run("Invalid committed seal", func(t *testing.T) {
@@ -528,12 +484,7 @@ func TestHandleMsgExtraCommitValidation(t *testing.T) {
 			Subject:       sub,
 			CommittedSeal: append(committedSeal[:], 1),
 		}, b.Address())
-		err = m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 
 	t.Run("Invalid epoch seal", func(t *testing.T) {
@@ -560,12 +511,7 @@ func TestHandleMsgExtraCommitValidation(t *testing.T) {
 			Subject:       sub,
 			CommittedSeal: committedSeal[:],
 		}, b.Address())
-		err = m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 }
 
@@ -590,12 +536,7 @@ func TestHandleMsgExtraRoundChangeValidation(t *testing.T) {
 			},
 			PreparedCertificate: pc,
 		}, b.Address())
-		err := m.Sign(b.Sign)
-		require.NoError(t, err)
-		payload, err := m.Payload()
-		require.NoError(t, err)
-		err = c.handleMsg(payload)
-		require.Error(t, err)
+		checkErr(t, m, b)
 	})
 }
 
