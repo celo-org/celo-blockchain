@@ -26,12 +26,12 @@ func CheckTxFee(cp currency.Provider, feeCurrencyAddress *common.Address, fee *b
 	}
 	if feeCurrency.CmpToCurrency(fee, weiCap, &currency.CELOCurrency) > 0 {
 		feeFloat := float64(fee.Uint64())
-		curr := "celo"
+		feeFloat /= params.Ether
 		if feeCurrencyAddress != nil {
-			feeFloat /= params.Ether
-			curr = feeCurrencyAddress.Hex()
+			return fmt.Errorf("tx fee (%.2f of currency address '%s') exceeds the configured cap (%.2f celo)", feeFloat, feeCurrencyAddress.Hex(), cap)
+		} else {
+			return fmt.Errorf("tx fee (%.2f of currency celo) exceeds the configured cap (%.2f celo)", feeFloat, cap)
 		}
-		return fmt.Errorf("tx fee (%.2f at address '%s') exceeds the configured cap (%.2f celo)", feeFloat, curr, cap)
 	}
 	return nil
 }
