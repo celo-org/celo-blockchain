@@ -21,7 +21,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/node"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -36,10 +36,18 @@ var ShowDeprecated = cli.Command{
 }
 
 var DeprecatedFlags = []cli.Flag{
+	LegacyTestnetFlag,
 	LegacyLightServFlag,
 	LegacyLightPeersFlag,
 	LegacyMinerExtraDataFlag,
 	LegacyMinerGasPriceFlag,
+	EtherbaseFlag,
+	LegacyProxyEnodeURLPairsFlag,
+	LegacyIstanbulRequestTimeoutFlag,
+	LegacyIstanbulBlockPeriodFlag,
+	LegacyIstanbulProposerPolicyFlag,
+	LegacyIstanbulLookbackWindowFlag,
+	LegacyEthStatsURLFlag,
 }
 
 var (
@@ -53,12 +61,18 @@ var (
 	LegacyLightServFlag = cli.IntFlag{
 		Name:  "lightserv",
 		Usage: "Maximum percentage of time allowed for serving LES requests (deprecated, use --light.serve)",
-		Value: eth.DefaultConfig.LightServ,
+		Value: ethconfig.Defaults.LightServ,
 	}
 	LegacyLightPeersFlag = cli.IntFlag{
 		Name:  "lightpeers",
 		Usage: "Maximum number of light clients to serve, or light servers to attach to  (deprecated, use --light.maxpeers)",
-		Value: eth.DefaultConfig.LightPeers,
+		Value: ethconfig.Defaults.LightPeers,
+	}
+
+	// (Deprecated April 2020)
+	LegacyTestnetFlag = cli.BoolFlag{ // TODO(q9f): Remove after Ropsten is discontinued.
+		Name:  "testnet",
+		Usage: "Pre-configured test network (Deprecated: Please choose one of --goerli, --rinkeby, or --ropsten.)",
 	}
 
 	// (Deprecated May 2020, shown in aliased flags section)
@@ -128,6 +142,7 @@ var (
 		Usage: "Public address for block mining rewards (deprecated, use --etherbase or both --tx-fee-recipient and --miner.validator)",
 		Value: "0",
 	}
+
 	LegacyIstanbulRequestTimeoutFlag = cli.Uint64Flag{
 		Name:  "istanbul.requesttimeout",
 		Usage: "Timeout for each Istanbul round in milliseconds (deprecated, value obtained from genesis config)",
@@ -147,16 +162,6 @@ var (
 		Name:  "istanbul.lookbackwindow",
 		Usage: "A validator's signature must be absent for this many consecutive blocks to be considered down for the uptime score  (deprecated, value obtained from genesis config)",
 		Value: 0,
-	}
-	LegacyBootnodesV4Flag = cli.StringFlag{
-		Name:  "bootnodesv4",
-		Usage: "Comma separated enode URLs for P2P v4 discovery bootstrap (light server, full nodes) (deprecated, use --bootnodes)",
-		Value: "",
-	}
-	LegacyBootnodesV5Flag = cli.StringFlag{
-		Name:  "bootnodesv5",
-		Usage: "Comma separated enode URLs for P2P v5 discovery bootstrap (light server, light nodes) (deprecated, use --bootnodes)",
-		Value: "",
 	}
 
 	// Deprecated in celo-blockchain 1.4.0
@@ -184,8 +189,8 @@ func showDeprecated(*cli.Context) {
 	fmt.Println("The following flags are deprecated and will be removed in the future!")
 	fmt.Println("--------------------------------------------------------------------")
 	fmt.Println()
-
 	for _, flag := range DeprecatedFlags {
 		fmt.Println(flag.String())
 	}
+	fmt.Println()
 }

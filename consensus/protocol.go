@@ -49,7 +49,7 @@ type Peer interface {
 	// Node returns the peer's enode
 	Node() *enode.Node
 	// Version returns the peer's version
-	Version() int
+	Version() uint
 	// Blocks until a message is read directly from the peer.
 	// This should only be used during a handshake.
 	ReadMsg() (p2p.Msg, error)

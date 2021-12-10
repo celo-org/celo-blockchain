@@ -32,6 +32,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/eth"
 	"github.com/celo-org/celo-blockchain/eth/downloader"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/node"
@@ -491,13 +492,13 @@ func testSim(t *testing.T, serverCount, clientCount int, serverDir, clientDir []
 }
 
 func newLesClientService(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-	config := eth.DefaultConfig
+	config := ethconfig.Defaults
 	config.SyncMode = downloader.LightSync
 	return New(stack, &config)
 }
 
 func newLesServerService(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-	config := eth.DefaultConfig
+	config := ethconfig.Defaults
 	config.SyncMode = downloader.FullSync
 	config.LightServ = testServerCapacity
 	config.LightPeers = testMaxClients

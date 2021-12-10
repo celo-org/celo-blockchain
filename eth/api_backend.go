@@ -43,8 +43,9 @@ import (
 
 // EthAPIBackend implements ethapi.Backend for full nodes
 type EthAPIBackend struct {
-	extRPCEnabled bool
-	eth           *Ethereum
+	extRPCEnabled       bool
+	allowUnprotectedTxs bool
+	eth                 *Ethereum
 }
 
 // ChainConfig returns the active chain configuration.
@@ -57,7 +58,7 @@ func (b *EthAPIBackend) CurrentBlock() *types.Block {
 }
 
 func (b *EthAPIBackend) SetHead(number uint64) {
-	b.eth.protocolManager.downloader.Cancel()
+	b.eth.handler.downloader.Cancel()
 	b.eth.blockchain.SetHead(number)
 }
 
@@ -133,6 +134,10 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 	return nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
+func (b *EthAPIBackend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return b.eth.miner.PendingBlockAndReceipts()
+}
+
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	// Pending state is only known by the miner
 	if number == rpc.PendingBlockNumber {
@@ -192,12 +197,14 @@ func (b *EthAPIBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(hash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
-
+	if vmConfig == nil {
+		vmConfig = b.eth.blockchain.GetVMConfig()
+	}
 	txContext := core.NewEVMTxContext(msg)
 	context := core.NewEVMBlockContext(header, b.eth.BlockChain(), nil)
-	return vm.NewEVM(context, txContext, state, b.eth.blockchain.Config(), *b.eth.blockchain.GetVMConfig()), vmError, nil
+	return vm.NewEVM(context, txContext, state, b.eth.blockchain.Config(), *vmConfig), vmError, nil
 }
 
 func (b *EthAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
@@ -229,7 +236,7 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 }
 
 func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {
-	pending, err := b.eth.txPool.Pending()
+	pending, err := b.eth.txPool.Pending(false)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +268,10 @@ func (b *EthAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, 
 	return b.eth.TxPool().Content()
 }
 
+func (b *EthAPIBackend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+	return b.eth.TxPool().ContentFrom(addr)
+}
+
 func (b *EthAPIBackend) TxPool() *core.TxPool {
 	return b.eth.TxPool()
 }
@@ -273,8 +284,33 @@ func (b *EthAPIBackend) Downloader() *downloader.Downloader {
 	return b.eth.Downloader()
 }
 
-func (b *EthAPIBackend) ProtocolVersion() int {
-	return b.eth.EthVersion()
+func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasTipCapSuggestion(vmRunner, currencyAddress)
+}
+
+func (b *EthAPIBackend) CurrentGasPriceMinimum(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
+	vmRunner, err := b.eth.BlockChain().NewEVMRunnerForCurrentBlock()
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
+}
+
+func (b *EthAPIBackend) GasPriceMinimumForHeader(ctx context.Context, currencyAddress *common.Address, header *types.Header) (*big.Int, error) {
+	state, err := b.eth.blockchain.StateAt(header.Root)
+	if err != nil {
+		return nil, err
+	}
+	vmRunner := b.eth.BlockChain().NewEVMRunner(header, state)
+
+	if err != nil {
+		return nil, err
+	}
+	return gpm.GetGasPriceMinimum(vmRunner, currencyAddress)
 }
 
 func (b *EthAPIBackend) SuggestPrice(ctx context.Context, currencyAddress *common.Address) (*big.Int, error) {
@@ -325,6 +361,10 @@ func (b *EthAPIBackend) ExtRPCEnabled() bool {
 	return b.extRPCEnabled
 }
 
+func (b *EthAPIBackend) UnprotectedAllowed() bool {
+	return b.allowUnprotectedTxs
+}
+
 func (b *EthAPIBackend) RPCGasCap() uint64 {
 	return b.eth.config.RPCGasCap
 }
@@ -366,4 +406,16 @@ func (b *EthAPIBackend) Miner() *miner.Miner {
 
 func (b *EthAPIBackend) StartMining() error {
 	return b.eth.StartMining()
+}
+
+func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool) (*state.StateDB, error) {
+	return b.eth.stateAtBlock(block, reexec, base, checkLive)
+}
+
+func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, vm.EVMRunner, *state.StateDB, error) {
+	return b.eth.stateAtTransaction(block, txIndex, reexec)
+}
+
+func (b *EthAPIBackend) VmRunnerAtHeader(header *types.Header, state *state.StateDB) vm.EVMRunner {
+	return b.eth.blockchain.NewEVMRunner(header, state)
 }

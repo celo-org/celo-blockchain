@@ -24,6 +24,7 @@ import (
 	"github.com/celo-org/celo-blockchain/common/hexutil"
 	"github.com/celo-org/celo-blockchain/crypto"
 	"github.com/celo-org/celo-blockchain/internal/debug"
+	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/p2p"
 	"github.com/celo-org/celo-blockchain/p2p/discover"
 	"github.com/celo-org/celo-blockchain/p2p/enode"
@@ -163,8 +164,8 @@ func (api *privateAdminAPI) PeerEvents(ctx context.Context) (*rpc.Subscription, 
 	return rpcSub, nil
 }
 
-// StartRPC starts the HTTP RPC API server.
-func (api *privateAdminAPI) StartRPC(host *string, port *int, cors *string, apis *string, vhosts *string) (bool, error) {
+// StartHTTP starts the HTTP RPC API server.
+func (api *privateAdminAPI) StartHTTP(host *string, port *int, cors *string, apis *string, vhosts *string) (bool, error) {
 	api.node.lock.Lock()
 	defer api.node.lock.Unlock()
 
@@ -217,10 +218,24 @@ func (api *privateAdminAPI) StartRPC(host *string, port *int, cors *string, apis
 	return true, nil
 }
 
-// StopRPC shuts down the HTTP server.
-func (api *privateAdminAPI) StopRPC() (bool, error) {
+// StartRPC starts the HTTP RPC API server.
+// This method is deprecated. Use StartHTTP instead.
+func (api *privateAdminAPI) StartRPC(host *string, port *int, cors *string, apis *string, vhosts *string) (bool, error) {
+	log.Warn("Deprecation warning", "method", "admin.StartRPC", "use-instead", "admin.StartHTTP")
+	return api.StartHTTP(host, port, cors, apis, vhosts)
+}
+
+// StopHTTP shuts down the HTTP server.
+func (api *privateAdminAPI) StopHTTP() (bool, error) {
 	api.node.http.stop()
 	return true, nil
+}
+
+// StopRPC shuts down the HTTP server.
+// This method is deprecated. Use StopHTTP instead.
+func (api *privateAdminAPI) StopRPC() (bool, error) {
+	log.Warn("Deprecation warning", "method", "admin.StopRPC", "use-instead", "admin.StopHTTP")
+	return api.StopHTTP()
 }
 
 // StartWS starts the websocket RPC API server.

@@ -36,9 +36,11 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			configFileFlag,
 			utils.DataDirFlag,
 			utils.AncientFlag,
+			utils.MinFreeDiskSpaceFlag,
 			utils.KeyStoreDirFlag,
-			utils.NoUSBFlag,
+			utils.USBFlag,
 			utils.NetworkIdFlag,
+			utils.MainnetFlag,
 			utils.BaklavaFlag,
 			utils.AlfajoresFlag,
 			utils.SyncModeFlag,
@@ -64,6 +66,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.UltraLightFractionFlag,
 			utils.UltraLightOnlyAnnounceFlag,
 			utils.LightNoPruneFlag,
+			utils.LightNoSyncServeFlag,
 		},
 	},
 	{
@@ -121,12 +124,14 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.HTTPListenAddrFlag,
 			utils.HTTPPortFlag,
 			utils.HTTPApiFlag,
+			utils.HTTPPathPrefixFlag,
 			utils.HTTPCORSDomainFlag,
 			utils.HTTPVirtualHostsFlag,
 			utils.WSEnabledFlag,
 			utils.WSListenAddrFlag,
 			utils.WSPortFlag,
 			utils.WSApiFlag,
+			utils.WSPathPrefixFlag,
 			utils.WSAllowedOriginsFlag,
 			utils.GraphQLEnabledFlag,
 			utils.GraphQLCORSDomainFlag,
@@ -142,8 +147,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Name: "NETWORKING",
 		Flags: []cli.Flag{
 			utils.BootnodesFlag,
-			utils.LegacyBootnodesV4Flag,
-			utils.LegacyBootnodesV5Flag,
 			utils.DNSDiscoveryFlag,
 			utils.ListenPortFlag,
 			utils.MaxPeersFlag,
@@ -170,8 +173,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Name: "VIRTUAL MACHINE",
 		Flags: []cli.Flag{
 			utils.VMEnableDebugFlag,
-			utils.EVMInterpreterFlag,
-			utils.EWASMInterpreterFlag,
 		},
 	},
 	{
@@ -183,10 +184,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 	{
 		Name:  "METRICS AND STATS",
 		Flags: metricsFlags,
-	},
-	{
-		Name:  "WHISPER (deprecated)",
-		Flags: whisperFlags,
 	},
 	{
 		Name: "ISTANBUL",
@@ -213,8 +210,8 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
-		Name: "DEPRECATED",
-		Flags: append([]cli.Flag{
+		Name: "ALIASED (deprecated)",
+		Flags: []cli.Flag{
 			utils.EtherbaseFlag,
 			utils.LegacyMinerGasPriceFlag,
 			utils.LegacyProxyEnodeURLPairsFlag,
@@ -223,6 +220,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.LegacyIstanbulProposerPolicyFlag,
 			utils.LegacyIstanbulLookbackWindowFlag,
 			utils.LegacyEthStatsURLFlag,
+			utils.NoUSBFlag,
 			utils.LegacyRPCEnabledFlag,
 			utils.LegacyRPCListenAddrFlag,
 			utils.LegacyRPCPortFlag,
@@ -235,13 +233,14 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.LegacyWSApiFlag,
 			utils.LegacyGraphQLListenAddrFlag,
 			utils.LegacyGraphQLPortFlag,
-		}, debug.DeprecatedFlags...),
+		},
 	},
 	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.VersionCheckFlag,
 			utils.SnapshotFlag,
+			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
 		},
 	},

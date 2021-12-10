@@ -39,7 +39,6 @@ executors:
       # b16a2d472a7cf24858f9d8b33a7185c8b81a261a is the current commit on master as of August 25, 2021, and
       # includes contracts release 5 (core-contracts.v5)
       CELO_MONOREPO_COMMIT_OR_BRANCH: b16a2d472a7cf24858f9d8b33a7185c8b81a261a
-
       GITHUB_RSA_FINGERPRINT: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
 # Unfortunately we cannot use anchors to represent a set of standard steps and
 # then add or override one or more of those steps when referencing the anchor.
@@ -251,7 +250,7 @@ jobs:
           command: |
             mkdir -p /tmp/test-results
             go run build/ci.go ensure-linter
-            ./build/cache/golangci-lint-1.25.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
+            ./build/cache/golangci-lint-1.39.0-linux-amd64/golangci-lint run --config .golangci.yml --out-format junit-xml ./... | tee /tmp/test-results/go-lint-report.xml
       - store_artifacts:
           path: /tmp/test-results
           destination: raw-test-output
@@ -268,7 +267,7 @@ jobs:
 
   android:
     docker:
-      - image: celohq/circleci:android-v2
+      - image: us.gcr.io/celo-testnet/android:v3
     working_directory: ~/repos/geth
     steps:
       - checkout
@@ -282,7 +281,7 @@ jobs:
 
   ios:
     macos:
-      xcode: "11.3.1"
+      xcode: "12.5.1"
     working_directory: ~/repos/geth
     steps:
       - checkout

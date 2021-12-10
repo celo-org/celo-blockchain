@@ -90,9 +90,10 @@ type worker struct {
 	txFeeRecipient common.Address
 	extra          []byte
 
-	snapshotMu    sync.RWMutex // The lock used to protect the block snapshot and state snapshot
-	snapshotBlock *types.Block
-	snapshotState *state.StateDB
+	snapshotMu       sync.RWMutex // The lock used to protect the snapshots below
+	snapshotBlock    *types.Block
+	snapshotReceipts types.Receipts
+	snapshotState    *state.StateDB
 
 	// atomic status counters
 	running int32 // The indicator whether the consensus engine is running or not.
@@ -173,6 +174,14 @@ func (w *worker) pendingBlock() *types.Block {
 	return w.snapshotBlock
 }
 
+// pendingBlockAndReceipts returns pending block and corresponding receipts.
+func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	// return a snapshot to avoid contention on currentMu mutex
+	w.snapshotMu.RLock()
+	defer w.snapshotMu.RUnlock()
+	return w.snapshotBlock, w.snapshotReceipts
+}
+
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
 	atomic.StoreInt32(&w.running, 1)
@@ -236,6 +245,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -277,8 +291,8 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 			w.fullTaskHook()
 		}
 		w.submitTaskToEngine(&task{receipts: b.receipts, state: b.state, block: block, createdAt: time.Now()})
-
-		feesCelo := totalFees(block, b.receipts)
+		baseFeeFn, toCELO := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+		feesCelo := totalFees(block, b.receipts, baseFeeFn, toCELO, w.chainConfig.IsEspresso(b.header.Number))
 		log.Info("Commit new mining work", "number", block.Number(), "txs", b.tcount, "gas", block.GasUsed(),
 			"fees", feesCelo, "elapsed", common.PrettyDuration(time.Since(start)))
 
@@ -290,6 +304,11 @@ func (w *worker) constructAndSubmitNewBlock(ctx context.Context) {
 func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core.NewTxsEvent) {
 	// Initialize the block.
 	b, err := prepareBlock(w)
+	defer func() {
+		if b != nil {
+			b.close()
+		}
+	}()
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
 		return
@@ -328,7 +347,8 @@ func (w *worker) constructPendingStateBlock(ctx context.Context, txsCh chan core
 					txs[acc] = append(txs[acc], tx)
 				}
 
-				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, createTxCmp(w.chain, b.header, b.state))
+				baseFeeFn, toCElOFn := createConversionFunctions(b.sysCtx, w.chain, b.header, b.state)
+				txset := types.NewTransactionsByPriceAndNonce(b.signer, txs, baseFeeFn, toCElOFn)
 				tcount := b.tcount
 				b.commitTransactions(ctx, w, txset, txFeeRecipient)
 				// Only update the snapshot if any new transactons were added
@@ -423,11 +443,9 @@ func (w *worker) submitTaskToEngine(task *task) {
 	if w.newTaskHook != nil {
 		w.newTaskHook(task)
 	}
-
 	if w.skipSealHook != nil && w.skipSealHook(task) {
 		return
 	}
-
 	if err := w.engine.Seal(w.chain, task.block); err != nil {
 		log.Warn("Block sealing failed", "err", err)
 	}
@@ -443,8 +461,8 @@ func (w *worker) updatePendingBlock(b *blockState) {
 		b.txs,
 		b.receipts,
 		b.randomness,
-		new(trie.Trie),
+		trie.NewStackTrie(nil),
 	)
-
 	w.snapshotState = b.state.Copy()
+
 }

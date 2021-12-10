@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/celo-org/celo-blockchain/common/mclock"
-	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/ethdb"
 	"github.com/celo-org/celo-blockchain/les/flowcontrol"
 	"github.com/celo-org/celo-blockchain/log"
@@ -141,7 +141,7 @@ type costTracker struct {
 
 // newCostTracker creates a cost tracker and loads the cost factor statistics from the database.
 // It also returns the minimum capacity that can be assigned to any peer.
-func newCostTracker(db ethdb.Database, config *eth.Config) (*costTracker, uint64) {
+func newCostTracker(db ethdb.Database, config *ethconfig.Config) (*costTracker, uint64) {
 	utilTarget := float64(config.LightServ) * flowcontrol.FixedPointMultiplier / 100
 	ct := &costTracker{
 		db:         db,

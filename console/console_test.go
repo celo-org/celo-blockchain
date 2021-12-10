@@ -30,6 +30,7 @@ import (
 	"github.com/celo-org/celo-blockchain/console/prompt"
 	"github.com/celo-org/celo-blockchain/core"
 	"github.com/celo-org/celo-blockchain/eth"
+	"github.com/celo-org/celo-blockchain/eth/ethconfig"
 	"github.com/celo-org/celo-blockchain/internal/jsre"
 	"github.com/celo-org/celo-blockchain/miner"
 	"github.com/celo-org/celo-blockchain/node"
@@ -84,7 +85,7 @@ type tester struct {
 
 // newTester creates a test environment based on which the console can operate.
 // Please ensure you call Close() on the returned tester to avoid leaks.
-func newTester(t *testing.T, confOverride func(*eth.Config)) *tester {
+func newTester(t *testing.T, confOverride func(*ethconfig.Config)) *tester {
 	// Create a temporary storage for the node keys and initialize it
 	workspace, err := ioutil.TempDir("", "console-tester-")
 	if err != nil {

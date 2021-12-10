@@ -22,7 +22,7 @@ import (
 	"math/big"
 
 	"github.com/celo-org/celo-blockchain/common"
-	"github.com/celo-org/celo-blockchain/crypto"
+	"golang.org/x/crypto/sha3"
 )
 
 // Genesis hashes to enforce below configs on.
@@ -64,7 +64,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(6774000),
 		DonutBlock:          big.NewInt(6774000),
-		EBlock:              nil,
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -89,7 +89,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(2719099),
 		DonutBlock:          big.NewInt(5002000),
-		EBlock:              nil,
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -114,7 +114,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		ChurritoBlock:       big.NewInt(4960000),
 		DonutBlock:          big.NewInt(4960000),
-		EBlock:              nil,
+		EspressoBlock:       nil,
 		Istanbul: &IstanbulConfig{
 			Epoch:          17280,
 			ProposerPolicy: 2,
@@ -132,6 +132,13 @@ var (
 	}, true, false}
 
 	IstanbulTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, nil, &IstanbulConfig{
+		Epoch:          300,
+		ProposerPolicy: 0,
+		RequestTimeout: 1000,
+		BlockPeriod:    1,
+	}, true, false}
+
+	IstanbulEHFTestChainConfig = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), big.NewInt(0), big.NewInt(0), &IstanbulConfig{
 		Epoch:          300,
 		ProposerPolicy: 0,
 		RequestTimeout: 1000,
@@ -166,12 +173,18 @@ func (c *TrustedCheckpoint) HashEqual(hash common.Hash) bool {
 
 // Hash returns the hash of checkpoint's four key fields(index, sectionHead, chtRoot and bloomTrieRoot).
 func (c *TrustedCheckpoint) Hash() common.Hash {
-	buf := make([]byte, 8+3*common.HashLength)
-	binary.BigEndian.PutUint64(buf, c.SectionIndex)
-	copy(buf[8:], c.SectionHead.Bytes())
-	copy(buf[8+common.HashLength:], c.CHTRoot.Bytes())
-	copy(buf[8+2*common.HashLength:], c.BloomRoot.Bytes())
-	return crypto.Keccak256Hash(buf)
+	var sectionIndex [8]byte
+	binary.BigEndian.PutUint64(sectionIndex[:], c.SectionIndex)
+
+	w := sha3.NewLegacyKeccak256()
+	w.Write(sectionIndex[:])
+	w.Write(c.SectionHead[:])
+	w.Write(c.CHTRoot[:])
+	w.Write(c.BloomRoot[:])
+
+	var h common.Hash
+	w.Sum(h[:0])
+	return h
 }
 
 // Empty returns an indicator whether the checkpoint is regarded as empty.
@@ -216,10 +229,9 @@ type ChainConfig struct {
 	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
 	ChurritoBlock       *big.Int `json:"churritoBlock,omitempty"`       // Churrito switch block (nil = no fork, 0 = already activated)
 	DonutBlock          *big.Int `json:"donutBlock,omitempty"`          // Donut switch block (nil = no fork, 0 = already activated)
-	EBlock              *big.Int `json:"dBlock,omitempty"`              // E switch block (nil = no fork, 0 = already activated)
+	EspressoBlock       *big.Int `json:"espressoBlock,omitempty"`       // Espresso switch block (nil = no fork, 0 = already activated)
 
 	Istanbul *IstanbulConfig `json:"istanbul,omitempty"`
-
 	// This does not belong here but passing it to every function is not possible since that breaks
 	// some implemented interfaces and introduces churn across the geth codebase.
 	FullHeaderChainAvailable bool // False for lightest Sync mode, true otherwise
@@ -259,7 +271,7 @@ func (c *ChainConfig) String() string {
 	} else {
 		engine = "MockEngine"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, EHardfork: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v Churrito: %v, Donut: %v, Espresso: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -273,7 +285,7 @@ func (c *ChainConfig) String() string {
 		c.IstanbulBlock,
 		c.ChurritoBlock,
 		c.DonutBlock,
-		c.EBlock,
+		c.EspressoBlock,
 		engine,
 	)
 }
@@ -340,9 +352,9 @@ func (c *ChainConfig) IsDonut(num *big.Int) bool {
 	return isForked(c.DonutBlock, num)
 }
 
-// IsEHardfork returns whether num represents a block number after the E fork
-func (c *ChainConfig) IsEHardfork(num *big.Int) bool {
-	return isForked(c.EBlock, num)
+// IsEspresso returns whether num represents a block number after the E fork
+func (c *ChainConfig) IsEspresso(num *big.Int) bool {
+	return isForked(c.EspressoBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -383,7 +395,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "istanbulBlock", block: c.IstanbulBlock},
 		{name: "churritoBlock", block: c.ChurritoBlock},
 		{name: "donutBlock", block: c.DonutBlock},
-		{name: "eBlock", block: c.EBlock},
+		{name: "espressoBlock", block: c.EspressoBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -453,8 +465,8 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.DonutBlock, newcfg.DonutBlock, head) {
 		return newCompatError("Donut fork block", c.DonutBlock, newcfg.DonutBlock)
 	}
-	if isForkIncompatible(c.EBlock, newcfg.EBlock, head) {
-		return newCompatError("E fork block", c.EBlock, newcfg.EBlock)
+	if isForkIncompatible(c.EspressoBlock, newcfg.EspressoBlock, head) {
+		return newCompatError("E fork block", c.EspressoBlock, newcfg.EspressoBlock)
 	}
 	return nil
 }
@@ -523,7 +535,7 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	IsChurrito, IsDonut, IsEHardfork                        bool
+	IsChurrito, IsDonut, IsEspresso                         bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -544,6 +556,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIstanbul:       c.IsIstanbul(num),
 		IsChurrito:       c.IsChurrito(num),
 		IsDonut:          c.IsDonut(num),
-		IsEHardfork:      c.IsEHardfork(num),
+		IsEspresso:       c.IsEspresso(num),
 	}
 }

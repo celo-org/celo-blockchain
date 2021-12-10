@@ -227,6 +227,11 @@ func (miner *Miner) SetTxFeeRecipient(addr common.Address) {
 	miner.worker.setTxFeeRecipient(addr)
 }
 
+// PendingBlockAndReceipts returns the currently pending block and corresponding receipts.
+func (miner *Miner) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return miner.worker.pendingBlockAndReceipts()
+}
+
 // SubscribePendingLogs starts delivering logs from pending transactions
 // to the given channel.
 func (miner *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscription {

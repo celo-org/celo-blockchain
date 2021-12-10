@@ -724,7 +724,7 @@ func (c *core) getRoundChangeTimeout() time.Duration {
 	if round == 0 {
 		return baseTimeout + blockTime
 	} else {
-		if c.backend.ChainConfig().IsEHardfork(c.current.Sequence()) {
+		if c.backend.ChainConfig().IsEspresso(c.current.Sequence()) {
 			return baseTimeout + blockTime + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond
 		} else {
 			return baseTimeout + time.Duration(math.Pow(2, float64(round)))*time.Duration(c.config.TimeoutBackoffFactor)*time.Millisecond

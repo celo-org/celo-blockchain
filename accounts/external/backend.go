@@ -31,7 +31,7 @@ import (
 	"github.com/celo-org/celo-blockchain/event"
 	"github.com/celo-org/celo-blockchain/log"
 	"github.com/celo-org/celo-blockchain/rpc"
-	"github.com/celo-org/celo-blockchain/signer/core"
+	"github.com/celo-org/celo-blockchain/signer/core/apitypes"
 )
 
 type ExternalBackend struct {
@@ -208,14 +208,36 @@ func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transactio
 		t := common.NewMixedcaseAddress(*tx.To())
 		to = &t
 	}
-	args := &core.SendTxArgs{
-		Data:     &data,
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		Value:    hexutil.Big(*tx.Value()),
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: hexutil.Big(*tx.GasPrice()),
-		To:       to,
-		From:     common.NewMixedcaseAddress(account.Address),
+	args := &apitypes.SendTxArgs{
+		Data:  &data,
+		Nonce: hexutil.Uint64(tx.Nonce()),
+		Value: hexutil.Big(*tx.Value()),
+		Gas:   hexutil.Uint64(tx.Gas()),
+		To:    to,
+		From:  common.NewMixedcaseAddress(account.Address),
+	}
+	switch tx.Type() {
+	case types.LegacyTxType, types.AccessListTxType:
+		args.GasPrice = (*hexutil.Big)(tx.GasPrice())
+	case types.DynamicFeeTxType, types.CeloDynamicFeeTxType:
+		args.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap())
+		args.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap())
+	default:
+		return nil, fmt.Errorf("Unsupported tx type %d", tx.Type())
+	}
+	// We should request the default chain id that we're operating with
+	// (the chain we're executing on)
+	if chainID != nil {
+		args.ChainID = (*hexutil.Big)(chainID)
+	}
+	if tx.Type() != types.LegacyTxType {
+		// However, if the user asked for a particular chain id, then we should
+		// use that instead.
+		if tx.ChainId() != nil {
+			args.ChainID = (*hexutil.Big)(tx.ChainId())
+		}
+		accessList := tx.AccessList()
+		args.AccessList = &accessList
 	}
 	var res signTransactionResult
 	if err := api.client.Call(&res, "account_signTransaction", args); err != nil {

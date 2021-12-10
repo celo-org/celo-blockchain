@@ -70,6 +70,10 @@ func (msg Msg) Discard() error {
 	return err
 }
 
+func (msg Msg) Time() time.Time {
+	return msg.ReceivedAt
+}
+
 type MsgReader interface {
 	ReadMsg() (Msg, error)
 }
@@ -225,6 +229,7 @@ func (p *MsgPipeRW) Close() error {
 // If content is nil, the payload is discarded and not verified.
 func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	msg, err := r.ReadMsg()
+	defer msg.Discard()
 	if err != nil {
 		return err
 	}
@@ -232,7 +237,7 @@ func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 		return fmt.Errorf("message code mismatch: got %d, expected %d", msg.Code, code)
 	}
 	if content == nil {
-		return msg.Discard()
+		return nil
 	}
 	contentEnc, err := rlp.EncodeToBytes(content)
 	if err != nil {
