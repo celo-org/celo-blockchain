@@ -49,6 +49,14 @@ type Currency struct {
 	toCELORate ExchangeRate
 }
 
+// NewCurrency creates a new currency object
+func NewCurrency(address common.Address, toCELORate ExchangeRate) *Currency {
+	return &Currency{
+		Address:    address,
+		toCELORate: toCELORate,
+	}
+}
+
 // ToCELO converts an currency's token amount to a CELO amount
 func (c *Currency) ToCELO(tokenAmount *big.Int) *big.Int {
 	return c.toCELORate.ToBase(tokenAmount)
@@ -127,6 +135,11 @@ type CurrencyManager struct {
 	_getExchangeRate func(vm.EVMRunner, *common.Address) (*ExchangeRate, error) // function to obtain exchange rate from blockchain state
 }
 
+type Provider interface {
+	// GetCurrency retrieves fee currency
+	GetCurrency(currencyAddress *common.Address) (*Currency, error)
+}
+
 // NewManager creates a new CurrencyManager
 func NewManager(vmRunner vm.EVMRunner) *CurrencyManager {
 	return newManager(GetExchangeRate, vmRunner)
@@ -156,10 +169,7 @@ func (cc *CurrencyManager) GetCurrency(currencyAddress *common.Address) (*Curren
 		return nil, err
 	}
 
-	val = &Currency{
-		Address:    *currencyAddress,
-		toCELORate: *currencyExchangeRate,
-	}
+	val = NewCurrency(*currencyAddress, *currencyExchangeRate)
 
 	cc.currencyCache[*currencyAddress] = val
 
