@@ -210,8 +210,11 @@ var (
 		Usage: `Enables snapshot-database mode (default = enable)`,
 	}
 	TxLookupLimitFlag = cli.Uint64Flag{
-		Name:  "txlookuplimit",
-		Usage: "Number of recent blocks to maintain transactions index for (default = about one year, 0 = entire chain)",
+		Name: "txlookuplimit",
+		Usage: `Number of recent blocks to maintain transactions index for (default = about 136 days, 0 = entire chain).
+	Blocks older than the txlookuplimit will have their transctions un-indexed. Transaction indexes take up roughly 1GB
+	per 5.5 Mil transactions, so if space is a concern this flag may be used to reduce the amount of space taken by
+	transction indexes. If not then this flag can be set to 0 which will disable transaction un-indexing`,
 		Value: ethconfig.Defaults.TxLookupLimit,
 	}
 	LightKDFFlag = cli.BoolFlag{
