@@ -139,6 +139,9 @@ type dialConfig struct {
 	log            log.Logger
 	clock          mclock.Clock
 	rand           *mrand.Rand
+
+	// The time waited before redialling a certain node
+	dialHistoryExpiration time.Duration
 }
 
 func (cfg dialConfig) withDefaults() dialConfig {
@@ -156,6 +159,9 @@ func (cfg dialConfig) withDefaults() dialConfig {
 		crand.Read(seedb)
 		seed := int64(binary.BigEndian.Uint64(seedb))
 		cfg.rand = mrand.New(mrand.NewSource(seed))
+	}
+	if cfg.dialHistoryExpiration == 0 {
+		cfg.dialHistoryExpiration = dialHistoryExpiration
 	}
 	return cfg
 }
@@ -456,7 +462,7 @@ func (d *dialScheduler) removeFromStaticPool(idx int) {
 func (d *dialScheduler) startDial(task *dialTask) {
 	d.log.Trace("Starting p2p dial", "id", task.dest.ID(), "ip", task.dest.IP(), "flag", task.flags)
 	hkey := string(task.dest.ID().Bytes())
-	d.history.add(hkey, d.clock.Now().Add(dialHistoryExpiration))
+	d.history.add(hkey, d.clock.Now().Add(d.dialHistoryExpiration))
 	d.dialing[task.dest.ID()] = task
 	go func() {
 		task.run(d)
